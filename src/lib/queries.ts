@@ -2,7 +2,52 @@
 // Use these from Server Components to render marketplace pages.
 
 import { createClient } from './supabase/server';
-import type { Trainer, Nutritionist, Gym } from './types';
+import type { Trainer, Nutritionist, Gym, Profile, SessionBooking } from './types';
+
+/**
+ * Returns the signed-in user and their profile row, or null if not signed in.
+ * Called from the /dashboard layout to gate routes and pick the right shell.
+ */
+export async function getCurrentUserAndProfile(): Promise<
+  { userId: string; email: string | null; profile: Profile | null } | null
+> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  return {
+    userId: user.id,
+    email: user.email ?? null,
+    profile: (profile as Profile | null) ?? null,
+  };
+}
+
+/**
+ * Upcoming + recent sessions for the signed-in user, in either role (client or
+ * provider). RLS on `sessions` already restricts this to rows the user is part
+ * of, so no extra filter is needed.
+ */
+export async function getMySessions(): Promise<SessionBooking[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('sessions')
+    .select('*')
+    .order('scheduled_at', { ascending: false })
+    .limit(50);
+  if (error) {
+    console.error('[shape-app] getMySessions error', error);
+    return [];
+  }
+  return (data ?? []) as SessionBooking[];
+}
 
 export async function getTrainers(): Promise<Trainer[]> {
   const supabase = await createClient();

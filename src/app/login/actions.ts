@@ -22,6 +22,8 @@ export async function signup(
 ): Promise<{ error: string } | { ok: true; needsConfirm: boolean }> {
   const email = String(formData.get('email') ?? '');
   const password = String(formData.get('password') ?? '');
+  const rawRole = String(formData.get('role') ?? 'client');
+  const role = ['client', 'trainer', 'nutritionist'].includes(rawRole) ? rawRole : 'client';
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
@@ -29,6 +31,7 @@ export async function signup(
     password,
     options: {
       emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'}/auth/callback`,
+      data: { role },
     },
   });
 

@@ -84,6 +84,34 @@ export type PlanSampleDay = {
   dinner: string | null;
 };
 
+export type ProfileRole = 'client' | 'trainer' | 'nutritionist';
+
+export type Profile = {
+  id: string;
+  role: ProfileRole;
+  roles: ProfileRole[];
+  full_name: string | null;
+  avatar_url: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SessionBooking = {
+  id: string;
+  client_id: string;
+  provider_id: string;
+  provider_role: 'trainer' | 'nutritionist';
+  type: 'video' | 'phone' | 'inperson' | 'message';
+  scheduled_at: string;
+  duration_min: number;
+  status: 'requested' | 'confirmed' | 'declined' | 'completed' | 'cancelled';
+  meeting_url: string | null;
+  client_phone: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Gym = {
   id: number;
   name: string;

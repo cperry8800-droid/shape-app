@@ -30,6 +30,32 @@ export default function SignupForm() {
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
+      <fieldset className="flex flex-col gap-2">
+        <legend className="text-xs uppercase tracking-wider text-neutral-400 mb-2">
+          I&rsquo;m joining as
+        </legend>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { v: 'client', l: 'Client' },
+            { v: 'trainer', l: 'Trainer' },
+            { v: 'nutritionist', l: 'Nutritionist' },
+          ].map((r, i) => (
+            <label
+              key={r.v}
+              className="relative flex items-center justify-center px-2 py-2.5 rounded-lg bg-neutral-950 border border-neutral-800 text-sm cursor-pointer hover:border-neutral-700 has-[:checked]:border-teal-400 has-[:checked]:text-teal-400 has-[:checked]:bg-teal-400/10 transition-colors"
+            >
+              <input
+                type="radio"
+                name="role"
+                value={r.v}
+                defaultChecked={i === 0}
+                className="sr-only"
+              />
+              {r.l}
+            </label>
+          ))}
+        </div>
+      </fieldset>
       <label className="flex flex-col gap-1.5">
         <span className="text-xs uppercase tracking-wider text-neutral-400">Email</span>
         <input

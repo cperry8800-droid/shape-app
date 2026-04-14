@@ -37,7 +37,13 @@ export default async function Nav() {
         <div className="flex items-center gap-3">
           {user ? (
             <>
-              <span className="text-sm text-neutral-400 hidden sm:inline truncate max-w-[180px]">
+              <Link
+                href="/dashboard"
+                className="text-sm text-neutral-400 hover:text-neutral-100 transition-colors hidden sm:inline"
+              >
+                Dashboard
+              </Link>
+              <span className="text-sm text-neutral-400 hidden md:inline truncate max-w-[180px]">
                 {user.email}
               </span>
               <form action={logout}>
