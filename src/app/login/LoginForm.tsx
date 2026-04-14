@@ -26,7 +26,12 @@ export default function LoginForm() {
         />
       </label>
       <label className="flex flex-col gap-1.5">
-        <span className="text-xs uppercase tracking-wider text-neutral-400">Password</span>
+        <div className="flex items-center justify-between">
+          <span className="text-xs uppercase tracking-wider text-neutral-400">Password</span>
+          <Link href="/forgot-password" className="text-xs text-teal-400 hover:text-teal-300">
+            Forgot?
+          </Link>
+        </div>
         <input
           type="password"
           name="password"
