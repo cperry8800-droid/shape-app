@@ -80,7 +80,7 @@ export default function IntroScroll() {
           pointerEvents: scene === 1 ? 'auto' : 'none',
         }}
       >
-        <div className="text-[clamp(1.15rem,2.4vw,1.75rem)] font-light leading-tight tracking-[-0.02em] text-white">
+        <div className="text-[clamp(1.3rem,2.7vw,2rem)] font-light leading-tight tracking-[-0.02em] text-white">
           Join the community
         </div>
         <button
