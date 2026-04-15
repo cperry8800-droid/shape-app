@@ -13,7 +13,15 @@ export default function IntroPreviewLayout({
     <>
       <style>{`
         .navbar, .footer { display: none !important; }
-        body { background: #000 !important; }
+        html, body {
+          background: #000 !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+        /* Root layout wraps children in a flex-col body + flex-1 div.
+           Collapse any gaps so the intro starts flush at the top. */
+        body > div, body > main, body > section { margin: 0 !important; }
+        body { padding-top: 0 !important; }
       `}</style>
       {children}
     </>
