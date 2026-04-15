@@ -60,11 +60,11 @@ export default function IntroScroll() {
   // Auto-advance: scene 2 (after all 4 one-liners) -> scene 3 -> scene 4.
   useEffect(() => {
     if (scene === 2) {
-      const t = setTimeout(() => goToScene3(), 7600);
+      const t = setTimeout(() => goToScene3(), 6500);
       return () => clearTimeout(t);
     }
     if (scene === 3) {
-      const t = setTimeout(() => goToScene4(), 3800);
+      const t = setTimeout(() => goToScene4(), 5000);
       return () => clearTimeout(t);
     }
   }, [scene]);
@@ -162,8 +162,8 @@ export default function IntroScroll() {
         </button>
       </div>
 
-      {/* Scene 2 sequential one-liners (auto-advance to scene 3) */}
-      <Scene2Copy active={scene === 2} />
+      {/* Sequential one-liners that play across scenes 2 and 3 */}
+      <Scene2Copy active={scene === 2 || scene === 3} />
 
       {/* Scene 4 headline */}
       <div
@@ -221,10 +221,10 @@ function Scene2Copy({ active }: { active: boolean }) {
       return;
     }
     const timers = [
-      setTimeout(() => setStep(1), 600),
-      setTimeout(() => setStep(2), 2400),
-      setTimeout(() => setStep(3), 4200),
-      setTimeout(() => setStep(4), 6000),
+      setTimeout(() => setStep(1), 700),
+      setTimeout(() => setStep(2), 3500),
+      setTimeout(() => setStep(3), 6300),
+      setTimeout(() => setStep(4), 9100),
     ];
     return () => timers.forEach(clearTimeout);
   }, [active]);
