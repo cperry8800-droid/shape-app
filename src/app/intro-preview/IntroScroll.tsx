@@ -286,7 +286,7 @@ export default function IntroScroll() {
         (line, i) => (
           <div
             key={line}
-            className="pointer-events-none absolute inset-x-0 top-[42%] -translate-y-1/2 z-10 px-6 text-center"
+            className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 z-10 px-6 text-center"
             style={{
               // Fade the last line out the moment scene 5 begins so
               // the final one-liner doesn't linger into the headline.
@@ -297,7 +297,7 @@ export default function IntroScroll() {
               transition: 'opacity 900ms ease-out',
             }}
           >
-            <div className="text-[clamp(2rem,5vw,4rem)] font-light leading-tight tracking-[-0.03em] text-white">
+            <div className="text-[clamp(2rem,5vw,4rem)] font-normal leading-tight tracking-[-0.03em] text-white">
               {line}
             </div>
           </div>
@@ -307,12 +307,12 @@ export default function IntroScroll() {
       {/* Scene 5 headline — fades in half a second after scene 5
           begins and fades out again when the film loops. */}
       <div
-        className="pointer-events-none absolute inset-x-0 top-[42%] -translate-y-1/2 z-10 px-6 text-center transition-opacity duration-[1000ms] ease-out"
+        className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 z-10 px-6 text-center transition-opacity duration-[1000ms] ease-out"
         style={{
           opacity: scene === 5 && showHeadline && !looped ? 1 : 0,
         }}
       >
-        <div className="text-[clamp(2rem,5vw,4rem)] font-light leading-tight tracking-[-0.03em] text-white">
+        <div className="text-[clamp(2rem,5vw,4rem)] font-normal leading-tight tracking-[-0.03em] text-white">
           Built around you
         </div>
       </div>
