@@ -129,12 +129,12 @@ export default function IntroScroll() {
       {/* Shape triangles — exact logo-full.svg geometry */}
       <svg
         xmlns="http://www.w3.org/2000/svg"
-        viewBox="70 16 60 68"
+        viewBox="70 8 60 84"
         aria-label="Shape"
         className="pointer-events-none absolute left-6 top-6 z-20 h-12 w-auto md:left-10 md:top-10 md:h-14"
       >
-        <polygon points="72,38 72,82 105,60" fill="#FFFFFF" />
-        <polygon points="128,18 128,62 95,40" fill="#FFFFFF" />
+        <polygon points="72,44 72,88 105,66" fill="#FFFFFF" />
+        <polygon points="128,12 128,56 95,34" fill="#FFFFFF" />
       </svg>
 
       {/* Scene 1 CTA — fades out as scene 2 takes over */}
