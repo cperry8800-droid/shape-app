@@ -171,9 +171,15 @@ export default function IntroScroll() {
       >
         <a
           href="/trainers"
-          className="inline-flex items-center justify-center border border-white bg-transparent px-10 py-4 text-[0.82rem] font-medium uppercase tracking-[0.12em] text-white transition-all hover:bg-white hover:text-neutral-950"
+          className="group inline-flex items-center justify-center gap-3 border border-white bg-transparent px-10 py-4 text-[0.82rem] font-medium uppercase tracking-[0.12em] text-white transition-all hover:bg-white hover:text-neutral-950"
         >
-          Enter Shape →
+          <span>Enter</span>
+          <img
+            src="/shape-text-white.svg"
+            alt="Shape"
+            className="h-[0.9rem] w-auto transition-[filter] group-hover:invert"
+          />
+          <span>→</span>
         </a>
       </div>
     </main>
