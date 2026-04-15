@@ -11,11 +11,12 @@ async function loginAction(_prev: State, formData: FormData): Promise<State> {
   return result ?? null;
 }
 
-export default function LoginForm() {
+export default function LoginForm({ next = '' }: { next?: string }) {
   const [state, formAction, pending] = useActionState<State, FormData>(loginAction, null);
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
+      <input type="hidden" name="next" value={next} />
       <label className="flex flex-col gap-1.5">
         <span className="text-xs uppercase tracking-wider text-neutral-400">Email</span>
         <input

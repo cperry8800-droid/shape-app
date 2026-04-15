@@ -1,8 +1,9 @@
 // Nutritionist detail page — /nutritionists/[id]
 
-import { getNutritionistById } from '@/lib/queries';
+import { getNutritionistById, isSubscribedTo } from '@/lib/queries';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import SubscribeButton from '@/components/SubscribeButton';
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -20,6 +21,7 @@ export default async function NutritionistDetailPage({
   const n = await getNutritionistById(Number(id));
   if (!n) notFound();
 
+  const subscribed = await isSubscribedTo('nutritionist', n.id);
   const accent = n.color ?? '#2DD4BF';
 
   return (
@@ -46,9 +48,17 @@ export default async function NutritionistDetailPage({
             {n.credential && (<><span>·</span><span className="uppercase tracking-wider text-xs">{n.credential}</span></>)}
           </div>
         </div>
-        <div className="text-right flex-shrink-0">
-          <div className="text-3xl font-semibold">${n.price}</div>
-          <div className="text-[0.65rem] text-neutral-500 uppercase tracking-wider">/ month</div>
+        <div className="text-right flex-shrink-0 flex flex-col items-end gap-3">
+          <div>
+            <div className="text-3xl font-semibold">${n.price}</div>
+            <div className="text-[0.65rem] text-neutral-500 uppercase tracking-wider">/ month</div>
+          </div>
+          <SubscribeButton
+            providerId={n.id}
+            providerRole="nutritionist"
+            priceLabel={`$${n.price}/mo`}
+            alreadySubscribed={subscribed}
+          />
         </div>
       </div>
 

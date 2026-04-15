@@ -31,6 +31,69 @@ export async function getCurrentUserAndProfile(): Promise<
 }
 
 /**
+ * All active (or trialing) subscriptions for the signed-in user. RLS filters
+ * this to rows where auth.uid() = client_id.
+ */
+export async function getMySubscriptions(): Promise<
+  Array<{
+    id: string;
+    provider_id: number;
+    provider_role: 'trainer' | 'nutritionist';
+    status: string;
+    price_cents: number | null;
+    current_period_end: string | null;
+    stripe_subscription_id: string | null;
+  }>
+> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('subscriptions')
+    .select('id, provider_id, provider_role, status, price_cents, current_period_end, stripe_subscription_id')
+    .in('status', ['active', 'trialing', 'past_due'])
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error('[shape-app] getMySubscriptions error', error);
+    return [];
+  }
+  return (data ?? []) as Array<{
+    id: string;
+    provider_id: number;
+    provider_role: 'trainer' | 'nutritionist';
+    status: string;
+    price_cents: number | null;
+    current_period_end: string | null;
+    stripe_subscription_id: string | null;
+  }>;
+}
+
+/**
+ * True if the signed-in user has an active/trialing subscription to this
+ * specific provider. Cheap — used to swap the Subscribe button for a
+ * "Subscribed" badge on detail pages.
+ */
+export async function isSubscribedTo(
+  providerRole: 'trainer' | 'nutritionist',
+  providerId: number
+): Promise<boolean> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  const { data } = await supabase
+    .from('subscriptions')
+    .select('id')
+    .eq('client_id', user.id)
+    .eq('provider_role', providerRole)
+    .eq('provider_id', providerId)
+    .in('status', ['active', 'trialing', 'past_due'])
+    .maybeSingle();
+
+  return !!data;
+}
+
+/**
  * Upcoming + recent sessions for the signed-in user, in either role (client or
  * provider). RLS on `sessions` already restricts this to rows the user is part
  * of, so no extra filter is needed.

@@ -2,9 +2,10 @@
 // Server-rendered, deep-linkable, SEO-friendly. Shows full bio, all workouts,
 // and each workout's sample days with exercises.
 
-import { getTrainerById } from '@/lib/queries';
+import { getTrainerById, isSubscribedTo } from '@/lib/queries';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import SubscribeButton from '@/components/SubscribeButton';
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -25,6 +26,7 @@ export default async function TrainerDetailPage({
   const trainer = await getTrainerById(Number(id));
   if (!trainer) notFound();
 
+  const subscribed = await isSubscribedTo('trainer', trainer.id);
   const accent = trainer.color ?? '#2DD4BF';
 
   return (
@@ -61,9 +63,17 @@ export default async function TrainerDetailPage({
             )}
           </div>
         </div>
-        <div className="text-right flex-shrink-0">
-          <div className="text-3xl font-semibold">${trainer.price}</div>
-          <div className="text-[0.65rem] text-neutral-500 uppercase tracking-wider">/ month</div>
+        <div className="text-right flex-shrink-0 flex flex-col items-end gap-3">
+          <div>
+            <div className="text-3xl font-semibold">${trainer.price}</div>
+            <div className="text-[0.65rem] text-neutral-500 uppercase tracking-wider">/ month</div>
+          </div>
+          <SubscribeButton
+            providerId={trainer.id}
+            providerRole="trainer"
+            priceLabel={`$${trainer.price}/mo`}
+            alreadySubscribed={subscribed}
+          />
         </div>
       </div>
 
