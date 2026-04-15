@@ -256,11 +256,10 @@ export default function IntroScroll() {
             key={line}
             className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 z-10 px-6 text-center"
             style={{
-              // Fade the last line out as soon as the headline comes
-              // in so "One community" and "Built around you" don't
-              // overlap at the same center position.
+              // Fade the last line out the moment scene 4 begins so
+              // "One community" doesn't linger into the headline.
               opacity:
-                !looped && step === i + 1 && !(i === 3 && showHeadline)
+                !looped && step === i + 1 && !(i === 3 && scene === 4)
                   ? 1
                   : 0,
               transition: 'opacity 900ms ease-out',
