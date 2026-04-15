@@ -57,17 +57,8 @@ export default function IntroScroll() {
     setTimeout(() => setScene(3), 120);
   };
 
-  // Auto-advance: scene 2 (after all 4 one-liners) -> scene 3 -> scene 4.
-  useEffect(() => {
-    if (scene === 2) {
-      const t = setTimeout(() => goToScene3(), 6500);
-      return () => clearTimeout(t);
-    }
-    if (scene === 3) {
-      const t = setTimeout(() => goToScene4(), 5000);
-      return () => clearTimeout(t);
-    }
-  }, [scene]);
+  // Transitions fire on each clip's natural end — no timers, no freeze,
+  // no guessing clip durations.
 
   const goToScene4 = () => {
     const v = video4Ref.current;
@@ -92,23 +83,25 @@ export default function IntroScroll() {
         style={{ opacity: scene === 1 ? 1 : 0 }}
       />
 
-      {/* Scene 2 video — no loop */}
+      {/* Scene 2 video — ends naturally into scene 3 */}
       <video
         ref={video2Ref}
         src={SCENE_2}
         muted
         playsInline
+        onEnded={goToScene3}
         preload="auto"
         className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-out"
         style={{ opacity: scene === 2 ? 1 : 0 }}
       />
 
-      {/* Scene 3 video — no loop so it doesn't rewind mid-crossfade */}
+      {/* Scene 3 video — ends naturally into scene 4 */}
       <video
         ref={video3Ref}
         src={SCENE_3}
         muted
         playsInline
+        onEnded={goToScene4}
         preload="auto"
         className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-out"
         style={{ opacity: scene === 3 ? 1 : 0 }}
@@ -222,9 +215,9 @@ function Scene2Copy({ active }: { active: boolean }) {
     }
     const timers = [
       setTimeout(() => setStep(1), 700),
-      setTimeout(() => setStep(2), 3500),
-      setTimeout(() => setStep(3), 6300),
-      setTimeout(() => setStep(4), 9100),
+      setTimeout(() => setStep(2), 3550),
+      setTimeout(() => setStep(3), 6400),
+      setTimeout(() => setStep(4), 9250),
     ];
     return () => timers.forEach(clearTimeout);
   }, [active]);
