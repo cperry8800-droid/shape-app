@@ -1,10 +1,11 @@
 'use client';
 
-// Cinematic intro. Three scenes on a single fullscreen canvas:
+// Cinematic intro. Four scenes on a single fullscreen canvas:
 //
 //   Scene 1 — hero (beat-5) with Shape logo and Join the community CTA
 //   Scene 2 — market (beat-6) with sequential one-liners + Continue CTA
-//   Scene 3 — trainer + nutritionist (beat-7)
+//   Scene 3 — trainer + nutritionist (beat-7) + Continue CTA
+//   Scene 4 — client reviewing data (beat-8) + Enter Shape CTA
 //
 // Each transition is a fluid opacity crossfade (~1.4s) so the motion
 // reads as one continuous film, horizon.trade style.
@@ -14,17 +15,20 @@ import { useEffect, useRef, useState } from 'react';
 const SCENE_1 = '/intro/beat-5.mp4';
 const SCENE_2 = '/intro/beat-6.mp4';
 const SCENE_3 = '/intro/beat-7.mp4';
+const SCENE_4 = '/intro/beat-8.mp4';
 
 export default function IntroScroll() {
-  const [scene, setScene] = useState<1 | 2 | 3>(1);
+  const [scene, setScene] = useState<1 | 2 | 3 | 4>(1);
   const video1Ref = useRef<HTMLVideoElement>(null);
   const video2Ref = useRef<HTMLVideoElement>(null);
   const video3Ref = useRef<HTMLVideoElement>(null);
+  const video4Ref = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     video1Ref.current?.play().catch(() => {});
     video2Ref.current?.play().catch(() => {});
     video3Ref.current?.play().catch(() => {});
+    video4Ref.current?.play().catch(() => {});
   }, []);
 
   const goToScene2 = () => {
@@ -39,6 +43,15 @@ export default function IntroScroll() {
   const goToScene3 = () => {
     setScene(3);
     const v = video3Ref.current;
+    if (v) {
+      v.currentTime = 0;
+      v.play().catch(() => {});
+    }
+  };
+
+  const goToScene4 = () => {
+    setScene(4);
+    const v = video4Ref.current;
     if (v) {
       v.currentTime = 0;
       v.play().catch(() => {});
@@ -83,6 +96,18 @@ export default function IntroScroll() {
         style={{ opacity: scene === 3 ? 1 : 0 }}
       />
 
+      {/* Scene 4 video */}
+      <video
+        ref={video4Ref}
+        src={SCENE_4}
+        muted
+        loop
+        playsInline
+        preload="auto"
+        className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-out"
+        style={{ opacity: scene === 4 ? 1 : 0 }}
+      />
+
       {/* Shape logo (always visible) */}
       <img
         src="/logo-original.png"
@@ -114,13 +139,16 @@ export default function IntroScroll() {
       {/* Scene 2 sequential one-liners + Continue -> scene 3 */}
       <Scene2Copy active={scene === 2} onContinue={goToScene3} />
 
-      {/* Scene 3 final CTA */}
+      {/* Scene 3 Continue -> scene 4 */}
+      <Scene3Copy active={scene === 3} onContinue={goToScene4} />
+
+      {/* Scene 4 final CTA */}
       <div
         className="absolute inset-x-0 bottom-[10vh] z-10 flex flex-col items-center gap-4 px-6 text-center transition-opacity duration-[1000ms] ease-out"
         style={{
-          opacity: scene === 3 ? 1 : 0,
-          pointerEvents: scene === 3 ? 'auto' : 'none',
-          transitionDelay: scene === 3 ? '800ms' : '0ms',
+          opacity: scene === 4 ? 1 : 0,
+          pointerEvents: scene === 4 ? 'auto' : 'none',
+          transitionDelay: scene === 4 ? '800ms' : '0ms',
         }}
       >
         <a
@@ -184,6 +212,62 @@ function Scene2Copy({
         style={{
           opacity: step >= 5 ? 1 : 0,
           pointerEvents: step >= 5 ? 'auto' : 'none',
+          transition: 'opacity 1000ms ease-out',
+        }}
+      >
+        <button
+          type="button"
+          onClick={onContinue}
+          className="inline-flex items-center justify-center border border-white bg-transparent px-10 py-4 text-[0.82rem] font-medium uppercase tracking-[0.12em] text-white transition-all hover:bg-white hover:text-neutral-950"
+        >
+          Continue →
+        </button>
+      </div>
+    </>
+  );
+}
+
+// Scene 3: one-liner over trainer + nutritionist, then Continue -> scene 4.
+function Scene3Copy({
+  active,
+  onContinue,
+}: {
+  active: boolean;
+  onContinue: () => void;
+}) {
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    if (!active) {
+      setStep(0);
+      return;
+    }
+    const timers = [
+      setTimeout(() => setStep(1), 1200),
+      setTimeout(() => setStep(2), 4800),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, [active]);
+
+  return (
+    <>
+      <div
+        className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 z-10 px-6 text-center"
+        style={{
+          opacity: step === 1 ? 1 : 0,
+          transition: 'opacity 900ms ease-out',
+        }}
+      >
+        <div className="text-[clamp(2rem,5vw,4rem)] font-light leading-tight tracking-[-0.03em] text-white">
+          Built around you
+        </div>
+      </div>
+
+      <div
+        className="absolute inset-x-0 bottom-[10vh] z-10 flex flex-col items-center gap-4 px-6 text-center"
+        style={{
+          opacity: step >= 2 ? 1 : 0,
+          pointerEvents: step >= 2 ? 'auto' : 'none',
           transition: 'opacity 1000ms ease-out',
         }}
       >
