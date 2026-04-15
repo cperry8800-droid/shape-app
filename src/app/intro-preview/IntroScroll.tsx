@@ -113,7 +113,7 @@ export default function IntroScroll() {
     // video is currently behind the words.
     void total;
     void tail;
-    const slot = 3500;
+    const slot = 3200;
     // Four one-liners, each holding for `slot` ms. The headline is
     // driven separately off the scene 4 transition (see useEffect).
     const timers = [
