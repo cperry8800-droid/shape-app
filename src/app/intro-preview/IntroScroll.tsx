@@ -183,7 +183,7 @@ function Scene2Copy({
       setTimeout(() => setStep(2), 4400),
       setTimeout(() => setStep(3), 7800),
       setTimeout(() => setStep(4), 11200),
-      setTimeout(() => setStep(5), 14800),
+      setTimeout(() => setStep(5), 2000),
     ];
     return () => timers.forEach(clearTimeout);
   }, [active]);
@@ -244,7 +244,7 @@ function Scene3Copy({
     }
     const timers = [
       setTimeout(() => setStep(1), 1200),
-      setTimeout(() => setStep(2), 4800),
+      setTimeout(() => setStep(2), 2000),
     ];
     return () => timers.forEach(clearTimeout);
   }, [active]);
