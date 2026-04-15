@@ -81,7 +81,7 @@ export default function IntroScroll() {
         }}
       >
         <img
-          src="/logo-triangles-only.svg"
+          src="/logo-triangles-outline.svg"
           alt=""
           className="h-10 w-auto md:h-12"
         />
