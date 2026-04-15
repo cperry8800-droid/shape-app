@@ -24,7 +24,8 @@ export default function IntroScroll() {
       <img
         src="/logo-original.png"
         alt="Shape"
-        className="pointer-events-none absolute left-6 top-6 z-20 h-9 w-auto md:left-8 md:top-8 md:h-10"
+        className="pointer-events-none absolute left-6 top-6 z-20 h-14 w-auto md:left-10 md:top-10 md:h-20"
+        style={{ filter: 'brightness(0) invert(1)' }}
       />
     </main>
   );
