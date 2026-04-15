@@ -33,20 +33,12 @@ export default function IntroScroll() {
 
   const goToScene2 = () => {
     setScene(2);
-    const v = video2Ref.current;
-    if (v) {
-      v.currentTime = 0;
-      v.play().catch(() => {});
-    }
+    video2Ref.current?.play().catch(() => {});
   };
 
   const goToScene3 = () => {
     setScene(3);
-    const v = video3Ref.current;
-    if (v) {
-      v.currentTime = 0;
-      v.play().catch(() => {});
-    }
+    video3Ref.current?.play().catch(() => {});
   };
 
   // Auto-advance from scene 3 to scene 4 so the film flows straight
@@ -59,11 +51,7 @@ export default function IntroScroll() {
 
   const goToScene4 = () => {
     setScene(4);
-    const v = video4Ref.current;
-    if (v) {
-      v.currentTime = 0;
-      v.play().catch(() => {});
-    }
+    video4Ref.current?.play().catch(() => {});
   };
 
   return (
