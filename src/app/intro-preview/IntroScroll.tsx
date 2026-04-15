@@ -80,11 +80,6 @@ export default function IntroScroll() {
           pointerEvents: scene === 1 ? 'auto' : 'none',
         }}
       >
-        <img
-          src="/logo-triangles-outline.svg"
-          alt=""
-          className="h-10 w-auto md:h-12"
-        />
         <button
           type="button"
           onClick={goToScene2}
