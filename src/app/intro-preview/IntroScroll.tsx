@@ -112,12 +112,13 @@ export default function IntroScroll() {
         style={{ opacity: scene === 2 ? 1 : 0 }}
       />
 
-      {/* Scene 4 video — plays once and freezes on its last frame while
-          the headline and CTA fade in. No loop. */}
+      {/* Scene 4 video — loops so the final frame never freezes. The
+          headline and CTA stay on top regardless. */}
       <video
         ref={video4Ref}
         src={SCENE_4}
         muted
+        loop
         playsInline
         preload="auto"
         className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-out"
