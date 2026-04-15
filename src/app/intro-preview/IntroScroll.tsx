@@ -55,11 +55,15 @@ export default function IntroScroll() {
     setTimeout(() => setScene(2), 120);
 
     // Schedule the four one-liners so they're evenly spaced across the
-    // combined runtime of scene 2 + scene 3. This way pacing always
-    // matches the clips — no guessing, no cut-off, no loops needed.
+    // combined runtime of scene 2 + scene 3 + scene 4. Scene 3 is only
+    // ~4s in the current cut, so packing the words into 2+3 alone made
+    // everything rushed. Pulling scene 4 into the span gives each line
+    // real room to breathe.
+    const v4 = video4Ref.current;
     const d2 = Number.isFinite(v2?.duration) ? (v2!.duration as number) : 10;
     const d3 = Number.isFinite(v3?.duration) ? (v3!.duration as number) : 10;
-    const total = (d2 + d3) * 1000; // ms
+    const d4 = Number.isFinite(v4?.duration) ? (v4!.duration as number) : 8;
+    const total = (d2 + d3 + d4) * 1000; // ms
     // Leave a small pad at the head so line 1 fades in after the
     // crossfade lands, and at the tail so line 4 isn't swallowed by
     // the scene 4 crossfade.
@@ -128,33 +132,24 @@ export default function IntroScroll() {
         style={{ opacity: scene === 2 ? 1 : 0 }}
       />
 
-      {/* Scene 3 video — plays once. Crossfade to scene 4 begins 1.3s
-          before its natural end so there's no frozen-frame pause while
-          the opacity transition runs. */}
+      {/* Scene 3 video — plays through, onEnded hands off to scene 4. */}
       <video
         ref={video3Ref}
         src={SCENE_3}
         muted
         playsInline
-        onTimeUpdate={(e) => {
-          if (scene !== 3) return;
-          const v = e.currentTarget;
-          if (v.duration && v.currentTime >= v.duration - 1.3) {
-            goToScene4();
-          }
-        }}
         onEnded={goToScene4}
         preload="auto"
         className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-out"
         style={{ opacity: scene === 3 ? 1 : 0 }}
       />
 
-      {/* Scene 4 video */}
+      {/* Scene 4 video — plays once and freezes on its last frame while
+          the headline and CTA fade in. No loop. */}
       <video
         ref={video4Ref}
         src={SCENE_4}
         muted
-        loop
         playsInline
         preload="auto"
         className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-out"
@@ -216,12 +211,12 @@ export default function IntroScroll() {
         )
       )}
 
-      {/* Scene 4 headline */}
+      {/* Scene 4 headline — appears only after the four one-liners have
+          finished so it doesn't stack on top of them. */}
       <div
         className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 z-10 px-6 text-center transition-opacity duration-[1000ms] ease-out"
         style={{
-          opacity: scene === 4 ? 1 : 0,
-          transitionDelay: scene === 4 ? '800ms' : '0ms',
+          opacity: scene === 4 && step >= 5 ? 1 : 0,
         }}
       >
         <div className="text-[clamp(2rem,5vw,4rem)] font-light leading-tight tracking-[-0.03em] text-white">
@@ -229,13 +224,13 @@ export default function IntroScroll() {
         </div>
       </div>
 
-      {/* Scene 4 final CTA */}
+      {/* Scene 4 final CTA — comes in a beat after the headline. */}
       <div
         className="absolute inset-x-0 bottom-[10vh] z-10 flex flex-col items-center gap-4 px-6 text-center transition-opacity duration-[1000ms] ease-out"
         style={{
-          opacity: scene === 4 ? 1 : 0,
-          pointerEvents: scene === 4 ? 'auto' : 'none',
-          transitionDelay: scene === 4 ? '1600ms' : '0ms',
+          opacity: scene === 4 && step >= 5 ? 1 : 0,
+          pointerEvents: scene === 4 && step >= 5 ? 'auto' : 'none',
+          transitionDelay: scene === 4 && step >= 5 ? '900ms' : '0ms',
         }}
       >
         <a
