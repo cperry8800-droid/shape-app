@@ -22,9 +22,9 @@ export default function IntroScroll() {
       ))}
       {/* Shape wordmark top-left, white, floats over the video */}
       <img
-        src="/shape-text-white.svg"
+        src="/logo-original.png"
         alt="Shape"
-        className="pointer-events-none absolute left-6 top-6 z-20 h-7 w-auto md:left-8 md:top-8 md:h-8"
+        className="pointer-events-none absolute left-6 top-6 z-20 h-9 w-auto md:left-8 md:top-8 md:h-10"
       />
     </main>
   );
