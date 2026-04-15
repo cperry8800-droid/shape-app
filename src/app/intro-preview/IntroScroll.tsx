@@ -111,15 +111,16 @@ function Scene2Copy({ active }: { active: boolean }) {
       return;
     }
     const timers = [
-      setTimeout(() => setStep(1), 800),  // "Real coaches."
-      setTimeout(() => setStep(2), 3200), // "Real programs."
-      setTimeout(() => setStep(3), 5600), // "One platform."
-      setTimeout(() => setStep(4), 8400), // CTA
+      setTimeout(() => setStep(1), 800),   // "Real trainers."
+      setTimeout(() => setStep(2), 3200),  // "Real nutritionists."
+      setTimeout(() => setStep(3), 5600),  // "One platform."
+      setTimeout(() => setStep(4), 8000),  // "One community."
+      setTimeout(() => setStep(5), 10800), // CTA
     ];
     return () => timers.forEach(clearTimeout);
   }, [active]);
 
-  const lines = ['Real trainers.', 'Real nutritionists.', 'One platform.'];
+  const lines = ['Real trainers.', 'Real nutritionists.', 'One platform.', 'One community.'];
 
   return (
     <>
@@ -141,8 +142,8 @@ function Scene2Copy({ active }: { active: boolean }) {
       <div
         className="absolute inset-x-0 bottom-[10vh] z-10 flex flex-col items-center gap-4 px-6 text-center"
         style={{
-          opacity: step >= 4 ? 1 : 0,
-          pointerEvents: step >= 4 ? 'auto' : 'none',
+          opacity: step >= 5 ? 1 : 0,
+          pointerEvents: step >= 5 ? 'auto' : 'none',
           transition: 'opacity 1000ms ease-out',
         }}
       >
