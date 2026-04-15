@@ -163,9 +163,10 @@ export default function IntroScroll() {
         >
           <span>Enter</span>
           <img
-            src="/shape-text-white.svg"
+            src="/logo-text-trimmed.png"
             alt="Shape"
-            className="h-[0.9rem] w-auto transition-[filter] group-hover:invert"
+            className="h-[1.05rem] w-auto"
+            style={{ filter: 'brightness(0) invert(1)' }}
           />
           <span>→</span>
         </a>
