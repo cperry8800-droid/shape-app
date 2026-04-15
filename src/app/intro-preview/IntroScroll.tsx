@@ -195,9 +195,9 @@ function Scene2Copy({
     }
     const timers = [
       setTimeout(() => setStep(1), 1000),
-      setTimeout(() => setStep(2), 4800),
-      setTimeout(() => setStep(3), 8600),
-      setTimeout(() => setStep(4), 12400),
+      setTimeout(() => setStep(2), 4500),
+      setTimeout(() => setStep(3), 8000),
+      setTimeout(() => setStep(4), 11500),
       setTimeout(() => setShowContinue(true), 2000),
     ];
     return () => timers.forEach(clearTimeout);
