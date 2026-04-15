@@ -53,6 +53,17 @@ export default function LoginForm({ next = '' }: { next?: string }) {
       >
         {pending ? 'Signing in…' : 'Sign in'}
       </button>
+      <div className="flex items-center gap-3 my-1">
+        <div className="flex-1 h-px bg-neutral-800" />
+        <span className="text-[0.65rem] uppercase tracking-wider text-neutral-500">or</span>
+        <div className="flex-1 h-px bg-neutral-800" />
+      </div>
+      <Link
+        href={`/login/phone${next ? `?next=${encodeURIComponent(next)}` : ''}`}
+        className="text-sm font-medium border border-neutral-700 text-neutral-100 rounded-full px-6 py-3 hover:bg-neutral-900 transition-colors text-center"
+      >
+        Sign in with phone
+      </Link>
       <p className="text-sm text-neutral-400 text-center">
         New to Shape?{' '}
         <Link href="/signup" className="text-teal-400 hover:text-teal-300">
