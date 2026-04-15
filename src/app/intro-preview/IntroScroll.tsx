@@ -142,13 +142,26 @@ export default function IntroScroll() {
       {/* Scene 3 Continue -> scene 4 */}
       <Scene3Copy active={scene === 3} onContinue={goToScene4} />
 
+      {/* Scene 4 headline */}
+      <div
+        className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 z-10 px-6 text-center transition-opacity duration-[1000ms] ease-out"
+        style={{
+          opacity: scene === 4 ? 1 : 0,
+          transitionDelay: scene === 4 ? '800ms' : '0ms',
+        }}
+      >
+        <div className="text-[clamp(2rem,5vw,4rem)] font-light leading-tight tracking-[-0.03em] text-white">
+          Built around you
+        </div>
+      </div>
+
       {/* Scene 4 final CTA */}
       <div
         className="absolute inset-x-0 bottom-[10vh] z-10 flex flex-col items-center gap-4 px-6 text-center transition-opacity duration-[1000ms] ease-out"
         style={{
           opacity: scene === 4 ? 1 : 0,
           pointerEvents: scene === 4 ? 'auto' : 'none',
-          transitionDelay: scene === 4 ? '800ms' : '0ms',
+          transitionDelay: scene === 4 ? '1600ms' : '0ms',
         }}
       >
         <a
@@ -252,22 +265,10 @@ function Scene3Copy({
   return (
     <>
       <div
-        className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 z-10 px-6 text-center"
-        style={{
-          opacity: step === 1 ? 1 : 0,
-          transition: 'opacity 900ms ease-out',
-        }}
-      >
-        <div className="text-[clamp(2rem,5vw,4rem)] font-light leading-tight tracking-[-0.03em] text-white">
-          Built around you
-        </div>
-      </div>
-
-      <div
         className="absolute inset-x-0 bottom-[10vh] z-10 flex flex-col items-center gap-4 px-6 text-center"
         style={{
-          opacity: step >= 2 ? 1 : 0,
-          pointerEvents: step >= 2 ? 'auto' : 'none',
+          opacity: step >= 1 ? 1 : 0,
+          pointerEvents: step >= 1 ? 'auto' : 'none',
           transition: 'opacity 1000ms ease-out',
         }}
       >
