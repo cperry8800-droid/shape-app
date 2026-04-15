@@ -80,7 +80,13 @@ export default function IntroScroll() {
           pointerEvents: scene === 1 ? 'auto' : 'none',
         }}
       >
-        <div className="text-[clamp(1.6rem,3.4vw,2.6rem)] font-light leading-tight tracking-[-0.02em] text-white">
+        <div
+          className="text-[clamp(1.6rem,3.4vw,2.6rem)] font-light leading-tight tracking-[-0.02em]"
+          style={{
+            color: 'transparent',
+            WebkitTextStroke: '1px #FFFFFF',
+          }}
+        >
           Join the community
         </div>
         <button
