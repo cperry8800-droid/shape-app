@@ -331,7 +331,7 @@ export default function IntroScroll() {
       {/* Scene 5 final CTA — comes in a beat after the headline and
           stays pinned on top for every loop iteration. */}
       <div
-        className="absolute inset-x-0 bottom-[10vh] z-10 flex flex-col items-center gap-4 px-6 text-center transition-opacity duration-[1000ms] ease-out"
+        className="absolute inset-x-0 bottom-[10vh] z-10 flex flex-col items-center gap-4 px-6 text-center transition-opacity duration-[2200ms] ease-out"
         style={{
           opacity: (scene === 5 && showHeadline) || looped ? 1 : 0,
           pointerEvents: (scene === 5 && showHeadline) || looped ? 'auto' : 'none',
