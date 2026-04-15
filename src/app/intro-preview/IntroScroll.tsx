@@ -130,7 +130,7 @@ export default function IntroScroll() {
       {/* Shape triangles — exact logo-full.svg geometry */}
       <svg
         xmlns="http://www.w3.org/2000/svg"
-        viewBox="65 12 70 78"
+        viewBox="70 16 60 68"
         aria-label="Shape"
         className="pointer-events-none absolute left-6 top-6 z-20 h-12 w-auto md:left-10 md:top-10 md:h-14"
       >
