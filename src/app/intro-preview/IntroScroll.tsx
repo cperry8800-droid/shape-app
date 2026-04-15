@@ -16,7 +16,7 @@ const BEATS = ['/intro/beat-5.mp4'];
 
 export default function IntroScroll() {
   return (
-    <main className="bg-black text-white">
+    <main className="fixed inset-0 bg-black text-white">
       {BEATS.map((src, i) => (
         <BeatSection key={src} src={src} index={i} isLast={i === BEATS.length - 1} />
       ))}
@@ -88,8 +88,8 @@ function BeatSection({
   }, []);
 
   return (
-    <section ref={sectionRef} className="relative h-[200vh]">
-      <div className="sticky top-0 h-screen w-full overflow-hidden">
+    <section ref={sectionRef} className="relative h-screen w-screen">
+      <div className="absolute inset-0 overflow-hidden">
         <video
           ref={videoRef}
           src={src}
