@@ -21,12 +21,28 @@ export default function IntroScroll() {
         <BeatSection key={src} src={src} index={i} isLast={i === BEATS.length - 1} />
       ))}
       {/* Shape wordmark top-left, white, floats over the video */}
-      <img
-        src="/logo-original.png"
-        alt="Shape"
+      {/* Inline SVG so we can color pieces independently: bottom-left
+          triangle stays teal, everything else is white. */}
+      <svg
+        viewBox="0 0 200 120"
+        aria-label="Shape"
         className="pointer-events-none absolute left-6 top-6 z-20 h-14 w-auto md:left-10 md:top-10 md:h-20"
-        style={{ filter: 'brightness(0) invert(1)' }}
-      />
+      >
+        <polygon points="72,38 72,82 105,60" fill="#2DD4BF" />
+        <polygon points="128,18 128,62 95,40" fill="#FFFFFF" />
+        <text
+          x="100"
+          y="110"
+          textAnchor="middle"
+          fontFamily="Inter, Helvetica, Arial, sans-serif"
+          fontSize="22"
+          fontWeight="300"
+          letterSpacing="8"
+          fill="#FFFFFF"
+        >
+          SHAPE
+        </text>
+      </svg>
     </main>
   );
 }
