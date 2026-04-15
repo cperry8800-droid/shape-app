@@ -185,10 +185,12 @@ function Scene2Copy({
   onContinue: () => void;
 }) {
   const [step, setStep] = useState(0);
+  const [showContinue, setShowContinue] = useState(false);
 
   useEffect(() => {
     if (!active) {
       setStep(0);
+      setShowContinue(false);
       return;
     }
     const timers = [
@@ -196,7 +198,7 @@ function Scene2Copy({
       setTimeout(() => setStep(2), 5800),
       setTimeout(() => setStep(3), 10400),
       setTimeout(() => setStep(4), 15000),
-      setTimeout(() => setStep(5), 2000),
+      setTimeout(() => setShowContinue(true), 2000),
     ];
     return () => timers.forEach(clearTimeout);
   }, [active]);
@@ -223,8 +225,8 @@ function Scene2Copy({
       <div
         className="absolute inset-x-0 bottom-[10vh] z-10 flex flex-col items-center gap-4 px-6 text-center"
         style={{
-          opacity: step >= 5 ? 1 : 0,
-          pointerEvents: step >= 5 ? 'auto' : 'none',
+          opacity: showContinue ? 1 : 0,
+          pointerEvents: showContinue ? 'auto' : 'none',
           transition: 'opacity 1000ms ease-out',
         }}
       >
