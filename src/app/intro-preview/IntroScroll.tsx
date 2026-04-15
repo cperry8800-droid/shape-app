@@ -135,7 +135,7 @@ function BeatSection({
           >
             <Link
               href="/trainers"
-              className="inline-flex items-center justify-center border border-teal-400 bg-teal-400 px-10 py-4 text-[0.82rem] font-medium uppercase tracking-[0.12em] text-neutral-950 transition-all hover:bg-teal-300"
+              className="inline-flex items-center justify-center border border-white bg-transparent px-10 py-4 text-[0.82rem] font-medium uppercase tracking-[0.12em] text-white transition-all hover:bg-white hover:text-neutral-950"
             >
               Get Started →
             </Link>
