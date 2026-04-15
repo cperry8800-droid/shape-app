@@ -40,8 +40,27 @@ export default function IntroScroll() {
       v.load();
       v.currentTime = 0;
     });
+
+    // iOS Safari blocks autoplay until a user gesture, even for muted
+    // video. The first tap anywhere on the page unlocks every clip.
+    const unlock = () => {
+      [video1Ref, video2Ref, video4Ref].forEach((r) => {
+        const v = r.current;
+        if (!v) return;
+        v.play().then(() => {
+          if (v !== video1Ref.current) v.pause();
+        }).catch(() => {});
+      });
+      window.removeEventListener('touchstart', unlock);
+      window.removeEventListener('click', unlock);
+    };
+    window.addEventListener('touchstart', unlock, { once: true, passive: true });
+    window.addEventListener('click', unlock, { once: true });
+
     return () => {
       wordTimersRef.current.forEach(clearTimeout);
+      window.removeEventListener('touchstart', unlock);
+      window.removeEventListener('click', unlock);
     };
   }, []);
 
