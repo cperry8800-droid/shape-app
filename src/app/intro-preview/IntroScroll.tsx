@@ -92,13 +92,58 @@ export default function IntroScroll() {
         </button>
       </div>
 
-      {/* Scene 2 CTA — fades in after the transition */}
+      {/* Scene 2 sequential one-liners — each fades in then out over
+          the market video, then the Continue CTA fades in last. */}
+      <Scene2Copy active={scene === 2} />
+    </main>
+  );
+}
+
+// Three sequential one-liners that fade in/out over scene 2, then a
+// Continue CTA that fades in last. Timing starts the moment scene 2
+// becomes active.
+function Scene2Copy({ active }: { active: boolean }) {
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    if (!active) {
+      setStep(0);
+      return;
+    }
+    const timers = [
+      setTimeout(() => setStep(1), 800),  // "Real coaches."
+      setTimeout(() => setStep(2), 3200), // "Real programs."
+      setTimeout(() => setStep(3), 5600), // "One platform."
+      setTimeout(() => setStep(4), 8400), // CTA
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, [active]);
+
+  const lines = ['Real coaches.', 'Real programs.', 'One platform.'];
+
+  return (
+    <>
+      {lines.map((line, i) => (
+        <div
+          key={i}
+          className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 z-10 px-6 text-center"
+          style={{
+            opacity: step === i + 1 ? 1 : 0,
+            transition: 'opacity 900ms ease-out',
+          }}
+        >
+          <div className="text-[clamp(2rem,5vw,4rem)] font-light leading-tight tracking-[-0.03em] text-white">
+            {line}
+          </div>
+        </div>
+      ))}
+
       <div
-        className="absolute inset-x-0 bottom-[10vh] z-10 flex flex-col items-center gap-4 px-6 text-center transition-opacity duration-[1000ms] ease-out"
+        className="absolute inset-x-0 bottom-[10vh] z-10 flex flex-col items-center gap-4 px-6 text-center"
         style={{
-          opacity: scene === 2 ? 1 : 0,
-          pointerEvents: scene === 2 ? 'auto' : 'none',
-          transitionDelay: scene === 2 ? '600ms' : '0ms',
+          opacity: step >= 4 ? 1 : 0,
+          pointerEvents: step >= 4 ? 'auto' : 'none',
+          transition: 'opacity 1000ms ease-out',
         }}
       >
         <a
@@ -108,6 +153,6 @@ export default function IntroScroll() {
           Continue →
         </a>
       </div>
-    </main>
+    </>
   );
 }
