@@ -47,6 +47,9 @@ export default function IntroScroll() {
     // Brief head-start so video is rendering before the opacity
     // crossfade reveals it.
     setTimeout(() => setScene(2), 120);
+    // Scene 3 is timed to fire halfway through the copy sequence so
+    // trainer → nutritionist visuals land with the nutritionist line.
+    setTimeout(() => goToScene3(), 12800);
   };
 
   const goToScene3 = () => {
@@ -86,33 +89,27 @@ export default function IntroScroll() {
         style={{ opacity: scene === 1 ? 1 : 0 }}
       />
 
-      {/* Scene 2 video — ends naturally into scene 3 */}
+      {/* Scene 2 video — loops while the one-liners run; scene 3 is
+          triggered on a timer in goToScene2, not on video end. */}
       <video
         ref={video2Ref}
         src={SCENE_2}
         muted
+        loop
         playsInline
-        onEnded={goToScene3}
         preload="auto"
         className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-out"
         style={{ opacity: scene === 2 ? 1 : 0 }}
       />
 
-      {/* Scene 3 video — crossfade begins slightly before end so there's
-          no frozen last-frame pause while the opacity transition runs */}
+      {/* Scene 3 video — loops; scene 4 is triggered by the copy's
+          onDone callback so pacing is locked to the words. */}
       <video
         ref={video3Ref}
         src={SCENE_3}
         muted
+        loop
         playsInline
-        onTimeUpdate={(e) => {
-          if (scene !== 3) return;
-          const v = e.currentTarget;
-          if (v.duration && v.currentTime >= v.duration - 1.5) {
-            goToScene4();
-          }
-        }}
-        onEnded={goToScene4}
         preload="auto"
         className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-out"
         style={{ opacity: scene === 3 ? 1 : 0 }}
@@ -166,8 +163,10 @@ export default function IntroScroll() {
         </button>
       </div>
 
-      {/* Sequential one-liners that play across scenes 2 and 3 */}
-      <Scene2Copy active={scene === 2 || scene === 3} />
+      {/* Sequential one-liners. Runs on its own cadence independent of
+          video timing; when all four lines have shown, it tells the
+          parent to advance to scene 4. */}
+      <Scene2Copy active={scene !== 1} hide={scene === 4} onDone={goToScene4} />
 
       {/* Scene 4 headline */}
       <div
@@ -216,23 +215,36 @@ export default function IntroScroll() {
 
 // Six sequential one-liners that fade in/out across scenes 2, 3, and 4.
 // No Continue button — the film auto-advances through all scenes.
-function Scene2Copy({ active }: { active: boolean }) {
+function Scene2Copy({
+  active,
+  hide,
+  onDone,
+}: {
+  active: boolean;
+  hide: boolean;
+  onDone: () => void;
+}) {
   const [step, setStep] = useState(0);
+  const startedRef = useRef(false);
 
   useEffect(() => {
-    if (!active) {
-      setStep(0);
-      return;
-    }
+    // Start the sequence exactly once when the copy first becomes
+    // active. Lines hold their cadence independent of the video
+    // timeline so they can never be cut short by a clip ending.
+    if (!active || startedRef.current) return;
+    startedRef.current = true;
     const timers = [
       setTimeout(() => setStep(1), 800),
-      setTimeout(() => setStep(2), 5800),
-      setTimeout(() => setStep(3), 10800),
-      setTimeout(() => setStep(4), 15800),
-      setTimeout(() => setStep(5), 20800),
+      setTimeout(() => setStep(2), 6800),
+      setTimeout(() => setStep(3), 12800),
+      setTimeout(() => setStep(4), 18800),
+      setTimeout(() => {
+        setStep(5);
+        onDone();
+      }, 24800),
     ];
     return () => timers.forEach(clearTimeout);
-  }, [active]);
+  }, [active, onDone]);
 
   const lines = ['Real trainers', 'Real nutritionists', 'One platform', 'One community'];
 
@@ -243,7 +255,7 @@ function Scene2Copy({ active }: { active: boolean }) {
           key={i}
           className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 z-10 px-6 text-center"
           style={{
-            opacity: step === i + 1 ? 1 : 0,
+            opacity: !hide && step === i + 1 ? 1 : 0,
             transition: 'opacity 900ms ease-out',
           }}
         >
