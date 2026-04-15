@@ -95,10 +95,12 @@ export default function IntroScroll() {
     const total = (d2 + d4) * 1000; // ms
     const head = 600;
     const tail = 1400;
-    const span = total - head - tail;
-    // 0.9 multiplier tightens each line slot by ~10% so the cadence
-    // feels a touch snappier without crowding the headline.
-    const slot = (span / 4) * 0.9;
+    // Each line holds on screen for 4s before the next one takes over.
+    // Uses fixed timing so pacing feels the same regardless of which
+    // video is currently behind the words.
+    void total;
+    void tail;
+    const slot = 4000;
     // Last line gets ~2s on screen before "Built around you" takes
     // over — lets the headline land in the middle of scene 4 instead
     // of clinging to the end.
