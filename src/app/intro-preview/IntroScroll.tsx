@@ -12,7 +12,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 
-const BEATS = ['/intro/beat-4.mp4', '/intro/beat-5.mp4'];
+const BEATS = ['/intro/beat-5.mp4', '/intro/beat-4.mp4'];
 
 export default function IntroScroll() {
   return (
