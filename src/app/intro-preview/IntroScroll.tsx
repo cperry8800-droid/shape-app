@@ -25,9 +25,9 @@ export default function IntroScroll() {
           stacked above the real shape-text PNG wordmark forced white via
           CSS filter. The PNG carries the correct legacy font. */}
       <div className="pointer-events-none absolute left-6 top-6 z-20 flex flex-col items-center gap-2 md:left-10 md:top-10">
-        <svg viewBox="0 0 200 100" className="h-10 w-auto md:h-12">
-          <polygon points="72,18 72,82 120,50" fill="#2DD4BF" />
-          <polygon points="128,18 128,82 80,50" fill="#FFFFFF" />
+        <svg viewBox="0 0 200 90" className="h-10 w-auto md:h-12">
+          <polygon points="72,18 72,62 105,40" fill="#2DD4BF" />
+          <polygon points="128,18 128,62 95,40" fill="#FFFFFF" />
         </svg>
         <img
           src="/logo-text-trimmed.png"
