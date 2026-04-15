@@ -232,7 +232,7 @@ export default function IntroScroll() {
             key={line}
             className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 z-10 px-6 text-center"
             style={{
-              opacity: !looped && scene !== 4 && step === i + 1 ? 1 : 0,
+              opacity: !looped && step === i + 1 ? 1 : 0,
               transition: 'opacity 900ms ease-out',
             }}
           >
