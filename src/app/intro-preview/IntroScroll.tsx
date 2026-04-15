@@ -25,20 +25,28 @@ export default function IntroScroll() {
   const video4Ref = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
+    // Only scene 1 autoplays on mount. Later scenes start paused at
+    // frame 0 and begin playing on transition — this avoids a mid-clip
+    // jump or loop-seam stutter when the scene finally becomes visible.
     video1Ref.current?.play().catch(() => {});
-    video2Ref.current?.play().catch(() => {});
-    video3Ref.current?.play().catch(() => {});
-    video4Ref.current?.play().catch(() => {});
   }, []);
 
   const goToScene2 = () => {
     setScene(2);
-    video2Ref.current?.play().catch(() => {});
+    const v = video2Ref.current;
+    if (v) {
+      v.currentTime = 0;
+      v.play().catch(() => {});
+    }
   };
 
   const goToScene3 = () => {
     setScene(3);
-    video3Ref.current?.play().catch(() => {});
+    const v = video3Ref.current;
+    if (v) {
+      v.currentTime = 0;
+      v.play().catch(() => {});
+    }
   };
 
   // Auto-advance from scene 3 to scene 4 so the film flows straight
@@ -51,7 +59,11 @@ export default function IntroScroll() {
 
   const goToScene4 = () => {
     setScene(4);
-    video4Ref.current?.play().catch(() => {});
+    const v = video4Ref.current;
+    if (v) {
+      v.currentTime = 0;
+      v.play().catch(() => {});
+    }
   };
 
   return (
