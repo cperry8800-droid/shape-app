@@ -119,12 +119,11 @@ export default function IntroScroll() {
         style={{ opacity: scene === 4 ? 1 : 0 }}
       />
 
-      {/* Shape logo (always visible) */}
+      {/* Shape triangles (always visible) */}
       <img
-        src="/logo-original.png"
+        src="/logo-triangles-only.svg"
         alt="Shape"
-        className="pointer-events-none absolute left-6 top-6 z-20 h-16 w-auto md:left-10 md:top-10 md:h-20"
-        style={{ filter: 'brightness(0) invert(1)' }}
+        className="pointer-events-none absolute left-6 top-6 z-20 h-10 w-auto md:left-10 md:top-10 md:h-12"
       />
 
       {/* Scene 1 CTA — fades out as scene 2 takes over */}
