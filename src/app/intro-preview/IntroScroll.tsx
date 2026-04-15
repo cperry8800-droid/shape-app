@@ -242,7 +242,7 @@ export default function IntroScroll() {
         <button
           type="button"
           onClick={goToScene2}
-          className="inline-flex items-center justify-center border border-white bg-transparent px-6 py-2.5 text-[0.64rem] font-medium uppercase tracking-[0.12em] text-white transition-all hover:bg-white hover:text-neutral-950 md:px-8 md:py-3 md:text-[0.74rem]"
+          className="inline-flex items-center justify-center border border-white bg-transparent px-5 py-2 text-[0.58rem] font-medium uppercase tracking-[0.12em] text-white transition-all hover:bg-white hover:text-neutral-950 md:px-8 md:py-3 md:text-[0.74rem]"
         >
           Get Started →
         </button>
