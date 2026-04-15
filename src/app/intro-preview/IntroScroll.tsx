@@ -231,7 +231,7 @@ export default function IntroScroll() {
           pointerEvents: scene === 1 && !looped ? 'auto' : 'none',
         }}
       >
-        <div className="flex items-center justify-center gap-2.5 text-[0.95rem] font-extralight uppercase leading-none tracking-[0.28em] text-white md:gap-3 md:text-[clamp(1.3rem,2.6vw,2rem)]">
+        <div className="flex items-center justify-center gap-2.5 text-[1.1rem] font-extralight uppercase leading-none tracking-[0.28em] text-white md:gap-3 md:text-[clamp(1.3rem,2.6vw,2rem)]">
           <span>Welcome to</span>
           <img
             src="/logo-text-trimmed.png"
