@@ -119,15 +119,15 @@ export default function IntroScroll() {
         style={{ opacity: scene === 4 ? 1 : 0 }}
       />
 
-      {/* Shape triangles (always visible) — apexes meet at single point */}
+      {/* Shape triangles — exact logo-triangles-only.svg geometry */}
       <svg
         xmlns="http://www.w3.org/2000/svg"
-        viewBox="55 10 95 80"
+        viewBox="60 14 80 72"
         aria-label="Shape"
         className="pointer-events-none absolute left-6 top-6 z-20 h-10 w-auto md:left-10 md:top-10 md:h-12"
       >
-        <polygon points="60,32 60,80 102,56" fill="#FFFFFF" />
-        <polygon points="144,20 144,68 102,44" fill="#FFFFFF" />
+        <polygon points="72,38 72,82 100,50" fill="#FFFFFF" />
+        <polygon points="128,18 128,62 100,50" fill="#FFFFFF" />
       </svg>
 
       {/* Scene 1 CTA — fades out as scene 2 takes over */}
