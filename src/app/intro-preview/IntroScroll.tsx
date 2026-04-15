@@ -119,12 +119,16 @@ export default function IntroScroll() {
         style={{ opacity: scene === 4 ? 1 : 0 }}
       />
 
-      {/* Shape triangles (always visible) */}
-      <img
-        src="/logo-triangles-only.svg"
-        alt="Shape"
+      {/* Shape triangles (always visible, widened spacing) */}
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="55 14 90 72"
+        aria-label="Shape"
         className="pointer-events-none absolute left-6 top-6 z-20 h-10 w-auto md:left-10 md:top-10 md:h-12"
-      />
+      >
+        <polygon points="65,38 65,82 98,60" fill="#FFFFFF" />
+        <polygon points="135,18 135,62 102,40" fill="#FFFFFF" />
+      </svg>
 
       {/* Scene 1 CTA — fades out as scene 2 takes over */}
       <div
