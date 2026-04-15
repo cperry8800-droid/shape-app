@@ -126,8 +126,8 @@ export default function IntroScroll() {
         aria-label="Shape"
         className="pointer-events-none absolute left-6 top-6 z-20 h-10 w-auto md:left-10 md:top-10 md:h-12"
       >
-        <polygon points="65,40 65,85 102,62" fill="#FFFFFF" />
-        <polygon points="140,15 140,60 102,38" fill="#FFFFFF" />
+        <polygon points="60,32 60,80 102,56" fill="#FFFFFF" />
+        <polygon points="144,20 144,68 102,44" fill="#FFFFFF" />
       </svg>
 
       {/* Scene 1 CTA — fades out as scene 2 takes over */}
