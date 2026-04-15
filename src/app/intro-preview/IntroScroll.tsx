@@ -80,6 +80,9 @@ export default function IntroScroll() {
           pointerEvents: scene === 1 ? 'auto' : 'none',
         }}
       >
+        <div className="text-[clamp(1.4rem,3vw,2.2rem)] font-light leading-tight tracking-[-0.02em] text-white">
+          Join the community
+        </div>
         <button
           type="button"
           onClick={goToScene2}
