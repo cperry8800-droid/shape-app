@@ -42,20 +42,32 @@ export default function IntroScroll() {
     });
 
     // iOS Safari blocks autoplay until a user gesture, even for muted
-    // video. The first tap anywhere on the page unlocks every clip.
+    // video. The first tap on the page "primes" each later clip so it
+    // can play on demand. We kick off a quick play() + pause() on the
+    // prepped videos synchronously inside the gesture — no async .then
+    // chain, because those late pauses would fight the real scene
+    // transitions and freeze the film.
     const unlock = () => {
-      [video1Ref, video2Ref, video4Ref].forEach((r) => {
+      [video2Ref, video4Ref].forEach((r) => {
         const v = r.current;
         if (!v) return;
-        v.play().then(() => {
-          if (v !== video1Ref.current) v.pause();
-        }).catch(() => {});
+        try {
+          const p = v.play();
+          if (p && typeof p.then === 'function') p.catch(() => {});
+          v.pause();
+          v.currentTime = 0;
+        } catch {
+          /* ignore */
+        }
       });
+      // Make sure scene 1 is definitely playing after the gesture.
+      video1Ref.current?.play().catch(() => {});
       window.removeEventListener('touchstart', unlock);
       window.removeEventListener('click', unlock);
     };
+    // Only wire the unlock to touch — desktop doesn't need it and a
+    // global click handler would race with the Get Started button.
     window.addEventListener('touchstart', unlock, { once: true, passive: true });
-    window.addEventListener('click', unlock, { once: true });
 
     return () => {
       wordTimersRef.current.forEach(clearTimeout);
