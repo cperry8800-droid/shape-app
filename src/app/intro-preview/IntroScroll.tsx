@@ -212,12 +212,12 @@ export default function IntroScroll() {
         )
       )}
 
-      {/* Scene 4 headline — appears after the four one-liners and then
-          stays pinned on top for every loop iteration. */}
+      {/* Scene 4 headline — appears after the one-liners finish and
+          disappears again once scene 4 ends / the film loops. */}
       <div
         className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 z-10 px-6 text-center transition-opacity duration-[1000ms] ease-out"
         style={{
-          opacity: (scene === 4 && step >= 5) || looped ? 1 : 0,
+          opacity: scene === 4 && step >= 5 ? 1 : 0,
         }}
       >
         <div className="text-[clamp(2rem,5vw,4rem)] font-light leading-tight tracking-[-0.03em] text-white">
