@@ -142,15 +142,6 @@ function BeatSection({
           </div>
         )}
 
-        {/* Scroll hint on the very first beat */}
-        {index === 0 && (
-          <div
-            className="absolute bottom-10 left-1/2 -translate-x-1/2 text-[0.68rem] uppercase tracking-[0.25em] text-white/45"
-            style={{ opacity: 1 - Math.min(1, progress * 4) }}
-          >
-            Scroll ↓
-          </div>
-        )}
       </div>
     </section>
   );
