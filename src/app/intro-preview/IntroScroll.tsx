@@ -335,7 +335,7 @@ export default function IntroScroll() {
         style={{
           opacity: (scene === 5 && showHeadline) || looped ? 1 : 0,
           pointerEvents: (scene === 5 && showHeadline) || looped ? 'auto' : 'none',
-          transitionDelay: scene === 5 && showHeadline && !looped ? '900ms' : '0ms',
+          transitionDelay: scene === 5 && showHeadline && !looped ? '1400ms' : '0ms',
         }}
       >
         <a
