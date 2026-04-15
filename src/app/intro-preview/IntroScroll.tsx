@@ -138,12 +138,12 @@ export default function IntroScroll() {
           pointerEvents: scene === 1 ? 'auto' : 'none',
         }}
       >
-        <div className="flex items-center justify-center gap-3 text-[clamp(1.3rem,2.7vw,2rem)] font-light leading-tight tracking-[-0.02em] text-white">
+        <div className="flex items-center justify-center gap-4 text-[clamp(1.8rem,3.6vw,2.8rem)] font-thin uppercase leading-none tracking-[0.18em] text-white">
           <span>Welcome to</span>
           <img
             src="/logo-text-trimmed.png"
             alt="Shape"
-            className="h-[1.1em] w-auto [filter:brightness(0)_invert(1)]"
+            className="h-[1em] w-auto [filter:brightness(0)_invert(1)]"
           />
         </div>
         <button
