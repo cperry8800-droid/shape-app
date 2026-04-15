@@ -60,7 +60,7 @@ export default function IntroScroll() {
   // Auto-advance: scene 2 (after all 4 one-liners) -> scene 3 -> scene 4.
   useEffect(() => {
     if (scene === 2) {
-      const t = setTimeout(() => goToScene3(), 9500);
+      const t = setTimeout(() => goToScene3(), 17000);
       return () => clearTimeout(t);
     }
     if (scene === 3) {
@@ -92,11 +92,12 @@ export default function IntroScroll() {
         style={{ opacity: scene === 1 ? 1 : 0 }}
       />
 
-      {/* Scene 2 video — no loop so the clip end doesn't restart */}
+      {/* Scene 2 video */}
       <video
         ref={video2Ref}
         src={SCENE_2}
         muted
+        loop
         playsInline
         preload="auto"
         className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-out"
@@ -221,10 +222,10 @@ function Scene2Copy({ active }: { active: boolean }) {
       return;
     }
     const timers = [
-      setTimeout(() => setStep(1), 800),
-      setTimeout(() => setStep(2), 3100),
-      setTimeout(() => setStep(3), 5400),
-      setTimeout(() => setStep(4), 7700),
+      setTimeout(() => setStep(1), 1000),
+      setTimeout(() => setStep(2), 5000),
+      setTimeout(() => setStep(3), 9000),
+      setTimeout(() => setStep(4), 13000),
     ];
     return () => timers.forEach(clearTimeout);
   }, [active]);
