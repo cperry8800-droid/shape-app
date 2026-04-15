@@ -25,28 +25,36 @@ export default function IntroScroll() {
   const video4Ref = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    // Only scene 1 autoplays on mount. Later scenes start paused at
-    // frame 0 and begin playing on transition — this avoids a mid-clip
-    // jump or loop-seam stutter when the scene finally becomes visible.
+    // Scene 1 autoplays on mount. Later scenes start paused at frame 0
+    // and force-load their first frame so there's no transparent gap
+    // when the crossfade begins.
     video1Ref.current?.play().catch(() => {});
+    [video2Ref, video3Ref, video4Ref].forEach((r) => {
+      const v = r.current;
+      if (!v) return;
+      v.load();
+      v.currentTime = 0;
+    });
   }, []);
 
   const goToScene2 = () => {
-    setScene(2);
     const v = video2Ref.current;
     if (v) {
       v.currentTime = 0;
       v.play().catch(() => {});
     }
+    // Brief head-start so video is rendering before the opacity
+    // crossfade reveals it.
+    setTimeout(() => setScene(2), 120);
   };
 
   const goToScene3 = () => {
-    setScene(3);
     const v = video3Ref.current;
     if (v) {
       v.currentTime = 0;
       v.play().catch(() => {});
     }
+    setTimeout(() => setScene(3), 120);
   };
 
   // Auto-advance: scene 2 (after all 4 one-liners) -> scene 3 -> scene 4.
@@ -62,12 +70,12 @@ export default function IntroScroll() {
   }, [scene]);
 
   const goToScene4 = () => {
-    setScene(4);
     const v = video4Ref.current;
     if (v) {
       v.currentTime = 0;
       v.play().catch(() => {});
     }
+    setTimeout(() => setScene(4), 120);
   };
 
   return (
