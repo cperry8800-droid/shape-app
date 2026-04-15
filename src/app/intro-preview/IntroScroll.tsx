@@ -21,14 +21,21 @@ export default function IntroScroll() {
         <BeatSection key={src} src={src} index={i} isLast={i === BEATS.length - 1} />
       ))}
       {/* Shape wordmark top-left, white, floats over the video */}
-      {/* Use the canonical logo-full.svg from /public. Tweak: bottom-left
-          triangle is already teal, we override the right triangle + text
-          to pure white via a filter so it matches the screenshot. */}
-      <img
-        src="/logo-full.svg"
-        alt="Shape"
-        className="pointer-events-none absolute left-6 top-6 z-20 h-14 w-auto md:left-10 md:top-10 md:h-20"
-      />
+      {/* Composite logo: inline SVG for the triangle mark (teal + white)
+          stacked above the real shape-text PNG wordmark forced white via
+          CSS filter. The PNG carries the correct legacy font. */}
+      <div className="pointer-events-none absolute left-6 top-6 z-20 flex flex-col items-center gap-2 md:left-10 md:top-10">
+        <svg viewBox="0 0 200 100" className="h-10 w-auto md:h-12">
+          <polygon points="72,18 72,82 120,50" fill="#2DD4BF" />
+          <polygon points="128,18 128,82 80,50" fill="#FFFFFF" />
+        </svg>
+        <img
+          src="/logo-text-trimmed.png"
+          alt="Shape"
+          className="h-3 w-auto md:h-4"
+          style={{ filter: 'brightness(0) invert(1)' }}
+        />
+      </div>
     </main>
   );
 }
