@@ -218,6 +218,7 @@ function Scene2Copy({ active }: { active: boolean }) {
       setTimeout(() => setStep(2), 3550),
       setTimeout(() => setStep(3), 6400),
       setTimeout(() => setStep(4), 9250),
+      setTimeout(() => setStep(5), 12100),
     ];
     return () => timers.forEach(clearTimeout);
   }, [active]);
