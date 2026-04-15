@@ -1,134 +1,110 @@
 'use client';
 
-// Scroll-driven cinematic intro. Six sticky full-viewport sections,
-// one per Veo clip. No copy overlays — the clips carry the story on
-// their own. Only the final beat gets a "Get Started" CTA.
+// Cinematic intro. Two scenes on a single fullscreen canvas:
 //
-// Each section is h-[200vh] so there's real scroll distance; the
-// inner wrapper uses sticky top-0 h-screen so the video pins while
-// the parent scrolls past. Videos pause when off-screen to save
-// battery and decoder budget.
+//   Scene 1 — hero video (beat-5) with the white Shape logo top-left
+//             and a transparent "Get Started" CTA bottom-center.
+//   Scene 2 — explainer video (beat-6) that crossfades in when the
+//             user clicks Get Started. Fluid opacity blend, no page
+//             navigation, horizon.trade-style continuity.
+//
+// When you're ready, drop the explainer clip at /public/intro/beat-6.mp4
+// and it'll play automatically on the transition.
 
 import { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 
-const BEATS = ['/intro/beat-5.mp4'];
+const SCENE_1 = '/intro/beat-5.mp4';
+const SCENE_2 = '/intro/beat-6.mp4';
 
 export default function IntroScroll() {
+  const [scene, setScene] = useState<1 | 2>(1);
+  const video1Ref = useRef<HTMLVideoElement>(null);
+  const video2Ref = useRef<HTMLVideoElement>(null);
+
+  // Autoplay both videos; crossfade via opacity so the motion stays
+  // fluid and we don't flash black during the transition.
+  useEffect(() => {
+    video1Ref.current?.play().catch(() => {});
+    video2Ref.current?.play().catch(() => {});
+  }, []);
+
+  const goToScene2 = () => {
+    setScene(2);
+    // Make sure scene-2 video is playing from the top as it fades in.
+    const v = video2Ref.current;
+    if (v) {
+      v.currentTime = 0;
+      v.play().catch(() => {});
+    }
+  };
+
   return (
     <main className="fixed inset-0 bg-black text-white">
-      {BEATS.map((src, i) => (
-        <BeatSection key={src} src={src} index={i} isLast={i === BEATS.length - 1} />
-      ))}
-      {/* Shape wordmark top-left, white, floats over the video */}
-      {/* The real legacy logo, forced to pure white via CSS filter.
-          Single image, locked proportions, nothing to fiddle with. */}
+      {/* Scene 1 video */}
+      <video
+        ref={video1Ref}
+        src={SCENE_1}
+        muted
+        loop
+        playsInline
+        preload="auto"
+        className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-out"
+        style={{ opacity: scene === 1 ? 1 : 0 }}
+      />
+
+      {/* Scene 2 video */}
+      <video
+        ref={video2Ref}
+        src={SCENE_2}
+        muted
+        loop
+        playsInline
+        preload="auto"
+        className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-out"
+        style={{ opacity: scene === 2 ? 1 : 0 }}
+      />
+
+      {/* Shape logo (always visible) */}
       <img
         src="/logo-original.png"
         alt="Shape"
-        className="pointer-events-none absolute left-6 top-6 z-20 h-12 w-auto md:left-10 md:top-10 md:h-14"
+        className="pointer-events-none absolute left-6 top-6 z-20 h-14 w-auto md:left-10 md:top-10 md:h-16"
         style={{ filter: 'brightness(0) invert(1)' }}
       />
-    </main>
-  );
-}
 
-function BeatSection({
-  src,
-  index,
-  isLast,
-}: {
-  src: string;
-  index: number;
-  isLast: boolean;
-}) {
-  const sectionRef = useRef<HTMLElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [progress, setProgress] = useState(0);
-
-  useEffect(() => {
-    const el = sectionRef.current;
-    if (!el) return;
-
-    let raf = 0;
-    const update = () => {
-      const rect = el.getBoundingClientRect();
-      const total = rect.height - window.innerHeight;
-      const scrolled = Math.max(0, -rect.top);
-      const p = total > 0 ? Math.min(1, scrolled / total) : 0;
-      setProgress(p);
-    };
-    const onScroll = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(update);
-    };
-
-    update();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', onScroll);
-    return () => {
-      window.removeEventListener('scroll', onScroll);
-      window.removeEventListener('resize', onScroll);
-      cancelAnimationFrame(raf);
-    };
-  }, []);
-
-  // Check if the section is on-screen at all (top above viewport bottom,
-  // bottom below viewport top). Play while visible, pause otherwise.
-  useEffect(() => {
-    const el = sectionRef.current;
-    const v = videoRef.current;
-    if (!el || !v) return;
-
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            v.play().catch(() => {});
-          } else {
-            v.pause();
-          }
-        }
-      },
-      { threshold: 0 }
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
-
-  return (
-    <section ref={sectionRef} className="relative h-screen w-screen">
-      <div className="absolute inset-0 overflow-hidden">
-        <video
-          ref={videoRef}
-          src={src}
-          muted
-          loop
-          playsInline
-          preload="metadata"
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-
-        {/* Subtle vignette for legibility on CTA */}
-        {isLast && (
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
-        )}
-
-        {/* Final CTA floats over the last clip */}
-        {isLast && (
-          <div
-            className="absolute inset-x-0 bottom-[10vh] z-10 flex flex-col items-center gap-4 px-6 text-center"
-          >
-            <Link
-              href="/trainers"
-              className="inline-flex items-center justify-center border border-white bg-transparent px-10 py-4 text-[0.82rem] font-medium uppercase tracking-[0.12em] text-white transition-all hover:bg-white hover:text-neutral-950"
-            >
-              Get Started →
-            </Link>
-          </div>
-        )}
-
+      {/* Scene 1 CTA — fades out as scene 2 takes over */}
+      <div
+        className="absolute inset-x-0 bottom-[10vh] z-10 flex flex-col items-center gap-4 px-6 text-center transition-opacity duration-[1000ms] ease-out"
+        style={{
+          opacity: scene === 1 ? 1 : 0,
+          pointerEvents: scene === 1 ? 'auto' : 'none',
+        }}
+      >
+        <button
+          type="button"
+          onClick={goToScene2}
+          className="inline-flex items-center justify-center border border-white bg-transparent px-10 py-4 text-[0.82rem] font-medium uppercase tracking-[0.12em] text-white transition-all hover:bg-white hover:text-neutral-950"
+        >
+          Get Started →
+        </button>
       </div>
-    </section>
+
+      {/* Scene 2 CTA — fades in after the transition */}
+      <div
+        className="absolute inset-x-0 bottom-[10vh] z-10 flex flex-col items-center gap-4 px-6 text-center transition-opacity duration-[1000ms] ease-out"
+        style={{
+          opacity: scene === 2 ? 1 : 0,
+          pointerEvents: scene === 2 ? 'auto' : 'none',
+          transitionDelay: scene === 2 ? '600ms' : '0ms',
+        }}
+      >
+        <a
+          href="/trainers"
+          className="inline-flex items-center justify-center border border-white bg-transparent px-10 py-4 text-[0.82rem] font-medium uppercase tracking-[0.12em] text-white transition-all hover:bg-white hover:text-neutral-950"
+        >
+          Continue →
+        </a>
+      </div>
+    </main>
   );
 }
