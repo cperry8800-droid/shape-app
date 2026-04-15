@@ -174,7 +174,7 @@ export default function IntroScroll() {
           if (looped) goToScene2();
         }}
         preload="auto"
-        className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-out"
+        className="absolute inset-0 h-full w-full object-contain md:object-cover transition-opacity duration-[1400ms] ease-out"
         style={{ opacity: scene === 1 ? 1 : 0 }}
       />
 
@@ -195,7 +195,7 @@ export default function IntroScroll() {
         }}
         onEnded={goToScene4}
         preload="auto"
-        className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-out"
+        className="absolute inset-0 h-full w-full object-contain md:object-cover transition-opacity duration-[1400ms] ease-out"
         style={{ opacity: scene === 2 ? 1 : 0 }}
       />
 
@@ -207,7 +207,7 @@ export default function IntroScroll() {
         playsInline
         onEnded={loopBackToScene1}
         preload="auto"
-        className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-out"
+        className="absolute inset-0 h-full w-full object-contain md:object-cover transition-opacity duration-[1400ms] ease-out"
         style={{ opacity: scene === 4 ? 1 : 0 }}
       />
 
