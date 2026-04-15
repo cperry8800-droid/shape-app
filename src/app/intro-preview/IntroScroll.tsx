@@ -126,7 +126,7 @@ export default function IntroScroll() {
 
       {/* Scene 1 CTA — fades out as scene 2 takes over */}
       <div
-        className="absolute inset-x-0 bottom-[10vh] z-10 flex flex-col items-center gap-5 px-6 text-center transition-opacity duration-[1000ms] ease-out"
+        className="absolute inset-x-0 bottom-[25vh] z-10 flex flex-col items-center gap-5 px-6 text-center transition-opacity duration-[1000ms] ease-out"
         style={{
           opacity: scene === 1 ? 1 : 0,
           pointerEvents: scene === 1 ? 'auto' : 'none',
