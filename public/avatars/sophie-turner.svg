@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#EF4444"/>
+      <stop offset="100%" stop-color="#B91C1C"/>
+    </linearGradient>
+    <linearGradient id="skin" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FDBCB4"/>
+      <stop offset="100%" stop-color="#E8A090"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="400" fill="url(#bg)"/>
+  <!-- Body/shoulders - athletic -->
+  <ellipse cx="200" cy="420" rx="135" ry="98" fill="#222"/>
+  <!-- Neck -->
+  <rect x="182" y="280" width="36" height="32" rx="4" fill="url(#skin)"/>
+  <!-- Head -->
+  <ellipse cx="200" cy="218" rx="62" ry="75" fill="url(#skin)"/>
+  <!-- Hair - messy bun -->
+  <ellipse cx="200" cy="170" rx="68" ry="48" fill="#B8860B"/>
+  <circle cx="200" cy="135" r="30" fill="#B8860B"/>
+  <circle cx="195" cy="128" r="22" fill="#A07608"/>
+  <ellipse cx="140" cy="200" rx="12" ry="30" fill="#B8860B"/>
+  <ellipse cx="260" cy="200" rx="12" ry="30" fill="#B8860B"/>
+  <!-- Loose strands -->
+  <path d="M148 210 Q140 240 150 260" stroke="#B8860B" stroke-width="4" fill="none"/>
+  <path d="M252 210 Q260 240 250 260" stroke="#B8860B" stroke-width="4" fill="none"/>
+  <!-- Eyes -->
+  <ellipse cx="180" cy="220" rx="7" ry="5" fill="#2C5F2D"/>
+  <ellipse cx="220" cy="220" rx="7" ry="5" fill="#2C5F2D"/>
+  <!-- Eyebrows -->
+  <path d="M168 208 Q180 203 190 209" stroke="#8B6914" stroke-width="2.5" fill="none"/>
+  <path d="M210 209 Q220 203 232 208" stroke="#8B6914" stroke-width="2.5" fill="none"/>
+  <!-- Nose -->
+  <ellipse cx="200" cy="237" rx="4.5" ry="3" fill="#D4908A" opacity="0.5"/>
+  <!-- Grin -->
+  <path d="M186 250 Q200 262 214 250" stroke="#C4806A" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <!-- Athletic tank -->
+  <rect x="168" y="300" width="28" height="20" fill="#EF4444"/>
+  <rect x="204" y="300" width="28" height="20" fill="#EF4444"/>
+  <!-- Kettlebell accent -->
+  <circle cx="45" cy="50" r="16" fill="white" opacity="0.12" stroke="white" stroke-opacity="0.12" stroke-width="3"/>
+  <rect x="38" y="28" width="14" height="8" rx="4" fill="white" opacity="0.12"/>
+</svg>

@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#B45309"/>
+    </linearGradient>
+    <linearGradient id="skin" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#8D5524"/>
+      <stop offset="100%" stop-color="#6B3A1F"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="400" fill="url(#bg)"/>
+  <!-- Body/shoulders - broad -->
+  <ellipse cx="200" cy="415" rx="150" ry="100" fill="#1a1a1a"/>
+  <!-- Neck - thick -->
+  <rect x="172" y="275" width="56" height="40" rx="4" fill="url(#skin)"/>
+  <!-- Head -->
+  <ellipse cx="200" cy="210" rx="72" ry="82" fill="url(#skin)"/>
+  <!-- Buzz cut hair -->
+  <ellipse cx="200" cy="160" rx="68" ry="38" fill="#1a1a1a"/>
+  <rect x="135" y="150" width="130" height="25" rx="4" fill="#1a1a1a"/>
+  <!-- Eyes - focused -->
+  <ellipse cx="176" cy="215" rx="8" ry="4.5" fill="#1a1a1a"/>
+  <ellipse cx="224" cy="215" rx="8" ry="4.5" fill="#1a1a1a"/>
+  <!-- Strong eyebrows -->
+  <rect x="162" y="202" width="28" height="3.5" rx="1.5" fill="#1a1a1a"/>
+  <rect x="210" y="202" width="28" height="3.5" rx="1.5" fill="#1a1a1a"/>
+  <!-- Nose -->
+  <ellipse cx="200" cy="235" rx="7" ry="5" fill="#6B3A1F" opacity="0.4"/>
+  <!-- Confident smile -->
+  <path d="M184 252 Q200 263 216 252" stroke="#5A2D15" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <!-- Goatee -->
+  <ellipse cx="200" cy="265" rx="15" ry="10" fill="#1a1a1a" opacity="0.6"/>
+  <!-- Boxing hoodie -->
+  <path d="M150 308 L165 295 Q200 310 235 295 L250 308" fill="#1a1a1a"/>
+  <!-- Boxing glove accent -->
+  <circle cx="350" cy="350" r="22" fill="white" opacity="0.12"/>
+  <ellipse cx="350" cy="340" rx="18" ry="14" fill="white" opacity="0.12"/>
+  <rect x="344" y="360" width="12" height="15" rx="2" fill="white" opacity="0.1"/>
+</svg>

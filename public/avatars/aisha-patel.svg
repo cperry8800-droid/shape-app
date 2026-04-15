@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#EC4899"/>
+      <stop offset="100%" stop-color="#BE185D"/>
+    </linearGradient>
+    <linearGradient id="skin" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#D4A574"/>
+      <stop offset="100%" stop-color="#B8834A"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="400" fill="url(#bg)"/>
+  <!-- Body/shoulders -->
+  <ellipse cx="200" cy="420" rx="130" ry="100" fill="#111"/>
+  <!-- Neck -->
+  <rect x="180" y="280" width="40" height="35" rx="4" fill="url(#skin)"/>
+  <!-- Head -->
+  <ellipse cx="200" cy="215" rx="65" ry="78" fill="url(#skin)"/>
+  <!-- Hair -->
+  <ellipse cx="200" cy="170" rx="72" ry="55" fill="#1a1a1a"/>
+  <ellipse cx="140" cy="210" rx="18" ry="50" fill="#1a1a1a"/>
+  <ellipse cx="260" cy="210" rx="18" ry="50" fill="#1a1a1a"/>
+  <!-- Ponytail -->
+  <ellipse cx="268" cy="160" rx="25" ry="15" fill="#1a1a1a"/>
+  <rect x="268" y="145" width="12" height="60" rx="6" fill="#1a1a1a" transform="rotate(15 274 175)"/>
+  <!-- Eyes -->
+  <ellipse cx="178" cy="218" rx="7" ry="5" fill="#1a1a1a"/>
+  <ellipse cx="222" cy="218" rx="7" ry="5" fill="#1a1a1a"/>
+  <!-- Eyebrows -->
+  <path d="M166 205 Q178 200 188 206" stroke="#1a1a1a" stroke-width="2.5" fill="none"/>
+  <path d="M212 206 Q222 200 234 205" stroke="#1a1a1a" stroke-width="2.5" fill="none"/>
+  <!-- Nose -->
+  <ellipse cx="200" cy="235" rx="5" ry="3.5" fill="#A0784E" opacity="0.4"/>
+  <!-- Smile -->
+  <path d="M187 248 Q200 260 213 248" stroke="#A0784E" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <!-- Sports bra top -->
+  <path d="M160 310 Q200 330 240 310" fill="#EC4899"/>
+  <!-- Lightning bolt accent -->
+  <polygon points="340,30 355,55 345,55 360,85 340,58 350,58 335,30" fill="white" opacity="0.15"/>
+</svg>

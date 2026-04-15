@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape — My Team</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* ===== Team Coaches Grid ===== */
+    .team-coaches-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+    }
+
+    /* ===== Coach Card ===== */
+    .coach-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+    .coach-card {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 24px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-bottom: none;
+    }
+    .coach-avatar {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .coach-info {
+      flex: 1;
+    }
+    .coach-name {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+    .coach-role {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      font-weight: 300;
+      margin-bottom: 6px;
+    }
+    .coach-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      color: #22C55E;
+      font-weight: 500;
+    }
+    .coach-status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22C55E;
+    }
+
+    /* ===== Chat Container ===== */
+    .team-chat-container {
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      height: 480px;
+    }
+    .team-chat-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-card);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .team-chat-header-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 0.65rem;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .team-chat-header-info h4 {
+      font-size: 0.88rem;
+      font-weight: 600;
+      margin-bottom: 1px;
+    }
+    .team-chat-header-info p {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-weight: 300;
+    }
+
+    /* ===== Chat Messages ===== */
+    .team-chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    .team-chat-messages::-webkit-scrollbar { display: none; }
+
+    .team-chat-msg {
+      display: flex;
+      gap: 10px;
+      max-width: 85%;
+    }
+    .team-chat-msg.own {
+      margin-left: auto;
+      flex-direction: row-reverse;
+    }
+    .team-chat-msg-avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 0.58rem;
+      color: #fff;
+    }
+    .team-chat-msg-body {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      padding: 10px 14px;
+      border-radius: 12px;
+      border-top-left-radius: 4px;
+    }
+    .team-chat-msg.own .team-chat-msg-body {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+      border-top-left-radius: 12px;
+      border-top-right-radius: 4px;
+    }
+    .team-chat-msg-name {
+      font-size: 0.7rem;
+      font-weight: 600;
+      margin-bottom: 3px;
+    }
+    .team-chat-msg.own .team-chat-msg-name {
+      color: rgba(255, 255, 255, 0.7);
+    }
+    .team-chat-msg-text {
+      font-size: 0.84rem;
+      line-height: 1.5;
+      font-weight: 300;
+    }
+    .team-chat-msg-time {
+      font-size: 0.63rem;
+      color: var(--text-muted);
+      margin-top: 5px;
+    }
+    .team-chat-msg.own .team-chat-msg-time {
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    /* ===== Chat Input ===== */
+    .team-chat-input-area {
+      padding: 14px 20px;
+      border-top: 1px solid var(--border);
+      background: var(--bg-card);
+      display: flex;
+      gap: 10px;
+    }
+    .team-chat-input-area input {
+      flex: 1;
+      padding: 11px 14px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.84rem;
+      outline: none;
+      transition: border-color 0.3s;
+    }
+    .team-chat-input-area input:focus {
+      border-color: var(--accent);
+    }
+    .team-chat-input-area button {
+      padding: 11px 22px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    .team-chat-input-area button:hover {
+      background: var(--accent-dark);
+    }
+
+    /* ===== Responsive ===== */
+    @media (max-width: 900px) {
+      .team-coaches-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    @media (max-width: 600px) {
+      .team-chat-container {
+        height: 400px;
+      }
+      .team-chat-input-area input {
+        padding: 10px 12px;
+        font-size: 0.82rem;
+      }
+      .team-chat-input-area button {
+        padding: 10px 16px;
+        font-size: 0.75rem;
+      }
+    }
+  </style>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar scrolled" id="navbar">
+    <div class="container nav-container">
+      <a href="home.html" class="logo">
+        <img src="logo.png" alt="Shape" class="logo-img">
+      </a>
+      <div class="nav-links" id="navLinks">
+        <div class="nav-dropdown">
+          <a href="for-clients.html">Clients</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-clients.html">Overview</a>
+            <a href="clients.html">Dashboard</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-trainers.html">Trainers</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-trainers.html">Overview</a>
+            <a href="trainer-dashboard.html">Trainer Dashboard</a>
+            <a href="trainers.html">Trainer Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-nutritionists.html">Nutritionists</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-nutritionists.html">Overview</a>
+            <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+            <a href="nutritionists.html">Nutritionist Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="shape-score.html">Rewards</a>
+          <div class="nav-dropdown-menu">
+            <a href="shape-score.html">Shape Score (Clients)</a>
+            <a href="shape-score-trainer.html">Shape Score (Trainers)</a>
+            <a href="shape-score-nutritionist.html">Shape Score (Nutritionists)</a>
+            <a href="shape-store.html">Shape Store</a>
+          </div>
+        </div>
+        <a href="community.html">Community</a>
+        <a href="pricing.html">Pricing</a>
+      </div>
+      <div class="nav-actions">
+        <a href="login.html" class="btn btn-sm btn-outline shape-auth-logged-out">Log In</a>
+        <span class="shape-auth-logged-in shape-nav-user-name" style="display:none;font-size:0.82rem;color:var(--text-muted);margin-right:4px;"></span>
+        <a href="clients.html" class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" data-shape-dashboard-link>Dashboard</a>
+        <button class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" onclick="shapeSignOut()">Sign Out</button>
+        <a href="landing.html" class="btn btn-sm btn-primary shape-auth-logged-out">Get Started</a>
+        <a href="radio.html" class="btn btn-sm btn-radio"><span class="btn-shape-text"><img src="logo.png" alt="Shape"></span> Radio</a>
+      </div>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Page Hero -->
+  <section class="page-hero">
+    <div class="container">
+      <span class="tag">My Team</span>
+      <h1>Your <span class="gradient-text">coaches</span></h1>
+      <p class="page-hero-sub">Message your trainer and nutritionist directly. Stay connected and get the guidance you need.</p>
+    </div>
+  </section>
+
+  <!-- Team Coaches -->
+  <section class="section">
+    <div class="container">
+      <div class="team-coaches-grid">
+
+        <!-- Trainer Panel -->
+        <div class="coach-panel">
+          <div class="coach-card">
+            <div class="coach-avatar" style="background: #6C3AED;">MJ</div>
+            <div class="coach-info">
+              <div class="coach-name">Marcus Johnson</div>
+              <div class="coach-role">Personal Trainer</div>
+              <div class="coach-status">
+                <span class="coach-status-dot"></span> Online
+              </div>
+            </div>
+          </div>
+          <div class="team-chat-container">
+            <div class="team-chat-header">
+              <div class="team-chat-header-avatar" style="background: #6C3AED;">MJ</div>
+              <div class="team-chat-header-info">
+                <h4>Marcus Johnson</h4>
+                <p>Personal Trainer</p>
+              </div>
+            </div>
+            <div class="team-chat-messages" id="trainerChatMessages"></div>
+            <div class="team-chat-input-area">
+              <input type="text" id="trainerMsgInput" placeholder="Message Marcus..." onkeydown="if(event.key==='Enter')sendMessage('trainer')">
+              <button onclick="sendMessage('trainer')">Send</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Nutritionist Panel -->
+        <div class="coach-panel">
+          <div class="coach-card">
+            <div class="coach-avatar" style="background: #10B981;">SM</div>
+            <div class="coach-info">
+              <div class="coach-name">Dr. Sarah Mitchell</div>
+              <div class="coach-role">Nutritionist</div>
+              <div class="coach-status">
+                <span class="coach-status-dot"></span> Online
+              </div>
+            </div>
+          </div>
+          <div class="team-chat-container">
+            <div class="team-chat-header">
+              <div class="team-chat-header-avatar" style="background: #10B981;">SM</div>
+              <div class="team-chat-header-info">
+                <h4>Dr. Sarah Mitchell</h4>
+                <p>Nutritionist</p>
+              </div>
+            </div>
+            <div class="team-chat-messages" id="nutritionistChatMessages"></div>
+            <div class="team-chat-input-area">
+              <input type="text" id="nutritionistMsgInput" placeholder="Message Dr. Mitchell..." onkeydown="if(event.key==='Enter')sendMessage('nutritionist')">
+              <button onclick="sendMessage('nutritionist')">Send</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <a href="home.html" class="logo"><img src="logo.png" alt="Shape" class="logo-img"></a>
+          <p class="footer-desc">Join the community</p>
+        </div>
+        <div class="footer-col">
+          <h4>Platform</h4>
+          <a href="trainers.html">Trainer Marketplace</a>
+          <a href="nutritionists.html">Nutritionists</a>
+          <a href="community.html">Community</a>
+          <a href="pricing.html">Pricing</a>
+          <a href="for-clients.html">Clients</a>
+          <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+          <a href="trainer-dashboard.html">Trainer Dashboard</a>
+          <a href="integrations.html">Integrations</a>
+        </div>
+        <div class="footer-col">
+          <h4>Get Started</h4>
+          <a href="signup-client.html">Sign Up as Client</a>
+          <a href="signup-trainer.html">Apply as Trainer</a>
+          <a href="signup-nutritionist.html">Apply as Nutritionist</a>
+        </div>
+        <div class="footer-col">
+          <h4>Support</h4>
+          <a href="help.html">Help Center</a>
+          <a href="contact.html">Contact</a>
+          <a href="radio.html">Shape Radio</a>
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 Shape. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    /* ===== Team Chat Logic ===== */
+    const STORAGE_KEY = 'shapeClientTeamMessages';
+
+    const coaches = {
+      trainer: { name: 'Marcus Johnson', role: 'Personal Trainer', initials: 'MJ', color: '#6C3AED' },
+      nutritionist: { name: 'Dr. Sarah Mitchell', role: 'Nutritionist', initials: 'SM', color: '#10B981' }
+    };
+
+    const today = new Date().toLocaleDateString();
+
+    function getTeamMessages() {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) return JSON.parse(stored);
+
+      const demo = {
+        trainer: [
+          { from: 'them', text: 'Great session today! Remember to stretch after your workout.', time: '6:30 PM', date: today },
+          { from: 'me', text: 'Thanks coach! Will do. See you Thursday!', time: '6:45 PM', date: today },
+          { from: 'them', text: "Perfect, we'll work on your squat form. Come ready!", time: '6:48 PM', date: today },
+        ],
+        nutritionist: [
+          { from: 'them', text: 'I reviewed your meal log. Your protein intake looks great this week!', time: '10:00 AM', date: today },
+          { from: 'me', text: "Thanks! I've been trying those Greek yogurt bowls you suggested.", time: '10:15 AM', date: today },
+          { from: 'them', text: "Love it! Let's keep that going. I'll update your plan for next week.", time: '10:20 AM', date: today },
+        ]
+      };
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(demo));
+      return demo;
+    }
+
+    function saveTeamMessages(data) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+
+    function renderChat(type) {
+      const data = getTeamMessages();
+      const messages = data[type] || [];
+      const coach = coaches[type];
+      const container = document.getElementById(type + 'ChatMessages');
+      if (!container) return;
+
+      container.innerHTML = '';
+
+      messages.forEach(function(msg) {
+        const isOwn = msg.from === 'me';
+        const div = document.createElement('div');
+        div.className = 'team-chat-msg' + (isOwn ? ' own' : '');
+
+        const avatarBg = isOwn ? 'var(--accent)' : coach.color;
+        const avatarText = isOwn ? 'You' : coach.initials;
+        const displayName = isOwn ? 'You' : coach.name;
+
+        div.innerHTML =
+          '<div class="team-chat-msg-avatar" style="background:' + avatarBg + ';">' + avatarText + '</div>' +
+          '<div class="team-chat-msg-body">' +
+            '<div class="team-chat-msg-name">' + displayName + '</div>' +
+            '<div class="team-chat-msg-text">' + msg.text + '</div>' +
+            '<div class="team-chat-msg-time">' + msg.time + '</div>' +
+          '</div>';
+
+        container.appendChild(div);
+      });
+
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function sendMessage(type) {
+      const input = document.getElementById(type + 'MsgInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      const data = getTeamMessages();
+      const now = new Date();
+      const hours = now.getHours();
+      const minutes = now.getMinutes().toString().padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const hour12 = hours % 12 || 12;
+      const timeStr = hour12 + ':' + minutes + ' ' + ampm;
+
+      data[type].push({
+        from: 'me',
+        text: text,
+        time: timeStr,
+        date: today
+      });
+
+      saveTeamMessages(data);
+      input.value = '';
+      renderChat(type);
+    }
+
+    /* ===== Init ===== */
+    renderChat('trainer');
+    renderChat('nutritionist');
+  </script>
+
+  <script src="main.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>

@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape — Gym Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <style>
+    .gd-count-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--accent); color: #000; font-size: 0.72rem; font-weight: 700;
+      padding: 2px 10px; border-radius: 20px; margin-left: 12px;
+    }
+    .gd-checkin-time {
+      font-size: 0.78rem; color: var(--text-muted); white-space: nowrap;
+    }
+    .gd-badge {
+      display: inline-block; font-size: 0.68rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      padding: 3px 10px; border-radius: 3px;
+    }
+    .gd-badge-pass {
+      background: rgba(45, 212, 191, 0.15); color: #2DD4BF;
+    }
+    .gd-badge-visit {
+      background: rgba(255, 255, 255, 0.06); color: var(--text-muted);
+    }
+    .gd-checkin-meta {
+      display: flex; align-items: center; gap: 12px; margin-left: auto; flex-shrink: 0;
+    }
+    .gd-week-filters {
+      display: flex; gap: 4px; flex-wrap: wrap;
+    }
+    .gd-day-card {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 24px; border: 1px solid var(--border); border-bottom: none;
+      background: var(--bg-card); transition: background 0.3s;
+    }
+    .gd-day-card:last-child { border-bottom: 1px solid var(--border); }
+    .gd-day-card:hover { background: var(--bg-alt); }
+    .gd-day-name {
+      font-size: 0.95rem; font-weight: 500; min-width: 160px;
+    }
+    .gd-day-date {
+      font-size: 0.78rem; color: var(--text-muted); margin-left: 8px; font-weight: 300;
+    }
+    .gd-day-stats {
+      display: flex; gap: 32px; align-items: center;
+    }
+    .gd-day-stat {
+      text-align: right;
+    }
+    .gd-day-stat-val {
+      font-size: 1rem; font-weight: 400;
+    }
+    .gd-day-stat-label {
+      font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .gd-insights-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+    }
+    .gd-insight-card {
+      padding: 32px; border: 1px solid var(--border); background: var(--bg-card);
+    }
+    .gd-insight-card h4 {
+      font-size: 0.72rem; font-weight: 500; text-transform: uppercase;
+      letter-spacing: 0.12em; color: var(--text-muted); margin-bottom: 20px;
+    }
+    .gd-peak-bar-row {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 10px;
+    }
+    .gd-peak-bar-label {
+      font-size: 0.78rem; color: var(--text-muted); min-width: 90px; text-align: right;
+    }
+    .gd-peak-bar-track {
+      flex: 1; height: 8px; background: rgba(255,255,255,0.06); border-radius: 0;
+    }
+    .gd-peak-bar-fill {
+      height: 100%; background: var(--accent); border-radius: 0;
+    }
+    .gd-peak-bar-val {
+      font-size: 0.78rem; min-width: 30px;
+    }
+    .gd-split-stat {
+      display: flex; align-items: center; gap: 24px; margin-bottom: 12px;
+    }
+    .gd-split-bar {
+      flex: 1; height: 10px; background: rgba(255,255,255,0.06); border-radius: 0;
+      overflow: hidden; display: flex;
+    }
+    .gd-split-bar-new {
+      height: 100%; background: var(--accent);
+    }
+    .gd-split-bar-ret {
+      height: 100%; background: rgba(255,255,255,0.2);
+    }
+    .gd-split-labels {
+      display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-muted);
+    }
+    .gd-big-number {
+      font-size: clamp(2rem, 4vw, 3rem); font-weight: 200;
+      letter-spacing: -0.03em; line-height: 1; margin-bottom: 4px;
+    }
+    .gd-big-sub {
+      font-size: 0.82rem; color: var(--text-muted); font-weight: 300;
+    }
+    .gd-trend-up {
+      color: #2DD4BF;
+    }
+    .gd-trend-up::before { content: '\2191 '; }
+    .gd-revenue-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 0; border-bottom: 1px solid var(--border);
+    }
+    .gd-revenue-row:last-child { border-bottom: none; }
+    .gd-revenue-label {
+      font-size: 0.88rem; color: var(--text-muted); font-weight: 300;
+    }
+    .gd-revenue-val {
+      font-size: 1rem; font-weight: 500;
+    }
+    .gd-settings-toggle {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 24px; border: 1px solid var(--border); background: var(--bg-card);
+      cursor: pointer; transition: background 0.3s; width: 100%;
+      font-family: inherit; color: var(--text); text-align: left;
+    }
+    .gd-settings-toggle:hover { background: var(--bg-alt); }
+    .gd-settings-toggle h3 {
+      font-size: 1rem; font-weight: 500; margin: 0;
+    }
+    .gd-settings-arrow {
+      font-size: 0.82rem; color: var(--text-muted);
+      transition: transform 0.3s;
+    }
+    .gd-settings-toggle.open .gd-settings-arrow {
+      transform: rotate(180deg);
+    }
+    .gd-settings-body {
+      border: 1px solid var(--border); border-top: none;
+      background: var(--bg-card); padding: 24px;
+      display: none;
+    }
+    .gd-settings-body.open { display: block; }
+    .gd-setting-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 0; border-bottom: 1px solid var(--border);
+    }
+    .gd-setting-row:last-child { border-bottom: none; }
+    .gd-setting-label {
+      font-size: 0.88rem; color: var(--text-muted); font-weight: 300;
+    }
+    .gd-setting-val {
+      font-size: 0.92rem; font-weight: 500;
+    }
+    .gd-active-badge {
+      display: inline-block; background: rgba(45, 212, 191, 0.15);
+      color: #2DD4BF; font-size: 0.72rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      padding: 3px 10px; border-radius: 3px;
+    }
+    @media (max-width: 768px) {
+      .gd-insights-grid { grid-template-columns: 1fr; }
+      .gd-day-card { flex-wrap: wrap; gap: 12px; padding: 14px 16px; }
+      .gd-day-stats { gap: 16px; }
+      .gd-day-name { min-width: auto; }
+      .gd-revenue-row { flex-wrap: wrap; gap: 4px; }
+
+      /* Fix check-in row layout on mobile */
+      #todayCheckins .td-client-row,
+      #topMembers .td-client-row {
+        flex-wrap: wrap;
+        position: relative;
+        padding: 14px 16px;
+        gap: 10px;
+      }
+      #todayCheckins .td-client-row .td-client-avatar,
+      #topMembers .td-client-row .td-client-avatar {
+        flex-shrink: 0;
+      }
+      #todayCheckins .td-client-row .td-client-info,
+      #topMembers .td-client-row .td-client-info {
+        flex: 1;
+        min-width: 0;
+      }
+      #todayCheckins .td-client-row .gd-checkin-meta,
+      #topMembers .td-client-row .gd-checkin-meta {
+        width: 100%;
+        margin-left: 0;
+        margin-top: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding-left: 44px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar scrolled" id="navbar">
+    <div class="container nav-container">
+      <a href="home.html" class="logo">
+        <img src="logo.png" alt="Shape" class="logo-img">
+      </a>
+      <div class="nav-links" id="navLinks">
+        <div class="nav-dropdown">
+          <a href="for-clients.html">Clients</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-clients.html">Overview</a>
+            <a href="clients.html">Dashboard</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-trainers.html">Trainers</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-trainers.html">Overview</a>
+            <a href="trainer-dashboard.html">Trainer Dashboard</a>
+            <a href="trainers.html">Trainer Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-nutritionists.html">Nutritionists</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-nutritionists.html">Overview</a>
+            <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+            <a href="nutritionists.html">Nutritionist Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="shape-score.html">Rewards</a>
+          <div class="nav-dropdown-menu">
+            <a href="shape-score.html">Shape Score (Clients)</a>
+            <a href="shape-score-trainer.html">Shape Score (Trainers)</a>
+            <a href="shape-score-nutritionist.html">Shape Score (Nutritionists)</a>
+            <a href="shape-store.html">Shape Store</a>
+          </div>
+        </div>
+        <a href="community.html">Community</a>
+        <a href="pricing.html">Pricing</a>
+      </div>
+      <div class="nav-actions">
+        <a href="login.html" class="btn btn-sm btn-outline shape-auth-logged-out">Log In</a>
+        <span class="shape-auth-logged-in shape-nav-user-name" style="display:none;font-size:0.82rem;color:var(--text-muted);margin-right:4px;"></span>
+        <a href="clients.html" class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" data-shape-dashboard-link>Dashboard</a>
+        <button class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" onclick="shapeSignOut()">Sign Out</button>
+        <a href="landing.html" class="btn btn-sm btn-primary shape-auth-logged-out">Get Started</a>
+        <a href="radio.html" class="btn btn-sm btn-radio"><span class="btn-shape-text"><img src="logo.png" alt="Shape"></span> Radio</a>
+      </div>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Page Hero -->
+  <section class="page-hero">
+    <div class="container">
+      <span class="tag">Shape Pass Partner</span>
+      <h1>Gym <span class="gradient-text">Dashboard</span></h1>
+      <p class="page-hero-sub">Peak Performance Fitness — Austin, TX</p>
+    </div>
+  </section>
+
+  <!-- Dashboard -->
+  <section class="section">
+    <div class="container">
+
+      <!-- Stats Row -->
+      <div class="progress-stats-row" style="grid-template-columns:repeat(5,1fr)">
+        <div class="progress-stat-card">
+          <div class="progress-stat-number">347</div>
+          <div class="progress-stat-label">Shape Pass Check-ins (This Month)</div>
+        </div>
+        <div class="progress-stat-card">
+          <div class="progress-stat-number">186</div>
+          <div class="progress-stat-label">Unique Members</div>
+        </div>
+        <div class="progress-stat-card">
+          <div class="progress-stat-number">$2,847</div>
+          <div class="progress-stat-label">Revenue Earned</div>
+        </div>
+        <div class="progress-stat-card">
+          <div class="progress-stat-number">11.2</div>
+          <div class="progress-stat-label">Avg Daily Check-ins</div>
+        </div>
+        <div class="progress-stat-card">
+          <div class="progress-stat-number">6 PM</div>
+          <div class="progress-stat-label">Peak Hour</div>
+        </div>
+      </div>
+
+      <!-- Today's Check-ins -->
+      <div class="td-section">
+        <div class="td-section-header">
+          <h2>Today's Check-ins <span class="gd-count-badge" id="todayCount"></span></h2>
+        </div>
+        <div class="td-client-list" id="todayCheckins"></div>
+      </div>
+
+      <!-- This Week -->
+      <div class="td-section">
+        <div class="td-section-header">
+          <h2>This Week</h2>
+          <div class="td-filters gd-week-filters" id="weekFilters"></div>
+        </div>
+        <div id="weekList"></div>
+      </div>
+
+      <!-- Member Insights -->
+      <div class="td-section">
+        <div class="td-section-header">
+          <h2>Member Insights</h2>
+        </div>
+        <div class="gd-insights-grid">
+          <!-- Peak Hours -->
+          <div class="gd-insight-card">
+            <h4>Peak Hours</h4>
+            <div class="gd-peak-bar-row">
+              <span class="gd-peak-bar-label">6 - 8 AM</span>
+              <div class="gd-peak-bar-track"><div class="gd-peak-bar-fill" style="width:78%"></div></div>
+              <span class="gd-peak-bar-val">78%</span>
+            </div>
+            <div class="gd-peak-bar-row">
+              <span class="gd-peak-bar-label">11 AM - 1 PM</span>
+              <div class="gd-peak-bar-track"><div class="gd-peak-bar-fill" style="width:52%"></div></div>
+              <span class="gd-peak-bar-val">52%</span>
+            </div>
+            <div class="gd-peak-bar-row">
+              <span class="gd-peak-bar-label">5 - 7 PM</span>
+              <div class="gd-peak-bar-track"><div class="gd-peak-bar-fill" style="width:91%"></div></div>
+              <span class="gd-peak-bar-val">91%</span>
+            </div>
+          </div>
+          <!-- New vs Returning -->
+          <div class="gd-insight-card">
+            <h4>New vs Returning</h4>
+            <div class="gd-split-bar" style="margin-bottom:12px">
+              <div class="gd-split-bar-new" style="width:34%"></div>
+              <div class="gd-split-bar-ret" style="width:66%"></div>
+            </div>
+            <div class="gd-split-labels">
+              <span>34% New</span>
+              <span>66% Returning</span>
+            </div>
+          </div>
+          <!-- Average Visit Duration -->
+          <div class="gd-insight-card">
+            <h4>Average Visit Duration</h4>
+            <div class="gd-big-number">47 <span style="font-size:0.4em;font-weight:300;color:var(--text-muted)">min</span></div>
+            <div class="gd-big-sub"><span class="gd-trend-up">12% from last month</span></div>
+          </div>
+          <!-- Member Retention -->
+          <div class="gd-insight-card">
+            <h4>Member Retention</h4>
+            <div class="gd-big-number">72%</div>
+            <div class="gd-big-sub">of Shape Pass members return within 30 days</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Most Frequent Members -->
+      <div class="td-section">
+        <div class="td-section-header">
+          <h2>Most Frequent Members</h2>
+        </div>
+        <div class="td-client-list" id="topMembers"></div>
+      </div>
+
+      <!-- Revenue Summary -->
+      <div class="td-section">
+        <div class="td-section-header">
+          <h2>Revenue Summary</h2>
+        </div>
+        <div style="border:1px solid var(--border);background:var(--bg-card);padding:24px 32px;">
+          <div class="gd-revenue-row">
+            <span class="gd-revenue-label">This Month</span>
+            <span class="gd-revenue-val">$2,847</span>
+          </div>
+          <div class="gd-revenue-row">
+            <span class="gd-revenue-label">Last Month</span>
+            <span class="gd-revenue-val">$2,412</span>
+          </div>
+          <div class="gd-revenue-row">
+            <span class="gd-revenue-label">Month-over-Month Change</span>
+            <span class="gd-revenue-val gd-trend-up">+18%</span>
+          </div>
+          <div class="gd-revenue-row">
+            <span class="gd-revenue-label">Next Payout</span>
+            <span class="gd-revenue-val" id="nextPayout"></span>
+          </div>
+          <div class="gd-revenue-row">
+            <span class="gd-revenue-label">Payout Amount</span>
+            <span class="gd-revenue-val">$2,847</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Facility Settings -->
+      <div class="td-section">
+        <button class="gd-settings-toggle" id="settingsToggle" onclick="toggleSettings()">
+          <h3>Facility Settings</h3>
+          <span class="gd-settings-arrow">&#9660;</span>
+        </button>
+        <div class="gd-settings-body" id="settingsBody">
+          <div class="gd-setting-row">
+            <span class="gd-setting-label">Shape Capacity</span>
+            <span class="gd-setting-val">25 members / hour</span>
+          </div>
+          <div class="gd-setting-row">
+            <span class="gd-setting-label">Available Hours</span>
+            <span class="gd-setting-val">5 AM - 10 PM</span>
+          </div>
+          <div class="gd-setting-row">
+            <span class="gd-setting-label">Classes Open to Shape Pass</span>
+            <span class="gd-setting-val">Yes</span>
+          </div>
+          <div class="gd-setting-row">
+            <span class="gd-setting-label">Current Status</span>
+            <span class="gd-setting-val"><span class="gd-active-badge">Active</span></span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <a href="home.html" class="logo">
+            <img src="logo.png" alt="Shape" class="logo-img">
+          </a>
+          <p class="footer-desc">Join the community</p>
+        </div>
+        <div class="footer-col">
+          <h4>Platform</h4>
+          <a href="trainers.html">Trainer Marketplace</a>
+          <a href="nutritionists.html">Nutritionists</a>        <a href="community.html">Community</a>
+        <a href="pricing.html">Pricing</a>
+          <a href="for-clients.html">Clients</a>
+          <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+          <a href="trainer-dashboard.html">Trainer Dashboard</a>
+          <a href="integrations.html">Integrations</a>
+        </div>
+        <div class="footer-col">
+          <h4>Get Started</h4>
+          <a href="signup-client.html">Sign Up as Client</a>
+          <a href="signup-trainer.html">Apply as Trainer</a>
+          <a href="signup-nutritionist.html">Apply as Nutritionist</a>
+        </div>
+        <div class="footer-col">
+          <h4>Support</h4>
+          <a href="help.html">Help Center</a>
+          <a href="contact.html">Contact</a>
+          <a href="radio.html">Shape Radio</a>
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 Shape. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+  <script>
+    // ---- Date helpers ----
+    const _gdToday = new Date();
+    function _gdDate(daysAgo) {
+      const d = new Date(_gdToday);
+      d.setDate(d.getDate() - daysAgo);
+      return d;
+    }
+    const _gdDayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const _gdDayShort = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const _gdMonths = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+    function _gdFmt(d) {
+      return _gdMonths[d.getMonth()] + ' ' + d.getDate();
+    }
+    function _gdFmtFull(d) {
+      return _gdMonths[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+    }
+
+    // ---- Avatar colors ----
+    const _gdColors = ['#2DD4BF','#F59E0B','#8B5CF6','#EF4444','#3B82F6','#EC4899','#10B981','#F97316','#6366F1','#14B8A6'];
+
+    function _gdInitials(name) {
+      return name.split(' ').map(function(w){return w[0]}).join('').toUpperCase();
+    }
+
+    function _gdAvatar(name, idx) {
+      var c = _gdColors[idx % _gdColors.length];
+      return '<div class="avatar avatar-sm" style="background:'+c+';color:#000;font-weight:600;flex-shrink:0">'+_gdInitials(name)+'</div>';
+    }
+
+    // ---- Today's Check-ins ----
+    var todayCheckins = [
+      { name: 'Marcus Johnson', time: '6:12 AM', visits: 12 },
+      { name: 'Sarah Chen', time: '6:45 AM', visits: 8 },
+      { name: 'Devon Williams', time: '7:18 AM', visits: 3 },
+      { name: 'Aisha Patel', time: '8:02 AM', visits: 1 },
+      { name: 'Tyler Brooks', time: '9:30 AM', visits: 15 },
+      { name: 'Mia Rodriguez', time: '11:15 AM', visits: 6 },
+      { name: 'Jordan Taylor', time: '12:47 PM', visits: 1 },
+      { name: 'Kayla Nguyen', time: '3:20 PM', visits: 4 },
+      { name: 'Chris Martinez', time: '5:05 PM', visits: 9 },
+      { name: 'Elena Foster', time: '6:38 PM', visits: 2 }
+    ];
+
+    function ordinal(n) {
+      var s = ['th','st','nd','rd'];
+      var v = n % 100;
+      return n + (s[(v-20)%10] || s[v] || s[0]);
+    }
+
+    (function renderTodayCheckins() {
+      var el = document.getElementById('todayCheckins');
+      document.getElementById('todayCount').textContent = todayCheckins.length;
+      var html = '';
+      todayCheckins.forEach(function(m, i) {
+        html += '<div class="td-client-row">';
+        html += '<div class="td-client-avatar">' + _gdAvatar(m.name, i) + '</div>';
+        html += '<div class="td-client-info"><h4>' + m.name + '</h4><span>' + _gdFmt(_gdToday) + '</span></div>';
+        html += '<div class="gd-checkin-meta">';
+        html += '<span class="gd-checkin-time">' + m.time + '</span>';
+        html += '<span class="gd-badge gd-badge-pass">Shape Pass</span>';
+        html += '<span class="gd-badge gd-badge-visit">' + ordinal(m.visits) + ' visit</span>';
+        html += '</div>';
+        html += '</div>';
+      });
+      el.innerHTML = html;
+    })();
+
+    // ---- This Week ----
+    var weekData = [
+      { daysAgo: 0, checkins: 10, revenue: 82 },
+      { daysAgo: 1, checkins: 14, revenue: 115 },
+      { daysAgo: 2, checkins: 9,  revenue: 74 },
+      { daysAgo: 3, checkins: 16, revenue: 131 },
+      { daysAgo: 4, checkins: 12, revenue: 98 },
+      { daysAgo: 5, checkins: 18, revenue: 148 },
+      { daysAgo: 6, checkins: 7,  revenue: 57 }
+    ];
+
+    var activeWeekFilter = 'All';
+
+    function renderWeekFilters() {
+      var el = document.getElementById('weekFilters');
+      var days = ['All'];
+      for (var i = 0; i < 7; i++) {
+        days.push(_gdDayShort[_gdDate(i).getDay()]);
+      }
+      var html = '';
+      days.forEach(function(d) {
+        var cls = d === activeWeekFilter ? 'filter-btn active' : 'filter-btn';
+        html += '<button class="' + cls + '" onclick="filterWeek(\'' + d + '\', this)">' + d + '</button>';
+      });
+      el.innerHTML = html;
+    }
+
+    function renderWeekList() {
+      var el = document.getElementById('weekList');
+      var html = '';
+      weekData.forEach(function(w) {
+        var d = _gdDate(w.daysAgo);
+        var dayShort = _gdDayShort[d.getDay()];
+        var show = activeWeekFilter === 'All' || activeWeekFilter === dayShort;
+        html += '<div class="gd-day-card" data-day="' + dayShort + '" style="' + (show ? '' : 'display:none') + '">';
+        html += '<div class="gd-day-name">' + _gdDayNames[d.getDay()] + '<span class="gd-day-date">' + _gdFmt(d) + '</span></div>';
+        html += '<div class="gd-day-stats">';
+        html += '<div class="gd-day-stat"><div class="gd-day-stat-val">' + w.checkins + '</div><div class="gd-day-stat-label">Check-ins</div></div>';
+        html += '<div class="gd-day-stat"><div class="gd-day-stat-val">$' + w.revenue + '</div><div class="gd-day-stat-label">Revenue</div></div>';
+        html += '</div>';
+        html += '</div>';
+      });
+      el.innerHTML = html;
+    }
+
+    function filterWeek(day, btn) {
+      activeWeekFilter = day;
+      var btns = document.querySelectorAll('#weekFilters .filter-btn');
+      btns.forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      var cards = document.querySelectorAll('#weekList .gd-day-card');
+      cards.forEach(function(c) {
+        if (day === 'All' || c.getAttribute('data-day') === day) {
+          c.style.display = '';
+        } else {
+          c.style.display = 'none';
+        }
+      });
+    }
+
+    renderWeekFilters();
+    renderWeekList();
+
+    // ---- Top Members ----
+    var topMembers = [
+      { name: 'Tyler Brooks', visits: 15, lastVisit: 0 },
+      { name: 'Marcus Johnson', visits: 12, lastVisit: 0 },
+      { name: 'Chris Martinez', visits: 9, lastVisit: 0 },
+      { name: 'Sarah Chen', visits: 8, lastVisit: 1 },
+      { name: 'Mia Rodriguez', visits: 6, lastVisit: 2 }
+    ];
+
+    (function renderTopMembers() {
+      var el = document.getElementById('topMembers');
+      var html = '';
+      topMembers.forEach(function(m, i) {
+        html += '<div class="td-client-row">';
+        html += '<div class="td-client-avatar">' + _gdAvatar(m.name, i + 3) + '</div>';
+        html += '<div class="td-client-info"><h4>' + m.name + '</h4><span>Last visit: ' + _gdFmtFull(_gdDate(m.lastVisit)) + '</span></div>';
+        html += '<div class="gd-checkin-meta">';
+        html += '<span class="gd-badge gd-badge-pass">' + m.visits + ' visits this month</span>';
+        html += '</div>';
+        html += '</div>';
+      });
+      el.innerHTML = html;
+    })();
+
+    // ---- Next Payout Date ----
+    (function() {
+      var payout = new Date(_gdToday);
+      payout.setDate(payout.getDate() + 14);
+      document.getElementById('nextPayout').textContent = _gdFmtFull(payout);
+    })();
+
+    // ---- Facility Settings Toggle ----
+    function toggleSettings() {
+      var toggle = document.getElementById('settingsToggle');
+      var body = document.getElementById('settingsBody');
+      toggle.classList.toggle('open');
+      body.classList.toggle('open');
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>

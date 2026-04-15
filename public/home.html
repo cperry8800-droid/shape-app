@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape — Personal Trainers & Nutritionists</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    // Run immediately in <head> before first paint to avoid flash
+    if (new URLSearchParams(location.search).get('from') === 'intro') {
+      // Dark background peeks behind the rising page
+      document.documentElement.style.background = '#0a0a0a';
+      // Start page off-screen below
+      document.addEventListener('DOMContentLoaded', () => {
+        document.body.style.transform = 'translateY(100vh)';
+        document.body.style.boxShadow = '0 -24px 80px rgba(0,0,0,0.8)';
+        document.body.style.transition = 'none';
+        // Rise up on next frame
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          document.body.style.transition = 'transform 1.1s cubic-bezier(0.16, 1, 0.3, 1)';
+          document.body.style.transform = 'translateY(0)';
+          // Clean up after animation
+          setTimeout(() => {
+            document.body.style.transform = '';
+            document.body.style.boxShadow = '';
+            document.body.style.transition = '';
+            document.documentElement.style.background = '';
+          }, 1200);
+        }));
+      });
+    }
+  </script>
+  <style>
+    .hero-shape-logo {
+      display: inline-block;
+      vertical-align: baseline;
+    }
+    .hero-shape-logo img {
+      height: 0.62em;
+      vertical-align: middle;
+      position: relative;
+      top: 0.04em;
+    }
+    .split-hero {
+      padding: 160px 0 40px; text-align: center;
+      position: relative;
+    }
+    .split-hero .tag { display: block; margin-bottom: 16px; }
+    .split-hero h1 {
+      font-size: clamp(2rem, 4vw, 3rem); font-weight: 300;
+      letter-spacing: -0.04em; line-height: 1.1; margin-bottom: 10px;
+    }
+    .split-hero-mark {
+      display: block; height: 56px; width: auto; margin: 0 auto 18px;
+      overflow: visible;
+    }
+    .split-hero-mark .s-beam-path {
+      stroke: #2DD4BF; stroke-width: 2.5; fill: none;
+      stroke-linecap: round; stroke-linejoin: round;
+      filter: drop-shadow(0 0 2px #2DD4BF) drop-shadow(0 0 5px #2DD4BF);
+      stroke-dasharray: 40 82; stroke-dashoffset: 122;
+      animation: splitHeroBeamTrace 2.5s linear infinite;
+    }
+    .split-hero-mark .s-beam-lower {
+      stroke: #fff;
+      filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 5px #fff);
+    }
+    @keyframes splitHeroBeamTrace {
+      0%   { stroke-dashoffset: 122; }
+      100% { stroke-dashoffset: 0; }
+    }
+    .split-hero-sub {
+      font-size: clamp(1rem, 1.2vw, 1.15rem); color: var(--text-muted);
+      max-width: 520px; font-weight: 300; line-height: 1.8; margin-bottom: 48px; margin-left: auto; margin-right: auto;
+    }
+
+    .split-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+      background: var(--border); margin-top: 60px;
+    }
+    .split-card {
+      background: var(--bg); padding: 48px 40px;
+      transition: background 0.3s; text-align: center;
+    }
+    .split-card:hover { background: var(--bg-card); }
+    .split-label {
+      font-size: 0.72rem; font-weight: 500; text-transform: uppercase;
+      letter-spacing: 0.15em; color: var(--text-muted); margin-bottom: 20px;
+    }
+    .split-card h2 {
+      font-size: clamp(1.2rem, 2vw, 1.5rem); font-weight: 300;
+      letter-spacing: -0.03em; line-height: 1.2; margin-bottom: 16px;
+    }
+    .split-card p {
+      font-size: 0.88rem; color: var(--text-muted); font-weight: 300;
+      line-height: 1.7; margin-bottom: 28px;
+    }
+    .split-card-links {
+      display: flex; flex-direction: column; gap: 10px; align-items: center;
+    }
+    .split-card-links a {
+      font-size: 0.82rem; font-weight: 400; color: var(--text);
+      display: inline-flex; align-items: center; gap: 8px;
+      transition: opacity 0.3s;
+    }
+    .split-card-links a:hover { opacity: 0.5; }
+    .split-card-links a .arrow {
+      font-size: 0.75rem; color: var(--text-muted);
+    }
+
+    .split-divider {
+      text-align: center; padding: 48px 0;
+      font-size: 0.72rem; font-weight: 500; text-transform: uppercase;
+      letter-spacing: 0.15em; color: var(--text-muted);
+    }
+
+    .stats-bar {
+      display: flex; gap: 64px; padding: 48px 0;
+      border-top: 1px solid var(--border);
+      justify-content: center;
+    }
+    .stats-bar .stat { text-align: center; }
+    .stats-bar .stat strong {
+      display: block; font-size: clamp(1.4rem, 2.5vw, 2rem); font-weight: 300;
+      letter-spacing: -0.03em; line-height: 1;
+    }
+    .stats-bar .stat span {
+      font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase;
+      letter-spacing: 0.1em; margin-top: 8px; display: block;
+    }
+
+    @media (max-width: 768px) {
+      .split-grid { grid-template-columns: 1fr; }
+      .split-card { padding: 36px 24px; }
+      .stats-bar { flex-wrap: wrap; gap: 32px; }
+      .split-hero { padding: 120px 0 8px; }
+      .split-hero-sub { margin-bottom: 20px; }
+      .split-grid { margin-top: 20px; }
+      .split-hero-mark { height: 40px; margin-bottom: 14px; }
+      .split-hero-mark .s-beam-path { stroke-width: 3; }
+    }
+  </style>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar" id="navbar">
+    <div class="container nav-container">
+      <a href="home.html" class="logo">
+        <img src="logo.png" alt="Shape" class="logo-img">
+      </a>
+      <div class="nav-links" id="navLinks">
+        <div class="nav-dropdown">
+          <a href="for-clients.html">Clients</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-clients.html">Overview</a>
+            <a href="clients.html">Dashboard</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-trainers.html">Trainers</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-trainers.html">Overview</a>
+            <a href="trainer-dashboard.html">Trainer Dashboard</a>
+            <a href="trainers.html">Trainer Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-nutritionists.html">Nutritionists</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-nutritionists.html">Overview</a>
+            <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+            <a href="nutritionists.html">Nutritionist Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="shape-score.html">Rewards</a>
+          <div class="nav-dropdown-menu">
+            <a href="shape-score.html">Shape Score (Clients)</a>
+            <a href="shape-score-trainer.html">Shape Score (Trainers)</a>
+            <a href="shape-score-nutritionist.html">Shape Score (Nutritionists)</a>
+            <a href="shape-store.html">Shape Store</a>
+          </div>
+        </div>
+        <a href="community.html">Community</a>
+        <a href="pricing.html">Pricing</a>
+      </div>
+      <div class="nav-actions">
+        <a href="login.html" class="btn btn-sm btn-outline shape-auth-logged-out">Log In</a>
+        <span class="shape-auth-logged-in shape-nav-user-name" style="display:none;font-size:0.82rem;color:var(--text-muted);margin-right:4px;"></span>
+        <a href="clients.html" class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" data-shape-dashboard-link>Dashboard</a>
+        <button class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" onclick="shapeSignOut()">Sign Out</button>
+        <a href="landing.html" class="btn btn-sm btn-primary shape-auth-logged-out">Get Started</a>
+        <a href="radio.html" class="btn btn-sm btn-radio"><span class="btn-shape-text"><img src="logo.png" alt="Shape"></span> Radio</a>
+      </div>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="split-hero">
+    <div class="container">
+      <svg class="split-hero-mark" viewBox="0 0 95 110" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <polygon points="5,113 5,43 55,78" fill="#2DD4BF"/>
+        <polygon points="90,-3 90,67 40,32" fill="#fff"/>
+        <path d="M90,-3 L40,32 L90,67" class="s-beam-path s-beam-upper" />
+        <path d="M5,43 L55,78 L5,113" class="s-beam-path s-beam-lower" />
+      </svg>
+      <h1>Welcome to <span class="hero-shape-logo"><img src="logo-text-trimmed.png" alt="Shape"></span></h1>
+      <p class="split-hero-sub">Real trainers. Real nutritionists. One platform.</p>
+
+      <!-- Split Paths -->
+      <div class="split-grid">
+        <div class="split-card">
+          <div class="split-label">I want to train. I want nutrition.</div>
+          <h2>Find your coach.</h2>
+          <p>Browse certified trainers and nutritionists. Subscribe on your terms — custom sessions, meal plans, and direct access to the people coaching you.</p>
+          <div class="split-card-links">
+            <a href="for-clients.html">How it works <span class="arrow">&#8594;</span></a>
+            <a href="trainers.html">Trainer Marketplace <span class="arrow">&#8594;</span></a>
+            <a href="nutritionists.html">Nutritionist Marketplace <span class="arrow">&#8594;</span></a>
+            <a href="landing.html">Let's do it <span class="arrow">&#8594;</span></a>
+          </div>
+        </div>
+        <div class="split-card">
+          <div class="split-label">I'm a trainer</div>
+          <h2>Launch your business.</h2>
+          <p>Shape puts you in front of thousands of members looking for custom programs. Build your profile, sell your sessions, and let us handle the marketing.</p>
+          <div class="split-card-links">
+            <a href="for-trainers.html">How it works <span class="arrow">&#8594;</span></a>
+            <a href="trainer-profile.html">Trainer profile <span class="arrow">&#8594;</span></a>
+            <a href="signup-trainer.html">Apply now <span class="arrow">&#8594;</span></a>
+          </div>
+        </div>
+        <div class="split-card">
+          <div class="split-label">I'm a nutritionist</div>
+          <h2>Grow your practice.</h2>
+          <p>Reach clients who need real nutrition guidance. Create meal plans, sell consultations, and build your client base — Shape handles the rest.</p>
+          <div class="split-card-links">
+            <a href="for-nutritionists.html">How it works <span class="arrow">&#8594;</span></a>
+            <a href="nutritionist-profile.html">Nutritionist profile <span class="arrow">&#8594;</span></a>
+            <a href="signup-nutritionist.html">Apply now <span class="arrow">&#8594;</span></a>
+          </div>
+        </div>
+        <div class="split-card">
+          <div class="split-label">Shape Radio</div>
+          <h2>Music built for training.</h2>
+          <p>Ad-free workout mixes, curated playlists, live sets, and beats designed to keep you moving. Included with every Shape membership.</p>
+          <div class="split-card-links">
+            <a href="radio.html">Listen now <span class="arrow">&#8594;</span></a>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Testimonials -->
+  <section class="section section-alt">
+    <div class="container">
+      <div class="section-header">
+        <span class="tag">From the community</span>
+        <h2>Real results from real people</h2>
+      </div>
+      <div class="testimonials">
+        <div class="testimonial">
+
+          <p>"Subscribed to Coach Marcus for strength and Sarah for nutrition. Down 30 lbs in 4 months. Shape made it easy to find pros who actually care."</p>
+          <div class="testimonial-author">
+            <div class="avatar avatar-sm">JR</div>
+            <div><strong>Jake R.</strong><span>Member since 2025</span></div>
+          </div>
+        </div>
+        <div class="testimonial">
+
+          <p>"Tried different trainers without a long-term contract. Found my HIIT coach in the first week. No other platform does that."</p>
+          <div class="testimonial-author">
+            <div class="avatar avatar-sm">AL</div>
+            <div><strong>Aisha L.</strong><span>Member since 2024</span></div>
+          </div>
+        </div>
+        <div class="testimonial">
+
+          <p>"I used to spend half my time finding clients. Now I upload my programs and the subscribers come to me. The exposure is unreal."</p>
+          <div class="testimonial-author">
+            <div class="avatar avatar-sm">MJ</div>
+            <div><strong>Marcus J.</strong><span>Trainer — 1,240 subscribers</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <a href="home.html" class="logo">
+            <img src="logo.png" alt="Shape" class="logo-img">
+          </a>
+          <p class="footer-desc">Join the community</p>
+        </div>
+        <div class="footer-col">
+          <h4>Platform</h4>
+          <a href="trainers.html">Trainer Marketplace</a>
+          <a href="nutritionists.html">Nutritionists</a>        <a href="community.html">Community</a>
+          <a href="pricing.html">Pricing</a>
+          <a href="for-clients.html">Clients</a>
+          <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+          <a href="trainer-dashboard.html">Trainer Dashboard</a>
+          <a href="integrations.html">Integrations</a>
+        </div>
+        <div class="footer-col">
+          <h4>Get Started</h4>
+          <a href="signup-client.html">Sign Up as Client</a>
+          <a href="signup-trainer.html">Apply as Trainer</a>
+          <a href="signup-nutritionist.html">Apply as Nutritionist</a>
+        </div>
+        <div class="footer-col">
+          <h4>Support</h4>
+          <a href="help.html">Help Center</a>
+          <a href="contact.html">Contact</a>
+          <a href="radio.html">Shape Radio</a>
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 Shape. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>

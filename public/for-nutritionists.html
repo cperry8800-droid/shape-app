@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape — For Nutritionists</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .ft-hero { padding: 110px 0 30px; text-align: center; }
+    .ft-hero h1 { font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 300; letter-spacing: -0.04em; line-height: 1.1; margin-bottom: 20px; }
+    .ft-hero p { font-size: clamp(1rem, 1.2vw, 1.15rem); color: var(--text-muted); font-weight: 300; max-width: 520px; margin: 0 auto; line-height: 1.8; }
+
+    .ft-stats { padding: 18px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .ft-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; text-align: center; padding: 0; }
+    .ft-stat-value { font-size: clamp(0.95rem, 1.3vw, 1.1rem); font-weight: 300; background: var(--gradient-text); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 2px; }
+    .ft-stat-label { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 400; }
+
+    .ft-how { padding: 44px 0; }
+    .ft-how .section-header { margin-bottom: 28px; }
+    .ft-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+    .ft-step { text-align: center; }
+    .ft-step h3 { font-size: 0.95rem; font-weight: 500; margin-bottom: 8px; }
+    .ft-step p { font-size: 0.86rem; color: var(--text-muted); font-weight: 300; line-height: 1.6; }
+
+    .ft-features { padding: 80px 0; }
+    .ft-features .section-header { margin-bottom: 48px; }
+    .ft-features-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .ft-feature {
+      background: var(--bg-card); border: 1px solid var(--border); padding: 32px;
+      display: flex; gap: 16px; align-items: flex-start;
+      transition: transform 0.3s, box-shadow 0.3s;
+    }
+    .ft-feature:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,0.06); }
+    .ft-feature h3 { font-size: 1rem; font-weight: 500; margin-bottom: 6px; }
+    .ft-feature p { font-size: 0.88rem; color: var(--text-muted); font-weight: 300; line-height: 1.6; }
+
+    .ft-earnings { padding: 80px 0; }
+    .ft-earnings .section-header { margin-bottom: 48px; }
+    .ft-earnings-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
+    .ft-earnings-info h3 { font-size: clamp(1.2rem, 2vw, 1.4rem); font-weight: 300; margin-bottom: 16px; letter-spacing: -0.03em; }
+    .ft-earnings-info p { font-size: 0.95rem; color: var(--text-muted); font-weight: 300; line-height: 1.8; margin-bottom: 16px; }
+    .ft-earnings-info ul { list-style: none; padding: 0; }
+    .ft-earnings-info li { padding: 8px 0; font-size: 0.92rem; display: flex; align-items: center; gap: 10px; }
+    .ft-earnings-info li span { color: var(--text-muted); font-weight: 400; }
+
+    .ft-testimonial { padding: 80px 0; text-align: center; }
+    .ft-quote { max-width: 700px; margin: 0 auto; font-size: 1.2rem; font-weight: 300; line-height: 1.8; color: var(--text-muted); font-style: italic; margin-bottom: 24px; }
+    .ft-quote-author { font-size: 0.92rem; font-weight: 500; }
+    .ft-quote-role { font-size: 0.82rem; color: var(--text-muted); font-weight: 400; }
+
+    .rd-callout {
+      margin-top: 40px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      padding: 36px 40px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+      align-items: start;
+    }
+    .rd-callout-header h3 { font-size: 1.1rem; font-weight: 500; margin-bottom: 10px; letter-spacing: -0.02em; }
+    .rd-callout-header p { font-size: 0.86rem; color: var(--text-muted); font-weight: 300; line-height: 1.7; }
+    .rd-callout-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+    .rd-callout-list li {
+      font-size: 0.86rem; color: var(--text-muted); font-weight: 300; line-height: 1.5;
+      padding-left: 16px; position: relative;
+    }
+    .rd-callout-list li::before {
+      content: '—'; position: absolute; left: 0; color: var(--accent); font-weight: 600;
+    }
+
+    @media (max-width: 900px) {
+      .rd-callout { grid-template-columns: 1fr; gap: 20px; padding: 24px; }
+    }
+      .ft-hero { padding: 100px 0 20px; }
+      .ft-hero h1 { font-size: clamp(1.4rem, 5vw, 2rem); }
+      .ft-stats-grid { grid-template-columns: repeat(2, 1fr); gap: 24px; }
+      .ft-steps { grid-template-columns: 1fr; gap: 20px; }
+      .ft-features-grid { grid-template-columns: 1fr; }
+      .ft-earnings-layout { grid-template-columns: 1fr; }
+      .ft-how { padding: 28px 0; }
+      .ft-features { padding: 36px 0; }
+      .ft-earnings { padding: 36px 0; }
+      .ft-testimonial { padding: 36px 0; }
+      .ft-stats { padding: 14px 0; }
+    }
+  </style>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar" id="navbar">
+    <div class="container nav-container">
+      <a href="home.html" class="logo">
+        <img src="logo.png" alt="Shape" class="logo-img">
+      </a>
+      <div class="nav-links" id="navLinks">
+        <div class="nav-dropdown">
+          <a href="for-clients.html">Clients</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-clients.html">Overview</a>
+            <a href="clients.html">Dashboard</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-trainers.html">Trainers</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-trainers.html">Overview</a>
+            <a href="trainer-dashboard.html">Trainer Dashboard</a>
+            <a href="trainers.html">Trainer Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-nutritionists.html">Nutritionists</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-nutritionists.html">Overview</a>
+            <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+            <a href="nutritionists.html">Nutritionist Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="shape-score.html">Rewards</a>
+          <div class="nav-dropdown-menu">
+            <a href="shape-score.html">Shape Score (Clients)</a>
+            <a href="shape-score-trainer.html">Shape Score (Trainers)</a>
+            <a href="shape-score-nutritionist.html">Shape Score (Nutritionists)</a>
+            <a href="shape-store.html">Shape Store</a>
+          </div>
+        </div>
+        <a href="community.html">Community</a>
+        <a href="pricing.html">Pricing</a>
+      </div>
+      <div class="nav-actions">
+        <a href="login.html" class="btn btn-sm btn-outline shape-auth-logged-out">Log In</a>
+        <span class="shape-auth-logged-in shape-nav-user-name" style="display:none;font-size:0.82rem;color:var(--text-muted);margin-right:4px;"></span>
+        <a href="clients.html" class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" data-shape-dashboard-link>Dashboard</a>
+        <button class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" onclick="shapeSignOut()">Sign Out</button>
+        <a href="landing.html" class="btn btn-sm btn-primary shape-auth-logged-out">Get Started</a>
+        <a href="radio.html" class="btn btn-sm btn-radio"><span class="btn-shape-text"><img src="logo.png" alt="Shape"></span> Radio</a>
+      </div>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="ft-hero">
+    <div class="container">
+      <span class="tag">For Nutritionists</span>
+      <h1>Shape how people <span class="gradient-text">eat</span>.</h1>
+      <p>Members are already tracking meals, logging macros, and looking for guidance. Shape puts you where they are — ready to listen, ready to commit, and ready to let you shape their nutrition.</p>
+    </div>
+  </section>
+
+  <!-- Stats -->
+  <section class="ft-stats">
+    <div class="container">
+      <div class="ft-stats-grid">
+        <div>
+          <div class="ft-stat-value">10k+</div>
+          <div class="ft-stat-label">Members Tracking Meals</div>
+        </div>
+        <div>
+          <div class="ft-stat-value">$0</div>
+          <div class="ft-stat-label">To Get Started</div>
+        </div>
+        <div>
+          <div class="ft-stat-value">85%</div>
+          <div class="ft-stat-label">Client Retention Rate</div>
+        </div>
+        <div>
+          <div class="ft-stat-value">50+</div>
+          <div class="ft-stat-label">Nutritionists on Shape</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Who Can Join -->
+  <section class="section">
+    <div class="container">
+      <div class="section-header" style="text-align:center;">
+        <span class="tag">Who Can Join</span>
+        <h2>Built for credentialed nutrition professionals</h2>
+        <p>Shape accepts a range of qualified nutrition experts. All practitioners are reviewed before listing.</p>
+      </div>
+      <div class="ft-steps" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:24px;">
+        <div class="ft-step">
+          <h3>Registered Dietitian</h3>
+          <p>RD / RDN — Licensed by the Commission on Dietetic Registration. The gold standard in medical nutrition therapy.</p>
+        </div>
+        <div class="ft-step">
+          <h3>Certified Nutrition Specialist</h3>
+          <p>CNS — Advanced credential for nutrition professionals with a graduate degree and supervised practice hours.</p>
+        </div>
+        <div class="ft-step">
+          <h3>Certified Nutritionist</h3>
+          <p>CN — State-licensed nutritionist with comprehensive training in diet planning and client education.</p>
+        </div>
+        <div class="ft-step">
+          <h3>Health & Nutrition Coach</h3>
+          <p>Certified coaches specializing in behavior change, meal planning, and long-term habit formation.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Exposure -->
+  <section class="ft-how section-alt">
+    <div class="container">
+      <div class="section-header">
+        <span class="tag">Built-In Demand</span>
+        <h2>Clients already shaping their habits</h2>
+        <p>Shape members are actively logging workouts and tracking food. They're not browsing — they're shaping their routines and looking for someone to guide the nutrition side.</p>
+      </div>
+      <div class="ft-steps">
+        <div class="ft-step">
+          <h3>Embedded in the Workflow</h3>
+          <p>Your meal plans and consultations live inside the same dashboard members use to shape their day. No separate app, no friction — just seamless access to your services.</p>
+        </div>
+        <div class="ft-step">
+          <h3>Warm Leads, Not Cold Outreach</h3>
+          <p>Every client who finds you on Shape is already invested in their health. They're tracking macros, completing workouts, and ready for the nutrition piece.</p>
+        </div>
+        <div class="ft-step">
+          <h3>Paired with Trainers</h3>
+          <p>Trainers on Shape regularly recommend nutritionists to their subscribers. Built-in referrals from professionals who already trust the platform.</p>
+        </div>
+      </div>
+
+      <!-- RD full-scope callout -->
+      <div class="rd-callout">
+        <div class="rd-callout-header">
+          <span class="tag" style="margin-bottom:10px;display:inline-block;">Registered Dietitians</span>
+          <h3>Beyond meal plans — the full scope of an RD</h3>
+          <p>Shape supports the complete breadth of Registered Dietitian practice. If your license covers it, Shape gives you the tools to deliver it.</p>
+        </div>
+        <ul class="rd-callout-list">
+          <li>Medical nutrition therapy for chronic conditions — diabetes, kidney disease, GI disorders</li>
+          <li>Eating disorder support and intuitive eating frameworks</li>
+          <li>Sports nutrition and performance fueling</li>
+          <li>Clinical nutrition assessments and nutrition diagnoses</li>
+          <li>Evidence-based counseling for cancer, heart disease, and post-surgical recovery</li>
+          <li>Prenatal, pediatric, and geriatric nutrition</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Free to Join -->
+  <section class="ft-earnings section-alt">
+    <div class="container">
+      <div class="ft-earnings-layout" style="grid-template-columns:1fr;max-width:640px;margin:0 auto;">
+        <div class="ft-earnings-info" style="text-align:center;">
+          <span class="tag">Zero Risk</span>
+          <h3>Shape your income. We only earn when you do.</h3>
+          <p style="text-align:center;">No sign-up fees. No monthly charges. Shape takes a small percentage when you get paid — that's it. Everything else is included so you can focus on shaping better outcomes, not chasing overhead.</p>
+          <ul style="display:inline-flex;flex-direction:column;align-items:center;text-align:center;list-style:none;">
+            <li>No upfront costs or commitments</li>
+            <li>Billing, invoicing, and payments handled</li>
+            <li>Client acquisition built into the platform</li>
+            <li>Your own scheduling and availability controls</li>
+            <li>Payouts deposited monthly</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Testimonial -->
+  <section class="ft-testimonial">
+    <div class="container">
+      <span class="tag">From Our Nutritionists</span>
+      <p class="ft-quote">"Shape changed everything for my practice. My clients log meals in the app, I shape their plans in real time, and new clients find me every week. I went from chasing leads to just doing what I love."</p>
+      <div class="ft-quote-author">Dr. Sarah Mitchell</div>
+      <div class="ft-quote-role">Sports Nutrition — 680 active clients</div>
+    </div>
+  </section>
+
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <a href="home.html" class="logo">
+            <img src="logo.png" alt="Shape" class="logo-img">
+          </a>
+          <p class="footer-desc">Join the community</p>
+        </div>
+        <div class="footer-col">
+          <h4>Platform</h4>
+          <a href="trainers.html">Trainer Marketplace</a>
+          <a href="nutritionists.html">Nutritionists</a>        <a href="community.html">Community</a>
+          <a href="pricing.html">Pricing</a>
+          <a href="for-clients.html">Clients</a>
+          <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+          <a href="trainer-dashboard.html">Trainer Dashboard</a>
+          <a href="integrations.html">Integrations</a>
+        </div>
+        <div class="footer-col">
+          <h4>Get Started</h4>
+          <a href="signup-client.html">Sign Up as Client</a>
+          <a href="signup-trainer.html">Apply as Trainer</a>
+          <a href="signup-nutritionist.html">Apply as Nutritionist</a>
+        </div>
+        <div class="footer-col">
+          <h4>Support</h4>
+          <a href="help.html">Help Center</a>
+          <a href="contact.html">Contact</a>
+          <a href="radio.html">Shape Radio</a>
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 Shape. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>

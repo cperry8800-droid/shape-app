@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: #0a0a0a;
+      color: #fff;
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* Flowing gradient background — hidden until enter */
+    .bg-flow {
+      position: fixed; inset: 0; z-index: 0;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .bg-flow canvas {
+      width: 100%; height: 100%;
+    }
+
+    /* Grain overlay — hidden until enter */
+    .grain {
+      position: fixed; inset: 0; z-index: 1;
+      opacity: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      opacity: 0.5;
+    }
+
+    /* Content */
+    .intro-content {
+      position: relative; z-index: 2;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      height: 100vh; width: 100%;
+      text-align: center;
+    }
+
+    /* ===== Loading Screen ===== */
+    .loader-overlay {
+      position: fixed; inset: 0; z-index: 50;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: #0a0a0a;
+      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .loader-overlay.done {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .loader-box {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 32px;
+    }
+
+    .loader-logo {
+      height: 120px; width: auto;
+      opacity: 0.4;
+    }
+    .loader-triangles {
+      display: flex; align-items: center; justify-content: center;
+      position: relative;
+    }
+    .loader-triangles svg {
+      height: 58px; width: auto;
+      overflow: visible;
+    }
+    .loader-triangles svg polygon {
+      animation: trianglePulse 2s ease-in-out infinite;
+    }
+    .s-beam-path {
+      stroke: #2DD4BF;
+      stroke-width: 1.5;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      filter: drop-shadow(0 0 2px #2DD4BF) drop-shadow(0 0 5px #2DD4BF);
+      stroke-dasharray: 40 82;
+      stroke-dashoffset: 122;
+    }
+    .s-beam-upper {
+      animation: beamTrace 2.5s linear infinite;
+    }
+    .s-beam-lower {
+      stroke: #fff;
+      filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 5px #fff);
+      animation: beamTrace 2.5s linear infinite;
+      animation-delay: 0s;
+    }
+    @keyframes beamTrace {
+      0% { stroke-dashoffset: 122; }
+      100% { stroke-dashoffset: 0; }
+    }
+    @keyframes trianglePulse {
+      0%, 100% { opacity: 0.15; }
+      50% { opacity: 0.85; }
+    }
+
+    .loader-track {
+      width: 220px; height: 1px;
+      background: rgba(255,255,255,0.08);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .loader-fill {
+      position: absolute; left: 0; top: 0;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, rgba(45,212,191,0.6), #2DD4BF);
+      transition: width 0.15s linear;
+    }
+
+    .loader-percent {
+      font-family: 'Inter', sans-serif;
+      font-size: 0.7rem;
+      font-weight: 400;
+      letter-spacing: 0.25em;
+      color: rgba(255,255,255,0.3);
+    }
+
+    .loader-label {
+      font-family: 'Inter', sans-serif;
+      font-size: 0.6rem;
+      font-weight: 300;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.15);
+    }
+
+    .intro-logo-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 12px;
+      opacity: 0;
+    }
+    .intro-logo-wrap.show {
+      animation: fadeUp 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .intro-triangles {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .intro-triangles svg {
+      height: 58px;
+      width: auto;
+      overflow: visible;
+    }
+    .intro-triangles svg polygon {
+      animation: trianglePulse 2s ease-in-out infinite;
+    }
+    .intro-text-wrap {
+      height: 48px;
+      overflow: hidden;
+      margin-top: 2px;
+    }
+    .intro-shape-text {
+      height: 144px;
+      width: auto;
+      margin-top: -82px;
+    }
+
+    .intro-tagline {
+      font-size: clamp(0.65rem, 0.9vw, 0.78rem);
+      font-weight: 300;
+      color: rgba(255, 255, 255, 0.4);
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      margin-bottom: 48px;
+      opacity: 0;
+    }
+    .intro-tagline.show {
+      animation: fadeUp 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.2s forwards;
+    }
+
+    .enter-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 12px 42px;
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fff;
+      font-family: inherit;
+      font-size: 0.72rem;
+      font-weight: 400;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+      opacity: 0;
+      pointer-events: none;
+      text-decoration: none;
+      position: relative;
+      overflow: hidden;
+    }
+    .enter-btn.show {
+      animation: fadeUp 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.4s forwards;
+      pointer-events: auto;
+    }
+
+    .enter-btn::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, #2DD4BF, #14B8A6);
+      opacity: 0;
+      transition: opacity 0.6s;
+    }
+
+    .enter-btn:hover {
+      border-color: rgba(45, 212, 191, 0.6);
+      transform: scale(1.02);
+    }
+
+    .enter-btn:hover::before { opacity: 0.15; }
+
+    .enter-btn span { position: relative; z-index: 1; }
+
+    /* ===== Dissolve Transition ===== */
+    .dissolve-overlay {
+      position: fixed; inset: 0; z-index: 200;
+      pointer-events: none;
+      opacity: 0;
+    }
+    .dissolve-overlay.active {
+      pointer-events: all;
+    }
+
+    /* Black fade out */
+    .dissolve-flash {
+      position: absolute; inset: 0;
+      background: #0a0a0a;
+      opacity: 0;
+      transition: opacity 1.2s cubic-bezier(0.4, 0, 1, 1);
+    }
+    .dissolve-overlay.active .dissolve-flash {
+      opacity: 1;
+      transition-delay: 0.3s;
+    }
+
+    /* Content dissolve state */
+    .intro-content.leaving {
+      transition: all 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+      filter: blur(12px) brightness(1.5);
+      opacity: 0;
+      transform: scale(1.06);
+    }
+
+    .intro-content.leaving .intro-logo-wrap {
+      transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+      filter: blur(20px);
+      opacity: 0;
+      transform: scale(1.3);
+    }
+
+    .intro-content.leaving .intro-tagline {
+      transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.1s;
+      opacity: 0;
+      transform: translateY(-20px);
+      filter: blur(8px);
+    }
+
+    .intro-content.leaving .enter-btn {
+      transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+      opacity: 0;
+      transform: scale(0.9);
+      filter: blur(6px);
+    }
+
+    /* Particle canvas for dissolve */
+    .dissolve-particles {
+      position: fixed; inset: 0; z-index: 199;
+      pointer-events: none;
+    }
+
+    /* Background dissolves too */
+    .bg-flow.leaving {
+      transition: filter 1s ease-in, opacity 1s ease-in;
+      filter: blur(8px) brightness(2);
+      opacity: 0;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ===== Mobile ===== */
+    @media (max-width: 768px) {
+      .intro-text-wrap {
+        height: 40px;
+        margin-top: 6px;
+      }
+      .intro-shape-text {
+        height: 120px;
+        margin-top: -68px;
+      }
+      .intro-triangles svg {
+        height: 43px;
+      }
+      .loader-triangles svg {
+        height: 43px;
+      }
+      .intro-tagline {
+        padding: 0 20px;
+      }
+    }
+  </style>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+
+  <div class="bg-flow">
+    <canvas id="flowCanvas"></canvas>
+  </div>
+  <div class="grain"></div>
+
+  <!-- Loading Screen -->
+  <div class="loader-overlay" id="loaderOverlay">
+    <div class="loader-box">
+      <div class="loader-triangles">
+        <svg viewBox="0 0 95 110" xmlns="http://www.w3.org/2000/svg">
+          <!-- Left triangle pointing right (lower) -->
+          <polygon points="5,113 5,43 55,78" fill="#2DD4BF"/>
+          <!-- Right triangle pointing left (upper) -->
+          <polygon points="90,-3 90,67 40,32" fill="#fff"/>
+          <!-- S-beam paths: each traces one triangle's inner edges top-to-bottom -->
+          <path d="M90,-3 L40,32 L90,67" class="s-beam-path s-beam-upper" />
+          <path d="M5,43 L55,78 L5,113" class="s-beam-path s-beam-lower" />
+        </svg>
+      </div>
+      <div class="loader-track">
+        <div class="loader-fill" id="loaderFill"></div>
+      </div>
+      <div class="loader-percent" id="loaderPercent">0</div>
+      <div class="loader-label">Loading</div>
+    </div>
+  </div>
+
+  <!-- Dissolve Transition Layers -->
+  <canvas class="dissolve-particles" id="dissolveCanvas"></canvas>
+  <div class="dissolve-overlay" id="dissolveOverlay">
+    <div class="dissolve-flash"></div>
+  </div>
+
+  <div class="intro-content" id="introContent">
+    <div class="intro-logo-wrap" id="introLogo">
+      <div class="intro-triangles">
+        <svg viewBox="0 0 95 110" xmlns="http://www.w3.org/2000/svg">
+          <polygon points="5,113 5,43 55,78" fill="#2DD4BF"/>
+          <polygon points="90,-3 90,67 40,32" fill="#fff"/>
+          <path d="M90,-3 L40,32 L90,67" class="s-beam-path s-beam-upper" />
+          <path d="M5,43 L55,78 L5,113" class="s-beam-path s-beam-lower" />
+        </svg>
+      </div>
+      <div class="intro-text-wrap">
+        <img src="logo.png" alt="Shape" class="intro-shape-text">
+      </div>
+    </div>
+    <p class="intro-tagline" id="introTagline">Join the Community</p>
+    <a href="home.html" class="enter-btn" id="enterBtn" onclick="enterSite(event)">
+      <span>Enter</span>
+    </a>
+  </div>
+
+  <script>
+    // Flowing mesh gradient animation
+    const canvas = document.getElementById('flowCanvas');
+    const ctx = canvas.getContext('2d');
+    let w, h, time = 0;
+
+    function resize() {
+      w = canvas.width = window.innerWidth;
+      h = canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    // Gradient orbs
+    const orbs = [
+      { x: 0.3, y: 0.3, r: 0.4, vx: 0.0003, vy: 0.0002, color: [45, 212, 191] },
+      { x: 0.7, y: 0.6, r: 0.35, vx: -0.0002, vy: 0.0003, color: [20, 184, 166] },
+      { x: 0.5, y: 0.8, r: 0.3, vx: 0.0004, vy: -0.0002, color: [59, 130, 246] },
+      { x: 0.2, y: 0.6, r: 0.25, vx: -0.0003, vy: -0.0001, color: [139, 92, 246] },
+      { x: 0.8, y: 0.2, r: 0.3, vx: 0.0001, vy: 0.0004, color: [45, 212, 191] },
+    ];
+
+    function draw() {
+      time++;
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(0, 0, w, h);
+
+      orbs.forEach((orb, i) => {
+        // Organic movement
+        orb.x += orb.vx + Math.sin(time * 0.001 + i * 1.5) * 0.0002;
+        orb.y += orb.vy + Math.cos(time * 0.0012 + i * 2) * 0.0002;
+
+        // Wrap around
+        if (orb.x < -0.2) orb.x = 1.2;
+        if (orb.x > 1.2) orb.x = -0.2;
+        if (orb.y < -0.2) orb.y = 1.2;
+        if (orb.y > 1.2) orb.y = -0.2;
+
+        const cx = orb.x * w;
+        const cy = orb.y * h;
+        const radius = orb.r * Math.min(w, h);
+
+        const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+        const [r, g, b] = orb.color;
+        const pulse = 0.06 + Math.sin(time * 0.002 + i) * 0.02;
+        gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${pulse})`);
+        gradient.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, ${pulse * 0.4})`);
+        gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, w, h);
+      });
+
+      // Flowing lines
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.015)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 8; i++) {
+        ctx.beginPath();
+        const startY = (h / 8) * i + Math.sin(time * 0.003 + i) * 40;
+        ctx.moveTo(0, startY);
+        for (let x = 0; x <= w; x += 20) {
+          const y = startY + Math.sin(x * 0.003 + time * 0.002 + i) * 60 + Math.cos(x * 0.001 + time * 0.001) * 30;
+          ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+
+      requestAnimationFrame(draw);
+    }
+
+    draw();
+
+    // No canvas-based beam needed — S-beam is pure SVG/CSS above
+
+    // ===== Loading Sequence =====
+    (function runLoader() {
+      const fill = document.getElementById('loaderFill');
+      const percent = document.getElementById('loaderPercent');
+      const overlay = document.getElementById('loaderOverlay');
+      let progress = 0;
+
+      function tick() {
+        // Variable speed — starts fast, slows in middle, accelerates at end
+        let increment;
+        if (progress < 30) {
+          increment = Math.random() * 3 + 2;
+        } else if (progress < 70) {
+          increment = Math.random() * 2.5 + 1.5;
+        } else if (progress < 90) {
+          increment = Math.random() * 2 + 1;
+        } else {
+          increment = Math.random() * 3 + 2;
+        }
+
+        progress = Math.min(progress + increment, 100);
+        const rounded = Math.floor(progress);
+        fill.style.width = rounded + '%';
+        percent.textContent = rounded;
+
+        if (rounded < 100) {
+          // Variable delay for organic feel
+          const delay = progress < 30 ? 50 : progress < 70 ? 80 : progress < 90 ? 65 : 35;
+          setTimeout(tick, delay + Math.random() * 50);
+        } else {
+          // Loading complete — transition out
+          setTimeout(() => {
+            overlay.classList.add('done');
+            // Reveal intro content
+            setTimeout(() => {
+              document.getElementById('introLogo').classList.add('show');
+              document.getElementById('introTagline').classList.add('show');
+              document.getElementById('enterBtn').classList.add('show');
+            }, 300);
+          }, 300);
+        }
+      }
+
+      // Start after brief pause
+      setTimeout(tick, 600);
+    })();
+
+    // ===== Dissolve Transition =====
+    function enterSite(e) {
+      e.preventDefault();
+
+      // 1. Spawn dissolve particles
+      spawnDissolveParticles();
+
+      // 2. Trigger content dissolve
+      document.getElementById('introContent').classList.add('leaving');
+      document.querySelector('.bg-flow').classList.add('leaving');
+
+      // 3. Activate flash overlay
+      setTimeout(() => {
+        document.getElementById('dissolveOverlay').classList.add('active');
+      }, 200);
+
+      // 4. Fade out engine sound
+      stopIntroSound();
+
+      // 5. Navigate after dissolve completes (black overlay fully covering)
+      setTimeout(() => {
+        window.location.href = 'home.html?from=intro';
+      }, 1500);
+    }
+
+    // Dissolve particles effect
+    function spawnDissolveParticles() {
+      const dc = document.getElementById('dissolveCanvas');
+      const dctx = dc.getContext('2d');
+      dc.width = window.innerWidth;
+      dc.height = window.innerHeight;
+
+      const particles = [];
+      const count = 120;
+
+      // Spawn particles from center area
+      for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 3 + 1;
+        particles.push({
+          x: dc.width / 2 + (Math.random() - 0.5) * 200,
+          y: dc.height / 2 + (Math.random() - 0.5) * 150,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          size: Math.random() * 3 + 0.5,
+          alpha: Math.random() * 0.6 + 0.3,
+          decay: Math.random() * 0.008 + 0.005,
+          color: Math.random() > 0.5 ? '45,212,191' : '255,255,255',
+        });
+      }
+
+      function animateParticles() {
+        dctx.clearRect(0, 0, dc.width, dc.height);
+        let alive = false;
+
+        particles.forEach(p => {
+          if (p.alpha <= 0) return;
+          alive = true;
+
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vx *= 0.99;
+          p.vy *= 0.99;
+          p.alpha -= p.decay;
+
+          dctx.beginPath();
+          dctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          dctx.fillStyle = `rgba(${p.color}, ${Math.max(0, p.alpha)})`;
+          dctx.fill();
+        });
+
+        if (alive) requestAnimationFrame(animateParticles);
+      }
+
+      animateParticles();
+    }
+  </script>
+
+
+  <script>
+  // Audio removed — kept stub for stopIntroSound calls
+  function stopIntroSound() {}
+  </script>
+
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>

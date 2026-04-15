@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Workout — Shape</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    body { background: var(--bg); min-height: 100vh; }
+
+    .lw-wrap {
+      max-width: 720px; margin: 0 auto; padding: 24px 20px 160px;
+    }
+
+    .lw-top {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; margin-bottom: 20px;
+    }
+    .lw-quit {
+      background: none; border: 1px solid var(--border); color: var(--text-muted);
+      padding: 8px 14px; border-radius: 999px; font-size: 0.78rem; font-weight: 500;
+      cursor: pointer; font-family: inherit; transition: all 0.2s;
+    }
+    .lw-quit:hover { color: var(--text); border-color: var(--text); }
+    .lw-elapsed {
+      font-variant-numeric: tabular-nums;
+      font-size: 0.82rem; color: var(--text-muted); font-weight: 500;
+      letter-spacing: 0.04em;
+    }
+    .lw-elapsed strong { color: var(--text); font-weight: 600; }
+
+    .lw-title {
+      font-size: clamp(1.4rem, 3vw, 2rem); font-weight: 300;
+      letter-spacing: -0.03em; margin-bottom: 6px;
+    }
+    .lw-sub {
+      color: var(--text-muted); font-size: 0.88rem; margin-bottom: 20px;
+    }
+
+    .lw-progress {
+      height: 4px; background: var(--border); border-radius: 999px;
+      overflow: hidden; margin-bottom: 28px;
+    }
+    .lw-progress-fill {
+      height: 100%; background: var(--text);
+      width: 0%; transition: width 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    .lw-ex-nav {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; margin-bottom: 20px;
+      font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--text-muted);
+    }
+    .lw-ex-nav button {
+      background: none; border: none; color: var(--text-muted);
+      font-family: inherit; font-size: 0.72rem; text-transform: uppercase;
+      letter-spacing: 0.12em; cursor: pointer; padding: 8px 12px;
+      transition: color 0.2s;
+    }
+    .lw-ex-nav button:hover:not(:disabled) { color: var(--text); }
+    .lw-ex-nav button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    .lw-ex-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 24px 22px; margin-bottom: 20px;
+    }
+    .lw-ex-name {
+      font-size: clamp(1.3rem, 2.4vw, 1.7rem); font-weight: 400;
+      letter-spacing: -0.02em; margin-bottom: 4px;
+    }
+    .lw-ex-meta {
+      font-size: 0.78rem; color: var(--text-muted); margin-bottom: 20px;
+    }
+
+    .lw-set-list { display: flex; flex-direction: column; gap: 10px; }
+    .lw-set-row {
+      display: grid; grid-template-columns: 32px 1fr 1fr 48px;
+      gap: 10px; align-items: center;
+      padding: 10px 12px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border); border-radius: 10px;
+      transition: all 0.2s;
+    }
+    .lw-set-row.done {
+      background: rgba(45, 212, 191, 0.08);
+      border-color: rgba(45, 212, 191, 0.35);
+    }
+    .lw-set-row .lw-set-num {
+      font-size: 0.78rem; font-weight: 600; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .lw-set-row input {
+      width: 100%; background: transparent; border: none;
+      border-bottom: 1px solid var(--border); color: var(--text);
+      font-size: 1rem; font-family: inherit; font-weight: 500;
+      padding: 6px 0; text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+    .lw-set-row input:focus { outline: none; border-bottom-color: var(--text); }
+    .lw-set-row .lw-check {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text); cursor: pointer; font-size: 1rem;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s;
+    }
+    .lw-set-row .lw-check:hover { border-color: var(--text); }
+    .lw-set-row.done .lw-check {
+      background: #2DD4BF; border-color: #2DD4BF; color: #0a0a0a;
+    }
+
+    .lw-set-headers {
+      display: grid; grid-template-columns: 32px 1fr 1fr 48px;
+      gap: 10px; padding: 0 12px 6px;
+      font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--text-muted); font-weight: 600;
+    }
+    .lw-set-headers span { text-align: center; }
+    .lw-set-headers span:first-child { text-align: left; }
+
+    .lw-add-set {
+      width: 100%; margin-top: 12px; padding: 12px;
+      background: transparent; border: 1px dashed var(--border);
+      color: var(--text-muted); font-size: 0.82rem; font-weight: 500;
+      border-radius: 10px; cursor: pointer; font-family: inherit;
+      transition: all 0.2s;
+    }
+    .lw-add-set:hover { color: var(--text); border-color: var(--text); }
+
+    /* Rest timer */
+    .lw-rest {
+      position: fixed; left: 0; right: 0; bottom: 0;
+      background: #0a0a0a; border-top: 1px solid var(--border);
+      padding: 16px 20px; display: none;
+      z-index: 50;
+    }
+    .lw-rest.active { display: block; }
+    .lw-rest-inner {
+      max-width: 720px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    }
+    .lw-rest-label {
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.14em;
+      color: var(--text-muted); display: block; margin-bottom: 2px;
+    }
+    .lw-rest-time {
+      font-size: 1.6rem; font-weight: 300; letter-spacing: -0.02em;
+      font-variant-numeric: tabular-nums;
+    }
+    .lw-rest-actions { display: flex; gap: 8px; }
+    .lw-rest-actions button {
+      padding: 10px 16px; background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border); color: var(--text);
+      border-radius: 999px; font-size: 0.78rem; font-weight: 500;
+      cursor: pointer; font-family: inherit; transition: all 0.2s;
+    }
+    .lw-rest-actions button:hover { background: rgba(255,255,255,0.12); }
+
+    /* Footer actions */
+    .lw-footer {
+      position: fixed; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(180deg, rgba(10,10,10,0) 0%, rgba(10,10,10,0.95) 40%, #0a0a0a 100%);
+      padding: 40px 20px 24px; z-index: 40;
+    }
+    .lw-footer-inner {
+      max-width: 720px; margin: 0 auto;
+      display: flex; gap: 10px;
+    }
+    .lw-finish-btn {
+      flex: 1; padding: 16px 20px;
+      background: var(--text); color: var(--bg);
+      border: none; border-radius: 999px;
+      font-size: 0.92rem; font-weight: 600; letter-spacing: 0.02em;
+      cursor: pointer; font-family: inherit;
+      transition: opacity 0.2s;
+    }
+    .lw-finish-btn:hover { opacity: 0.85; }
+    .lw-next-btn {
+      padding: 16px 22px;
+      background: transparent; color: var(--text);
+      border: 1px solid var(--border); border-radius: 999px;
+      font-size: 0.92rem; font-weight: 500;
+      cursor: pointer; font-family: inherit;
+      transition: all 0.2s;
+    }
+    .lw-next-btn:hover { border-color: var(--text); }
+
+    /* Complete screen */
+    .lw-done-screen {
+      display: none; text-align: center; padding: 40px 20px;
+    }
+    .lw-done-screen.active { display: block; }
+    .lw-done-screen h2 {
+      font-size: 2rem; font-weight: 300; letter-spacing: -0.03em;
+      margin-bottom: 12px;
+    }
+    .lw-done-stats {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 12px; margin: 32px 0;
+    }
+    .lw-done-stat {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 18px 12px;
+    }
+    .lw-done-stat strong {
+      display: block; font-size: 1.4rem; font-weight: 300;
+      font-variant-numeric: tabular-nums; margin-bottom: 4px;
+    }
+    .lw-done-stat span {
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--text-muted);
+    }
+    .lw-rate { margin: 20px 0; }
+    .lw-rate-label {
+      font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--text-muted); margin-bottom: 12px;
+    }
+    .lw-rate-btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    .lw-rate-btns button {
+      padding: 12px 18px; background: transparent; color: var(--text);
+      border: 1px solid var(--border); border-radius: 999px;
+      font-size: 0.82rem; font-weight: 500; cursor: pointer;
+      font-family: inherit; transition: all 0.2s;
+    }
+    .lw-rate-btns button.selected {
+      background: var(--text); color: var(--bg); border-color: var(--text);
+    }
+
+    @media (max-width: 600px) {
+      .lw-wrap { padding: 16px 14px 180px; }
+      .lw-ex-card { padding: 18px 14px; }
+      .lw-set-row, .lw-set-headers {
+        grid-template-columns: 28px 1fr 1fr 40px;
+        gap: 6px;
+      }
+      .lw-set-row input { font-size: 0.94rem; }
+    }
+  </style>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+</head>
+<body>
+
+  <div class="lw-wrap" id="lwWrap">
+    <div class="lw-top">
+      <button class="lw-quit" onclick="quitWorkout()">&larr; Quit</button>
+      <div class="lw-elapsed">Elapsed <strong id="lwElapsed">00:00</strong></div>
+    </div>
+
+    <h1 class="lw-title" id="lwTitle">Workout</h1>
+    <p class="lw-sub" id="lwSub">Loading…</p>
+
+    <div class="lw-progress"><div class="lw-progress-fill" id="lwProgress"></div></div>
+
+    <div class="lw-ex-nav">
+      <button onclick="prevExercise()" id="lwPrev">&larr; Prev</button>
+      <span id="lwExCount">Exercise 1 / 1</span>
+      <button onclick="nextExercise()" id="lwNext">Next &rarr;</button>
+    </div>
+
+    <div class="lw-ex-card" id="lwExCard">
+      <div class="lw-ex-name" id="lwExName">—</div>
+      <div class="lw-ex-meta" id="lwExMeta">—</div>
+      <div id="lwExVideoSlot" style="margin-top:8px;"></div>
+
+      <div class="lw-set-headers">
+        <span>Set</span><span>Reps</span><span>Weight</span><span>Done</span>
+      </div>
+      <div class="lw-set-list" id="lwSetList"></div>
+      <button class="lw-add-set" onclick="addSet()">+ Add Set</button>
+    </div>
+
+    <div class="lw-done-screen" id="lwDoneScreen">
+      <h2>Workout complete</h2>
+      <p class="lw-sub">Great work. Here's your summary.</p>
+      <div class="lw-done-stats">
+        <div class="lw-done-stat"><strong id="lwStatTime">0:00</strong><span>Duration</span></div>
+        <div class="lw-done-stat"><strong id="lwStatSets">0</strong><span>Sets done</span></div>
+        <div class="lw-done-stat"><strong id="lwStatVolume">0</strong><span>Volume (lbs)</span></div>
+      </div>
+      <div class="lw-rate">
+        <div class="lw-rate-label">How did it feel?</div>
+        <div class="lw-rate-btns" id="lwRateBtns">
+          <button data-rating="easy" onclick="pickRating(this)">Easy</button>
+          <button data-rating="push" onclick="pickRating(this)">Could push more</button>
+          <button data-rating="perfect" onclick="pickRating(this)">Perfect</button>
+          <button data-rating="struggling" onclick="pickRating(this)">Struggling</button>
+        </div>
+      </div>
+      <button class="lw-finish-btn" onclick="saveAndExit()" style="max-width:320px;margin:20px auto 0;">Save & Return to Dashboard</button>
+    </div>
+  </div>
+
+  <!-- Rest timer bar -->
+  <div class="lw-rest" id="lwRest">
+    <div class="lw-rest-inner">
+      <div>
+        <span class="lw-rest-label">Rest</span>
+        <span class="lw-rest-time" id="lwRestTime">1:30</span>
+      </div>
+      <div class="lw-rest-actions">
+        <button onclick="addRest(15)">+15s</button>
+        <button onclick="skipRest()">Skip</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer (hidden on done screen) -->
+  <div class="lw-footer" id="lwFooter">
+    <div class="lw-footer-inner">
+      <button class="lw-next-btn" onclick="nextExercise()" id="lwFooterNext">Next exercise</button>
+      <button class="lw-finish-btn" onclick="finishWorkout()">Finish workout</button>
+    </div>
+  </div>
+
+  <script>
+    // ---- Load workout from sessionStorage (set by clients.html) ----
+    var workout = null;
+    try {
+      var raw = sessionStorage.getItem('shapeLiveWorkout');
+      if (raw) workout = JSON.parse(raw);
+    } catch (e) {}
+    if (!workout) {
+      // Fallback sample workout for direct navigation / preview.
+      workout = {
+        title: 'Upper Body Pull',
+        day: 'Today',
+        exercises: [
+          { name: 'Pull-ups', sets: [
+            {reps:10,weight:0,done:false},{reps:8,weight:0,done:false},
+            {reps:8,weight:0,done:false},{reps:6,weight:0,done:false}
+          ]},
+          { name: 'Barbell Rows', sets: [
+            {reps:10,weight:155,done:false},{reps:8,weight:175,done:false},{reps:8,weight:175,done:false}
+          ]},
+          { name: 'Face Pulls', sets: [
+            {reps:15,weight:40,done:false},{reps:15,weight:40,done:false},{reps:12,weight:45,done:false}
+          ]},
+          { name: 'Barbell Curls', sets: [
+            {reps:12,weight:65,done:false},{reps:10,weight:75,done:false},{reps:10,weight:75,done:false}
+          ]}
+        ]
+      };
+    }
+    // Normalize
+    workout.exercises = workout.exercises || [];
+    workout.exercises.forEach(function(ex){
+      ex.sets = ex.sets || [];
+      ex.sets.forEach(function(s){
+        if (s.done == null) s.done = false;
+        if (s.reps == null) s.reps = 0;
+        if (s.weight == null) s.weight = 0;
+      });
+    });
+
+    var currentEx = 0;
+    var startedAt = Date.now();
+    var rating = null;
+
+    // ---- Elapsed timer ----
+    function fmtTime(sec) {
+      sec = Math.max(0, Math.floor(sec));
+      var m = Math.floor(sec / 60);
+      var s = sec % 60;
+      return (m < 10 ? '0'+m : m) + ':' + (s < 10 ? '0'+s : s);
+    }
+    setInterval(function(){
+      document.getElementById('lwElapsed').textContent = fmtTime((Date.now() - startedAt)/1000);
+    }, 500);
+
+    // ---- Render current exercise ----
+    function render() {
+      document.getElementById('lwTitle').textContent = workout.title || 'Workout';
+      document.getElementById('lwSub').textContent = workout.day || '';
+
+      var total = workout.exercises.length;
+      var ex = workout.exercises[currentEx];
+      if (!ex) return;
+
+      document.getElementById('lwExCount').textContent = 'Exercise ' + (currentEx+1) + ' / ' + total;
+      document.getElementById('lwExName').textContent = ex.name;
+      var vslot = document.getElementById('lwExVideoSlot');
+      if (vslot) vslot.innerHTML = (window.shapeExerciseVideos ? window.shapeExerciseVideos.linkHtml(ex.name) : '');
+      var doneSets = ex.sets.filter(function(s){return s.done;}).length;
+      document.getElementById('lwExMeta').textContent = doneSets + ' of ' + ex.sets.length + ' sets complete';
+
+      // Progress across whole workout
+      var totalSets = 0, totalDone = 0;
+      workout.exercises.forEach(function(e){
+        totalSets += e.sets.length;
+        totalDone += e.sets.filter(function(s){return s.done;}).length;
+      });
+      var pct = totalSets ? Math.round((totalDone/totalSets)*100) : 0;
+      document.getElementById('lwProgress').style.width = pct + '%';
+
+      // Set list
+      var list = document.getElementById('lwSetList');
+      list.innerHTML = '';
+      ex.sets.forEach(function(s, si){
+        var row = document.createElement('div');
+        row.className = 'lw-set-row' + (s.done ? ' done' : '');
+        row.innerHTML =
+          '<div class="lw-set-num">'+ (si+1) +'</div>' +
+          '<input type="number" inputmode="numeric" value="'+ s.reps +'" min="0" aria-label="Reps">' +
+          '<input type="number" inputmode="numeric" value="'+ s.weight +'" min="0" step="5" aria-label="Weight">' +
+          '<button class="lw-check" aria-label="Mark set done">'+ (s.done ? '&#10003;' : '') +'</button>';
+        var inputs = row.querySelectorAll('input');
+        inputs[0].addEventListener('input', function(){ s.reps = parseInt(this.value)||0; });
+        inputs[1].addEventListener('input', function(){ s.weight = parseInt(this.value)||0; });
+        row.querySelector('.lw-check').addEventListener('click', function(){
+          s.done = !s.done;
+          if (s.done) startRest(90);
+          render();
+        });
+        list.appendChild(row);
+      });
+
+      // Nav buttons
+      document.getElementById('lwPrev').disabled = currentEx === 0;
+      document.getElementById('lwNext').disabled = currentEx >= total - 1;
+      document.getElementById('lwFooterNext').style.display = (currentEx >= total - 1) ? 'none' : '';
+    }
+
+    function prevExercise() { if (currentEx>0){ currentEx--; render(); window.scrollTo(0,0); } }
+    function nextExercise() {
+      if (currentEx < workout.exercises.length - 1) {
+        currentEx++; render(); window.scrollTo(0,0);
+      }
+    }
+    function addSet() {
+      var ex = workout.exercises[currentEx];
+      var last = ex.sets[ex.sets.length-1] || {reps:10,weight:0};
+      ex.sets.push({reps: last.reps, weight: last.weight, done: false});
+      render();
+    }
+
+    // ---- Rest timer ----
+    var restEnd = 0, restInterval = null;
+    function startRest(sec) {
+      restEnd = Date.now() + sec*1000;
+      document.getElementById('lwRest').classList.add('active');
+      if (restInterval) clearInterval(restInterval);
+      tickRest();
+      restInterval = setInterval(tickRest, 250);
+    }
+    function tickRest() {
+      var left = Math.max(0, (restEnd - Date.now())/1000);
+      document.getElementById('lwRestTime').textContent = fmtTime(left);
+      if (left <= 0) skipRest();
+    }
+    function addRest(sec) {
+      if (!document.getElementById('lwRest').classList.contains('active')) { startRest(sec); return; }
+      restEnd += sec*1000;
+    }
+    function skipRest() {
+      if (restInterval) { clearInterval(restInterval); restInterval = null; }
+      document.getElementById('lwRest').classList.remove('active');
+    }
+
+    // ---- Finish / summary ----
+    function finishWorkout() {
+      var total = 0, done = 0, volume = 0;
+      workout.exercises.forEach(function(ex){
+        ex.sets.forEach(function(s){
+          total++;
+          if (s.done) { done++; volume += (s.reps||0) * (s.weight||0); }
+        });
+      });
+      document.getElementById('lwStatTime').textContent = fmtTime((Date.now()-startedAt)/1000);
+      document.getElementById('lwStatSets').textContent = done + ' / ' + total;
+      document.getElementById('lwStatVolume').textContent = volume.toLocaleString();
+
+      document.getElementById('lwExCard').style.display = 'none';
+      document.querySelector('.lw-ex-nav').style.display = 'none';
+      document.getElementById('lwFooter').style.display = 'none';
+      document.getElementById('lwDoneScreen').classList.add('active');
+      skipRest();
+    }
+
+    function pickRating(btn) {
+      rating = btn.getAttribute('data-rating');
+      document.querySelectorAll('#lwRateBtns button').forEach(function(b){ b.classList.remove('selected'); });
+      btn.classList.add('selected');
+    }
+
+    function saveAndExit() {
+      try {
+        var result = {
+          workout: workout,
+          rating: rating,
+          durationSec: Math.floor((Date.now()-startedAt)/1000),
+          finishedAt: new Date().toISOString()
+        };
+        sessionStorage.setItem('shapeLiveWorkoutResult', JSON.stringify(result));
+        sessionStorage.removeItem('shapeLiveWorkout');
+      } catch (e) {}
+      window.location.href = 'clients.html';
+    }
+
+    function quitWorkout() {
+      if (confirm('Quit workout? Your progress will not be saved.')) {
+        sessionStorage.removeItem('shapeLiveWorkout');
+        window.location.href = 'clients.html';
+      }
+    }
+
+    render();
+  </script>
+  <script src="exercise-videos.js"></script>
+  <script>
+    // Re-render once the video library loads so the Watch demo link appears.
+    if (window.shapeExerciseVideos) render();
+  </script>
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>

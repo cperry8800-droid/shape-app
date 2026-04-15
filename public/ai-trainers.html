@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape — AI Trainers</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .ait-hero { padding: 160px 0 40px; text-align: center; }
+    .ait-hero h1 { font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 300; letter-spacing: -0.04em; line-height: 1.1; margin-bottom: 20px; }
+    .ait-hero p { font-size: clamp(1rem, 1.2vw, 1.15rem); color: var(--text-muted); font-weight: 300; max-width: 580px; margin: 0 auto; line-height: 1.8; }
+
+    .ait-trainers { padding: 80px 0; }
+    .ait-trainers-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+    .ait-trainer-card {
+      background: #141414; border: 1px solid var(--border); padding: 48px 40px;
+      transition: transform 0.3s, box-shadow 0.3s;
+    }
+    .ait-trainer-card:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,0.15); }
+    .ait-avatar {
+      width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 1.6rem; font-weight: 600; color: #fff; margin-bottom: 24px;
+    }
+    .ait-avatar-nora { background: #6C3AED; }
+    .ait-avatar-seb { background: #F59E0B; }
+    .ait-trainer-card h2 { font-size: 1.4rem; font-weight: 500; margin-bottom: 4px; }
+    .ait-trainer-title { font-size: 0.88rem; color: var(--text-muted); font-weight: 400; margin-bottom: 8px; }
+    .ait-trainer-personality { font-size: 0.78rem; color: var(--accent-dark); font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 20px; }
+    .ait-trainer-bio { font-size: 0.92rem; color: var(--text-muted); font-weight: 300; line-height: 1.8; margin-bottom: 24px; }
+    .ait-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 32px; }
+    .ait-tag {
+      font-size: 0.75rem; font-weight: 500; padding: 6px 14px;
+      background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+      color: var(--text-muted); letter-spacing: 0.02em;
+    }
+    .ait-btn {
+      display: inline-block; padding: 12px 28px; font-size: 0.88rem; font-weight: 500;
+      color: #fff; border: none; cursor: pointer; text-decoration: none;
+      transition: opacity 0.3s;
+    }
+    .ait-btn:hover { opacity: 0.8; }
+    .ait-btn-nora { background: #6C3AED; }
+    .ait-btn-seb { background: #F59E0B; color: #000; }
+
+    .ait-how { padding: 80px 0; }
+    .ait-how .section-header { margin-bottom: 48px; }
+    .ait-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; }
+    .ait-step { text-align: center; }
+    .ait-step-num {
+      width: 56px; height: 56px; background: rgba(45,212,191,0.1); display: flex;
+      align-items: center; justify-content: center; font-size: 1rem; font-weight: 500;
+      color: var(--accent-dark); margin: 0 auto 20px; border-radius: 50%;
+    }
+    .ait-step h3 { font-size: 1rem; font-weight: 500; margin-bottom: 10px; }
+    .ait-step p { font-size: 0.9rem; color: var(--text-muted); font-weight: 300; line-height: 1.7; }
+
+    .ait-features { padding: 80px 0; }
+    .ait-features .section-header { margin-bottom: 48px; }
+    .ait-features-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .ait-feature {
+      background: #141414; border: 1px solid var(--border); padding: 32px;
+      display: flex; gap: 16px; align-items: flex-start;
+      transition: transform 0.3s, box-shadow 0.3s;
+    }
+    .ait-feature:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,0.06); }
+    .ait-feature h3 { font-size: 1rem; font-weight: 500; margin-bottom: 6px; }
+    .ait-feature p { font-size: 0.88rem; color: var(--text-muted); font-weight: 300; line-height: 1.6; }
+
+    .ait-cta { padding: 100px 0; text-align: center; }
+    .ait-cta h2 { font-size: clamp(1.4rem, 2.5vw, 1.8rem); font-weight: 300; letter-spacing: -0.03em; margin-bottom: 12px; }
+    .ait-cta p { font-size: 1rem; color: var(--text-muted); font-weight: 300; margin-bottom: 32px; }
+
+    @media (max-width: 900px) {
+      .ait-hero { padding: 100px 0 20px; }
+      .ait-hero h1 { font-size: clamp(1.4rem, 5vw, 2rem); }
+      .ait-trainers-grid { grid-template-columns: 1fr; }
+      .ait-steps { grid-template-columns: 1fr; gap: 24px; }
+      .ait-features-grid { grid-template-columns: 1fr; }
+      .ait-how { padding: 36px 0; }
+      .ait-features { padding: 36px 0; }
+      .ait-trainers { padding: 36px 0; }
+      .ait-cta { padding: 60px 0; }
+    }
+
+    @media (max-width: 768px) {
+      .ait-trainer-card { padding: 32px 24px; }
+      .ait-avatar { width: 64px; height: 64px; font-size: 1.3rem; }
+    }
+  </style>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar" id="navbar">
+    <div class="container nav-container">
+      <a href="home.html" class="logo">
+        <img src="logo.png" alt="Shape" class="logo-img">
+      </a>
+      <div class="nav-links" id="navLinks">
+        <div class="nav-dropdown">
+          <a href="for-clients.html">Clients</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-clients.html">Overview</a>
+            <a href="clients.html">Dashboard</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-trainers.html">Trainers</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-trainers.html">Overview</a>
+            <a href="trainer-dashboard.html">Trainer Dashboard</a>
+            <a href="trainers.html">Trainer Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-nutritionists.html">Nutritionists</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-nutritionists.html">Overview</a>
+            <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+            <a href="nutritionists.html">Nutritionist Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="shape-score.html">Rewards</a>
+          <div class="nav-dropdown-menu">
+            <a href="shape-score.html">Shape Score (Clients)</a>
+            <a href="shape-score-trainer.html">Shape Score (Trainers)</a>
+            <a href="shape-score-nutritionist.html">Shape Score (Nutritionists)</a>
+            <a href="shape-store.html">Shape Store</a>
+          </div>
+        </div>
+        <a href="community.html">Community</a>
+        <a href="pricing.html">Pricing</a>
+      </div>
+      <div class="nav-actions">
+        <a href="login.html" class="btn btn-sm btn-outline shape-auth-logged-out">Log In</a>
+        <span class="shape-auth-logged-in shape-nav-user-name" style="display:none;font-size:0.82rem;color:var(--text-muted);margin-right:4px;"></span>
+        <a href="clients.html" class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" data-shape-dashboard-link>Dashboard</a>
+        <button class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" onclick="shapeSignOut()">Sign Out</button>
+        <a href="landing.html" class="btn btn-sm btn-primary shape-auth-logged-out">Get Started</a>
+        <a href="radio.html" class="btn btn-sm btn-radio"><span class="btn-shape-text"><img src="logo.png" alt="Shape"></span> Radio</a>
+      </div>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="ait-hero">
+    <div class="container">
+      <span class="tag">AI Trainer</span>
+      <h1>Your personal AI <span class="gradient-text">training partner</span>.</h1>
+      <p>Meet Nora and Sebastian — Shape's AI-powered trainers. They build custom workouts, adapt to your progress, and keep you on track. Available 24/7, no booking required.</p>
+    </div>
+  </section>
+
+  <!-- Trainer Cards -->
+  <section class="ait-trainers">
+    <div class="container">
+      <div class="ait-trainers-grid">
+
+        <!-- Nora -->
+        <div class="ait-trainer-card">
+          <div class="ait-avatar ait-avatar-nora">N</div>
+          <h2>Nora</h2>
+          <div class="ait-trainer-title">Strength & Conditioning Specialist</div>
+          <div class="ait-trainer-personality">Focused, disciplined, detail-oriented</div>
+          <p class="ait-trainer-bio">Nora builds structured strength and conditioning programs tailored to your level. She tracks your lifts, adjusts volume and intensity week over week, and pushes you toward progressive overload. Whether you're training for powerlifting, athleticism, or general strength, Nora designs every session with purpose.</p>
+          <div class="ait-tags">
+            <span class="ait-tag">Strength Training</span>
+            <span class="ait-tag">Progressive Overload</span>
+            <span class="ait-tag">Powerlifting</span>
+            <span class="ait-tag">Athletic Performance</span>
+            <span class="ait-tag">Periodization</span>
+          </div>
+          <a href="#" class="ait-btn ait-btn-nora">Train with Nora</a>
+        </div>
+
+        <!-- Sebastian -->
+        <div class="ait-trainer-card">
+          <div class="ait-avatar ait-avatar-seb">S</div>
+          <h2>Sebastian</h2>
+          <div class="ait-trainer-title">HIIT & Functional Fitness Coach</div>
+          <div class="ait-trainer-personality">High-energy, motivating, adaptable</div>
+          <p class="ait-trainer-bio">Sebastian specializes in high-intensity interval training and functional movement. He creates fast-paced, equipment-flexible workouts that burn fat, build endurance, and improve mobility. Sebastian adapts every session based on your energy level, available time, and equipment — from full gym setups to bodyweight-only hotel rooms.</p>
+          <div class="ait-tags">
+            <span class="ait-tag">HIIT</span>
+            <span class="ait-tag">Functional Training</span>
+            <span class="ait-tag">Fat Loss</span>
+            <span class="ait-tag">Endurance</span>
+            <span class="ait-tag">Mobility</span>
+          </div>
+          <a href="#" class="ait-btn ait-btn-seb">Train with Sebastian</a>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works -->
+  <section class="ait-how section-alt">
+    <div class="container">
+      <div class="section-header">
+        <span class="tag">How It Works</span>
+        <h2>Get started in three steps</h2>
+      </div>
+      <div class="ait-steps">
+        <div class="ait-step">
+          <div class="ait-step-num">1</div>
+          <h3>Choose Your Trainer</h3>
+          <p>Pick Nora for structured strength programming or Sebastian for high-intensity functional training. Switch anytime.</p>
+        </div>
+        <div class="ait-step">
+          <div class="ait-step-num">2</div>
+          <h3>Tell Them Your Goals</h3>
+          <p>Share your experience level, available equipment, schedule, and what you're training for. They handle the rest.</p>
+        </div>
+        <div class="ait-step">
+          <div class="ait-step-num">3</div>
+          <h3>Train and Adapt</h3>
+          <p>Your AI trainer builds your sessions, tracks your progress, and adjusts programming as you improve.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="ait-features">
+    <div class="container">
+      <div class="section-header">
+        <span class="tag">What You Get</span>
+        <h2>Smart training, built around you</h2>
+      </div>
+      <div class="ait-features-grid">
+        <div class="ait-feature">
+          <div>
+            <h3>Personalized Programs</h3>
+            <p>Every workout is built for your goals, experience, and equipment. No generic templates.</p>
+          </div>
+        </div>
+        <div class="ait-feature">
+          <div>
+            <h3>Progressive Adaptation</h3>
+            <p>Your trainer adjusts volume, intensity, and exercise selection as you get stronger.</p>
+          </div>
+        </div>
+        <div class="ait-feature">
+          <div>
+            <h3>Available 24/7</h3>
+            <p>Train on your schedule. Your AI trainer is ready whenever you are — morning, night, or between meetings.</p>
+          </div>
+        </div>
+        <div class="ait-feature">
+          <div>
+            <h3>Equipment Flexible</h3>
+            <p>Full gym, home setup, or just bodyweight. Your trainer works with whatever you have.</p>
+          </div>
+        </div>
+        <div class="ait-feature">
+          <div>
+            <h3>Real-Time Feedback</h3>
+            <p>Log your sets and reps, and your trainer adjusts the next session based on your performance.</p>
+          </div>
+        </div>
+        <div class="ait-feature">
+          <div>
+            <h3>No Commitment</h3>
+            <p>Switch between Nora and Sebastian anytime. Try both and train with whoever fits your style.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="ait-cta">
+    <div class="container">
+      <h2>Ready to meet your AI trainer?</h2>
+      <p>Start training with Nora or Sebastian today.</p>
+      <a href="landing.html" class="btn btn-primary">Get Started</a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <a href="home.html" class="logo">
+            <img src="logo.png" alt="Shape" class="logo-img">
+          </a>
+          <p class="footer-desc">Join the community</p>
+        </div>
+        <div class="footer-col">
+          <h4>Platform</h4>
+          <a href="trainers.html">Trainer Marketplace</a>
+          <a href="nutritionists.html">Nutritionists</a>        <a href="community.html">Community</a>
+          <a href="pricing.html">Pricing</a>
+          <a href="for-clients.html">Clients</a>
+          <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+          <a href="trainer-dashboard.html">Trainer Dashboard</a>
+          <a href="integrations.html">Integrations</a>
+        </div>
+        <div class="footer-col">
+          <h4>Get Started</h4>
+          <a href="signup-client.html">Sign Up as Client</a>
+          <a href="signup-trainer.html">Apply as Trainer</a>
+          <a href="signup-nutritionist.html">Apply as Nutritionist</a>
+        </div>
+        <div class="footer-col">
+          <h4>Support</h4>
+          <a href="help.html">Help Center</a>
+          <a href="contact.html">Contact</a>
+          <a href="radio.html">Shape Radio</a>
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 Shape. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>

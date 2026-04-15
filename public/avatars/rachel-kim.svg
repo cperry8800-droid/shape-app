@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8B5CF6"/>
+      <stop offset="100%" stop-color="#5B21B6"/>
+    </linearGradient>
+    <linearGradient id="skin" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F1C27D"/>
+      <stop offset="100%" stop-color="#D4A55A"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="400" fill="url(#bg)"/>
+  <ellipse cx="200" cy="420" rx="120" ry="90" fill="#f5f5f5"/>
+  <rect x="184" y="282" width="32" height="28" rx="4" fill="url(#skin)"/>
+  <ellipse cx="200" cy="220" rx="58" ry="72" fill="url(#skin)"/>
+  <!-- Hair - long straight dark -->
+  <ellipse cx="200" cy="178" rx="68" ry="52" fill="#1a1a1a"/>
+  <ellipse cx="142" cy="220" rx="16" ry="55" fill="#1a1a1a"/>
+  <ellipse cx="258" cy="220" rx="16" ry="55" fill="#1a1a1a"/>
+  <ellipse cx="148" cy="290" rx="12" ry="30" fill="#1a1a1a"/>
+  <ellipse cx="252" cy="290" rx="12" ry="30" fill="#1a1a1a"/>
+  <!-- Bangs -->
+  <path d="M145 185 Q200 170 255 185" fill="#1a1a1a"/>
+  <!-- Eyes -->
+  <ellipse cx="182" cy="222" rx="6" ry="4.5" fill="#1a1a1a"/>
+  <ellipse cx="218" cy="222" rx="6" ry="4.5" fill="#1a1a1a"/>
+  <!-- Eyebrows -->
+  <path d="M172 212 Q182 207 192 213" stroke="#1a1a1a" stroke-width="2" fill="none"/>
+  <path d="M208 213 Q218 207 228 212" stroke="#1a1a1a" stroke-width="2" fill="none"/>
+  <!-- Nose -->
+  <ellipse cx="200" cy="238" rx="4" ry="2.5" fill="#C49545" opacity="0.4"/>
+  <!-- Gentle smile -->
+  <path d="M190 250 Q200 258 210 250" stroke="#C49545" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <!-- Soft sweater -->
+  <path d="M165 306 Q200 320 235 306" fill="#8B5CF6"/>
+  <!-- Heart accent -->
+  <path d="M45 50 C45 42 55 38 55 46 C55 38 65 42 65 50 L55 62 Z" fill="white" opacity="0.12"/>
+</svg>

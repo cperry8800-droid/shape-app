@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape — Nutritionists</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar" id="navbar">
+    <div class="container nav-container">
+      <a href="home.html" class="logo">
+        <img src="logo.png" alt="Shape" class="logo-img">
+      </a>
+      <div class="nav-links" id="navLinks">
+        <div class="nav-dropdown">
+          <a href="for-clients.html">Clients</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-clients.html">Overview</a>
+            <a href="clients.html">Dashboard</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-trainers.html">Trainers</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-trainers.html">Overview</a>
+            <a href="trainer-dashboard.html">Trainer Dashboard</a>
+            <a href="trainers.html">Trainer Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-nutritionists.html">Nutritionists</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-nutritionists.html">Overview</a>
+            <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+            <a href="nutritionists.html">Nutritionist Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="shape-score.html">Rewards</a>
+          <div class="nav-dropdown-menu">
+            <a href="shape-score.html">Shape Score (Clients)</a>
+            <a href="shape-score-trainer.html">Shape Score (Trainers)</a>
+            <a href="shape-score-nutritionist.html">Shape Score (Nutritionists)</a>
+            <a href="shape-store.html">Shape Store</a>
+          </div>
+        </div>
+        <a href="community.html">Community</a>
+        <a href="pricing.html">Pricing</a>
+      </div>
+      <div class="nav-actions">
+        <a href="login.html" class="btn btn-sm btn-outline shape-auth-logged-out">Log In</a>
+        <span class="shape-auth-logged-in shape-nav-user-name" style="display:none;font-size:0.82rem;color:var(--text-muted);margin-right:4px;"></span>
+        <a href="clients.html" class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" data-shape-dashboard-link>Dashboard</a>
+        <button class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" onclick="shapeSignOut()">Sign Out</button>
+        <a href="landing.html" class="btn btn-sm btn-primary shape-auth-logged-out">Get Started</a>
+        <a href="radio.html" class="btn btn-sm btn-radio"><span class="btn-shape-text"><img src="logo.png" alt="Shape"></span> Radio</a>
+      </div>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Page Hero -->
+  <section class="page-hero" style="padding-bottom:20px;">
+    <div class="container">
+      <span class="tag">Nutritionists</span>
+      <h1>Eat with a <span class="gradient-text">plan</span></h1>
+      <p class="page-hero-sub">Subscribe to a certified nutritionist for custom meal plans, macro tracking, and ongoing support.</p>
+    </div>
+  </section>
+
+  <!-- Nutritionist of the Month -->
+  <section class="section section-alt" id="nutritionistOfMonth" style="padding:48px 0;">
+    <div class="container">
+      <div style="text-align:center;"><span class="tag">Nutritionist of the Month</span></div>
+      <div class="totm-card" id="notmCard">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- Top Nutritionists -->
+  <section class="section" id="topNutritionists" style="padding:48px 0;">
+    <div class="container">
+      <div style="text-align:center;margin-bottom:32px;">
+        <span class="tag">Top Nutritionists</span>
+        <h2 style="font-size:clamp(1.2rem,2vw,1.5rem);font-weight:300;letter-spacing:-0.03em;margin-top:8px;">Highest rated nutritionists on Shape</h2>
+      </div>
+      <div id="topNutritionistsGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;"></div>
+    </div>
+  </section>
+
+  <!-- Featured Nutritionists -->
+  <section class="section section-alt" id="featuredNutritionists" style="padding:48px 0;">
+    <div class="container">
+      <div style="text-align:center;margin-bottom:32px;">
+        <span class="tag">Featured Nutritionists</span>
+        <h2 style="font-size:clamp(1.2rem,2vw,1.5rem);font-weight:300;letter-spacing:-0.03em;margin-top:8px;">Hand-picked by Shape this month</h2>
+      </div>
+      <div id="featuredNutritionistsGrid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;"></div>
+    </div>
+  </section>
+
+  <!-- Nutritionists Section -->
+  <style>
+    .filter-bar {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 32px;
+    }
+    .filter-bar-top {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .filter-search {
+      flex: 1;
+      padding: 10px 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.92rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .filter-search:focus {
+      border-color: var(--accent, #2DD4BF);
+    }
+    .filter-search::placeholder {
+      color: var(--text-muted);
+    }
+    .filter-sort {
+      padding: 10px 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.92rem;
+      cursor: pointer;
+      outline: none;
+      min-width: 180px;
+      transition: border-color 0.2s;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23999' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
+    }
+    .filter-sort:focus {
+      border-color: var(--accent, #2DD4BF);
+    }
+    .filter-bar-buttons {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    /* Vertical list layout */
+    #nutritionistGrid.card-grid {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 768px) {
+      .filter-bar-top {
+        flex-direction: column;
+      }
+      .filter-sort {
+        min-width: unset;
+        width: 100%;
+      }
+      #topNutritionistsGrid { grid-template-columns: 1fr !important; }
+      #featuredNutritionistsGrid { grid-template-columns: 1fr !important; }
+    }
+  </style>
+  <section class="section">
+    <div class="container">
+      <div class="filter-bar">
+        <div class="filter-bar-top">
+          <input type="text" class="filter-search" id="nutritionistSearch" placeholder="Search by name..." oninput="filterNutritionists()">
+          <select class="filter-sort" id="nutritionistSort" onchange="filterNutritionists()">
+            <option value="subscribers">Most Subscribers</option>
+            <option value="rating">Highest Rated</option>
+            <option value="price">Lowest Price</option>
+            <option value="experience">Most Experience</option>
+          </select>
+        </div>
+        <div class="filter-bar-buttons">
+          <button class="filter-btn active" data-filter="all" onclick="setNutritionistFilter(this)">All</button>
+          <button class="filter-btn" data-filter="sports" onclick="setNutritionistFilter(this)">Sports & Performance</button>
+          <button class="filter-btn" data-filter="weightloss" onclick="setNutritionistFilter(this)">Weight Management</button>
+          <button class="filter-btn" data-filter="plantbased" onclick="setNutritionistFilter(this)">Plant-Based & Ayurvedic</button>
+          <button class="filter-btn" data-filter="guthealth" onclick="setNutritionistFilter(this)">Gut Health & Functional</button>
+          <button class="filter-btn" data-filter="prenatal" onclick="setNutritionistFilter(this)">Prenatal & Maternal</button>
+          <button class="filter-btn" data-filter="mealprep" onclick="setNutritionistFilter(this)">Meal Prep & Budget</button>
+        </div>
+        <div class="filter-bar-buttons" style="margin-top:8px;">
+          <span style="font-size:0.68rem;font-weight:500;color:var(--text-muted);padding:6px 0;text-transform:uppercase;letter-spacing:0.08em;">Credential:</span>
+          <button class="filter-btn credential-filter active" data-credential="all" onclick="setCredentialFilter(this)">All</button>
+          <button class="filter-btn credential-filter cred-tip" data-tip="RD / RDN — Registered Dietitian / Registered Dietitian Nutritionist" data-credential="RDN" onclick="setCredentialFilter(this)">Registered Dietitian</button>
+          <button class="filter-btn credential-filter cred-tip" data-tip="Certified Nutrition Specialist" data-credential="CNS" onclick="setCredentialFilter(this)">CNS</button>
+          <button class="filter-btn credential-filter cred-tip" data-tip="Certified Nutritionist" data-credential="CN" onclick="setCredentialFilter(this)">CN</button>
+          <button class="filter-btn credential-filter cred-tip" data-tip="Certified Health & Nutrition Coach" data-credential="Health Coach" onclick="setCredentialFilter(this)">Health Coach</button>
+        </div>
+      </div>
+
+      <div class="card-grid" id="nutritionistGrid">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+  </section>
+
+  
+  <section class="section"><div class="container"><div id="shapeRealProviders" data-role="nutritionist"></div></div></section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <a href="home.html" class="logo">
+            <img src="logo.png" alt="Shape" class="logo-img">
+          </a>
+          <p class="footer-desc">Join the community</p>
+        </div>
+        <div class="footer-col">
+          <h4>Platform</h4>
+          <a href="trainers.html">Trainer Marketplace</a>
+          <a href="nutritionists.html">Nutritionists</a>        <a href="community.html">Community</a>
+        <a href="pricing.html">Pricing</a>
+          <a href="for-clients.html">Clients</a>
+          <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+          <a href="trainer-dashboard.html">Trainer Dashboard</a>
+          <a href="integrations.html">Integrations</a>
+        </div>
+        <div class="footer-col">
+          <h4>Get Started</h4>
+          <a href="signup-client.html">Sign Up as Client</a>
+          <a href="signup-trainer.html">Apply as Trainer</a>
+          <a href="signup-nutritionist.html">Apply as Nutritionist</a>
+        </div>
+        <div class="footer-col">
+          <h4>Support</h4>
+          <a href="help.html">Help Center</a>
+          <a href="contact.html">Contact</a>
+          <a href="radio.html">Shape Radio</a>
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 Shape. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Nutritionist Detail Modal -->
+  <div class="modal-overlay" id="trainerModal">
+    <div class="modal modal-lg">
+      <button class="modal-close" onclick="closeAllModals()">&times;</button>
+      <div id="trainerModalContent"></div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+  <script>
+    // Populate Top Nutritionists (top 3 by rating then subscribers)
+    (function() {
+      const topGrid = document.getElementById('topNutritionistsGrid');
+      const featuredGrid = document.getElementById('featuredNutritionistsGrid');
+      if (topGrid && typeof nutritionists !== 'undefined') {
+        const top = [...nutritionists].sort((a,b) => b.rating - a.rating || b.subscribers - a.subscribers).slice(0,3);
+        topGrid.innerHTML = top.map(n => createNutritionistCard(n)).join('');
+      }
+      if (featuredGrid && typeof nutritionists !== 'undefined') {
+        const featured = nutritionists.filter(n => n.featured);
+        if (featured.length) {
+          featuredGrid.innerHTML = featured.map(n => createNutritionistCard(n)).join('');
+        } else {
+          const picks = [...nutritionists].sort((a,b) => b.subscribers - a.subscribers).slice(0,2);
+          featuredGrid.innerHTML = picks.map(n => createNutritionistCard(n)).join('');
+        }
+      }
+    })();
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script src="booking.js"></script>
+  <script src="real-providers.js"></script>
+  <script>
+    // Phase 1b — swap hardcoded `nutritionists` array for Supabase data.
+    (async function () {
+      try {
+        if (!window.shapeDb || typeof shapeDb.listNutritionists !== 'function') return;
+        var fresh = await shapeDb.listNutritionists();
+        if (!Array.isArray(fresh) || fresh.length === 0) return;
+
+        nutritionists.length = 0;
+        for (var i = 0; i < fresh.length; i++) nutritionists.push(fresh[i]);
+
+        var topGrid = document.getElementById('topNutritionistsGrid');
+        var featuredGrid = document.getElementById('featuredNutritionistsGrid');
+        if (topGrid) {
+          var top = nutritionists.slice().sort(function (a, b) {
+            return (b.rating - a.rating) || (b.subscribers - a.subscribers);
+          }).slice(0, 3);
+          topGrid.innerHTML = top.map(createNutritionistCard).join('');
+        }
+        if (featuredGrid) {
+          var featured = nutritionists.filter(function (n) { return n.featured; });
+          if (!featured.length) {
+            featured = nutritionists.slice().sort(function (a, b) {
+              return b.subscribers - a.subscribers;
+            }).slice(0, 2);
+          }
+          featuredGrid.innerHTML = featured.map(createNutritionistCard).join('');
+        }
+
+        if (typeof filterNutritionists === 'function') filterNutritionists();
+      } catch (e) {
+        console.warn('[shape] nutritionists supabase swap failed, using hardcoded data', e);
+      }
+    })();
+  </script>
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>

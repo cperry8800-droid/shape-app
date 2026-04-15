@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#EF4444"/>
+      <stop offset="100%" stop-color="#991B1B"/>
+    </linearGradient>
+    <linearGradient id="skin" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#D4A574"/>
+      <stop offset="100%" stop-color="#B8834A"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="400" fill="url(#bg)"/>
+  <ellipse cx="200" cy="420" rx="130" ry="95" fill="#f8f8f8"/>
+  <rect x="180" y="280" width="40" height="35" rx="4" fill="url(#skin)"/>
+  <ellipse cx="200" cy="215" rx="64" ry="78" fill="url(#skin)"/>
+  <!-- Hair - short wavy -->
+  <ellipse cx="200" cy="163" rx="66" ry="38" fill="#3B2414"/>
+  <rect x="138" y="153" width="124" height="28" rx="4" fill="#3B2414"/>
+  <path d="M142 170 Q170 148 200 155 Q230 148 258 170" fill="#3B2414"/>
+  <!-- Eyes -->
+  <ellipse cx="178" cy="218" rx="7" ry="5" fill="#3B2414"/>
+  <ellipse cx="222" cy="218" rx="7" ry="5" fill="#3B2414"/>
+  <!-- Eyebrows -->
+  <path d="M165 206 Q178 201 190 207" stroke="#3B2414" stroke-width="2.5" fill="none"/>
+  <path d="M210 207 Q222 201 235 206" stroke="#3B2414" stroke-width="2.5" fill="none"/>
+  <!-- Nose -->
+  <ellipse cx="200" cy="236" rx="5.5" ry="3.5" fill="#A0784E" opacity="0.4"/>
+  <!-- Big friendly smile -->
+  <path d="M182 252 Q200 268 218 252" stroke="#A0784E" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <!-- Stubble -->
+  <ellipse cx="200" cy="262" rx="22" ry="12" fill="#3B2414" opacity="0.15"/>
+  <!-- Chef/apron top -->
+  <path d="M155 305 Q200 320 245 305" fill="white"/>
+  <rect x="195" y="305" width="10" height="15" rx="2" fill="#EF4444" opacity="0.6"/>
+  <!-- Knife/spatula accent -->
+  <rect x="350" y="340" width="4" height="40" rx="2" fill="white" opacity="0.12"/>
+  <rect x="345" y="335" width="14" height="10" rx="2" fill="white" opacity="0.12"/>
+</svg>

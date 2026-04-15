@@ -1,0 +1,3428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape — Nutritionist Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  /* ===== Dashboard Tab Bar ===== */
+  .nd-tab-bar {
+    display: flex; gap: 0; justify-content: center; border-bottom: 1px solid var(--border);
+    background: var(--bg-card); position: sticky; top: 88px; z-index: 100;
+    overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none;
+  }
+  .nd-tab-bar::-webkit-scrollbar { display: none; }
+  .nd-tab-btn {
+    padding: 10px 16px; font-size: 0.72rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--text-muted); background: none; border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer; font-family: inherit; white-space: nowrap;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .nd-tab-btn:hover { color: var(--text); }
+  .nd-tab-btn.active {
+    color: var(--accent); border-bottom-color: var(--accent);
+  }
+  .nd-tab-content { display: none; }
+  .nd-tab-content.active { display: block; }
+  .nd-tab-content.active > .section:first-child,
+  .nd-tab-content.active > section:first-child { padding-top: 32px; }
+
+  @media (max-width: 768px) {
+    body { padding-bottom: 76px; }
+    .nd-tab-bar {
+      position: fixed; bottom: 0; top: auto; left: 0; right: 0;
+      z-index: 900;
+      background: var(--bg-alt);
+      border-top: 1px solid var(--border); border-bottom: none;
+      overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+      padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+    .nd-tab-bar::-webkit-scrollbar { display: none; }
+    .nd-tab-btn {
+      flex: 0 0 auto; min-width: 0;
+      display: flex !important; flex-direction: column; align-items: center; justify-content: center;
+      padding: 8px 14px 6px; font-size: 0.58rem; font-weight: 600;
+      letter-spacing: 0.06em; opacity: 0.5; white-space: nowrap;
+      border-top: 2px solid transparent; border-bottom: none;
+    }
+    .nd-tab-btn::before {
+      content: attr(data-icon);
+      display: block; font-size: 1.05rem; line-height: 1; margin-bottom: 3px;
+    }
+    .nd-tab-btn.active { opacity: 1; color: var(--accent); border-top-color: var(--accent); }
+    .nd-tab-content.active { padding-bottom: 16px; }
+
+    .nd-today-hero {
+      background: linear-gradient(135deg, rgba(45,212,191,0.12) 0%, rgba(108,58,237,0.08) 100%);
+      border: 1px solid rgba(45,212,191,0.3);
+      padding: 24px; margin-bottom: 20px; position: relative; overflow: hidden;
+    }
+    .nd-today-hero::before {
+      content: ''; position: absolute; top: -40%; right: -20%; width: 280px; height: 280px;
+      background: radial-gradient(circle, rgba(45,212,191,0.15) 0%, transparent 65%); pointer-events: none;
+    }
+    .nd-today-hero-label { font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent); margin-bottom: 10px; position: relative; }
+    .nd-today-hero-title { font-size: clamp(1.4rem, 3.2vw, 1.9rem); font-weight: 300; letter-spacing: -0.03em; margin-bottom: 16px; position: relative; }
+    .nd-today-hero-meta { display: flex; gap: 18px; flex-wrap: wrap; font-size: 0.78rem; color: var(--text-muted); margin-bottom: 20px; position: relative; }
+    .nd-today-hero-cta { background: var(--accent); color: #fff; border: none; padding: 14px 26px; font-size: 0.82rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; cursor: pointer; font-family: inherit; position: relative; }
+
+    .nd-checkin-banner { display: flex; align-items: center; gap: 14px; background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); padding: 12px 16px; margin-bottom: 16px; }
+    .nd-checkin-banner.nd-checkin-banner-stack { display: block; padding: 12px 16px 8px; }
+    .nd-checkin-banner-head { display: flex; align-items: center; gap: 14px; }
+    .nd-checkin-banner-icon { font-size: 1.2rem; color: #F59E0B; flex-shrink: 0; }
+    .nd-checkin-banner-body { flex: 1; min-width: 0; }
+    .nd-checkin-banner-title { font-size: 0.88rem; font-weight: 600; margin-bottom: 2px; }
+    .nd-checkin-banner-sub { font-size: 0.72rem; color: var(--text-muted); font-weight: 300; }
+    .nd-checkin-banner-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+    .nd-checkin-banner-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: rgba(255,255,255,0.02); border: 1px solid rgba(245,158,11,0.18); cursor: pointer; transition: background 0.15s, border-color 0.15s; text-align: left; font-family: inherit; }
+    .nd-checkin-banner-row:hover { background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.4); }
+    .nd-checkin-banner-row .avatar { width: 32px; height: 32px; font-size: 0.72rem; flex-shrink: 0; background: rgba(245,158,11,0.15); color: #F59E0B; display: flex; align-items: center; justify-content: center; font-weight: 600; }
+    .nd-checkin-banner-row-info { flex: 1; min-width: 0; }
+    .nd-checkin-banner-row-name { font-size: 0.82rem; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+    .nd-checkin-banner-row-issue { font-size: 0.7rem; color: #F59E0B; font-weight: 300; }
+    .nd-checkin-banner-row-arrow { color: #F59E0B; font-size: 1rem; flex-shrink: 0; opacity: 0.7; }
+    .nd-checkin-banner-action { background: #F59E0B; color: #fff; border: none; padding: 8px 14px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer; font-family: inherit; flex-shrink: 0; }
+    .nd-checkin-banner-close { background: none; border: none; color: var(--text-muted); font-size: 1.3rem; line-height: 1; cursor: pointer; padding: 4px 8px; flex-shrink: 0; }
+  }
+  @media (min-width: 769px) {
+    .nd-today-hero, .nd-checkin-banner { display: none; }
+    .nd-recent-meals-widget { display: none !important; }
+  }
+  @media (max-width: 768px) {
+    .nd-mealsched-grid { grid-template-columns: 1fr !important; gap: 0 !important; }
+    .nd-recent-meals-col { display: none !important; }
+  }
+
+  /* ===== Messages Panel ===== */
+  .td-messages-panel {
+    display: grid; grid-template-columns: 260px 1fr; border: 1px solid var(--border);
+    min-height: 420px; background: var(--bg-card);
+  }
+  .td-msg-sidebar {
+    border-right: 1px solid var(--border); overflow-y: auto; max-height: 420px;
+  }
+  .td-msg-contact {
+    display: flex; align-items: center; gap: 12px; padding: 14px 16px;
+    cursor: pointer; transition: background 0.2s; border-bottom: 1px solid var(--border);
+  }
+  .td-msg-contact:hover, .td-msg-contact.active { background: var(--bg-alt); }
+  .td-msg-contact .avatar { width: 36px; height: 36px; font-size: 0.7rem; }
+  .td-msg-contact-info { flex: 1; min-width: 0; }
+  .td-msg-contact-name { font-size: 0.85rem; font-weight: 500; }
+  .td-msg-contact-preview { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .td-msg-contact-time { font-size: 0.65rem; color: var(--text-muted); white-space: nowrap; }
+  .td-msg-chat {
+    display: flex; flex-direction: column;
+  }
+  .td-msg-chat-header {
+    display: flex; align-items: center; gap: 12px; padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .td-msg-chat-header .avatar { width: 36px; height: 36px; font-size: 0.7rem; }
+  .td-msg-chat-header h4 { font-size: 0.92rem; font-weight: 500; }
+  .td-msg-chat-header span { font-size: 0.75rem; color: var(--text-muted); }
+  .td-msg-chat-body {
+    flex: 1; overflow-y: auto; padding: 20px; display: flex;
+    flex-direction: column; gap: 12px; max-height: 300px;
+  }
+  .td-msg-bubble {
+    max-width: 70%; padding: 10px 16px; font-size: 0.85rem; line-height: 1.5;
+  }
+  .td-msg-bubble.sent {
+    align-self: flex-end; background: var(--accent); color: #fff;
+    border-radius: 16px 16px 4px 16px;
+  }
+  .td-msg-bubble.received {
+    align-self: flex-start; background: var(--bg-alt); color: var(--text);
+    border-radius: 16px 16px 16px 4px;
+  }
+  .td-msg-bubble-time { font-size: 0.65rem; opacity: 0.7; margin-top: 4px; }
+  .td-msg-input-area {
+    display: flex; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--border);
+  }
+  .td-msg-input-area input {
+    flex: 1; padding: 10px 16px; background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); font-family: inherit; font-size: 0.85rem; outline: none;
+  }
+  .td-msg-input-area input:focus { border-color: var(--accent); }
+  .td-msg-input-area button {
+    padding: 10px 20px; background: var(--accent); color: #fff; border: none;
+    font-family: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+  }
+  .td-msg-empty {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted); font-size: 0.88rem; font-weight: 300;
+  }
+  @media (max-width: 768px) {
+    .td-messages-panel { grid-template-columns: 1fr; }
+    .td-msg-sidebar { max-height: 200px; border-right: none; border-bottom: 1px solid var(--border); }
+    .td-msg-chat-body { max-height: 250px; }
+  }
+
+  /* ===== Check-In Modal ===== */
+  .nd-checkin-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.65); z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.25s;
+  }
+  .nd-checkin-overlay.active { opacity: 1; pointer-events: all; }
+  .nd-checkin-modal {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; width: 440px; max-width: 92vw;
+    padding: 32px; font-family: inherit;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.4);
+  }
+  .nd-checkin-modal h3 {
+    font-size: 1.05rem; font-weight: 600; margin: 0 0 4px;
+  }
+  .nd-checkin-modal .nd-checkin-client {
+    font-size: 0.82rem; color: var(--text-muted); margin-bottom: 24px;
+  }
+  .nd-checkin-label {
+    font-size: 0.72rem; font-weight: 500; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 10px; display: block;
+  }
+  .nd-checkin-freq-group, .nd-checkin-day-group {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px;
+  }
+  .nd-checkin-freq-btn {
+    padding: 8px 20px; border-radius: 20px; border: 1px solid var(--border);
+    background: transparent; color: var(--text); font-family: inherit;
+    font-size: 0.82rem; cursor: pointer; transition: all 0.2s;
+  }
+  .nd-checkin-freq-btn:hover { border-color: var(--accent); }
+  .nd-checkin-freq-btn.active {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+  }
+  .nd-checkin-day-btn {
+    width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border);
+    background: transparent; color: var(--text); font-family: inherit;
+    font-size: 0.72rem; font-weight: 500; cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .nd-checkin-day-btn:hover { border-color: var(--accent); }
+  .nd-checkin-day-btn.active {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+  }
+  .nd-checkin-time-input {
+    width: 100%; padding: 10px 14px; background: var(--bg);
+    border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-family: inherit; font-size: 0.85rem;
+    outline: none; margin-bottom: 20px;
+  }
+  .nd-checkin-time-input:focus { border-color: var(--accent); }
+  .nd-checkin-notes {
+    width: 100%; padding: 10px 14px; background: var(--bg);
+    border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-family: inherit; font-size: 0.85rem;
+    outline: none; resize: vertical; min-height: 60px; margin-bottom: 24px;
+  }
+  .nd-checkin-notes:focus { border-color: var(--accent); }
+  .nd-checkin-actions {
+    display: flex; gap: 12px; justify-content: flex-end;
+  }
+  .nd-checkin-actions .btn-cancel {
+    padding: 10px 20px; background: transparent; border: 1px solid var(--border);
+    color: var(--text-muted); font-family: inherit; font-size: 0.82rem;
+    font-weight: 500; cursor: pointer; border-radius: 6px; transition: all 0.2s;
+  }
+  .nd-checkin-actions .btn-cancel:hover { border-color: var(--text); color: var(--text); }
+  .nd-checkin-actions .btn-save {
+    padding: 10px 24px; background: var(--accent); border: none;
+    color: #fff; font-family: inherit; font-size: 0.82rem;
+    font-weight: 600; cursor: pointer; border-radius: 6px; transition: all 0.2s;
+  }
+  .nd-checkin-actions .btn-save:hover { opacity: 0.9; }
+
+  /* Check-in list in client detail */
+  .nd-checkin-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; background: var(--bg-alt); border-radius: 8px;
+    margin-bottom: 8px;
+  }
+  .nd-checkin-item-info { flex: 1; }
+  .nd-checkin-item-freq {
+    font-size: 0.82rem; font-weight: 500; color: var(--text);
+    text-transform: capitalize;
+  }
+  .nd-checkin-item-detail {
+    font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;
+  }
+  .nd-checkin-item-notes {
+    font-size: 0.72rem; color: var(--text-muted); font-style: italic; margin-top: 4px;
+  }
+  .nd-checkin-cancel-btn {
+    padding: 5px 12px; background: transparent; border: 1px solid var(--border);
+    color: #EF4444; font-family: inherit; font-size: 0.72rem; font-weight: 500;
+    cursor: pointer; border-radius: 4px; transition: all 0.2s; white-space: nowrap;
+  }
+  .nd-checkin-cancel-btn:hover { border-color: #EF4444; background: rgba(239,68,68,0.1); }
+
+  /* ===== Monthly Calendar View ===== */
+  .nd-view-toggle {
+    display: flex; gap: 6px; margin-bottom: 16px;
+  }
+  .nd-view-btn {
+    padding: 5px 14px; font-size: 0.72rem; font-weight: 500;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--text-muted); cursor: pointer; font-family: inherit;
+    transition: all 0.2s;
+  }
+  .nd-view-btn.active {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+  }
+  .nd-view-btn:hover:not(.active) { border-color: var(--text); color: var(--text); }
+  .nd-month-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .nd-month-header h4 {
+    font-size: 0.88rem; font-weight: 500; margin: 0;
+  }
+  .nd-month-nav {
+    display: flex; gap: 6px;
+  }
+  .nd-month-nav button {
+    width: 28px; height: 28px; border: 1px solid var(--border);
+    background: transparent; color: var(--text-muted); cursor: pointer;
+    font-size: 0.75rem; display: flex; align-items: center;
+    justify-content: center; transition: all 0.2s; font-family: inherit;
+  }
+  .nd-month-nav button:hover { border-color: var(--text); color: var(--text); }
+  .nd-cal-grid {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;
+  }
+  .nd-cal-head {
+    text-align: center; font-size: 0.65rem; font-weight: 500;
+    color: var(--text-muted); text-transform: uppercase; padding: 6px 0;
+    letter-spacing: 0.06em;
+  }
+  .nd-cal-day {
+    aspect-ratio: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; font-size: 0.72rem;
+    background: var(--bg-alt); border-radius: 4px; position: relative;
+    transition: background 0.2s;
+  }
+  .nd-cal-day.empty { background: transparent; }
+  .nd-cal-day.today { border: 1px solid var(--accent); }
+  .nd-cal-day.has-meals { cursor: default; }
+  .nd-cal-day-num { font-weight: 500; margin-bottom: 2px; }
+  .nd-cal-day-dot {
+    width: 5px; height: 5px; border-radius: 50%;
+  }
+  .nd-cal-day-dot.on-plan { background: #10B981; }
+  .nd-cal-day-dot.off-plan { background: #EF4444; }
+  .nd-cal-day-dot.mixed { background: #F59E0B; }
+  .nd-cal-day-meals {
+    font-size: 0.55rem; color: var(--text-muted); margin-top: 1px;
+  }
+
+  /* ===== Compact Meal Log ===== */
+  .nd-meal-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 12px; border-bottom: 1px solid var(--border);
+    font-size: 0.8rem;
+  }
+  .nd-meal-row:last-child { border-bottom: none; }
+  .nd-meal-date {
+    font-size: 0.72rem; color: var(--text-muted); min-width: 52px;
+    font-weight: 400;
+  }
+  .nd-meal-name {
+    flex: 1; font-weight: 500; font-size: 0.82rem;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .nd-meal-meta {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 0.72rem; color: var(--text-muted);
+  }
+  .nd-meal-type {
+    padding: 2px 8px; background: var(--bg-alt); border-radius: 3px;
+    font-size: 0.65rem; font-weight: 500; text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .nd-meal-status {
+    font-size: 0.72rem; font-weight: 500;
+  }
+  .nd-meal-status.on { color: #10B981; }
+  .nd-meal-status.off { color: #EF4444; }
+
+  /* ===== Meal Plan Builder (from profile) ===== */
+  .mpb-wrap { margin-bottom: 40px; }
+  .mpb-wrap h2 { font-size: 1.3rem; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 20px; }
+  .mpb-toggle-area { display: none; }
+  .mpb-toggle-area.mpb-open { display: block; }
+  .mpb-choice { display: flex; gap: 16px; margin-bottom: 24px; }
+  .mpb-choice-btn {
+    flex: 1; padding: 28px 20px; background: var(--bg-card); border: 1px solid var(--border);
+    text-align: center; cursor: pointer; transition: all 0.3s; font-family: inherit;
+    color: var(--text); border-radius: var(--radius-lg);
+  }
+  .mpb-choice-btn:hover, .mpb-choice-btn.mpb-active { border-color: var(--accent); }
+  .mpb-choice-btn h3 { font-size: 1rem; font-weight: 600; margin-bottom: 4px; }
+  .mpb-choice-btn p { font-size: 0.78rem; color: var(--text-muted); font-weight: 300; margin: 0; }
+  .mpb-form { display: none; }
+  .mpb-form.mpb-open { display: block; }
+  .mpb-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  .mpb-form-full { grid-column: 1 / -1; }
+  .mpb-label {
+    display: block; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text-muted); font-weight: 500; margin-bottom: 6px;
+  }
+  .mpb-input, .mpb-select, .mpb-textarea {
+    width: 100%; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); font-family: inherit; font-size: 0.88rem; box-sizing: border-box;
+    border-radius: var(--radius);
+  }
+  .mpb-textarea { min-height: 80px; resize: vertical; }
+  .mpb-select { appearance: none; cursor: pointer; }
+  .mpb-macro-row { display: flex; gap: 16px; align-items: center; margin-bottom: 20px; }
+  .mpb-macro-slider-wrap { flex: 1; }
+  .mpb-macro-slider-wrap input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+  .mpb-macro-val { font-size: 0.85rem; font-weight: 600; text-align: center; margin-top: 2px; }
+  .mpb-macro-total { font-size: 0.78rem; color: var(--text-muted); font-weight: 500; margin-bottom: 16px; }
+  .mpb-macro-total.mpb-over { color: #EF4444; }
+  .mpb-day-card { background: var(--bg-card); border: 1px solid var(--border); margin-bottom: 8px; border-radius: var(--radius-lg); }
+  .mpb-day-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 20px; cursor: pointer; user-select: none;
+  }
+  .mpb-day-header h4 { font-size: 0.88rem; font-weight: 500; margin: 0; }
+  .mpb-day-header span { font-size: 0.75rem; color: var(--text-muted); transition: transform 0.2s; }
+  .mpb-day-body { display: none; padding: 0 20px 20px; }
+  .mpb-day-card.mpb-expanded .mpb-day-body { display: block; }
+  .mpb-day-card.mpb-expanded .mpb-day-header span { transform: rotate(180deg); }
+  .mpb-meal-block { padding: 14px 0; border-bottom: 1px solid var(--border); }
+  .mpb-meal-block:last-child { border-bottom: none; }
+  .mpb-meal-block h5 {
+    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--accent-dark); font-weight: 600; margin: 0 0 10px;
+  }
+  .mpb-meal-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .mpb-assign-row {
+    display: flex; gap: 16px; align-items: flex-end; margin: 24px 0 16px; flex-wrap: wrap;
+  }
+  .mpb-assign-row > div { flex: 1; min-width: 180px; }
+  .mpb-publish-btn {
+    padding: 12px 28px; background: var(--accent); color: #fff; border: none;
+    font-family: inherit; font-size: 0.88rem; font-weight: 600; cursor: pointer;
+    letter-spacing: -0.01em; transition: background 0.2s; border-radius: var(--radius);
+  }
+  .mpb-publish-btn:hover { background: var(--accent-dark); }
+  .mpb-plans-list { margin-top: 32px; }
+  .mpb-plan-item {
+    display: flex; align-items: center; gap: 16px; padding: 16px 20px;
+    background: var(--bg-card); border: 1px solid var(--border); margin-bottom: 8px;
+    flex-wrap: wrap; border-radius: var(--radius);
+  }
+  .mpb-plan-item h4 { flex: 1; font-size: 0.92rem; font-weight: 500; margin: 0; min-width: 140px; }
+  .mpb-badge {
+    display: inline-block; padding: 2px 10px; font-size: 0.68rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.04em; border-radius: 20px;
+  }
+  .mpb-badge-draft { background: rgba(245,158,11,0.15); color: #F59E0B; }
+  .mpb-badge-published { background: rgba(16,185,129,0.15); color: #10B981; }
+  .mpb-badge-profile { background: rgba(99,102,241,0.15); color: #818CF8; }
+  .mpb-plan-client { font-size: 0.78rem; color: var(--text-muted); font-weight: 300; min-width: 120px; }
+  .mpb-plan-actions { display: flex; gap: 8px; }
+  .mpb-plan-actions button {
+    padding: 6px 14px; font-size: 0.75rem; font-weight: 500; cursor: pointer;
+    border: 1px solid var(--border); background: var(--bg-card); color: var(--text);
+    font-family: inherit; transition: all 0.2s; border-radius: var(--radius);
+  }
+  .mpb-plan-actions button:hover { border-color: var(--text); }
+  .mpb-plan-actions button.mpb-del:hover { border-color: #EF4444; color: #EF4444; }
+  .mpb-empty { text-align: center; padding: 40px; color: var(--text-muted); font-size: 0.82rem; }
+  @media (max-width: 768px) {
+    .mpb-choice { flex-direction: column; }
+    .mpb-form-grid { grid-template-columns: 1fr; }
+    .mpb-meal-grid { grid-template-columns: 1fr 1fr; }
+    .mpb-macro-row { flex-direction: column; }
+    .mpb-assign-row { flex-direction: column; }
+  }
+
+  /* ===== Community Tab ===== */
+  .nd-community-layout {
+    display: grid; grid-template-columns: 280px 1fr 300px;
+    border: 1px solid var(--border); min-height: 600px;
+  }
+  .nd-community-sidebar {
+    border-right: 1px solid var(--border); display: flex;
+    flex-direction: column; background: var(--bg-card); overflow: hidden;
+  }
+  .nd-community-sidebar-header {
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+    font-size: 1rem; font-weight: 600;
+  }
+  .nd-community-tabs {
+    display: flex; border-bottom: 1px solid var(--border);
+  }
+  .nd-community-tab {
+    flex: 1; padding: 10px; text-align: center; font-size: 0.72rem;
+    font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text-muted); cursor: pointer; border: none; background: none;
+    border-bottom: 2px solid transparent; transition: all 0.3s;
+  }
+  .nd-community-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+  .nd-community-search {
+    padding: 10px 14px; border-bottom: 1px solid var(--border);
+  }
+  .nd-community-search input {
+    width: 100%; padding: 8px 12px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); font-family: inherit;
+    font-size: 0.82rem; outline: none;
+  }
+  .nd-community-search input:focus { border-color: var(--accent); }
+  .nd-community-list { flex: 1; overflow-y: auto; }
+  .nd-community-user {
+    display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+    cursor: pointer; transition: background 0.2s; border-bottom: 1px solid var(--border);
+  }
+  .nd-community-user:hover { background: var(--bg-alt); }
+  .nd-community-user-avatar {
+    width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600; font-size: 0.62rem; color: #fff;
+  }
+  .nd-community-user-info { flex: 1; min-width: 0; }
+  .nd-community-user-name { font-size: 0.82rem; font-weight: 500; }
+  .nd-community-user-status { font-size: 0.68rem; color: var(--text-muted); font-weight: 300; }
+  .nd-community-chat {
+    display: flex; flex-direction: column; background: var(--bg);
+  }
+  .nd-community-chat-tabs {
+    display: flex; gap: 8px; padding: 10px 20px;
+    border-bottom: 1px solid var(--border); background: var(--bg-card);
+  }
+  .nd-community-channel {
+    padding: 6px 14px; font-size: 0.72rem; font-weight: 500;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--text-muted); cursor: pointer; transition: all 0.3s;
+  }
+  .nd-community-channel.active {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+  }
+  .nd-community-messages {
+    flex: 1; overflow-y: auto; padding: 20px; display: flex;
+    flex-direction: column; gap: 14px; max-height: 440px;
+  }
+  .nd-community-msg {
+    display: flex; flex-direction: column; max-width: 70%;
+  }
+  .nd-community-msg.own { margin-left: auto; align-items: flex-end; }
+  .nd-community-msg:not(.own) { align-items: flex-start; }
+  .nd-community-msg-avatar { display: none; }
+  .nd-community-msg-body {
+    background: #1a1a1a; border: none;
+    padding: 10px 14px; border-radius: 18px; border-bottom-left-radius: 4px;
+  }
+  .nd-community-msg.own .nd-community-msg-body {
+    background: #2DD4BF; color: #fff;
+    border-radius: 18px; border-bottom-right-radius: 4px; border-bottom-left-radius: 18px;
+  }
+  .nd-community-msg-name { display: none; }
+  .nd-community-msg-text { font-size: 0.82rem; line-height: 1.5; font-weight: 300; }
+  .nd-community-msg-time { font-size: 0.6rem; color: var(--text-muted); margin-top: 4px; text-align: center; }
+  .nd-community-msg.own .nd-community-msg-time { color: rgba(255,255,255,0.5); text-align: center; }
+  .nd-community-input {
+    padding: 14px 20px; border-top: 1px solid var(--border);
+    background: var(--bg-card); display: flex; gap: 10px;
+  }
+  .nd-community-input input {
+    flex: 1; padding: 10px 16px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); font-family: inherit;
+    font-size: 0.82rem; outline: none; border-radius: 24px;
+  }
+  .nd-community-input input:focus { border-color: var(--accent); }
+  .nd-community-input button {
+    padding: 10px 20px; background: var(--accent); color: #fff; border: none;
+    font-family: inherit; font-weight: 600; font-size: 0.78rem; cursor: pointer;
+    border-radius: 24px;
+  }
+  .nd-community-activity {
+    border-left: 1px solid var(--border); display: flex;
+    flex-direction: column; background: var(--bg-card); overflow: hidden;
+  }
+  .nd-activity-profile {
+    padding: 24px 18px; text-align: center; border-bottom: 1px solid var(--border);
+  }
+  .nd-activity-avatar {
+    width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 1rem; color: #fff; background: var(--accent);
+  }
+  .nd-activity-name { font-size: 0.95rem; font-weight: 600; margin-bottom: 2px; }
+  .nd-activity-bio { font-size: 0.75rem; color: var(--text-muted); font-weight: 300; }
+  .nd-activity-section-title {
+    padding: 14px 18px 6px; font-size: 0.68rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted);
+  }
+  .nd-activity-feed { flex: 1; overflow-y: auto; }
+  .nd-activity-item {
+    padding: 10px 18px; border-bottom: 1px solid var(--border);
+  }
+  .nd-activity-item-header {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 4px;
+  }
+  .nd-activity-item-avatar {
+    width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600; font-size: 0.5rem; color: #fff;
+  }
+  .nd-activity-item-name { font-size: 0.78rem; font-weight: 500; }
+  .nd-activity-item-time { font-size: 0.65rem; color: var(--text-muted); margin-left: auto; }
+  .nd-activity-item-text {
+    font-size: 0.75rem; color: var(--text-muted); font-weight: 300; line-height: 1.4;
+    padding-left: 32px;
+  }
+  @media (max-width: 1100px) {
+    .nd-community-layout { grid-template-columns: 240px 1fr; }
+    .nd-community-activity { display: none; }
+  }
+  /* Mobile Community Switcher Bar */
+  .nd-comm-mobile-bar {
+    display: none; flex-shrink: 0;
+    border-bottom: 1px solid var(--border); background: var(--bg-card);
+  }
+  .nd-comm-mobile-btn {
+    flex: 1; padding: 13px 8px; text-align: center; font-size: 0.72rem;
+    font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text-muted); background: none; border: none;
+    border-bottom: 2px solid transparent; cursor: pointer; font-family: inherit;
+    transition: all 0.2s;
+  }
+  .nd-comm-mobile-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  @media (max-width: 768px) {
+    .nd-comm-mobile-bar { display: flex; }
+
+    .nd-community-layout {
+      grid-template-columns: 1fr;
+      display: flex; flex-direction: column;
+      min-height: calc(100vh - 220px);
+    }
+
+    /* Default: show chat, hide sidebar + activity */
+    .nd-community-sidebar { display: none; }
+    .nd-community-activity { display: none; }
+    .nd-community-chat { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
+    /* People view */
+    .nd-community-layout.comm-view-people .nd-community-sidebar {
+      display: flex; flex: 1; border-right: none; min-height: 0;
+    }
+    .nd-community-layout.comm-view-people .nd-community-chat { display: none; }
+
+    /* Chat panel */
+    .nd-community-messages {
+      flex: 1; max-height: none; padding: 14px 12px;
+      overflow-y: auto; -webkit-overflow-scrolling: touch;
+    }
+    .nd-community-msg { max-width: 82%; }
+    .nd-community-msg-body { padding: 10px 14px; }
+    .nd-community-msg-text { font-size: 0.88rem; }
+
+    /* Channel tabs */
+    .nd-community-chat-tabs {
+      overflow-x: auto; -webkit-overflow-scrolling: touch;
+      scrollbar-width: none; padding: 10px 12px; gap: 6px;
+    }
+    .nd-community-chat-tabs::-webkit-scrollbar { display: none; }
+    .nd-community-channel { white-space: nowrap; padding: 6px 14px; }
+
+    /* Input bar */
+    .nd-community-input { padding: 10px 12px; gap: 8px; }
+    .nd-community-input input { font-size: 16px; padding: 10px 16px; }
+    .nd-community-input button { padding: 10px 18px; font-size: 0.78rem; }
+
+    /* People sidebar */
+    .nd-community-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .nd-community-search { padding: 10px 12px; }
+    .nd-community-search input { border-radius: 20px; font-size: 16px; padding: 10px 16px; }
+    .nd-community-user { padding: 12px 14px; }
+    .nd-community-user-avatar { width: 40px; height: 40px; font-size: 0.72rem; }
+    .nd-community-user-name { font-size: 0.88rem; }
+  }
+
+  /* ===== Profile Tab ===== */
+  .nd-profile-banner {
+    height: 180px; background: linear-gradient(135deg, #2DD4BF22, #0D948811);
+    position: relative; border-bottom: 1px solid var(--border);
+    border: 1px solid var(--border); margin-bottom: 0;
+  }
+  .nd-profile-avatar-area {
+    display: flex; align-items: flex-end; gap: 24px;
+    padding: 0 40px; margin-top: -44px; margin-bottom: 28px;
+  }
+  .nd-profile-avatar {
+    width: 100px; height: 100px; border-radius: 50%; background: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 2rem; font-weight: 700; color: #fff;
+    border: 4px solid var(--bg); flex-shrink: 0; overflow: hidden;
+    cursor: pointer; position: relative;
+  }
+  .nd-profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .nd-profile-name-block { padding-bottom: 10px; }
+  .nd-profile-name-block h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 2px; cursor: pointer; }
+  .nd-profile-name-block h2:hover { color: var(--accent); }
+  .nd-profile-specialty {
+    font-size: 0.78rem; color: var(--accent-dark); font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer;
+  }
+  .nd-profile-specialty:hover { opacity: 0.7; }
+  .nd-profile-content { max-width: 900px; padding: 0 0 40px; }
+  .nd-profile-stats-row {
+    display: flex; gap: 28px; margin-bottom: 32px; padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .nd-profile-stat { text-align: center; }
+  .nd-profile-stat-value { font-size: 1.2rem; font-weight: 700; margin-bottom: 2px; }
+  .nd-profile-stat-label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  .nd-profile-section { margin-bottom: 32px; }
+  .nd-profile-section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .nd-profile-section h3 { font-size: 1.05rem; font-weight: 600; }
+  .nd-profile-bio { color: var(--text-muted); font-size: 0.92rem; font-weight: 300; line-height: 1.8; }
+  .nd-profile-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+  .nd-profile-tag {
+    padding: 6px 16px; background: var(--bg-alt); font-size: 0.78rem;
+    font-weight: 500; color: var(--text-muted); border: 1px solid var(--border);
+  }
+  .nd-profile-certs-list { list-style: none; padding: 0; }
+  .nd-profile-certs-list li {
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+    font-size: 0.88rem; display: flex; align-items: center; gap: 10px;
+  }
+  .nd-profile-certs-list li:last-child { border-bottom: none; }
+  .nd-profile-social-links { display: flex; gap: 12px; flex-wrap: wrap; }
+  .nd-profile-social-link {
+    padding: 8px 18px; border: 1px solid var(--border); font-size: 0.78rem;
+    font-weight: 500; color: var(--text-muted); transition: all 0.3s;
+  }
+  .nd-profile-social-link:hover { border-color: var(--text); color: var(--text); }
+  .nd-profile-gallery-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .nd-profile-gallery-item {
+    height: 120px; background: var(--bg-alt); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem; color: var(--text-muted);
+  }
+  .nd-profile-edit-btn {
+    font-size: 0.7rem; font-weight: 500; color: var(--accent-dark);
+    border: 1px solid var(--accent); padding: 4px 12px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    background: none; cursor: pointer; transition: all 0.2s;
+  }
+  .nd-profile-edit-btn:hover { background: var(--accent); color: #fff; }
+
+  @media (max-width: 900px) {
+    .nd-profile-avatar-area { padding: 0 20px; gap: 16px; }
+    .nd-profile-avatar { width: 80px; height: 80px; font-size: 1.6rem; }
+    .nd-profile-name-block h2 { font-size: 1.3rem; }
+    .nd-profile-stats-row { flex-wrap: wrap; gap: 16px; }
+    .nd-profile-gallery-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* ===== Calendar Day Popup Modal (nd-cal-popup-) ===== */
+  .nd-cal-popup-overlay {
+    position: fixed; inset: 0; z-index: 9990;
+    background: rgba(0,0,0,0.6);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  }
+  .nd-cal-popup-overlay.active { opacity: 1; pointer-events: auto; }
+  .nd-cal-popup {
+    background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px;
+    width: 340px; max-width: 92vw; padding: 24px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.5); position: relative;
+  }
+  .nd-cal-popup-close {
+    position: absolute; top: 14px; right: 16px;
+    background: none; border: none; color: var(--text-muted);
+    font-size: 1.2rem; cursor: pointer; line-height: 1;
+    transition: color 0.2s; font-family: inherit;
+  }
+  .nd-cal-popup-close:hover { color: var(--text); }
+  .nd-cal-detail-title { font-size: 0.95rem; font-weight: 600; margin-bottom: 10px; }
+  .nd-cal-detail-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 0.85rem; border-bottom: 1px solid #2a2a2a; }
+  .nd-cal-detail-row:last-child { border-bottom: none; }
+  .nd-cal-detail-row .dl { color: var(--text-muted); }
+  .nd-cal-detail-row .dv { font-weight: 500; }
+
+  /* ===== Nutritionist Home Calendar (nd-home-cal-) ===== */
+  .nd-home-cal-section { margin-bottom: 32px; }
+  .nd-home-cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .nd-home-cal-header h2 { font-size: 1rem; font-weight: 600; margin: 0; letter-spacing: -0.02em; }
+  .nd-home-cal-nav { display: flex; gap: 6px; }
+  .nd-home-cal-nav button {
+    width: 28px; height: 28px; border: 1px solid var(--border); background: transparent;
+    color: var(--text-muted); cursor: pointer; font-size: 0.85rem;
+    display: flex; align-items: center; justify-content: center; font-family: inherit; transition: all 0.2s;
+  }
+  .nd-home-cal-nav button:hover { border-color: var(--text); color: var(--text); }
+  .nd-home-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .nd-home-cal-head {
+    text-align: center; font-size: 0.68rem; font-weight: 500;
+    color: var(--text-muted); text-transform: uppercase; padding: 8px 0; letter-spacing: 0.06em;
+  }
+  .nd-home-cal-day {
+    min-height: 54px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-size: 0.82rem; background: var(--bg-alt); border-radius: 6px; position: relative;
+    transition: all 0.2s; cursor: default; border: 1px solid transparent; padding: 4px 2px; gap: 3px;
+  }
+  .nd-home-cal-day.empty { background: transparent; }
+  .nd-home-cal-day.has-meal { cursor: pointer; }
+  .nd-home-cal-day.has-meal:hover { border-color: var(--accent); }
+  .nd-home-cal-day.is-today { border-color: var(--accent) !important; }
+  .nd-home-cal-day-num { font-weight: 600; font-size: 0.78rem; line-height: 1; }
+  .nd-home-cal-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .nd-home-cal-dot.checkin { background: var(--accent); }
+  .nd-home-cal-dot.planned { background: #F59E0B; }
+  .nd-home-cal-count { font-size: 0.6rem; color: var(--accent); font-weight: 600; }
+  .nd-home-cal-legend { display: flex; gap: 14px; margin-bottom: 10px; font-size: 0.68rem; color: var(--text-muted); }
+  .nd-home-cal-legend span { display: flex; align-items: center; gap: 4px; }
+  @media (max-width: 768px) {
+    .nd-home-cal-day { min-height: 40px; }
+    .nd-home-cal-day-num { font-size: 0.66rem; }
+    .nd-home-cal-dot { width: 5px; height: 5px; }
+
+    /* ===== Full-screen iMessage-style chat on mobile ===== */
+    body.shape-logged-in #ndTabMessages.nd-tab-content.active,
+    body.shape-logged-in #ndTabCommunity.nd-tab-content.active {
+      position: fixed;
+      top: 96px;
+      left: env(safe-area-inset-left, 0px);
+      right: env(safe-area-inset-right, 0px);
+      bottom: calc(48px + env(safe-area-inset-bottom, 0px));
+      margin: 0; padding: 0 !important;
+      background: var(--bg);
+      z-index: 500;
+      display: flex !important;
+      flex-direction: column;
+      overflow: hidden;
+      width: auto !important;
+      max-width: none !important;
+    }
+    body.shape-logged-in #ndTabMessages > section,
+    body.shape-logged-in #ndTabCommunity > section,
+    body.shape-logged-in #ndTabMessages .container,
+    body.shape-logged-in #ndTabCommunity .container,
+    body.shape-logged-in #ndTabMessages .td-section,
+    body.shape-logged-in #ndTabMessages .td-messages-panel,
+    body.shape-logged-in #ndTabMessages .td-msg-chat,
+    body.shape-logged-in #ndTabCommunity .nd-community-layout,
+    body.shape-logged-in #ndTabCommunity .nd-community-chat {
+      flex: 1 1 auto !important;
+      min-height: 0 !important;
+      height: auto !important;
+      max-height: none !important;
+      width: 100% !important;
+      max-width: none !important;
+      display: flex; flex-direction: column;
+      padding: 0 !important; margin: 0 !important;
+      border: none; border-radius: 0;
+      grid-template-columns: 1fr !important;
+      box-sizing: border-box;
+    }
+    body.shape-logged-in #ndTabMessages .td-section-header,
+    body.shape-logged-in #ndTabMessages .td-msg-sidebar,
+    body.shape-logged-in #ndTabCommunity .nd-community-sidebar,
+    body.shape-logged-in #ndTabCommunity .nd-community-activity {
+      display: none !important;
+    }
+    body.shape-logged-in #ndTabCommunity .nd-community-messages,
+    body.shape-logged-in #ndTabMessages .td-msg-chat .td-msg-thread {
+      flex: 1 1 auto; min-height: 0;
+      overflow-y: auto; -webkit-overflow-scrolling: touch;
+      padding: 14px 12px;
+    }
+    body.shape-logged-in #ndTabCommunity .nd-community-input,
+    body.shape-logged-in #ndTabMessages .td-msg-chat .td-msg-input {
+      flex-shrink: 0; padding: 10px 12px;
+      background: var(--bg-alt); border-top: 1px solid var(--border);
+      box-sizing: border-box;
+      width: 100%;
+      max-width: 100%;
+      gap: 8px;
+      display: flex;
+      align-items: center;
+    }
+    body.shape-logged-in #ndTabCommunity .nd-community-input input,
+    body.shape-logged-in #ndTabMessages .td-msg-chat .td-msg-input input {
+      flex: 1 1 auto;
+      min-width: 0;
+      width: auto;
+    }
+    body.shape-logged-in #ndTabCommunity .nd-community-input button,
+    body.shape-logged-in #ndTabMessages .td-msg-chat .td-msg-input button {
+      flex: 0 0 auto;
+      padding: 10px 16px;
+      font-size: 0.72rem;
+    }
+    body.shape-logged-in #ndTabCommunity .nd-community-msg-body,
+    body.shape-logged-in #ndTabMessages .td-msg-bubble {
+      border-radius: 20px; padding: 9px 14px; max-width: 75vw;
+      word-wrap: break-word;
+    }
+    body.shape-logged-in #ndTabCommunity .nd-community-msg.own .nd-community-msg-body,
+    body.shape-logged-in #ndTabMessages .td-msg-bubble.own {
+      background: #2DD4BF; color: #0a0a0a;
+    }
+  }
+
+  /* ===== Plan Sales Section (nd-sales-) ===== */
+  .nd-sales-section { margin-bottom: 32px; }
+  .nd-sales-toggle {
+    display: flex; gap: 4px; margin-bottom: 20px;
+    background: var(--bg-alt); padding: 4px; border-radius: 8px; width: fit-content;
+  }
+  .nd-sales-toggle-btn {
+    padding: 7px 14px; font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.06em; border: none; background: transparent;
+    color: var(--text-muted); cursor: pointer; font-family: inherit;
+    border-radius: 5px; transition: all 0.2s; white-space: nowrap;
+  }
+  .nd-sales-toggle-btn.active { background: var(--accent); color: #fff; }
+  .nd-sales-toggle-btn:hover:not(.active) { color: var(--text); }
+  .nd-sales-chart { margin-bottom: 20px; }
+  .nd-sales-goal-row {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 16px; background: var(--bg-alt); border-radius: 8px; margin-bottom: 12px;
+  }
+  .nd-sales-goal-label { font-size: 0.78rem; color: var(--text-muted); font-weight: 500; white-space: nowrap; }
+  .nd-sales-goal-type-btn {
+    padding: 6px 14px; font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.06em; border: 1px solid var(--border); background: transparent;
+    color: var(--text-muted); cursor: pointer; font-family: inherit; transition: all 0.2s; border-radius: 4px;
+  }
+  .nd-sales-goal-type-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .nd-sales-goal-input {
+    padding: 7px 12px; background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); font-family: inherit; font-size: 0.85rem; width: 120px;
+    border-radius: 4px; outline: none; transition: border-color 0.2s;
+  }
+  .nd-sales-goal-input:focus { border-color: var(--accent); }
+  .nd-sales-goal-save {
+    padding: 7px 16px; background: var(--accent); border: none; color: #fff;
+    font-family: inherit; font-size: 0.78rem; font-weight: 600; cursor: pointer;
+    border-radius: 4px; transition: opacity 0.2s;
+  }
+  .nd-sales-goal-save:hover { opacity: 0.85; }
+  .nd-sales-goal-progress-bar {
+    height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; margin-top: 6px;
+  }
+  .nd-sales-goal-progress-fill {
+    height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.5s;
+  }
+
+  /* ===== Widget Drag-and-Drop ===== */
+  .widget-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; align-items: start; grid-auto-flow: dense; }
+  .widget { background: var(--bg-card); border: 1px solid var(--border); transition: opacity 0.2s; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+  .widget.widget-full { grid-column: 1 / -1; }
+  .widget.dragging { opacity: 0.25; }
+  .widget.drag-over { border-top: 2px solid var(--accent); }
+  .widget-drop-ghost { border: 2px dashed var(--accent); background: rgba(45,212,191,0.06); min-height: 100px; animation: wdGhostPulse 1.2s ease-in-out infinite; }
+  .widget-drop-ghost.widget-full { grid-column: 1 / -1; }
+  @keyframes wdGhostPulse { 0%,100%{border-color:var(--accent);background:rgba(45,212,191,0.06)}50%{border-color:rgba(45,212,191,0.3);background:rgba(45,212,191,0.13)} }
+  .widget-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--bg-alt); flex-shrink: 0; gap: 8px; }
+  .widget-title { font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); flex: 1; }
+  .widget-controls { display: flex; align-items: center; gap: 6px; }
+  .widget-expand-btn { background: none; border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; font-size: 0.7rem; padding: 3px 7px; font-family: inherit; line-height: 1; transition: all 0.2s; border-radius: 2px; }
+  .widget-expand-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .widget-drag-handle { font-size: 1.1rem; color: var(--text-muted); cursor: grab; user-select: none; line-height: 1; padding: 0 2px; }
+  .widget-drag-handle:active { cursor: grabbing; }
+  .widget-body { padding: 16px; overflow-x: auto; min-width: 0; }
+  .widget-body > *:first-child { margin-top: 0 !important; }
+  .widget-body > *:last-child { margin-bottom: 0 !important; }
+  @media (max-width: 600px) {
+    .widget-grid { grid-template-columns: 1fr; gap: 12px; }
+    .widget-expand-btn { display: none; }
+    .widget-drag-handle { display: none; }
+    .widget-body { padding: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    /* Widget inner content — force 1-col on mobile */
+    .nd-meal-row { flex-direction: column; gap: 6px; }
+    .mpb-form-grid { grid-template-columns: 1fr; }
+    .mpb-macro-row { flex-direction: column; gap: 8px; }
+    .mpb-assign-row { flex-direction: column; gap: 12px; }
+  }
+
+  /* ===== Widget Library Picker ===== */
+  .widget-lib-btn { background: var(--bg-card); border: 1px dashed var(--border); color: var(--text-muted); cursor: pointer; padding: 14px 22px; font-family: inherit; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; transition: all 0.2s; width: 100%; margin-top: 16px; }
+  .widget-lib-btn:hover { border-color: var(--accent); color: var(--accent); border-style: solid; }
+  .widget-lib-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 9999; align-items: center; justify-content: center; padding: 20px; }
+  .widget-lib-overlay.open { display: flex; }
+  .widget-lib-modal { background: var(--bg); border: 1px solid var(--border); max-width: 720px; width: 100%; max-height: 85vh; display: flex; flex-direction: column; }
+  .widget-lib-head { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .widget-lib-head h2 { font-size: 1.05rem; font-weight: 600; letter-spacing: -0.01em; }
+  .widget-lib-head p { font-size: 0.75rem; color: var(--text-muted); font-weight: 300; margin-top: 2px; }
+  .widget-lib-close { background: none; border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; padding: 6px 10px; font-family: inherit; font-size: 0.8rem; line-height: 1; transition: all 0.2s; }
+  .widget-lib-close:hover { border-color: var(--accent); color: var(--accent); }
+  .widget-lib-grid { padding: 20px 24px; overflow-y: auto; display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .widget-lib-card { background: var(--bg-card); border: 1px solid var(--border); padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .widget-lib-card h3 { font-size: 0.85rem; font-weight: 600; }
+  .widget-lib-card p { font-size: 0.72rem; color: var(--text-muted); font-weight: 300; line-height: 1.4; flex: 1; }
+  .widget-lib-toggle { background: var(--accent); color: #fff; border: none; padding: 8px 14px; font-family: inherit; font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; cursor: pointer; transition: background 0.2s; align-self: flex-start; }
+  .widget-lib-toggle:hover { background: var(--accent-dark); }
+  .widget-lib-toggle.added { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+  .widget-lib-toggle.added:hover { border-color: #EF4444; color: #EF4444; }
+  @media (max-width: 600px) { .widget-lib-grid { grid-template-columns: 1fr; } }
+
+  /* Reusable library content patterns */
+  .wlib-kpi-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 14px; }
+  .wlib-kpi { background: var(--bg-alt); padding: 12px; }
+  .wlib-kpi .lbl { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 4px; }
+  .wlib-kpi .val { font-size: 1.15rem; font-weight: 700; }
+  .wlib-kpi .delta { font-size: 0.68rem; margin-top: 2px; }
+  .wlib-kpi .delta.up { color: #22C55E; }
+  .wlib-kpi .delta.down { color: #EF4444; }
+  .wlib-list-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.78rem; }
+  .wlib-list-row:last-child { border-bottom: none; }
+  .wlib-list-row .pill { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.06em; padding: 3px 8px; border-radius: 999px; font-weight: 600; }
+  .wlib-list-row .pill.warn { background: rgba(245,158,11,0.15); color: #F59E0B; }
+  .wlib-list-row .pill.ok { background: rgba(34,197,94,0.15); color: #22C55E; }
+  .wlib-list-row .pill.danger { background: rgba(239,68,68,0.15); color: #EF4444; }
+  .wlib-list-row .meta { color: var(--text-muted); font-size: 0.7rem; }
+  .wlib-list-row .name { flex: 1; font-weight: 500; min-width: 0; }
+  .wlib-heatmap { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 12px; }
+  .wlib-heat-cell { aspect-ratio: 1; border-radius: 3px; background: var(--bg-alt); font-size: 0.55rem; display: flex; align-items: center; justify-content: center; color: var(--text-muted); }
+  .wlib-heat-cell.l1 { background: rgba(34,197,94,0.2); color: #22C55E; }
+  .wlib-heat-cell.l2 { background: rgba(34,197,94,0.45); color: #fff; }
+  .wlib-heat-cell.l3 { background: rgba(34,197,94,0.7); color: #fff; }
+  .wlib-heat-cell.miss { background: rgba(239,68,68,0.25); color: #EF4444; }
+  .wlib-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--bg-alt); padding: 5px 10px; font-size: 0.7rem; border-radius: 14px; margin: 0 4px 4px 0; }
+  .wlib-chip strong { color: var(--accent); }
+  .wlib-trend { display: flex; align-items: center; gap: 8px; padding: 8px 0; font-size: 0.78rem; border-bottom: 1px solid var(--border); }
+  .wlib-trend:last-child { border-bottom: none; }
+  .wlib-trend .name { flex: 1; font-weight: 500; }
+  .wlib-trend .delta { font-variant-numeric: tabular-nums; font-size: 0.72rem; }
+  .wlib-trend .delta.down { color: #22C55E; }
+  .wlib-trend .delta.up { color: #EF4444; }
+  .wlib-section-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin: 14px 0 8px; font-weight: 600; }
+  .wlib-section-label:first-child { margin-top: 0; }
+</style>
+</head>
+<body class="shape-dashboard">
+
+  <!-- Navigation -->
+  <nav class="navbar scrolled" id="navbar">
+    <div class="container nav-container">
+      <a href="home.html" class="logo">
+        <img src="logo.png" alt="Shape" class="logo-img">
+      </a>
+      <div class="nav-links" id="navLinks">
+        <div class="nav-dropdown">
+          <a href="for-clients.html">Clients</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-clients.html">Overview</a>
+            <a href="clients.html">Dashboard</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-trainers.html">Trainers</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-trainers.html">Overview</a>
+            <a href="trainer-dashboard.html">Trainer Dashboard</a>
+            <a href="trainers.html">Trainer Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-nutritionists.html">Nutritionists</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-nutritionists.html">Overview</a>
+            <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+            <a href="nutritionists.html">Nutritionist Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="shape-score.html">Rewards</a>
+          <div class="nav-dropdown-menu">
+            <a href="shape-score.html">Shape Score (Clients)</a>
+            <a href="shape-score-trainer.html">Shape Score (Trainers)</a>
+            <a href="shape-score-nutritionist.html">Shape Score (Nutritionists)</a>
+            <a href="shape-store.html">Shape Store</a>
+          </div>
+        </div>
+        <a href="community.html">Community</a>
+        <a href="pricing.html">Pricing</a>
+      </div>
+      <div class="nav-actions">
+        <a href="login.html" class="btn btn-sm btn-outline shape-auth-logged-out">Log In</a>
+        <a href="landing.html" class="btn btn-sm btn-primary shape-auth-logged-out">Get Started</a>
+        <span class="shape-auth-logged-in" style="display:none;font-size:0.82rem;color:var(--text-muted);margin-right:4px;" id="shapeNavUserName"></span>
+        <button class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" onclick="shapeSignOut()">Sign Out</button>
+        <a href="radio.html" class="btn btn-sm btn-radio"><span class="btn-shape-text"><img src="logo.png" alt="Shape"></span> Radio</a>
+      </div>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Page Hero -->
+  <section class="page-hero" style="padding-top:110px;padding-bottom:16px;">
+    <div class="container">
+      <span class="tag">Nutritionist Dashboard</span>
+      <h1>Your <span class="gradient-text">clients</span></h1>
+      <p class="page-hero-sub" style="margin-bottom:0;">Track client nutrition progress, manage meal plans, and grow your practice on Shape.</p>
+    </div>
+  </section>
+
+  <!-- Tab Bar -->
+  <div class="nd-tab-bar" id="ndTabBar">
+    <button class="nd-tab-btn active" data-tab="home" data-icon="☉" onclick="ndSwitchTab('home', this)">Home</button>
+    <button class="nd-tab-btn" data-tab="clients" data-icon="◉" onclick="ndSwitchTab('clients', this)">Clients</button>
+    <button class="nd-tab-btn" data-tab="mealplans" data-icon="▤" onclick="ndSwitchTab('mealplans', this)">Meals</button>
+    <button class="nd-tab-btn" data-tab="messages" data-icon="✉" onclick="ndSwitchTab('messages', this)">Messages</button>
+    <button class="nd-tab-btn" data-tab="community" data-icon="◈" onclick="ndSwitchTab('community', this)">Community</button>
+    <button class="nd-tab-btn" data-tab="profile" data-icon="◐" onclick="ndSwitchTab('profile', this)">Profile</button>
+    <button class="nd-tab-btn" data-tab="goalcalc" data-icon="∑" onclick="ndSwitchTab('goalcalc', this)">Calc</button>
+    <a class="nd-tab-btn" data-icon="♚" href="shape-score-nutritionist.html" style="text-decoration:none;">Score</a>
+    <a class="nd-tab-btn" data-icon="⚐" href="shape-store.html" style="text-decoration:none;" onclick="sessionStorage.setItem('shapeStoreContext','nutritionist')">Store</a>
+  </div>
+
+  <!-- ===================== TAB 1: HOME ===================== -->
+  <div class="nd-tab-content active" id="ndTabHome">
+    <section class="section">
+      <div class="container">
+        <div class="nd-checkin-banner nd-checkin-banner-stack" id="ndCheckinBanner">
+          <div class="nd-checkin-banner-head">
+            <div class="nd-checkin-banner-icon"></div>
+            <div class="nd-checkin-banner-body">
+              <div class="nd-checkin-banner-title" id="ndCheckinBannerTitle">Clients need attention</div>
+              <div class="nd-checkin-banner-sub">Tap a client below to open their profile</div>
+            </div>
+            <button class="nd-checkin-banner-close" onclick="this.closest('.nd-checkin-banner').style.display='none'">×</button>
+          </div>
+          <div class="nd-checkin-banner-list" id="ndCheckinBannerList"></div>
+        </div>
+        <div class="nd-today-hero">
+          <div class="nd-today-hero-label">Today · <span id="ndTodayDateLabel"></span></div>
+          <div class="nd-today-hero-title">8 consults scheduled</div>
+          <div class="nd-today-hero-meta">Next: Emma T. at 11:00 AM · Follow-up</div>
+          <button class="nd-today-hero-cta" onclick="ndSwitchTab('clients', document.querySelector('.nd-tab-btn[data-tab=clients]'))">Open consults →</button>
+        </div>
+        <div class="widget-grid" id="ndWidgetGrid">
+
+          <!-- Widget: Nutritionist Stats -->
+          <div class="widget" data-widget-id="nd-stats" draggable="true">
+            <div class="widget-header">
+              <span class="widget-title">Overview</span>
+              <span class="widget-drag-handle">&#10783;</span>
+            </div>
+            <div class="widget-body">
+              <div class="progress-stats-row" style="grid-template-columns:repeat(5,1fr)">
+                <div class="progress-stat-card">
+                  <div class="progress-stat-number">18</div>
+                  <div class="progress-stat-label">Active Clients</div>
+                </div>
+                <div class="progress-stat-card">
+                  <div class="progress-stat-number">$4,320</div>
+                  <div class="progress-stat-label">Total Sales This Month</div>
+                </div>
+                <div class="progress-stat-card">
+                  <div class="progress-stat-number" style="color:#10B981;">$3,672</div>
+                  <div class="progress-stat-label">Your Earnings (85%)</div>
+                </div>
+                <div class="progress-stat-card">
+                  <div class="progress-stat-number">91%</div>
+                  <div class="progress-stat-label">Client Retention</div>
+                </div>
+                <div class="progress-stat-card">
+                  <div class="progress-stat-number">96</div>
+                  <div class="progress-stat-label">Plans Sold</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Widget: Meal Schedule -->
+          <div class="widget" data-widget-id="nd-mealschedule" draggable="true">
+            <div class="widget-header">
+              <span class="widget-title">Meal Schedule</span>
+              <span class="widget-drag-handle">&#10783;</span>
+            </div>
+            <div class="widget-body">
+              <div class="td-section" style="margin-bottom:0;">
+                <div class="td-section-header">
+                  <h2>Meal Schedule</h2>
+                  <div class="nd-view-toggle">
+                    <button class="nd-view-btn active" onclick="ndSwitchDashView('weekly', this)">Weekly</button>
+                    <button class="nd-view-btn" onclick="ndSwitchDashView('monthly', this)">Monthly</button>
+                  </div>
+                </div>
+                <div class="nd-mealsched-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:36px;">
+                  <div>
+                    <div id="ndDashWeeklyView">
+                      <h3 style="font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:16px;">Client Adherence This Week</h3>
+                      <div id="ndDashWeeklyContent"></div>
+                    </div>
+                    <div id="ndDashMonthlyView" style="display:none;">
+                      <div id="ndDashCalContainer"></div>
+                    </div>
+                  </div>
+                  <div class="nd-recent-meals-col">
+                    <h3 style="font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:16px;">Recent Client Meals</h3>
+                    <div style="background:var(--bg-alt);border-radius:6px;overflow:hidden;max-height:320px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent;" id="ndDashMealLog"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Widget: Recent Client Meals (mobile-only) -->
+          <div class="widget nd-recent-meals-widget" data-widget-id="nd-recentmeals" draggable="true">
+            <div class="widget-header">
+              <span class="widget-title">Recent Client Meals</span>
+              <span class="widget-drag-handle">&#10783;</span>
+            </div>
+            <div class="widget-body">
+              <div class="td-section" style="margin-bottom:0;">
+                <div style="background:var(--bg-alt);border-radius:6px;overflow:hidden;max-height:320px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent;" id="ndDashMealLogMobile"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Widget: Client Check-In Calendar -->
+          <div class="widget" data-widget-id="nd-calendar" draggable="true">
+            <div class="widget-header">
+              <span class="widget-title">Client Check-In Calendar</span>
+              <span class="widget-drag-handle">&#10783;</span>
+            </div>
+            <div class="widget-body">
+              <div class="td-section nd-home-cal-section" style="margin-bottom:0;">
+                <div id="ndHomeCalContainer" style="margin-top:4px;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Widget: Plan Sales -->
+          <div class="widget" data-widget-id="nd-sales" draggable="true">
+            <div class="widget-header">
+              <span class="widget-title">Plan Sales</span>
+              <span class="widget-drag-handle">&#10783;</span>
+            </div>
+            <div class="widget-body">
+              <div class="td-section nd-sales-section" style="margin-bottom:0;">
+                <div class="td-section-header">
+                  <h2>Plan Sales</h2>
+                </div>
+                <div class="nd-sales-toggle">
+                  <button class="nd-sales-toggle-btn active" onclick="ndSalesToggle('daily',this)">Daily</button>
+                  <button class="nd-sales-toggle-btn" onclick="ndSalesToggle('weekly',this)">Weekly</button>
+                  <button class="nd-sales-toggle-btn" onclick="ndSalesToggle('monthly',this)">Monthly</button>
+                  <button class="nd-sales-toggle-btn" onclick="ndSalesToggle('quarterly',this)">Quarterly</button>
+                  <button class="nd-sales-toggle-btn" onclick="ndSalesToggle('annual',this)">Annual</button>
+                </div>
+                <div class="nd-sales-chart" id="ndSalesChart"></div>
+                <!-- Legacy element kept for JS compatibility -->
+                <div style="display:none;" id="ndSalesList"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== Library Widget: Today's Focus ===== -->
+          <div class="widget" data-widget-id="nd-today" data-lib="1" data-lib-title="Today's Focus" data-lib-desc="Check-ins, consults, and pending plans for the day." style="display:none;">
+            <div class="widget-header"><h3>Today's Focus</h3><button class="widget-expand-btn" onclick="toggleWidget(this)" title="Expand">&#x2922;</button></div>
+            <div class="widget-body">
+              <div class="wlib-kpi-grid">
+                <div class="wlib-kpi"><div class="lbl">Check-ins Due</div><div class="val">7</div><div class="delta">3 overdue</div></div>
+                <div class="wlib-kpi"><div class="lbl">Consults Today</div><div class="val">4</div><div class="delta">Next 11:00 AM</div></div>
+              </div>
+              <div class="wlib-section-label">Pending Plans</div>
+              <div class="wlib-list-row"><span class="name">Jenna K. — Cutting Phase</span><span class="pill warn">Draft</span></div>
+              <div class="wlib-list-row"><span class="name">Marcus W. — Maintenance</span><span class="pill warn">Review</span></div>
+              <div class="wlib-list-row"><span class="name">Priya S. — Performance</span><span class="pill ok">Ready</span></div>
+            </div>
+          </div>
+
+          <!-- ===== Library Widget: Client Health ===== -->
+          <div class="widget" data-widget-id="nd-clienthealth" data-lib="1" data-lib-title="Client Health" data-lib-desc="Macro heatmap, flagged clients, and weight trends at a glance." style="display:none;">
+            <div class="widget-header"><h3>Client Health</h3><button class="widget-expand-btn" onclick="toggleWidget(this)" title="Expand">&#x2922;</button></div>
+            <div class="widget-body">
+              <div class="wlib-section-label">Macro Adherence — Last 7 Days</div>
+              <div class="wlib-heatmap">
+                <div class="wlib-heat-cell l3">M</div><div class="wlib-heat-cell l2">T</div><div class="wlib-heat-cell l3">W</div><div class="wlib-heat-cell l1">T</div><div class="wlib-heat-cell miss">F</div><div class="wlib-heat-cell l2">S</div><div class="wlib-heat-cell l3">S</div>
+              </div>
+              <div class="wlib-section-label">Flagged</div>
+              <div class="wlib-list-row"><span class="name">Alex T.</span><span class="pill danger">Off plan</span></div>
+              <div class="wlib-list-row"><span class="name">Dana R.</span><span class="pill warn">Low protein</span></div>
+              <div class="wlib-section-label">Weight Trends</div>
+              <div class="wlib-trend"><span class="name">Jenna K.</span><span class="delta down">-1.2 lb</span></div>
+              <div class="wlib-trend"><span class="name">Marcus W.</span><span class="delta down">-0.6 lb</span></div>
+              <div class="wlib-trend"><span class="name">Priya S.</span><span class="delta up">+0.4 lb</span></div>
+            </div>
+          </div>
+
+          <!-- ===== Library Widget: Business Health ===== -->
+          <div class="widget" data-widget-id="nd-business" data-lib="1" data-lib-title="Business Health" data-lib-desc="Revenue, plans sold, and retention metrics for your practice." style="display:none;">
+            <div class="widget-header"><h3>Business Health</h3><button class="widget-expand-btn" onclick="toggleWidget(this)" title="Expand">&#x2922;</button></div>
+            <div class="widget-body">
+              <div class="wlib-kpi-grid">
+                <div class="wlib-kpi"><div class="lbl">MTD Revenue</div><div class="val">$8,420</div><div class="delta up">&#9650; 12%</div></div>
+                <div class="wlib-kpi"><div class="lbl">Plans Sold</div><div class="val">34</div><div class="delta up">&#9650; 6</div></div>
+                <div class="wlib-kpi"><div class="lbl">Active Clients</div><div class="val">58</div><div class="delta up">&#9650; 3</div></div>
+                <div class="wlib-kpi"><div class="lbl">Retention</div><div class="val">92%</div><div class="delta up">&#9650; 2%</div></div>
+              </div>
+              <div class="wlib-section-label">Top Sellers</div>
+              <div class="wlib-list-row"><span class="name">Cutting Protocol</span><span class="meta">14 sold</span></div>
+              <div class="wlib-list-row"><span class="name">Performance Plan</span><span class="meta">9 sold</span></div>
+            </div>
+          </div>
+
+          <!-- ===== Library Widget: Content Library ===== -->
+          <div class="widget" data-widget-id="nd-library" data-lib="1" data-lib-title="Content Library" data-lib-desc="Top recommended foods and education content used by clients." style="display:none;">
+            <div class="widget-header"><h3>Content Library</h3><button class="widget-expand-btn" onclick="toggleWidget(this)" title="Expand">&#x2922;</button></div>
+            <div class="widget-body">
+              <div class="wlib-section-label">Top Foods This Week</div>
+              <div>
+                <span class="wlib-chip">Chicken <strong>42</strong></span>
+                <span class="wlib-chip">Oats <strong>31</strong></span>
+                <span class="wlib-chip">Salmon <strong>24</strong></span>
+                <span class="wlib-chip">Greek Yogurt <strong>22</strong></span>
+                <span class="wlib-chip">Sweet Potato <strong>19</strong></span>
+                <span class="wlib-chip">Eggs <strong>17</strong></span>
+              </div>
+              <div class="wlib-section-label">Education Views</div>
+              <div class="wlib-list-row"><span class="name">Macro Basics 101</span><span class="meta">128 views</span></div>
+              <div class="wlib-list-row"><span class="name">Hydration Guide</span><span class="meta">84 views</span></div>
+              <div class="wlib-list-row"><span class="name">Pre-Workout Fuel</span><span class="meta">67 views</span></div>
+            </div>
+          </div>
+
+          <!-- ===== Library Widget: Supplement Protocols ===== -->
+          <div class="widget" data-widget-id="nd-protocols" data-lib="1" data-lib-title="Supplement Protocols" data-lib-desc="Active supplement protocols assigned to clients." style="display:none;">
+            <div class="widget-header"><h3>Supplement Protocols</h3><button class="widget-expand-btn" onclick="toggleWidget(this)" title="Expand">&#x2922;</button></div>
+            <div class="widget-body">
+              <div class="wlib-list-row"><span class="name">Creatine Mono — 5g/day</span><span class="meta">28 clients</span></div>
+              <div class="wlib-list-row"><span class="name">Omega-3 — 2g/day</span><span class="meta">21 clients</span></div>
+              <div class="wlib-list-row"><span class="name">Vitamin D3 — 2000 IU</span><span class="meta">34 clients</span></div>
+              <div class="wlib-list-row"><span class="name">Magnesium Glycinate</span><span class="meta">12 clients</span></div>
+              <div class="wlib-list-row"><span class="name">Whey Isolate — PWO</span><span class="meta">19 clients</span></div>
+            </div>
+          </div>
+
+        </div><!-- /ndWidgetGrid -->
+        <button class="widget-lib-btn" onclick="wlibOpen()">+ Add Widget from Library</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- ===================== TAB 2: CLIENTS ===================== -->
+  <div class="nd-tab-content" id="ndTabClients">
+    <section class="section">
+      <div class="container">
+        <!-- Client List -->
+        <div class="td-section">
+          <div class="td-section-header">
+            <h2>Client Overview</h2>
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+              <div style="position:relative;flex:1;min-width:180px;max-width:300px;">
+                <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:0.85rem;pointer-events:none;">&#128269;</span>
+                <input id="ndClientSearchInput" type="text" placeholder="Search clients…" oninput="searchNdClients(this.value)"
+                  style="width:100%;background:var(--bg-card);border:1px solid var(--border);color:var(--text);font-family:inherit;font-size:0.82rem;padding:8px 12px 8px 32px;outline:none;transition:border-color 0.2s;"
+                  onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+              </div>
+              <div class="td-filters">
+                <button class="filter-btn active" onclick="filterNdClients('all', this)">All</button>
+                <button class="filter-btn" onclick="filterNdClients('active', this)">Active</button>
+                <button class="filter-btn" onclick="filterNdClients('inactive', this)">Needs Attention</button>
+              </div>
+            </div>
+          </div>
+          <div class="td-client-list" id="ndClientList">
+          </div>
+        </div>
+
+        <!-- Expanded Client Detail -->
+        <div class="td-section" id="ndClientDetailSection" style="display:none;">
+          <div class="td-section-header">
+            <h2 id="ndClientDetailName"></h2>
+            <button class="btn btn-sm btn-outline" onclick="closeNdClientDetail()">Back to All Clients</button>
+          </div>
+          <div id="ndClientDetailContent"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ===================== TAB 3: MEAL PLANS ===================== -->
+  <div class="nd-tab-content" id="ndTabMealplans">
+    <section class="section">
+      <div class="container">
+        <div class="mpb-wrap">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <h2 style="margin-bottom:0;">Meal Plan Builder</h2>
+            <button class="btn btn-primary" onclick="mpbToggleBuilder()">+ Create New Meal Plan</button>
+          </div>
+
+          <!-- Builder Area -->
+          <div class="mpb-toggle-area" id="mpbBuilderArea">
+            <!-- Step 1: Choose path -->
+            <div class="mpb-choice" id="mpbChoice">
+              <button class="mpb-choice-btn" onclick="mpbChoosePath('template')">
+                <h3>Use Shape Template</h3>
+                <p>Pre-structured meal plan with daily breakdowns and macro tracking</p>
+              </button>
+              <button class="mpb-choice-btn" onclick="mpbChoosePath('custom')">
+                <h3>Upload Custom Plan</h3>
+                <p>Upload your own meal plan as a PDF, image, or document and assign it to a client.</p>
+              </button>
+            </div>
+            <div style="text-align:right;margin-bottom:16px;">
+              <button class="btn btn-outline" onclick="mpbResetBuilder();document.getElementById('mpbBuilderArea').classList.remove('mpb-open');" style="font-size:0.78rem;padding:8px 16px;">Cancel</button>
+            </div>
+
+            <!-- Template Form -->
+            <div class="mpb-form" id="mpbTemplateForm">
+              <div class="mpb-form-grid">
+                <div>
+                  <label class="mpb-label">Plan Name</label>
+                  <input type="text" class="mpb-input" id="mpbTplName" placeholder="e.g. 8-Week Lean Bulk">
+                </div>
+                <div>
+                  <label class="mpb-label">Goal</label>
+                  <select class="mpb-select" id="mpbTplGoal">
+                    <option>Weight Loss</option><option>Muscle Gain</option><option>Maintenance</option>
+                    <option>Athletic Performance</option><option>General Health</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="mpb-label">Diet Type</label>
+                  <select class="mpb-select" id="mpbTplDiet">
+                    <option>Standard</option><option>Keto</option><option>Vegan</option>
+                    <option>Vegetarian</option><option>Paleo</option><option>Mediterranean</option>
+                    <option>Gluten-Free</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="mpb-label">Duration</label>
+                  <select class="mpb-select" id="mpbTplDuration">
+                    <option value="1">1 Week</option><option value="2">2 Weeks</option>
+                    <option value="4">4 Weeks</option><option value="8">8 Weeks</option>
+                    <option value="12">12 Weeks</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="mpb-label">Daily Calorie Target</label>
+                  <input type="number" class="mpb-input" id="mpbTplCalories" placeholder="2200" min="0">
+                </div>
+                <div>
+                  <label class="mpb-label">Description</label>
+                  <textarea class="mpb-textarea" id="mpbTplDesc" placeholder="Describe this plan..."></textarea>
+                </div>
+              </div>
+
+              <!-- Macro Split -->
+              <label class="mpb-label">Macro Split</label>
+              <div class="mpb-macro-row">
+                <div class="mpb-macro-slider-wrap">
+                  <label class="mpb-label" style="color:var(--text)">Protein</label>
+                  <input type="range" min="0" max="100" value="40" id="mpbSliderP" oninput="mpbUpdateMacros()">
+                  <div class="mpb-macro-val" id="mpbValP">40%</div>
+                </div>
+                <div class="mpb-macro-slider-wrap">
+                  <label class="mpb-label" style="color:var(--text)">Carbs</label>
+                  <input type="range" min="0" max="100" value="35" id="mpbSliderC" oninput="mpbUpdateMacros()">
+                  <div class="mpb-macro-val" id="mpbValC">35%</div>
+                </div>
+                <div class="mpb-macro-slider-wrap">
+                  <label class="mpb-label" style="color:var(--text)">Fat</label>
+                  <input type="range" min="0" max="100" value="25" id="mpbSliderF" oninput="mpbUpdateMacros()">
+                  <div class="mpb-macro-val" id="mpbValF">25%</div>
+                </div>
+              </div>
+              <div class="mpb-macro-total" id="mpbMacroTotal">Total: 100%</div>
+
+              <!-- Day-by-day meal builder -->
+              <label class="mpb-label" style="margin-bottom:12px;">Weekly Meal Plan</label>
+              <div id="mpbDaysContainer"></div>
+
+              <!-- Shopping List -->
+              <div style="margin-top:20px;">
+                <label class="mpb-label">Shopping List</label>
+                <textarea class="mpb-textarea" id="mpbTplShoppingList" placeholder="Add ingredients for the week..." style="min-height:100px;"></textarea>
+              </div>
+
+              <!-- Assign & Actions -->
+              <div class="mpb-assign-row">
+                <div>
+                  <label class="mpb-label">Assign to Client</label>
+                  <select class="mpb-select" id="mpbTplClient">
+                    <option value="">-- Select Client --</option>
+                    <option>Christopher Perry</option><option>Emma Chen</option>
+                    <option>David Kim</option><option>Sofia Rodriguez</option>
+                    <option>Marcus Thompson</option>
+                  </select>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;">
+                  <button class="btn btn-outline" onclick="mpbSaveDraft('template')" style="border-color:var(--accent);color:var(--accent-dark);font-size:0.78rem;padding:8px 16px;">Save Draft</button>
+                  <button class="mpb-publish-btn" onclick="mpbSavePlan('template')">Publish &amp; Send to Client</button>
+                  <button class="btn btn-primary" onclick="mpbPublishToProfile('template')" style="font-size:0.78rem;padding:8px 16px;">Publish to Profile</button>
+                  <button class="btn btn-outline" onclick="mpbResetBuilder();document.getElementById('mpbBuilderArea').classList.remove('mpb-open');" style="font-size:0.78rem;padding:8px 16px;">Cancel</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Upload Custom Plan Form -->
+            <div class="mpb-form" id="mpbCustomForm">
+              <div class="mpb-form-grid">
+                <div>
+                  <label class="mpb-label">Plan Name</label>
+                  <input type="text" class="mpb-input" id="mpbCustName" placeholder="e.g. Custom Meal Strategy">
+                </div>
+                <div class="mpb-form-full">
+                  <label class="mpb-label">Description</label>
+                  <textarea class="mpb-textarea" id="mpbCustDesc" placeholder="Brief overview of the plan..."></textarea>
+                </div>
+              </div>
+
+              <!-- File Upload Area -->
+              <div style="margin-bottom:20px;">
+                <label class="mpb-label">Upload Your Plan</label>
+                <div id="mpbUploadZone" style="border:2px dashed var(--border);padding:40px 20px;text-align:center;cursor:pointer;transition:all 0.3s;background:var(--bg);border-radius:var(--radius-lg);" onclick="document.getElementById('mpbFileInput').click()" ondragover="event.preventDefault();this.style.borderColor='var(--accent)';this.style.background='rgba(45,212,191,0.04)'" ondragleave="this.style.borderColor='var(--border)';this.style.background='var(--bg)'" ondrop="event.preventDefault();this.style.borderColor='var(--border)';this.style.background='var(--bg)';mpbHandleFiles(event.dataTransfer.files)">
+                  <div style="font-size:1.6rem;margin-bottom:8px;color:var(--text-muted);">&#8593;</div>
+                  <div style="font-size:0.88rem;font-weight:500;color:var(--text);margin-bottom:4px;">Drag & drop your file here or click to browse</div>
+                  <div style="font-size:0.72rem;color:var(--text-muted);">Supports PDF, PNG, JPG, DOCX, or TXT -- max 10MB</div>
+                </div>
+                <input type="file" id="mpbFileInput" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.txt" style="display:none" onchange="mpbHandleFiles(this.files)">
+              </div>
+
+              <!-- Uploaded File Preview -->
+              <div id="mpbUploadedFiles" style="display:none;margin-bottom:20px;">
+                <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px;">Uploaded Files</div>
+                <div id="mpbFileList"></div>
+              </div>
+
+              <!-- Assign & Actions -->
+              <div class="mpb-assign-row">
+                <div>
+                  <label class="mpb-label">Assign to Client</label>
+                  <select class="mpb-select" id="mpbCustClient">
+                    <option value="">-- Select Client --</option>
+                    <option>Christopher Perry</option><option>Emma Chen</option>
+                    <option>David Kim</option><option>Sofia Rodriguez</option>
+                    <option>Marcus Thompson</option>
+                  </select>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;">
+                  <button class="btn btn-outline" onclick="mpbSaveDraft('custom')" style="border-color:var(--accent);color:var(--accent-dark);font-size:0.78rem;padding:8px 16px;">Save Draft</button>
+                  <button class="mpb-publish-btn" onclick="mpbSavePlan('custom')">Publish &amp; Send to Client</button>
+                  <button class="btn btn-primary" onclick="mpbPublishToProfile('custom')" style="font-size:0.78rem;padding:8px 16px;">Publish to Profile</button>
+                  <button class="btn btn-outline" onclick="mpbResetBuilder();document.getElementById('mpbBuilderArea').classList.remove('mpb-open');" style="font-size:0.78rem;padding:8px 16px;">Cancel</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- My Meal Plans List -->
+          <div class="mpb-plans-list">
+            <label class="mpb-label" style="margin-bottom:12px;">My Meal Plans</label>
+            <div id="mpbPlansList"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ===================== TAB 4: MESSAGES ===================== -->
+  <div class="nd-tab-content" id="ndTabMessages">
+    <section class="section">
+      <div class="container">
+        <div class="td-section">
+          <div class="td-section-header">
+            <h2>Messages</h2>
+          </div>
+          <div class="td-messages-panel" id="ndMessagesPanel">
+            <div class="td-msg-sidebar" id="ndMsgSidebar">
+            </div>
+            <div class="td-msg-chat" id="ndMsgChat">
+              <div class="td-msg-empty">Select a client to start messaging</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ===================== TAB 5: COMMUNITY ===================== -->
+  <div class="nd-tab-content" id="ndTabCommunity">
+    <section class="section">
+      <div class="container">
+        <div class="nd-community-layout" id="ndCommunityLayout">
+          <!-- Mobile switcher (hidden on desktop) -->
+          <div class="nd-comm-mobile-bar">
+            <button class="nd-comm-mobile-btn" onclick="ndCommMobileView('people',this)">People</button>
+            <button class="nd-comm-mobile-btn active" onclick="ndCommMobileView('chat',this)">Chat</button>
+          </div>
+
+          <!-- Left: People -->
+          <div class="nd-community-sidebar">
+            <div class="nd-community-sidebar-header">Community</div>
+            <div class="nd-community-tabs">
+              <button class="nd-community-tab active" onclick="ndCommSwitchTab('friends', this)">Friends</button>
+              <button class="nd-community-tab" onclick="ndCommSwitchTab('discover', this)">Discover</button>
+            </div>
+            <div class="nd-community-search">
+              <input type="text" placeholder="Search people..." id="ndCommSearch" oninput="ndCommFilterUsers()">
+            </div>
+            <div class="nd-community-list" id="ndCommList"></div>
+          </div>
+          <!-- Center: Chat -->
+          <div class="nd-community-chat">
+            <div class="nd-community-chat-tabs" id="ndCommChatTabs">
+              <button class="nd-community-channel active" onclick="ndCommSwitchChannel('nutritionist', this)">Nutritionist Chat</button>
+              <button class="nd-community-channel" onclick="ndCommSwitchChannel('shape', this)">Shape Chat</button>
+            </div>
+            <div class="nd-community-messages" id="ndCommMessages"></div>
+            <div class="nd-community-input">
+              <input type="text" placeholder="Type a message..." id="ndCommInput" onkeydown="if(event.key==='Enter')ndCommSendMessage()">
+              <button onclick="ndCommSendMessage()">Send</button>
+            </div>
+          </div>
+          <!-- Right: Activity -->
+          <div class="nd-community-activity">
+            <div class="nd-activity-profile">
+              <div class="nd-activity-avatar"><span id="ndCommMyInitials">YN</span></div>
+              <div class="nd-activity-name" id="ndCommMyName">Your Profile</div>
+              <div class="nd-activity-bio">Nutritionist on Shape</div>
+            </div>
+            <div class="nd-activity-section-title">Activity Feed</div>
+            <div class="nd-activity-feed" id="ndCommActivityFeed"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ===================== TAB 6: PROFILE ===================== -->
+  <div class="nd-tab-content" id="ndTabProfile">
+        <div id="shapeAddRole"></div>
+    <section class="section" style="padding-top:0;">
+      <div class="container">
+        <div style="display:flex;justify-content:flex-end;padding:8px 0;">
+          <button class="btn btn-sm btn-outline" onclick="shapeSignOut()">Sign Out</button>
+        </div>
+        <!-- Banner -->
+        <div class="nd-profile-banner"></div>
+        <!-- Avatar & Name -->
+        <div class="nd-profile-avatar-area">
+          <div class="nd-profile-avatar" id="ndProfAvatarArea" onclick="document.getElementById('ndProfAvatarUpload').click()">
+            <span id="ndProfAvatarInitials">YN</span>
+            <img id="ndProfAvatarImg" src="" alt="" style="display:none;">
+          </div>
+          <input type="file" id="ndProfAvatarUpload" accept="image/*" style="display:none" onchange="ndProfHandleAvatar(event)">
+          <div class="nd-profile-name-block">
+            <h2 id="ndProfNameDisplay" onclick="ndProfStartEdit('name')">Your Name</h2>
+            <div class="nd-profile-specialty" id="ndProfSpecialtyDisplay" onclick="ndProfStartEdit('specialty')">Your Specialty</div>
+          </div>
+        </div>
+
+        <div class="nd-profile-content">
+          <!-- Stats -->
+          <div class="nd-profile-stats-row" id="ndProfStatsRow">
+            <div class="nd-profile-stat">
+              <div class="nd-profile-stat-value" id="ndProfStatSubs">0</div>
+              <div class="nd-profile-stat-label">Subscribers</div>
+            </div>
+            <div class="nd-profile-stat">
+              <div class="nd-profile-stat-value" id="ndProfStatRating">--</div>
+              <div class="nd-profile-stat-label">Rating</div>
+            </div>
+            <div class="nd-profile-stat">
+              <div class="nd-profile-stat-value" id="ndProfStatPrice">$--/mo</div>
+              <div class="nd-profile-stat-label">Your Price</div>
+            </div>
+            <div class="nd-profile-stat">
+              <div class="nd-profile-stat-value" id="ndProfStatExp">--</div>
+              <div class="nd-profile-stat-label">Experience</div>
+            </div>
+          </div>
+
+          <!-- Payouts & Earnings (mocked) -->
+          <div class="nd-profile-section">
+            <div class="nd-profile-section-header"><h3>Payouts &amp; Earnings</h3></div>
+            <p style="font-size:0.78rem;color:var(--text-muted);font-weight:300;margin:0 0 16px;">Demo earnings center — in production this would connect to your Stripe Express account.</p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px;">
+              <div style="border:1px solid var(--border);border-radius:10px;padding:14px 16px;">
+                <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);">Current Balance</div>
+                <div style="font-size:1.35rem;font-weight:500;margin-top:6px;">$1,624.00</div>
+              </div>
+              <div style="border:1px solid var(--border);border-radius:10px;padding:14px 16px;">
+                <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);">Next Payout</div>
+                <div style="font-size:1.35rem;font-weight:500;margin-top:6px;">Apr 21, 2026</div>
+              </div>
+              <div style="border:1px solid var(--border);border-radius:10px;padding:14px 16px;">
+                <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);">This Month</div>
+                <div style="font-size:1.35rem;font-weight:500;margin-top:6px;">$2,156.00</div>
+              </div>
+              <div style="border:1px solid var(--border);border-radius:10px;padding:14px 16px;">
+                <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);">Lifetime</div>
+                <div style="font-size:1.35rem;font-weight:500;margin-top:6px;">$22,480</div>
+              </div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+              <div>
+                <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);">Connected Bank</div>
+                <div style="font-size:0.9rem;margin-top:4px;">Wells Fargo checking •••• 9012</div>
+              </div>
+              <button class="btn btn-sm btn-outline" onclick="alert('Update bank account\n\nDemo only \u2014 would launch Stripe Express onboarding.')" style="font-size:0.72rem;">Update</button>
+            </div>
+            <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);">Recent Payouts</div>
+            <div style="display:flex;flex-direction:column;gap:2px;">
+              <div style="display:flex;justify-content:space-between;padding:10px 4px;font-size:0.82rem;border-bottom:1px solid var(--border);"><span>Apr 7, 2026</span><span style="color:var(--text-muted);">44 subscribers</span><span>$1,420.00</span></div>
+              <div style="display:flex;justify-content:space-between;padding:10px 4px;font-size:0.82rem;border-bottom:1px solid var(--border);"><span>Mar 31, 2026</span><span style="color:var(--text-muted);">42 subscribers</span><span>$1,356.00</span></div>
+              <div style="display:flex;justify-content:space-between;padding:10px 4px;font-size:0.82rem;"><span>Mar 24, 2026</span><span style="color:var(--text-muted);">41 subscribers</span><span>$1,323.00</span></div>
+            </div>
+          </div>
+
+          <!-- Bio -->
+          <div class="nd-profile-section">
+            <div class="nd-profile-section-header">
+              <h3>About You</h3>
+              <a href="nutritionist-profile.html" class="nd-profile-edit-btn">Edit on Profile Page</a>
+            </div>
+            <p class="nd-profile-bio" id="ndProfBio">Write your personal bio here. Tell potential clients about your nutrition philosophy, what sets you apart, your background, and why they should work with you.</p>
+          </div>
+
+          <!-- Specialties -->
+          <div class="nd-profile-section">
+            <div class="nd-profile-section-header">
+              <h3>Specialties</h3>
+            </div>
+            <div class="nd-profile-tags" id="ndProfTags">
+              <span class="nd-profile-tag">Sports Nutrition</span>
+              <span class="nd-profile-tag">Weight Management</span>
+              <span class="nd-profile-tag">Plant-Based</span>
+              <span class="nd-profile-tag">Macro Coaching</span>
+            </div>
+          </div>
+
+          <!-- Certifications -->
+          <div class="nd-profile-section">
+            <div class="nd-profile-section-header">
+              <h3>Certifications</h3>
+            </div>
+            <ul class="nd-profile-certs-list" id="ndProfCerts">
+              <li style="color:var(--text-muted);font-size:0.85rem;">No certifications added yet. <a href="nutritionist-profile.html" style="color:var(--accent);">Add on your profile page.</a></li>
+            </ul>
+          </div>
+
+          <!-- Intro Video -->
+          <div class="nd-profile-section">
+            <div class="nd-profile-section-header">
+              <h3>Intro Video</h3>
+            </div>
+            <div id="ndProfIntroVideo" style="background:linear-gradient(135deg,#1a1a1a11,#1a1a1a06);border:1px solid var(--border);height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+              <div style="font-size:1.6rem;margin-bottom:6px;">&#9654;</div>
+              <div style="font-size:0.82rem;font-weight:500;color:var(--text-muted);">Upload your intro video on the <a href="nutritionist-profile.html" style="color:var(--accent);">profile page</a></div>
+            </div>
+          </div>
+
+          <!-- Gallery -->
+          <div class="nd-profile-section">
+            <div class="nd-profile-section-header">
+              <h3>Photos & Videos</h3>
+            </div>
+            <div class="nd-profile-gallery-grid" id="ndProfGallery">
+              <div class="nd-profile-gallery-item" style="cursor:pointer;">
+                <a href="nutritionist-profile.html" style="color:var(--text-muted);text-decoration:none;">+ Add Media</a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Social Links -->
+          <div class="nd-profile-section">
+            <div class="nd-profile-section-header">
+              <h3>Social Links</h3>
+            </div>
+            <div class="nd-profile-social-links" id="ndProfSocial">
+              <span class="nd-profile-social-link">Instagram</span>
+              <span class="nd-profile-social-link">YouTube</span>
+              <span class="nd-profile-social-link">TikTok</span>
+              <span class="nd-profile-social-link">Website</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ===================== TAB 7: GOAL CALCULATOR ===================== -->
+  <div class="nd-tab-content" id="ndTabGoalcalc">
+    <section class="section" style="padding-top:0;">
+      <div class="container">
+        <div style="max-width:800px;margin:0 auto;">
+
+          <h2 style="font-size:1.3rem;font-weight:300;letter-spacing:-0.03em;margin-bottom:6px;">Goal Calculator</h2>
+          <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:32px;">Set income targets and see exactly what it takes to reach them.</p>
+
+          <!-- Goal Type Toggle -->
+          <div style="display:flex;gap:8px;margin-bottom:28px;">
+            <button class="nd-gc-type-btn" id="ndGcTypeWeekly" onclick="ndGcSetType('weekly',this)" style="padding:10px 24px;background:none;color:var(--text-muted);border:1px solid var(--border);font-family:inherit;font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;cursor:pointer;">Weekly</button>
+            <button class="nd-gc-type-btn active" id="ndGcTypeMonthly" onclick="ndGcSetType('monthly',this)" style="padding:10px 24px;background:var(--accent);color:#fff;border:none;font-family:inherit;font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;cursor:pointer;">Monthly</button>
+            <button class="nd-gc-type-btn" id="ndGcTypeAnnual" onclick="ndGcSetType('annual',this)" style="padding:10px 24px;background:none;color:var(--text-muted);border:1px solid var(--border);font-family:inherit;font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;cursor:pointer;">Annual</button>
+          </div>
+
+          <!-- Goal Input -->
+          <div style="background:var(--bg-card);border:1px solid var(--border);padding:28px;margin-bottom:24px;">
+            <label style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);font-weight:500;display:block;margin-bottom:12px;">Target Income</label>
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+              <span style="font-size:1.5rem;color:var(--text-muted);">$</span>
+              <input type="number" id="ndGcGoalInput" placeholder="4000" min="0" step="100"
+                style="font-size:2rem;font-weight:300;letter-spacing:-0.03em;background:none;border:none;border-bottom:2px solid var(--border);color:var(--text);font-family:inherit;width:200px;outline:none;padding:4px 0;"
+                oninput="ndGcCalculate()" onfocus="this.style.borderBottomColor='var(--accent)'" onblur="this.style.borderBottomColor='var(--border)'">
+              <span style="font-size:0.85rem;color:var(--text-muted);" id="ndGcPeriodLabel">/ month</span>
+            </div>
+          </div>
+
+          <!-- Pricing Inputs -->
+          <div style="background:var(--bg-card);border:1px solid var(--border);padding:28px;margin-bottom:24px;">
+            <h3 style="font-size:0.85rem;font-weight:600;letter-spacing:0.04em;margin-bottom:20px;">Your Pricing</h3>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+              <div>
+                <label style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:8px;">Monthly Plan Price ($)</label>
+                <input type="number" id="ndGcPlanPrice" value="129" min="0"
+                  style="width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:inherit;font-size:1rem;outline:none;"
+                  oninput="ndGcCalculate()" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+              </div>
+              <div>
+                <label style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:8px;">Current Active Clients</label>
+                <input type="number" id="ndGcCurrentClients" value="18" min="0"
+                  style="width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:inherit;font-size:1rem;outline:none;"
+                  oninput="ndGcCalculate()" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+              </div>
+            </div>
+          </div>
+
+          <!-- Results -->
+          <div id="ndGcResults" style="background:var(--bg-card);border:1px solid var(--border);padding:28px;margin-bottom:24px;display:none;">
+            <h3 style="font-size:0.85rem;font-weight:600;letter-spacing:0.04em;margin-bottom:20px;">What You Need</h3>
+            <div id="ndGcResultsBody"></div>
+          </div>
+
+          <!-- Save Goal -->
+          <div style="background:var(--bg-card);border:1px solid var(--border);padding:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+            <div>
+              <div style="font-size:0.85rem;font-weight:500;margin-bottom:4px;">Save as my goal</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);">This will appear on your Home dashboard progress tracker.</div>
+            </div>
+            <button onclick="ndGcSaveGoal()" style="padding:12px 28px;background:var(--accent);color:#fff;border:none;font-family:inherit;font-size:0.82rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;cursor:pointer;">Save Goal</button>
+          </div>
+          <div id="ndGcSaveConfirm" style="display:none;margin-top:12px;padding:12px 16px;background:rgba(45,212,191,0.1);border:1px solid var(--accent);font-size:0.82rem;color:var(--accent);">✓ Goal saved to your dashboard.</div>
+
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <a href="home.html" class="logo">
+            <img src="logo.png" alt="Shape" class="logo-img">
+          </a>
+          <p class="footer-desc">Join the community</p>
+        </div>
+        <div class="footer-col">
+          <h4>Platform</h4>
+          <a href="trainers.html">Trainer Marketplace</a>
+          <a href="nutritionists.html">Nutritionists</a>        <a href="community.html">Community</a>
+        <a href="pricing.html">Pricing</a>
+          <a href="for-clients.html">Clients</a>
+          <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+          <a href="trainer-dashboard.html">Trainer Dashboard</a>
+          <a href="integrations.html">Integrations</a>
+        </div>
+        <div class="footer-col">
+          <h4>Get Started</h4>
+          <a href="signup-client.html">Sign Up as Client</a>
+          <a href="signup-trainer.html">Apply as Trainer</a>
+          <a href="signup-nutritionist.html">Apply as Nutritionist</a>
+        </div>
+        <div class="footer-col">
+          <h4>Support</h4>
+          <a href="help.html">Help Center</a>
+          <a href="contact.html">Contact</a>
+          <a href="radio.html">Shape Radio</a>
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 Shape. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- Check-In Modal -->
+  <div class="nd-checkin-overlay" id="ndCheckInModal" onclick="if(event.target===this)closeNdCheckInModal()">
+    <div class="nd-checkin-modal">
+      <h3>Schedule Check-In</h3>
+      <div class="nd-checkin-client" id="ndCheckInClientName"></div>
+
+      <label class="nd-checkin-label">Frequency</label>
+      <div class="nd-checkin-freq-group" id="ndCheckInFreq">
+        <button class="nd-checkin-freq-btn" data-freq="weekly" onclick="selectNdFreq(this)">Weekly</button>
+        <button class="nd-checkin-freq-btn" data-freq="bi-weekly" onclick="selectNdFreq(this)">Bi-Weekly</button>
+        <button class="nd-checkin-freq-btn" data-freq="monthly" onclick="selectNdFreq(this)">Monthly</button>
+      </div>
+
+      <label class="nd-checkin-label">Day of Week</label>
+      <div class="nd-checkin-day-group" id="ndCheckInDay">
+        <button class="nd-checkin-day-btn" data-day="Monday" onclick="selectNdDay(this)">Mon</button>
+        <button class="nd-checkin-day-btn" data-day="Tuesday" onclick="selectNdDay(this)">Tue</button>
+        <button class="nd-checkin-day-btn" data-day="Wednesday" onclick="selectNdDay(this)">Wed</button>
+        <button class="nd-checkin-day-btn" data-day="Thursday" onclick="selectNdDay(this)">Thu</button>
+        <button class="nd-checkin-day-btn" data-day="Friday" onclick="selectNdDay(this)">Fri</button>
+        <button class="nd-checkin-day-btn" data-day="Saturday" onclick="selectNdDay(this)">Sat</button>
+        <button class="nd-checkin-day-btn" data-day="Sunday" onclick="selectNdDay(this)">Sun</button>
+      </div>
+
+      <label class="nd-checkin-label">Time</label>
+      <input type="time" class="nd-checkin-time-input" id="ndCheckInTime" value="10:00">
+
+      <label class="nd-checkin-label">Notes (optional)</label>
+      <textarea class="nd-checkin-notes" id="ndCheckInNotes" placeholder="e.g. Review weekly food log, discuss macro targets..."></textarea>
+
+      <div class="nd-checkin-actions">
+        <button class="btn-cancel" onclick="closeNdCheckInModal()">Cancel</button>
+        <button class="btn-save" onclick="saveNdCheckIn()">Schedule Check-In</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="nutritionist-dashboard.js"></script>
+  <script src="widget-drag.js"></script>
+
+  <script>
+  // ===== Tab Switching with Lazy Initialization =====
+  const _ndTabsInitialized = {};
+
+  function ndSwitchTab(tabId, btn) {
+    // Update tab buttons
+    document.querySelectorAll('.nd-tab-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+
+    // Update tab content
+    document.querySelectorAll('.nd-tab-content').forEach(c => c.classList.remove('active'));
+    const tabEl = document.getElementById('ndTab' + tabId.charAt(0).toUpperCase() + tabId.slice(1));
+    if (tabEl) tabEl.classList.add('active');
+
+    // Lazy init
+    if (!_ndTabsInitialized[tabId]) {
+      _ndTabsInitialized[tabId] = true;
+      ndInitTab(tabId);
+    }
+  }
+
+  function ndInitTab(tabId) {
+    switch (tabId) {
+      case 'home':
+        // Already initialized by nutritionist-dashboard.js on load
+        break;
+      case 'clients':
+        // Already initialized by nutritionist-dashboard.js on load
+        break;
+      case 'mealplans':
+        ndInitMealPlans();
+        break;
+      case 'messages':
+        // Messages are already initialized by nutritionist-dashboard.js
+        break;
+      case 'community':
+        ndInitCommunity();
+        break;
+      case 'profile':
+        ndInitProfile();
+        break;
+      case 'goalcalc':
+        ndGcCalculate();
+        break;
+    }
+  }
+
+  // Mark home + clients as already initialized (they run on page load from nutritionist-dashboard.js)
+  _ndTabsInitialized['home'] = true;
+  _ndTabsInitialized['clients'] = true;
+  _ndTabsInitialized['messages'] = true;
+
+  // Hash-based tab routing (lets back-nav from Score/Store pages land on a specific tab)
+  (function() {
+    var valid = ['home','clients','mealplans','messages','community','profile','goalcalc'];
+    function applyHashTab() {
+      var h = (location.hash || '').replace('#','');
+      if (h && valid.indexOf(h) !== -1) {
+        var btn = document.querySelector('.nd-tab-btn[data-tab="' + h + '"]');
+        if (btn) ndSwitchTab(h, btn);
+      }
+    }
+    window.addEventListener('hashchange', applyHashTab);
+    applyHashTab();
+  })();
+
+  // ===== Meal Plans Tab Init =====
+  function ndInitMealPlans() {
+    // The IIFE below auto-renders the plans list on load
+    // Nothing extra needed here since the IIFE runs immediately
+  }
+
+  // Wrap openNdChat to switch to Messages tab first
+  const _origOpenNdChat = window.openNdChat;
+  if (typeof _origOpenNdChat === 'function') {
+    window.openNdChat = function(clientId) {
+      ndSwitchTab('messages', document.querySelector('[data-tab="messages"]'));
+      _origOpenNdChat(clientId);
+    };
+  }
+  // Also ensure the nutritionist-dashboard.js onload wraps after DOM is ready
+  document.addEventListener('DOMContentLoaded', function() {
+    const dl = document.getElementById('ndTodayDateLabel');
+    if (dl) dl.textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+    if (typeof openNdChat === 'function' && !window._ndChatWrapped) {
+      const orig = openNdChat;
+      window.openNdChat = function(clientId) {
+        ndSwitchTab('messages', document.querySelector('[data-tab="messages"]'));
+        orig(clientId);
+      };
+      window._ndChatWrapped = true;
+    }
+  });
+
+  // ===== Community Tab =====
+  const ndCommUsers = [
+    { id: 1, name: "Jake R.", initials: "JR", color: "#6C3AED", online: true, friend: true, bio: "Strength training enthusiast" },
+    { id: 2, name: "Aisha L.", initials: "AL", color: "#EC4899", online: true, friend: true, bio: "HIIT addict" },
+    { id: 3, name: "Carlos M.", initials: "CM", color: "#F59E0B", online: false, friend: true, bio: "Cardio & endurance" },
+    { id: 4, name: "Priya S.", initials: "PS", color: "#10B981", online: true, friend: true, bio: "At home workouts" },
+    { id: 5, name: "Tyler K.", initials: "TK", color: "#EF4444", online: false, friend: false, bio: "Mobility enthusiast" },
+    { id: 6, name: "Mia W.", initials: "MW", color: "#8B5CF6", online: true, friend: false, bio: "New to Shape" },
+    { id: 7, name: "Devon J.", initials: "DJ", color: "#14B8A6", online: false, friend: false, bio: "Competing soon" },
+    { id: 8, name: "Emma T.", initials: "ET", color: "#F97316", online: true, friend: false, bio: "Cardio queen" },
+  ];
+
+  const ndCommChannelMessages = {
+    nutritionist: [
+      { name: "Dr. Sarah M.", initials: "SM", color: "#6C3AED", text: "Anyone have good resources for plant-based meal planning for athletes?", time: "10:15 AM", own: false },
+      { name: "James O.", initials: "JO", color: "#F59E0B", text: "I've been using a great template for macro-based plans. Happy to share!", time: "10:22 AM", own: false },
+      { name: "You", initials: "YN", color: "#2DD4BF", text: "That would be awesome, James. Also, has anyone tried the new meal plan builder?", time: "10:30 AM", own: true },
+      { name: "Tanya B.", initials: "TB", color: "#EC4899", text: "Yes! The template feature is great for quick client onboarding.", time: "10:35 AM", own: false },
+      { name: "Dr. Kevin P.", initials: "KP", color: "#10B981", text: "Agreed. The macro sliders make it so easy to customize.", time: "10:40 AM", own: false },
+    ],
+    trainer: [
+      { name: "Marcus J.", initials: "MJ", color: "#3B82F6", text: "Great session with clients today. Who else is doing 5x5 programs?", time: "9:00 AM", own: false },
+      { name: "Aisha P.", initials: "AP", color: "#EC4899", text: "HIIT all the way! My clients love the Tabata format.", time: "9:10 AM", own: false },
+      { name: "You", initials: "YN", color: "#2DD4BF", text: "I coordinate meal plans with some of your programs, Marcus. Clients love it!", time: "9:15 AM", own: true },
+    ],
+    shape: [
+      { name: "Shape Team", initials: "ST", color: "#2DD4BF", text: "Welcome to Shape Chat! Connect with the whole community here.", time: "8:00 AM", own: false },
+      { name: "Chris P.", initials: "CP", color: "#3B82F6", text: "Love the new dashboard update. The tabbed layout is clean!", time: "8:15 AM", own: false },
+      { name: "Laurie P.", initials: "LP", color: "#F472B6", text: "Just finished my morning workout. Feeling great!", time: "8:30 AM", own: false },
+    ]
+  };
+
+  let ndCommCurrentTab = 'friends';
+  let ndCommCurrentChannel = 'nutritionist';
+
+  function ndInitCommunity() {
+    ndCommRenderUsers();
+    ndCommRenderMessages();
+    ndCommRenderActivity();
+
+    // Load profile name into community
+    const profData = JSON.parse(localStorage.getItem('shapeNutritionistProfile') || '{}');
+    if (profData.name && profData.name !== 'Your Name') {
+      document.getElementById('ndCommMyName').textContent = profData.name;
+      const parts = profData.name.split(' ').filter(Boolean);
+      document.getElementById('ndCommMyInitials').textContent = parts.map(p => p[0]).join('').toUpperCase();
+    }
+  }
+
+  function ndCommRenderUsers() {
+    const list = document.getElementById('ndCommList');
+    const search = (document.getElementById('ndCommSearch').value || '').toLowerCase();
+    const filtered = ndCommUsers.filter(u => {
+      if (search && !u.name.toLowerCase().includes(search)) return false;
+      if (ndCommCurrentTab === 'friends') return u.friend;
+      return !u.friend;
+    });
+    list.innerHTML = filtered.map(u => `
+      <div class="nd-community-user">
+        <div class="nd-community-user-avatar" style="background:${u.color};">${u.initials}</div>
+        <div class="nd-community-user-info">
+          <div class="nd-community-user-name">${u.online ? '<span style="width:6px;height:6px;border-radius:50%;background:#22C55E;display:inline-block;margin-right:4px;"></span>' : ''}${u.name}</div>
+          <div class="nd-community-user-status">${u.bio}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function ndCommFilterUsers() { ndCommRenderUsers(); }
+
+  function ndCommMobileView(view, btn) {
+    document.querySelectorAll('.nd-comm-mobile-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const layout = document.getElementById('ndCommunityLayout');
+    if (view === 'people') layout.classList.add('comm-view-people');
+    else layout.classList.remove('comm-view-people');
+  }
+
+  function ndCommSwitchTab(tab, btn) {
+    ndCommCurrentTab = tab;
+    document.querySelectorAll('.nd-community-tab').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    ndCommRenderUsers();
+  }
+
+  function ndCommSwitchChannel(channel, btn) {
+    ndCommCurrentChannel = channel;
+    document.querySelectorAll('.nd-community-channel').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    ndCommRenderMessages();
+  }
+
+  function ndCommRenderMessages() {
+    const container = document.getElementById('ndCommMessages');
+    const msgs = ndCommChannelMessages[ndCommCurrentChannel] || [];
+    container.innerHTML = msgs.map(m => `
+      <div class="nd-community-msg ${m.own ? 'own' : ''}">
+        <div class="nd-community-msg-avatar" style="background:${m.color};">${m.initials}</div>
+        <div class="nd-community-msg-body">
+          <div class="nd-community-msg-name">${m.name}</div>
+          <div class="nd-community-msg-text">${m.text}</div>
+          <div class="nd-community-msg-time">${m.time}</div>
+        </div>
+      </div>
+    `).join('');
+    container.scrollTop = container.scrollHeight;
+  }
+
+  function ndCommSendMessage() {
+    const input = document.getElementById('ndCommInput');
+    const text = input.value.trim();
+    if (!text) return;
+    const now = new Date();
+    const time = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const profData = JSON.parse(localStorage.getItem('shapeNutritionistProfile') || '{}');
+    const name = profData.name || 'You';
+    const parts = name.split(' ').filter(Boolean);
+    const initials = parts.map(p => p[0]).join('').toUpperCase() || 'YN';
+
+    if (!ndCommChannelMessages[ndCommCurrentChannel]) ndCommChannelMessages[ndCommCurrentChannel] = [];
+    ndCommChannelMessages[ndCommCurrentChannel].push({
+      name: name, initials: initials, color: '#2DD4BF', text: text, time: time, own: true
+    });
+    input.value = '';
+    ndCommRenderMessages();
+  }
+
+  function ndCommRenderActivity() {
+    const feed = document.getElementById('ndCommActivityFeed');
+    const activities = [
+      { name: "Jake R.", initials: "JR", color: "#6C3AED", text: "Completed 5x5 Foundation workout", time: "2h ago" },
+      { name: "Aisha L.", initials: "AL", color: "#EC4899", text: "Logged all meals for the day", time: "3h ago" },
+      { name: "Priya S.", initials: "PS", color: "#10B981", text: "Started a new meal plan", time: "5h ago" },
+      { name: "Carlos M.", initials: "CM", color: "#F59E0B", text: "Hit a 10-mile run PR", time: "Yesterday" },
+    ];
+    feed.innerHTML = activities.map(a => `
+      <div class="nd-activity-item">
+        <div class="nd-activity-item-header">
+          <div class="nd-activity-item-avatar" style="background:${a.color};">${a.initials}</div>
+          <div class="nd-activity-item-name">${a.name}</div>
+          <div class="nd-activity-item-time">${a.time}</div>
+        </div>
+        <div class="nd-activity-item-text">${a.text}</div>
+      </div>
+    `).join('');
+  }
+
+  // ===== Profile Tab =====
+  function ndInitProfile() {
+    const STORAGE_KEY = 'shapeNutritionistProfile';
+    const raw = localStorage.getItem(STORAGE_KEY);
+    let data = {};
+    try { data = raw ? JSON.parse(raw) : {}; } catch(e) {}
+
+    // Name
+    if (data.name && data.name !== 'Your Name') {
+      document.getElementById('ndProfNameDisplay').textContent = data.name;
+      const parts = data.name.split(' ').filter(Boolean);
+      document.getElementById('ndProfAvatarInitials').textContent = parts.map(p => p[0]).join('').toUpperCase();
+    }
+    if (data.specialty && data.specialty !== 'Your Specialty') {
+      document.getElementById('ndProfSpecialtyDisplay').textContent = data.specialty;
+    }
+
+    // Avatar
+    if (data.avatar) {
+      document.getElementById('ndProfAvatarInitials').style.display = 'none';
+      const img = document.getElementById('ndProfAvatarImg');
+      img.src = data.avatar;
+      img.style.display = 'block';
+    }
+
+    // Stats
+    if (data.subscribers) document.getElementById('ndProfStatSubs').textContent = data.subscribers;
+    if (data.rating) document.getElementById('ndProfStatRating').textContent = data.rating;
+    if (data.price) document.getElementById('ndProfStatPrice').textContent = data.price;
+    if (data.experience) document.getElementById('ndProfStatExp').textContent = data.experience;
+
+    // Bio
+    if (data.bio) document.getElementById('ndProfBio').textContent = data.bio;
+
+    // Tags
+    if (data.tags && data.tags.length) {
+      const container = document.getElementById('ndProfTags');
+      container.innerHTML = data.tags.map(t => `<span class="nd-profile-tag">${t}</span>`).join('');
+    }
+
+    // Certifications
+    if (data.certifications && data.certifications.length) {
+      const list = document.getElementById('ndProfCerts');
+      list.innerHTML = data.certifications.map(c => `<li><span style="color:var(--text-muted);">&#10003;</span> ${c}</li>`).join('');
+    }
+
+    // Social
+    if (data.social) {
+      const container = document.getElementById('ndProfSocial');
+      const links = [];
+      if (data.social.instagram) links.push(`<a href="#" class="nd-profile-social-link">Instagram: ${data.social.instagram}</a>`);
+      else links.push('<span class="nd-profile-social-link">Instagram</span>');
+      if (data.social.youtube) links.push(`<a href="#" class="nd-profile-social-link">YouTube: ${data.social.youtube}</a>`);
+      else links.push('<span class="nd-profile-social-link">YouTube</span>');
+      if (data.social.tiktok) links.push(`<a href="#" class="nd-profile-social-link">TikTok: ${data.social.tiktok}</a>`);
+      else links.push('<span class="nd-profile-social-link">TikTok</span>');
+      if (data.social.website) links.push(`<a href="#" class="nd-profile-social-link">Website: ${data.social.website}</a>`);
+      else links.push('<span class="nd-profile-social-link">Website</span>');
+      container.innerHTML = links.join('');
+    }
+
+    // Photos
+    if (data.photos && data.photos.length) {
+      const gallery = document.getElementById('ndProfGallery');
+      gallery.innerHTML = data.photos.map(p => `<div class="nd-profile-gallery-item"><img src="${p}" style="width:100%;height:100%;object-fit:cover;"></div>`).join('') +
+        '<div class="nd-profile-gallery-item" style="cursor:pointer;"><a href="nutritionist-profile.html" style="color:var(--text-muted);text-decoration:none;">+ Add Media</a></div>';
+    }
+
+    // Intro video
+    if (data.introVideo || data.introVideoUrl) {
+      const vid = document.getElementById('ndProfIntroVideo');
+      if (data.introVideoUrl) {
+        vid.innerHTML = `<iframe src="${data.introVideoUrl}" style="width:100%;height:100%;border:none;" allowfullscreen></iframe>`;
+        vid.style.height = '320px';
+      } else if (data.introVideo) {
+        vid.innerHTML = `<video src="${data.introVideo}" controls style="width:100%;max-height:320px;"></video>`;
+        vid.style.height = 'auto';
+      }
+    }
+  }
+
+  function ndProfStartEdit(field) {
+    const val = prompt('Enter new ' + field + ':');
+    if (val === null) return;
+    const STORAGE_KEY = 'shapeNutritionistProfile';
+    const raw = localStorage.getItem(STORAGE_KEY);
+    let data = {};
+    try { data = raw ? JSON.parse(raw) : {}; } catch(e) {}
+    data[field] = val.trim() || (field === 'name' ? 'Your Name' : 'Your Specialty');
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    ndInitProfile();
+    // Also show toast
+    const t = document.getElementById('toast');
+    t.textContent = (field === 'name' ? 'Name' : 'Specialty') + ' updated!';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  function ndProfHandleAvatar(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+      const STORAGE_KEY = 'shapeNutritionistProfile';
+      const raw = localStorage.getItem(STORAGE_KEY);
+      let data = {};
+      try { data = raw ? JSON.parse(raw) : {}; } catch(e2) {}
+      data.avatar = ev.target.result;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      ndInitProfile();
+      const t = document.getElementById('toast');
+      t.textContent = 'Profile photo updated!';
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2500);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // ===== Meal Plan Builder (IIFE) =====
+  (function(){
+    const PLANS_KEY = 'shapeNutritionistPlans';
+    const ASSIGNED_KEY = 'shapeClientAssignedMealPlans';
+    const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+    const MEALS = ['Breakfast','Morning Snack','Lunch','Afternoon Snack','Dinner'];
+    let mpbEditId = null;
+
+    function mpbGetPlans(){ return JSON.parse(localStorage.getItem(PLANS_KEY)||'[]'); }
+    function mpbSavePlans(p){ localStorage.setItem(PLANS_KEY,JSON.stringify(p)); }
+    function mpbGetAssigned(){ return JSON.parse(localStorage.getItem(ASSIGNED_KEY)||'[]'); }
+    function mpbSaveAssigned(p){ localStorage.setItem(ASSIGNED_KEY,JSON.stringify(p)); }
+
+    function mpbToast(msg){
+      var t=document.getElementById('toast');
+      if(t){t.textContent=msg;t.classList.add('show');setTimeout(function(){t.classList.remove('show');},3000);}
+    }
+
+    window.mpbToggleBuilder=function(){
+      var el=document.getElementById('mpbBuilderArea');
+      el.classList.toggle('mpb-open');
+      if(!el.classList.contains('mpb-open')){mpbResetBuilder();}
+    };
+
+    window.mpbChoosePath=function(path){
+      document.querySelectorAll('.mpb-choice-btn').forEach(function(b){b.classList.remove('mpb-active');});
+      event.currentTarget.classList.add('mpb-active');
+      document.getElementById('mpbTemplateForm').classList.toggle('mpb-open',path==='template');
+      document.getElementById('mpbCustomForm').classList.toggle('mpb-open',path==='custom');
+      if(path==='template') mpbBuildDays();
+    };
+
+    function mpbBuildDays(data){
+      var c=document.getElementById('mpbDaysContainer');if(!c)return;c.innerHTML='';
+      DAYS.forEach(function(day,di){
+        var card=document.createElement('div');card.className='mpb-day-card';
+        var hdr=document.createElement('div');hdr.className='mpb-day-header';
+        hdr.innerHTML='<h4>'+day+'</h4><span>&#9660;</span>';
+        hdr.onclick=function(){card.classList.toggle('mpb-expanded');};
+        var body=document.createElement('div');body.className='mpb-day-body';
+        MEALS.forEach(function(meal,mi){
+          var existing=(data&&data[di]&&data[di][mi])||{};
+          var block=document.createElement('div');block.className='mpb-meal-block';
+          block.innerHTML='<h5>'+meal+'</h5>'+
+            '<div class="mpb-form-grid" style="grid-template-columns:1fr 1fr;margin-bottom:8px;">'+
+              '<div><label class="mpb-label">Meal Name</label><input type="text" class="mpb-input mpb-day-meal-name" data-d="'+di+'" data-m="'+mi+'" placeholder="e.g. Greek yogurt bowl" value="'+(existing.name||'')+'"></div>'+
+              '<div><label class="mpb-label">Calories</label><input type="number" class="mpb-input mpb-day-meal-cal" data-d="'+di+'" data-m="'+mi+'" placeholder="400" min="0" value="'+(existing.calories||'')+'"></div>'+
+            '</div>'+
+            '<div class="mpb-meal-grid">'+
+              '<div><label class="mpb-label">Protein (g)</label><input type="number" class="mpb-input mpb-day-meal-p" data-d="'+di+'" data-m="'+mi+'" placeholder="30" min="0" value="'+(existing.protein||'')+'"></div>'+
+              '<div><label class="mpb-label">Carbs (g)</label><input type="number" class="mpb-input mpb-day-meal-c" data-d="'+di+'" data-m="'+mi+'" placeholder="45" min="0" value="'+(existing.carbs||'')+'"></div>'+
+              '<div><label class="mpb-label">Fat (g)</label><input type="number" class="mpb-input mpb-day-meal-f" data-d="'+di+'" data-m="'+mi+'" placeholder="12" min="0" value="'+(existing.fat||'')+'"></div>'+
+            '</div>'+
+            '<div style="margin-top:8px;"><label class="mpb-label">Ingredients</label><textarea class="mpb-textarea mpb-day-meal-ing" data-d="'+di+'" data-m="'+mi+'" placeholder="List ingredients..." style="min-height:50px;">'+(existing.ingredients||'')+'</textarea></div>'+
+            '<div style="margin-top:8px;"><label class="mpb-label">Prep Instructions</label><textarea class="mpb-textarea mpb-day-meal-prep" data-d="'+di+'" data-m="'+mi+'" placeholder="How to prepare..." style="min-height:50px;">'+(existing.prep||'')+'</textarea></div>';
+          body.appendChild(block);
+        });
+        card.appendChild(hdr);card.appendChild(body);c.appendChild(card);
+      });
+    }
+    window.mpbBuildDays = mpbBuildDays;
+
+    window.mpbUpdateMacros=function(){
+      var p=parseInt(document.getElementById('mpbSliderP').value);
+      var c=parseInt(document.getElementById('mpbSliderC').value);
+      var f=parseInt(document.getElementById('mpbSliderF').value);
+      document.getElementById('mpbValP').textContent=p+'%';
+      document.getElementById('mpbValC').textContent=c+'%';
+      document.getElementById('mpbValF').textContent=f+'%';
+      var total=p+c+f;
+      var el=document.getElementById('mpbMacroTotal');
+      el.textContent='Total: '+total+'%';
+      el.classList.toggle('mpb-over',total!==100);
+    };
+
+    var mpbUploadedFiles=[];
+
+    window.mpbHandleFiles=function(files){
+      Array.from(files).forEach(function(file){
+        if(file.size>10*1024*1024){mpbToast('File too large. Max 10MB.');return;}
+        var reader=new FileReader();
+        reader.onload=function(ev){
+          mpbUploadedFiles.push({name:file.name,type:file.type,size:file.size,data:ev.target.result});
+          mpbRenderFileList();
+          mpbToast(file.name+' uploaded!');
+        };
+        reader.readAsDataURL(file);
+      });
+    };
+
+    function mpbRenderFileList(){
+      var container=document.getElementById('mpbUploadedFiles');
+      var list=document.getElementById('mpbFileList');
+      if(!container||!list)return;
+      if(!mpbUploadedFiles.length){container.style.display='none';return;}
+      container.style.display='block';
+      list.innerHTML=mpbUploadedFiles.map(function(f,i){
+        var sizeKB=(f.size/1024).toFixed(1);
+        var isImage=f.type&&f.type.startsWith('image/');
+        var icon=f.type==='application/pdf'?'&#128196;':isImage?'&#128247;':'&#128196;';
+        return '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--bg-card);border:1px solid var(--border);margin-bottom:6px;border-radius:var(--radius);">'+
+          (isImage?'<img src="'+f.data+'" style="width:48px;height:48px;object-fit:cover;border:1px solid var(--border);">':'<span style="font-size:1.6rem;">'+icon+'</span>')+
+          '<div style="flex:1;"><div style="font-size:0.88rem;font-weight:500;">'+mpbEsc(f.name)+'</div><div style="font-size:0.72rem;color:var(--text-muted);">'+sizeKB+' KB</div></div>'+
+          '<button style="background:none;border:none;font-size:1rem;color:var(--text-muted);cursor:pointer;" onclick="mpbRemoveFile('+i+')">&times;</button></div>';
+      }).join('');
+    }
+
+    window.mpbRemoveFile=function(idx){
+      mpbUploadedFiles.splice(idx,1);
+      mpbRenderFileList();
+    };
+
+    function mpbCollectDays(){
+      var days=[];
+      for(var d=0;d<7;d++){
+        var meals=[];
+        for(var m=0;m<MEALS.length;m++){
+          var sel=function(cls){var el=document.querySelector('.'+cls+'[data-d="'+d+'"][data-m="'+m+'"]');return el?el.value:'';};
+          meals.push({
+            mealType:MEALS[m],
+            name:sel('mpb-day-meal-name'),
+            calories:sel('mpb-day-meal-cal'),
+            protein:sel('mpb-day-meal-p'),
+            carbs:sel('mpb-day-meal-c'),
+            fat:sel('mpb-day-meal-f'),
+            ingredients:sel('mpb-day-meal-ing'),
+            prep:sel('mpb-day-meal-prep')
+          });
+        }
+        days.push({day:DAYS[d],meals:meals});
+      }
+      return days;
+    }
+
+    function mpbCollectPlan(type){
+      var plan={id:mpbEditId||Date.now(),type:type,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+      if(type==='template'){
+        plan.name=document.getElementById('mpbTplName').value.trim();
+        if(!plan.name) return null;
+        plan.goal=document.getElementById('mpbTplGoal').value;
+        plan.dietType=document.getElementById('mpbTplDiet').value;
+        plan.duration=document.getElementById('mpbTplDuration').value;
+        plan.calories=document.getElementById('mpbTplCalories').value;
+        plan.description=document.getElementById('mpbTplDesc').value;
+        plan.macros={
+          protein:parseInt(document.getElementById('mpbSliderP').value),
+          carbs:parseInt(document.getElementById('mpbSliderC').value),
+          fat:parseInt(document.getElementById('mpbSliderF').value)
+        };
+        plan.days=mpbCollectDays();
+        plan.shoppingList=document.getElementById('mpbTplShoppingList').value;
+        plan.client=document.getElementById('mpbTplClient').value;
+      } else {
+        plan.name=document.getElementById('mpbCustName').value.trim();
+        if(!plan.name) return null;
+        plan.description=document.getElementById('mpbCustDesc').value;
+        plan.files=mpbUploadedFiles.map(function(f){return {name:f.name,type:f.type,size:f.size,data:f.data};});
+        plan.client=document.getElementById('mpbCustClient').value;
+      }
+      return plan;
+    }
+
+    function mpbCoreSave(plan){
+      var plans=mpbGetPlans();
+      var idx=plans.findIndex(function(p){return p.id===plan.id;});
+      if(idx>-1) plans[idx]=plan; else plans.push(plan);
+      mpbSavePlans(plans);
+    }
+
+    // Converts the plan's days[] into dated shapeMealSchedule entries so the
+    // client's calendar and schedule widget are automatically populated.
+    function mpbPopulateMealSchedule(plan){
+      if(!plan.days||!plan.days.length) return;
+
+      // Duration → number of weeks to populate
+      var weekMap={'1 week':1,'4 weeks':4,'8 weeks':8,'12 weeks':12};
+      var weeks=weekMap[plan.duration]||(plan.duration==='Indefinite'?12:4);
+
+      // Day-name → offset from Monday (0=Mon … 6=Sun)
+      var dayOffset={Monday:0,Tuesday:1,Wednesday:2,Thursday:3,Friday:4,Saturday:5,Sunday:6};
+
+      // Monday of current week
+      var today=new Date(); today.setHours(0,0,0,0);
+      var dow=today.getDay();
+      var monday=new Date(today);
+      monday.setDate(today.getDate()-(dow===0?6:dow-1));
+
+      // Merge into existing schedule (preserve already-logged entries)
+      var schedule=JSON.parse(localStorage.getItem('shapeMealSchedule')||'{}');
+
+      for(var w=0;w<weeks;w++){
+        plan.days.forEach(function(dayObj){
+          var offset=dayOffset[dayObj.day];
+          if(offset===undefined) return;
+          var d=new Date(monday);
+          d.setDate(monday.getDate()+w*7+offset);
+          var dateStr=d.toISOString().split('T')[0];
+          var meals=(dayObj.meals||[])
+            .filter(function(m){return m.name&&m.name.trim();})
+            .map(function(m){
+              return {
+                name:m.name.trim(),
+                type:m.mealType||'Meal',
+                calories:parseInt(m.calories)||0,
+                protein:parseInt(m.protein)||0,
+                carbs:parseInt(m.carbs)||0,
+                fat:parseInt(m.fat)||0
+              };
+            });
+          if(meals.length) schedule[dateStr]=meals;
+        });
+      }
+      localStorage.setItem('shapeMealSchedule',JSON.stringify(schedule));
+    }
+
+    window.mpbSaveDraft=function(type){
+      var plan=mpbCollectPlan(type);
+      if(!plan){mpbToast('Please enter a plan name');return;}
+      plan.status='Draft';
+      mpbCoreSave(plan);
+      mpbToast('Draft saved! You can continue editing anytime.');
+      mpbResetBuilder();
+      document.getElementById('mpbBuilderArea').classList.remove('mpb-open');
+      mpbRenderList();
+    };
+
+    window.mpbSavePlan=function(type){
+      var plan=mpbCollectPlan(type);
+      if(!plan){mpbToast('Please enter a plan name');return;}
+      if(!plan.client){mpbToast('Please assign a client first.');return;}
+      plan.status='Published';
+      mpbCoreSave(plan);
+      var assigned=mpbGetAssigned();
+      var ai=assigned.findIndex(function(a){return a.id===plan.id;});
+      if(ai>-1) assigned[ai]=plan; else assigned.push(plan);
+      mpbSaveAssigned(assigned);
+      if(plan.type==='template') mpbPopulateMealSchedule(plan);
+      mpbToast('Meal plan published and sent to '+plan.client+'! Their schedule has been updated.');
+      mpbResetBuilder();
+      document.getElementById('mpbBuilderArea').classList.remove('mpb-open');
+      mpbRenderList();
+    };
+
+    window.mpbPublishToProfile=function(type){
+      var plan=mpbCollectPlan(type);
+      if(!plan){mpbToast('Please enter a plan name');return;}
+      plan.status='On Profile';
+      mpbCoreSave(plan);
+      mpbToast('Meal plan published to your profile!');
+      mpbResetBuilder();
+      document.getElementById('mpbBuilderArea').classList.remove('mpb-open');
+      mpbRenderList();
+    };
+
+    function mpbRenderList(){
+      var plans=mpbGetPlans();
+      var el=document.getElementById('mpbPlansList');
+      if(!el)return;
+      if(!plans.length){el.innerHTML='<p class="mpb-empty">No meal plans yet. Create your first one above.</p>';return;}
+      el.innerHTML='';
+      plans.forEach(function(p){
+        var item=document.createElement('div');item.className='mpb-plan-item';
+        var badgeCls=p.status==='Published'?'mpb-badge-published':p.status==='On Profile'?'mpb-badge-profile':'mpb-badge-draft';
+        item.innerHTML='<h4>'+mpbEsc(p.name)+'</h4>'+
+          '<span class="mpb-badge '+badgeCls+'">'+p.status+'</span>'+
+          '<span class="mpb-plan-client">'+(p.client||'Unassigned')+'</span>'+
+          '<div class="mpb-plan-actions">'+
+            '<button onclick="mpbEditPlan('+p.id+')">Edit</button>'+
+            '<button class="mpb-del" onclick="mpbDeletePlan('+p.id+')">Delete</button>'+
+          '</div>';
+        el.appendChild(item);
+      });
+    }
+    window.mpbRenderList = mpbRenderList;
+
+    function mpbEsc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
+
+    window.mpbDeletePlan=function(id){
+      var plans=mpbGetPlans().filter(function(p){return p.id!==id;});
+      mpbSavePlans(plans);
+      var assigned=mpbGetAssigned().filter(function(p){return p.id!==id;});
+      mpbSaveAssigned(assigned);
+      mpbToast('Plan deleted');
+      mpbRenderList();
+    };
+
+    window.mpbEditPlan=function(id){
+      var plan=mpbGetPlans().find(function(p){return p.id===id;});
+      if(!plan) return;
+      mpbEditId=id;
+      ndSwitchTab('mealplans', document.querySelector('[data-tab="mealplans"]'));
+      document.getElementById('mpbBuilderArea').classList.add('mpb-open');
+      if(plan.type==='template'){
+        mpbChoosePathDirect('template');
+        document.getElementById('mpbTplName').value=plan.name||'';
+        document.getElementById('mpbTplGoal').value=plan.goal||'Weight Loss';
+        document.getElementById('mpbTplDiet').value=plan.dietType||'Standard';
+        document.getElementById('mpbTplDuration').value=plan.duration||'4';
+        document.getElementById('mpbTplCalories').value=plan.calories||'';
+        document.getElementById('mpbTplDesc').value=plan.description||'';
+        if(plan.macros){
+          document.getElementById('mpbSliderP').value=plan.macros.protein;
+          document.getElementById('mpbSliderC').value=plan.macros.carbs;
+          document.getElementById('mpbSliderF').value=plan.macros.fat;
+          mpbUpdateMacros();
+        }
+        var dayData=[];
+        if(plan.days){
+          plan.days.forEach(function(d){
+            var meals=[];
+            d.meals.forEach(function(m){
+              meals.push({name:m.name,calories:m.calories,protein:m.protein,carbs:m.carbs,fat:m.fat,ingredients:m.ingredients,prep:m.prep});
+            });
+            dayData.push(meals);
+          });
+        }
+        mpbBuildDays(dayData);
+        document.getElementById('mpbTplShoppingList').value=plan.shoppingList||'';
+        document.getElementById('mpbTplClient').value=plan.client||'';
+      } else {
+        mpbChoosePathDirect('custom');
+        document.getElementById('mpbCustName').value=plan.name||'';
+        document.getElementById('mpbCustDesc').value=plan.description||'';
+        mpbUploadedFiles=(plan.files||[]).map(function(f){return {name:f.name,type:f.type,size:f.size,data:f.data};});
+        mpbRenderFileList();
+        document.getElementById('mpbCustClient').value=plan.client||'';
+      }
+      document.getElementById('ndTabMealplans').scrollIntoView({behavior:'smooth'});
+    };
+
+    function mpbChoosePathDirect(path){
+      document.querySelectorAll('.mpb-choice-btn').forEach(function(b,i){
+        b.classList.toggle('mpb-active',(path==='template'&&i===0)||(path==='custom'&&i===1));
+      });
+      document.getElementById('mpbTemplateForm').classList.toggle('mpb-open',path==='template');
+      document.getElementById('mpbCustomForm').classList.toggle('mpb-open',path==='custom');
+      if(path==='template') mpbBuildDays();
+    }
+
+    function mpbResetBuilder(){
+      mpbEditId=null;
+      document.querySelectorAll('.mpb-choice-btn').forEach(function(b){b.classList.remove('mpb-active');});
+      var tf=document.getElementById('mpbTemplateForm');if(tf)tf.classList.remove('mpb-open');
+      var cf=document.getElementById('mpbCustomForm');if(cf)cf.classList.remove('mpb-open');
+      ['mpbTplName','mpbTplCalories','mpbTplDesc','mpbTplShoppingList'].forEach(function(id){
+        var el=document.getElementById(id);if(el)el.value='';
+      });
+      var g=document.getElementById('mpbTplGoal');if(g)g.selectedIndex=0;
+      var dt=document.getElementById('mpbTplDiet');if(dt)dt.selectedIndex=0;
+      var du=document.getElementById('mpbTplDuration');if(du)du.selectedIndex=0;
+      var sp=document.getElementById('mpbSliderP');if(sp)sp.value=40;
+      var sc=document.getElementById('mpbSliderC');if(sc)sc.value=35;
+      var sf=document.getElementById('mpbSliderF');if(sf)sf.value=25;
+      if(typeof window.mpbUpdateMacros==='function')window.mpbUpdateMacros();
+      var dc=document.getElementById('mpbDaysContainer');if(dc)dc.innerHTML='';
+      var tc=document.getElementById('mpbTplClient');if(tc)tc.selectedIndex=0;
+      ['mpbCustName','mpbCustDesc'].forEach(function(id){
+        var el=document.getElementById(id);if(el)el.value='';
+      });
+      mpbUploadedFiles=[];
+      mpbRenderFileList();
+      var cc=document.getElementById('mpbCustClient');if(cc)cc.selectedIndex=0;
+    }
+
+    // Seed demo meal plans on first visit
+    if (!mpbGetPlans().length) {
+      var _now = new Date().toISOString();
+      var _days = DAYS;
+      var _meals = MEALS;
+      // Helper to build a full 7-day plan with consistent meals
+      function _buildDays(meals) {
+        return _days.map(function(day, d) {
+          return { day: day, meals: _meals.map(function(mt, m) {
+            var md = meals[d % meals.length][m] || {};
+            return { mealType: mt, name: md.name||'', calories: md.cal||'', protein: md.p||'', carbs: md.c||'', fat: md.f||'', ingredients: md.ing||'', prep: md.prep||'' };
+          })};
+        });
+      }
+      var _plan1Meals = [
+        [ {name:'Greek Yogurt & Berries',cal:'320',p:'28',c:'35',f:'6',ing:'Non-fat Greek yogurt, blueberries, granola',prep:'Top yogurt with berries & granola'},
+          {name:'Apple & Almond Butter',cal:'180',p:'4',c:'24',f:'8',ing:'1 apple, 1 tbsp almond butter',prep:'Slice & serve'},
+          {name:'Grilled Chicken Salad',cal:'480',p:'42',c:'28',f:'16',ing:'Chicken breast, mixed greens, cherry tomatoes, olive oil dressing',prep:'Grill chicken 6 min each side, toss with salad'},
+          {name:'Protein Shake',cal:'160',p:'30',c:'8',f:'3',ing:'Whey protein, water or almond milk',prep:'Shake & serve'},
+          {name:'Salmon & Roasted Veg',cal:'520',p:'44',c:'30',f:'18',ing:'Salmon fillet, broccoli, sweet potato, olive oil',prep:'Bake 400°F 18 min'} ],
+        [ {name:'Oats & Banana',cal:'380',p:'14',c:'65',f:'6',ing:'Rolled oats, banana, almond milk, chia seeds',prep:'Cook oats 5 min, top with banana & chia'},
+          {name:'Mixed Nuts',cal:'160',p:'5',c:'7',f:'14',ing:'Almonds, cashews, walnuts',prep:'1 oz serving'},
+          {name:'Turkey & Avocado Wrap',cal:'490',p:'38',c:'38',f:'18',ing:'Turkey breast, whole wheat wrap, avocado, spinach, mustard',prep:'Assemble & wrap'},
+          {name:'Cottage Cheese',cal:'150',p:'22',c:'6',f:'3',ing:'Low-fat cottage cheese, cucumber',prep:'Serve chilled'},
+          {name:'Lean Beef Stir Fry',cal:'540',p:'40',c:'48',f:'14',ing:'Lean beef strips, broccoli, peppers, brown rice, low-sodium soy sauce',prep:'Wok 8 min over high heat'} ]
+      ];
+      var _plan2Meals = [
+        [ {name:'Eggs & Oatmeal',cal:'520',p:'34',c:'60',f:'12',ing:'4 eggs scrambled, 1 cup oats, almond milk',prep:'Cook eggs over medium, oats in microwave 2 min'},
+          {name:'Protein Bar',cal:'240',p:'20',c:'28',f:'7',ing:'Store-bought or homemade protein bar',prep:'Ready to eat'},
+          {name:'Chicken Rice Bowl',cal:'680',p:'52',c:'72',f:'12',ing:'200g chicken breast, 1.5 cups brown rice, steamed broccoli',prep:'Meal prep ahead or cook fresh'},
+          {name:'Rice Cakes & Peanut Butter',cal:'220',p:'7',c:'26',f:'9',ing:'2 rice cakes, 1.5 tbsp natural peanut butter',prep:'Spread & serve'},
+          {name:'Pasta & Ground Turkey',cal:'740',p:'56',c:'80',f:'14',ing:'Whole wheat pasta, lean ground turkey, marinara sauce, parmesan',prep:'Cook pasta al dente, brown turkey, combine with sauce'} ],
+        [ {name:'Protein Pancakes',cal:'480',p:'40',c:'52',f:'9',ing:'Oat flour, protein powder, eggs, banana, baking powder',prep:'Blend & cook on griddle 3 min each side'},
+          {name:'Greek Yogurt Parfait',cal:'260',p:'24',c:'28',f:'4',ing:'Greek yogurt, granola, strawberries',prep:'Layer in cup'},
+          {name:'Tuna & Quinoa Bowl',cal:'600',p:'50',c:'58',f:'12',ing:'Canned tuna, cooked quinoa, cucumber, lemon, olive oil',prep:'Mix & serve chilled'},
+          {name:'Handful Almonds',cal:'160',p:'6',c:'6',f:'14',ing:'Raw almonds',prep:'Pre-portioned bag'},
+          {name:'Steak & Sweet Potato',cal:'720',p:'58',c:'54',f:'18',ing:'Sirloin steak 200g, large sweet potato, green beans',prep:'Pan-sear steak 4 min each side, bake potato 40 min'} ]
+      ];
+      mpbSavePlans([
+        {
+          id: Date.now()-3000, type:'template', status:'Published',
+          name:'7-Day Clean Eating Reset', goal:'Weight Loss', dietType:'Standard',
+          duration:'1', calories:'1800',
+          description:'A structured 7-day reset built around whole foods, lean protein, and balanced macros. Designed to reduce inflammation, improve energy, and kick-start fat loss without feeling deprived.',
+          macros:{protein:40,carbs:35,fat:25},
+          days:_buildDays(_plan1Meals),
+          shoppingList:'Chicken breast, salmon, lean ground turkey, Greek yogurt (non-fat), eggs, oats, brown rice, sweet potatoes, broccoli, mixed greens, avocado, almond butter, mixed nuts, blueberries, bananas, apples, olive oil, whole wheat wraps',
+          client:'Christopher Perry', createdAt:_now, updatedAt:_now
+        },
+        {
+          id: Date.now()-2000, type:'template', status:'Published',
+          name:'Lean Bulk 8-Week Plan', goal:'Muscle Gain', dietType:'Standard',
+          duration:'8', calories:'3200',
+          description:'A high-calorie, protein-first plan designed for clients in a lean bulk phase. Prioritizes whole food carb sources around workouts for performance, with healthy fats supporting hormone production.',
+          macros:{protein:35,carbs:45,fat:20},
+          days:_buildDays(_plan2Meals),
+          shoppingList:'Chicken breast (bulk), steak, ground turkey, whole wheat pasta, brown rice, quinoa, oats, eggs, Greek yogurt, protein powder, sweet potatoes, broccoli, peppers, spinach, almond butter, olive oil, peanut butter',
+          client:'Marcus Thompson', createdAt:_now, updatedAt:_now
+        },
+        {
+          id: Date.now()-1000, type:'template', status:'Draft',
+          name:'Keto Kickstart 4-Week Plan', goal:'Weight Loss', dietType:'Keto',
+          duration:'4', calories:'1700',
+          description:'A strict ketogenic meal plan for clients looking to enter and maintain ketosis. Under 30g net carbs daily with emphasis on healthy fats, quality protein, and electrolyte balance.',
+          macros:{protein:30,carbs:5,fat:65},
+          days:_buildDays([[
+            {name:'Bacon & Eggs',cal:'420',p:'30',c:'2',f:'32',ing:'3 eggs, 3 strips bacon, spinach',prep:'Pan-fry 6 min'},
+            {name:'Cheese & Nuts',cal:'200',p:'8',c:'3',f:'18',ing:'Cheddar cubes, almonds',prep:'Pre-portioned'},
+            {name:'Bunless Burger & Salad',cal:'520',p:'38',c:'6',f:'38',ing:'Beef patty, lettuce bun, avocado, side salad with ranch',prep:'Grill 4 min each side'},
+            {name:'Pork Rinds',cal:'120',p:'14',c:'0',f:'7',ing:'Pork rinds',prep:'Ready to eat'},
+            {name:'Salmon & Asparagus',cal:'490',p:'44',c:'4',f:'32',ing:'Salmon, asparagus, butter, lemon, garlic',prep:'Pan-sear salmon 4 min each side, roast asparagus'}
+          ]]),
+          shoppingList:'Ground beef, salmon, bacon, eggs, avocados, cheese (cheddar, cream cheese), almonds, pecans, leafy greens, asparagus, broccoli, cauliflower, olive oil, butter, heavy cream',
+          client:'Sofia Rodriguez', createdAt:_now, updatedAt:_now
+        }
+      ]);
+    }
+
+    // Init - render the plans list on page load
+    mpbRenderList();
+  })();
+  </script>
+
+  <!-- Calendar Day Popup Modal -->
+  <div class="nd-cal-popup-overlay" id="ndCalPopupOverlay" onclick="if(event.target===this)ndCloseCalPopup()">
+    <div class="nd-cal-popup">
+      <button class="nd-cal-popup-close" onclick="ndCloseCalPopup()">&times;</button>
+      <div id="ndCalPopupBody"></div>
+    </div>
+  </div>
+
+  <!-- ===== Calendar Popup + Plan Sales JS ===== -->
+  <script>
+  (function() {
+    // ===== Calendar popup helpers =====
+    window.ndCloseCalPopup = function() {
+      var overlay = document.getElementById('ndCalPopupOverlay');
+      if (overlay) overlay.classList.remove('active');
+    };
+
+    window.ndShowCalPopup = function(html) {
+      var body = document.getElementById('ndCalPopupBody');
+      var overlay = document.getElementById('ndCalPopupOverlay');
+      if (body) body.innerHTML = html;
+      if (overlay) overlay.classList.add('active');
+    };
+
+    // Patch nd-cal-day click: override _ndBuildCalendar and _ndBuildDashCalendar
+    // to add click handlers to days with data.
+    // We wait for DOM ready then patch the build functions.
+
+    function patchNdCalendars() {
+      // Override the dash calendar build function to add click support
+      var origDash = window._ndBuildDashCalendar;
+      if (typeof origDash === 'function') {
+        window._ndBuildDashCalendar = function(month, year) {
+          var html = origDash(month, year);
+          // Add onclick to has-meals days by rebuilding with click attrs
+          // Instead, store data and re-patch after render
+          return html;
+        };
+      }
+
+      // Override _ndBuildCalendar (client detail) similarly
+      var origClient = window._ndBuildCalendar;
+      if (typeof origClient === 'function') {
+        window._ndBuildCalendar = function(clientId, month, year) {
+          var html = origClient(clientId, month, year);
+          return html;
+        };
+      }
+    }
+
+    // Instead of patching the generators (hard to do after-the-fact),
+    // use event delegation on the grid containers.
+    document.addEventListener('click', function(e) {
+      var day = e.target.closest('.nd-cal-day');
+      if (!day || day.classList.contains('empty')) return;
+      // Only trigger popup if in dashboard cal container or client cal container
+      var container = day.closest('#ndDashCalContainer, #ndCalContainer');
+      if (!container) return;
+
+      var num = day.querySelector('.nd-cal-day-num');
+      var dot = day.querySelector('.nd-cal-day-dot');
+      var mealsEl = day.querySelector('.nd-cal-day-meals');
+      if (!num) return;
+
+      var dayNum = parseInt(num.textContent, 10);
+      // Get month/year from header
+      var headerEl = container.querySelector('.nd-month-header h4');
+      var dateLabel = (headerEl ? headerEl.textContent + ', Day ' : 'Day ') + dayNum;
+      // Try to get a full date
+      var monthHeader = headerEl ? headerEl.textContent : '';
+
+      var html = '<div class="nd-cal-detail-title">' + monthHeader + (monthHeader ? ' — ' : '') + 'Day ' + dayNum + '</div>';
+
+      if (!dot && !mealsEl) {
+        html += '<div style="font-size:0.78rem;color:var(--text-muted);">No meals recorded this day.</div>';
+      } else {
+        var dotClass = dot ? (dot.className.replace('nd-cal-day-dot','').trim()) : '';
+        var status = dotClass === 'on-plan' ? 'On Plan' : dotClass === 'off-plan' ? 'Off Plan' : 'Mixed';
+        var statusColor = dotClass === 'on-plan' ? '#10B981' : dotClass === 'off-plan' ? '#EF4444' : '#F59E0B';
+        var count = mealsEl ? mealsEl.textContent : '';
+        html += '<div class="nd-cal-detail-row"><span class="dl">Meals</span><span class="dv">' + count + '</span></div>';
+        html += '<div class="nd-cal-detail-row"><span class="dl">Status</span><span class="dv" style="color:' + statusColor + ';">' + status + '</span></div>';
+      }
+
+      ndShowCalPopup(html);
+    });
+
+    // Make has-meals days show pointer cursor
+    var styleEl = document.createElement('style');
+    styleEl.textContent = '.nd-cal-day.has-meals { cursor: pointer !important; } .nd-cal-day.has-meals:hover { background: rgba(45,212,191,0.08) !important; }';
+    document.head.appendChild(styleEl);
+
+    // ===== Plan Sales Chart =====
+    var _ndSalesPeriod = 'daily';
+
+    var _ndSalesData = {
+      daily: [
+        { label: 'Mon', value: 119 }, { label: 'Tue', value: 0 }, { label: 'Wed', value: 249 },
+        { label: 'Thu', value: 39 }, { label: 'Fri', value: 159 }, { label: 'Sat', value: 289 }, { label: 'Sun', value: 79 }
+      ],
+      weekly: [
+        { label: 'Wk 1', value: 930 }, { label: 'Wk 2', value: 1520 }, { label: 'Wk 3', value: 780 },
+        { label: 'Wk 4', value: 1310 }, { label: 'Wk 5', value: 1720 }
+      ],
+      monthly: [
+        { label: 'Jan', value: 2600 }, { label: 'Feb', value: 3400 }, { label: 'Mar', value: 3100 },
+        { label: 'Apr', value: 4320 }, { label: 'May', value: 1900 }, { label: 'Jun', value: 3200 },
+        { label: 'Jul', value: 3700 }, { label: 'Aug', value: 2300 }, { label: 'Sep', value: 2800 },
+        { label: 'Oct', value: 4000 }, { label: 'Nov', value: 3000 }, { label: 'Dec', value: 4400 }
+      ],
+      quarterly: [
+        { label: 'Q1 2025', value: 6700 }, { label: 'Q2 2025', value: 9200 }, { label: 'Q3 2025', value: 8000 },
+        { label: 'Q4 2025', value: 11200 }, { label: 'Q1 2026', value: 9100 }, { label: 'Q2 2026', value: 4320 }
+      ],
+      annual: [
+        { label: '2022', value: 19500 }, { label: '2023', value: 26400 }, { label: '2024', value: 35200 },
+        { label: '2025', value: 43800 }, { label: '2026 YTD', value: 13420 }
+      ]
+    };
+
+    function ndGetPeriodTotal(period) {
+      var d = _ndSalesData[period] || [];
+      return d.reduce(function(s, r) { return s + r.value; }, 0);
+    }
+
+    function ndRenderSalesChart(period) {
+      var data = _ndSalesData[period] || [];
+      var maxVal = Math.max.apply(null, data.map(function(r) { return r.value; }));
+      var total = ndGetPeriodTotal(period);
+      var html = '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:12px;">Total: <strong style="color:var(--text);">$' + total.toLocaleString() + '</strong></div>';
+      html += '<div class="progress-bar-chart">';
+      data.forEach(function(row) {
+        var pct = maxVal > 0 ? Math.round((row.value / maxVal) * 100) : 0;
+        html += '<div class="chart-row">'
+          + '<div class="chart-label" style="min-width:72px;font-size:0.72rem;">' + row.label + '</div>'
+          + '<div class="chart-bar-container">'
+          + '<div class="chart-bar" style="width:' + pct + '%;background:var(--accent);"></div>'
+          + '</div>'
+          + '<div class="chart-value" style="min-width:60px;text-align:right;">$' + row.value.toLocaleString() + '</div>'
+          + '</div>';
+      });
+      html += '</div>';
+      var el = document.getElementById('ndSalesChart');
+      if (el) el.innerHTML = html;
+      ndRenderGoalProgress(period);
+    }
+
+    window.ndSalesToggle = function(period, btn) {
+      _ndSalesPeriod = period;
+      document.querySelectorAll('.nd-sales-toggle-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      ndRenderSalesChart(period);
+    };
+
+    // ===== Sales Goal =====
+    var _ndGoalType = 'monthly';
+
+    window.ndSetGoalType = function(type) {
+      _ndGoalType = type;
+      document.getElementById('ndGoalTypeMonthly').classList.toggle('active', type === 'monthly');
+      document.getElementById('ndGoalTypeAnnual').classList.toggle('active', type === 'annual');
+      ndRenderGoalProgress(_ndSalesPeriod);
+    };
+
+    window.ndSaveGoal = function() {
+      var val = parseFloat(document.getElementById('ndGoalInput').value);
+      if (!val || val <= 0) { if (typeof showToast === 'function') showToast('Enter a valid goal amount'); return; }
+      var key = _ndGoalType === 'annual' ? 'nutritionistSalesGoalAnnual' : 'nutritionistSalesGoalMonthly';
+      localStorage.setItem(key, val.toString());
+      if (typeof showToast === 'function') showToast('Goal saved!');
+      ndRenderGoalProgress(_ndSalesPeriod);
+    };
+
+    function ndRenderGoalProgress(period) {
+      var progressEl = document.getElementById('ndGoalProgress');
+      if (!progressEl) return;
+      var monthlyGoal = parseFloat(localStorage.getItem('nutritionistSalesGoalMonthly') || '0');
+      var annualGoal = parseFloat(localStorage.getItem('nutritionistSalesGoalAnnual') || '0');
+      var html = '';
+      if (monthlyGoal > 0) {
+        var current = _ndSalesData.monthly.slice(-1)[0].value;
+        var pct = Math.min(Math.round((current / monthlyGoal) * 100), 100);
+        html += '<div style="margin-bottom:12px;">'
+          + '<div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:4px;">Monthly Goal: <strong style="color:var(--text);">$' + current.toLocaleString() + ' / $' + monthlyGoal.toLocaleString() + '</strong> (' + pct + '%)</div>'
+          + '<div class="nd-sales-goal-progress-bar"><div class="nd-sales-goal-progress-fill" style="width:' + pct + '%;background:' + (pct >= 100 ? '#10B981' : 'var(--accent)') + ';"></div></div>'
+          + '</div>';
+      }
+      if (annualGoal > 0) {
+        var ytdTotal = _ndSalesData.annual.slice(-1)[0].value;
+        var pct2 = Math.min(Math.round((ytdTotal / annualGoal) * 100), 100);
+        html += '<div>'
+          + '<div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:4px;">Annual Goal: <strong style="color:var(--text);">$' + ytdTotal.toLocaleString() + ' / $' + annualGoal.toLocaleString() + '</strong> (' + pct2 + '%)</div>'
+          + '<div class="nd-sales-goal-progress-bar"><div class="nd-sales-goal-progress-fill" style="width:' + pct2 + '%;background:' + (pct2 >= 100 ? '#10B981' : 'var(--accent)') + ';"></div></div>'
+          + '</div>';
+      }
+      progressEl.innerHTML = html;
+      progressEl.style.display = (monthlyGoal > 0 || annualGoal > 0) ? '' : 'none';
+    }
+
+    // Init
+    ndRenderSalesChart('daily');
+    ndRenderGoalProgress('daily');
+  })();
+  </script>
+
+  <script>
+  // ===== GOAL CALCULATOR (Nutritionist) =====
+  var _ndGcType = 'monthly';
+
+  function ndGcSetType(type, btn) {
+    _ndGcType = type;
+    document.querySelectorAll('.nd-gc-type-btn').forEach(function(b) {
+      b.style.background = 'none';
+      b.style.color = 'var(--text-muted)';
+      b.style.border = '1px solid var(--border)';
+    });
+    btn.style.background = 'var(--accent)';
+    btn.style.color = '#fff';
+    btn.style.border = 'none';
+    document.getElementById('ndGcPeriodLabel').textContent = type === 'weekly' ? '/ week' : (type === 'monthly' ? '/ month' : '/ year');
+    ndGcCalculate();
+  }
+
+  function ndGcCalculate() {
+    var goal = parseFloat(document.getElementById('ndGcGoalInput').value) || 0;
+    var planPrice = parseFloat(document.getElementById('ndGcPlanPrice').value) || 0;
+    var currentClients = parseInt(document.getElementById('ndGcCurrentClients').value) || 0;
+    if (goal <= 0 || planPrice <= 0) {
+      document.getElementById('ndGcResults').style.display = 'none';
+      return;
+    }
+    var monthlyGoal = _ndGcType === 'monthly' ? goal : (_ndGcType === 'weekly' ? goal * 4.345 : goal / 12);
+    var monthlyRevenue = currentClients * planPrice;
+    var currentMonthly = monthlyRevenue * 0.85;
+    var needed = Math.ceil(monthlyGoal / (planPrice * 0.85));
+    var newClientsNeeded = Math.max(0, needed - currentClients);
+    var pct = Math.min(100, Math.round((currentMonthly / monthlyGoal) * 100));
+
+    var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-bottom:24px;">'
+      + _ndGcStat('Clients Needed', needed, 'total')
+      + _ndGcStat('New Clients to Add', newClientsNeeded, '')
+      + _ndGcStat('Weekly at Goal', '$' + Math.round(monthlyGoal / 4.345).toLocaleString(), '')
+      + _ndGcStat('Monthly at Goal', '$' + Math.round(monthlyGoal).toLocaleString(), '')
+      + _ndGcStat('Annual at Goal', '$' + Math.round(monthlyGoal * 12).toLocaleString(), '')
+      + '</div>'
+      + '<div style="margin-bottom:8px;font-size:0.78rem;color:var(--text-muted);">Current progress toward ' + _ndGcType + ' goal</div>'
+      + '<div style="height:8px;background:var(--bg-alt);border-radius:4px;overflow:hidden;margin-bottom:6px;">'
+      + '<div style="height:100%;width:' + pct + '%;background:' + (pct >= 100 ? '#10B981' : 'var(--accent)') + ';border-radius:4px;transition:width 0.6s;"></div>'
+      + '</div>'
+      + '<div style="font-size:0.78rem;color:var(--text-muted);">'
+      + '$' + Math.round(currentMonthly).toLocaleString() + ' / $' + Math.round(monthlyGoal).toLocaleString() + ' per month (' + pct + '%)'
+      + '</div>';
+    document.getElementById('ndGcResultsBody').innerHTML = html;
+    document.getElementById('ndGcResults').style.display = '';
+  }
+
+  function _ndGcStat(label, value, sub) {
+    return '<div style="background:var(--bg-alt);padding:20px;text-align:center;">'
+      + '<div style="font-size:1.6rem;font-weight:300;letter-spacing:-0.03em;color:var(--accent);">' + value + '</div>'
+      + '<div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-top:6px;">' + label + '</div>'
+      + (sub ? '<div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">' + sub + '</div>' : '')
+      + '</div>';
+  }
+
+  function ndGcSaveGoal() {
+    var goal = parseFloat(document.getElementById('ndGcGoalInput').value) || 0;
+    if (!goal) return;
+    if (_ndGcType === 'weekly') {
+      localStorage.setItem('nutritionistSalesGoalWeekly', goal);
+    } else if (_ndGcType === 'monthly') {
+      localStorage.setItem('nutritionistSalesGoalMonthly', goal);
+    } else {
+      localStorage.setItem('nutritionistSalesGoalAnnual', goal);
+    }
+    var confirm = document.getElementById('ndGcSaveConfirm');
+    confirm.style.display = '';
+    setTimeout(function() { confirm.style.display = 'none'; }, 3000);
+    if (typeof ndRenderGoalProgress === 'function') ndRenderGoalProgress('monthly');
+  }
+  </script>
+
+  <script>
+  // ===== Nutritionist Home Calendar =====
+  (function() {
+    var today = new Date();
+    var _ndHCalMonth = today.getMonth();
+    var _ndHCalYear = today.getFullYear();
+    var monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+    function _ndGetClientRoster() {
+      try {
+        if (typeof ndClients !== 'undefined' && Array.isArray(ndClients) && ndClients.length) {
+          return ndClients.map(function(c) { return c.name; }).filter(Boolean);
+        }
+      } catch(e) {}
+      return ['Sarah Kim','Marcus Lee','Priya Patel','Jake Roberts','Lisa Johnson','Tom Evans','Mia Chen','David Park','Rachel Green','Nina Alvarez','Ben Cooper','Ava Thompson','Noah Bennett','Zoe Walker','Ethan Hayes','Maya Singh','Leo Martinez','Olivia Brooks'];
+    }
+    function _ndTimeForIndex(i) {
+      var hours = [8, 9, 10, 11, 13, 14, 15, 16, 17];
+      var h = hours[i % hours.length];
+      var m = (i * 17) % 2 === 0 ? '00' : '30';
+      var suffix = h >= 12 ? 'PM' : 'AM';
+      var hh = h > 12 ? h - 12 : h;
+      return hh + ':' + m + ' ' + suffix;
+    }
+
+    function _ndGetMealData(month, year) {
+      var data = {};
+      var t = new Date();
+      var roster = _ndGetClientRoster();
+      // Sample client check-in / meal adherence data
+      var sampleDays = [1,2,3,5,6,7,8,10,11,12,14,15,16,17,19,20,21,22,24,25,26,28,29,30];
+      sampleDays.forEach(function(d) {
+        var date = new Date(year, month, d);
+        if (date.getMonth() !== month) return;
+        var isPast = date <= t;
+        var count = isPast ? Math.floor(Math.random() * 8) + 10 : Math.floor(Math.random() * 6) + 12;
+        // Deterministically pick clients from the roster so re-renders are stable
+        var seed = (year * 100 + month * 10 + d) % roster.length;
+        var picks = [];
+        for (var i = 0; i < Math.min(count, roster.length); i++) {
+          picks.push({
+            name: roster[(seed + i * 3) % roster.length],
+            time: _ndTimeForIndex(d + i),
+            status: isPast ? (Math.random() > 0.2 ? 'Logged' : 'Missed') : 'Planned'
+          });
+        }
+        data[d] = {
+          type: isPast ? 'checkin' : 'planned',
+          count: picks.length,
+          label: isPast ? 'clients logged' : 'clients planned',
+          clients: picks
+        };
+      });
+      return data;
+    }
+
+    window._ndHCalData = {};
+
+    function ndHomeBuildCal(month, year) {
+      var firstDay = new Date(year, month, 1).getDay();
+      var daysInMonth = new Date(year, month + 1, 0).getDate();
+      var mealData = _ndGetMealData(month, year);
+      window._ndHCalData[year + '_' + month] = mealData;
+
+      var cells = '';
+      ['S','M','T','W','T','F','S'].forEach(function(d) { cells += '<div class="nd-home-cal-head">' + d + '</div>'; });
+      for (var i = 0; i < firstDay; i++) cells += '<div class="nd-home-cal-day empty"></div>';
+
+      for (var d = 1; d <= daysInMonth; d++) {
+        var isToday = d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+        var entry = mealData[d];
+        var dot = '', count = '';
+        if (entry) {
+          dot = '<div class="nd-home-cal-dot ' + entry.type + '"></div>';
+          var firstName = (entry.clients && entry.clients[0]) ? entry.clients[0].name.split(' ')[0] : '';
+          var extra = entry.count > 1 ? ' +' + (entry.count - 1) : '';
+          count = '<div class="nd-home-cal-count">' + entry.count + ' clients</div>'
+            + (firstName ? '<div style="font-size:0.56rem;color:var(--text-muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;">' + firstName + extra + '</div>' : '');
+        }
+        var clickAttr = entry ? ' onclick="ndHomCalDayClick(' + year + ',' + month + ',' + d + ')"' : '';
+        cells += '<div class="nd-home-cal-day' + (isToday ? ' is-today' : '') + (entry ? ' has-meal' : '') + '"' + clickAttr + '>'
+          + '<div class="nd-home-cal-day-num">' + d + '</div>'
+          + dot + count + '</div>';
+      }
+
+      return '<div class="nd-home-cal-header">'
+        + '<h2>Client Check-ins — ' + monthNames[month] + ' ' + year + '</h2>'
+        + '<div class="nd-home-cal-nav">'
+        + '<button onclick="ndHomCalNav(-1)">&#8249;</button>'
+        + '<button onclick="ndHomCalNav(1)">&#8250;</button>'
+        + '</div></div>'
+        + '<div class="nd-home-cal-legend">'
+        + '<span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);margin-right:2px;"></span>Logged</span>'
+        + '<span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#F59E0B;margin-right:2px;"></span>Planned</span>'
+        + '</div>'
+        + '<div class="nd-home-cal-grid">' + cells + '</div>';
+    }
+
+    window.ndHomCalNav = function(dir) {
+      _ndHCalMonth += dir;
+      if (_ndHCalMonth > 11) { _ndHCalMonth = 0; _ndHCalYear++; }
+      if (_ndHCalMonth < 0) { _ndHCalMonth = 11; _ndHCalYear--; }
+      var c = document.getElementById('ndHomeCalContainer');
+      if (c) c.innerHTML = ndHomeBuildCal(_ndHCalMonth, _ndHCalYear);
+    };
+
+    window.ndHomCalDayClick = function(year, month, day) {
+      var entry = (window._ndHCalData[year + '_' + month] || {})[day];
+      if (!entry) return;
+      var overlay = document.getElementById('ndCalPopupOverlay');
+      var body = document.getElementById('ndCalPopupBody');
+      if (!overlay || !body) return;
+      var mNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      var dowNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+      var dateObj = new Date(year, month, day);
+      var statusLabel = entry.type === 'checkin' ? 'Logged' : 'Planned';
+      var statusColor = entry.type === 'checkin' ? 'var(--accent, #2DD4BF)' : '#F59E0B';
+
+      var rowsHtml = '';
+      (entry.clients || []).forEach(function(ci) {
+        var initials = ci.name.split(' ').map(function(p){ return p[0]; }).slice(0,2).join('').toUpperCase();
+        var dotColor = ci.status === 'Logged' ? 'var(--accent, #2DD4BF)' : (ci.status === 'Missed' ? '#EF4444' : '#F59E0B');
+        rowsHtml += '<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:rgba(255,255,255,0.015);margin-bottom:6px;">'
+          + '<div style="width:32px;height:32px;border-radius:50%;background:rgba(45,212,191,0.15);color:var(--accent,#2DD4BF);display:flex;align-items:center;justify-content:center;font-size:0.72rem;font-weight:600;flex-shrink:0;">' + initials + '</div>'
+          + '<div style="flex:1;min-width:0;">'
+          +   '<div style="font-size:0.85rem;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + ci.name + '</div>'
+          +   '<div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">' + ci.time + '</div>'
+          + '</div>'
+          + '<div style="display:flex;align-items:center;gap:6px;font-size:0.68rem;color:' + dotColor + ';font-weight:600;text-transform:uppercase;letter-spacing:0.04em;flex-shrink:0;">'
+          +   '<span style="width:6px;height:6px;border-radius:50%;background:' + dotColor + ';"></span>' + ci.status
+          + '</div>'
+          + '</div>';
+      });
+      if (!rowsHtml) rowsHtml = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:0.82rem;">No check-ins scheduled.</div>';
+
+      body.innerHTML = ''
+        + '<div class="nd-cal-detail-title" style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;">'
+        +   '<span>' + dowNames[dateObj.getDay()] + ', ' + mNames[month] + ' ' + day + '</span>'
+        +   '<span style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.06em;color:' + statusColor + ';font-weight:600;">' + statusLabel + ' · ' + entry.count + ' clients</span>'
+        + '</div>'
+        + '<div style="max-height:360px;overflow-y:auto;padding-right:4px;margin-top:12px;">' + rowsHtml + '</div>';
+      overlay.classList.add('active');
+    };
+
+    // Init on load
+    var container = document.getElementById('ndHomeCalContainer');
+    if (container) container.innerHTML = ndHomeBuildCal(_ndHCalMonth, _ndHCalYear);
+  })();
+  </script>
+
+  <script>
+  // Widget system — nutritionist dashboard
+  (function() {
+    var STORAGE_KEY = 'shapeWidgetOrder_nutritionist';
+    var SIZE_KEY = 'shapeWidgetSize_nutritionist';
+    var gridId = 'ndWidgetGrid';
+
+    function saveSizes() {
+      var grid = document.getElementById(gridId);
+      if (!grid) return;
+      var sizes = {};
+      grid.querySelectorAll('.widget').forEach(function(w) {
+        sizes[w.dataset.widgetId] = w.classList.contains('widget-full') ? 'full' : 'square';
+      });
+      localStorage.setItem(SIZE_KEY, JSON.stringify(sizes));
+    }
+
+    function restoreSizes() {
+      var saved = localStorage.getItem(SIZE_KEY);
+      if (!saved) return;
+      var sizes;
+      try { sizes = JSON.parse(saved); } catch(e) { return; }
+      var grid = document.getElementById(gridId);
+      if (!grid) return;
+      Object.keys(sizes).forEach(function(id) {
+        var w = grid.querySelector('[data-widget-id="' + id + '"]');
+        if (!w) return;
+        if (sizes[id] === 'full') {
+          w.classList.add('widget-full');
+          var btn = w.querySelector('.widget-expand-btn');
+          if (btn) btn.textContent = '⊟ Collapse';
+        }
+      });
+    }
+
+    function injectExpandButtons() {
+      var grid = document.getElementById(gridId);
+      if (!grid) return;
+      grid.querySelectorAll('.widget').forEach(function(w) {
+        var header = w.querySelector('.widget-header');
+        if (!header || header.querySelector('.widget-controls')) return;
+        var handle = header.querySelector('.widget-drag-handle');
+        var controls = document.createElement('div');
+        controls.className = 'widget-controls';
+        var btn = document.createElement('button');
+        btn.className = 'widget-expand-btn';
+        btn.textContent = '⊞ Expand';
+        btn.title = 'Toggle full width';
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          w.classList.toggle('widget-full');
+          btn.textContent = w.classList.contains('widget-full') ? '⊟ Collapse' : '⊞ Expand';
+          saveSizes();
+        });
+        controls.appendChild(btn);
+        if (handle) controls.appendChild(handle);
+        header.appendChild(controls);
+      });
+    }
+
+    function saveOrder() {
+      var grid = document.getElementById(gridId);
+      if (!grid) return;
+      var order = Array.from(grid.children)
+        .filter(function(w) { return w.dataset.widgetId; })
+        .map(function(w) { return w.dataset.widgetId; });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(order));
+    }
+
+    function restoreOrder() {
+      var saved = localStorage.getItem(STORAGE_KEY);
+      if (!saved) return;
+      var order;
+      try { order = JSON.parse(saved); } catch(e) { return; }
+      var grid = document.getElementById(gridId);
+      if (!grid) return;
+      order.forEach(function(id) {
+        var el = grid.querySelector('[data-widget-id="' + id + '"]');
+        if (el) grid.appendChild(el);
+      });
+    }
+
+    var _dragSrc = null;
+    var _dragFromHandle = false;
+    var _ghost = null;
+
+    function _createGhost(src) {
+      var g = document.createElement('div');
+      g.className = 'widget-drop-ghost';
+      if (src.classList.contains('widget-full')) g.classList.add('widget-full');
+      return g;
+    }
+    function _removeGhost() {
+      if (_ghost && _ghost.parentNode) _ghost.parentNode.removeChild(_ghost);
+      _ghost = null;
+    }
+
+    function initDrag() {
+      var grid = document.getElementById(gridId);
+      if (!grid) return;
+      if (window.shapeWidgetDrag) {
+        injectExpandButtons();
+        restoreSizes();
+        return;
+      }
+      if ('ontouchstart' in window) return;
+
+      grid.addEventListener('mousedown', function(e) {
+        _dragFromHandle = !!e.target.closest('.widget-drag-handle');
+      });
+
+      grid.addEventListener('dragstart', function(e) {
+        if (!_dragFromHandle) { e.preventDefault(); return; }
+        var widget = e.target.closest('.widget');
+        if (!widget) { e.preventDefault(); return; }
+        _dragSrc = widget;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', widget.dataset.widgetId);
+        _ghost = _createGhost(widget);
+        setTimeout(function() { widget.classList.add('dragging'); }, 0);
+      });
+
+      grid.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (!_dragSrc || !_ghost) return;
+        var el = document.elementFromPoint(e.clientX, e.clientY);
+        var target = el && el.closest('.widget:not(.dragging):not(.widget-drop-ghost)');
+        if (target && target.parentNode === grid) {
+          var gridRect = grid.getBoundingClientRect();
+          var rect = target.getBoundingClientRect();
+          var gridMidX = gridRect.left + gridRect.width / 2;
+          var insertBefore;
+          if (target.classList.contains('widget-full') || _ghost.classList.contains('widget-full')) {
+            insertBefore = e.clientY < rect.top + rect.height / 2;
+          } else {
+            var cursorLeft = e.clientX < gridMidX;
+            var targetLeft = rect.left < gridMidX;
+            if (cursorLeft && !targetLeft) {
+              insertBefore = true;
+            } else if (!cursorLeft && targetLeft) {
+              insertBefore = false;
+            } else {
+              insertBefore = e.clientY < rect.top + rect.height / 2;
+            }
+          }
+          if (insertBefore) {
+            if (_ghost.nextSibling !== target) grid.insertBefore(_ghost, target);
+          } else {
+            var after = target.nextSibling;
+            if (after !== _ghost) grid.insertBefore(_ghost, after);
+          }
+        } else if (!_ghost.parentNode || _ghost.parentNode !== grid) {
+          grid.appendChild(_ghost);
+        }
+      });
+
+      grid.addEventListener('drop', function(e) {
+        e.preventDefault();
+        if (!_dragSrc || !_ghost) return;
+        grid.insertBefore(_dragSrc, _ghost);
+        _removeGhost();
+        _dragSrc.classList.remove('dragging');
+        _dragSrc = null;
+        saveOrder();
+      });
+
+      grid.addEventListener('dragleave', function(e) {
+        if (_ghost && !grid.contains(e.relatedTarget)) _removeGhost();
+      });
+
+      grid.addEventListener('dragend', function() {
+        _removeGhost();
+        if (_dragSrc) { _dragSrc.classList.remove('dragging'); _dragSrc = null; }
+        saveOrder();
+      });
+
+      injectExpandButtons();
+      restoreOrder();
+      restoreSizes();
+    }
+
+    document.addEventListener('DOMContentLoaded', initDrag);
+    setTimeout(initDrag, 300);
+  })();
+  </script>
+
+  <!-- ===== Widget Library Modal ===== -->
+  <div class="widget-lib-overlay" id="widgetLibOverlay" onclick="if(event.target===this)wlibClose()">
+    <div class="widget-lib-modal">
+      <div class="widget-lib-head">
+        <div>
+          <h2>Widget Library</h2>
+          <p>Add or remove widgets from your nutritionist dashboard.</p>
+        </div>
+        <button class="widget-lib-close" onclick="wlibClose()">&times;</button>
+      </div>
+      <div class="widget-lib-grid" id="widgetLibGrid"></div>
+    </div>
+  </div>
+
+  <script>
+    var WLIB_KEY = 'shapeNutritionistWidgetLib';
+    var WLIB_GRID_ID = 'ndWidgetGrid';
+    function wlibGetVisible() { try { return JSON.parse(localStorage.getItem(WLIB_KEY) || '[]'); } catch(e) { return []; } }
+    function wlibSetVisible(arr) { localStorage.setItem(WLIB_KEY, JSON.stringify(arr)); }
+    function wlibApply() {
+      var grid = document.getElementById(WLIB_GRID_ID);
+      if (!grid) return;
+      var visible = wlibGetVisible();
+      grid.querySelectorAll('[data-lib="1"]').forEach(function(w) {
+        w.style.display = visible.indexOf(w.dataset.widgetId) >= 0 ? '' : 'none';
+      });
+    }
+    function wlibOpen() {
+      var grid = document.getElementById(WLIB_GRID_ID);
+      if (!grid) return;
+      var visible = wlibGetVisible();
+      var lib = document.getElementById('widgetLibGrid');
+      lib.innerHTML = '';
+      grid.querySelectorAll('[data-lib="1"]').forEach(function(w) {
+        var id = w.dataset.widgetId;
+        var title = w.dataset.libTitle || 'Widget';
+        var desc = w.dataset.libDesc || '';
+        var added = visible.indexOf(id) >= 0;
+        var card = document.createElement('div');
+        card.className = 'widget-lib-card';
+        card.innerHTML = '<h3>' + title + '</h3><p>' + desc + '</p>'
+          + '<button class="widget-lib-toggle' + (added ? ' added' : '') + '">'
+          + (added ? 'Remove' : 'Add to Dashboard') + '</button>';
+        card.querySelector('button').onclick = function() { wlibToggle(id, this); };
+        lib.appendChild(card);
+      });
+      document.getElementById('widgetLibOverlay').classList.add('open');
+    }
+    function wlibClose() { document.getElementById('widgetLibOverlay').classList.remove('open'); }
+    function wlibToggle(id, btn) {
+      var visible = wlibGetVisible();
+      var idx = visible.indexOf(id);
+      if (idx >= 0) { visible.splice(idx, 1); btn.textContent = 'Add to Dashboard'; btn.classList.remove('added'); }
+      else { visible.push(id); btn.textContent = 'Remove'; btn.classList.add('added'); }
+      wlibSetVisible(visible);
+      wlibApply();
+    }
+    wlibApply();
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script src="add-role-widget.js"></script>
+  <script src="sessions-widget.js"></script>
+  <script src="empty-state.js"></script>
+  <script src="chat-mobile.js"></script>
+  <script>
+    (async function () {
+      if (!window.shapeDb) return;
+      var ctx = await window.shapeDb.requireRole('nutritionist');
+      if (!ctx) return;
+      if (ctx.demo) { window.shapeDb.showDemoBanner('nutritionist'); return; }
+      window.shapeCurrentUser = ctx;
+      try {
+        document.querySelectorAll('.shape-auth-logged-out').forEach(function (el) { el.style.display = 'none'; });
+        document.querySelectorAll('.shape-auth-logged-in').forEach(function (el) { el.style.display = ''; });
+        var nameSlot = document.getElementById('shapeNavUserName');
+        if (nameSlot && ctx.profile && ctx.profile.full_name) {
+          nameSlot.textContent = ctx.profile.full_name;
+        }
+      } catch (e) {}
+    })();
+    async function shapeSignOut() {
+      if (window.shapeDb) await window.shapeDb.signOut();
+      window.location.href = 'home.html';
+    }
+  </script>
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>

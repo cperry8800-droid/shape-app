@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8B5CF6"/>
+      <stop offset="100%" stop-color="#6D28D9"/>
+    </linearGradient>
+    <linearGradient id="skin" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F1C27D"/>
+      <stop offset="100%" stop-color="#D4A55A"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="400" fill="url(#bg)"/>
+  <!-- Body/shoulders -->
+  <ellipse cx="200" cy="420" rx="130" ry="95" fill="#1a1a1a"/>
+  <!-- Neck -->
+  <rect x="180" y="280" width="40" height="35" rx="4" fill="url(#skin)"/>
+  <!-- Head -->
+  <ellipse cx="200" cy="215" rx="64" ry="78" fill="url(#skin)"/>
+  <!-- Hair - styled -->
+  <ellipse cx="200" cy="165" rx="66" ry="42" fill="#1a1a1a"/>
+  <rect x="138" y="155" width="124" height="28" rx="4" fill="#1a1a1a"/>
+  <!-- Side fade -->
+  <rect x="136" y="175" width="12" height="40" rx="4" fill="#1a1a1a" opacity="0.4"/>
+  <rect x="252" y="175" width="12" height="40" rx="4" fill="#1a1a1a" opacity="0.4"/>
+  <!-- Styled top -->
+  <path d="M145 168 Q200 140 255 168" fill="#1a1a1a"/>
+  <!-- Eyes -->
+  <ellipse cx="178" cy="218" rx="6.5" ry="5" fill="#1a1a1a"/>
+  <ellipse cx="222" cy="218" rx="6.5" ry="5" fill="#1a1a1a"/>
+  <!-- Eyebrows -->
+  <path d="M166 206 Q178 201 190 207" stroke="#1a1a1a" stroke-width="2" fill="none"/>
+  <path d="M210 207 Q222 201 234 206" stroke="#1a1a1a" stroke-width="2" fill="none"/>
+  <!-- Nose -->
+  <ellipse cx="200" cy="236" rx="5" ry="3" fill="#C49545" opacity="0.4"/>
+  <!-- Calm smile -->
+  <path d="M189 250 Q200 258 211 250" stroke="#C49545" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <!-- Fitted shirt -->
+  <path d="M155 305 Q200 320 245 305" fill="#8B5CF6"/>
+  <!-- Pilates ring accent -->
+  <circle cx="355" cy="55" r="20" fill="none" stroke="white" stroke-width="4" opacity="0.12"/>
+  <circle cx="355" cy="35" r="5" fill="white" opacity="0.12"/>
+  <circle cx="355" cy="75" r="5" fill="white" opacity="0.12"/>
+</svg>

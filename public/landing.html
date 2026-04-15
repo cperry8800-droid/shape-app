@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape — Get Started</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --text: #FFFFFF;
+      --text-muted: rgba(255,255,255,0.42);
+      --bg: #0a0a0a;
+      --border: rgba(255,255,255,0.09);
+      --accent: #2DD4BF;
+      --accent-dark: #14B8A6;
+    }
+
+    html {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      overflow-x: hidden;
+      min-height: 100vh;
+    }
+
+    /* ===== Landing Layout ===== */
+    .landing {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .landing-nav {
+      padding: 32px 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .landing-nav img { height: 64px; }
+    .landing-nav a {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      letter-spacing: 0.02em;
+      transition: color 0.3s;
+    }
+    .landing-nav a:hover { color: var(--text); }
+
+    .landing-hero {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 48px 80px;
+      text-align: center;
+    }
+
+    .landing-tag {
+      font-size: 0.68rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+    }
+
+    .landing-hero h1 {
+      font-size: clamp(1.6rem, 3vw, 2.2rem);
+      font-weight: 300;
+      letter-spacing: -0.04em;
+      line-height: 1.1;
+      margin-bottom: 20px;
+      max-width: 700px;
+    }
+    .landing-hero h1 span {
+      font-weight: 400;
+    }
+
+    .landing-hero p {
+      font-size: clamp(1rem, 1.2vw, 1.15rem);
+      color: var(--text-muted);
+      max-width: 480px;
+      font-weight: 300;
+      line-height: 1.8;
+      margin-bottom: 64px;
+    }
+
+    /* ===== Profile Cards ===== */
+    .profiles {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1px;
+      background: var(--border);
+      max-width: 1100px;
+      width: 100%;
+    }
+
+    .profile-card {
+      background: #141414;
+      padding: 48px 36px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+      text-decoration: none;
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .profile-card::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--accent);
+      transform: scaleX(0);
+      transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .profile-card:hover {
+      background: #1a1a1a;
+    }
+    .profile-card:hover::after {
+      transform: scaleX(1);
+    }
+    .profile-card:hover .profile-icon {
+      border-color: var(--accent);
+      color: var(--accent-dark);
+    }
+    .profile-card:hover .profile-arrow {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .profile-icon {
+      width: 72px;
+      height: 72px;
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 28px;
+      transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+      border-radius: 50%;
+    }
+
+    .profile-card h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin-bottom: 10px;
+      letter-spacing: -0.01em;
+    }
+
+    .profile-card p {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      font-weight: 300;
+      line-height: 1.6;
+      margin-bottom: 28px;
+    }
+
+    .profile-arrow {
+      font-size: 0.78rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--accent-dark);
+      opacity: 0;
+      transform: translateX(-8px);
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      margin-top: auto;
+    }
+
+    /* ===== Bottom Bar ===== */
+    .landing-bottom {
+      padding: 32px 48px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid var(--border);
+    }
+    .landing-bottom p {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 300;
+    }
+    .landing-bottom-links {
+      display: flex;
+      gap: 32px;
+    }
+    .landing-bottom-links a {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.3s;
+    }
+    .landing-bottom-links a:hover { color: var(--text); }
+
+    /* ===== Animations ===== */
+    .fade-up {
+      opacity: 0;
+      transform: translateY(30px);
+      animation: fadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .fade-up-delay-1 { animation-delay: 0.1s; }
+    .fade-up-delay-2 { animation-delay: 0.2s; }
+    .fade-up-delay-3 { animation-delay: 0.35s; }
+    .fade-up-delay-4 { animation-delay: 0.5s; }
+    .fade-up-delay-5 { animation-delay: 0.6s; }
+    .fade-up-delay-6 { animation-delay: 0.7s; }
+    .fade-up-delay-7 { animation-delay: 0.8s; }
+
+    @keyframes fadeUp {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ===== Responsive ===== */
+    @media (max-width: 1100px) {
+      .profiles {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    @media (max-width: 900px) {
+      .profiles {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .landing-nav, .landing-hero, .landing-bottom {
+        padding-left: 24px;
+        padding-right: 24px;
+      }
+    }
+
+    @media (max-width: 600px) {
+      .profiles {
+        grid-template-columns: 1fr;
+      }
+      .profile-card {
+        padding: 36px 24px;
+      }
+      .landing-bottom {
+        flex-direction: column;
+        gap: 16px;
+        text-align: center;
+      }
+    }
+  </style>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+
+  <div class="landing">
+
+    <nav class="landing-nav fade-up">
+      <a href="home.html"><img src="logo.png" alt="Shape"></a>
+      <a href="login.html">Already have an account? Log in</a>
+    </nav>
+
+    <main class="landing-hero">
+      <div class="landing-tag fade-up fade-up-delay-1">Welcome to Shape</div>
+      <h1 class="fade-up fade-up-delay-2">How will you <span style="color:#2DD4BF">Shape</span> your next move?</h1>
+      <p class="fade-up fade-up-delay-3">Choose your profile to get started. Your experience is tailored to who you are and what you need.</p>
+
+      <div class="profiles fade-up fade-up-delay-4">
+
+        <a href="signup-client.html" class="profile-card">
+
+          <h3>Client</h3>
+          <p>Browse trainers, get workouts, and subscribe to nutrition plans tailored to your goals.</p>
+          <div class="profile-arrow">Get started &#8594;</div>
+        </a>
+
+        <a href="signup-trainer.html" class="profile-card">
+
+          <h3>Personal Trainer</h3>
+          <p>Build your brand, publish programs, manage clients, and grow your subscriber base.</p>
+          <div class="profile-arrow">Apply now &#8594;</div>
+        </a>
+
+        <a href="signup-nutritionist.html" class="profile-card">
+
+          <h3>Nutritionist</h3>
+          <p>Create meal plans, coach clients on nutrition, and earn recurring revenue on your terms.</p>
+          <div class="profile-arrow">Apply now &#8594;</div>
+        </a>
+
+        <a href="signup-radio.html" class="profile-card">
+
+          <h3>Shape Radio</h3>
+          <p>Here for the vibes. Stream curated workout music — included free with your Shape membership.</p>
+          <div class="profile-arrow">Start listening &#8594;</div>
+        </a>
+
+      </div>
+    </main>
+
+    <footer class="landing-bottom fade-up fade-up-delay-5">
+      <p>&copy; 2026 Shape. All rights reserved.</p>
+      <div class="landing-bottom-links">
+        <a href="home.html">Explore the platform</a>
+        <a href="privacy.html">Privacy Policy</a>
+        <a href="terms.html">Terms of Service</a>
+      </div>
+    </footer>
+
+  </div>
+
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>

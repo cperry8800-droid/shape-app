@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape — Shape Score — Nutritionists</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    @media (max-width: 768px) {
+      .shape-score-grid {
+        grid-template-columns: minmax(0, 1fr) !important;
+        gap: 28px !important;
+      }
+      .shape-score-grid > div { min-width: 0; }
+      .shape-score-grid .tier-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 6px !important; }
+      /* Balance card — stack */
+      .shape-score-grid > div > div[style*="justify-content:space-between"] {
+        flex-wrap: wrap; gap: 10px; padding: 20px !important;
+      }
+      /* Status banner / friends rows — allow wrapping */
+      .shape-score-grid > div > div > div[style*="justify-content:space-between"] {
+        flex-wrap: wrap; row-gap: 4px;
+      }
+      .shape-score-grid div[style*="padding:16px 20px"] { padding: 12px 14px !important; }
+      .shape-score-grid [style*="rgba(205,127,50,0.08)"],
+      .shape-score-grid [style*="rgba(45,212,191,0.08)"] {
+        padding: 10px 14px !important;
+        flex-wrap: wrap; gap: 6px;
+      }
+      .shape-score-grid h2 { font-size: 1.15rem !important; padding: 0 4px; }
+      .redeem-card { flex-direction: column !important; align-items: flex-start !important; gap: 12px; }
+      .redeem-card > div:last-child { text-align: left !important; }
+      .rewards-cat-tabs {
+        overflow-x: auto; -webkit-overflow-scrolling: touch;
+        scrollbar-width: none; flex-wrap: nowrap; padding-bottom: 4px;
+      }
+      .rewards-cat-tabs::-webkit-scrollbar { display: none; }
+      .rewards-cat-btn { flex-shrink: 0; }
+      .reward-grid { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+      .reward-grid-wrap { max-height: none !important; overflow-y: visible !important; }
+      .reward-item { padding: 14px !important; }
+      .page-hero { padding: 120px 0 20px !important; }
+      .page-hero h1 { font-size: 1.8rem !important; }
+      .page-hero-sub { font-size: 0.9rem !important; padding: 0 8px; }
+    }
+    .rewards-cat-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+    .rewards-cat-btn {
+      padding: 6px 16px; font-size: 0.72rem; font-weight: 500; border: 1px solid var(--border);
+      background: transparent; color: var(--text-muted); cursor: pointer; font-family: inherit;
+      transition: all 0.2s; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .rewards-cat-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .rewards-cat-btn:hover:not(.active) { border-color: var(--text); color: var(--text); }
+    .reward-grid-wrap { max-height: 480px; overflow-y: auto; margin-bottom: 10px; scrollbar-width: thin; scrollbar-color: var(--accent) transparent; }
+    .reward-grid-wrap::-webkit-scrollbar { width: 4px; }
+    .reward-grid-wrap::-webkit-scrollbar-track { background: transparent; }
+    .reward-grid-wrap::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 2px; }
+    .reward-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .reward-item {
+      background: var(--bg-card); border: 1px solid var(--border); padding: 14px;
+      display: flex; flex-direction: column; transition: border-color 0.2s; position: relative;
+    }
+    .reward-item:hover { border-color: var(--accent); }
+    .reward-item.locked { opacity: 0.5; }
+    .reward-brand { font-size: 0.54rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 2px; }
+    .reward-name { font-size: 0.76rem; font-weight: 500; margin-bottom: 1px; }
+    .reward-desc { font-size: 0.64rem; color: var(--text-muted); font-weight: 300; margin-bottom: 5px; line-height: 1.25; }
+    .reward-val { font-size: 0.85rem; font-weight: 600; color: var(--accent-dark); margin-bottom: 0; }
+    .reward-cost { font-size: 0.6rem; color: var(--text-muted); margin-bottom: 5px; }
+    .reward-btn {
+      padding: 5px 0; width: 100%; border: 1px solid var(--accent); background: transparent;
+      color: var(--accent-dark); font-size: 0.62rem; font-weight: 500; cursor: pointer;
+      font-family: inherit; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .reward-btn:hover { background: var(--accent); color: #fff; }
+    .reward-btn:disabled { opacity: 0.4; cursor: not-allowed; border-color: var(--border); color: var(--text-muted); }
+    .reward-btn:disabled:hover { background: transparent; color: var(--text-muted); }
+    .reward-badge {
+      position: absolute; top: 12px; right: 12px; font-size: 0.58rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.08em; padding: 3px 8px;
+    }
+    .reward-badge.popular { background: rgba(16,185,129,0.1); color: #10B981; }
+    .reward-badge.new { background: rgba(108,58,237,0.1); color: #6C3AED; }
+    .reward-badge.premium { background: rgba(245,158,11,0.1); color: #F59E0B; }
+    .redeemed-list { margin-top: 16px; }
+    .redeemed-item {
+      background: var(--bg-card); border: 1px solid var(--border); padding: 14px 18px;
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
+    }
+    .redeemed-code {
+      font-family: 'Courier New', monospace; font-size: 0.82rem; font-weight: 600;
+      letter-spacing: 0.08em; color: var(--accent-dark); background: rgba(45,212,191,0.08);
+      padding: 4px 10px; border: 1px solid rgba(45,212,191,0.2);
+    }
+    /* ===== Dashboard back-nav tab bar (mirrors nutritionist dashboard) ===== */
+    .nd-tab-bar {
+      display: flex; gap: 0; justify-content: center; border-bottom: 1px solid var(--border);
+      background: var(--bg-card); position: sticky; top: 88px; z-index: 100;
+      overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none;
+    }
+    .nd-tab-bar::-webkit-scrollbar { display: none; }
+    .nd-tab-btn {
+      padding: 10px 16px; font-size: 0.72rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--text-muted); background: none; border: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer; font-family: inherit; white-space: nowrap;
+      text-decoration: none;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .nd-tab-btn:hover { color: var(--text); }
+    .nd-tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    @media (max-width: 768px) {
+      body { padding-bottom: 72px; }
+      .nd-tab-bar {
+        position: fixed; bottom: 0; top: auto; left: 0; right: 0;
+        z-index: 900;
+        background: var(--bg-alt);
+        border-top: 1px solid var(--border); border-bottom: none;
+        padding: 0; gap: 0; justify-content: flex-start;
+        overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+        padding-bottom: env(safe-area-inset-bottom, 0);
+      }
+      .nd-tab-bar::-webkit-scrollbar { display: none; }
+      .nd-tab-btn {
+        flex: 0 0 auto; min-width: 0;
+        padding: 10px 13px; font-size: 0.62rem; font-weight: 600;
+        letter-spacing: 0.06em; opacity: 0.5;
+        white-space: nowrap; border-bottom: 2px solid transparent; position: relative;
+      }
+      .nd-tab-btn::before { display: none; }
+      .nd-tab-btn.active { opacity: 1; color: var(--accent); border-bottom-color: var(--accent); }
+      .nd-tab-btn.active::after { display: none; }
+    }
+  </style>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar" id="navbar">
+    <div class="container nav-container">
+      <a href="home.html" class="logo">
+        <img src="logo.png" alt="Shape" class="logo-img">
+      </a>
+      <div class="nav-links" id="navLinks">
+        <div class="nav-dropdown">
+          <a href="for-clients.html">Clients</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-clients.html">Overview</a>
+            <a href="clients.html">Dashboard</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-trainers.html">Trainers</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-trainers.html">Overview</a>
+            <a href="trainer-dashboard.html">Trainer Dashboard</a>
+            <a href="trainers.html">Trainer Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-nutritionists.html">Nutritionists</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-nutritionists.html">Overview</a>
+            <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+            <a href="nutritionists.html">Nutritionist Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="shape-score.html">Rewards</a>
+          <div class="nav-dropdown-menu">
+            <a href="shape-score.html">Shape Score (Clients)</a>
+            <a href="shape-score-trainer.html">Shape Score (Trainers)</a>
+            <a href="shape-score-nutritionist.html">Shape Score (Nutritionists)</a>
+            <a href="shape-store.html">Shape Store</a>
+          </div>
+        </div>
+        <a href="community.html">Community</a>
+        <a href="pricing.html">Pricing</a>
+      </div>
+      <div class="nav-actions">
+        <a href="login.html" class="btn btn-sm btn-outline shape-auth-logged-out">Log In</a>
+        <span class="shape-auth-logged-in shape-nav-user-name" style="display:none;font-size:0.82rem;color:var(--text-muted);margin-right:4px;"></span>
+        <a href="nutrition-schedule.html" class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" data-shape-dashboard-link>Dashboard</a>
+        <button class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" onclick="shapeSignOut()">Sign Out</button>
+        <a href="landing.html" class="btn btn-sm btn-primary shape-auth-logged-out">Get Started</a>
+        <a href="radio.html" class="btn btn-sm btn-radio"><span class="btn-shape-text"><img src="logo.png" alt="Shape"></span> Radio</a>
+      </div>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Page Hero -->
+  <section class="page-hero">
+    <div class="container">
+      <span class="tag">Nutritionist Shape Score</span>
+      <h1>Earn points for every <span class="gradient-text">client you nourish</span></h1>
+      <p class="page-hero-sub">Every meal plan, recipe pack, and client win earns Shape Score. Climb the nutritionist leaderboard and spend what you earn in the Shape Store.</p>
+    </div>
+  </section>
+
+  <!-- Nutritionist dashboard back-nav tab bar -->
+  <div class="nd-tab-bar" id="ndTabBar">
+    <a class="nd-tab-btn" data-icon="☉" href="nutrition-schedule.html#home">Home</a>
+    <a class="nd-tab-btn" data-icon="◉" href="nutrition-schedule.html#clients">Clients</a>
+    <a class="nd-tab-btn" data-icon="▤" href="nutrition-schedule.html#mealplans">Meals</a>
+    <a class="nd-tab-btn" data-icon="✉" href="nutrition-schedule.html#messages">Messages</a>
+    <a class="nd-tab-btn" data-icon="◈" href="nutrition-schedule.html#community">Community</a>
+    <a class="nd-tab-btn" data-icon="◐" href="nutrition-schedule.html#profile">Profile</a>
+    <a class="nd-tab-btn" data-icon="∑" href="nutrition-schedule.html#goalcalc">Calc</a>
+    <a class="nd-tab-btn active" data-icon="♚" href="shape-score-nutritionist.html">Score</a>
+    <a class="nd-tab-btn" data-icon="⚐" href="shape-store.html" onclick="sessionStorage.setItem('shapeStoreContext','nutritionist')">Store</a>
+  </div>
+
+  <!-- Shape Score -->
+  <section class="section" style="padding-top:20px;">
+    <div class="container">
+      <div class="shape-score-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:start;">
+
+        <!-- Left: Points Overview -->
+        <div>
+          <div style="text-align:center;"><span class="tag">Your Score</span>
+          <h2 style="font-size:clamp(1.2rem,2vw,1.5rem);font-weight:300;letter-spacing:-0.03em;margin-top:8px;margin-bottom:24px;">Grow your practice and climb the nutritionist ranks.</h2></div>
+
+          <!-- Points Balance -->
+          <div style="background:var(--bg-card);border:1px solid var(--border);padding:14px 24px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:6px;">Your Balance</div>
+              <div style="font-size:1.3rem;font-weight:400;letter-spacing:-0.02em;">5,940</div>
+            </div>
+            <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--accent-dark);font-weight:500;">Shape Score</div>
+          </div>
+
+          <!-- Status Tiers -->
+          <div class="tier-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:20px;">
+            <div style="background:var(--bg-card);border:1px solid var(--border);padding:14px 12px;text-align:center;">
+              <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:#CD7F32;font-weight:500;margin-bottom:4px;">Bronze</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);font-weight:300;">0 pts</div>
+            </div>
+            <div style="background:var(--bg-card);border:1px solid var(--border);padding:14px 12px;text-align:center;">
+              <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:#C0C0C0;font-weight:500;margin-bottom:4px;">Silver</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);font-weight:300;">2,500 pts</div>
+            </div>
+            <div style="background:var(--bg-card);border:1px solid var(--border);padding:14px 12px;text-align:center;">
+              <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:#FFD700;font-weight:500;margin-bottom:4px;">Gold</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);font-weight:300;">5,000 pts</div>
+            </div>
+            <div style="background:var(--bg-card);border:1px solid var(--border);padding:14px 12px;text-align:center;">
+              <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:#E5E4E2;font-weight:500;margin-bottom:4px;">Platinum</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);font-weight:300;">10,000 pts</div>
+            </div>
+          </div>
+          <div style="background:rgba(205,127,50,0.08);border:1px solid rgba(205,127,50,0.2);padding:12px 16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:0.82rem;font-weight:400;">Your status</span>
+            <span style="font-size:0.82rem;font-weight:500;color:#CD7F32;text-transform:uppercase;letter-spacing:0.06em;">Gold — 4,060 pts to Platinum</span>
+          </div>
+          <div style="background:rgba(45,212,191,0.08);border:1px solid rgba(45,212,191,0.2);padding:12px 16px;margin-bottom:20px;display:flex;align-items:center;gap:10px;">
+            <span style="font-size:0.82rem;font-weight:500;color:var(--accent-dark);">You're in the top 15% this week</span>
+          </div>
+
+          <!-- How You Earn -->
+          <div style="text-align:center;margin-bottom:8px;">
+            <span class="tag">Earn</span>
+            <h2 style="font-size:clamp(1.2rem,2vw,1.5rem);font-weight:300;letter-spacing:-0.03em;margin-top:8px;margin-bottom:16px;">How you earn points</h2>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div style="background:var(--bg-card);border:1px solid var(--border);padding:16px 20px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:0.88rem;font-weight:400;">Publish a meal plan</span>
+              <span style="font-size:0.88rem;font-weight:500;color:var(--accent-dark);">+150 pts</span>
+            </div>
+            <div style="background:var(--bg-card);border:1px solid var(--border);padding:16px 20px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:0.88rem;font-weight:400;">Onboard a new client</span>
+              <span style="font-size:0.88rem;font-weight:500;color:var(--accent-dark);">+250 pts</span>
+            </div>
+            <div style="background:var(--bg-card);border:1px solid var(--border);padding:16px 20px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:0.88rem;font-weight:400;">5-star client review</span>
+              <span style="font-size:0.88rem;font-weight:500;color:var(--accent-dark);">+150 pts</span>
+            </div>
+            <div style="background:var(--bg-card);border:1px solid var(--border);padding:16px 20px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:0.88rem;font-weight:400;">Client meal compliance ≥ 80%</span>
+              <span style="font-size:0.88rem;font-weight:500;color:var(--accent-dark);">+100 pts</span>
+            </div>
+            <div style="background:var(--bg-card);border:1px solid var(--border);padding:16px 20px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:0.88rem;font-weight:400;">Publish a recipe pack</span>
+              <span style="font-size:0.88rem;font-weight:500;color:var(--accent-dark);">+200 pts</span>
+            </div>
+            <div style="background:var(--bg-card);border:1px solid var(--border);padding:16px 20px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:0.88rem;font-weight:400;">Client subscription renewal</span>
+              <span style="font-size:0.88rem;font-weight:500;color:var(--accent-dark);">+200 pts</span>
+            </div>
+            <div style="background:var(--bg-card);border:1px solid var(--border);padding:16px 20px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:0.88rem;font-weight:400;">Host a nutrition workshop</span>
+              <span style="font-size:0.88rem;font-weight:500;color:var(--accent-dark);">+250 pts</span>
+            </div>
+            <div style="background:var(--bg-card);border:1px solid var(--border);padding:16px 20px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:0.88rem;font-weight:400;">Monthly check-in completed</span>
+              <span style="font-size:0.88rem;font-weight:500;color:var(--accent-dark);">+100 pts</span>
+            </div>
+            <div style="background:var(--bg-card);border:1px solid var(--border);padding:16px 20px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:0.88rem;font-weight:400;">Refer another nutritionist</span>
+              <span style="font-size:0.88rem;font-weight:500;color:var(--accent-dark);">+500 pts</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Leaderboard & Friends -->
+        <div>
+          <!-- Spend CTA -->
+          <div style="background:var(--bg-card);border:1px solid var(--border);padding:24px;margin-bottom:32px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+            <div>
+              <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:4px;">Ready to redeem?</div>
+              <div style="font-size:1rem;font-weight:500;">Spend your Shape Score in the Shape Store</div>
+            </div>
+            <a href="shape-store.html" class="btn btn-sm btn-primary">Shop Rewards &rarr;</a>
+          </div>
+
+          <!-- Leaderboard -->
+          <div style="text-align:center;">
+            <span class="tag">Leaderboard</span>
+            <h2 style="font-size:clamp(1.2rem,2vw,1.5rem);font-weight:300;letter-spacing:-0.03em;margin-top:8px;margin-bottom:16px;">Top earners this month</h2>
+          </div>
+          <div style="background:var(--bg-card);border:1px solid var(--border);margin-bottom:32px;">
+            <div style="padding:14px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);">
+              <div style="display:flex;align-items:center;gap:14px;">
+                <span style="font-size:0.82rem;font-weight:500;color:var(--accent-dark);width:24px;">1</span>
+                <span style="font-size:0.88rem;font-weight:500;">Dr. Sarah M.</span>
+              </div>
+              <span style="font-size:0.82rem;font-weight:500;">11,620 pts</span>
+            </div>
+            <div style="padding:14px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);">
+              <div style="display:flex;align-items:center;gap:14px;">
+                <span style="font-size:0.82rem;font-weight:500;color:var(--accent-dark);width:24px;">2</span>
+                <span style="font-size:0.88rem;font-weight:500;">Priya V.</span>
+              </div>
+              <span style="font-size:0.82rem;font-weight:500;">10,180 pts</span>
+            </div>
+            <div style="padding:14px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);">
+              <div style="display:flex;align-items:center;gap:14px;">
+                <span style="font-size:0.82rem;font-weight:500;color:var(--accent-dark);width:24px;">3</span>
+                <span style="font-size:0.88rem;font-weight:500;">Dana L.</span>
+              </div>
+              <span style="font-size:0.82rem;font-weight:500;">8,740 pts</span>
+            </div>
+            <div style="padding:14px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);">
+              <div style="display:flex;align-items:center;gap:14px;">
+                <span style="font-size:0.82rem;font-weight:500;color:var(--accent-dark);width:24px;">4</span>
+                <span style="font-size:0.88rem;font-weight:500;">Elena R.</span>
+              </div>
+              <span style="font-size:0.82rem;font-weight:500;">7,810 pts</span>
+            </div>
+            <div style="padding:14px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);">
+              <div style="display:flex;align-items:center;gap:14px;">
+                <span style="font-size:0.82rem;font-weight:500;color:var(--accent-dark);width:24px;">5</span>
+                <span style="font-size:0.88rem;font-weight:500;">Ben K.</span>
+              </div>
+              <span style="font-size:0.82rem;font-weight:500;">6,450 pts</span>
+            </div>
+            <div style="padding:14px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);background:rgba(45,212,191,0.04);">
+              <div style="display:flex;align-items:center;gap:14px;">
+                <span style="font-size:0.82rem;font-weight:500;color:var(--accent-dark);width:24px;">12</span>
+                <span style="font-size:0.88rem;font-weight:500;">You</span>
+              </div>
+              <span style="font-size:0.82rem;font-weight:500;color:var(--accent-dark);">5,940 pts</span>
+            </div>
+          </div>
+
+          <!-- Friend Comparison -->
+          <div style="text-align:center;">
+            <span class="tag">Friends</span>
+            <h2 style="font-size:clamp(1.2rem,2vw,1.5rem);font-weight:300;letter-spacing:-0.03em;margin-top:8px;margin-bottom:16px;">How you stack up</h2>
+          </div>
+          <div style="background:var(--bg-card);border:1px solid var(--border);">
+            <div style="padding:14px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);">
+              <div style="display:flex;align-items:center;gap:14px;">
+                <span style="font-size:0.88rem;font-weight:500;">Dr. Sarah M.</span>
+                <span style="font-size:0.68rem;font-weight:500;color:#E5E4E2;text-transform:uppercase;letter-spacing:0.06em;">Platinum</span>
+              </div>
+              <span style="font-size:0.82rem;font-weight:500;">11,620 pts</span>
+            </div>
+            <div style="padding:14px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);">
+              <div style="display:flex;align-items:center;gap:14px;">
+                <span style="font-size:0.88rem;font-weight:500;">Priya V.</span>
+                <span style="font-size:0.68rem;font-weight:500;color:#E5E4E2;text-transform:uppercase;letter-spacing:0.06em;">Platinum</span>
+              </div>
+              <span style="font-size:0.82rem;font-weight:500;">10,180 pts</span>
+            </div>
+            <div style="padding:14px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);">
+              <div style="display:flex;align-items:center;gap:14px;">
+                <span style="font-size:0.88rem;font-weight:500;">Dana L.</span>
+                <span style="font-size:0.68rem;font-weight:500;color:#FFD700;text-transform:uppercase;letter-spacing:0.06em;">Gold</span>
+              </div>
+              <span style="font-size:0.82rem;font-weight:500;">8,740 pts</span>
+            </div>
+            <div style="padding:14px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);background:rgba(45,212,191,0.04);">
+              <div style="display:flex;align-items:center;gap:14px;">
+                <span style="font-size:0.88rem;font-weight:600;">You</span>
+                <span style="font-size:0.68rem;font-weight:500;color:#FFD700;text-transform:uppercase;letter-spacing:0.06em;">Gold</span>
+              </div>
+              <span style="font-size:0.82rem;font-weight:500;color:var(--accent-dark);">5,940 pts</span>
+            </div>
+            <div style="padding:14px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);">
+              <div style="display:flex;align-items:center;gap:14px;">
+                <span style="font-size:0.88rem;font-weight:500;">Maya T.</span>
+                <span style="font-size:0.68rem;font-weight:500;color:#C0C0C0;text-transform:uppercase;letter-spacing:0.06em;">Silver</span>
+              </div>
+              <span style="font-size:0.82rem;font-weight:500;">3,480 pts</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <a href="home.html" class="logo">
+            <img src="logo.png" alt="Shape" class="logo-img">
+          </a>
+          <p class="footer-desc">Join the community</p>
+        </div>
+        <div class="footer-col">
+          <h4>Platform</h4>
+          <a href="trainers.html">Trainer Marketplace</a>
+        <a href="for-trainers.html">Trainers</a>
+          <a href="nutritionists.html">Nutritionists</a>        <a href="community.html">Community</a>
+        <a href="pricing.html">Pricing</a>
+          <a href="for-clients.html">Clients</a>
+          <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+          <a href="trainer-dashboard.html">Trainer Dashboard</a>
+          <a href="integrations.html">Integrations</a>
+        </div>
+        <div class="footer-col">
+          <h4>Get Started</h4>
+          <a href="signup-client.html">Sign Up as Client</a>
+          <a href="signup-trainer.html">Apply as Trainer</a>
+          <a href="signup-nutritionist.html">Apply as Nutritionist</a>
+        </div>
+        <div class="footer-col">
+          <h4>Support</h4>
+          <a href="help.html">Help Center</a>
+          <a href="contact.html">Contact</a>
+          <a href="radio.html">Shape Radio</a>
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 Shape. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+  <script>
+    // ===== Shape Score (rewards moved to shape-store.html) =====
+    /*
+    const _ssBalance = 2450;
+    const _ssRewards = [
+      // Workout Gear
+      { id: 'gear1', cat: 'gear', brand: 'Nike', name: '$10 off Training Shoes', desc: 'Valid on any Nike training or cross-training shoe at nike.com.', value: '$10 OFF', cost: 500, badge: 'popular' },
+      { id: 'gear2', cat: 'gear', brand: 'Under Armour', name: '$15 off Workout Apparel', desc: 'Applies to tops, shorts, leggings, or sports bras at underarmour.com.', value: '$15 OFF', cost: 750, badge: null },
+      { id: 'gear3', cat: 'gear', brand: 'Gymshark', name: '20% off Any Order', desc: 'Site-wide discount on all Gymshark apparel and accessories.', value: '20% OFF', cost: 1000, badge: 'popular' },
+      { id: 'gear4', cat: 'gear', brand: 'Lululemon', name: '$25 off $100+', desc: 'Valid on orders $100+ at lululemon.com. Excludes sale items.', value: '$25 OFF', cost: 1500, badge: 'premium' },
+      { id: 'gear5', cat: 'gear', brand: 'Rogue Fitness', name: '$20 off Equipment', desc: 'Dumbbells, kettlebells, bands, or any equipment at roguefitness.com.', value: '$20 OFF', cost: 1200, badge: null },
+      { id: 'gear6', cat: 'gear', brand: 'Theragun', name: '$30 off Recovery Tools', desc: 'Any massage gun or recovery device at therabody.com.', value: '$30 OFF', cost: 2000, badge: 'new' },
+      // Nutrition
+      { id: 'nutr1', cat: 'nutrition', brand: 'Optimum Nutrition', name: '$10 off Protein Powder', desc: 'Gold Standard Whey, Plant Protein, or any ON protein at optimumnutrition.com.', value: '$10 OFF', cost: 500, badge: 'popular' },
+      { id: 'nutr2', cat: 'nutrition', brand: 'RXBAR', name: 'Free 12-Pack Box', desc: 'Choose any flavor variety. Redeemable at rxbar.com.', value: 'FREE BOX', cost: 800, badge: null },
+      { id: 'nutr3', cat: 'nutrition', brand: 'Athletic Greens', name: '$20 off AG1 Subscription', desc: 'First month discount on AG1 daily greens supplement.', value: '$20 OFF', cost: 1000, badge: 'new' },
+      { id: 'nutr4', cat: 'nutrition', brand: 'Vital Proteins', name: '25% off Collagen', desc: 'Any collagen peptides or supplement at vitalproteins.com.', value: '25% OFF', cost: 900, badge: null },
+      { id: 'nutr5', cat: 'nutrition', brand: 'Whole Foods', name: '$15 Gift Card', desc: 'Digital gift card for Whole Foods Market. No minimum purchase.', value: '$15 CARD', cost: 1200, badge: 'popular' },
+      { id: 'nutr6', cat: 'nutrition', brand: 'Factor Meals', name: '$40 off First 2 Weeks', desc: 'Chef-prepared, macro-balanced meals delivered to your door.', value: '$40 OFF', cost: 2000, badge: 'premium' },
+      // Shape Perks
+      { id: 'shape1', cat: 'shape', brand: 'Shape', name: '10% off Any Program', desc: 'Works on any trainer or nutritionist program subscription.', value: '10% OFF', cost: 500, badge: null },
+      { id: 'shape2', cat: 'shape', brand: 'Shape', name: 'Free Session Unlock', desc: 'Unlock any single session from any trainer on Shape.', value: 'FREE', cost: 1000, badge: 'popular' },
+      { id: 'shape3', cat: 'shape', brand: 'Shape', name: '25% off Next Month', desc: 'Save on your next monthly subscription renewal.', value: '25% OFF', cost: 2000, badge: null },
+      { id: 'shape4', cat: 'shape', brand: 'Shape', name: '1 Month Free', desc: 'A full month of any Shape subscription — on us.', value: 'FREE', cost: 5000, badge: 'premium' },
+    ];
+
+    function getRedeemedRewards() {
+      return JSON.parse(localStorage.getItem('shapeRedeemedRewards') || '[]');
+    }
+    function saveRedeemedRewards(list) {
+      localStorage.setItem('shapeRedeemedRewards', JSON.stringify(list));
+    }
+    function generateCode() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let code = 'SHAPE-';
+      for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+      return code;
+    }
+
+    let _activeCat = 'all';
+
+    function filterRewards(cat, btn) {
+      _activeCat = cat;
+      document.querySelectorAll('.rewards-cat-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderRewards();
+    }
+
+    function renderRewards() {
+      const redeemed = getRedeemedRewards();
+      const redeemedIds = redeemed.map(r => r.id);
+      const filtered = _activeCat === 'all' ? _ssRewards : _ssRewards.filter(r => r.cat === _activeCat);
+
+      let html = '';
+      filtered.forEach(function(r) {
+        const alreadyRedeemed = redeemedIds.includes(r.id);
+        const canAfford = _ssBalance >= r.cost;
+        const badgeHtml = r.badge ? '<div class="reward-badge ' + r.badge + '">' + r.badge + '</div>' : '';
+        const btnText = alreadyRedeemed ? 'Redeemed' : (canAfford ? 'Unlock Coupon' : 'Not Enough Pts');
+        const btnDisabled = alreadyRedeemed || !canAfford ? ' disabled' : '';
+        const lockedClass = !canAfford && !alreadyRedeemed ? ' locked' : '';
+
+        html += '<div class="reward-item' + lockedClass + '">'
+          + badgeHtml
+          + '<div class="reward-brand">' + r.brand + '</div>'
+          + '<div class="reward-name">' + r.name + '</div>'
+          + '<div class="reward-desc">' + r.desc + '</div>'
+          + '<div class="reward-val">' + r.value + '</div>'
+          + '<div class="reward-cost">' + r.cost.toLocaleString() + ' pts</div>'
+          + '<button class="reward-btn"' + btnDisabled + ' onclick="redeemReward(\'' + r.id + '\')">' + btnText + '</button>'
+          + '</div>';
+      });
+      document.getElementById('rewardGrid').innerHTML = html;
+
+      // Render redeemed coupons
+      if (redeemed.length > 0) {
+        document.getElementById('redeemedSection').style.display = '';
+        let rhtml = '';
+        redeemed.forEach(function(rd) {
+          rhtml += '<div class="redeemed-item">'
+            + '<div>'
+            + '<div style="font-size:0.82rem;font-weight:500;">' + rd.name + '</div>'
+            + '<div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">' + rd.brand + ' — redeemed ' + rd.date + '</div>'
+            + '</div>'
+            + '<div class="redeemed-code">' + rd.code + '</div>'
+            + '</div>';
+        });
+        document.getElementById('redeemedList').innerHTML = rhtml;
+      } else {
+        document.getElementById('redeemedSection').style.display = 'none';
+      }
+    }
+
+    function redeemReward(id) {
+      const reward = _ssRewards.find(r => r.id === id);
+      if (!reward) return;
+      const redeemed = getRedeemedRewards();
+      if (redeemed.find(r => r.id === id)) return;
+
+      const code = generateCode();
+      const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      redeemed.push({ id: reward.id, name: reward.name, brand: reward.brand, value: reward.value, code: code, date: today });
+      saveRedeemedRewards(redeemed);
+
+      // Show toast
+      const toast = document.getElementById('toast');
+      if (toast) {
+        toast.textContent = 'Coupon unlocked! Code: ' + code;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 4000);
+      }
+
+      renderRewards();
+    }
+
+    // Initial render
+    renderRewards();
+    */
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>

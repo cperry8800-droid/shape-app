@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape — Gym Marketplace</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar" id="navbar">
+    <div class="container nav-container">
+      <a href="home.html" class="logo">
+        <img src="logo.png" alt="Shape" class="logo-img">
+      </a>
+      <div class="nav-links" id="navLinks">
+        <div class="nav-dropdown">
+          <a href="for-clients.html">Clients</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-clients.html">Overview</a>
+            <a href="clients.html">Dashboard</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-trainers.html">Trainers</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-trainers.html">Overview</a>
+            <a href="trainer-dashboard.html">Trainer Dashboard</a>
+            <a href="trainers.html">Trainer Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-nutritionists.html">Nutritionists</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-nutritionists.html">Overview</a>
+            <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+            <a href="nutritionists.html">Nutritionist Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="shape-score.html">Rewards</a>
+          <div class="nav-dropdown-menu">
+            <a href="shape-score.html">Shape Score (Clients)</a>
+            <a href="shape-score-trainer.html">Shape Score (Trainers)</a>
+            <a href="shape-score-nutritionist.html">Shape Score (Nutritionists)</a>
+            <a href="shape-store.html">Shape Store</a>
+          </div>
+        </div>
+        <a href="community.html">Community</a>
+        <a href="pricing.html">Pricing</a>
+      </div>
+      <div class="nav-actions">
+        <a href="login.html" class="btn btn-sm btn-outline shape-auth-logged-out">Log In</a>
+        <span class="shape-auth-logged-in shape-nav-user-name" style="display:none;font-size:0.82rem;color:var(--text-muted);margin-right:4px;"></span>
+        <a href="clients.html" class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" data-shape-dashboard-link>Dashboard</a>
+        <button class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" onclick="shapeSignOut()">Sign Out</button>
+        <a href="landing.html" class="btn btn-sm btn-primary shape-auth-logged-out">Get Started</a>
+        <a href="radio.html" class="btn btn-sm btn-radio"><span class="btn-shape-text"><img src="logo.png" alt="Shape"></span> Radio</a>
+      </div>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Page Hero -->
+  <section class="page-hero" style="padding-bottom:20px;">
+    <div class="container">
+      <span class="tag">Gym Marketplace</span>
+      <h1>Find Your <span class="gradient-text">Space</span></h1>
+      <p class="page-hero-sub">Browse gyms, studios, and training facilities on Shape. Find the perfect place to train near you.</p>
+    </div>
+  </section>
+
+  <!-- Gym of the Month -->
+  <section class="section section-alt" id="gymOfMonth" style="padding:48px 0;">
+    <div class="container">
+      <div style="text-align:center;"><span class="tag">Gym of the Month</span></div>
+      <div class="totm-card" id="gotmCard">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- Top Gyms -->
+  <section class="section" id="topGyms" style="padding:48px 0;">
+    <div class="container">
+      <div style="text-align:center;margin-bottom:32px;">
+        <span class="tag">Top Gyms</span>
+        <h2 style="font-size:clamp(1.2rem,2vw,1.5rem);font-weight:300;letter-spacing:-0.03em;margin-top:8px;">Highest rated facilities on Shape</h2>
+      </div>
+      <div id="topGymsGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;"></div>
+    </div>
+  </section>
+
+  <!-- Featured Gyms -->
+  <section class="section section-alt" id="featuredGyms" style="padding:48px 0;">
+    <div class="container">
+      <div style="text-align:center;margin-bottom:32px;">
+        <span class="tag">Most Popular</span>
+        <h2 style="font-size:clamp(1.2rem,2vw,1.5rem);font-weight:300;letter-spacing:-0.03em;margin-top:8px;">Hand-picked by Shape this month</h2>
+      </div>
+      <div id="featuredGymsGrid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;"></div>
+    </div>
+  </section>
+
+  <!-- All Gyms -->
+  <style>
+    .filter-bar {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 32px;
+    }
+    .filter-bar-top {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .filter-search {
+      flex: 1;
+      padding: 10px 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.92rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .filter-search:focus {
+      border-color: var(--accent, #2DD4BF);
+    }
+    .filter-search::placeholder {
+      color: var(--text-muted);
+    }
+    .filter-sort {
+      padding: 10px 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.92rem;
+      cursor: pointer;
+      outline: none;
+      min-width: 180px;
+      transition: border-color 0.2s;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23999' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
+    }
+    .filter-sort:focus {
+      border-color: var(--accent, #2DD4BF);
+    }
+    .filter-bar-buttons {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    #gymGrid.card-grid {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 768px) {
+      .filter-bar-top {
+        flex-direction: column;
+      }
+      .filter-sort {
+        min-width: unset;
+        width: 100%;
+      }
+      #topGymsGrid { grid-template-columns: 1fr !important; }
+      #featuredGymsGrid { grid-template-columns: 1fr !important; }
+    }
+  </style>
+  <section class="section">
+    <div class="container">
+      <div style="text-align:center;margin-bottom:32px;">
+        <span class="tag">All Facilities</span>
+        <h2 style="font-size:clamp(1.2rem,2vw,1.5rem);font-weight:300;letter-spacing:-0.03em;margin-top:8px;">Browse the full marketplace</h2>
+      </div>
+      <div class="filter-bar">
+        <div class="filter-bar-top">
+          <input type="text" class="filter-search" id="gymSearch" placeholder="Search by name or location..." oninput="filterGyms()">
+          <select class="filter-sort" id="gymSort" onchange="filterGyms()">
+            <option value="members">Most Members</option>
+            <option value="rating">Highest Rated</option>
+            <option value="price">Lowest Price</option>
+            <option value="trainers">Most Trainers</option>
+          </select>
+        </div>
+        <div class="filter-bar-buttons" id="gymFilterButtons">
+          <button class="filter-btn active" data-filter="all" onclick="setGymFilter(this)">All</button>
+          <button class="filter-btn" data-filter="gym" onclick="setGymFilter(this)">Full-Service</button>
+          <button class="filter-btn" data-filter="studio" onclick="setGymFilter(this)">Boutique Studios</button>
+          <button class="filter-btn" data-filter="crossfit" onclick="setGymFilter(this)">CrossFit</button>
+          <button class="filter-btn" data-filter="specialty" onclick="setGymFilter(this)">Specialty</button>
+        </div>
+      </div>
+
+      <div class="card-grid" id="gymGrid">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <a href="home.html" class="logo">
+            <img src="logo.png" alt="Shape" class="logo-img">
+          </a>
+          <p class="footer-desc">Join the community</p>
+        </div>
+        <div class="footer-col">
+          <h4>Platform</h4>
+          <a href="trainers.html">Trainer Marketplace</a>
+          <a href="for-trainers.html">Trainers</a>
+          <a href="nutritionists.html">Nutritionists</a>        <a href="community.html">Community</a>
+          <a href="pricing.html">Pricing</a>
+          <a href="for-clients.html">Clients</a>
+          <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+          <a href="trainer-dashboard.html">Trainer Dashboard</a>
+          <a href="integrations.html">Integrations</a>
+        </div>
+        <div class="footer-col">
+          <h4>Get Started</h4>
+          <a href="signup-client.html">Sign Up as Client</a>
+          <a href="signup-trainer.html">Apply as Trainer</a>
+          <a href="signup-nutritionist.html">Apply as Nutritionist</a>
+        </div>
+        <div class="footer-col">
+          <h4>Support</h4>
+          <a href="help.html">Help Center</a>
+          <a href="contact.html">Contact</a>
+          <a href="radio.html">Shape Radio</a>
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 Shape. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Gym Detail Modal -->
+  <div class="modal-overlay" id="gymModal">
+    <div class="modal modal-lg">
+      <button class="modal-close" onclick="closeAllModals()">&times;</button>
+      <div id="gymModalContent"></div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+  <script>
+    // Populate Gym of the Month
+    (function() {
+      const gotmCard = document.getElementById('gotmCard');
+      if (gotmCard && typeof gyms !== 'undefined') {
+        const gotm = gyms.find(g => g.gymOfMonth);
+        if (gotm) {
+          const initials = gotm.name.split(' ').map(n => n[0]).join('').slice(0, 2);
+          gotmCard.innerHTML = `
+            <div class="totm-layout">
+              <div class="totm-avatar-area">
+                <div class="totm-avatar" style="background: ${gotm.color};">${initials}</div>
+                <div class="totm-badge">Gym of the Month</div>
+              </div>
+              <div class="totm-info">
+                <h2>${gotm.name}</h2>
+                <div class="card-specialty">${gotm.type} — ${gotm.location}</div>
+                <p class="totm-quote">"${gotm.gotmQuote}"</p>
+                <p class="card-desc">${gotm.bio}</p>
+                <div class="trainer-detail-stats">
+                  <span>${gotm.rating} rating</span>
+                  <span>${gotm.members.toLocaleString()} members</span>
+                  <span>${gotm.trainers} trainers</span>
+                </div>
+                <div class="card-footer" style="margin-top:20px;">
+                  <div class="card-price">$${gotm.price}<span>/mo</span></div>
+                  <button class="btn btn-sm btn-primary" onclick="openGymModal(${gotm.id})">View Details</button>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+      }
+
+      // Top Gyms
+      const topGrid = document.getElementById('topGymsGrid');
+      if (topGrid && typeof gyms !== 'undefined') {
+        const top = [...gyms].sort((a,b) => b.rating - a.rating || b.members - a.members).slice(0,3);
+        topGrid.innerHTML = top.map(g => createGymCard(g)).join('');
+      }
+
+      // Featured Gyms
+      const featuredGrid = document.getElementById('featuredGymsGrid');
+      if (featuredGrid && typeof gyms !== 'undefined') {
+        const featured = gyms.filter(g => g.featured);
+        if (featured.length) {
+          featuredGrid.innerHTML = featured.map(g => createGymCard(g)).join('');
+        } else {
+          const picks = [...gyms].sort((a,b) => b.members - a.members).slice(0,2);
+          featuredGrid.innerHTML = picks.map(g => createGymCard(g)).join('');
+        }
+      }
+
+      // All Gyms
+      filterGyms();
+    })();
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script>
+    // Phase 1b — swap hardcoded `gyms` array for Supabase data.
+    (async function () {
+      try {
+        if (!window.shapeDb || typeof shapeDb.listGyms !== 'function') return;
+        var fresh = await shapeDb.listGyms();
+        if (!Array.isArray(fresh) || fresh.length === 0) return;
+
+        gyms.length = 0;
+        for (var i = 0; i < fresh.length; i++) gyms.push(fresh[i]);
+
+        var topGrid = document.getElementById('topGymsGrid');
+        var featuredGrid = document.getElementById('featuredGymsGrid');
+        if (topGrid) {
+          var top = gyms.slice().sort(function (a, b) {
+            return (b.rating - a.rating) || (b.members - a.members);
+          }).slice(0, 3);
+          topGrid.innerHTML = top.map(createGymCard).join('');
+        }
+        if (featuredGrid) {
+          var featured = gyms.filter(function (g) { return g.featured; });
+          if (!featured.length) {
+            featured = gyms.slice().sort(function (a, b) {
+              return b.members - a.members;
+            }).slice(0, 2);
+          }
+          featuredGrid.innerHTML = featured.map(createGymCard).join('');
+        }
+
+        if (typeof filterGyms === 'function') filterGyms();
+      } catch (e) {
+        console.warn('[shape] gyms supabase swap failed, using hardcoded data', e);
+      }
+    })();
+  </script>
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>

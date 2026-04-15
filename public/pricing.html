@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape — Pricing</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar" id="navbar">
+    <div class="container nav-container">
+      <a href="home.html" class="logo">
+        <img src="logo.png" alt="Shape" class="logo-img">
+      </a>
+      <div class="nav-links" id="navLinks">
+        <div class="nav-dropdown">
+          <a href="for-clients.html">Clients</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-clients.html">Overview</a>
+            <a href="clients.html">Dashboard</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-trainers.html">Trainers</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-trainers.html">Overview</a>
+            <a href="trainer-dashboard.html">Trainer Dashboard</a>
+            <a href="trainers.html">Trainer Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-nutritionists.html">Nutritionists</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-nutritionists.html">Overview</a>
+            <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+            <a href="nutritionists.html">Nutritionist Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="shape-score.html">Rewards</a>
+          <div class="nav-dropdown-menu">
+            <a href="shape-score.html">Shape Score (Clients)</a>
+            <a href="shape-score-trainer.html">Shape Score (Trainers)</a>
+            <a href="shape-score-nutritionist.html">Shape Score (Nutritionists)</a>
+            <a href="shape-store.html">Shape Store</a>
+          </div>
+        </div>
+        <a href="community.html">Community</a>
+        <a href="pricing.html">Pricing</a>
+      </div>
+      <div class="nav-actions">
+        <a href="login.html" class="btn btn-sm btn-outline shape-auth-logged-out">Log In</a>
+        <span class="shape-auth-logged-in shape-nav-user-name" style="display:none;font-size:0.82rem;color:var(--text-muted);margin-right:4px;"></span>
+        <a href="clients.html" class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" data-shape-dashboard-link>Dashboard</a>
+        <button class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" onclick="shapeSignOut()">Sign Out</button>
+        <a href="landing.html" class="btn btn-sm btn-primary shape-auth-logged-out">Get Started</a>
+        <a href="radio.html" class="btn btn-sm btn-radio"><span class="btn-shape-text"><img src="logo.png" alt="Shape"></span> Radio</a>
+      </div>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Page Hero -->
+  <section class="page-hero">
+    <div class="container">
+      <span class="tag">Pricing</span>
+      <h1>Simple, <span class="gradient-text">transparent</span> pricing</h1>
+      <p class="page-hero-sub">Shape is $5/mo and includes Shape Radio. Trainers and nutritionists set their own prices — you pay them directly.</p>
+    </div>
+  </section>
+
+  <!-- Pricing Comparison -->
+  <section class="section" style="padding-top:20px;">
+    <div class="container">
+      <div class="section-header">
+        <span class="tag">How It Works</span>
+        <h2>Simple, transparent pricing</h2>
+        <p>One simple platform fee. Only pay extra for the trainers and nutritionists you choose.</p>
+      </div>
+      <div class="pricing-grid">
+        <div class="pricing-card featured">
+          <div class="popular-badge">Includes Shape Radio</div>
+          <h3>Shape Platform</h3>
+          <div class="price">$5<span>/mo</span></div>
+          <ul>
+            <li>Browse all trainers & nutritionists</li>
+            <li>Subscribe to any trainer or nutritionist</li>
+            <li>Buy individual workout & meal plans</li>
+            <li>Direct messaging with your pros</li>
+            <li>Full progress tracking & analytics</li>
+            <li>Nutrition schedule & macro tracking</li>
+            <li>Community forum access</li>
+            <li>Shape Radio — ad-free workout music</li>
+          </ul>
+          <a href="landing.html" class="btn btn-primary btn-block">Get Started</a>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:48px;max-width:640px;margin-left:auto;margin-right:auto;">
+        <p style="color:var(--text-muted);font-size:0.95rem;font-weight:300;line-height:1.7;">Each trainer and nutritionist sets their own subscription price. Buy individual plans or subscribe monthly. Cancel anytime.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Testimonials -->
+  <section class="section section-alt">
+    <div class="container">
+      <div class="section-header">
+        <span class="tag">Testimonials</span>
+        <h2>Real results from real people</h2>
+      </div>
+      <div class="testimonials">
+        <div class="testimonial">
+
+          <p>"I subscribed to Coach Marcus for strength training and Sarah for nutrition. Down 30 lbs in 4 months. Shape made it so easy to find pros who actually care."</p>
+          <div class="testimonial-author">
+            <div class="avatar avatar-sm">JR</div>
+            <div><strong>Jake R.</strong><span>Member since 2025</span></div>
+          </div>
+        </div>
+        <div class="testimonial">
+
+          <p>"The ability to try different trainers without long-term contracts is a game changer. I found my perfect HIIT coach in the first week."</p>
+          <div class="testimonial-author">
+            <div class="avatar avatar-sm">AL</div>
+            <div><strong>Aisha L.</strong><span>Member since 2024</span></div>
+          </div>
+        </div>
+        <div class="testimonial">
+
+          <p>"As a nutritionist on Shape, I've been able to reach clients worldwide. The platform handles everything so I can focus on helping people eat better."</p>
+          <div class="testimonial-author">
+            <div class="avatar avatar-sm">DM</div>
+            <div><strong>Dr. Maria D.</strong><span>Nutritionist</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <a href="home.html" class="logo">
+            <img src="logo.png" alt="Shape" class="logo-img">
+          </a>
+          <p class="footer-desc">Join the community</p>
+        </div>
+        <div class="footer-col">
+          <h4>Platform</h4>
+          <a href="trainers.html">Trainer Marketplace</a>
+          <a href="nutritionists.html">Nutritionists</a>        <a href="community.html">Community</a>
+          <a href="pricing.html">Pricing</a>
+          <a href="for-clients.html">Clients</a>
+          <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+          <a href="trainer-dashboard.html">Trainer Dashboard</a>
+          <a href="integrations.html">Integrations</a>
+        </div>
+        <div class="footer-col">
+          <h4>Get Started</h4>
+          <a href="signup-client.html">Sign Up as Client</a>
+          <a href="signup-trainer.html">Apply as Trainer</a>
+          <a href="signup-nutritionist.html">Apply as Nutritionist</a>
+        </div>
+        <div class="footer-col">
+          <h4>Support</h4>
+          <a href="help.html">Help Center</a>
+          <a href="contact.html">Contact</a>
+          <a href="radio.html">Shape Radio</a>
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 Shape. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>

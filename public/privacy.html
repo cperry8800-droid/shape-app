@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape — Privacy Policy</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .legal-content {
+      max-width: 720px; margin: 0 auto;
+    }
+    .legal-updated {
+      font-size: 0.82rem; color: var(--text-muted); font-weight: 300;
+      margin-bottom: 48px; text-align: center;
+    }
+    .legal-section {
+      margin-bottom: 40px;
+    }
+    .legal-section h2 {
+      font-size: 1.05rem; font-weight: 500; margin-bottom: 16px;
+      letter-spacing: -0.02em; text-align: center;
+    }
+    .legal-section p {
+      font-size: 0.88rem; color: var(--text-muted); font-weight: 300;
+      line-height: 1.8; margin-bottom: 12px;
+    }
+    .legal-section ul {
+      list-style: none; padding: 0; margin: 0 0 12px 0;
+    }
+    .legal-section ul li {
+      font-size: 0.88rem; color: var(--text-muted); font-weight: 300;
+      line-height: 1.8; padding-left: 16px; position: relative;
+    }
+    .legal-section ul li::before {
+      content: ''; position: absolute; left: 0; top: 11px;
+      width: 4px; height: 4px; border-radius: 50%;
+      background: var(--text-muted);
+    }
+  </style>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+
+  <nav class="navbar" id="navbar">
+    <div class="container nav-container">
+      <a href="home.html" class="logo">
+        <img src="logo.png" alt="Shape" class="logo-img">
+      </a>
+      <div class="nav-links" id="navLinks">
+        <div class="nav-dropdown">
+          <a href="for-clients.html">Clients</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-clients.html">Overview</a>
+            <a href="clients.html">Dashboard</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-trainers.html">Trainers</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-trainers.html">Overview</a>
+            <a href="trainer-dashboard.html">Trainer Dashboard</a>
+            <a href="trainers.html">Trainer Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-nutritionists.html">Nutritionists</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-nutritionists.html">Overview</a>
+            <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+            <a href="nutritionists.html">Nutritionist Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="shape-score.html">Rewards</a>
+          <div class="nav-dropdown-menu">
+            <a href="shape-score.html">Shape Score (Clients)</a>
+            <a href="shape-score-trainer.html">Shape Score (Trainers)</a>
+            <a href="shape-score-nutritionist.html">Shape Score (Nutritionists)</a>
+            <a href="shape-store.html">Shape Store</a>
+          </div>
+        </div>
+        <a href="community.html">Community</a>
+        <a href="pricing.html">Pricing</a>
+      </div>
+      <div class="nav-actions">
+        <a href="login.html" class="btn btn-sm btn-outline shape-auth-logged-out">Log In</a>
+        <span class="shape-auth-logged-in shape-nav-user-name" style="display:none;font-size:0.82rem;color:var(--text-muted);margin-right:4px;"></span>
+        <a href="clients.html" class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" data-shape-dashboard-link>Dashboard</a>
+        <button class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" onclick="shapeSignOut()">Sign Out</button>
+        <a href="landing.html" class="btn btn-sm btn-primary shape-auth-logged-out">Get Started</a>
+        <a href="radio.html" class="btn btn-sm btn-radio"><span class="btn-shape-text"><img src="logo.png" alt="Shape"></span> Radio</a>
+      </div>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Page Hero -->
+  <section class="page-hero" style="padding-bottom:16px;">
+    <div class="container">
+      <span class="tag">Legal</span>
+      <h1>Privacy <span class="gradient-text">Policy</span></h1>
+      <p class="page-hero-sub">How we collect, use, and protect your information.</p>
+    </div>
+  </section>
+
+  <!-- Content -->
+  <section class="section" style="padding-top:32px;">
+    <div class="container">
+      <div class="legal-content">
+        <p class="legal-updated">Last updated: April 1, 2026</p>
+
+        <div class="legal-section">
+          <h2>1. Information We Collect</h2>
+          <p>When you create an account or use Shape, we may collect the following types of information:</p>
+          <ul>
+            <li>Account information such as your name, email address, and password</li>
+            <li>Profile information including your fitness goals, preferences, and bio</li>
+            <li>Payment information processed securely through our payment providers</li>
+            <li>Usage data such as workout completions, subscriptions, and platform activity</li>
+            <li>Device information including browser type, operating system, and IP address</li>
+          </ul>
+        </div>
+
+        <div class="legal-section">
+          <h2>2. How We Use Your Information</h2>
+          <p>We use the information we collect to:</p>
+          <ul>
+            <li>Provide, maintain, and improve the Shape platform</li>
+            <li>Process subscriptions and payments between clients and providers</li>
+            <li>Personalize your experience, including trainer and nutritionist recommendations</li>
+            <li>Calculate and maintain your Shape Score and rewards</li>
+            <li>Communicate with you about your account, updates, and support requests</li>
+            <li>Ensure the security and integrity of the platform</li>
+          </ul>
+        </div>
+
+        <div class="legal-section">
+          <h2>3. Information Sharing</h2>
+          <p>We do not sell your personal information. We may share your information in the following limited circumstances:</p>
+          <ul>
+            <li>With trainers and nutritionists you subscribe to, so they can provide their services</li>
+            <li>With payment processors to complete transactions</li>
+            <li>With service providers who help us operate the platform</li>
+            <li>When required by law or to protect the rights and safety of our users</li>
+          </ul>
+        </div>
+
+        <div class="legal-section">
+          <h2>4. Data Security</h2>
+          <p>We implement industry-standard security measures to protect your data. All data is encrypted in transit and at rest. We regularly review our security practices to ensure your information remains safe.</p>
+          <p>While we take every reasonable precaution, no method of transmission over the internet is 100% secure. We encourage you to use strong passwords and protect your account credentials.</p>
+        </div>
+
+        <div class="legal-section">
+          <h2>5. Your Rights</h2>
+          <p>You have the right to:</p>
+          <ul>
+            <li>Access the personal data we hold about you</li>
+            <li>Request correction of inaccurate information</li>
+            <li>Request deletion of your account and associated data</li>
+            <li>Opt out of marketing communications at any time</li>
+            <li>Export your data in a portable format</li>
+          </ul>
+        </div>
+
+        <div class="legal-section">
+          <h2>6. Cookies & Tracking</h2>
+          <p>Shape uses essential cookies to keep you logged in and maintain your preferences. We may use analytics tools to understand how the platform is used so we can improve the experience. You can manage cookie preferences in your browser settings.</p>
+        </div>
+
+        <div class="legal-section">
+          <h2>7. Data Retention</h2>
+          <p>We retain your information for as long as your account is active or as needed to provide services. If you request account deletion, we will remove your data within 30 days, except where retention is required by law or for legitimate business purposes.</p>
+        </div>
+
+        <div class="legal-section">
+          <h2>8. Children's Privacy</h2>
+          <p>Shape is not intended for users under the age of 16. We do not knowingly collect personal information from children. If we become aware that a child has provided us with personal data, we will take steps to delete that information.</p>
+        </div>
+
+        <div class="legal-section">
+          <h2>9. Changes to This Policy</h2>
+          <p>We may update this privacy policy from time to time. When we do, we will revise the "Last updated" date at the top. We encourage you to review this page periodically. Continued use of the platform after changes constitutes acceptance of the updated policy.</p>
+        </div>
+
+        <div class="legal-section">
+          <h2>10. Contact Us</h2>
+          <p>If you have questions about this privacy policy or your data, reach out to us through the <a href="contact.html" style="color:var(--accent);">contact page</a> or email us at info@theshapecommunity.com.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <a href="home.html" class="logo">
+            <img src="logo.png" alt="Shape" class="logo-img">
+          </a>
+          <p class="footer-desc">Join the community</p>
+        </div>
+        <div class="footer-col">
+          <h4>Platform</h4>
+          <a href="trainers.html">Trainer Marketplace</a>
+          <a href="nutritionists.html">Nutritionists</a>        <a href="community.html">Community</a>
+          <a href="pricing.html">Pricing</a>
+          <a href="for-clients.html">Clients</a>
+          <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+          <a href="trainer-dashboard.html">Trainer Dashboard</a>
+          <a href="integrations.html">Integrations</a>
+        </div>
+        <div class="footer-col">
+          <h4>Get Started</h4>
+          <a href="signup-client.html">Sign Up as Client</a>
+          <a href="signup-trainer.html">Apply as Trainer</a>
+          <a href="signup-nutritionist.html">Apply as Nutritionist</a>
+        </div>
+        <div class="footer-col">
+          <h4>Support</h4>
+          <a href="help.html">Help Center</a>
+          <a href="contact.html">Contact</a>
+          <a href="radio.html">Shape Radio</a>
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 Shape. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <div class="toast" id="toast"></div>
+  <script src="app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>

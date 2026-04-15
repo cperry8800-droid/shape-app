@@ -1,0 +1,1967 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape — Nutritionist Profile Template</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .tp-banner {
+      height: 240px; background: linear-gradient(135deg, #2DD4BF22, #0D948811);
+      position: relative; border-bottom: 1px solid var(--border);
+      display: flex; align-items: flex-end; padding: 0 0 0 0;
+    }
+    .tp-banner-label {
+      position: absolute; top: 20px; right: 20px;
+      background: var(--accent); color: #fff; font-size: 0.7rem; font-weight: 600;
+      padding: 6px 14px; text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .tp-avatar-area {
+      position: relative; margin-top: -48px; padding: 0 24px;
+      display: flex; align-items: flex-end; gap: 28px;
+    }
+    .tp-avatar {
+      width: 120px; height: 120px; border-radius: 50%; background: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.4rem; font-weight: 700; color: #fff;
+      border: 4px solid var(--bg); flex-shrink: 0;
+      overflow: hidden; position: relative; cursor: pointer;
+    }
+    .tp-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .tp-name-block { padding-bottom: 12px; }
+    .tp-name-block h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 4px; letter-spacing: -0.02em; cursor: pointer; }
+    .tp-name-block h1:hover { color: var(--accent); }
+    .tp-name-block .tp-specialty {
+      font-size: 0.82rem; color: var(--accent-dark); font-weight: 500;
+      text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer;
+    }
+    .tp-name-block .tp-specialty:hover { opacity: 0.7; }
+
+    .tp-content { max-width: 1440px; margin: 0 auto; padding: 40px 24px 80px; }
+
+    .tp-stats-row {
+      display: flex; gap: 32px; margin-bottom: 40px; padding-bottom: 32px;
+      border-bottom: 1px solid var(--border);
+    }
+    .tp-stat { text-align: center; cursor: pointer; }
+    .tp-stat:hover .tp-stat-value { color: var(--accent); }
+    .tp-stat-value { font-size: 1.4rem; font-weight: 700; margin-bottom: 2px; transition: color 0.2s; }
+    .tp-stat-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
+    .tp-section { margin-bottom: 40px; }
+    .tp-section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .tp-section h2 { font-size: 1.1rem; font-weight: 600; }
+
+    .tp-bio { color: var(--text-muted); font-size: 0.95rem; font-weight: 300; line-height: 1.8; }
+
+    .tp-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tp-tag {
+      padding: 6px 16px; background: var(--bg-alt, #f5f5f5); font-size: 0.78rem;
+      font-weight: 500; color: var(--text-muted); border: 1px solid var(--border);
+    }
+
+    .tp-programs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .tp-program {
+      background: var(--bg-card); border: 1px solid var(--border); padding: 24px;
+      transition: transform 0.3s;
+    }
+    .tp-program:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.04); }
+    .tp-program h3 { font-size: 0.95rem; font-weight: 600; margin-bottom: 6px; }
+    .tp-program-meta { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 10px; }
+    .tp-program p { font-size: 0.85rem; color: var(--text-muted); font-weight: 300; line-height: 1.6; margin-bottom: 14px; }
+    .tp-program-footer { display: flex; justify-content: space-between; align-items: center; }
+    .tp-program-price { font-size: 1.1rem; font-weight: 600; }
+
+    .tp-certs-list { list-style: none; padding: 0; }
+    .tp-certs-list li {
+      padding: 12px 0; border-bottom: 1px solid var(--border);
+      font-size: 0.92rem; display: flex; align-items: center; gap: 10px;
+    }
+    .tp-certs-list li:last-child { border-bottom: none; }
+    .tp-cert-icon { color: var(--text-muted); font-weight: 400; }
+
+    .tp-social-links { display: flex; gap: 16px; flex-wrap: wrap; }
+    .tp-social-link {
+      padding: 10px 20px; border: 1px solid var(--border); font-size: 0.82rem;
+      font-weight: 500; color: var(--text-muted); transition: all 0.3s;
+    }
+    .tp-social-link:hover { border-color: var(--text); color: var(--text); }
+
+    .tp-gallery-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .tp-gallery-item {
+      height: 140px; background: var(--bg-alt, #f5f5f5); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.78rem; color: var(--text-muted);
+    }
+
+    .tp-callout {
+      background: rgba(45,212,191,0.06); border: 1px solid rgba(45,212,191,0.2);
+      padding: 28px 32px; margin-top: 40px; text-align: center;
+    }
+    .tp-callout h3 { font-size: 1.05rem; font-weight: 600; margin-bottom: 8px; }
+    .tp-callout p { font-size: 0.88rem; color: var(--text-muted); font-weight: 300; margin-bottom: 20px; }
+
+    /* ===== Editing Styles ===== */
+    .tp-edit-btn {
+      font-size: 0.7rem; font-weight: 500; color: var(--accent-dark);
+      border: 1px solid var(--accent); padding: 4px 12px;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      background: none; cursor: pointer; transition: all 0.2s;
+    }
+    .tp-edit-btn:hover { background: var(--accent); color: #fff; }
+    .tp-save-btn {
+      font-size: 0.7rem; font-weight: 600; color: #fff;
+      background: var(--accent); border: 1px solid var(--accent);
+      padding: 4px 12px; text-transform: uppercase; letter-spacing: 0.06em;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .tp-save-btn:hover { opacity: 0.85; }
+    .tp-cancel-btn {
+      font-size: 0.7rem; font-weight: 500; color: var(--text-muted);
+      border: 1px solid var(--border); padding: 4px 12px;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      background: none; cursor: pointer; transition: all 0.2s;
+    }
+    .tp-cancel-btn:hover { border-color: var(--text); color: var(--text); }
+    .tp-edit-input {
+      font-family: 'Inter', sans-serif; font-size: 0.92rem; font-weight: 400;
+      padding: 8px 12px; border: 1px solid var(--border); background: var(--bg-card);
+      color: var(--text); width: 100%; box-sizing: border-box;
+      transition: border-color 0.2s;
+    }
+    .tp-edit-input:focus { outline: none; border-color: var(--accent); }
+    .tp-edit-textarea {
+      font-family: 'Inter', sans-serif; font-size: 0.92rem; font-weight: 300;
+      padding: 12px; border: 1px solid var(--border); background: var(--bg-card);
+      color: var(--text); width: 100%; min-height: 120px; resize: vertical;
+      line-height: 1.8; box-sizing: border-box;
+    }
+    .tp-edit-textarea:focus { outline: none; border-color: var(--accent); }
+    .tp-edit-actions { display: flex; gap: 8px; margin-top: 12px; }
+
+    .tp-tag.removable { position: relative; padding-right: 28px; }
+    .tp-tag .remove-tag {
+      position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+      width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;
+      font-size: 0.7rem; color: var(--text-muted); cursor: pointer;
+      border-radius: 50%; transition: all 0.2s;
+    }
+    .tp-tag .remove-tag:hover { background: rgba(0,0,0,0.1); color: var(--text); }
+    .tp-tag-add {
+      padding: 6px 16px; background: none; font-size: 0.78rem;
+      font-weight: 500; color: var(--accent-dark); border: 1px dashed var(--accent);
+      cursor: pointer; transition: all 0.2s;
+    }
+    .tp-tag-add:hover { background: rgba(45,212,191,0.08); }
+
+    .tp-cert-remove {
+      margin-left: auto; font-size: 0.72rem; color: var(--text-muted);
+      cursor: pointer; padding: 2px 8px; border: 1px solid transparent;
+      transition: all 0.2s;
+    }
+    .tp-cert-remove:hover { color: #e74c3c; border-color: #e74c3c; }
+
+    .tp-program .tp-program-edit-btn {
+      font-size: 0.7rem; color: var(--accent-dark); cursor: pointer;
+      padding: 2px 8px; border: 1px solid var(--accent);
+      background: none; transition: all 0.2s;
+    }
+    .tp-program .tp-program-edit-btn:hover { background: var(--accent); color: #fff; }
+    .tp-program .tp-program-remove-btn {
+      font-size: 0.7rem; color: var(--text-muted); cursor: pointer;
+      padding: 2px 8px; border: 1px solid var(--border);
+      background: none; transition: all 0.2s;
+    }
+    .tp-program .tp-program-remove-btn:hover { color: #e74c3c; border-color: #e74c3c; }
+
+    .tp-inline-edit { display: none; }
+    .tp-inline-edit.active { display: block; }
+    .tp-inline-display.hidden { display: none; }
+
+    .tp-social-input-group { display: flex; flex-direction: column; gap: 10px; }
+    .tp-social-input-row { display: flex; align-items: center; gap: 10px; }
+    .tp-social-input-row label {
+      font-size: 0.82rem; font-weight: 500; min-width: 80px;
+      color: var(--text-muted);
+    }
+    .tp-social-input-row input {
+      flex: 1; font-family: 'Inter', sans-serif; font-size: 0.82rem;
+      padding: 8px 12px; border: 1px solid var(--border);
+      background: var(--bg-card); color: var(--text);
+    }
+    .tp-social-input-row input:focus { outline: none; border-color: var(--accent); }
+
+    .tp-avatar-upload { display: none; }
+
+    @media (max-width: 900px) {
+      .tp-avatar-area { padding: 0 24px; gap: 16px; }
+      .tp-avatar { width: 88px; height: 88px; font-size: 1.8rem; }
+      .tp-name-block h1 { font-size: 1.4rem; }
+      .tp-content { padding: 32px 24px 60px; }
+      .tp-stats-row { flex-wrap: wrap; gap: 20px; }
+      .tp-programs-grid { grid-template-columns: 1fr; }
+      .tp-gallery-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar" id="navbar">
+    <div class="container nav-container">
+      <a href="home.html" class="logo">
+        <img src="logo.png" alt="Shape" class="logo-img">
+      </a>
+      <div class="nav-links" id="navLinks">
+        <div class="nav-dropdown">
+          <a href="for-clients.html">Clients</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-clients.html">Overview</a>
+            <a href="clients.html">Dashboard</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-trainers.html">Trainers</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-trainers.html">Overview</a>
+            <a href="trainer-dashboard.html">Trainer Dashboard</a>
+            <a href="trainers.html">Trainer Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-nutritionists.html">Nutritionists</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-nutritionists.html">Overview</a>
+            <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+            <a href="nutritionists.html">Nutritionist Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="shape-score.html">Rewards</a>
+          <div class="nav-dropdown-menu">
+            <a href="shape-score.html">Shape Score (Clients)</a>
+            <a href="shape-score-trainer.html">Shape Score (Trainers)</a>
+            <a href="shape-score-nutritionist.html">Shape Score (Nutritionists)</a>
+            <a href="shape-store.html">Shape Store</a>
+          </div>
+        </div>
+        <a href="community.html">Community</a>
+        <a href="pricing.html">Pricing</a>
+      </div>
+      <div class="nav-actions">
+        <a href="login.html" class="btn btn-sm btn-outline shape-auth-logged-out">Log In</a>
+        <span class="shape-auth-logged-in shape-nav-user-name" style="display:none;font-size:0.82rem;color:var(--text-muted);margin-right:4px;"></span>
+        <a href="clients.html" class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" data-shape-dashboard-link>Dashboard</a>
+        <button class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" onclick="shapeSignOut()">Sign Out</button>
+        <a href="landing.html" class="btn btn-sm btn-primary shape-auth-logged-out">Get Started</a>
+        <a href="radio.html" class="btn btn-sm btn-radio"><span class="btn-shape-text"><img src="logo.png" alt="Shape"></span> Radio</a>
+      </div>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Profile Banner -->
+  <div style="padding-top:80px;">
+    <div class="tp-banner">
+      <div class="tp-banner-label">Upload Your Own Banner</div>
+    </div>
+  </div>
+
+  <!-- Avatar & Name -->
+  <div class="tp-avatar-area">
+    <div class="tp-avatar" id="avatarArea" onclick="document.getElementById('avatarUpload').click()">
+      <span id="avatarInitials">YN</span>
+      <img id="avatarImg" src="" alt="" style="display:none;">
+      <div style="position: absolute; bottom: 0; right: 0; width: 32px; height: 32px; background: var(--text); border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid var(--bg); font-size: 0.7rem; color: #fff;">+</div>
+    </div>
+    <input type="file" id="avatarUpload" class="tp-avatar-upload" accept="image/*" onchange="handleAvatarUpload(event)">
+    <div class="tp-name-block">
+      <!-- Name display -->
+      <h1 id="nameDisplay" class="tp-inline-display" onclick="startInlineEdit('name')">Your Name</h1>
+      <div id="nameEdit" class="tp-inline-edit">
+        <input type="text" class="tp-edit-input" id="nameInput" placeholder="Your Name" style="font-size:1.4rem; font-weight:700;">
+        <div class="tp-edit-actions">
+          <button class="tp-save-btn" onclick="saveInlineEdit('name')">Save</button>
+          <button class="tp-cancel-btn" onclick="cancelInlineEdit('name')">Cancel</button>
+        </div>
+      </div>
+      <!-- Specialty display -->
+      <div id="specialtyDisplay" class="tp-specialty tp-inline-display" onclick="startInlineEdit('specialty')">Your Specialty</div>
+      <div id="specialtyEdit" class="tp-inline-edit">
+        <input type="text" class="tp-edit-input" id="specialtyInput" placeholder="Your Specialty" style="font-size:0.82rem; text-transform:uppercase; letter-spacing:0.06em;">
+        <div class="tp-edit-actions">
+          <button class="tp-save-btn" onclick="saveInlineEdit('specialty')">Save</button>
+          <button class="tp-cancel-btn" onclick="cancelInlineEdit('specialty')">Cancel</button>
+        </div>
+      </div>
+      <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 6px;">Click name or specialty to edit</div>
+    </div>
+  </div>
+
+  <!-- Profile Content -->
+  <div class="tp-content">
+
+    <!-- Stats -->
+    <div class="tp-stats-row" id="statsRow">
+      <div class="tp-stat" onclick="startStatEdit(this, 'subscribers')">
+        <div class="tp-stat-value" id="statSubscribers">0</div>
+        <div class="tp-stat-label">Subscribers</div>
+      </div>
+      <div class="tp-stat" onclick="startStatEdit(this, 'rating')">
+        <div class="tp-stat-value" id="statRating">--</div>
+        <div class="tp-stat-label">Rating</div>
+      </div>
+      <div class="tp-stat" onclick="startStatEdit(this, 'price')">
+        <div class="tp-stat-value" id="statPrice">$--/mo</div>
+        <div class="tp-stat-label">Your Price</div>
+      </div>
+      <div class="tp-stat" onclick="startStatEdit(this, 'experience')">
+        <div class="tp-stat-value" id="statExperience">--</div>
+        <div class="tp-stat-label">Experience</div>
+      </div>
+    </div>
+
+    <!-- Bio -->
+    <div class="tp-section" id="bioSection">
+      <div class="tp-section-header">
+        <h2>About You</h2>
+        <button class="tp-edit-btn" id="bioEditBtn" onclick="startBioEdit()">Edit</button>
+      </div>
+      <p class="tp-bio tp-inline-display" id="bioDisplay">Write your personal bio here. Tell potential clients about your nutrition philosophy, what sets you apart, your background, and why they should work with you. This is your space to make a first impression.</p>
+      <div class="tp-inline-edit" id="bioEdit">
+        <textarea class="tp-edit-textarea" id="bioTextarea" placeholder="Tell potential clients about your nutrition philosophy, what sets you apart, your background, and why they should work with you."></textarea>
+        <div class="tp-edit-actions">
+          <button class="tp-save-btn" onclick="saveBioEdit()">Save</button>
+          <button class="tp-cancel-btn" onclick="cancelBioEdit()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Specialties & Tags -->
+    <div class="tp-section" id="tagsSection">
+      <div class="tp-section-header">
+        <h2>Specialties & Tags</h2>
+        <button class="tp-edit-btn" id="tagsEditBtn" onclick="toggleTagsEdit()">Edit</button>
+      </div>
+      <div class="tp-tags" id="tagsContainer">
+        <!-- Tags rendered by JS -->
+      </div>
+    </div>
+
+    <!-- Meal Plan Builder -->
+    <div class="tp-section" id="mealPlansSection">
+      <style>
+        .mpb-wrap { margin-bottom: 40px; }
+        .mpb-wrap h2 { font-size: 1.3rem; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 20px; }
+        .mpb-toggle-area { display: none; }
+        .mpb-toggle-area.mpb-open { display: block; }
+        .mpb-choice { display: flex; gap: 16px; margin-bottom: 24px; }
+        .mpb-choice-btn {
+          flex: 1; padding: 28px 20px; background: var(--bg-card); border: 1px solid var(--border);
+          text-align: center; cursor: pointer; transition: all 0.3s; font-family: inherit;
+          color: var(--text); border-radius: var(--radius-lg);
+        }
+        .mpb-choice-btn:hover, .mpb-choice-btn.mpb-active { border-color: var(--accent); }
+        .mpb-choice-btn h3 { font-size: 1rem; font-weight: 600; margin-bottom: 4px; }
+        .mpb-choice-btn p { font-size: 0.78rem; color: var(--text-muted); font-weight: 300; margin: 0; }
+        .mpb-form { display: none; }
+        .mpb-form.mpb-open { display: block; }
+        .mpb-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+        .mpb-form-full { grid-column: 1 / -1; }
+        .mpb-label {
+          display: block; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em;
+          color: var(--text-muted); font-weight: 500; margin-bottom: 6px;
+        }
+        .mpb-input, .mpb-select, .mpb-textarea {
+          width: 100%; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border);
+          color: var(--text); font-family: inherit; font-size: 0.88rem; box-sizing: border-box;
+          border-radius: var(--radius);
+        }
+        .mpb-textarea { min-height: 80px; resize: vertical; }
+        .mpb-select { appearance: none; cursor: pointer; }
+        .mpb-macro-row { display: flex; gap: 16px; align-items: center; margin-bottom: 20px; }
+        .mpb-macro-slider-wrap { flex: 1; }
+        .mpb-macro-slider-wrap input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+        .mpb-macro-val { font-size: 0.85rem; font-weight: 600; text-align: center; margin-top: 2px; }
+        .mpb-macro-total { font-size: 0.78rem; color: var(--text-muted); font-weight: 500; margin-bottom: 16px; }
+        .mpb-macro-total.mpb-over { color: #EF4444; }
+        .mpb-day-card { background: var(--bg-card); border: 1px solid var(--border); margin-bottom: 8px; border-radius: var(--radius-lg); }
+        .mpb-day-header {
+          display: flex; justify-content: space-between; align-items: center;
+          padding: 14px 20px; cursor: pointer; user-select: none;
+        }
+        .mpb-day-header h4 { font-size: 0.88rem; font-weight: 500; margin: 0; }
+        .mpb-day-header span { font-size: 0.75rem; color: var(--text-muted); transition: transform 0.2s; }
+        .mpb-day-body { display: none; padding: 0 20px 20px; }
+        .mpb-day-card.mpb-expanded .mpb-day-body { display: block; }
+        .mpb-day-card.mpb-expanded .mpb-day-header span { transform: rotate(180deg); }
+        .mpb-meal-block { padding: 14px 0; border-bottom: 1px solid var(--border); }
+        .mpb-meal-block:last-child { border-bottom: none; }
+        .mpb-meal-block h5 {
+          font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em;
+          color: var(--accent-dark); font-weight: 600; margin: 0 0 10px;
+        }
+        .mpb-meal-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+        .mpb-assign-row {
+          display: flex; gap: 16px; align-items: flex-end; margin: 24px 0 16px; flex-wrap: wrap;
+        }
+        .mpb-assign-row > div { flex: 1; min-width: 180px; }
+        .mpb-publish-btn {
+          padding: 12px 28px; background: var(--accent); color: #fff; border: none;
+          font-family: inherit; font-size: 0.88rem; font-weight: 600; cursor: pointer;
+          letter-spacing: -0.01em; transition: background 0.2s; border-radius: var(--radius);
+        }
+        .mpb-publish-btn:hover { background: var(--accent-dark); }
+        .mpb-plans-list { margin-top: 32px; }
+        .mpb-plan-item {
+          display: flex; align-items: center; gap: 16px; padding: 16px 20px;
+          background: var(--bg-card); border: 1px solid var(--border); margin-bottom: 8px;
+          flex-wrap: wrap; border-radius: var(--radius);
+        }
+        .mpb-plan-item h4 { flex: 1; font-size: 0.92rem; font-weight: 500; margin: 0; min-width: 140px; }
+        .mpb-badge {
+          display: inline-block; padding: 2px 10px; font-size: 0.68rem; font-weight: 600;
+          text-transform: uppercase; letter-spacing: 0.04em; border-radius: 20px;
+        }
+        .mpb-badge-draft { background: rgba(245,158,11,0.15); color: #F59E0B; }
+        .mpb-badge-published { background: rgba(16,185,129,0.15); color: #10B981; }
+        .mpb-badge-profile { background: rgba(99,102,241,0.15); color: #818CF8; }
+        .mpb-plan-client { font-size: 0.78rem; color: var(--text-muted); font-weight: 300; min-width: 120px; }
+        .mpb-plan-actions { display: flex; gap: 8px; }
+        .mpb-plan-actions button {
+          padding: 6px 14px; font-size: 0.75rem; font-weight: 500; cursor: pointer;
+          border: 1px solid var(--border); background: var(--bg-card); color: var(--text);
+          font-family: inherit; transition: all 0.2s; border-radius: var(--radius);
+        }
+        .mpb-plan-actions button:hover { border-color: var(--text); }
+        .mpb-plan-actions button.mpb-del:hover { border-color: #EF4444; color: #EF4444; }
+        .mpb-empty { text-align: center; padding: 40px; color: var(--text-muted); font-size: 0.82rem; }
+        @media (max-width: 768px) {
+          .mpb-choice { flex-direction: column; }
+          .mpb-form-grid { grid-template-columns: 1fr; }
+          .mpb-meal-grid { grid-template-columns: 1fr 1fr; }
+          .mpb-macro-row { flex-direction: column; }
+          .mpb-assign-row { flex-direction: column; }
+        }
+      </style>
+
+      <div class="mpb-wrap">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+          <h2 style="margin-bottom:0;">Meal Plan Builder</h2>
+          <button class="btn btn-primary" onclick="mpbToggleBuilder()">+ Create New Meal Plan</button>
+        </div>
+
+        <!-- Builder Area -->
+        <div class="mpb-toggle-area" id="mpbBuilderArea">
+          <!-- Step 1: Choose path -->
+          <div class="mpb-choice" id="mpbChoice">
+            <button class="mpb-choice-btn" onclick="mpbChoosePath('template')">
+              <h3>Use Shape Template</h3>
+              <p>Pre-structured meal plan with daily breakdowns and macro tracking</p>
+            </button>
+            <button class="mpb-choice-btn" onclick="mpbChoosePath('custom')">
+              <h3>Upload Custom Plan</h3>
+              <p>Upload your own meal plan as a PDF, image, or document and assign it to a client.</p>
+            </button>
+          </div>
+
+          <!-- Template Form -->
+          <div class="mpb-form" id="mpbTemplateForm">
+            <div class="mpb-form-grid">
+              <div>
+                <label class="mpb-label">Plan Name</label>
+                <input type="text" class="mpb-input" id="mpbTplName" placeholder="e.g. 8-Week Lean Bulk">
+              </div>
+              <div>
+                <label class="mpb-label">Goal</label>
+                <select class="mpb-select" id="mpbTplGoal">
+                  <option>Weight Loss</option><option>Muscle Gain</option><option>Maintenance</option>
+                  <option>Athletic Performance</option><option>General Health</option>
+                </select>
+              </div>
+              <div>
+                <label class="mpb-label">Diet Type</label>
+                <select class="mpb-select" id="mpbTplDiet">
+                  <option>Standard</option><option>Keto</option><option>Vegan</option>
+                  <option>Vegetarian</option><option>Paleo</option><option>Mediterranean</option>
+                  <option>Gluten-Free</option>
+                </select>
+              </div>
+              <div>
+                <label class="mpb-label">Duration</label>
+                <select class="mpb-select" id="mpbTplDuration">
+                  <option value="1">1 Week</option><option value="2">2 Weeks</option>
+                  <option value="4">4 Weeks</option><option value="8">8 Weeks</option>
+                  <option value="12">12 Weeks</option>
+                </select>
+              </div>
+              <div>
+                <label class="mpb-label">Daily Calorie Target</label>
+                <input type="number" class="mpb-input" id="mpbTplCalories" placeholder="2200" min="0">
+              </div>
+              <div>
+                <label class="mpb-label">Description</label>
+                <textarea class="mpb-textarea" id="mpbTplDesc" placeholder="Describe this plan..."></textarea>
+              </div>
+            </div>
+
+            <!-- Macro Split -->
+            <label class="mpb-label">Macro Split</label>
+            <div class="mpb-macro-row">
+              <div class="mpb-macro-slider-wrap">
+                <label class="mpb-label" style="color:var(--text)">Protein</label>
+                <input type="range" min="0" max="100" value="40" id="mpbSliderP" oninput="mpbUpdateMacros()">
+                <div class="mpb-macro-val" id="mpbValP">40%</div>
+              </div>
+              <div class="mpb-macro-slider-wrap">
+                <label class="mpb-label" style="color:var(--text)">Carbs</label>
+                <input type="range" min="0" max="100" value="35" id="mpbSliderC" oninput="mpbUpdateMacros()">
+                <div class="mpb-macro-val" id="mpbValC">35%</div>
+              </div>
+              <div class="mpb-macro-slider-wrap">
+                <label class="mpb-label" style="color:var(--text)">Fat</label>
+                <input type="range" min="0" max="100" value="25" id="mpbSliderF" oninput="mpbUpdateMacros()">
+                <div class="mpb-macro-val" id="mpbValF">25%</div>
+              </div>
+            </div>
+            <div class="mpb-macro-total" id="mpbMacroTotal">Total: 100%</div>
+
+            <!-- Day-by-day meal builder -->
+            <label class="mpb-label" style="margin-bottom:12px;">Weekly Meal Plan</label>
+            <div id="mpbDaysContainer"></div>
+
+            <!-- Shopping List -->
+            <div style="margin-top:20px;">
+              <label class="mpb-label">Shopping List</label>
+              <textarea class="mpb-textarea" id="mpbTplShoppingList" placeholder="Add ingredients for the week..." style="min-height:100px;"></textarea>
+            </div>
+
+            <!-- Assign & Actions -->
+            <div class="mpb-assign-row">
+              <div>
+                <label class="mpb-label">Assign to Client</label>
+                <select class="mpb-select" id="mpbTplClient">
+                  <option value="">— Select Client —</option>
+                  <option>Christopher Perry</option><option>Emma Chen</option>
+                  <option>David Kim</option><option>Sofia Rodriguez</option>
+                  <option>Marcus Thompson</option>
+                </select>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;">
+                <button class="btn btn-outline" onclick="mpbSaveDraft('template')" style="border-color:var(--accent);color:var(--accent-dark);font-size:0.78rem;padding:8px 16px;">Save Draft</button>
+                <button class="mpb-publish-btn" onclick="mpbSavePlan('template')">Publish &amp; Send to Client</button>
+                <button class="btn btn-primary" onclick="mpbPublishToProfile('template')" style="font-size:0.78rem;padding:8px 16px;">Publish to Profile</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Upload Custom Plan Form -->
+          <div class="mpb-form" id="mpbCustomForm">
+            <div class="mpb-form-grid">
+              <div>
+                <label class="mpb-label">Plan Name</label>
+                <input type="text" class="mpb-input" id="mpbCustName" placeholder="e.g. Custom Meal Strategy">
+              </div>
+              <div class="mpb-form-full">
+                <label class="mpb-label">Description</label>
+                <textarea class="mpb-textarea" id="mpbCustDesc" placeholder="Brief overview of the plan..."></textarea>
+              </div>
+            </div>
+
+            <!-- File Upload Area -->
+            <div style="margin-bottom:20px;">
+              <label class="mpb-label">Upload Your Plan</label>
+              <div id="mpbUploadZone" style="border:2px dashed var(--border);padding:40px 20px;text-align:center;cursor:pointer;transition:all 0.3s;background:var(--bg);border-radius:var(--radius-lg);" onclick="document.getElementById('mpbFileInput').click()" ondragover="event.preventDefault();this.style.borderColor='var(--accent)';this.style.background='rgba(45,212,191,0.04)'" ondragleave="this.style.borderColor='var(--border)';this.style.background='var(--bg)'" ondrop="event.preventDefault();this.style.borderColor='var(--border)';this.style.background='var(--bg)';mpbHandleFiles(event.dataTransfer.files)">
+                <div style="font-size:1.6rem;margin-bottom:8px;color:var(--text-muted);">&#8593;</div>
+                <div style="font-size:0.88rem;font-weight:500;color:var(--text);margin-bottom:4px;">Drag & drop your file here or click to browse</div>
+                <div style="font-size:0.72rem;color:var(--text-muted);">Supports PDF, PNG, JPG, DOCX, or TXT — max 10MB</div>
+              </div>
+              <input type="file" id="mpbFileInput" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.txt" style="display:none" onchange="mpbHandleFiles(this.files)">
+            </div>
+
+            <!-- Uploaded File Preview -->
+            <div id="mpbUploadedFiles" style="display:none;margin-bottom:20px;">
+              <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px;">Uploaded Files</div>
+              <div id="mpbFileList"></div>
+            </div>
+
+            <!-- Assign & Actions -->
+            <div class="mpb-assign-row">
+              <div>
+                <label class="mpb-label">Assign to Client</label>
+                <select class="mpb-select" id="mpbCustClient">
+                  <option value="">— Select Client —</option>
+                  <option>Christopher Perry</option><option>Emma Chen</option>
+                  <option>David Kim</option><option>Sofia Rodriguez</option>
+                  <option>Marcus Thompson</option>
+                </select>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;">
+                <button class="btn btn-outline" onclick="mpbSaveDraft('custom')" style="border-color:var(--accent);color:var(--accent-dark);font-size:0.78rem;padding:8px 16px;">Save Draft</button>
+                <button class="mpb-publish-btn" onclick="mpbSavePlan('custom')">Publish &amp; Send to Client</button>
+                <button class="btn btn-primary" onclick="mpbPublishToProfile('custom')" style="font-size:0.78rem;padding:8px 16px;">Publish to Profile</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- My Meal Plans List -->
+        <div class="mpb-plans-list">
+          <label class="mpb-label" style="margin-bottom:12px;">My Meal Plans</label>
+          <div id="mpbPlansList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Certifications -->
+    <div class="tp-section" id="certsSection">
+      <div class="tp-section-header">
+        <h2>Certifications</h2>
+        <button class="tp-edit-btn" onclick="addCertification()">+ Add</button>
+      </div>
+      <ul class="tp-certs-list" id="certsList">
+        <!-- Certs rendered by JS -->
+      </ul>
+    </div>
+
+    <!-- Intro Video -->
+    <div class="tp-section" id="introVideoSection">
+      <div class="tp-section-header">
+        <h2>Intro Video</h2>
+        <button class="tp-edit-btn" id="introVideoEditBtn" onclick="toggleIntroVideoEdit()">Edit</button>
+      </div>
+      <p style="font-size: 0.88rem; color: var(--text-muted); font-weight: 300; margin-bottom: 16px;">Record or upload a short video introducing yourself to potential clients. This is the first thing people see on your profile.</p>
+      <div id="nIntroVideoDisplay">
+        <div id="nIntroVideoPlayer" style="display:none;margin-bottom:16px;">
+          <video id="nIntroVid" controls style="width:100%;max-height:400px;background:#000;border:1px solid var(--border);"></video>
+        </div>
+        <div id="nIntroVideoPlaceholder" style="background:linear-gradient(135deg,#1a1a1a11,#1a1a1a06);border:1px solid var(--border);height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;" onclick="document.getElementById('nIntroVideoUpload').click()">
+          <div style="font-size:2rem;margin-bottom:8px;">&#9654;</div>
+          <div style="font-size:0.85rem;font-weight:500;color:var(--text-muted);">Upload Your Intro Video</div>
+          <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">MP4, MOV, or WebM — up to 2 minutes recommended</div>
+        </div>
+        <input type="file" id="nIntroVideoUpload" accept="video/*" style="display:none" onchange="handleNIntroVideoUpload(event)">
+      </div>
+      <div id="nIntroVideoUrlRow" style="display:none;margin-top:12px;">
+        <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Or paste a YouTube/Vimeo URL</label>
+        <div style="display:flex;gap:8px;margin-top:6px;">
+          <input class="tp-edit-input" id="nIntroVideoUrl" placeholder="https://youtube.com/watch?v=..." style="margin-top:0;">
+          <button class="tp-save-btn" onclick="saveNIntroVideoUrl()" style="padding:8px 16px;white-space:nowrap;">Embed</button>
+        </div>
+      </div>
+      <div id="nIntroVideoEmbedDisplay" style="display:none;margin-top:12px;">
+        <iframe id="nIntroVideoEmbed" style="width:100%;height:360px;border:1px solid var(--border);" allowfullscreen></iframe>
+      </div>
+      <div class="tp-edit-actions" id="introVideoActions" style="display:none;">
+        <button class="tp-save-btn" onclick="saveNIntroVideo()">Save</button>
+        <button class="tp-cancel-btn" onclick="removeNIntroVideo()">Remove Video</button>
+        <button class="tp-cancel-btn" onclick="cancelIntroVideoEdit()">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Photos & Videos -->
+    <div class="tp-section" id="mediaSection">
+      <div class="tp-section-header">
+        <h2>Photos & Videos</h2>
+        <button class="tp-edit-btn" id="mediaEditBtn" onclick="toggleMediaEdit()">Edit</button>
+      </div>
+      <p style="font-size: 0.88rem; color: var(--text-muted); font-weight: 300; margin-bottom: 16px;">Upload photos and videos to showcase meal prep tutorials, client results, recipe demos, and more.</p>
+      <div class="tp-gallery-grid" id="nPhotoGallery">
+        <div class="tp-gallery-item" style="cursor:pointer;" onclick="document.getElementById('nPhotoUpload').click()">+ Upload Photo</div>
+      </div>
+      <input type="file" id="nPhotoUpload" accept="image/*" multiple style="display:none" onchange="handleNPhotoUpload(event)">
+      <div style="margin-top:16px;">
+        <div style="font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:10px;">Videos</div>
+        <div class="tp-gallery-grid" id="nVideoGallery">
+          <div class="tp-gallery-item" style="height:160px;cursor:pointer;background:linear-gradient(135deg,#1a1a1a11,#1a1a1a06);" onclick="addNVideoUrl()">
+            <div style="text-align:center;">
+              <div style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:4px;">&#9654;</div>
+              <div>+ Add Video URL</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="tp-edit-actions" id="mediaActions" style="display:none;">
+        <button class="tp-save-btn" onclick="saveNMedia()">Save</button>
+        <button class="tp-cancel-btn" onclick="cancelMediaEdit()">Cancel</button>
+      </div>
+    </div>
+
+    <!-- 1-on-1 Consultation Scheduling -->
+    <div class="tp-section" id="consultSection">
+      <div class="tp-section-header">
+        <h2>1-on-1 Consultations</h2>
+        <button class="tp-edit-btn" id="consultEditBtn" onclick="toggleConsultEdit()">Edit</button>
+      </div>
+      <p style="font-size:0.88rem;color:var(--text-muted);font-weight:300;margin-bottom:20px;">Offer free or paid 1-on-1 nutrition consultations. Set your availability and let clients book directly from your profile.</p>
+      <div id="nConsultDisplay">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px;">
+          <div style="background:var(--bg-card);border:1px solid var(--border);padding:20px;">
+            <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:8px;">Session Length</div>
+            <div style="font-size:1.1rem;font-weight:600;" id="nConsultDurationDisplay">15 min</div>
+          </div>
+          <div style="background:var(--bg-card);border:1px solid var(--border);padding:20px;">
+            <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:8px;">Price</div>
+            <div style="font-size:1.1rem;font-weight:600;" id="nConsultPriceDisplay">Free</div>
+          </div>
+          <div style="background:var(--bg-card);border:1px solid var(--border);padding:20px;">
+            <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:8px;">Format</div>
+            <div style="font-size:1.1rem;font-weight:600;" id="nConsultFormatDisplay">Video</div>
+          </div>
+        </div>
+        <div style="margin-bottom:20px;">
+          <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:10px;">Your Availability</div>
+          <div id="nAvailabilityDisplay" style="display:flex;flex-wrap:wrap;gap:8px;">
+            <span class="tp-tag" style="opacity:0.4;">No availability set</span>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="shapeOpenBooking('nutritionist')" style="width:100%;">Book a 1-on-1 Consultation</button>
+      </div>
+      <div style="display:none;" id="nConsultEditFields">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px;">
+          <div>
+            <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Session Length</label>
+            <select class="tp-edit-input" id="nConsultDuration" style="margin-top:4px;">
+              <option value="15">15 minutes</option>
+              <option value="30">30 minutes</option>
+              <option value="45">45 minutes</option>
+              <option value="60">60 minutes</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Format</label>
+            <select class="tp-edit-input" id="nConsultFormat" style="margin-top:4px;">
+              <option value="Video">Video Call</option>
+              <option value="Phone">Phone Call</option>
+              <option value="Both">Video or Phone</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Price</label>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">
+              <label style="font-size:0.82rem;display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="radio" name="nConsultPriceType" value="free" checked onchange="toggleNConsultPrice()"> Free</label>
+              <label style="font-size:0.82rem;display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="radio" name="nConsultPriceType" value="paid" onchange="toggleNConsultPrice()"> Paid</label>
+              <input class="tp-edit-input" id="nConsultPriceInput" type="number" placeholder="25.00" style="width:100px;margin-top:0;display:none;">
+            </div>
+          </div>
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);display:block;margin-bottom:8px;">Available Days</label>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;" id="nAvailDays">
+            <label class="tp-tag" style="cursor:pointer;"><input type="checkbox" value="Mon" style="margin-right:4px;"> Mon</label>
+            <label class="tp-tag" style="cursor:pointer;"><input type="checkbox" value="Tue" style="margin-right:4px;"> Tue</label>
+            <label class="tp-tag" style="cursor:pointer;"><input type="checkbox" value="Wed" style="margin-right:4px;"> Wed</label>
+            <label class="tp-tag" style="cursor:pointer;"><input type="checkbox" value="Thu" style="margin-right:4px;"> Thu</label>
+            <label class="tp-tag" style="cursor:pointer;"><input type="checkbox" value="Fri" style="margin-right:4px;"> Fri</label>
+            <label class="tp-tag" style="cursor:pointer;"><input type="checkbox" value="Sat" style="margin-right:4px;"> Sat</label>
+            <label class="tp-tag" style="cursor:pointer;"><input type="checkbox" value="Sun" style="margin-right:4px;"> Sun</label>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+          <div>
+            <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Available From</label>
+            <input class="tp-edit-input" id="nConsultTimeFrom" type="time" value="09:00" style="margin-top:4px;">
+          </div>
+          <div>
+            <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Available Until</label>
+            <input class="tp-edit-input" id="nConsultTimeTo" type="time" value="17:00" style="margin-top:4px;">
+          </div>
+        </div>
+        <div>
+          <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Consultation Description</label>
+          <textarea class="tp-edit-textarea" id="nConsultDesc" style="min-height:60px;margin-top:4px;" placeholder="What will the consultation cover? E.g. dietary assessment, meal planning, macro review...">Free 15-minute intro call to discuss your nutrition goals and find the right plan for you.</textarea>
+        </div>
+      </div>
+      <div class="tp-edit-actions" id="consultActions" style="display:none;">
+        <button class="tp-save-btn" onclick="saveNConsult()">Save</button>
+        <button class="tp-cancel-btn" onclick="cancelConsultEdit()">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Social Links -->
+    <div class="tp-section" id="socialSection">
+      <div class="tp-section-header">
+        <h2>Social Links</h2>
+        <button class="tp-edit-btn" id="socialEditBtn" onclick="startSocialEdit()">Edit</button>
+      </div>
+      <div class="tp-social-links tp-inline-display" id="socialDisplay">
+        <span class="tp-social-link" id="socialInstagramLink">Instagram</span>
+        <span class="tp-social-link" id="socialYoutubeLink">YouTube</span>
+        <span class="tp-social-link" id="socialTiktokLink">TikTok</span>
+        <span class="tp-social-link" id="socialWebsiteLink">Website</span>
+      </div>
+      <div class="tp-inline-edit" id="socialEdit">
+        <div class="tp-social-input-group">
+          <div class="tp-social-input-row">
+            <label>Instagram</label>
+            <input type="text" id="socialInstagram" placeholder="@yourusername">
+          </div>
+          <div class="tp-social-input-row">
+            <label>YouTube</label>
+            <input type="text" id="socialYoutube" placeholder="youtube.com/c/yourchannel">
+          </div>
+          <div class="tp-social-input-row">
+            <label>TikTok</label>
+            <input type="text" id="socialTiktok" placeholder="@yourusername">
+          </div>
+          <div class="tp-social-input-row">
+            <label>Website</label>
+            <input type="text" id="socialWebsite" placeholder="yourwebsite.com">
+          </div>
+        </div>
+        <div class="tp-edit-actions">
+          <button class="tp-save-btn" onclick="saveSocialEdit()">Save</button>
+          <button class="tp-cancel-btn" onclick="cancelSocialEdit()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Subscription Pricing -->
+    <div class="tp-section" id="pricingSection">
+      <div class="tp-section-header">
+        <h2>Subscription Pricing</h2>
+        <button class="tp-edit-btn" id="pricingEditBtn" onclick="startPricingEdit()">Edit</button>
+      </div>
+      <div id="pricingDisplay" class="tp-inline-display" style="background: var(--bg-card); border: 1px solid var(--border); padding: 28px; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <div style="font-size: 1.4rem; font-weight: 700;" id="subscriptionPriceDisplay">$--<span style="font-size: 0.85rem; font-weight: 400; color: var(--text-muted);">/mo</span></div>
+          <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">Set your own monthly subscription price</div>
+        </div>
+        <button class="btn btn-primary">Set</button>
+      </div>
+      <div id="pricingEdit" class="tp-inline-edit" style="background: var(--bg-card); border: 1px solid var(--border); padding: 28px;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+          <span style="font-size: 1.4rem; font-weight: 700;">$</span>
+          <input type="number" class="tp-edit-input" id="subscriptionPriceInput" placeholder="29" min="0" style="width: 120px; font-size: 1.2rem; font-weight: 600;">
+          <span style="font-size: 0.85rem; color: var(--text-muted);">/mo</span>
+        </div>
+        <div class="tp-edit-actions">
+          <button class="tp-save-btn" onclick="savePricingEdit()">Save</button>
+          <button class="tp-cancel-btn" onclick="cancelPricingEdit()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <a href="home.html" class="logo">
+            <img src="logo.png" alt="Shape" class="logo-img">
+          </a>
+          <p class="footer-desc">Join the community</p>
+        </div>
+        <div class="footer-col">
+          <h4>Platform</h4>
+          <a href="trainers.html">Trainer Marketplace</a>
+        <a href="for-trainers.html">Trainers</a>
+          <a href="nutritionists.html">Nutritionists</a>        <a href="community.html">Community</a>
+        <a href="pricing.html">Pricing</a>
+          <a href="for-clients.html">Clients</a>
+          <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+          <a href="trainer-dashboard.html">Trainer Dashboard</a>
+          <a href="integrations.html">Integrations</a>
+        </div>
+        <div class="footer-col">
+          <h4>Get Started</h4>
+          <a href="signup-client.html">Sign Up as Client</a>
+          <a href="signup-trainer.html">Apply as Trainer</a>
+          <a href="signup-nutritionist.html">Apply as Nutritionist</a>
+        </div>
+        <div class="footer-col">
+          <h4>Support</h4>
+          <a href="help.html">Help Center</a>
+          <a href="contact.html">Contact</a>
+          <a href="radio.html">Shape Radio</a>
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 Shape. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <div class="toast" id="toast"></div>
+  <script src="app.js"></script>
+
+  <script>
+    // ===== Nutritionist Profile — Inline Editing with localStorage =====
+
+    const STORAGE_KEY = 'shapeNutritionistProfile';
+    let tagsEditing = false;
+
+    // Default data
+    function getDefaults() {
+      return {
+        name: 'Your Name',
+        specialty: 'Your Specialty',
+        avatar: '',
+        subscribers: '0',
+        rating: '--',
+        price: '$--/mo',
+        experience: '--',
+        bio: 'Write your personal bio here. Tell potential clients about your nutrition philosophy, what sets you apart, your background, and why they should work with you. This is your space to make a first impression.',
+        tags: ['Sports Nutrition', 'Weight Management', 'Plant-Based', 'Macro Coaching'],
+        mealPlans: [
+          { name: 'Meal Plan Name', goal: 'Goal', duration: 'Duration', dietType: 'Diet Type', desc: 'Describe your meal plan. Clients will see this when browsing your profile.', price: '$--' },
+          { name: 'Meal Plan Name', goal: 'Goal', duration: 'Duration', dietType: 'Diet Type', desc: 'Create as many meal plans as you want. Sell them individually or include them with your subscription.', price: '$--' }
+        ],
+        certifications: [],
+        social: { instagram: '', youtube: '', tiktok: '', website: '' },
+        subscriptionPrice: '',
+        introVideo: null,
+        introVideoUrl: '',
+        photos: [],
+        videos: [],
+        consult: { duration: '15', priceType: 'free', price: '', format: 'Video', days: [], timeFrom: '09:00', timeTo: '17:00', desc: 'Free 15-minute intro call to discuss your nutrition goals and find the right plan for you.' }
+      };
+    }
+
+    let nutritionistData = getDefaults();
+
+    // ===== localStorage =====
+    function saveToLocalStorage() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(nutritionistData));
+    }
+
+    function loadFromLocalStorage() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      try {
+        const saved = JSON.parse(raw);
+        nutritionistData = { ...getDefaults(), ...saved };
+      } catch(e) { return; }
+    }
+
+    // ===== Toast =====
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2500);
+    }
+
+    // ===== Avatar =====
+    function handleAvatarUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        nutritionistData.avatar = ev.target.result;
+        renderAvatar();
+        saveToLocalStorage();
+        showToast('Profile photo updated!');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function renderAvatar() {
+      const initials = document.getElementById('avatarInitials');
+      const img = document.getElementById('avatarImg');
+      if (nutritionistData.avatar) {
+        initials.style.display = 'none';
+        img.src = nutritionistData.avatar;
+        img.style.display = 'block';
+      } else {
+        img.style.display = 'none';
+        initials.style.display = '';
+        const parts = nutritionistData.name.split(' ').filter(Boolean);
+        initials.textContent = parts.map(p => p[0]).join('').toUpperCase() || 'YN';
+      }
+    }
+
+    // ===== Name & Specialty Inline Edit =====
+    function startInlineEdit(field) {
+      const display = document.getElementById(field + 'Display');
+      const edit = document.getElementById(field + 'Edit');
+      const input = document.getElementById(field + 'Input');
+      display.classList.add('hidden');
+      edit.classList.add('active');
+      input.value = nutritionistData[field] || '';
+      input.focus();
+    }
+
+    function saveInlineEdit(field) {
+      const input = document.getElementById(field + 'Input');
+      const display = document.getElementById(field + 'Display');
+      const edit = document.getElementById(field + 'Edit');
+      nutritionistData[field] = input.value.trim() || getDefaults()[field];
+      display.textContent = nutritionistData[field];
+      display.classList.remove('hidden');
+      edit.classList.remove('active');
+      if (field === 'name') renderAvatar();
+      saveToLocalStorage();
+      showToast((field === 'name' ? 'Name' : 'Specialty') + ' updated!');
+    }
+
+    function cancelInlineEdit(field) {
+      const display = document.getElementById(field + 'Display');
+      const edit = document.getElementById(field + 'Edit');
+      display.classList.remove('hidden');
+      edit.classList.remove('active');
+    }
+
+    // ===== Stats Inline Edit =====
+    function startStatEdit(el, key) {
+      const valueEl = el.querySelector('.tp-stat-value');
+      const current = nutritionistData[key] || valueEl.textContent;
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'tp-edit-input';
+      input.value = current;
+      input.style.width = '100px';
+      input.style.textAlign = 'center';
+      input.style.fontSize = '1rem';
+      valueEl.style.display = 'none';
+      el.insertBefore(input, valueEl.nextSibling);
+      input.focus();
+      input.select();
+      el.onclick = null;
+
+      function finish() {
+        const val = input.value.trim() || getDefaults()[key];
+        nutritionistData[key] = val;
+        valueEl.textContent = val;
+        valueEl.style.display = '';
+        input.remove();
+        el.onclick = function() { startStatEdit(el, key); };
+        saveToLocalStorage();
+        showToast('Stat updated!');
+      }
+
+      input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') finish();
+        if (e.key === 'Escape') {
+          valueEl.style.display = '';
+          input.remove();
+          el.onclick = function() { startStatEdit(el, key); };
+        }
+      });
+      input.addEventListener('blur', finish);
+    }
+
+    // ===== Bio =====
+    function startBioEdit() {
+      document.getElementById('bioDisplay').classList.add('hidden');
+      document.getElementById('bioEdit').classList.add('active');
+      document.getElementById('bioEditBtn').style.display = 'none';
+      const ta = document.getElementById('bioTextarea');
+      ta.value = nutritionistData.bio;
+      ta.focus();
+    }
+
+    function saveBioEdit() {
+      const val = document.getElementById('bioTextarea').value.trim();
+      nutritionistData.bio = val || getDefaults().bio;
+      document.getElementById('bioDisplay').textContent = nutritionistData.bio;
+      document.getElementById('bioDisplay').classList.remove('hidden');
+      document.getElementById('bioEdit').classList.remove('active');
+      document.getElementById('bioEditBtn').style.display = '';
+      saveToLocalStorage();
+      showToast('Bio updated!');
+    }
+
+    function cancelBioEdit() {
+      document.getElementById('bioDisplay').classList.remove('hidden');
+      document.getElementById('bioEdit').classList.remove('active');
+      document.getElementById('bioEditBtn').style.display = '';
+    }
+
+    // ===== Tags =====
+    function toggleTagsEdit() {
+      tagsEditing = !tagsEditing;
+      document.getElementById('tagsEditBtn').textContent = tagsEditing ? 'Done' : 'Edit';
+      renderTags();
+      if (!tagsEditing) {
+        saveToLocalStorage();
+        showToast('Tags updated!');
+      }
+    }
+
+    function renderTags() {
+      const container = document.getElementById('tagsContainer');
+      container.innerHTML = '';
+      nutritionistData.tags.forEach((tag, i) => {
+        const span = document.createElement('span');
+        span.className = 'tp-tag' + (tagsEditing ? ' removable' : '');
+        span.textContent = tag;
+        if (tagsEditing) {
+          const remove = document.createElement('span');
+          remove.className = 'remove-tag';
+          remove.textContent = 'x';
+          remove.onclick = function(e) {
+            e.stopPropagation();
+            nutritionistData.tags.splice(i, 1);
+            renderTags();
+            saveToLocalStorage();
+          };
+          span.appendChild(remove);
+        }
+        container.appendChild(span);
+      });
+      if (tagsEditing) {
+        const addBtn = document.createElement('button');
+        addBtn.className = 'tp-tag-add';
+        addBtn.textContent = '+ Add Tag';
+        addBtn.onclick = function() {
+          const tag = prompt('Enter a new tag:');
+          if (tag && tag.trim()) {
+            nutritionistData.tags.push(tag.trim());
+            renderTags();
+            saveToLocalStorage();
+          }
+        };
+        container.appendChild(addBtn);
+      }
+    }
+
+    // ===== Meal Plan Builder (IIFE) =====
+    (function(){
+      const PLANS_KEY = 'shapeNutritionistPlans';
+      const ASSIGNED_KEY = 'shapeClientAssignedMealPlans';
+      const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+      const MEALS = ['Breakfast','Morning Snack','Lunch','Afternoon Snack','Dinner'];
+      let mpbEditId = null;
+
+      function mpbGetPlans(){ return JSON.parse(localStorage.getItem(PLANS_KEY)||'[]'); }
+      function mpbSavePlans(p){ localStorage.setItem(PLANS_KEY,JSON.stringify(p)); }
+      function mpbGetAssigned(){ return JSON.parse(localStorage.getItem(ASSIGNED_KEY)||'[]'); }
+      function mpbSaveAssigned(p){ localStorage.setItem(ASSIGNED_KEY,JSON.stringify(p)); }
+
+      function mpbToast(msg){
+        var t=document.getElementById('toast');
+        if(t){t.textContent=msg;t.classList.add('show');setTimeout(function(){t.classList.remove('show');},3000);}
+      }
+
+      window.mpbToggleBuilder=function(){
+        var el=document.getElementById('mpbBuilderArea');
+        el.classList.toggle('mpb-open');
+        if(!el.classList.contains('mpb-open')){mpbResetBuilder();}
+      };
+
+      window.mpbChoosePath=function(path){
+        document.querySelectorAll('.mpb-choice-btn').forEach(function(b){b.classList.remove('mpb-active');});
+        event.currentTarget.classList.add('mpb-active');
+        document.getElementById('mpbTemplateForm').classList.toggle('mpb-open',path==='template');
+        document.getElementById('mpbCustomForm').classList.toggle('mpb-open',path==='custom');
+        if(path==='template') mpbBuildDays();
+      };
+
+      function mpbBuildDays(data){
+        var c=document.getElementById('mpbDaysContainer');c.innerHTML='';
+        DAYS.forEach(function(day,di){
+          var card=document.createElement('div');card.className='mpb-day-card';
+          var hdr=document.createElement('div');hdr.className='mpb-day-header';
+          hdr.innerHTML='<h4>'+day+'</h4><span>&#9660;</span>';
+          hdr.onclick=function(){card.classList.toggle('mpb-expanded');};
+          var body=document.createElement('div');body.className='mpb-day-body';
+          MEALS.forEach(function(meal,mi){
+            var existing=(data&&data[di]&&data[di][mi])||{};
+            var block=document.createElement('div');block.className='mpb-meal-block';
+            block.innerHTML='<h5>'+meal+'</h5>'+
+              '<div class="mpb-form-grid" style="grid-template-columns:1fr 1fr;margin-bottom:8px;">'+
+                '<div><label class="mpb-label">Meal Name</label><input type="text" class="mpb-input mpb-day-meal-name" data-d="'+di+'" data-m="'+mi+'" placeholder="e.g. Greek yogurt bowl" value="'+(existing.name||'')+'"></div>'+
+                '<div><label class="mpb-label">Calories</label><input type="number" class="mpb-input mpb-day-meal-cal" data-d="'+di+'" data-m="'+mi+'" placeholder="400" min="0" value="'+(existing.calories||'')+'"></div>'+
+              '</div>'+
+              '<div class="mpb-meal-grid">'+
+                '<div><label class="mpb-label">Protein (g)</label><input type="number" class="mpb-input mpb-day-meal-p" data-d="'+di+'" data-m="'+mi+'" placeholder="30" min="0" value="'+(existing.protein||'')+'"></div>'+
+                '<div><label class="mpb-label">Carbs (g)</label><input type="number" class="mpb-input mpb-day-meal-c" data-d="'+di+'" data-m="'+mi+'" placeholder="45" min="0" value="'+(existing.carbs||'')+'"></div>'+
+                '<div><label class="mpb-label">Fat (g)</label><input type="number" class="mpb-input mpb-day-meal-f" data-d="'+di+'" data-m="'+mi+'" placeholder="12" min="0" value="'+(existing.fat||'')+'"></div>'+
+              '</div>'+
+              '<div style="margin-top:8px;"><label class="mpb-label">Ingredients</label><textarea class="mpb-textarea mpb-day-meal-ing" data-d="'+di+'" data-m="'+mi+'" placeholder="List ingredients..." style="min-height:50px;">'+(existing.ingredients||'')+'</textarea></div>'+
+              '<div style="margin-top:8px;"><label class="mpb-label">Prep Instructions</label><textarea class="mpb-textarea mpb-day-meal-prep" data-d="'+di+'" data-m="'+mi+'" placeholder="How to prepare..." style="min-height:50px;">'+(existing.prep||'')+'</textarea></div>';
+            body.appendChild(block);
+          });
+          card.appendChild(hdr);card.appendChild(body);c.appendChild(card);
+        });
+      }
+
+      window.mpbUpdateMacros=function(){
+        var p=parseInt(document.getElementById('mpbSliderP').value);
+        var c=parseInt(document.getElementById('mpbSliderC').value);
+        var f=parseInt(document.getElementById('mpbSliderF').value);
+        document.getElementById('mpbValP').textContent=p+'%';
+        document.getElementById('mpbValC').textContent=c+'%';
+        document.getElementById('mpbValF').textContent=f+'%';
+        var total=p+c+f;
+        var el=document.getElementById('mpbMacroTotal');
+        el.textContent='Total: '+total+'%';
+        el.classList.toggle('mpb-over',total!==100);
+      };
+
+      var mpbUploadedFiles=[];
+
+      window.mpbHandleFiles=function(files){
+        Array.from(files).forEach(function(file){
+          if(file.size>10*1024*1024){mpbToast('File too large. Max 10MB.');return;}
+          var reader=new FileReader();
+          reader.onload=function(ev){
+            mpbUploadedFiles.push({name:file.name,type:file.type,size:file.size,data:ev.target.result});
+            mpbRenderFileList();
+            mpbToast(file.name+' uploaded!');
+          };
+          reader.readAsDataURL(file);
+        });
+      };
+
+      function mpbRenderFileList(){
+        var container=document.getElementById('mpbUploadedFiles');
+        var list=document.getElementById('mpbFileList');
+        if(!mpbUploadedFiles.length){container.style.display='none';return;}
+        container.style.display='block';
+        list.innerHTML=mpbUploadedFiles.map(function(f,i){
+          var sizeKB=(f.size/1024).toFixed(1);
+          var isImage=f.type&&f.type.startsWith('image/');
+          var icon=f.type==='application/pdf'?'&#128196;':isImage?'&#128247;':'&#128196;';
+          return '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--bg-card);border:1px solid var(--border);margin-bottom:6px;border-radius:var(--radius);">'+
+            (isImage?'<img src="'+f.data+'" style="width:48px;height:48px;object-fit:cover;border:1px solid var(--border);">':'<span style="font-size:1.6rem;">'+icon+'</span>')+
+            '<div style="flex:1;"><div style="font-size:0.88rem;font-weight:500;">'+mpbEsc(f.name)+'</div><div style="font-size:0.72rem;color:var(--text-muted);">'+sizeKB+' KB</div></div>'+
+            '<button style="background:none;border:none;font-size:1rem;color:var(--text-muted);cursor:pointer;" onclick="mpbRemoveFile('+i+')">&times;</button></div>';
+        }).join('');
+      }
+
+      window.mpbRemoveFile=function(idx){
+        mpbUploadedFiles.splice(idx,1);
+        mpbRenderFileList();
+      };
+
+      function mpbCollectDays(){
+        var days=[];
+        for(var d=0;d<7;d++){
+          var meals=[];
+          for(var m=0;m<MEALS.length;m++){
+            var sel=function(cls){var el=document.querySelector('.'+cls+'[data-d="'+d+'"][data-m="'+m+'"]');return el?el.value:'';};
+            meals.push({
+              mealType:MEALS[m],
+              name:sel('mpb-day-meal-name'),
+              calories:sel('mpb-day-meal-cal'),
+              protein:sel('mpb-day-meal-p'),
+              carbs:sel('mpb-day-meal-c'),
+              fat:sel('mpb-day-meal-f'),
+              ingredients:sel('mpb-day-meal-ing'),
+              prep:sel('mpb-day-meal-prep')
+            });
+          }
+          days.push({day:DAYS[d],meals:meals});
+        }
+        return days;
+      }
+
+      function mpbCollectPlan(type){
+        var plan={id:mpbEditId||Date.now(),type:type,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+        if(type==='template'){
+          plan.name=document.getElementById('mpbTplName').value.trim();
+          if(!plan.name) return null;
+          plan.goal=document.getElementById('mpbTplGoal').value;
+          plan.dietType=document.getElementById('mpbTplDiet').value;
+          plan.duration=document.getElementById('mpbTplDuration').value;
+          plan.calories=document.getElementById('mpbTplCalories').value;
+          plan.description=document.getElementById('mpbTplDesc').value;
+          plan.macros={
+            protein:parseInt(document.getElementById('mpbSliderP').value),
+            carbs:parseInt(document.getElementById('mpbSliderC').value),
+            fat:parseInt(document.getElementById('mpbSliderF').value)
+          };
+          plan.days=mpbCollectDays();
+          plan.shoppingList=document.getElementById('mpbTplShoppingList').value;
+          plan.client=document.getElementById('mpbTplClient').value;
+        } else {
+          plan.name=document.getElementById('mpbCustName').value.trim();
+          if(!plan.name) return null;
+          plan.description=document.getElementById('mpbCustDesc').value;
+          plan.files=mpbUploadedFiles.map(function(f){return {name:f.name,type:f.type,size:f.size,data:f.data};});
+          plan.client=document.getElementById('mpbCustClient').value;
+        }
+        return plan;
+      }
+
+      function mpbCoreSave(plan){
+        var plans=mpbGetPlans();
+        var idx=plans.findIndex(function(p){return p.id===plan.id;});
+        if(idx>-1) plans[idx]=plan; else plans.push(plan);
+        mpbSavePlans(plans);
+      }
+
+      window.mpbSaveDraft=function(type){
+        var plan=mpbCollectPlan(type);
+        if(!plan){mpbToast('Please enter a plan name');return;}
+        plan.status='Draft';
+        mpbCoreSave(plan);
+        mpbToast('Draft saved! You can continue editing anytime.');
+        mpbResetBuilder();
+        document.getElementById('mpbBuilderArea').classList.remove('mpb-open');
+        mpbRenderList();
+      };
+
+      window.mpbSavePlan=function(type){
+        var plan=mpbCollectPlan(type);
+        if(!plan){mpbToast('Please enter a plan name');return;}
+        if(!plan.client){mpbToast('Please assign a client first.');return;}
+        plan.status='Published';
+        mpbCoreSave(plan);
+        var assigned=mpbGetAssigned();
+        var ai=assigned.findIndex(function(a){return a.id===plan.id;});
+        if(ai>-1) assigned[ai]=plan; else assigned.push(plan);
+        mpbSaveAssigned(assigned);
+        mpbToast('Meal plan published and sent to '+plan.client+'!');
+        mpbResetBuilder();
+        document.getElementById('mpbBuilderArea').classList.remove('mpb-open');
+        mpbRenderList();
+      };
+
+      window.mpbPublishToProfile=function(type){
+        var plan=mpbCollectPlan(type);
+        if(!plan){mpbToast('Please enter a plan name');return;}
+        plan.status='On Profile';
+        mpbCoreSave(plan);
+        // Also update nutritionistData.mealPlans and save profile
+        try {
+          var profilePlan={
+            mpbId:plan.id,
+            name:plan.name,
+            goal:plan.goal||'',
+            duration:plan.duration?plan.duration+' weeks':'',
+            dietType:plan.dietType||'Custom',
+            desc:plan.description||'',
+            price:'$--'
+          };
+          var existing=nutritionistData.mealPlans.findIndex(function(p){return p.mpbId===plan.id;});
+          if(existing>=0) nutritionistData.mealPlans[existing]=profilePlan;
+          else nutritionistData.mealPlans.push(profilePlan);
+          saveToLocalStorage();
+        } catch(e){}
+        mpbToast('Meal plan published to your profile!');
+        mpbResetBuilder();
+        document.getElementById('mpbBuilderArea').classList.remove('mpb-open');
+        mpbRenderList();
+      };
+
+      function mpbRenderList(){
+        var plans=mpbGetPlans();
+        var el=document.getElementById('mpbPlansList');
+        if(!plans.length){el.innerHTML='<p class="mpb-empty">No meal plans yet. Create your first one above.</p>';return;}
+        el.innerHTML='';
+        plans.forEach(function(p){
+          var item=document.createElement('div');item.className='mpb-plan-item';
+          var badgeCls=p.status==='Published'?'mpb-badge-published':p.status==='On Profile'?'mpb-badge-profile':'mpb-badge-draft';
+          item.innerHTML='<h4>'+mpbEsc(p.name)+'</h4>'+
+            '<span class="mpb-badge '+badgeCls+'">'+p.status+'</span>'+
+            '<span class="mpb-plan-client">'+(p.client||'Unassigned')+'</span>'+
+            '<div class="mpb-plan-actions">'+
+              '<button onclick="mpbEditPlan('+p.id+')">Edit</button>'+
+              '<button class="mpb-del" onclick="mpbDeletePlan('+p.id+')">Delete</button>'+
+            '</div>';
+          el.appendChild(item);
+        });
+      }
+
+      function mpbEsc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
+
+      window.mpbDeletePlan=function(id){
+        var plans=mpbGetPlans().filter(function(p){return p.id!==id;});
+        mpbSavePlans(plans);
+        var assigned=mpbGetAssigned().filter(function(p){return p.id!==id;});
+        mpbSaveAssigned(assigned);
+        mpbToast('Plan deleted');
+        mpbRenderList();
+      };
+
+      window.mpbEditPlan=function(id){
+        var plan=mpbGetPlans().find(function(p){return p.id===id;});
+        if(!plan) return;
+        mpbEditId=id;
+        document.getElementById('mpbBuilderArea').classList.add('mpb-open');
+        if(plan.type==='template'){
+          mpbChoosePathDirect('template');
+          document.getElementById('mpbTplName').value=plan.name||'';
+          document.getElementById('mpbTplGoal').value=plan.goal||'Weight Loss';
+          document.getElementById('mpbTplDiet').value=plan.dietType||'Standard';
+          document.getElementById('mpbTplDuration').value=plan.duration||'4';
+          document.getElementById('mpbTplCalories').value=plan.calories||'';
+          document.getElementById('mpbTplDesc').value=plan.description||'';
+          if(plan.macros){
+            document.getElementById('mpbSliderP').value=plan.macros.protein;
+            document.getElementById('mpbSliderC').value=plan.macros.carbs;
+            document.getElementById('mpbSliderF').value=plan.macros.fat;
+            mpbUpdateMacros();
+          }
+          var dayData=[];
+          if(plan.days){
+            plan.days.forEach(function(d){
+              var meals=[];
+              d.meals.forEach(function(m){
+                meals.push({name:m.name,calories:m.calories,protein:m.protein,carbs:m.carbs,fat:m.fat,ingredients:m.ingredients,prep:m.prep});
+              });
+              dayData.push(meals);
+            });
+          }
+          mpbBuildDays(dayData);
+          document.getElementById('mpbTplShoppingList').value=plan.shoppingList||'';
+          document.getElementById('mpbTplClient').value=plan.client||'';
+        } else {
+          mpbChoosePathDirect('custom');
+          document.getElementById('mpbCustName').value=plan.name||'';
+          document.getElementById('mpbCustDesc').value=plan.description||'';
+          mpbUploadedFiles=(plan.files||[]).map(function(f){return {name:f.name,type:f.type,size:f.size,data:f.data};});
+          mpbRenderFileList();
+          document.getElementById('mpbCustClient').value=plan.client||'';
+        }
+        document.getElementById('mealPlansSection').scrollIntoView({behavior:'smooth'});
+      };
+
+      function mpbChoosePathDirect(path){
+        document.querySelectorAll('.mpb-choice-btn').forEach(function(b,i){
+          b.classList.toggle('mpb-active',(path==='template'&&i===0)||(path==='custom'&&i===1));
+        });
+        document.getElementById('mpbTemplateForm').classList.toggle('mpb-open',path==='template');
+        document.getElementById('mpbCustomForm').classList.toggle('mpb-open',path==='custom');
+        if(path==='template') mpbBuildDays();
+      }
+
+      function mpbResetBuilder(){
+        mpbEditId=null;
+        document.querySelectorAll('.mpb-choice-btn').forEach(function(b){b.classList.remove('mpb-active');});
+        document.getElementById('mpbTemplateForm').classList.remove('mpb-open');
+        document.getElementById('mpbCustomForm').classList.remove('mpb-open');
+        ['mpbTplName','mpbTplCalories','mpbTplDesc','mpbTplShoppingList'].forEach(function(id){
+          var el=document.getElementById(id);if(el)el.value='';
+        });
+        document.getElementById('mpbTplGoal').selectedIndex=0;
+        document.getElementById('mpbTplDiet').selectedIndex=0;
+        document.getElementById('mpbTplDuration').selectedIndex=0;
+        document.getElementById('mpbSliderP').value=40;
+        document.getElementById('mpbSliderC').value=35;
+        document.getElementById('mpbSliderF').value=25;
+        mpbUpdateMacros();
+        document.getElementById('mpbDaysContainer').innerHTML='';
+        document.getElementById('mpbTplClient').selectedIndex=0;
+        ['mpbCustName','mpbCustDesc'].forEach(function(id){
+          var el=document.getElementById(id);if(el)el.value='';
+        });
+        mpbUploadedFiles=[];
+        mpbRenderFileList();
+        document.getElementById('mpbCustClient').selectedIndex=0;
+      }
+
+      // Init
+      mpbRenderList();
+    })();
+
+    // ===== Certifications =====
+    function renderCerts() {
+      const list = document.getElementById('certsList');
+      list.innerHTML = '';
+      if (nutritionistData.certifications.length === 0) {
+        list.innerHTML = '<li style="color:var(--text-muted); font-size:0.88rem;">No certifications added yet. Click "+ Add" to add your credentials.</li>';
+        return;
+      }
+      nutritionistData.certifications.forEach((cert, i) => {
+        const li = document.createElement('li');
+        li.innerHTML = `<span class="tp-cert-icon">&mdash;</span> ${escHtml(cert)} <span class="tp-cert-remove" onclick="removeCert(${i})">x</span>`;
+        list.appendChild(li);
+      });
+    }
+
+    function addCertification() {
+      const cert = prompt('Add a certification (e.g. RD, CNS, PN1, CISSN):');
+      if (cert && cert.trim()) {
+        nutritionistData.certifications.push(cert.trim());
+        renderCerts();
+        saveToLocalStorage();
+        showToast('Certification added!');
+      }
+    }
+
+    function removeCert(i) {
+      nutritionistData.certifications.splice(i, 1);
+      renderCerts();
+      saveToLocalStorage();
+      showToast('Certification removed.');
+    }
+
+    // ===== Social Links =====
+    function startSocialEdit() {
+      document.getElementById('socialDisplay').classList.add('hidden');
+      document.getElementById('socialEdit').classList.add('active');
+      document.getElementById('socialEditBtn').style.display = 'none';
+      document.getElementById('socialInstagram').value = nutritionistData.social.instagram || '';
+      document.getElementById('socialYoutube').value = nutritionistData.social.youtube || '';
+      document.getElementById('socialTiktok').value = nutritionistData.social.tiktok || '';
+      document.getElementById('socialWebsite').value = nutritionistData.social.website || '';
+      document.getElementById('socialInstagram').focus();
+    }
+
+    function saveSocialEdit() {
+      nutritionistData.social = {
+        instagram: document.getElementById('socialInstagram').value.trim(),
+        youtube: document.getElementById('socialYoutube').value.trim(),
+        tiktok: document.getElementById('socialTiktok').value.trim(),
+        website: document.getElementById('socialWebsite').value.trim()
+      };
+      renderSocialLinks();
+      document.getElementById('socialDisplay').classList.remove('hidden');
+      document.getElementById('socialEdit').classList.remove('active');
+      document.getElementById('socialEditBtn').style.display = '';
+      saveToLocalStorage();
+      showToast('Social links updated!');
+    }
+
+    function cancelSocialEdit() {
+      document.getElementById('socialDisplay').classList.remove('hidden');
+      document.getElementById('socialEdit').classList.remove('active');
+      document.getElementById('socialEditBtn').style.display = '';
+    }
+
+    function renderSocialLinks() {
+      const s = nutritionistData.social;
+      document.getElementById('socialInstagramLink').textContent = s.instagram || 'Instagram';
+      document.getElementById('socialYoutubeLink').textContent = s.youtube || 'YouTube';
+      document.getElementById('socialTiktokLink').textContent = s.tiktok || 'TikTok';
+      document.getElementById('socialWebsiteLink').textContent = s.website || 'Website';
+    }
+
+    // ===== Subscription Pricing =====
+    function startPricingEdit() {
+      document.getElementById('pricingDisplay').classList.add('hidden');
+      document.getElementById('pricingEdit').classList.add('active');
+      document.getElementById('pricingEditBtn').style.display = 'none';
+      document.getElementById('subscriptionPriceInput').value = nutritionistData.subscriptionPrice || '';
+      document.getElementById('subscriptionPriceInput').focus();
+    }
+
+    function savePricingEdit() {
+      const val = document.getElementById('subscriptionPriceInput').value.trim();
+      nutritionistData.subscriptionPrice = val;
+      renderPricing();
+      document.getElementById('pricingDisplay').classList.remove('hidden');
+      document.getElementById('pricingEdit').classList.remove('active');
+      document.getElementById('pricingEditBtn').style.display = '';
+      saveToLocalStorage();
+      showToast('Pricing updated!');
+    }
+
+    function cancelPricingEdit() {
+      document.getElementById('pricingDisplay').classList.remove('hidden');
+      document.getElementById('pricingEdit').classList.remove('active');
+      document.getElementById('pricingEditBtn').style.display = '';
+    }
+
+    function renderPricing() {
+      const el = document.getElementById('subscriptionPriceDisplay');
+      if (nutritionistData.subscriptionPrice) {
+        el.innerHTML = '$' + escHtml(nutritionistData.subscriptionPrice) + '<span style="font-size: 0.85rem; font-weight: 400; color: var(--text-muted);">/mo</span>';
+      } else {
+        el.innerHTML = '$--<span style="font-size: 0.85rem; font-weight: 400; color: var(--text-muted);">/mo</span>';
+      }
+      // Also update the stats price
+      if (nutritionistData.subscriptionPrice) {
+        nutritionistData.price = '$' + nutritionistData.subscriptionPrice + '/mo';
+        document.getElementById('statPrice').textContent = nutritionistData.price;
+      }
+    }
+
+    // ===== Intro Video =====
+    let introVideoEditing = false;
+    function toggleIntroVideoEdit() {
+      introVideoEditing = !introVideoEditing;
+      document.getElementById('nIntroVideoUrlRow').style.display = introVideoEditing ? 'block' : 'none';
+      document.getElementById('introVideoActions').style.display = introVideoEditing ? 'flex' : 'none';
+      document.getElementById('introVideoEditBtn').style.display = introVideoEditing ? 'none' : '';
+    }
+    function cancelIntroVideoEdit() {
+      introVideoEditing = false;
+      document.getElementById('nIntroVideoUrlRow').style.display = 'none';
+      document.getElementById('introVideoActions').style.display = 'none';
+      document.getElementById('introVideoEditBtn').style.display = '';
+    }
+    function handleNIntroVideoUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      document.getElementById('nIntroVid').src = url;
+      document.getElementById('nIntroVideoPlayer').style.display = 'block';
+      document.getElementById('nIntroVideoPlaceholder').style.display = 'none';
+      document.getElementById('nIntroVideoEmbedDisplay').style.display = 'none';
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        nutritionistData.introVideo = ev.target.result;
+        nutritionistData.introVideoUrl = '';
+        saveToLocalStorage();
+        showToast('Intro video uploaded!');
+      };
+      if (file.size < 10 * 1024 * 1024) reader.readAsDataURL(file);
+      else { nutritionistData.introVideo = null; showToast('Video too large to save locally.'); }
+    }
+    function saveNIntroVideoUrl() {
+      const url = document.getElementById('nIntroVideoUrl').value.trim();
+      if (!url) return;
+      let embedUrl = '';
+      if (url.includes('youtube.com/watch')) {
+        const vid = new URL(url).searchParams.get('v');
+        if (vid) embedUrl = 'https://www.youtube.com/embed/' + vid;
+      } else if (url.includes('youtu.be/')) {
+        embedUrl = 'https://www.youtube.com/embed/' + url.split('youtu.be/')[1].split('?')[0];
+      } else if (url.includes('vimeo.com/')) {
+        const vid = url.split('vimeo.com/')[1].split('?')[0];
+        embedUrl = 'https://player.vimeo.com/video/' + vid;
+      } else { embedUrl = url; }
+      if (embedUrl) {
+        document.getElementById('nIntroVideoEmbed').src = embedUrl;
+        document.getElementById('nIntroVideoEmbedDisplay').style.display = 'block';
+        document.getElementById('nIntroVideoPlayer').style.display = 'none';
+        document.getElementById('nIntroVideoPlaceholder').style.display = 'none';
+        nutritionistData.introVideoUrl = embedUrl;
+        nutritionistData.introVideo = null;
+        saveToLocalStorage();
+        showToast('Video embedded!');
+      }
+    }
+    function removeNIntroVideo() {
+      nutritionistData.introVideo = null;
+      nutritionistData.introVideoUrl = '';
+      document.getElementById('nIntroVideoPlayer').style.display = 'none';
+      document.getElementById('nIntroVideoEmbedDisplay').style.display = 'none';
+      document.getElementById('nIntroVideoPlaceholder').style.display = 'flex';
+      document.getElementById('nIntroVid').src = '';
+      document.getElementById('nIntroVideoEmbed').src = '';
+      document.getElementById('nIntroVideoUrl').value = '';
+      saveToLocalStorage();
+      showToast('Intro video removed');
+    }
+    function saveNIntroVideo() {
+      cancelIntroVideoEdit();
+      saveToLocalStorage();
+      showToast('Intro video saved!');
+    }
+
+    // ===== Photos & Videos =====
+    let mediaEditing = false;
+    function toggleMediaEdit() {
+      mediaEditing = !mediaEditing;
+      document.getElementById('mediaActions').style.display = mediaEditing ? 'flex' : 'none';
+      document.getElementById('mediaEditBtn').style.display = mediaEditing ? 'none' : '';
+      renderNPhotoGallery();
+      renderNVideoGallery();
+    }
+    function cancelMediaEdit() {
+      mediaEditing = false;
+      document.getElementById('mediaActions').style.display = 'none';
+      document.getElementById('mediaEditBtn').style.display = '';
+      renderNPhotoGallery();
+      renderNVideoGallery();
+    }
+    function handleNPhotoUpload(e) {
+      const files = Array.from(e.target.files);
+      files.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = function(ev) {
+          nutritionistData.photos.push(ev.target.result);
+          renderNPhotoGallery();
+          saveToLocalStorage();
+        };
+        if (file.size < 5 * 1024 * 1024) reader.readAsDataURL(file);
+        else showToast('Photo too large (max 5MB)');
+      });
+      showToast('Photos uploaded!');
+    }
+    function renderNPhotoGallery() {
+      const g = document.getElementById('nPhotoGallery');
+      let html = (nutritionistData.photos || []).map((p, i) =>
+        '<div class="tp-gallery-item" style="position:relative;overflow:hidden;">' +
+        '<img src="' + p + '" style="width:100%;height:100%;object-fit:cover;">' +
+        (mediaEditing ? '<button onclick="removeNPhoto(' + i + ')" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.7);color:#fff;border:none;width:22px;height:22px;font-size:0.7rem;cursor:pointer;">&times;</button>' : '') +
+        '</div>'
+      ).join('');
+      html += '<div class="tp-gallery-item" style="cursor:pointer;" onclick="document.getElementById(\'nPhotoUpload\').click()">+ Upload Photo</div>';
+      g.innerHTML = html;
+    }
+    function removeNPhoto(i) {
+      nutritionistData.photos.splice(i, 1);
+      renderNPhotoGallery();
+      saveToLocalStorage();
+    }
+    function addNVideoUrl() {
+      const url = prompt('Enter a YouTube or Vimeo URL:');
+      if (!url || !url.trim()) return;
+      let embedUrl = '';
+      if (url.includes('youtube.com/watch')) {
+        const vid = new URL(url).searchParams.get('v');
+        if (vid) embedUrl = 'https://www.youtube.com/embed/' + vid;
+      } else if (url.includes('youtu.be/')) {
+        embedUrl = 'https://www.youtube.com/embed/' + url.split('youtu.be/')[1].split('?')[0];
+      } else if (url.includes('vimeo.com/')) {
+        const vid = url.split('vimeo.com/')[1].split('?')[0];
+        embedUrl = 'https://player.vimeo.com/video/' + vid;
+      } else { embedUrl = url; }
+      if (embedUrl) {
+        nutritionistData.videos.push(embedUrl);
+        renderNVideoGallery();
+        saveToLocalStorage();
+        showToast('Video added!');
+      }
+    }
+    function renderNVideoGallery() {
+      const g = document.getElementById('nVideoGallery');
+      let html = (nutritionistData.videos || []).map((v, i) =>
+        '<div class="tp-gallery-item" style="height:160px;position:relative;overflow:hidden;padding:0;">' +
+        '<iframe src="' + v + '" style="width:100%;height:100%;border:none;" allowfullscreen></iframe>' +
+        (mediaEditing ? '<button onclick="removeNVideo(' + i + ')" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.7);color:#fff;border:none;width:22px;height:22px;font-size:0.7rem;cursor:pointer;z-index:2;">&times;</button>' : '') +
+        '</div>'
+      ).join('');
+      html += '<div class="tp-gallery-item" style="height:160px;cursor:pointer;background:linear-gradient(135deg,#1a1a1a11,#1a1a1a06);" onclick="addNVideoUrl()"><div style="text-align:center;"><div style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:4px;">&#9654;</div><div>+ Add Video URL</div></div></div>';
+      g.innerHTML = html;
+    }
+    function removeNVideo(i) {
+      nutritionistData.videos.splice(i, 1);
+      renderNVideoGallery();
+      saveToLocalStorage();
+    }
+    function saveNMedia() {
+      cancelMediaEdit();
+      saveToLocalStorage();
+      showToast('Media saved!');
+    }
+
+    // ===== Consultations =====
+    let consultEditing = false;
+    function toggleConsultEdit() {
+      consultEditing = !consultEditing;
+      document.getElementById('nConsultEditFields').style.display = consultEditing ? 'block' : 'none';
+      document.getElementById('nConsultDisplay').style.display = consultEditing ? 'none' : 'block';
+      document.getElementById('consultActions').style.display = consultEditing ? 'flex' : 'none';
+      document.getElementById('consultEditBtn').style.display = consultEditing ? 'none' : '';
+    }
+    function cancelConsultEdit() {
+      consultEditing = false;
+      document.getElementById('nConsultEditFields').style.display = 'none';
+      document.getElementById('nConsultDisplay').style.display = 'block';
+      document.getElementById('consultActions').style.display = 'none';
+      document.getElementById('consultEditBtn').style.display = '';
+    }
+    function toggleNConsultPrice() {
+      const paid = document.querySelector('input[name="nConsultPriceType"][value="paid"]').checked;
+      document.getElementById('nConsultPriceInput').style.display = paid ? 'block' : 'none';
+    }
+    function nFormatTime(t) {
+      if (!t) return '';
+      const [h, m] = t.split(':');
+      const hr = parseInt(h);
+      const ampm = hr >= 12 ? 'PM' : 'AM';
+      const hr12 = hr % 12 || 12;
+      return hr12 + ':' + m + ' ' + ampm;
+    }
+    function saveNConsult() {
+      const dur = document.getElementById('nConsultDuration').value;
+      const priceType = document.querySelector('input[name="nConsultPriceType"]:checked').value;
+      const price = document.getElementById('nConsultPriceInput').value;
+      const days = Array.from(document.querySelectorAll('#nAvailDays input:checked')).map(cb => cb.value);
+      const timeFrom = document.getElementById('nConsultTimeFrom').value;
+      const timeTo = document.getElementById('nConsultTimeTo').value;
+      const desc = document.getElementById('nConsultDesc').value;
+      const format = document.getElementById('nConsultFormat').value;
+      nutritionistData.consult = { duration: dur, priceType: priceType, price: price, format: format, days: days, timeFrom: timeFrom, timeTo: timeTo, desc: desc };
+      document.getElementById('nConsultDurationDisplay').textContent = dur + ' min';
+      document.getElementById('nConsultPriceDisplay').textContent = priceType === 'free' ? 'Free' : '$' + price;
+      document.getElementById('nConsultFormatDisplay').textContent = format;
+      const availDisp = document.getElementById('nAvailabilityDisplay');
+      if (days.length === 0) {
+        availDisp.innerHTML = '<span class="tp-tag" style="opacity:0.4;">No availability set</span>';
+      } else {
+        availDisp.innerHTML = days.map(d => '<span class="tp-tag">' + d + '</span>').join('') + '<span style="font-size:0.82rem;color:var(--text-muted);margin-left:8px;">' + nFormatTime(timeFrom) + ' – ' + nFormatTime(timeTo) + '</span>';
+      }
+      cancelConsultEdit();
+      saveToLocalStorage();
+      showToast('Consultation settings saved!');
+    }
+    function nGenerateTimeSlots(from, to, duration) {
+      let slots = '';
+      const [fh, fm] = from.split(':').map(Number);
+      const [th, tm] = to.split(':').map(Number);
+      let current = fh * 60 + fm;
+      const end = th * 60 + tm;
+      while (current + duration <= end) {
+        const h = Math.floor(current / 60);
+        const m = current % 60;
+        const label = nFormatTime(String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0'));
+        slots += '<option value="' + h + ':' + String(m).padStart(2,'0') + '">' + label + '</option>';
+        current += duration;
+      }
+      return slots || '<option>No slots available</option>';
+    }
+    function openNBookingModal() {
+      const c = nutritionistData.consult;
+      if (!c || !c.days || c.days.length === 0) {
+        showToast('No availability set yet');
+        return;
+      }
+      let existing = document.getElementById('nBookingOverlay');
+      if (existing) existing.remove();
+      const overlay = document.createElement('div');
+      overlay.id = 'nBookingOverlay';
+      overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;';
+      const priceLabel = c.priceType === 'free' ? 'Free' : '$' + c.price;
+      overlay.innerHTML = '\
+        <div style="background:var(--bg-card,#fff);border:1px solid var(--border);max-width:480px;width:90%;padding:32px;position:relative;">\
+          <button onclick="document.getElementById(\'nBookingOverlay\').remove()" style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:1.4rem;color:var(--text-muted);cursor:pointer;">&times;</button>\
+          <h3 style="font-size:1.1rem;font-weight:600;margin-bottom:4px;">Book a 1-on-1 Nutrition Consultation</h3>\
+          <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:20px;">' + c.duration + ' min &middot; ' + priceLabel + ' &middot; ' + (c.format || 'Video') + '</p>\
+          <div style="margin-bottom:16px;">\
+            <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);display:block;margin-bottom:6px;">Select a Day</label>\
+            <div style="display:flex;flex-wrap:wrap;gap:8px;" id="nBookingDays">' +
+              c.days.map(d => '<button class="filter-btn" onclick="selectNBookingDay(this)" data-day="' + d + '">' + d + '</button>').join('') +
+            '</div>\
+          </div>\
+          <div style="margin-bottom:16px;">\
+            <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);display:block;margin-bottom:6px;">Select a Time</label>\
+            <select class="tp-edit-input" id="nBookingTime" style="margin-top:0;">' + nGenerateTimeSlots(c.timeFrom, c.timeTo, parseInt(c.duration)) + '</select>\
+          </div>\
+          <div style="margin-bottom:16px;">\
+            <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);display:block;margin-bottom:6px;">Your Name</label>\
+            <input class="tp-edit-input" id="nBookingName" placeholder="Enter your name" style="margin-top:0;">\
+          </div>\
+          <div style="margin-bottom:20px;">\
+            <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);display:block;margin-bottom:6px;">Message (optional)</label>\
+            <textarea class="tp-edit-textarea" id="nBookingMsg" style="min-height:50px;margin-top:0;" placeholder="What would you like to discuss?"></textarea>\
+          </div>\
+          <button class="btn btn-primary" style="width:100%;" onclick="confirmNBooking()">Confirm Booking</button>\
+        </div>';
+      document.body.appendChild(overlay);
+    }
+    function selectNBookingDay(btn) {
+      document.querySelectorAll('#nBookingDays .filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+    function confirmNBooking() {
+      const dayBtn = document.querySelector('#nBookingDays .filter-btn.active');
+      const name = document.getElementById('nBookingName').value.trim();
+      if (!dayBtn) { showToast('Please select a day'); return; }
+      if (!name) { showToast('Please enter your name'); return; }
+      document.getElementById('nBookingOverlay').remove();
+      showToast('Consultation booked! ' + dayBtn.dataset.day + ' at ' + document.getElementById('nBookingTime').value);
+    }
+
+    // ===== Helpers =====
+    function escHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+    function escAttr(s) {
+      return s.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // ===== Render All =====
+    function renderAll() {
+      // Name & Specialty
+      document.getElementById('nameDisplay').textContent = nutritionistData.name;
+      document.getElementById('specialtyDisplay').textContent = nutritionistData.specialty;
+
+      // Avatar
+      renderAvatar();
+
+      // Stats
+      document.getElementById('statSubscribers').textContent = nutritionistData.subscribers;
+      document.getElementById('statRating').textContent = nutritionistData.rating;
+      document.getElementById('statPrice').textContent = nutritionistData.price;
+      document.getElementById('statExperience').textContent = nutritionistData.experience;
+
+      // Bio
+      document.getElementById('bioDisplay').textContent = nutritionistData.bio;
+
+      // Tags
+      renderTags();
+
+      // Certs
+      renderCerts();
+
+      // Social
+      renderSocialLinks();
+
+      // Pricing
+      renderPricing();
+
+      // Intro Video
+      if (nutritionistData.introVideo) {
+        document.getElementById('nIntroVid').src = nutritionistData.introVideo;
+        document.getElementById('nIntroVideoPlayer').style.display = 'block';
+        document.getElementById('nIntroVideoPlaceholder').style.display = 'none';
+      } else if (nutritionistData.introVideoUrl) {
+        document.getElementById('nIntroVideoEmbed').src = nutritionistData.introVideoUrl;
+        document.getElementById('nIntroVideoEmbedDisplay').style.display = 'block';
+        document.getElementById('nIntroVideoPlaceholder').style.display = 'none';
+      }
+
+      // Photos & Videos
+      renderNPhotoGallery();
+      renderNVideoGallery();
+
+      // Consultation
+      if (nutritionistData.consult) {
+        const c = nutritionistData.consult;
+        document.getElementById('nConsultDurationDisplay').textContent = (c.duration || '15') + ' min';
+        document.getElementById('nConsultPriceDisplay').textContent = c.priceType === 'paid' ? '$' + c.price : 'Free';
+        document.getElementById('nConsultFormatDisplay').textContent = c.format || 'Video';
+        document.getElementById('nConsultDuration').value = c.duration || '15';
+        document.getElementById('nConsultFormat').value = c.format || 'Video';
+        document.getElementById('nConsultDesc').value = c.desc || '';
+        document.getElementById('nConsultTimeFrom').value = c.timeFrom || '09:00';
+        document.getElementById('nConsultTimeTo').value = c.timeTo || '17:00';
+        if (c.priceType === 'paid') {
+          document.querySelector('input[name="nConsultPriceType"][value="paid"]').checked = true;
+          document.getElementById('nConsultPriceInput').style.display = 'block';
+          document.getElementById('nConsultPriceInput').value = c.price || '';
+        }
+        if (c.days && c.days.length) {
+          c.days.forEach(d => { const cb = document.querySelector('#nAvailDays input[value="' + d + '"]'); if (cb) cb.checked = true; });
+          const availDisp = document.getElementById('nAvailabilityDisplay');
+          availDisp.innerHTML = c.days.map(d => '<span class="tp-tag">' + d + '</span>').join('') + '<span style="font-size:0.82rem;color:var(--text-muted);margin-left:8px;">' + nFormatTime(c.timeFrom) + ' – ' + nFormatTime(c.timeTo) + '</span>';
+        }
+      }
+    }
+
+    // ===== Init =====
+    loadFromLocalStorage();
+    renderAll();
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script src="booking.js"></script>
+  <script>
+    // Pass ?provider=<uuid>&name=<name> in the URL to book a real provider.
+    // Without a provider id we redirect to the marketplace to pick one.
+    function shapeOpenBooking(role) {
+      var params = new URLSearchParams(window.location.search);
+      var providerId = params.get('provider');
+      var providerName = params.get('name') || (role === 'trainer' ? 'this trainer' : 'this nutritionist');
+      if (!providerId) {
+        alert('Open this profile from the marketplace to book. (No provider id in URL.)');
+        window.location.href = role === 'trainer' ? 'trainers.html' : 'nutritionists.html';
+        return;
+      }
+      if (!window.shapeBook) { alert('Booking not loaded. Refresh the page.'); return; }
+      window.shapeBook.open({ providerId: providerId, providerRole: role, providerName: providerName });
+    }
+  </script>
+</body>
+</html>

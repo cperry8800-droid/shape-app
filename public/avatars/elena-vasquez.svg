@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10B981"/>
+      <stop offset="100%" stop-color="#047857"/>
+    </linearGradient>
+    <linearGradient id="skin" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#DEB887"/>
+      <stop offset="100%" stop-color="#C4956A"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="400" fill="url(#bg)"/>
+  <!-- Body/shoulders -->
+  <ellipse cx="200" cy="420" rx="125" ry="95" fill="#2d2d2d"/>
+  <!-- Neck -->
+  <rect x="182" y="282" width="36" height="32" rx="4" fill="url(#skin)"/>
+  <!-- Head -->
+  <ellipse cx="200" cy="218" rx="62" ry="76" fill="url(#skin)"/>
+  <!-- Long flowing hair -->
+  <ellipse cx="200" cy="180" rx="75" ry="60" fill="#2C1810"/>
+  <ellipse cx="135" cy="230" rx="22" ry="65" fill="#2C1810"/>
+  <ellipse cx="265" cy="230" rx="22" ry="65" fill="#2C1810"/>
+  <ellipse cx="145" cy="310" rx="18" ry="40" fill="#2C1810"/>
+  <ellipse cx="255" cy="310" rx="18" ry="40" fill="#2C1810"/>
+  <!-- Eyes -->
+  <ellipse cx="180" cy="220" rx="7" ry="5" fill="#2C1810"/>
+  <ellipse cx="220" cy="220" rx="7" ry="5" fill="#2C1810"/>
+  <!-- Eyebrows -->
+  <path d="M168 208 Q180 203 190 208" stroke="#2C1810" stroke-width="2" fill="none"/>
+  <path d="M210 208 Q220 203 232 208" stroke="#2C1810" stroke-width="2" fill="none"/>
+  <!-- Nose -->
+  <ellipse cx="200" cy="238" rx="4.5" ry="3" fill="#B5895A" opacity="0.4"/>
+  <!-- Peaceful smile -->
+  <path d="M190 250 Q200 258 210 250" stroke="#B5895A" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <!-- Yoga top -->
+  <path d="M162 308 Q200 325 238 308" fill="#10B981"/>
+  <!-- Lotus accent -->
+  <circle cx="50" cy="360" r="20" fill="white" opacity="0.1"/>
+  <ellipse cx="50" cy="350" rx="8" ry="15" fill="white" opacity="0.1"/>
+  <ellipse cx="38" cy="355" rx="8" ry="12" fill="white" opacity="0.08" transform="rotate(-30 38 355)"/>
+  <ellipse cx="62" cy="355" rx="8" ry="12" fill="white" opacity="0.08" transform="rotate(30 62 355)"/>
+</svg>

@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape Radio — Live Music While You Train</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .radio-page { background: #0a0a0a; color: #fff; min-height: 100vh; }
+
+    .radio-nav {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 16px 48px; max-width: 1280px; margin: 0 auto;
+    }
+    .radio-nav img { height: 64px; }
+    .radio-nav a.back-link {
+      color: rgba(255,255,255,0.5); font-size: 0.82rem; font-weight: 400;
+      letter-spacing: 0.02em; transition: color 0.3s;
+    }
+    .radio-nav a.back-link:hover { color: #fff; }
+
+    .radio-hero {
+      text-align: center; padding: 80px 48px 60px;
+    }
+    .radio-logo {
+      font-family: 'Inter', sans-serif; font-weight: 300; font-size: clamp(1.4rem, 2.2vw, 1.8rem);
+      letter-spacing: 0.35em; text-transform: uppercase; margin-bottom: 16px; color: #fff;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .radio-logo .shape-text {
+      display: inline-block; height: 30px; overflow: hidden; line-height: 0;
+    }
+    .radio-logo .shape-text img {
+      height: 86px;
+      margin-top: -52px;
+    }
+    .radio-logo .radio-label { color: #2DD4BF; }
+    .radio-tagline {
+      font-size: clamp(0.9rem, 1.2vw, 1.05rem); color: rgba(255,255,255,0.5);
+      font-weight: 300; max-width: 500px; margin: 0 auto;
+    }
+
+    .radio-player {
+      max-width: 600px; margin: 0 auto; padding: 0 48px;
+    }
+
+    .now-playing {
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px; padding: 48px; text-align: center; margin-bottom: 40px;
+    }
+    .np-visualizer {
+      display: flex; align-items: flex-end; justify-content: center;
+      gap: 4px; height: 60px; margin-bottom: 32px;
+    }
+    .np-bar {
+      width: 4px; background: #2DD4BF; border-radius: 2px;
+      animation: pulse-bar 1.2s ease-in-out infinite;
+    }
+    .np-bar:nth-child(1) { height: 20px; animation-delay: 0s; }
+    .np-bar:nth-child(2) { height: 35px; animation-delay: 0.1s; }
+    .np-bar:nth-child(3) { height: 50px; animation-delay: 0.2s; }
+    .np-bar:nth-child(4) { height: 25px; animation-delay: 0.3s; }
+    .np-bar:nth-child(5) { height: 45px; animation-delay: 0.15s; }
+    .np-bar:nth-child(6) { height: 30px; animation-delay: 0.25s; }
+    .np-bar:nth-child(7) { height: 55px; animation-delay: 0.05s; }
+    .np-bar:nth-child(8) { height: 20px; animation-delay: 0.35s; }
+    .np-bar:nth-child(9) { height: 40px; animation-delay: 0.1s; }
+    .np-bar:nth-child(10) { height: 28px; animation-delay: 0.2s; }
+    .np-bar:nth-child(11) { height: 48px; animation-delay: 0.3s; }
+    .np-bar:nth-child(12) { height: 22px; animation-delay: 0.15s; }
+
+    .paused .np-bar { animation-play-state: paused; }
+
+    @keyframes pulse-bar {
+      0%, 100% { transform: scaleY(0.4); opacity: 0.6; }
+      50% { transform: scaleY(1); opacity: 1; }
+    }
+
+    .np-label {
+      font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.15em;
+      color: #2DD4BF; margin-bottom: 12px; font-weight: 500;
+    }
+    .np-title {
+      font-size: clamp(1.2rem, 2vw, 1.5rem); font-weight: 400; margin-bottom: 4px;
+    }
+    .np-artist { color: rgba(255,255,255,0.5); font-size: 0.92rem; font-weight: 300; }
+
+    .radio-controls {
+      display: flex; align-items: center; justify-content: center; gap: 32px;
+      margin-bottom: 32px;
+    }
+    .radio-btn {
+      background: none; border: none; color: rgba(255,255,255,0.5); cursor: pointer;
+      transition: color 0.3s; font-size: 1.2rem;
+    }
+    .radio-btn:hover { color: #fff; }
+    .radio-btn-play {
+      width: 64px; height: 64px; border-radius: 50%;
+      background: #2DD4BF; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.3s;
+    }
+    .radio-btn-play:hover { background: #14B8A6; transform: scale(1.05); }
+    .radio-btn-play svg { width: 24px; height: 24px; fill: #0a0a0a; }
+
+    .volume-control {
+      display: flex; align-items: center; justify-content: center; gap: 12px;
+      margin-bottom: 48px;
+    }
+    .volume-control svg { width: 18px; height: 18px; stroke: rgba(255,255,255,0.4); fill: none; stroke-width: 2; }
+    .volume-slider {
+      -webkit-appearance: none; width: 120px; height: 3px;
+      background: rgba(255,255,255,0.15); border-radius: 2px; outline: none;
+    }
+    .volume-slider::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 14px; height: 14px;
+      border-radius: 50%; background: #2DD4BF; cursor: pointer;
+    }
+
+    .stations { margin-bottom: 80px; }
+    .stations h3 {
+      font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.15em;
+      color: rgba(255,255,255,0.4); margin-bottom: 20px; font-weight: 500;
+      text-align: center;
+    }
+    .station-list { display: flex; flex-direction: column; gap: 8px; }
+    .station {
+      display: flex; align-items: center; gap: 16px; padding: 16px 20px;
+      border-radius: 12px; cursor: pointer; transition: all 0.3s;
+      border: 1px solid transparent;
+    }
+    .station:hover { background: rgba(255,255,255,0.05); }
+    .station.active { background: rgba(45,212,191,0.08); border-color: rgba(45,212,191,0.2); }
+    .station-icon {
+      width: 44px; height: 44px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem; flex-shrink: 0;
+    }
+    .station-info { flex: 1; }
+    .station-name { font-size: 0.95rem; font-weight: 500; margin-bottom: 2px; }
+    .station-desc { font-size: 0.82rem; color: rgba(255,255,255,0.4); font-weight: 300; }
+    .station-live {
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em;
+      color: #2DD4BF; font-weight: 600;
+    }
+
+    .radio-footer {
+      text-align: center; padding: 40px 48px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.3); font-size: 0.82rem; font-weight: 300;
+    }
+
+    /* Radio Login Gate */
+    .radio-gate {
+      display: flex; align-items: center; justify-content: center;
+      min-height: calc(100vh - 100px); padding: 48px;
+    }
+    .radio-gate-box {
+      max-width: 420px; width: 100%; text-align: center;
+    }
+    .radio-gate-box h2 {
+      font-size: 1.6rem; font-weight: 300; margin-bottom: 8px; letter-spacing: -0.02em;
+    }
+    .radio-gate-box .subtitle {
+      color: rgba(255,255,255,0.5); font-size: 0.92rem; font-weight: 300; margin-bottom: 32px;
+    }
+    .radio-gate-box .form-group { text-align: left; margin-bottom: 20px; }
+    .radio-gate-box label {
+      display: block; font-size: 0.78rem; font-weight: 500;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      margin-bottom: 8px; color: rgba(255,255,255,0.6);
+    }
+    .radio-gate-box input {
+      width: 100%; padding: 14px 16px; border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.05); color: #fff; font-size: 0.92rem;
+      font-family: 'Inter', sans-serif; outline: none; transition: border-color 0.3s;
+      border-radius: 0; box-sizing: border-box;
+    }
+    .radio-gate-box input::placeholder { color: rgba(255,255,255,0.3); }
+    .radio-gate-box input:focus { border-color: #2DD4BF; }
+    .radio-gate-box .btn-radio-login {
+      width: 100%; padding: 16px; background: transparent; color: #FFFFFF;
+      border: 1px solid rgba(255,255,255,0.15); font-size: 0.88rem; font-weight: 500; font-family: 'Inter', sans-serif;
+      cursor: pointer; text-transform: uppercase; letter-spacing: 0.06em;
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); margin-bottom: 16px;
+    }
+    .radio-gate-box .btn-radio-login:hover { background: #FFFFFF; color: #0a0a0a; }
+    .radio-gate-box .gate-divider {
+      display: flex; align-items: center; gap: 16px; margin: 24px 0;
+      color: rgba(255,255,255,0.3); font-size: 0.78rem; font-weight: 400;
+    }
+    .radio-gate-box .gate-divider::before,
+    .radio-gate-box .gate-divider::after {
+      content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.1);
+    }
+    .radio-gate-box .btn-radio-subscribe {
+      width: 100%; padding: 16px; background: transparent; color: #fff;
+      border: 1px solid rgba(255,255,255,0.2); font-size: 0.88rem; font-weight: 500;
+      font-family: 'Inter', sans-serif; cursor: pointer; letter-spacing: 0.02em;
+      transition: all 0.3s;
+    }
+    .radio-gate-box .btn-radio-subscribe:hover { border-color: #2DD4BF; color: #2DD4BF; }
+    .radio-gate-price {
+      font-size: 0.82rem; color: rgba(255,255,255,0.4); font-weight: 300; margin-top: 16px;
+    }
+    .radio-content { display: none; }
+    .radio-content.active { display: block; }
+
+    @media (max-width: 768px) {
+      .radio-nav { padding: 24px; }
+      .radio-hero { padding: 60px 24px 40px; }
+      .radio-player { padding: 0 24px; }
+      .now-playing { padding: 32px 24px; }
+      .radio-footer { padding: 32px 24px; }
+      .radio-gate { padding: 24px; min-height: calc(100vh - 80px); }
+    }
+  </style>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0a0a0a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body class="radio-page">
+
+  <nav class="radio-nav">
+    <a href="home.html"><img src="logo.png" alt="Shape"></a>
+    <a href="home.html" class="back-link">Back to Shape</a>
+  </nav>
+
+  <!-- Login Gate -->
+  <div class="radio-gate" id="radioGate">
+    <div class="radio-gate-box">
+      <div class="radio-logo" style="margin-bottom:24px;"><span class="shape-text"><img src="logo.png" alt="Shape"></span><span class="radio-label">R A D I O</span></div>
+      <h2>Welcome back</h2>
+      <p class="subtitle">Log in to start listening</p>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="radioEmail" placeholder="you@example.com">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="radioPassword" placeholder="Enter your password">
+      </div>
+      <button class="btn-radio-login" onclick="radioLogin()">Log In</button>
+      <div class="gate-divider">or</div>
+      <button class="btn-radio-subscribe" onclick="radioSubscribe()">Subscribe to Shape</button>
+      <p class="radio-gate-price">Included free with your <a href="landing.html" style="color:#2DD4BF;">Shape membership — $5/mo</a>.</p>
+    </div>
+  </div>
+
+  <!-- Radio Content (hidden until login) -->
+  <div class="radio-content" id="radioContent">
+  <section class="radio-hero">
+    <div class="radio-logo"><span class="shape-text"><img src="logo.png" alt="Shape"></span><span class="radio-label">R A D I O</span></div>
+    <p class="radio-tagline">Live music to fuel your workout.</p>
+  </section>
+
+  <div class="radio-player">
+    <div class="now-playing" id="nowPlaying">
+      <div class="np-visualizer" id="visualizer">
+        <div class="np-bar"></div><div class="np-bar"></div><div class="np-bar"></div>
+        <div class="np-bar"></div><div class="np-bar"></div><div class="np-bar"></div>
+        <div class="np-bar"></div><div class="np-bar"></div><div class="np-bar"></div>
+        <div class="np-bar"></div><div class="np-bar"></div><div class="np-bar"></div>
+      </div>
+      <div class="np-label">NOW PLAYING</div>
+      <div class="np-title">Enter Sandman</div>
+      <div class="np-artist">Metallica</div>
+    </div>
+
+    <div class="radio-controls">
+      <button class="radio-btn-play" id="playBtn" onclick="togglePlay()">
+        <svg id="playIcon" viewBox="0 0 24 24"><polygon points="8,5 19,12 8,19"/></svg>
+        <svg id="pauseIcon" viewBox="0 0 24 24" style="display:none;"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+      </button>
+    </div>
+
+    <div class="volume-control">
+      <svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" stroke-linejoin="round"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+      <input type="range" class="volume-slider" min="0" max="100" value="75">
+      <svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" stroke-linejoin="round"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+    </div>
+
+  </div>
+
+  </div><!-- end radio-content -->
+
+  <footer class="radio-footer">
+    <p>&copy; 2026 Shape Radio. All rights reserved.</p>
+  </footer>
+
+  <script>
+    let isPlaying = false;
+
+    function togglePlay() {
+      isPlaying = !isPlaying;
+      document.getElementById('playIcon').style.display = isPlaying ? 'none' : 'block';
+      document.getElementById('pauseIcon').style.display = isPlaying ? 'block' : 'none';
+      document.getElementById('visualizer').classList.toggle('paused', !isPlaying);
+    }
+
+    document.getElementById('visualizer').classList.add('paused');
+
+    function openRadio(autoPlay) {
+      document.getElementById('radioGate').style.display = 'none';
+      document.getElementById('radioContent').classList.add('active');
+      if (autoPlay && !isPlaying) togglePlay();
+    }
+
+    // Check if already logged in (legacy localStorage fallback)
+    if (localStorage.getItem('shapeRadioLoggedIn')) {
+      openRadio(true);
+    }
+
+    // Any Shape account (client / trainer / nutritionist) unlocks radio.
+    (async function () {
+      try {
+        // Wait a tick for supabase.js to initialize window.shapeDb.
+        for (var i = 0; i < 20 && !window.shapeDb; i++) {
+          await new Promise(function (r) { setTimeout(r, 50); });
+        }
+        if (!window.shapeDb) return;
+        var session = await window.shapeDb.getSession();
+        if (session) {
+          localStorage.setItem('shapeRadioLoggedIn', 'true');
+          openRadio(true);
+        }
+      } catch (e) {}
+    })();
+
+    function radioLogin() {
+      const email = document.getElementById('radioEmail').value;
+      const password = document.getElementById('radioPassword').value;
+      if (!email || !password) {
+        alert('Please enter your email and password.');
+        return;
+      }
+      localStorage.setItem('shapeRadioLoggedIn', 'true');
+      document.getElementById('radioGate').style.display = 'none';
+      document.getElementById('radioContent').classList.add('active');
+    }
+
+    function radioSubscribe() {
+      window.location.href = 'signup-radio.html';
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>

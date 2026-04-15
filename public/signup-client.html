@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Client Profile — Shape</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="signup.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+
+  <nav class="signup-nav">
+    <a href="landing.html"><img src="logo.png" alt="Shape"></a>
+    <a href="login.html" class="nav-link">Already have an account?</a>
+  </nav>
+
+  <div class="signup-layout">
+    <div class="signup-sidebar">
+      <div class="sidebar-content">
+        <h2>Start training<br>with Shape</h2>
+        <p>Join 10,000+ members who train with the world's best coaches and nutritionists.</p>
+        <ul class="sidebar-perks">
+          <li><span class="perk-check">&#10003;</span> Access 200+ expert trainers</li>
+          <li><span class="perk-check">&#10003;</span> AI-powered workout generator</li>
+          <li><span class="perk-check">&#10003;</span> Custom nutrition plans</li>
+          <li><span class="perk-check">&#10003;</span> 1-on-1 messaging with coaches</li>
+          <li><span class="perk-check">&#10003;</span> Cancel any subscription anytime</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="signup-form-side">
+      <div class="signup-form-container">
+        <div class="signup-step-indicator">
+          <div class="step-dot active"></div>
+          <div class="step-line"></div>
+          <div class="step-dot"></div>
+          <div class="step-line"></div>
+          <div class="step-dot"></div>
+          <div class="step-line"></div>
+          <div class="step-dot"></div>
+        </div>
+
+        <h1>Create your client profile</h1>
+        <p class="signup-subtitle">Step 1 of 4 — Personal information</p>
+
+        <form onsubmit="event.preventDefault(); goToStep(2);" id="step1">
+          <div class="form-row">
+            <div class="form-group">
+              <label>First Name</label>
+              <input type="text" name="firstName" placeholder="John" required>
+            </div>
+            <div class="form-group">
+              <label>Last Name</label>
+              <input type="text" name="lastName" placeholder="Doe" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" name="email" placeholder="you@example.com" required>
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" name="password" placeholder="Min. 8 characters" required>
+          </div>
+          <button type="submit" class="btn-submit">Continue</button>
+        </form>
+
+        <form onsubmit="event.preventDefault(); goToStep(3);" id="step2" style="display:none;">
+          <div class="form-group">
+            <label>What is your primary fitness goal?</label>
+            <select name="goal" required>
+              <option value="">Select a goal</option>
+              <option>Lose weight</option>
+              <option>Build muscle</option>
+              <option>Improve endurance</option>
+              <option>Increase flexibility</option>
+              <option>General fitness</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Experience level</label>
+            <div class="radio-group">
+              <label class="radio-option"><input type="radio" name="level" value="beginner" checked> <span>Beginner</span></label>
+              <label class="radio-option"><input type="radio" name="level" value="intermediate"> <span>Intermediate</span></label>
+              <label class="radio-option"><input type="radio" name="level" value="advanced"> <span>Advanced</span></label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>How often do you work out?</label>
+            <select name="frequency" required>
+              <option>1-2 times per week</option>
+              <option>3-4 times per week</option>
+              <option>5-6 times per week</option>
+              <option>Daily</option>
+            </select>
+          </div>
+          <button type="submit" class="btn-submit">Continue</button>
+        </form>
+
+        <!-- NEW Step 3 — Health & Intake -->
+        <form onsubmit="event.preventDefault(); goToStep(4);" id="step3" style="display:none;">
+          <p style="font-size:0.82rem;color:var(--text-muted, #888);margin-top:-8px;margin-bottom:20px;">
+            This intake helps your coach keep you safe and tailor your program. Your answers stay private.
+          </p>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Date of birth</label>
+              <input type="date" name="dob" required>
+            </div>
+            <div class="form-group">
+              <label>Biological sex</label>
+              <select name="sex" required>
+                <option value="">Select...</option>
+                <option>Female</option>
+                <option>Male</option>
+                <option>Prefer not to say</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Injuries or physical limitations</label>
+            <textarea name="injuries" rows="2" placeholder="e.g. lower back pain, prior ACL repair, none"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Medical conditions / medications</label>
+            <textarea name="medical" rows="2" placeholder="e.g. asthma, hypertension, none"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Dietary restrictions or allergies</label>
+            <input type="text" name="dietary" placeholder="e.g. vegetarian, gluten-free, peanut allergy">
+          </div>
+          <div class="form-group">
+            <label>Emergency contact (name &amp; phone)</label>
+            <input type="text" name="emergencyContact" placeholder="Jane Doe — (555) 123-4567" required>
+          </div>
+          <div class="form-group">
+            <label>Accountability style</label>
+            <select name="accountability" required>
+              <option value="">How do you like to be coached?</option>
+              <option>Hands-off — check in when I need help</option>
+              <option>Balanced — weekly check-ins</option>
+              <option>High-touch — daily messages &amp; reminders</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="checkbox-option">
+              <input type="checkbox" name="parqAck" required>
+              <span>I confirm I am physically able to begin a new exercise program, and I'll consult my doctor if unsure.</span>
+            </label>
+          </div>
+          <button type="submit" class="btn-submit">Continue</button>
+        </form>
+
+        <form onsubmit="event.preventDefault(); completeSignup();" id="step4" style="display:none;">
+          <div class="form-group">
+            <label>What are you most interested in?</label>
+            <div class="checkbox-group">
+              <label class="checkbox-option"><input type="checkbox" name="int_pt" value="Personal training" checked> <span>Personal training</span></label>
+              <label class="checkbox-option"><input type="checkbox" name="int_nutr" value="Nutrition coaching"> <span>Nutrition coaching</span></label>
+              <label class="checkbox-option"><input type="checkbox" name="int_ai" value="AI workout generator" checked> <span>AI workout generator</span></label>
+              <label class="checkbox-option"><input type="checkbox" name="int_group" value="Group classes"> <span>Group classes</span></label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Budget per month (optional)</label>
+            <select name="budget">
+              <option value="">Optional</option>
+              <option>Under $25/mo</option>
+              <option>$25 - $50/mo</option>
+              <option>$50 - $100/mo</option>
+              <option>$100+/mo</option>
+            </select>
+          </div>
+          <div class="form-group terms">
+            <label class="checkbox-option">
+              <input type="checkbox" required>
+              <span>I agree to the <a href="terms.html">Terms of Service</a> and <a href="privacy.html">Privacy Policy</a></span>
+            </label>
+          </div>
+          <button type="submit" class="btn-submit">Create Profile</button>
+        </form>
+
+        <p class="signup-footer-text">
+          <a href="landing.html">&#8592; Back to profile selection</a>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Shape receives a copy of every client intake at this inbox.
+    var INTAKE_RECIPIENT_EMAIL = 'info@theshapecommunity.com';
+
+    let currentStep = 1;
+    const TOTAL_STEPS = 4;
+    function goToStep(step) {
+      document.getElementById('step' + currentStep).style.display = 'none';
+      document.getElementById('step' + step).style.display = 'block';
+      currentStep = step;
+      const dots = document.querySelectorAll('.step-dot');
+      dots.forEach((d, i) => d.classList.toggle('active', i < step));
+      const lines = document.querySelectorAll('.step-line');
+      lines.forEach((l, i) => l.classList.toggle('active', i < step - 1));
+      const titles = [
+        'Step 1 of 4 — Personal information',
+        'Step 2 of 4 — Fitness profile',
+        'Step 3 of 4 — Health &amp; intake',
+        'Step 4 of 4 — Preferences'
+      ];
+      document.querySelector('.signup-subtitle').innerHTML = titles[step - 1];
+    }
+
+    function gatherIntakeData() {
+      var data = {};
+      document.querySelectorAll('#step1 [name], #step2 [name], #step3 [name], #step4 [name]').forEach(function(el){
+        if (el.type === 'checkbox') {
+          if (el.name && el.name.indexOf('int_') === 0 && el.checked) {
+            data.interests = (data.interests ? data.interests + ', ' : '') + (el.value || el.name);
+          } else if (el.name && el.checked) {
+            data[el.name] = 'yes';
+          }
+        } else if (el.type === 'radio') {
+          if (el.checked) data[el.name] = el.value;
+        } else if (el.name) {
+          data[el.name] = (el.value || '').toString().trim();
+        }
+      });
+      return data;
+    }
+
+    async function sendIntakeEmail(data) {
+      var payload = new FormData();
+      payload.append('_subject', 'New Client Intake — ' + (data.firstName || '') + ' ' + (data.lastName || ''));
+      payload.append('_template', 'table');
+      payload.append('_captcha', 'false');
+      payload.append('Role', 'Client');
+      payload.append('First Name', data.firstName || '');
+      payload.append('Last Name', data.lastName || '');
+      payload.append('Email', data.email || '');
+      payload.append('Date of Birth', data.dob || '');
+      payload.append('Sex', data.sex || '');
+      payload.append('Primary Goal', data.goal || '');
+      payload.append('Experience Level', data.level || '');
+      payload.append('Workout Frequency', data.frequency || '');
+      payload.append('Injuries / Limitations', data.injuries || '');
+      payload.append('Medical / Medications', data.medical || '');
+      payload.append('Dietary / Allergies', data.dietary || '');
+      payload.append('Emergency Contact', data.emergencyContact || '');
+      payload.append('Accountability Style', data.accountability || '');
+      payload.append('Interests', data.interests || '');
+      payload.append('Budget', data.budget || '');
+      payload.append('Submitted At', new Date().toISOString());
+      try {
+        await fetch('https://formsubmit.co/ajax/' + encodeURIComponent(INTAKE_RECIPIENT_EMAIL), {
+          method: 'POST', body: payload
+        });
+      } catch (err) {
+        console.warn('Intake email relay failed:', err);
+      }
+    }
+
+    async function completeSignup() {
+      var data = gatherIntakeData();
+      if (!data.email || !data.password) { alert('Email and password are required.'); return; }
+      if (!window.shapeDb) { alert('Auth client not loaded. Please refresh.'); return; }
+
+      var btn = document.querySelector('#step4 .btn-submit');
+      if (btn) { btn.disabled = true; btn.textContent = 'Creating account...'; }
+
+      // Relay intake to Shape inbox (non-blocking for account creation).
+      sendIntakeEmail(data);
+
+      var res = await window.shapeDb.signUp({
+        email: data.email,
+        password: data.password,
+        role: 'client',
+        fullName: ((data.firstName || '') + ' ' + (data.lastName || '')).trim()
+      });
+      if (res.error) {
+        alert(res.error.message || 'Sign up failed.');
+        if (btn) { btn.disabled = false; btn.textContent = 'Create Profile'; }
+        return;
+      }
+      // Persist intake locally so the client dashboard can show it later.
+      try { localStorage.setItem('shapeClientIntake_v1', JSON.stringify(data)); } catch(e){}
+
+      var session = await window.shapeDb.getSession();
+      if (!session) {
+        alert('Check your email to confirm your account, then log in.');
+        window.location.href = 'login.html';
+        return;
+      }
+      window.location.href = 'clients.html';
+    }
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>

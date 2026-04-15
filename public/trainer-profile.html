@@ -1,0 +1,1864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape — Trainer Profile Template</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .tp-banner {
+      height: 240px; background: linear-gradient(135deg, #2DD4BF22, #0D948811);
+      position: relative; border-bottom: 1px solid var(--border);
+      display: flex; align-items: flex-end; padding: 0 0 0 0;
+    }
+    .tp-banner-label {
+      position: absolute; top: 20px; right: 20px;
+      background: var(--accent); color: #fff; font-size: 0.7rem; font-weight: 600;
+      padding: 6px 14px; text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .tp-avatar-area {
+      position: relative; margin-top: -48px; padding: 0 24px;
+      display: flex; align-items: flex-end; gap: 28px;
+    }
+    .tp-avatar {
+      width: 120px; height: 120px; border-radius: 50%; background: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.4rem; font-weight: 700; color: #fff;
+      border: 4px solid var(--bg); flex-shrink: 0;
+    }
+    .tp-name-block { padding-bottom: 12px; }
+    .tp-name-block h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 4px; letter-spacing: -0.02em; }
+    .tp-name-block .tp-specialty {
+      font-size: 0.82rem; color: var(--accent-dark); font-weight: 500;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+
+    .tp-content { max-width: 1440px; margin: 0 auto; padding: 40px 24px 80px; }
+
+    .tp-stats-row {
+      display: flex; gap: 32px; margin-bottom: 40px; padding-bottom: 32px;
+      border-bottom: 1px solid var(--border);
+    }
+    .tp-stat { text-align: center; }
+    .tp-stat-value { font-size: 1.4rem; font-weight: 700; margin-bottom: 2px; }
+    .tp-stat-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
+    .tp-section { margin-bottom: 40px; }
+    .tp-section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .tp-section h2 { font-size: 1.1rem; font-weight: 600; }
+    .tp-edit-badge {
+      font-size: 0.7rem; font-weight: 500; color: var(--accent-dark);
+      border: 1px solid var(--accent); padding: 4px 12px;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+
+    .tp-bio { color: var(--text-muted); font-size: 0.95rem; font-weight: 300; line-height: 1.8; }
+
+    .tp-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tp-tag {
+      padding: 6px 16px; background: var(--bg-alt, #f5f5f5); font-size: 0.78rem;
+      font-weight: 500; color: var(--text-muted); border: 1px solid var(--border);
+    }
+
+    .tp-programs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .tp-program {
+      background: var(--bg-card); border: 1px solid var(--border); padding: 24px;
+      transition: transform 0.3s;
+    }
+    .tp-program:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.04); }
+    .tp-program h3 { font-size: 0.95rem; font-weight: 600; margin-bottom: 6px; }
+    .tp-program-meta { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 10px; }
+    .tp-program p { font-size: 0.85rem; color: var(--text-muted); font-weight: 300; line-height: 1.6; margin-bottom: 14px; }
+    .tp-program-footer { display: flex; justify-content: space-between; align-items: center; }
+    .tp-program-price { font-size: 1.1rem; font-weight: 600; }
+
+    .tp-certs-list { list-style: none; padding: 0; }
+    .tp-certs-list li {
+      padding: 12px 0; border-bottom: 1px solid var(--border);
+      font-size: 0.92rem; display: flex; align-items: center; gap: 10px;
+    }
+    .tp-certs-list li:last-child { border-bottom: none; }
+    .tp-cert-icon { color: var(--text-muted); font-weight: 400; }
+
+    .tp-social-links { display: flex; gap: 16px; }
+    .tp-social-link {
+      padding: 10px 20px; border: 1px solid var(--border); font-size: 0.82rem;
+      font-weight: 500; color: var(--text-muted); transition: all 0.3s;
+    }
+    .tp-social-link:hover { border-color: var(--text); color: var(--text); }
+
+    .tp-gallery-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .tp-gallery-item {
+      height: 140px; background: var(--bg-alt, #f5f5f5); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.78rem; color: var(--text-muted);
+    }
+
+    .tp-callout {
+      background: rgba(45,212,191,0.06); border: 1px solid rgba(45,212,191,0.2);
+      padding: 28px 32px; margin-top: 40px; text-align: center;
+    }
+    .tp-callout h3 { font-size: 1.05rem; font-weight: 600; margin-bottom: 8px; }
+    .tp-callout p { font-size: 0.88rem; color: var(--text-muted); font-weight: 300; margin-bottom: 20px; }
+
+    @media (max-width: 900px) {
+      .tp-avatar-area { padding: 0 24px; gap: 16px; }
+      .tp-avatar { width: 88px; height: 88px; font-size: 1.8rem; }
+      .tp-name-block h1 { font-size: 1.4rem; }
+      .tp-content { padding: 32px 24px 60px; }
+      .tp-stats-row { flex-wrap: wrap; gap: 20px; }
+      .tp-programs-grid { grid-template-columns: 1fr; }
+      .tp-gallery-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .tp-section.editing .tp-edit-btn { display: none; }
+    .tp-section .tp-save-actions { display: none; gap: 8px; }
+    .tp-section.editing .tp-save-actions { display: flex; }
+    .tp-edit-btn {
+      font-size: 0.7rem; font-weight: 500; color: var(--accent-dark);
+      border: 1px solid var(--accent); padding: 4px 12px; cursor: pointer;
+      text-transform: uppercase; letter-spacing: 0.06em; background: transparent;
+      transition: all 0.3s;
+    }
+    .tp-edit-btn:hover { background: var(--accent); color: #fff; }
+    .tp-save-btn {
+      font-size: 0.72rem; font-weight: 500; padding: 6px 18px;
+      background: var(--accent); color: #fff; border: none; cursor: pointer;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .tp-cancel-btn {
+      font-size: 0.72rem; font-weight: 500; padding: 6px 18px;
+      background: transparent; color: var(--text-muted); border: 1px solid var(--border); cursor: pointer;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .tp-section .tp-edit-input,
+    .tp-section .tp-edit-textarea,
+    .tp-section .tp-edit-select { display: none; }
+    .tp-section.editing .tp-edit-input,
+    .tp-section.editing .tp-edit-textarea,
+    .tp-section.editing .tp-edit-select { display: block; }
+    .tp-section.editing .tp-display-value { display: none; }
+    .tp-edit-input, .tp-edit-select {
+      width: 100%; padding: 10px 14px; border: 1px solid var(--border);
+      background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif;
+      font-size: 0.88rem; outline: none; margin-top: 4px;
+    }
+    .tp-edit-textarea {
+      width: 100%; padding: 10px 14px; border: 1px solid var(--border);
+      background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif;
+      font-size: 0.88rem; outline: none; margin-top: 4px; min-height: 100px; resize: vertical;
+    }
+    .tp-edit-input:focus, .tp-edit-textarea:focus, .tp-edit-select:focus { border-color: var(--accent); }
+    .tp-tag.removable { cursor: pointer; position: relative; }
+    .tp-tag.removable:hover { border-color: #EF4444; color: #EF4444; }
+    .tp-add-tag-row { display: none; gap: 8px; margin-top: 10px; align-items: center; }
+    .tp-section.editing .tp-add-tag-row { display: flex; }
+    .tp-cert-input-row { display: none; gap: 8px; margin-top: 10px; align-items: center; }
+    .tp-section.editing .tp-cert-input-row { display: flex; }
+    .tp-program.editing-program { border-color: var(--accent); }
+    .tp-program .tp-program-edit-fields { display: none; }
+    .tp-program.editing-program .tp-program-edit-fields { display: block; }
+    .tp-program.editing-program .tp-program-display { display: none; }
+  </style>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar" id="navbar">
+    <div class="container nav-container">
+      <a href="home.html" class="logo">
+        <img src="logo.png" alt="Shape" class="logo-img">
+      </a>
+      <div class="nav-links" id="navLinks">
+        <div class="nav-dropdown">
+          <a href="for-clients.html">Clients</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-clients.html">Overview</a>
+            <a href="clients.html">Dashboard</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-trainers.html">Trainers</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-trainers.html">Overview</a>
+            <a href="trainer-dashboard.html">Trainer Dashboard</a>
+            <a href="trainers.html">Trainer Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-nutritionists.html">Nutritionists</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-nutritionists.html">Overview</a>
+            <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+            <a href="nutritionists.html">Nutritionist Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="shape-score.html">Rewards</a>
+          <div class="nav-dropdown-menu">
+            <a href="shape-score.html">Shape Score (Clients)</a>
+            <a href="shape-score-trainer.html">Shape Score (Trainers)</a>
+            <a href="shape-score-nutritionist.html">Shape Score (Nutritionists)</a>
+            <a href="shape-store.html">Shape Store</a>
+          </div>
+        </div>
+        <a href="community.html">Community</a>
+        <a href="pricing.html">Pricing</a>
+      </div>
+      <div class="nav-actions">
+        <a href="login.html" class="btn btn-sm btn-outline shape-auth-logged-out">Log In</a>
+        <span class="shape-auth-logged-in shape-nav-user-name" style="display:none;font-size:0.82rem;color:var(--text-muted);margin-right:4px;"></span>
+        <a href="clients.html" class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" data-shape-dashboard-link>Dashboard</a>
+        <button class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" onclick="shapeSignOut()">Sign Out</button>
+        <a href="landing.html" class="btn btn-sm btn-primary shape-auth-logged-out">Get Started</a>
+        <a href="radio.html" class="btn btn-sm btn-radio"><span class="btn-shape-text"><img src="logo.png" alt="Shape"></span> Radio</a>
+      </div>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Profile Banner -->
+  <div style="padding-top:80px;">
+    <div class="tp-banner">
+      <div class="tp-banner-label">Upload Your Own Banner</div>
+    </div>
+  </div>
+
+  <!-- Avatar & Name -->
+  <div class="tp-avatar-area">
+    <div class="tp-avatar" id="tpAvatar" style="position: relative; cursor: pointer;" onclick="document.getElementById('avatarUpload').click()">
+      <span id="tpInitials">YN</span>
+      <div style="position: absolute; bottom: 0; right: 0; width: 32px; height: 32px; background: var(--text); border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid var(--bg); font-size: 0.7rem; color: #fff;">+</div>
+      <input type="file" id="avatarUpload" accept="image/*" style="display:none" onchange="handleAvatarUpload(event)">
+    </div>
+    <div class="tp-name-block">
+      <h1 id="tpName" onclick="editNameInline(this)" style="cursor:pointer;" title="Click to edit">Your Name</h1>
+      <div class="tp-specialty" id="tpSpecialty" onclick="editSpecialtyInline(this)" style="cursor:pointer;" title="Click to edit">Your Specialty</div>
+      <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 6px;">Click name or specialty to edit</div>
+    </div>
+  </div>
+
+  <!-- Profile Content -->
+  <div class="tp-content">
+
+    <!-- Stats -->
+    <div class="tp-stats-row">
+      <div class="tp-stat" onclick="editStat(this, 'subscribers')" style="cursor:pointer;" title="Click to edit">
+        <div class="tp-stat-value tp-display-value" id="statSubscribers">0</div>
+        <input class="tp-edit-input" style="display:none;width:80px;text-align:center;" value="0" data-stat="subscribers">
+        <div class="tp-stat-label">Subscribers</div>
+      </div>
+      <div class="tp-stat" onclick="editStat(this, 'rating')" style="cursor:pointer;" title="Click to edit">
+        <div class="tp-stat-value tp-display-value" id="statRating">--</div>
+        <input class="tp-edit-input" style="display:none;width:80px;text-align:center;" value="" data-stat="rating" placeholder="4.8">
+        <div class="tp-stat-label">Rating</div>
+      </div>
+      <div class="tp-stat" onclick="editStat(this, 'price')" style="cursor:pointer;" title="Click to edit">
+        <div class="tp-stat-value tp-display-value" id="statPrice">$--/mo</div>
+        <input class="tp-edit-input" style="display:none;width:80px;text-align:center;" value="" data-stat="price" placeholder="49.99">
+        <div class="tp-stat-label">Your Price</div>
+      </div>
+      <div class="tp-stat" onclick="editStat(this, 'experience')" style="cursor:pointer;" title="Click to edit">
+        <div class="tp-stat-value tp-display-value" id="statExperience">--</div>
+        <input class="tp-edit-input" style="display:none;width:80px;text-align:center;" value="" data-stat="experience" placeholder="5 yrs">
+        <div class="tp-stat-label">Experience</div>
+      </div>
+    </div>
+
+    <!-- Bio -->
+    <div class="tp-section" id="sectionBio">
+      <div class="tp-section-header">
+        <h2>About You</h2>
+        <button class="tp-edit-btn" onclick="toggleSection('sectionBio')">Edit</button>
+      </div>
+      <p class="tp-bio tp-display-value" id="bioText">Write your personal bio here. Tell potential clients about your training philosophy, what sets you apart, your background, and why they should train with you. This is your space to make a first impression.</p>
+      <textarea class="tp-edit-textarea" id="bioInput">Write your personal bio here. Tell potential clients about your training philosophy, what sets you apart, your background, and why they should train with you. This is your space to make a first impression.</textarea>
+      <div class="tp-save-actions">
+        <button class="tp-save-btn" onclick="saveBio()">Save</button>
+        <button class="tp-cancel-btn" onclick="cancelSection('sectionBio')">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Specialties & Tags -->
+    <div class="tp-section" id="sectionTags">
+      <div class="tp-section-header">
+        <h2>Specialties & Tags</h2>
+        <button class="tp-edit-btn" onclick="toggleSection('sectionTags')">Edit</button>
+      </div>
+      <div class="tp-tags" id="tagsContainer">
+        <span class="tp-tag" data-tag="Strength">Strength</span>
+        <span class="tp-tag" data-tag="Hypertrophy">Hypertrophy</span>
+        <span class="tp-tag" data-tag="Fat Loss">Fat Loss</span>
+        <span class="tp-tag" data-tag="At Home">At Home</span>
+      </div>
+      <div class="tp-add-tag-row">
+        <input class="tp-edit-input" id="newTagInput" placeholder="New tag..." style="width:160px;margin-top:0;">
+        <button class="tp-save-btn" onclick="addTag()" style="padding:8px 14px;">Add</button>
+      </div>
+      <div class="tp-save-actions">
+        <button class="tp-save-btn" onclick="saveTags()">Done</button>
+        <button class="tp-cancel-btn" onclick="cancelSection('sectionTags')">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Program Builder -->
+    <div class="tp-section" id="sectionPrograms">
+      <style>
+        .pb-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .pb-header h2 { font-size: 1.1rem; font-weight: 600; }
+        .pb-builder { display: none; margin-bottom: 36px; }
+        .pb-builder.active { display: block; }
+        .pb-type-chooser { display: flex; gap: 16px; margin-bottom: 28px; }
+        .pb-type-card {
+          flex: 1; padding: 28px; background: var(--bg-card); border: 1px solid var(--border);
+          border-radius: var(--radius-lg); cursor: pointer; transition: all 0.3s ease; text-align: center;
+        }
+        .pb-type-card:hover, .pb-type-card.selected { border-color: var(--accent); }
+        .pb-type-card h3 { font-size: 0.92rem; font-weight: 600; margin-bottom: 6px; }
+        .pb-type-card p { font-size: 0.75rem; color: var(--text-muted); line-height: 1.5; }
+        .pb-form { display: none; }
+        .pb-form.active { display: block; }
+        .pb-label {
+          display: block; font-size: 0.68rem; font-weight: 600; text-transform: uppercase;
+          letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 6px;
+        }
+        .pb-input, .pb-select, .pb-textarea {
+          width: 100%; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border);
+          border-radius: var(--radius); color: var(--text); font-family: 'Inter', sans-serif;
+          font-size: 0.82rem; outline: none; transition: border-color 0.2s; box-sizing: border-box;
+        }
+        .pb-input:focus, .pb-select:focus, .pb-textarea:focus { border-color: var(--accent); }
+        .pb-textarea { resize: vertical; min-height: 80px; }
+        .pb-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 16px; }
+        .pb-field { margin-bottom: 16px; }
+        .pb-day {
+          background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+          margin-bottom: 16px; overflow: hidden;
+        }
+        .pb-day-header {
+          display: flex; justify-content: space-between; align-items: center; padding: 14px 18px;
+          cursor: pointer; user-select: none;
+        }
+        .pb-day-header h4 { font-size: 0.85rem; font-weight: 600; }
+        .pb-day-header .pb-chevron { font-size: 0.7rem; color: var(--text-muted); transition: transform 0.2s; }
+        .pb-day-header .pb-chevron.open { transform: rotate(180deg); }
+        .pb-day-body { padding: 0 18px 18px; display: none; }
+        .pb-day-body.open { display: block; }
+        .pb-exercise-row {
+          display: grid; grid-template-columns: 2fr 0.7fr 0.7fr 0.7fr 1.5fr 40px;
+          gap: 8px; margin-bottom: 8px; align-items: end;
+        }
+        .pb-exercise-row .pb-input { padding: 8px 10px; font-size: 0.78rem; }
+        .pb-remove-btn {
+          background: none; border: none; color: var(--text-muted); cursor: pointer;
+          font-size: 1rem; padding: 8px; transition: color 0.2s;
+        }
+        .pb-remove-btn:hover { color: #EF4444; }
+        .pb-sub-section { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+        .pb-sub-section h5 {
+          font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
+          color: var(--text-muted); margin-bottom: 10px;
+        }
+        .pb-warmup-row {
+          display: grid; grid-template-columns: 2fr 1fr 40px; gap: 8px; margin-bottom: 8px; align-items: end;
+        }
+        .pb-warmup-row .pb-input { padding: 8px 10px; font-size: 0.78rem; }
+        .pb-actions-row { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+        .pb-assign-bar {
+          display: flex; gap: 16px; align-items: end; margin-top: 24px; padding-top: 24px;
+          border-top: 1px solid var(--border); flex-wrap: wrap;
+        }
+        .pb-assign-bar .pb-field { margin-bottom: 0; flex: 1; min-width: 180px; }
+        .pb-plan-list { margin-top: 12px; }
+        .pb-plan-item {
+          display: flex; align-items: center; gap: 16px; padding: 16px 18px;
+          background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+          margin-bottom: 10px; transition: border-color 0.2s;
+        }
+        .pb-plan-item:hover { border-color: rgba(255,255,255,0.18); }
+        .pb-plan-item-info { flex: 1; }
+        .pb-plan-item-info h4 { font-size: 0.88rem; font-weight: 600; margin-bottom: 3px; }
+        .pb-plan-item-info span { font-size: 0.75rem; color: var(--text-muted); }
+        .pb-plan-item-actions { display: flex; gap: 8px; }
+        .pb-badge {
+          display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.68rem;
+          font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+        }
+        .pb-badge-draft { background: rgba(245,158,11,0.15); color: #F59E0B; }
+        .pb-badge-published { background: rgba(16,185,129,0.15); color: #10B981; }
+        .pb-badge-profile { background: rgba(99,102,241,0.15); color: #818CF8; }
+        .pb-empty { text-align: center; padding: 40px; color: var(--text-muted); font-size: 0.82rem; }
+      </style>
+
+      <div class="pb-header">
+        <h2>Program Builder</h2>
+        <button class="btn btn-primary" id="pbCreateBtn" onclick="pbToggleBuilder()">+ Create New Program</button>
+      </div>
+
+      <!-- Builder Area -->
+      <div class="pb-builder" id="pbBuilder">
+        <!-- Step 1: Choose Type -->
+        <div id="pbStep1">
+          <div class="pb-type-chooser">
+            <div class="pb-type-card" onclick="pbSelectType('template')">
+              <h3>Use Shape Template</h3>
+              <p>Pre-structured day-by-day workout program with exercises, sets, reps, and rest periods.</p>
+            </div>
+            <div class="pb-type-card" onclick="pbSelectType('custom')">
+              <h3>Upload Custom Plan</h3>
+              <p>Upload your own workout program as a PDF, image, or document and assign it to a client.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Template Form -->
+        <div class="pb-form" id="pbTemplateForm">
+          <div class="pb-row">
+            <div class="pb-field">
+              <label class="pb-label">Plan Name</label>
+              <input type="text" class="pb-input" id="pbTplName" placeholder="e.g. 12-Week Hypertrophy">
+            </div>
+            <div class="pb-field">
+              <label class="pb-label">Category</label>
+              <select class="pb-select" id="pbTplCategory">
+                <option value="">Select...</option>
+                <option>Strength</option><option>HIIT</option><option>Bodybuilding</option>
+                <option>Full-Body</option><option>Cardio</option><option>Powerlifting</option>
+                <option>Mobility</option><option>Sport-Specific</option>
+              </select>
+            </div>
+            <div class="pb-field">
+              <label class="pb-label">Difficulty</label>
+              <select class="pb-select" id="pbTplDifficulty">
+                <option value="">Select...</option>
+                <option>Beginner</option><option>Intermediate</option><option>Advanced</option>
+              </select>
+            </div>
+          </div>
+          <div class="pb-row">
+            <div class="pb-field">
+              <label class="pb-label">Duration</label>
+              <select class="pb-select" id="pbTplDuration">
+                <option value="">Select...</option>
+                <option>4 weeks</option><option>6 weeks</option><option>8 weeks</option><option>12 weeks</option>
+              </select>
+            </div>
+            <div class="pb-field">
+              <label class="pb-label">Days per Week</label>
+              <select class="pb-select" id="pbTplDays">
+                <option value="">Select...</option>
+                <option>2</option><option>3</option><option>4</option><option>5</option><option>6</option>
+              </select>
+            </div>
+          </div>
+          <div class="pb-field">
+            <label class="pb-label">Description</label>
+            <textarea class="pb-textarea" id="pbTplDesc" placeholder="Describe this plan's goals and approach..."></textarea>
+          </div>
+
+          <!-- Days Container -->
+          <div id="pbDaysContainer"></div>
+          <button class="btn btn-sm btn-outline" onclick="pbAddDay()" style="margin-top:12px;">+ Add Day</button>
+
+          <!-- Assign & Actions Bar -->
+          <div class="pb-assign-bar">
+            <div class="pb-field">
+              <label class="pb-label">Assign to Client</label>
+              <select class="pb-select" id="pbTplClient">
+                <option value="">None</option>
+                <option>Christopher Perry</option><option>Emma Chen</option><option>David Kim</option>
+                <option>Sofia Rodriguez</option><option>Marcus Thompson</option>
+              </select>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;">
+              <button class="btn btn-outline" onclick="pbSaveDraft('template')" style="border-color:var(--accent);color:var(--accent-dark);">Save Draft</button>
+              <button class="btn btn-accent" onclick="pbSavePlan('template')">Publish &amp; Send to Client</button>
+              <button class="btn btn-primary" onclick="pbPublishToProfile('template')">Publish to Profile</button>
+              <button class="btn btn-outline" onclick="pbToggleBuilder()">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Upload Custom Plan Form -->
+        <div class="pb-form" id="pbCustomForm">
+          <div class="pb-field">
+            <label class="pb-label">Plan Name</label>
+            <input type="text" class="pb-input" id="pbCustName" placeholder="e.g. Custom Training Program">
+          </div>
+          <div class="pb-field">
+            <label class="pb-label">Description</label>
+            <textarea class="pb-textarea" id="pbCustDesc" placeholder="Brief overview of the plan..."></textarea>
+          </div>
+
+          <!-- File Upload Area -->
+          <div class="pb-field">
+            <label class="pb-label">Upload Your Plan</label>
+            <div id="pbUploadZone" style="border:2px dashed var(--border);padding:40px 20px;text-align:center;cursor:pointer;transition:all 0.3s;background:var(--bg);border-radius:var(--radius-lg);" onclick="document.getElementById('pbFileInput').click()" ondragover="event.preventDefault();this.style.borderColor='var(--accent)';this.style.background='rgba(45,212,191,0.04)'" ondragleave="this.style.borderColor='var(--border)';this.style.background='var(--bg)'" ondrop="event.preventDefault();this.style.borderColor='var(--border)';this.style.background='var(--bg)';pbHandleFiles(event.dataTransfer.files)">
+              <div style="font-size:1.6rem;margin-bottom:8px;color:var(--text-muted);">&#8593;</div>
+              <div style="font-size:0.88rem;font-weight:500;color:var(--text);margin-bottom:4px;">Drag & drop your file here or click to browse</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);">Supports PDF, PNG, JPG, DOCX, or TXT — max 10MB</div>
+            </div>
+            <input type="file" id="pbFileInput" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.txt" style="display:none" onchange="pbHandleFiles(this.files)">
+          </div>
+
+          <!-- Uploaded File Preview -->
+          <div id="pbUploadedFiles" style="display:none;margin-top:12px;">
+            <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px;">Uploaded Files</div>
+            <div id="pbFileList"></div>
+          </div>
+
+          <!-- Assign Bar -->
+          <div class="pb-assign-bar">
+            <div class="pb-field">
+              <label class="pb-label">Assign to Client</label>
+              <select class="pb-select" id="pbCustClient">
+                <option value="">None</option>
+                <option>Christopher Perry</option><option>Emma Chen</option><option>David Kim</option>
+                <option>Sofia Rodriguez</option><option>Marcus Thompson</option>
+              </select>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;">
+              <button class="btn btn-outline" onclick="pbSaveDraft('custom')" style="border-color:var(--accent);color:var(--accent-dark);">Save Draft</button>
+              <button class="btn btn-accent" onclick="pbSavePlan('custom')">Publish &amp; Send to Client</button>
+              <button class="btn btn-primary" onclick="pbPublishToProfile('custom')">Publish to Profile</button>
+              <button class="btn btn-outline" onclick="pbToggleBuilder()">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- My Programs List -->
+      <div class="pb-header" style="margin-top:12px;">
+        <h3 style="font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);">My Programs</h3>
+      </div>
+      <div class="pb-plan-list" id="pbPlanList">
+        <div class="pb-empty">No programs yet. Create your first workout program above.</div>
+      </div>
+    </div>
+
+    <!-- Certifications -->
+    <div class="tp-section" id="sectionCerts">
+      <div class="tp-section-header">
+        <h2>Certifications</h2>
+        <button class="tp-edit-btn" onclick="toggleSection('sectionCerts')">Edit</button>
+      </div>
+      <ul class="tp-certs-list" id="certsContainer">
+        <li><span class="tp-cert-icon">&mdash;</span> <span>Add your certifications (e.g. NASM, ACE, ISSA, ACSM)</span></li>
+      </ul>
+      <div class="tp-cert-input-row">
+        <input class="tp-edit-input" id="newCertInput" placeholder="e.g. NASM Certified Personal Trainer" style="margin-top:0;">
+        <button class="tp-save-btn" onclick="addCert()" style="padding:8px 14px;">Add</button>
+      </div>
+      <div class="tp-save-actions">
+        <button class="tp-save-btn" onclick="saveCerts()">Done</button>
+        <button class="tp-cancel-btn" onclick="cancelSection('sectionCerts')">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Intro Video -->
+    <div class="tp-section" id="sectionIntroVideo">
+      <div class="tp-section-header">
+        <h2>Intro Video</h2>
+        <button class="tp-edit-btn" onclick="toggleSection('sectionIntroVideo')">Edit</button>
+      </div>
+      <p style="font-size: 0.88rem; color: var(--text-muted); font-weight: 300; margin-bottom: 16px;">Record or upload a short video introducing yourself to potential clients. This is the first thing people see on your profile.</p>
+      <div id="introVideoDisplay">
+        <div id="introVideoPlayer" style="display:none;margin-bottom:16px;">
+          <video id="introVid" controls style="width:100%;max-height:400px;background:#000;border:1px solid var(--border);"></video>
+        </div>
+        <div id="introVideoPlaceholder" style="background:linear-gradient(135deg,#1a1a1a11,#1a1a1a06);border:1px solid var(--border);height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;" onclick="document.getElementById('introVideoUpload').click()">
+          <div style="font-size:2rem;margin-bottom:8px;">&#9654;</div>
+          <div style="font-size:0.85rem;font-weight:500;color:var(--text-muted);">Upload Your Intro Video</div>
+          <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">MP4, MOV, or WebM — up to 2 minutes recommended</div>
+        </div>
+        <input type="file" id="introVideoUpload" accept="video/*" style="display:none" onchange="handleIntroVideoUpload(event)">
+      </div>
+      <div id="introVideoUrlRow" style="display:none;margin-top:12px;">
+        <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Or paste a YouTube/Vimeo URL</label>
+        <div style="display:flex;gap:8px;margin-top:6px;">
+          <input class="tp-edit-input" id="introVideoUrl" placeholder="https://youtube.com/watch?v=..." style="margin-top:0;">
+          <button class="tp-save-btn" onclick="saveIntroVideoUrl()" style="padding:8px 16px;white-space:nowrap;">Embed</button>
+        </div>
+      </div>
+      <div id="introVideoEmbedDisplay" style="display:none;margin-top:12px;">
+        <iframe id="introVideoEmbed" style="width:100%;height:360px;border:1px solid var(--border);" allowfullscreen></iframe>
+      </div>
+      <div class="tp-save-actions">
+        <button class="tp-save-btn" onclick="saveIntroVideo()">Save</button>
+        <button class="tp-cancel-btn" onclick="removeIntroVideo()">Remove Video</button>
+        <button class="tp-cancel-btn" onclick="cancelSection('sectionIntroVideo')">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Photos & Videos -->
+    <div class="tp-section" id="sectionMedia">
+      <div class="tp-section-header">
+        <h2>Photos & Videos</h2>
+        <button class="tp-edit-btn" onclick="toggleSection('sectionMedia')">Edit</button>
+      </div>
+      <p style="font-size: 0.88rem; color: var(--text-muted); font-weight: 300; margin-bottom: 16px;">Upload photos and videos to showcase your training style, client results, workout demos, and more.</p>
+      <div class="tp-gallery-grid" id="photoGallery">
+        <div class="tp-gallery-item" style="cursor:pointer;" onclick="document.getElementById('photoUpload').click()">+ Upload Photo</div>
+      </div>
+      <input type="file" id="photoUpload" accept="image/*" multiple style="display:none" onchange="handlePhotoUpload(event)">
+      <div style="margin-top:16px;">
+        <div style="font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:10px;">Videos</div>
+        <div class="tp-gallery-grid" id="videoGallery">
+          <div class="tp-gallery-item" style="height:160px;cursor:pointer;background:linear-gradient(135deg,#1a1a1a11,#1a1a1a06);" onclick="addVideoUrl()">
+            <div style="text-align:center;">
+              <div style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:4px;">&#9654;</div>
+              <div>+ Add Video URL</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="tp-save-actions">
+        <button class="tp-save-btn" onclick="saveMedia()">Save</button>
+        <button class="tp-cancel-btn" onclick="cancelSection('sectionMedia')">Cancel</button>
+      </div>
+    </div>
+
+    <!-- 1-on-1 Consultation Scheduling -->
+    <div class="tp-section" id="sectionConsult">
+      <div class="tp-section-header">
+        <h2>1-on-1 Consultations</h2>
+        <button class="tp-edit-btn" onclick="toggleSection('sectionConsult')">Edit</button>
+      </div>
+      <p style="font-size:0.88rem;color:var(--text-muted);font-weight:300;margin-bottom:20px;">Offer free or paid 1-on-1 consultations. Set your availability and let clients book directly from your profile.</p>
+      <div id="consultDisplay">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px;">
+          <div style="background:var(--bg-card);border:1px solid var(--border);padding:20px;">
+            <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:8px;">Session Length</div>
+            <div style="font-size:1.1rem;font-weight:600;" id="consultDurationDisplay">15 min</div>
+          </div>
+          <div style="background:var(--bg-card);border:1px solid var(--border);padding:20px;">
+            <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:8px;">Price</div>
+            <div style="font-size:1.1rem;font-weight:600;" id="consultPriceDisplay">Free</div>
+          </div>
+          <div style="background:var(--bg-card);border:1px solid var(--border);padding:20px;">
+            <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:8px;">Format</div>
+            <div style="font-size:1.1rem;font-weight:600;" id="consultFormatDisplay">Video</div>
+          </div>
+        </div>
+        <div style="margin-bottom:20px;">
+          <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:10px;">Your Availability</div>
+          <div id="availabilityDisplay" style="display:flex;flex-wrap:wrap;gap:8px;">
+            <span class="tp-tag" style="opacity:0.4;">No availability set</span>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="shapeOpenBooking('trainer')" style="width:100%;">Book a 1-on-1 Consultation</button>
+      </div>
+      <div style="display:none;" id="consultEditFields">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px;">
+          <div>
+            <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Session Length</label>
+            <select class="tp-edit-input" id="consultDuration" style="margin-top:4px;">
+              <option value="15">15 minutes</option>
+              <option value="30">30 minutes</option>
+              <option value="45">45 minutes</option>
+              <option value="60">60 minutes</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Format</label>
+            <select class="tp-edit-input" id="consultFormat" style="margin-top:4px;">
+              <option value="Video">Video Call</option>
+              <option value="Phone">Phone Call</option>
+              <option value="Both">Video or Phone</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Price</label>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">
+              <label style="font-size:0.82rem;display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="radio" name="consultPriceType" value="free" checked onchange="toggleConsultPrice()"> Free</label>
+              <label style="font-size:0.82rem;display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="radio" name="consultPriceType" value="paid" onchange="toggleConsultPrice()"> Paid</label>
+              <input class="tp-edit-input" id="consultPriceInput" type="number" placeholder="25.00" style="width:100px;margin-top:0;display:none;">
+            </div>
+          </div>
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);display:block;margin-bottom:8px;">Available Days</label>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;" id="availDays">
+            <label class="tp-tag" style="cursor:pointer;"><input type="checkbox" value="Mon" style="margin-right:4px;"> Mon</label>
+            <label class="tp-tag" style="cursor:pointer;"><input type="checkbox" value="Tue" style="margin-right:4px;"> Tue</label>
+            <label class="tp-tag" style="cursor:pointer;"><input type="checkbox" value="Wed" style="margin-right:4px;"> Wed</label>
+            <label class="tp-tag" style="cursor:pointer;"><input type="checkbox" value="Thu" style="margin-right:4px;"> Thu</label>
+            <label class="tp-tag" style="cursor:pointer;"><input type="checkbox" value="Fri" style="margin-right:4px;"> Fri</label>
+            <label class="tp-tag" style="cursor:pointer;"><input type="checkbox" value="Sat" style="margin-right:4px;"> Sat</label>
+            <label class="tp-tag" style="cursor:pointer;"><input type="checkbox" value="Sun" style="margin-right:4px;"> Sun</label>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+          <div>
+            <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Available From</label>
+            <input class="tp-edit-input" id="consultTimeFrom" type="time" value="09:00" style="margin-top:4px;">
+          </div>
+          <div>
+            <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Available Until</label>
+            <input class="tp-edit-input" id="consultTimeTo" type="time" value="17:00" style="margin-top:4px;">
+          </div>
+        </div>
+        <div>
+          <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Consultation Description</label>
+          <textarea class="tp-edit-textarea" id="consultDesc" style="min-height:60px;margin-top:4px;" placeholder="What will the consultation cover? E.g. goal setting, program review, form check...">Free 15-minute intro call to discuss your fitness goals and find the right program for you.</textarea>
+        </div>
+      </div>
+      <div class="tp-save-actions">
+        <button class="tp-save-btn" onclick="saveConsult()">Save</button>
+        <button class="tp-cancel-btn" onclick="cancelSection('sectionConsult')">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Social Links -->
+    <div class="tp-section" id="sectionSocial">
+      <div class="tp-section-header">
+        <h2>Social Links</h2>
+        <button class="tp-edit-btn" onclick="toggleSection('sectionSocial')">Edit</button>
+      </div>
+      <div class="tp-social-links tp-display-value" id="socialDisplay">
+        <span class="tp-social-link" id="socialIG">Instagram</span>
+        <span class="tp-social-link" id="socialYT">YouTube</span>
+        <span class="tp-social-link" id="socialTT">TikTok</span>
+        <span class="tp-social-link" id="socialWeb">Website</span>
+      </div>
+      <div class="tp-edit-fields" style="display:none;" id="socialEditFields">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Instagram</label>
+            <input class="tp-edit-input" id="inputIG" placeholder="@yourhandle" value="">
+          </div>
+          <div>
+            <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">YouTube</label>
+            <input class="tp-edit-input" id="inputYT" placeholder="youtube.com/c/..." value="">
+          </div>
+          <div>
+            <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">TikTok</label>
+            <input class="tp-edit-input" id="inputTT" placeholder="@yourhandle" value="">
+          </div>
+          <div>
+            <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Website</label>
+            <input class="tp-edit-input" id="inputWeb" placeholder="https://..." value="">
+          </div>
+        </div>
+      </div>
+      <div class="tp-save-actions">
+        <button class="tp-save-btn" onclick="saveSocial()">Save</button>
+        <button class="tp-cancel-btn" onclick="cancelSection('sectionSocial')">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Subscription Pricing -->
+    <div class="tp-section" id="sectionPricing">
+      <div class="tp-section-header">
+        <h2>Subscription Pricing</h2>
+        <button class="tp-edit-btn" onclick="toggleSection('sectionPricing')">Edit</button>
+      </div>
+      <div style="background: var(--bg-card); border: 1px solid var(--border); padding: 28px; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <div class="tp-display-value" style="font-size: 1.4rem; font-weight: 700;" id="subPriceDisplay">$--<span style="font-size: 0.85rem; font-weight: 400; color: var(--text-muted);">/mo</span></div>
+          <input class="tp-edit-input" id="subPriceInput" type="number" placeholder="49.99" style="display:none;width:120px;margin-top:0;">
+          <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">Set your own monthly subscription price</div>
+        </div>
+        <button class="btn btn-primary">Set</button>
+      </div>
+      <div class="tp-save-actions">
+        <button class="tp-save-btn" onclick="savePricing()">Save</button>
+        <button class="tp-cancel-btn" onclick="cancelSection('sectionPricing')">Cancel</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <a href="home.html" class="logo">
+            <img src="logo.png" alt="Shape" class="logo-img">
+          </a>
+          <p class="footer-desc">Join the community</p>
+        </div>
+        <div class="footer-col">
+          <h4>Platform</h4>
+          <a href="trainers.html">Trainer Marketplace</a>
+          <a href="nutritionists.html">Nutritionists</a>        <a href="community.html">Community</a>
+          <a href="pricing.html">Pricing</a>
+          <a href="for-clients.html">Clients</a>
+          <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+          <a href="trainer-dashboard.html">Trainer Dashboard</a>
+          <a href="integrations.html">Integrations</a>
+        </div>
+        <div class="footer-col">
+          <h4>Get Started</h4>
+          <a href="signup-client.html">Sign Up as Client</a>
+          <a href="signup-trainer.html">Apply as Trainer</a>
+          <a href="signup-nutritionist.html">Apply as Nutritionist</a>
+        </div>
+        <div class="footer-col">
+          <h4>Support</h4>
+          <a href="help.html">Help Center</a>
+          <a href="contact.html">Contact</a>
+          <a href="radio.html">Shape Radio</a>
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 Shape. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+// ===== Trainer Profile Editor =====
+let trainerData = {
+  name: 'Your Name', specialty: 'Your Specialty',
+  subscribers: '0', rating: '', price: '', experience: '',
+  bio: 'Write your personal bio here. Tell potential clients about your training philosophy, what sets you apart, your background, and why they should train with you. This is your space to make a first impression.',
+  tags: ['Strength', 'Hypertrophy', 'Fat Loss', 'At Home'],
+  programs: [
+    { name: 'Program Name', type: 'Strength', duration: '8 weeks', difficulty: 'Intermediate', desc: 'Describe your workout program. Clients will see this when browsing your profile.', price: '' },
+    { name: 'Program Name', type: 'HIIT', duration: '6 weeks', difficulty: 'Beginner', desc: 'Create as many programs as you want. Sell them individually or include them with your subscription.', price: '' },
+    { name: 'Program Name', type: 'Cardio', duration: '4 weeks', difficulty: 'Advanced', desc: 'Tag each program by location, difficulty, and category so clients can find exactly what they need.', price: '' }
+  ],
+  certs: [],
+  social: { ig: '', yt: '', tt: '', web: '' },
+  subPrice: '',
+  introVideo: null,
+  introVideoUrl: '',
+  photos: [],
+  videos: [],
+  consult: { duration: '15', priceType: 'free', price: '', format: 'Video', days: [], timeFrom: '09:00', timeTo: '17:00', desc: 'Free 15-minute intro call to discuss your fitness goals and find the right program for you.' }
+};
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function toggleSection(id) {
+  const s = document.getElementById(id);
+  s.classList.toggle('editing');
+  if (id === 'sectionSocial') {
+    document.getElementById('socialEditFields').style.display = s.classList.contains('editing') ? 'block' : 'none';
+  }
+  if (id === 'sectionPricing') {
+    document.getElementById('subPriceInput').style.display = s.classList.contains('editing') ? 'block' : 'none';
+    document.getElementById('subPriceDisplay').style.display = s.classList.contains('editing') ? 'none' : 'block';
+  }
+  if (id === 'sectionTags' && s.classList.contains('editing')) { renderTagsEditable(); }
+  if (id === 'sectionCerts' && s.classList.contains('editing')) { renderCertsEditable(); }
+  if (id === 'sectionPrograms' && s.classList.contains('editing')) { renderProgramsEditable(); }
+  if (id === 'sectionIntroVideo') {
+    document.getElementById('introVideoUrlRow').style.display = s.classList.contains('editing') ? 'block' : 'none';
+  }
+  if (id === 'sectionMedia') {
+    // nothing extra needed
+  }
+  if (id === 'sectionConsult') {
+    document.getElementById('consultEditFields').style.display = s.classList.contains('editing') ? 'block' : 'none';
+    document.getElementById('consultDisplay').style.display = s.classList.contains('editing') ? 'none' : 'block';
+  }
+}
+
+function cancelSection(id) {
+  document.getElementById(id).classList.remove('editing');
+  if (id === 'sectionSocial') document.getElementById('socialEditFields').style.display = 'none';
+  if (id === 'sectionPricing') { document.getElementById('subPriceInput').style.display = 'none'; document.getElementById('subPriceDisplay').style.display = 'block'; }
+  if (id === 'sectionIntroVideo') document.getElementById('introVideoUrlRow').style.display = 'none';
+  if (id === 'sectionConsult') { document.getElementById('consultEditFields').style.display = 'none'; document.getElementById('consultDisplay').style.display = 'block'; }
+  loadFromStorage();
+}
+
+// --- Name / Specialty inline edit ---
+function editNameInline(el) {
+  const current = el.textContent;
+  el.innerHTML = '<input class="tp-edit-input" value="' + current + '" style="font-size:1.6rem;font-weight:700;width:300px;margin:0;padding:4px 8px;" onblur="saveNameInline(this)" onkeydown="if(event.key===\'Enter\'){this.blur();}">';
+  el.querySelector('input').focus();
+}
+function saveNameInline(input) {
+  const val = input.value.trim() || 'Your Name';
+  trainerData.name = val;
+  document.getElementById('tpName').textContent = val;
+  const initials = val.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2);
+  document.getElementById('tpInitials').textContent = initials;
+  trainerData.initials = initials;
+  saveToStorage();
+  showToast('Name updated!');
+}
+function editSpecialtyInline(el) {
+  const current = el.textContent;
+  el.innerHTML = '<input class="tp-edit-input" value="' + current + '" style="font-size:0.82rem;width:250px;margin:0;padding:4px 8px;" onblur="saveSpecialtyInline(this)" onkeydown="if(event.key===\'Enter\'){this.blur();}">';
+  el.querySelector('input').focus();
+}
+function saveSpecialtyInline(input) {
+  const val = input.value.trim() || 'Your Specialty';
+  trainerData.specialty = val;
+  document.getElementById('tpSpecialty').textContent = val;
+  saveToStorage();
+  showToast('Specialty updated!');
+}
+
+// --- Stats ---
+function editStat(el, key) {
+  const display = el.querySelector('.tp-display-value');
+  const input = el.querySelector('input');
+  if (input.style.display === 'none') {
+    display.style.display = 'none';
+    input.style.display = 'block';
+    input.focus();
+    input.onblur = function() { saveStat(el, key); };
+    input.onkeydown = function(e) { if (e.key === 'Enter') this.blur(); };
+  }
+}
+function saveStat(el, key) {
+  const input = el.querySelector('input');
+  const display = el.querySelector('.tp-display-value');
+  const val = input.value.trim();
+  trainerData[key] = val;
+  if (key === 'price') display.textContent = val ? '$' + val + '/mo' : '$--/mo';
+  else display.textContent = val || '--';
+  display.style.display = 'block';
+  input.style.display = 'none';
+  saveToStorage();
+  showToast('Stat updated!');
+}
+
+// --- Bio ---
+function saveBio() {
+  trainerData.bio = document.getElementById('bioInput').value;
+  document.getElementById('bioText').textContent = trainerData.bio;
+  document.getElementById('sectionBio').classList.remove('editing');
+  saveToStorage();
+  showToast('Bio saved!');
+}
+
+// --- Tags ---
+function renderTags() {
+  const c = document.getElementById('tagsContainer');
+  c.innerHTML = trainerData.tags.map(t => '<span class="tp-tag" data-tag="' + t + '">' + t + '</span>').join('');
+}
+function renderTagsEditable() {
+  const c = document.getElementById('tagsContainer');
+  c.innerHTML = trainerData.tags.map(t => '<span class="tp-tag removable" data-tag="' + t + '" onclick="removeTag(\'' + t + '\')">' + t + ' &times;</span>').join('');
+}
+function addTag() {
+  const input = document.getElementById('newTagInput');
+  const val = input.value.trim();
+  if (val && !trainerData.tags.includes(val)) {
+    trainerData.tags.push(val);
+    renderTagsEditable();
+    input.value = '';
+  }
+}
+function removeTag(tag) {
+  trainerData.tags = trainerData.tags.filter(t => t !== tag);
+  renderTagsEditable();
+}
+function saveTags() {
+  document.getElementById('sectionTags').classList.remove('editing');
+  renderTags();
+  saveToStorage();
+  showToast('Tags saved!');
+}
+
+// --- Program Builder (IIFE) ---
+(function() {
+  const PB_STORAGE_KEY = 'shapeTrainerPlans';
+  const PB_CLIENT_KEY = 'shapeClientAssignedPlans';
+  let pbDayCount = 0;
+  let pbSectionCount = 0;
+  let pbEditId = null;
+
+  function getPlans() {
+    try { return JSON.parse(localStorage.getItem(PB_STORAGE_KEY)) || []; } catch(e) { return []; }
+  }
+  function savePlans(plans) { localStorage.setItem(PB_STORAGE_KEY, JSON.stringify(plans)); }
+  function getClientPlans() {
+    try { return JSON.parse(localStorage.getItem(PB_CLIENT_KEY)) || []; } catch(e) { return []; }
+  }
+  function saveClientPlans(plans) { localStorage.setItem(PB_CLIENT_KEY, JSON.stringify(plans)); }
+
+  window.pbToggleBuilder = function() {
+    const b = document.getElementById('pbBuilder');
+    const isOpen = b.classList.contains('active');
+    if (isOpen) {
+      b.classList.remove('active');
+      document.getElementById('pbCreateBtn').textContent = '+ Create New Program';
+      pbEditId = null;
+      pbResetForms();
+    } else {
+      b.classList.add('active');
+      document.getElementById('pbCreateBtn').textContent = 'Cancel';
+      document.getElementById('pbStep1').style.display = '';
+      document.getElementById('pbTemplateForm').classList.remove('active');
+      document.getElementById('pbCustomForm').classList.remove('active');
+    }
+  };
+
+  window.pbSelectType = function(type) {
+    document.querySelectorAll('.pb-type-card').forEach(c => c.classList.remove('selected'));
+    event.currentTarget.classList.add('selected');
+    document.getElementById('pbStep1').style.display = 'none';
+    if (type === 'template') {
+      document.getElementById('pbTemplateForm').classList.add('active');
+      document.getElementById('pbCustomForm').classList.remove('active');
+      if (pbDayCount === 0) pbAddDay();
+    } else {
+      document.getElementById('pbCustomForm').classList.add('active');
+      document.getElementById('pbTemplateForm').classList.remove('active');
+    }
+  };
+
+  window.pbAddDay = function() {
+    pbDayCount++;
+    const dayId = pbDayCount;
+    const container = document.getElementById('pbDaysContainer');
+    const day = document.createElement('div');
+    day.className = 'pb-day';
+    day.id = 'pbDay' + dayId;
+    day.innerHTML = `
+      <div class="pb-day-header" onclick="pbToggleDay(${dayId})">
+        <h4>Day ${dayId} <input type="text" class="pb-input" style="display:inline;width:200px;margin-left:10px;" placeholder="e.g. Upper Body" onclick="event.stopPropagation()" id="pbDayName${dayId}"></h4>
+        <span class="pb-chevron open">&#9660;</span>
+      </div>
+      <div class="pb-day-body open" id="pbDayBody${dayId}">
+        <div class="pb-sub-section">
+          <h5>Warm-up</h5>
+          <div id="pbWarmup${dayId}">
+            <div class="pb-warmup-row">
+              <input type="text" class="pb-input" placeholder="Exercise / Activity">
+              <input type="text" class="pb-input" placeholder="Duration">
+              <button class="pb-remove-btn" onclick="this.parentElement.remove()">&times;</button>
+            </div>
+          </div>
+          <button class="btn btn-sm btn-outline" onclick="pbAddWarmup(${dayId})" style="margin-top:6px;font-size:0.7rem;">+ Warm-up</button>
+        </div>
+        <div class="pb-sub-section">
+          <h5>Exercises</h5>
+          <div class="pb-exercise-row" style="margin-bottom:4px;">
+            <span class="pb-label" style="margin-bottom:0;">Exercise</span>
+            <span class="pb-label" style="margin-bottom:0;">Sets</span>
+            <span class="pb-label" style="margin-bottom:0;">Reps</span>
+            <span class="pb-label" style="margin-bottom:0;">Rest</span>
+            <span class="pb-label" style="margin-bottom:0;">Weight / Notes</span>
+            <span></span>
+          </div>
+          <div id="pbExercises${dayId}">
+            <div class="pb-exercise-row">
+              <input type="text" class="pb-input" placeholder="e.g. Bench Press">
+              <input type="text" class="pb-input" placeholder="4">
+              <input type="text" class="pb-input" placeholder="8-10">
+              <input type="text" class="pb-input" placeholder="90s">
+              <input type="text" class="pb-input" placeholder="135 lbs">
+              <button class="pb-remove-btn" onclick="this.parentElement.remove()">&times;</button>
+            </div>
+          </div>
+          <button class="btn btn-sm btn-outline" onclick="pbAddExercise(${dayId})" style="margin-top:6px;font-size:0.7rem;">+ Exercise</button>
+        </div>
+        <div class="pb-sub-section">
+          <h5>Cool-down</h5>
+          <div id="pbCooldown${dayId}">
+            <div class="pb-warmup-row">
+              <input type="text" class="pb-input" placeholder="Exercise / Stretch">
+              <input type="text" class="pb-input" placeholder="Duration">
+              <button class="pb-remove-btn" onclick="this.parentElement.remove()">&times;</button>
+            </div>
+          </div>
+          <button class="btn btn-sm btn-outline" onclick="pbAddCooldown(${dayId})" style="margin-top:6px;font-size:0.7rem;">+ Cool-down</button>
+        </div>
+        <div style="text-align:right;margin-top:12px;">
+          <button class="pb-remove-btn" onclick="document.getElementById('pbDay${dayId}').remove()" style="font-size:0.75rem;color:#EF4444;">Remove Day</button>
+        </div>
+      </div>
+    `;
+    container.appendChild(day);
+  };
+
+  window.pbToggleDay = function(dayId) {
+    const body = document.getElementById('pbDayBody' + dayId);
+    const chevron = body.parentElement.querySelector('.pb-chevron');
+    body.classList.toggle('open');
+    chevron.classList.toggle('open');
+  };
+
+  window.pbAddExercise = function(dayId) {
+    const c = document.getElementById('pbExercises' + dayId);
+    const row = document.createElement('div');
+    row.className = 'pb-exercise-row';
+    row.innerHTML = `
+      <input type="text" class="pb-input" placeholder="e.g. Bench Press">
+      <input type="text" class="pb-input" placeholder="4">
+      <input type="text" class="pb-input" placeholder="8-10">
+      <input type="text" class="pb-input" placeholder="90s">
+      <input type="text" class="pb-input" placeholder="135 lbs">
+      <button class="pb-remove-btn" onclick="this.parentElement.remove()">&times;</button>
+    `;
+    c.appendChild(row);
+  };
+
+  window.pbAddWarmup = function(dayId) {
+    const c = document.getElementById('pbWarmup' + dayId);
+    const row = document.createElement('div');
+    row.className = 'pb-warmup-row';
+    row.innerHTML = `
+      <input type="text" class="pb-input" placeholder="Exercise / Activity">
+      <input type="text" class="pb-input" placeholder="Duration">
+      <button class="pb-remove-btn" onclick="this.parentElement.remove()">&times;</button>
+    `;
+    c.appendChild(row);
+  };
+
+  window.pbAddCooldown = function(dayId) {
+    const c = document.getElementById('pbCooldown' + dayId);
+    const row = document.createElement('div');
+    row.className = 'pb-warmup-row';
+    row.innerHTML = `
+      <input type="text" class="pb-input" placeholder="Exercise / Stretch">
+      <input type="text" class="pb-input" placeholder="Duration">
+      <button class="pb-remove-btn" onclick="this.parentElement.remove()">&times;</button>
+    `;
+    c.appendChild(row);
+  };
+
+  let pbUploadedFiles = [];
+
+  window.pbHandleFiles = function(files) {
+    Array.from(files).forEach(file => {
+      if (file.size > 10 * 1024 * 1024) { showToast('File too large. Max 10MB.'); return; }
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        pbUploadedFiles.push({ name: file.name, type: file.type, size: file.size, data: ev.target.result });
+        pbRenderFileList();
+        showToast(file.name + ' uploaded!');
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  function pbRenderFileList() {
+    const container = document.getElementById('pbUploadedFiles');
+    const list = document.getElementById('pbFileList');
+    if (pbUploadedFiles.length === 0) { container.style.display = 'none'; return; }
+    container.style.display = 'block';
+    list.innerHTML = pbUploadedFiles.map((f, i) => {
+      const sizeKB = (f.size / 1024).toFixed(1);
+      const isImage = f.type.startsWith('image/');
+      const icon = f.type === 'application/pdf' ? '&#128196;' : isImage ? '&#128247;' : '&#128196;';
+      return `<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--bg-card);border:1px solid var(--border);margin-bottom:6px;">
+        ${isImage ? '<img src="' + f.data + '" style="width:48px;height:48px;object-fit:cover;border:1px solid var(--border);">' : '<span style="font-size:1.6rem;">' + icon + '</span>'}
+        <div style="flex:1;">
+          <div style="font-size:0.88rem;font-weight:500;">${f.name}</div>
+          <div style="font-size:0.72rem;color:var(--text-muted);">${sizeKB} KB</div>
+        </div>
+        <button class="pb-remove-btn" onclick="pbRemoveFile(${i})" style="font-size:1rem;">&times;</button>
+      </div>`;
+    }).join('');
+  }
+
+  window.pbRemoveFile = function(idx) {
+    pbUploadedFiles.splice(idx, 1);
+    pbRenderFileList();
+  };
+
+  function collectTemplatePlan() {
+    const days = [];
+    document.querySelectorAll('#pbDaysContainer .pb-day').forEach(dayEl => {
+      const dayId = dayEl.id.replace('pbDay', '');
+      const nameInput = dayEl.querySelector('#pbDayName' + dayId);
+      const dayName = nameInput ? nameInput.value : '';
+      const warmup = [];
+      dayEl.querySelectorAll('#pbWarmup' + dayId + ' .pb-warmup-row').forEach(r => {
+        const inputs = r.querySelectorAll('.pb-input');
+        if (inputs[0].value) warmup.push({ exercise: inputs[0].value, duration: inputs[1].value });
+      });
+      const exercises = [];
+      dayEl.querySelectorAll('#pbExercises' + dayId + ' .pb-exercise-row').forEach(r => {
+        const inputs = r.querySelectorAll('.pb-input');
+        if (inputs[0].value) exercises.push({
+          name: inputs[0].value, sets: inputs[1].value, reps: inputs[2].value,
+          rest: inputs[3].value, notes: inputs[4].value
+        });
+      });
+      const cooldown = [];
+      dayEl.querySelectorAll('#pbCooldown' + dayId + ' .pb-warmup-row').forEach(r => {
+        const inputs = r.querySelectorAll('.pb-input');
+        if (inputs[0].value) cooldown.push({ exercise: inputs[0].value, duration: inputs[1].value });
+      });
+      days.push({ name: 'Day ' + dayId + (dayName ? ' - ' + dayName : ''), warmup, exercises, cooldown });
+    });
+    return {
+      type: 'template',
+      name: document.getElementById('pbTplName').value,
+      category: document.getElementById('pbTplCategory').value,
+      difficulty: document.getElementById('pbTplDifficulty').value,
+      duration: document.getElementById('pbTplDuration').value,
+      daysPerWeek: document.getElementById('pbTplDays').value,
+      description: document.getElementById('pbTplDesc').value,
+      days: days,
+      client: document.getElementById('pbTplClient').value
+    };
+  }
+
+  function collectCustomPlan() {
+    return {
+      type: 'custom',
+      name: document.getElementById('pbCustName').value,
+      description: document.getElementById('pbCustDesc').value,
+      files: pbUploadedFiles.map(f => ({ name: f.name, type: f.type, size: f.size, data: f.data })),
+      client: document.getElementById('pbCustClient').value
+    };
+  }
+
+  function pbCoreSave(plan) {
+    plan.id = pbEditId || Date.now().toString();
+    plan.createdAt = plan.createdAt || new Date().toISOString();
+    plan.updatedAt = new Date().toISOString();
+    const plans = getPlans();
+    const existingIdx = plans.findIndex(p => p.id === plan.id);
+    if (existingIdx >= 0) plans[existingIdx] = plan;
+    else plans.push(plan);
+    savePlans(plans);
+    return plan;
+  }
+
+  window.pbSaveDraft = function(type) {
+    const plan = type === 'template' ? collectTemplatePlan() : collectCustomPlan();
+    if (!plan.name) { showToast('Please enter a program name.'); return; }
+    plan.status = 'Draft';
+    pbCoreSave(plan);
+    showToast('Draft saved! You can continue editing anytime.');
+    pbToggleBuilder();
+    pbRenderPlans();
+  };
+
+  window.pbSavePlan = function(type) {
+    const plan = type === 'template' ? collectTemplatePlan() : collectCustomPlan();
+    if (!plan.name) { showToast('Please enter a program name.'); return; }
+    if (!plan.client) { showToast('Please assign a client first.'); return; }
+    plan.status = 'Published';
+    pbCoreSave(plan);
+    const clientPlans = getClientPlans();
+    const cIdx = clientPlans.findIndex(p => p.id === plan.id);
+    if (cIdx >= 0) clientPlans[cIdx] = plan;
+    else clientPlans.push(plan);
+    saveClientPlans(clientPlans);
+    showToast('Program published and sent to ' + plan.client + '!');
+    pbToggleBuilder();
+    pbRenderPlans();
+  };
+
+  window.pbPublishToProfile = function(type) {
+    const plan = type === 'template' ? collectTemplatePlan() : collectCustomPlan();
+    if (!plan.name) { showToast('Please enter a program name.'); return; }
+    plan.status = 'On Profile';
+    pbCoreSave(plan);
+    // Also update trainerData.programs and save profile
+    try {
+      const profileProgram = {
+        pbId: plan.id,
+        name: plan.name,
+        type: plan.category || plan.type || 'Custom',
+        duration: plan.duration || '',
+        difficulty: plan.difficulty || '',
+        desc: plan.description || '',
+        price: ''
+      };
+      const existing = trainerData.programs.findIndex(p => p.pbId === plan.id);
+      if (existing >= 0) trainerData.programs[existing] = profileProgram;
+      else trainerData.programs.push(profileProgram);
+      saveToStorage();
+    } catch(e) {}
+    showToast('Program published to your profile!');
+    pbToggleBuilder();
+    pbRenderPlans();
+  };
+
+  function pbResetForms() {
+    ['pbTplName','pbTplDesc','pbCustName','pbCustDesc'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.value = '';
+    });
+    ['pbTplCategory','pbTplDifficulty','pbTplDuration','pbTplDays','pbTplClient','pbCustClient'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.value = '';
+    });
+    document.getElementById('pbDaysContainer').innerHTML = '';
+    pbUploadedFiles = [];
+    pbRenderFileList();
+    pbDayCount = 0;
+    pbSectionCount = 0;
+  }
+
+  function pbRenderPlans() {
+    const plans = getPlans();
+    const list = document.getElementById('pbPlanList');
+    if (plans.length === 0) {
+      list.innerHTML = '<div class="pb-empty">No programs yet. Create your first workout program above.</div>';
+      return;
+    }
+    list.innerHTML = plans.map(p => {
+      const badgeClass = p.status === 'Published' ? 'pb-badge-published' : p.status === 'On Profile' ? 'pb-badge-profile' : 'pb-badge-draft';
+      const clientStr = p.client ? ' &middot; Assigned to ' + p.client : '';
+      const typeLabel = p.type === 'template' ? 'Shape Template' : 'Uploaded Plan';
+      const meta = [typeLabel, p.category, p.difficulty, p.duration].filter(Boolean).join(' &middot; ');
+      return `
+        <div class="pb-plan-item">
+          <div class="pb-plan-item-info">
+            <h4>${p.name}</h4>
+            <span>${meta}${clientStr}</span>
+          </div>
+          <span class="pb-badge ${badgeClass}">${p.status}</span>
+          <div class="pb-plan-item-actions">
+            <button class="btn btn-sm btn-outline" onclick="pbEditPlan('${p.id}')">Edit</button>
+            <button class="btn btn-sm btn-outline" onclick="pbDeletePlan('${p.id}')" style="border-color:rgba(239,68,68,0.3);color:#EF4444;">Delete</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  window.pbEditPlan = function(id) {
+    const plans = getPlans();
+    const plan = plans.find(p => p.id === id);
+    if (!plan) return;
+    pbEditId = id;
+    pbResetForms();
+    const b = document.getElementById('pbBuilder');
+    b.classList.add('active');
+    document.getElementById('pbCreateBtn').textContent = 'Cancel';
+    document.getElementById('pbStep1').style.display = 'none';
+    if (plan.type === 'template') {
+      document.getElementById('pbTemplateForm').classList.add('active');
+      document.getElementById('pbCustomForm').classList.remove('active');
+      document.getElementById('pbTplName').value = plan.name || '';
+      document.getElementById('pbTplCategory').value = plan.category || '';
+      document.getElementById('pbTplDifficulty').value = plan.difficulty || '';
+      document.getElementById('pbTplDuration').value = plan.duration || '';
+      document.getElementById('pbTplDays').value = plan.daysPerWeek || '';
+      document.getElementById('pbTplDesc').value = plan.description || '';
+      document.getElementById('pbTplClient').value = plan.client || '';
+      (plan.days || []).forEach(function(day, idx) {
+        pbAddDay();
+        const dayId = idx + 1;
+        const dayName = (day.name || '').replace(/^Day \d+\s*-?\s*/, '');
+        const nameInput = document.getElementById('pbDayName' + dayId);
+        if (nameInput) nameInput.value = dayName;
+        (day.warmup || []).forEach(function(w, wi) {
+          if (wi > 0) pbAddWarmup(dayId);
+          const rows = document.querySelectorAll('#pbWarmup' + dayId + ' .pb-warmup-row');
+          const inputs = rows[wi].querySelectorAll('.pb-input');
+          inputs[0].value = w.exercise || '';
+          inputs[1].value = w.duration || '';
+        });
+        (day.exercises || []).forEach(function(ex, ei) {
+          if (ei > 0) pbAddExercise(dayId);
+          const rows = document.querySelectorAll('#pbExercises' + dayId + ' .pb-exercise-row');
+          const inputs = rows[ei].querySelectorAll('.pb-input');
+          inputs[0].value = ex.name || '';
+          inputs[1].value = ex.sets || '';
+          inputs[2].value = ex.reps || '';
+          inputs[3].value = ex.rest || '';
+          inputs[4].value = ex.notes || '';
+        });
+        (day.cooldown || []).forEach(function(c, ci) {
+          if (ci > 0) pbAddCooldown(dayId);
+          const rows = document.querySelectorAll('#pbCooldown' + dayId + ' .pb-warmup-row');
+          const inputs = rows[ci].querySelectorAll('.pb-input');
+          inputs[0].value = c.exercise || '';
+          inputs[1].value = c.duration || '';
+        });
+      });
+    } else {
+      document.getElementById('pbCustomForm').classList.add('active');
+      document.getElementById('pbTemplateForm').classList.remove('active');
+      document.getElementById('pbCustName').value = plan.name || '';
+      document.getElementById('pbCustDesc').value = plan.description || '';
+      document.getElementById('pbCustClient').value = plan.client || '';
+      pbUploadedFiles = (plan.files || []).map(f => ({ name: f.name, type: f.type, size: f.size, data: f.data }));
+      pbRenderFileList();
+    }
+    document.getElementById('pbBuilder').scrollIntoView({ behavior: 'smooth' });
+  };
+
+  window.pbDeletePlan = function(id) {
+    if (!confirm('Delete this program?')) return;
+    let plans = getPlans();
+    plans = plans.filter(p => p.id !== id);
+    savePlans(plans);
+    let clientPlans = getClientPlans();
+    clientPlans = clientPlans.filter(p => p.id !== id);
+    saveClientPlans(clientPlans);
+    showToast('Program deleted.');
+    pbRenderPlans();
+  };
+
+  // Init
+  pbRenderPlans();
+})();
+
+// --- Certifications ---
+function renderCerts() {
+  const c = document.getElementById('certsContainer');
+  if (trainerData.certs.length === 0) {
+    c.innerHTML = '<li><span class="tp-cert-icon">&mdash;</span> <span>Add your certifications (e.g. NASM, ACE, ISSA, ACSM)</span></li>';
+  } else {
+    c.innerHTML = trainerData.certs.map(cert => '<li><span class="tp-cert-icon">&#10003;</span> <span>' + cert + '</span></li>').join('');
+  }
+}
+function renderCertsEditable() {
+  const c = document.getElementById('certsContainer');
+  if (trainerData.certs.length === 0) {
+    c.innerHTML = '<li style="color:var(--text-muted);font-size:0.85rem;">No certifications added yet</li>';
+  } else {
+    c.innerHTML = trainerData.certs.map((cert, i) => '<li><span class="tp-cert-icon">&#10003;</span> <span>' + cert + '</span> <button class="tp-cancel-btn" onclick="removeCert(' + i + ')" style="margin-left:auto;padding:2px 10px;font-size:0.65rem;">Remove</button></li>').join('');
+  }
+}
+function addCert() {
+  const input = document.getElementById('newCertInput');
+  const val = input.value.trim();
+  if (val) { trainerData.certs.push(val); renderCertsEditable(); input.value = ''; }
+}
+function removeCert(i) {
+  trainerData.certs.splice(i, 1);
+  renderCertsEditable();
+}
+function saveCerts() {
+  document.getElementById('sectionCerts').classList.remove('editing');
+  renderCerts();
+  saveToStorage();
+  showToast('Certifications saved!');
+}
+
+// --- Social ---
+function saveSocial() {
+  trainerData.social.ig = document.getElementById('inputIG').value;
+  trainerData.social.yt = document.getElementById('inputYT').value;
+  trainerData.social.tt = document.getElementById('inputTT').value;
+  trainerData.social.web = document.getElementById('inputWeb').value;
+  document.getElementById('socialIG').textContent = trainerData.social.ig || 'Instagram';
+  document.getElementById('socialYT').textContent = trainerData.social.yt || 'YouTube';
+  document.getElementById('socialTT').textContent = trainerData.social.tt || 'TikTok';
+  document.getElementById('socialWeb').textContent = trainerData.social.web || 'Website';
+  document.getElementById('sectionSocial').classList.remove('editing');
+  document.getElementById('socialEditFields').style.display = 'none';
+  saveToStorage();
+  showToast('Social links saved!');
+}
+
+// --- Pricing ---
+function savePricing() {
+  const val = document.getElementById('subPriceInput').value;
+  trainerData.subPrice = val;
+  document.getElementById('subPriceDisplay').innerHTML = val ? '$' + val + '<span style="font-size:0.85rem;font-weight:400;color:var(--text-muted);">/mo</span>' : '$--<span style="font-size:0.85rem;font-weight:400;color:var(--text-muted);">/mo</span>';
+  document.getElementById('statPrice').textContent = val ? '$' + val + '/mo' : '$--/mo';
+  trainerData.price = val;
+  document.getElementById('sectionPricing').classList.remove('editing');
+  document.getElementById('subPriceInput').style.display = 'none';
+  document.getElementById('subPriceDisplay').style.display = 'block';
+  saveToStorage();
+  showToast('Pricing saved!');
+}
+
+// --- Avatar ---
+function handleAvatarUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    trainerData.avatar = ev.target.result;
+    var el = document.getElementById('tpAvatar');
+    document.getElementById('tpInitials').innerHTML = '<img src="' + ev.target.result + '" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">';
+    saveToStorage();
+    showToast('Photo uploaded!');
+  };
+  reader.readAsDataURL(file);
+}
+
+// --- Intro Video ---
+function handleIntroVideoUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  document.getElementById('introVid').src = url;
+  document.getElementById('introVideoPlayer').style.display = 'block';
+  document.getElementById('introVideoPlaceholder').style.display = 'none';
+  document.getElementById('introVideoEmbedDisplay').style.display = 'none';
+  // Store as base64 for persistence (small videos only)
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    trainerData.introVideo = ev.target.result;
+    trainerData.introVideoUrl = '';
+    saveToStorage();
+    showToast('Intro video uploaded!');
+  };
+  if (file.size < 10 * 1024 * 1024) { reader.readAsDataURL(file); }
+  else { trainerData.introVideo = null; trainerData.introVideoUrl = ''; showToast('Video too large to save locally. It will display this session only.'); }
+}
+function saveIntroVideoUrl() {
+  const url = document.getElementById('introVideoUrl').value.trim();
+  if (!url) return;
+  let embedUrl = '';
+  if (url.includes('youtube.com/watch')) {
+    const vid = new URL(url).searchParams.get('v');
+    if (vid) embedUrl = 'https://www.youtube.com/embed/' + vid;
+  } else if (url.includes('youtu.be/')) {
+    embedUrl = 'https://www.youtube.com/embed/' + url.split('youtu.be/')[1].split('?')[0];
+  } else if (url.includes('vimeo.com/')) {
+    const vid = url.split('vimeo.com/')[1].split('?')[0];
+    embedUrl = 'https://player.vimeo.com/video/' + vid;
+  } else {
+    embedUrl = url;
+  }
+  if (embedUrl) {
+    document.getElementById('introVideoEmbed').src = embedUrl;
+    document.getElementById('introVideoEmbedDisplay').style.display = 'block';
+    document.getElementById('introVideoPlayer').style.display = 'none';
+    document.getElementById('introVideoPlaceholder').style.display = 'none';
+    trainerData.introVideoUrl = embedUrl;
+    trainerData.introVideo = null;
+    saveToStorage();
+    showToast('Video embedded!');
+  }
+}
+function removeIntroVideo() {
+  trainerData.introVideo = null;
+  trainerData.introVideoUrl = '';
+  document.getElementById('introVideoPlayer').style.display = 'none';
+  document.getElementById('introVideoEmbedDisplay').style.display = 'none';
+  document.getElementById('introVideoPlaceholder').style.display = 'flex';
+  document.getElementById('introVid').src = '';
+  document.getElementById('introVideoEmbed').src = '';
+  document.getElementById('introVideoUrl').value = '';
+  saveToStorage();
+  showToast('Intro video removed');
+}
+function saveIntroVideo() {
+  document.getElementById('sectionIntroVideo').classList.remove('editing');
+  document.getElementById('introVideoUrlRow').style.display = 'none';
+  saveToStorage();
+  showToast('Intro video saved!');
+}
+
+// --- Photos & Videos ---
+function handlePhotoUpload(e) {
+  const files = Array.from(e.target.files);
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+      trainerData.photos.push(ev.target.result);
+      renderPhotoGallery();
+      saveToStorage();
+    };
+    if (file.size < 5 * 1024 * 1024) reader.readAsDataURL(file);
+    else showToast('Photo too large (max 5MB)');
+  });
+  showToast('Photos uploaded!');
+}
+function renderPhotoGallery() {
+  const g = document.getElementById('photoGallery');
+  const isEditing = document.getElementById('sectionMedia').classList.contains('editing');
+  let html = trainerData.photos.map((p, i) =>
+    '<div class="tp-gallery-item" style="position:relative;overflow:hidden;">' +
+    '<img src="' + p + '" style="width:100%;height:100%;object-fit:cover;">' +
+    (isEditing ? '<button onclick="removePhoto(' + i + ')" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.7);color:#fff;border:none;width:22px;height:22px;font-size:0.7rem;cursor:pointer;">&times;</button>' : '') +
+    '</div>'
+  ).join('');
+  html += '<div class="tp-gallery-item" style="cursor:pointer;" onclick="document.getElementById(\'photoUpload\').click()">+ Upload Photo</div>';
+  g.innerHTML = html;
+}
+function removePhoto(i) {
+  trainerData.photos.splice(i, 1);
+  renderPhotoGallery();
+  saveToStorage();
+}
+function addVideoUrl() {
+  const url = prompt('Enter a YouTube or Vimeo URL:');
+  if (!url || !url.trim()) return;
+  let embedUrl = '';
+  if (url.includes('youtube.com/watch')) {
+    const vid = new URL(url).searchParams.get('v');
+    if (vid) embedUrl = 'https://www.youtube.com/embed/' + vid;
+  } else if (url.includes('youtu.be/')) {
+    embedUrl = 'https://www.youtube.com/embed/' + url.split('youtu.be/')[1].split('?')[0];
+  } else if (url.includes('vimeo.com/')) {
+    const vid = url.split('vimeo.com/')[1].split('?')[0];
+    embedUrl = 'https://player.vimeo.com/video/' + vid;
+  } else {
+    embedUrl = url;
+  }
+  if (embedUrl) {
+    trainerData.videos.push(embedUrl);
+    renderVideoGallery();
+    saveToStorage();
+    showToast('Video added!');
+  }
+}
+function renderVideoGallery() {
+  const g = document.getElementById('videoGallery');
+  const isEditing = document.getElementById('sectionMedia').classList.contains('editing');
+  let html = trainerData.videos.map((v, i) =>
+    '<div class="tp-gallery-item" style="height:160px;position:relative;overflow:hidden;padding:0;">' +
+    '<iframe src="' + v + '" style="width:100%;height:100%;border:none;" allowfullscreen></iframe>' +
+    (isEditing ? '<button onclick="removeVideo(' + i + ')" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.7);color:#fff;border:none;width:22px;height:22px;font-size:0.7rem;cursor:pointer;z-index:2;">&times;</button>' : '') +
+    '</div>'
+  ).join('');
+  html += '<div class="tp-gallery-item" style="height:160px;cursor:pointer;background:linear-gradient(135deg,#1a1a1a11,#1a1a1a06);" onclick="addVideoUrl()"><div style="text-align:center;"><div style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:4px;">&#9654;</div><div>+ Add Video URL</div></div></div>';
+  g.innerHTML = html;
+}
+function removeVideo(i) {
+  trainerData.videos.splice(i, 1);
+  renderVideoGallery();
+  saveToStorage();
+}
+function saveMedia() {
+  document.getElementById('sectionMedia').classList.remove('editing');
+  renderPhotoGallery();
+  renderVideoGallery();
+  saveToStorage();
+  showToast('Media saved!');
+}
+
+// --- Consultations ---
+function toggleConsultPrice() {
+  const paid = document.querySelector('input[name="consultPriceType"][value="paid"]').checked;
+  document.getElementById('consultPriceInput').style.display = paid ? 'block' : 'none';
+}
+function saveConsult() {
+  const dur = document.getElementById('consultDuration').value;
+  const priceType = document.querySelector('input[name="consultPriceType"]:checked').value;
+  const price = document.getElementById('consultPriceInput').value;
+  const format = document.getElementById('consultFormat').value;
+  const days = Array.from(document.querySelectorAll('#availDays input:checked')).map(cb => cb.value);
+  const timeFrom = document.getElementById('consultTimeFrom').value;
+  const timeTo = document.getElementById('consultTimeTo').value;
+  const desc = document.getElementById('consultDesc').value;
+  trainerData.consult = { duration: dur, priceType: priceType, price: price, format: format, days: days, timeFrom: timeFrom, timeTo: timeTo, desc: desc };
+  // Update display
+  document.getElementById('consultDurationDisplay').textContent = dur + ' min';
+  document.getElementById('consultPriceDisplay').textContent = priceType === 'free' ? 'Free' : '$' + price;
+  document.getElementById('consultFormatDisplay').textContent = format;
+  const availDisp = document.getElementById('availabilityDisplay');
+  if (days.length === 0) {
+    availDisp.innerHTML = '<span class="tp-tag" style="opacity:0.4;">No availability set</span>';
+  } else {
+    availDisp.innerHTML = days.map(d => '<span class="tp-tag">' + d + '</span>').join('') + '<span style="font-size:0.82rem;color:var(--text-muted);margin-left:8px;">' + formatTime(timeFrom) + ' – ' + formatTime(timeTo) + '</span>';
+  }
+  document.getElementById('sectionConsult').classList.remove('editing');
+  document.getElementById('consultEditFields').style.display = 'none';
+  document.getElementById('consultDisplay').style.display = 'block';
+  saveToStorage();
+  showToast('Consultation settings saved!');
+}
+function formatTime(t) {
+  if (!t) return '';
+  const [h, m] = t.split(':');
+  const hr = parseInt(h);
+  const ampm = hr >= 12 ? 'PM' : 'AM';
+  const hr12 = hr % 12 || 12;
+  return hr12 + ':' + m + ' ' + ampm;
+}
+function openBookingModal() {
+  const c = trainerData.consult;
+  if (!c.days || c.days.length === 0) {
+    showToast('No availability set yet');
+    return;
+  }
+  // Build a simple booking overlay
+  let existing = document.getElementById('bookingOverlay');
+  if (existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'bookingOverlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  const priceLabel = c.priceType === 'free' ? 'Free' : '$' + c.price;
+  overlay.innerHTML = '\
+    <div style="background:var(--bg-card,#fff);border:1px solid var(--border);max-width:480px;width:90%;padding:32px;position:relative;">\
+      <button onclick="document.getElementById(\'bookingOverlay\').remove()" style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:1.4rem;color:var(--text-muted);cursor:pointer;">&times;</button>\
+      <h3 style="font-size:1.1rem;font-weight:600;margin-bottom:4px;">Book a 1-on-1 Consultation</h3>\
+      <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:20px;">' + c.duration + ' min &middot; ' + priceLabel + ' &middot; ' + (c.format || 'Video') + '</p>\
+      <div style="margin-bottom:16px;">\
+        <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);display:block;margin-bottom:6px;">Select a Day</label>\
+        <div style="display:flex;flex-wrap:wrap;gap:8px;" id="bookingDays">' +
+          c.days.map(d => '<button class="filter-btn" onclick="selectBookingDay(this)" data-day="' + d + '">' + d + '</button>').join('') +
+        '</div>\
+      </div>\
+      <div style="margin-bottom:16px;">\
+        <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);display:block;margin-bottom:6px;">Select a Time</label>\
+        <select class="tp-edit-input" id="bookingTime" style="margin-top:0;">' + generateTimeSlots(c.timeFrom, c.timeTo, parseInt(c.duration)) + '</select>\
+      </div>\
+      <div style="margin-bottom:16px;">\
+        <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);display:block;margin-bottom:6px;">Your Name</label>\
+        <input class="tp-edit-input" id="bookingName" placeholder="Enter your name" style="margin-top:0;">\
+      </div>\
+      <div style="margin-bottom:20px;">\
+        <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);display:block;margin-bottom:6px;">Message (optional)</label>\
+        <textarea class="tp-edit-textarea" id="bookingMsg" style="min-height:50px;margin-top:0;" placeholder="What would you like to discuss?"></textarea>\
+      </div>\
+      <button class="btn btn-primary" style="width:100%;" onclick="confirmBooking()">Confirm Booking</button>\
+    </div>';
+  document.body.appendChild(overlay);
+}
+function generateTimeSlots(from, to, duration) {
+  let slots = '';
+  const [fh, fm] = from.split(':').map(Number);
+  const [th, tm] = to.split(':').map(Number);
+  let current = fh * 60 + fm;
+  const end = th * 60 + tm;
+  while (current + duration <= end) {
+    const h = Math.floor(current / 60);
+    const m = current % 60;
+    const label = formatTime(String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0'));
+    slots += '<option value="' + h + ':' + String(m).padStart(2,'0') + '">' + label + '</option>';
+    current += duration;
+  }
+  return slots || '<option>No slots available</option>';
+}
+function selectBookingDay(btn) {
+  document.querySelectorAll('#bookingDays .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+function confirmBooking() {
+  const dayBtn = document.querySelector('#bookingDays .filter-btn.active');
+  const name = document.getElementById('bookingName').value.trim();
+  if (!dayBtn) { showToast('Please select a day'); return; }
+  if (!name) { showToast('Please enter your name'); return; }
+  document.getElementById('bookingOverlay').remove();
+  showToast('Consultation booked! ' + dayBtn.dataset.day + ' at ' + document.getElementById('bookingTime').value);
+}
+
+// --- Storage ---
+function saveToStorage() {
+  localStorage.setItem('shapeTrainerProfile', JSON.stringify(trainerData));
+}
+function loadFromStorage() {
+  const raw = localStorage.getItem('shapeTrainerProfile');
+  if (!raw) return;
+  try {
+    const d = JSON.parse(raw);
+    Object.assign(trainerData, d);
+    // Apply to DOM
+    document.getElementById('tpName').textContent = trainerData.name;
+    document.getElementById('tpSpecialty').textContent = trainerData.specialty;
+    const initials = trainerData.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2);
+    if (trainerData.avatar) {
+      document.getElementById('tpInitials').innerHTML = '<img src="' + trainerData.avatar + '" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">';
+    } else {
+      document.getElementById('tpInitials').textContent = initials;
+    }
+    document.getElementById('statSubscribers').textContent = trainerData.subscribers || '0';
+    document.getElementById('statRating').textContent = trainerData.rating || '--';
+    document.getElementById('statPrice').textContent = trainerData.price ? '$' + trainerData.price + '/mo' : '$--/mo';
+    document.getElementById('statExperience').textContent = trainerData.experience || '--';
+    document.getElementById('bioText').textContent = trainerData.bio;
+    document.getElementById('bioInput').value = trainerData.bio;
+    // Stats inputs
+    document.querySelector('[data-stat="subscribers"]').value = trainerData.subscribers || '0';
+    document.querySelector('[data-stat="rating"]').value = trainerData.rating || '';
+    document.querySelector('[data-stat="price"]').value = trainerData.price || '';
+    document.querySelector('[data-stat="experience"]').value = trainerData.experience || '';
+    // Social
+    if (trainerData.social) {
+      document.getElementById('inputIG').value = trainerData.social.ig || '';
+      document.getElementById('inputYT').value = trainerData.social.yt || '';
+      document.getElementById('inputTT').value = trainerData.social.tt || '';
+      document.getElementById('inputWeb').value = trainerData.social.web || '';
+      document.getElementById('socialIG').textContent = trainerData.social.ig || 'Instagram';
+      document.getElementById('socialYT').textContent = trainerData.social.yt || 'YouTube';
+      document.getElementById('socialTT').textContent = trainerData.social.tt || 'TikTok';
+      document.getElementById('socialWeb').textContent = trainerData.social.web || 'Website';
+    }
+    // Pricing
+    if (trainerData.subPrice) {
+      document.getElementById('subPriceDisplay').innerHTML = '$' + trainerData.subPrice + '<span style="font-size:0.85rem;font-weight:400;color:var(--text-muted);">/mo</span>';
+      document.getElementById('subPriceInput').value = trainerData.subPrice;
+    }
+    renderTags();
+    renderCerts();
+    // Intro video
+    if (trainerData.introVideo) {
+      document.getElementById('introVid').src = trainerData.introVideo;
+      document.getElementById('introVideoPlayer').style.display = 'block';
+      document.getElementById('introVideoPlaceholder').style.display = 'none';
+    } else if (trainerData.introVideoUrl) {
+      document.getElementById('introVideoEmbed').src = trainerData.introVideoUrl;
+      document.getElementById('introVideoEmbedDisplay').style.display = 'block';
+      document.getElementById('introVideoPlaceholder').style.display = 'none';
+    }
+    // Photos & Videos
+    if (trainerData.photos && trainerData.photos.length) renderPhotoGallery();
+    if (trainerData.videos && trainerData.videos.length) renderVideoGallery();
+    // Consultation
+    if (trainerData.consult) {
+      const c = trainerData.consult;
+      document.getElementById('consultDurationDisplay').textContent = (c.duration || '15') + ' min';
+      document.getElementById('consultPriceDisplay').textContent = c.priceType === 'paid' ? '$' + c.price : 'Free';
+      document.getElementById('consultFormatDisplay').textContent = c.format || 'Video';
+      document.getElementById('consultDuration').value = c.duration || '15';
+      document.getElementById('consultFormat').value = c.format || 'Video';
+      document.getElementById('consultDesc').value = c.desc || '';
+      document.getElementById('consultTimeFrom').value = c.timeFrom || '09:00';
+      document.getElementById('consultTimeTo').value = c.timeTo || '17:00';
+      if (c.priceType === 'paid') {
+        document.querySelector('input[name="consultPriceType"][value="paid"]').checked = true;
+        document.getElementById('consultPriceInput').style.display = 'block';
+        document.getElementById('consultPriceInput').value = c.price || '';
+      }
+      if (c.days && c.days.length) {
+        c.days.forEach(d => { const cb = document.querySelector('#availDays input[value="' + d + '"]'); if (cb) cb.checked = true; });
+        const availDisp = document.getElementById('availabilityDisplay');
+        availDisp.innerHTML = c.days.map(d => '<span class="tp-tag">' + d + '</span>').join('') + '<span style="font-size:0.82rem;color:var(--text-muted);margin-left:8px;">' + formatTime(c.timeFrom) + ' – ' + formatTime(c.timeTo) + '</span>';
+      }
+    }
+  } catch(e) {}
+}
+
+// Init
+loadFromStorage();
+if (!localStorage.getItem('shapeTrainerProfile')) {
+  renderTags();
+  renderCerts();
+  renderPhotoGallery();
+  renderVideoGallery();
+}
+  </script>
+
+  <script src="app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script src="booking.js"></script>
+  <script>
+    // Pass ?provider=<uuid>&name=<name> in the URL to book a real provider.
+    // Without a provider id we redirect to the marketplace to pick one.
+    function shapeOpenBooking(role) {
+      var params = new URLSearchParams(window.location.search);
+      var providerId = params.get('provider');
+      var providerName = params.get('name') || (role === 'trainer' ? 'this trainer' : 'this nutritionist');
+      if (!providerId) {
+        alert('Open this profile from the marketplace to book. (No provider id in URL.)');
+        window.location.href = role === 'trainer' ? 'trainers.html' : 'nutritionists.html';
+        return;
+      }
+      if (!window.shapeBook) { alert('Booking not loaded. Refresh the page.'); return; }
+      window.shapeBook.open({ providerId: providerId, providerRole: role, providerName: providerName });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120" width="200" height="120">
+  <!-- Bottom-left triangle (teal, pointing right) -->
+  <polygon points="72,38 72,82 105,60" fill="#3BBAB4"/>
+  <!-- Top-right triangle (light, pointing left) -->
+  <polygon points="128,18 128,62 95,40" fill="#E8E8EC"/>
+  <!-- SHAPE text -->
+  <text x="100" y="110" text-anchor="middle" font-family="Inter, Helvetica, Arial, sans-serif" font-size="22" font-weight="300" letter-spacing="8" fill="#F1F1F4">SHAPE</text>
+</svg>

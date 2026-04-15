@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape Radio — Subscribe</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="signup.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+
+  <nav class="signup-nav">
+    <a href="landing.html"><img src="logo.png" alt="Shape"></a>
+    <a href="login.html" class="nav-link">Already have an account?</a>
+  </nav>
+
+  <div class="signup-layout">
+    <div class="signup-sidebar" style="background:linear-gradient(135deg,#0a0a0a 0%,#1a1a2e 100%);">
+      <div class="sidebar-content">
+        <h2>Music that<br>moves you</h2>
+        <p>Stream curated workout stations designed to keep you locked in during every rep, set, and mile.</p>
+        <ul class="sidebar-perks">
+          <li><span class="perk-check">&#10003;</span> Live curated workout stations</li>
+          <li><span class="perk-check">&#10003;</span> Ad-supported listening</li>
+          <li><span class="perk-check">&#10003;</span> Music for every training style</li>
+          <li><span class="perk-check">&#10003;</span> Included with Shape — $5/mo</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="signup-form-side">
+      <div class="signup-form-container">
+        <div class="signup-step-indicator">
+          <div class="step-dot active"></div>
+          <div class="step-line"></div>
+          <div class="step-dot"></div>
+        </div>
+
+        <h1>Create your Shape Radio account</h1>
+        <p class="signup-subtitle">Step 1 of 2 — Personal information</p>
+
+        <form onsubmit="event.preventDefault(); goToStep(2);" id="step1">
+          <div class="form-row">
+            <div class="form-group">
+              <label>First Name</label>
+              <input type="text" placeholder="John" required>
+            </div>
+            <div class="form-group">
+              <label>Last Name</label>
+              <input type="text" placeholder="Doe" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" placeholder="you@example.com" required>
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" placeholder="Min. 8 characters" required>
+          </div>
+          <button type="submit" class="btn-submit">Continue</button>
+        </form>
+
+        <form onsubmit="event.preventDefault(); completeSignup();" id="step2" style="display:none;">
+          <div style="background:rgba(45,212,191,0.08);border:1px solid rgba(45,212,191,0.2);border-radius:12px;padding:24px;margin-bottom:24px;text-align:center;">
+            <p style="font-size:2rem;font-weight:600;margin-bottom:4px;">$5<span style="font-size:0.9rem;font-weight:300;color:#888;">/mo</span></p>
+            <p style="font-size:0.85rem;color:#888;font-weight:300;">Shape membership — includes Shape Radio</p>
+          </div>
+          <div class="form-group terms">
+            <label class="checkbox-option">
+              <input type="checkbox" required>
+              <span>I agree to the <a href="terms.html">Terms of Service</a> and <a href="privacy.html">Privacy Policy</a></span>
+            </label>
+          </div>
+          <button type="submit" class="btn-submit">Join Shape — $5/mo</button>
+        </form>
+
+        <p class="signup-footer-text">
+          <a href="landing.html">&#8592; Back to profile selection</a>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentStep = 1;
+    function goToStep(step) {
+      document.getElementById('step' + currentStep).style.display = 'none';
+      document.getElementById('step' + step).style.display = 'block';
+      currentStep = step;
+      const dots = document.querySelectorAll('.step-dot');
+      dots.forEach((d, i) => d.classList.toggle('active', i < step));
+      const lines = document.querySelectorAll('.step-line');
+      lines.forEach((l, i) => l.classList.toggle('active', i < step - 1));
+      const titles = ['Step 1 of 2 — Personal information', 'Step 2 of 2 — Confirm subscription'];
+      document.querySelector('.signup-subtitle').textContent = titles[step - 1];
+    }
+    function completeSignup() {
+      localStorage.setItem('shapeRadioLoggedIn', 'true');
+      window.location.href = 'radio.html';
+    }
+  </script>
+
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>

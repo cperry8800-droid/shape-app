@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape — Shape Store</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    @media (max-width: 768px) {
+      .rewards-cat-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; flex-wrap: nowrap; padding-bottom: 4px; }
+      .rewards-cat-tabs::-webkit-scrollbar { display: none; }
+      .rewards-cat-btn { flex-shrink: 0; }
+      .reward-grid { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+      .reward-grid-wrap { max-height: none !important; overflow-y: visible !important; }
+      .reward-item { padding: 14px !important; }
+      .page-hero { padding: 120px 0 20px !important; }
+      .page-hero h1 { font-size: 1.8rem !important; }
+      .page-hero-sub { font-size: 0.9rem !important; padding: 0 8px; }
+    }
+    .balance-card { background:var(--bg-card); border:1px solid var(--border); padding:14px 24px; margin-bottom:32px; display:flex; justify-content:space-between; align-items:center; }
+    .rewards-cat-tabs { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+    .rewards-cat-btn {
+      padding: 8px 18px; font-size: 0.74rem; font-weight: 500; border: 1px solid var(--border);
+      background: transparent; color: var(--text-muted); cursor: pointer; font-family: inherit;
+      transition: all 0.2s; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .rewards-cat-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .rewards-cat-btn:hover:not(.active) { border-color: var(--text); color: var(--text); }
+    .reward-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    @media (max-width: 1100px) { .reward-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 820px) { .reward-grid { grid-template-columns: repeat(2, 1fr); } }
+    .reward-item {
+      background: var(--bg-card); border: 1px solid var(--border); padding: 18px;
+      display: flex; flex-direction: column; transition: border-color 0.2s; position: relative;
+    }
+    .reward-item:hover { border-color: var(--accent); }
+    .reward-item.locked { opacity: 0.5; }
+    .reward-brand { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 4px; }
+    .reward-name { font-size: 0.88rem; font-weight: 500; margin-bottom: 4px; }
+    .reward-desc { font-size: 0.72rem; color: var(--text-muted); font-weight: 300; margin-bottom: 10px; line-height: 1.35; flex-grow: 1; }
+    .reward-val { font-size: 1rem; font-weight: 600; color: var(--accent-dark); margin-bottom: 2px; }
+    .reward-cost { font-size: 0.68rem; color: var(--text-muted); margin-bottom: 10px; }
+    .reward-btn {
+      padding: 8px 0; width: 100%; border: 1px solid var(--accent); background: transparent;
+      color: var(--accent-dark); font-size: 0.68rem; font-weight: 500; cursor: pointer;
+      font-family: inherit; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .reward-btn:hover { background: var(--accent); color: #fff; }
+    .reward-btn:disabled { opacity: 0.4; cursor: not-allowed; border-color: var(--border); color: var(--text-muted); }
+    .reward-btn:disabled:hover { background: transparent; color: var(--text-muted); }
+    .reward-badge {
+      position: absolute; top: 12px; right: 12px; font-size: 0.58rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.08em; padding: 3px 8px;
+    }
+    .reward-badge.popular { background: rgba(16,185,129,0.1); color: #10B981; }
+    .reward-badge.new { background: rgba(108,58,237,0.1); color: #6C3AED; }
+    .reward-badge.premium { background: rgba(245,158,11,0.1); color: #F59E0B; }
+    .redeemed-list { margin-top: 16px; }
+    .redeemed-item {
+      background: var(--bg-card); border: 1px solid var(--border); padding: 14px 18px;
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
+    }
+    .redeemed-code {
+      font-family: 'Courier New', monospace; font-size: 0.82rem; font-weight: 600;
+      letter-spacing: 0.08em; color: var(--accent-dark); background: rgba(45,212,191,0.08);
+      padding: 4px 10px; border: 1px solid rgba(45,212,191,0.2);
+    }
+    /* ===== Dashboard back-nav tab bar ===== */
+    .sstore-back-tab-bar {
+      display: flex; align-items: center; gap: 0; justify-content: center;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-alt);
+      padding: 0 24px;
+      position: sticky; top: 88px; z-index: 100;
+      overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+    }
+    .sstore-back-tab-bar::-webkit-scrollbar { display: none; }
+    .sstore-back-tab-bar a {
+      padding: 10px 16px; border: none; background: none; text-decoration: none;
+      font-family: 'Inter', sans-serif; font-size: 0.75rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--text); cursor: pointer;
+      border-bottom: 2px solid transparent;
+      white-space: nowrap; transition: all 0.2s;
+      flex-shrink: 0; opacity: 0.5;
+    }
+    .sstore-back-tab-bar a:hover { opacity: 0.75; }
+    .sstore-back-tab-bar a.active { opacity: 1; border-bottom: 2px solid var(--accent); }
+    @media (max-width: 768px) {
+      .sstore-back-tab-bar {
+        position: fixed; top: auto; bottom: 0; left: 0; right: 0;
+        z-index: 1100;
+        background: rgba(10,10,10,0.92);
+        -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+        border-top: 1px solid var(--border); border-bottom: none;
+        padding: 6px 4px env(safe-area-inset-bottom,0);
+        gap: 0; justify-content: space-around; overflow-x: visible;
+      }
+      .sstore-back-tab-bar a {
+        flex: 1; min-width: 0;
+        display: flex; flex-direction: column; align-items: center; gap: 3px;
+        padding: 8px 1px; font-size: 0.52rem; font-weight: 600;
+        letter-spacing: 0.02em; opacity: 0.55;
+        white-space: nowrap; overflow: hidden;
+        border-bottom: none; position: relative;
+      }
+      .sstore-back-tab-bar a::before {
+        content: attr(data-icon); font-size: 1.1rem; font-weight: 400;
+        letter-spacing: 0; line-height: 1; text-transform: none;
+      }
+      .sstore-back-tab-bar a.active { opacity: 1; color: var(--accent); border-bottom: none; }
+      .sstore-back-tab-bar a.active::after {
+        content: ''; position: absolute; top: 0; left: 30%; right: 30%;
+        height: 2px; background: var(--accent);
+      }
+      body { padding-bottom: 72px; }
+    }
+  </style>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar" id="navbar">
+    <div class="container nav-container">
+      <a href="home.html" class="logo">
+        <img src="logo.png" alt="Shape" class="logo-img">
+      </a>
+      <div class="nav-links" id="navLinks">
+        <div class="nav-dropdown">
+          <a href="for-clients.html">Clients</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-clients.html">Overview</a>
+            <a href="clients.html">Dashboard</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-trainers.html">Trainers</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-trainers.html">Overview</a>
+            <a href="trainer-dashboard.html">Trainer Dashboard</a>
+            <a href="trainers.html">Trainer Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-nutritionists.html">Nutritionists</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-nutritionists.html">Overview</a>
+            <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+            <a href="nutritionists.html">Nutritionist Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="shape-score.html">Rewards</a>
+          <div class="nav-dropdown-menu">
+            <a href="shape-score.html">Shape Score (Clients)</a>
+            <a href="shape-score-trainer.html">Shape Score (Trainers)</a>
+            <a href="shape-score-nutritionist.html">Shape Score (Nutritionists)</a>
+            <a href="shape-store.html">Shape Store</a>
+          </div>
+        </div>
+        <a href="community.html">Community</a>
+        <a href="pricing.html">Pricing</a>
+      </div>
+      <div class="nav-actions">
+        <a href="login.html" class="btn btn-sm btn-outline shape-auth-logged-out">Log In</a>
+        <span class="shape-auth-logged-in shape-nav-user-name" style="display:none;font-size:0.82rem;color:var(--text-muted);margin-right:4px;"></span>
+        <a href="clients.html" class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" data-shape-dashboard-link>Dashboard</a>
+        <button class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" onclick="shapeSignOut()">Sign Out</button>
+        <a href="landing.html" class="btn btn-sm btn-primary shape-auth-logged-out">Get Started</a>
+        <a href="radio.html" class="btn btn-sm btn-radio"><span class="btn-shape-text"><img src="logo.png" alt="Shape"></span> Radio</a>
+      </div>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Page Hero -->
+  <section class="page-hero">
+    <div class="container">
+      <span class="tag">Shape Store</span>
+      <h1>Spend your <span class="gradient-text">points</span></h1>
+      <p class="page-hero-sub">Trade the Shape Score you've earned for real rewards — discounts on gear, nutrition, and Shape subscriptions.</p>
+    </div>
+  </section>
+
+  <!-- Dashboard back-nav tab bar (contextual based on source dashboard) -->
+  <div class="sstore-back-tab-bar" id="sstoreBackTabBar"></div>
+  <script>
+  (function() {
+    var ctx = sessionStorage.getItem('shapeStoreContext');
+    if (!ctx) {
+      var ref = (document.referrer || '').toLowerCase();
+      if (ref.indexOf('trainer-dashboard') !== -1) ctx = 'trainer';
+      else if (ref.indexOf('nutrition-schedule') !== -1) ctx = 'nutritionist';
+      else ctx = 'client';
+    }
+    var bars = {
+      client: [
+        { icon: '☉', label: 'Home', href: 'clients.html#home' },
+        { icon: '♆', label: 'Train', href: 'clients.html#training' },
+        { icon: '★', label: 'Nutri', href: 'clients.html#nutrition' },
+        { icon: '♚', label: 'Score', href: 'clients.html#shapescore' },
+        { icon: '⚐', label: 'Store', href: 'shape-store.html', active: true },
+        { icon: '✥', label: 'Library', href: 'clients.html#library' },
+        { icon: '♡', label: 'Team', href: 'clients.html#myteam' },
+        { icon: '💬', label: 'Chat', href: 'clients.html#community' },
+        { icon: '●', label: 'Me', href: 'clients.html#profile' }
+      ],
+      trainer: [
+        { icon: '☉', label: 'Home', href: 'trainer-dashboard.html#home' },
+        { icon: '◉', label: 'Clients', href: 'trainer-dashboard.html#clients' },
+        { icon: '▤', label: 'Programs', href: 'trainer-dashboard.html#programs' },
+        { icon: '✉', label: 'Messages', href: 'trainer-dashboard.html#messages' },
+        { icon: '◈', label: 'Community', href: 'trainer-dashboard.html#community' },
+        { icon: '◐', label: 'Profile', href: 'trainer-dashboard.html#profile' },
+        { icon: '∑', label: 'Calc', href: 'trainer-dashboard.html#goalcalc' },
+        { icon: '♚', label: 'Score', href: 'shape-score-trainer.html' },
+        { icon: '⚐', label: 'Store', href: 'shape-store.html', active: true }
+      ],
+      nutritionist: [
+        { icon: '☉', label: 'Home', href: 'nutrition-schedule.html#home' },
+        { icon: '◉', label: 'Clients', href: 'nutrition-schedule.html#clients' },
+        { icon: '▤', label: 'Meals', href: 'nutrition-schedule.html#mealplans' },
+        { icon: '✉', label: 'Messages', href: 'nutrition-schedule.html#messages' },
+        { icon: '◈', label: 'Community', href: 'nutrition-schedule.html#community' },
+        { icon: '◐', label: 'Profile', href: 'nutrition-schedule.html#profile' },
+        { icon: '∑', label: 'Calc', href: 'nutrition-schedule.html#goalcalc' },
+        { icon: '♚', label: 'Score', href: 'shape-score-nutritionist.html' },
+        { icon: '⚐', label: 'Store', href: 'shape-store.html', active: true }
+      ]
+    };
+    var items = bars[ctx] || bars.client;
+    var bar = document.getElementById('sstoreBackTabBar');
+    bar.innerHTML = items.map(function(it) {
+      return '<a class="' + (it.active ? 'active' : '') + '" data-icon="' + it.icon + '" href="' + it.href + '">' + it.label + '</a>';
+    }).join('');
+  })();
+  </script>
+
+  <!-- Store -->
+  <section class="section" style="padding-top:20px;">
+    <div class="container">
+
+      <!-- Balance -->
+      <div class="balance-card">
+        <div>
+          <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:6px;">Your Balance</div>
+          <div style="font-size:1.3rem;font-weight:400;letter-spacing:-0.02em;">2,450</div>
+        </div>
+        <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--accent-dark);font-weight:500;">Shape Score</div>
+      </div>
+
+      <!-- Category Tabs -->
+      <div class="rewards-cat-tabs">
+        <button class="rewards-cat-btn active" onclick="filterRewards('all', this)">All</button>
+        <button class="rewards-cat-btn" onclick="filterRewards('gear', this)">Workout Gear</button>
+        <button class="rewards-cat-btn" onclick="filterRewards('nutrition', this)">Nutrition</button>
+        <button class="rewards-cat-btn" onclick="filterRewards('shape', this)">Shape Perks</button>
+      </div>
+
+      <!-- Rewards Grid -->
+      <div class="reward-grid" id="rewardGrid"></div>
+
+      <!-- Redeemed Coupons -->
+      <div id="redeemedSection" style="display:none;margin-top:48px;">
+        <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:10px;">Your Unlocked Coupons</div>
+        <div class="redeemed-list" id="redeemedList"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <a href="home.html" class="logo">
+            <img src="logo.png" alt="Shape" class="logo-img">
+          </a>
+          <p class="footer-desc">Join the community</p>
+        </div>
+        <div class="footer-col">
+          <h4>Platform</h4>
+          <a href="trainers.html">Trainer Marketplace</a>
+          <a href="for-trainers.html">Trainers</a>
+          <a href="nutritionists.html">Nutritionists</a>
+          <a href="community.html">Community</a>
+          <a href="pricing.html">Pricing</a>
+          <a href="for-clients.html">Clients</a>
+          <a href="integrations.html">Integrations</a>
+        </div>
+        <div class="footer-col">
+          <h4>Get Started</h4>
+          <a href="signup-client.html">Sign Up as Client</a>
+          <a href="signup-trainer.html">Apply as Trainer</a>
+          <a href="signup-nutritionist.html">Apply as Nutritionist</a>
+        </div>
+        <div class="footer-col">
+          <h4>Support</h4>
+          <a href="help.html">Help Center</a>
+          <a href="contact.html">Contact</a>
+          <a href="radio.html">Shape Radio</a>
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 Shape. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+  <script>
+    // ===== Shape Store =====
+    const _ssBalance = 2450;
+    const _ssRewards = [
+      // Workout Gear
+      { id: 'gear1', cat: 'gear', brand: 'Nike', name: '$10 off Training Shoes', desc: 'Valid on any Nike training or cross-training shoe at nike.com.', value: '$10 OFF', cost: 500, badge: 'popular' },
+      { id: 'gear2', cat: 'gear', brand: 'Under Armour', name: '$15 off Workout Apparel', desc: 'Applies to tops, shorts, leggings, or sports bras at underarmour.com.', value: '$15 OFF', cost: 750, badge: null },
+      { id: 'gear3', cat: 'gear', brand: 'Gymshark', name: '20% off Any Order', desc: 'Site-wide discount on all Gymshark apparel and accessories.', value: '20% OFF', cost: 1000, badge: 'popular' },
+      { id: 'gear4', cat: 'gear', brand: 'Lululemon', name: '$25 off $100+', desc: 'Valid on orders $100+ at lululemon.com. Excludes sale items.', value: '$25 OFF', cost: 1500, badge: 'premium' },
+      { id: 'gear5', cat: 'gear', brand: 'Rogue Fitness', name: '$20 off Equipment', desc: 'Dumbbells, kettlebells, bands, or any equipment at roguefitness.com.', value: '$20 OFF', cost: 1200, badge: null },
+      { id: 'gear6', cat: 'gear', brand: 'Theragun', name: '$30 off Recovery Tools', desc: 'Any massage gun or recovery device at therabody.com.', value: '$30 OFF', cost: 2000, badge: 'new' },
+      // Nutrition
+      { id: 'nutr1', cat: 'nutrition', brand: 'Optimum Nutrition', name: '$10 off Protein Powder', desc: 'Gold Standard Whey, Plant Protein, or any ON protein at optimumnutrition.com.', value: '$10 OFF', cost: 500, badge: 'popular' },
+      { id: 'nutr2', cat: 'nutrition', brand: 'RXBAR', name: 'Free 12-Pack Box', desc: 'Choose any flavor variety. Redeemable at rxbar.com.', value: 'FREE BOX', cost: 800, badge: null },
+      { id: 'nutr3', cat: 'nutrition', brand: 'Athletic Greens', name: '$20 off AG1 Subscription', desc: 'First month discount on AG1 daily greens supplement.', value: '$20 OFF', cost: 1000, badge: 'new' },
+      { id: 'nutr4', cat: 'nutrition', brand: 'Vital Proteins', name: '25% off Collagen', desc: 'Any collagen peptides or supplement at vitalproteins.com.', value: '25% OFF', cost: 900, badge: null },
+      { id: 'nutr5', cat: 'nutrition', brand: 'Whole Foods', name: '$15 Gift Card', desc: 'Digital gift card for Whole Foods Market. No minimum purchase.', value: '$15 CARD', cost: 1200, badge: 'popular' },
+      { id: 'nutr6', cat: 'nutrition', brand: 'Factor Meals', name: '$40 off First 2 Weeks', desc: 'Chef-prepared, macro-balanced meals delivered to your door.', value: '$40 OFF', cost: 2000, badge: 'premium' },
+      // Shape Perks
+      { id: 'shape1', cat: 'shape', brand: 'Shape', name: '10% off Any Program', desc: 'Works on any trainer or nutritionist program subscription.', value: '10% OFF', cost: 500, badge: null },
+      { id: 'shape2', cat: 'shape', brand: 'Shape', name: 'Free Session Unlock', desc: 'Unlock any single session from any trainer on Shape.', value: 'FREE', cost: 1000, badge: 'popular' },
+      { id: 'shape3', cat: 'shape', brand: 'Shape', name: '25% off Next Month', desc: 'Save on your next monthly subscription renewal.', value: '25% OFF', cost: 2000, badge: null },
+      { id: 'shape4', cat: 'shape', brand: 'Shape', name: '1 Month Free', desc: 'A full month of any Shape subscription — on us.', value: 'FREE', cost: 5000, badge: 'premium' },
+    ];
+
+    function getRedeemedRewards() {
+      return JSON.parse(localStorage.getItem('shapeRedeemedRewards') || '[]');
+    }
+    function saveRedeemedRewards(list) {
+      localStorage.setItem('shapeRedeemedRewards', JSON.stringify(list));
+    }
+    function generateCode() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let code = 'SHAPE-';
+      for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+      return code;
+    }
+
+    let _activeCat = 'all';
+
+    function filterRewards(cat, btn) {
+      _activeCat = cat;
+      document.querySelectorAll('.rewards-cat-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderRewards();
+    }
+
+    function renderRewards() {
+      const redeemed = getRedeemedRewards();
+      const redeemedIds = redeemed.map(r => r.id);
+      const filtered = _activeCat === 'all' ? _ssRewards : _ssRewards.filter(r => r.cat === _activeCat);
+
+      let html = '';
+      filtered.forEach(function(r) {
+        const alreadyRedeemed = redeemedIds.includes(r.id);
+        const canAfford = _ssBalance >= r.cost;
+        const badgeHtml = r.badge ? '<div class="reward-badge ' + r.badge + '">' + r.badge + '</div>' : '';
+        const btnText = alreadyRedeemed ? 'Redeemed' : (canAfford ? 'Unlock Coupon' : 'Not Enough Pts');
+        const btnDisabled = alreadyRedeemed || !canAfford ? ' disabled' : '';
+        const lockedClass = !canAfford && !alreadyRedeemed ? ' locked' : '';
+
+        html += '<div class="reward-item' + lockedClass + '">'
+          + badgeHtml
+          + '<div class="reward-brand">' + r.brand + '</div>'
+          + '<div class="reward-name">' + r.name + '</div>'
+          + '<div class="reward-desc">' + r.desc + '</div>'
+          + '<div class="reward-val">' + r.value + '</div>'
+          + '<div class="reward-cost">' + r.cost.toLocaleString() + ' pts</div>'
+          + '<button class="reward-btn"' + btnDisabled + ' onclick="redeemReward(\'' + r.id + '\')">' + btnText + '</button>'
+          + '</div>';
+      });
+      document.getElementById('rewardGrid').innerHTML = html;
+
+      if (redeemed.length > 0) {
+        document.getElementById('redeemedSection').style.display = '';
+        let rhtml = '';
+        redeemed.forEach(function(rd) {
+          rhtml += '<div class="redeemed-item">'
+            + '<div>'
+            + '<div style="font-size:0.82rem;font-weight:500;">' + rd.name + '</div>'
+            + '<div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">' + rd.brand + ' — redeemed ' + rd.date + '</div>'
+            + '</div>'
+            + '<div class="redeemed-code">' + rd.code + '</div>'
+            + '</div>';
+        });
+        document.getElementById('redeemedList').innerHTML = rhtml;
+      } else {
+        document.getElementById('redeemedSection').style.display = 'none';
+      }
+    }
+
+    function redeemReward(id) {
+      const reward = _ssRewards.find(r => r.id === id);
+      if (!reward) return;
+      const redeemed = getRedeemedRewards();
+      if (redeemed.find(r => r.id === id)) return;
+
+      const code = generateCode();
+      const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      redeemed.push({ id: reward.id, name: reward.name, brand: reward.brand, value: reward.value, code: code, date: today });
+      saveRedeemedRewards(redeemed);
+
+      const toast = document.getElementById('toast');
+      if (toast) {
+        toast.textContent = 'Coupon unlocked! Code: ' + code;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 4000);
+      }
+
+      renderRewards();
+    }
+
+    renderRewards();
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>

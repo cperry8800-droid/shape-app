@@ -1,0 +1,1270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape — My Profile</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* ===== Cover & Avatar ===== */
+    .cp-cover {
+      height: 220px; background: linear-gradient(135deg, #2DD4BF15, #0D948810);
+      position: relative; border-bottom: 1px solid var(--border);
+    }
+    .cp-cover-upload {
+      position: absolute; top: 16px; right: 16px;
+      background: rgba(0,0,0,0.5); color: #fff; font-size: 0.7rem; font-weight: 500;
+      padding: 6px 14px; cursor: pointer; border: 1px solid rgba(255,255,255,0.15);
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .cp-avatar-row {
+      max-width: 1440px; margin: -50px auto 0; padding: 0 24px;
+      display: flex; align-items: flex-end; gap: 24px;
+    }
+    .cp-avatar {
+      width: 110px; height: 110px; border-radius: 50%; background: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.2rem; font-weight: 700; color: #fff;
+      border: 4px solid var(--bg); flex-shrink: 0; position: relative;
+    }
+    .cp-avatar-upload {
+      position: absolute; bottom: 0; right: 0; width: 30px; height: 30px;
+      background: var(--text); border-radius: 50%; display: flex;
+      align-items: center; justify-content: center; border: 2px solid var(--bg);
+      font-size: 0.7rem; color: var(--bg); cursor: pointer;
+    }
+    .cp-name-block { padding-bottom: 10px; }
+    .cp-name-block h1 { font-size: 1.7rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 2px; }
+    .cp-name-block .cp-handle { font-size: 0.82rem; color: var(--text-muted); font-weight: 400; }
+    .cp-name-block .cp-member-since { font-size: 0.72rem; color: var(--text-muted); margin-top: 4px; }
+
+    /* ===== Profile Completion ===== */
+    .cp-completion {
+      max-width: 1440px; margin: 24px auto 0; padding: 0 24px;
+    }
+    .cp-completion-bar-wrap {
+      background: var(--bg-card); border: 1px solid var(--border); padding: 20px 24px;
+    }
+    .cp-completion-header {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
+    }
+    .cp-completion-label { font-size: 0.78rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; }
+    .cp-completion-pct { font-size: 0.85rem; font-weight: 600; color: var(--accent); }
+    .cp-completion-track {
+      width: 100%; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden;
+    }
+    .cp-completion-fill {
+      height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.5s ease;
+    }
+
+    /* ===== Content Layout ===== */
+    .cp-content { max-width: 1440px; margin: 0 auto; padding: 32px 24px 80px; }
+
+    /* ===== Section Cards ===== */
+    .cp-card {
+      background: var(--bg-card); border: 1px solid var(--border); padding: 28px 28px 24px;
+      margin-bottom: 24px;
+    }
+    .cp-card-header {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;
+    }
+    .cp-card-header h2 { font-size: 1.05rem; font-weight: 600; }
+    .cp-edit-btn {
+      font-size: 0.7rem; font-weight: 500; color: var(--accent-dark);
+      border: 1px solid var(--accent); padding: 4px 14px; cursor: pointer;
+      text-transform: uppercase; letter-spacing: 0.06em; background: transparent;
+      transition: all 0.3s;
+    }
+    .cp-edit-btn:hover { background: var(--accent); color: #fff; }
+    .cp-save-actions { display: none; gap: 8px; margin-top: 16px; }
+    .cp-card.editing .cp-save-actions { display: flex; }
+    .cp-card.editing .cp-edit-btn { display: none; }
+    .cp-save-btn {
+      font-size: 0.72rem; font-weight: 500; padding: 6px 18px;
+      background: var(--accent); color: #fff; border: none; cursor: pointer;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .cp-cancel-btn {
+      font-size: 0.72rem; font-weight: 500; padding: 6px 18px;
+      background: transparent; color: var(--text-muted); border: 1px solid var(--border); cursor: pointer;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+
+    /* ===== Field Layout ===== */
+    .cp-field-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px 28px;
+    }
+    .cp-field { margin-bottom: 0; }
+    .cp-field-label {
+      font-size: 0.7rem; font-weight: 500; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 6px;
+    }
+    .cp-field-value {
+      font-size: 0.9rem; font-weight: 400; color: var(--text);
+    }
+    .cp-field-full { grid-column: 1 / -1; }
+    .cp-field input, .cp-field select, .cp-field textarea {
+      display: none; width: 100%; padding: 8px 12px; font-size: 0.85rem;
+      background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      font-family: inherit; border-radius: 0;
+    }
+    .cp-field textarea { resize: vertical; min-height: 70px; }
+    .cp-card.editing .cp-field-value { display: none; }
+    .cp-card.editing .cp-field input,
+    .cp-card.editing .cp-field select,
+    .cp-card.editing .cp-field textarea { display: block; }
+    .cp-card.editing .cp-field input,
+    .cp-card.editing .cp-field select,
+    .cp-card.editing .cp-field textarea {
+      border-color: rgba(45,212,191,0.3);
+    }
+
+    /* ===== Unit Toggle ===== */
+    .cp-unit-toggle {
+      display: inline-flex; border: 1px solid var(--border); font-size: 0.68rem;
+      margin-left: 8px;
+    }
+    .cp-unit-toggle span {
+      padding: 2px 10px; cursor: pointer; color: var(--text-muted);
+      transition: all 0.2s;
+    }
+    .cp-unit-toggle span.active { background: var(--accent); color: #fff; }
+
+    /* ===== Stats Row ===== */
+    .cp-stats-row {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+      margin-bottom: 24px;
+    }
+    .cp-stat-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      padding: 24px; text-align: center;
+    }
+    .cp-stat-value { font-size: 1.6rem; font-weight: 700; margin-bottom: 4px; }
+    .cp-stat-value.accent { color: var(--accent); }
+    .cp-stat-label {
+      font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    /* ===== Badges Grid ===== */
+    .cp-badges-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px;
+    }
+    .cp-badge {
+      background: var(--bg); border: 1px solid var(--border); padding: 16px 12px;
+      text-align: center; transition: border-color 0.3s;
+    }
+    .cp-badge:hover { border-color: var(--accent); }
+    .cp-badge-icon { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 8px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; margin-left: auto; margin-right: auto; border: 1px solid var(--border); border-radius: 50%; color: var(--text-muted); }
+    .cp-badge.earned .cp-badge-icon { border-color: var(--accent); color: var(--accent); }
+    .cp-badge-name { font-size: 0.72rem; font-weight: 500; }
+    .cp-badge.earned { border-color: rgba(45,212,191,0.3); background: rgba(45,212,191,0.04); }
+    .cp-badge.locked { opacity: 0.4; }
+
+    /* ===== Tags / Multi-select ===== */
+    .cp-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+    .cp-tag {
+      padding: 5px 14px; font-size: 0.75rem; font-weight: 500;
+      border: 1px solid var(--border); color: var(--text-muted);
+      cursor: default;
+    }
+    .cp-tag.selected { border-color: var(--accent); color: var(--accent); background: rgba(45,212,191,0.06); }
+    .cp-card.editing .cp-tag { cursor: pointer; }
+
+    /* ===== Privacy Toggles ===== */
+    .cp-toggle-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 0; border-bottom: 1px solid var(--border);
+    }
+    .cp-toggle-row:last-child { border-bottom: none; }
+    .cp-toggle-label { font-size: 0.88rem; font-weight: 400; }
+    .cp-toggle {
+      position: relative; width: 44px; height: 24px; cursor: pointer;
+    }
+    .cp-toggle input { display: none; }
+    .cp-toggle-track {
+      width: 44px; height: 24px; background: var(--border); border-radius: 12px;
+      transition: background 0.3s; position: absolute; top: 0; left: 0;
+    }
+    .cp-toggle-thumb {
+      width: 18px; height: 18px; background: #fff; border-radius: 50%;
+      position: absolute; top: 3px; left: 3px; transition: transform 0.3s;
+    }
+    .cp-toggle input:checked ~ .cp-toggle-track { background: #10B981; }
+    .cp-toggle input:checked ~ .cp-toggle-thumb { transform: translateX(20px); }
+
+    /* ===== Macro Sliders ===== */
+    .cp-macro-row { display: flex; gap: 24px; margin-bottom: 16px; }
+    .cp-macro-item { flex: 1; }
+    .cp-macro-label {
+      font-size: 0.72rem; font-weight: 500; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 6px;
+      display: flex; justify-content: space-between;
+    }
+    .cp-macro-slider {
+      width: 100%; -webkit-appearance: none; appearance: none;
+      height: 4px; background: var(--border); outline: none;
+      border-radius: 2px;
+    }
+    .cp-macro-slider::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 16px; height: 16px;
+      border-radius: 50%; background: var(--accent); cursor: pointer;
+    }
+
+    /* ===== Progress Photos ===== */
+    .cp-photos-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+    }
+    .cp-photo-placeholder {
+      height: 140px; background: var(--bg); border: 1px dashed var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.75rem; color: var(--text-muted);
+    }
+
+    /* ===== Visibility Select ===== */
+    .cp-visibility-select {
+      display: flex; gap: 0; border: 1px solid var(--border); width: fit-content; margin-top: 16px;
+    }
+    .cp-visibility-option {
+      padding: 8px 20px; font-size: 0.78rem; font-weight: 500;
+      cursor: pointer; color: var(--text-muted); transition: all 0.2s;
+      border-right: 1px solid var(--border);
+    }
+    .cp-visibility-option:last-child { border-right: none; }
+    .cp-visibility-option.active { background: var(--accent); color: #fff; }
+
+    /* ===== Toast ===== */
+    .cp-toast {
+      position: fixed; bottom: -60px; left: 50%; transform: translateX(-50%);
+      background: #10B981; color: #fff; padding: 12px 28px; font-size: 0.82rem;
+      font-weight: 500; z-index: 9999; transition: bottom 0.4s ease;
+      letter-spacing: 0.02em;
+    }
+    .cp-toast.show { bottom: 32px; }
+
+    /* ===== Responsive ===== */
+    @media (max-width: 900px) {
+      .cp-avatar-row { padding: 0 24px; gap: 16px; }
+      .cp-avatar { width: 80px; height: 80px; font-size: 1.6rem; }
+      .cp-name-block h1 { font-size: 1.3rem; }
+      .cp-content { padding: 24px 24px 60px; }
+      .cp-completion { padding: 0 24px; }
+      .cp-field-grid { grid-template-columns: 1fr; }
+      .cp-stats-row { grid-template-columns: 1fr 1fr; }
+      .cp-badges-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+      .cp-macro-row { flex-direction: column; gap: 16px; }
+      .cp-photos-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 600px) {
+      .cp-stats-row { grid-template-columns: 1fr; }
+      .cp-visibility-select { flex-direction: column; border: none; gap: 4px; }
+      .cp-visibility-option { border-right: none; border: 1px solid var(--border); }
+    }
+  </style>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar" id="navbar">
+    <div class="container nav-container">
+      <a href="home.html" class="logo">
+        <img src="logo.png" alt="Shape" class="logo-img">
+      </a>
+      <div class="nav-links" id="navLinks">
+        <div class="nav-dropdown">
+          <a href="for-clients.html">Clients</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-clients.html">Overview</a>
+            <a href="clients.html">Dashboard</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-trainers.html">Trainers</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-trainers.html">Overview</a>
+            <a href="trainer-dashboard.html">Trainer Dashboard</a>
+            <a href="trainers.html">Trainer Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-nutritionists.html">Nutritionists</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-nutritionists.html">Overview</a>
+            <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+            <a href="nutritionists.html">Nutritionist Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="shape-score.html">Rewards</a>
+          <div class="nav-dropdown-menu">
+            <a href="shape-score.html">Shape Score (Clients)</a>
+            <a href="shape-score-trainer.html">Shape Score (Trainers)</a>
+            <a href="shape-score-nutritionist.html">Shape Score (Nutritionists)</a>
+            <a href="shape-store.html">Shape Store</a>
+          </div>
+        </div>
+        <a href="community.html">Community</a>
+        <a href="pricing.html">Pricing</a>
+      </div>
+      <div class="nav-actions">
+        <a href="login.html" class="btn btn-sm btn-outline shape-auth-logged-out">Log In</a>
+        <span class="shape-auth-logged-in shape-nav-user-name" style="display:none;font-size:0.82rem;color:var(--text-muted);margin-right:4px;"></span>
+        <a href="clients.html" class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" data-shape-dashboard-link>Dashboard</a>
+        <button class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" onclick="shapeSignOut()">Sign Out</button>
+        <a href="landing.html" class="btn btn-sm btn-primary shape-auth-logged-out">Get Started</a>
+        <a href="radio.html" class="btn btn-sm btn-radio"><span class="btn-shape-text"><img src="logo.png" alt="Shape"></span> Radio</a>
+      </div>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Cover Photo -->
+  <div style="padding-top:80px;">
+    <div class="cp-cover">
+      <div class="cp-cover-upload">Change Cover Photo</div>
+    </div>
+  </div>
+
+  <!-- Avatar & Name -->
+  <div class="cp-avatar-row">
+    <div class="cp-avatar">
+      CP
+      <div class="cp-avatar-upload">+</div>
+    </div>
+    <div class="cp-name-block">
+      <h1>Christopher Perry</h1>
+      <div class="cp-handle">@chrisperry</div>
+      <div class="cp-member-since">Member since January 2024</div>
+    </div>
+  </div>
+
+  <!-- Profile Completion -->
+  <div class="cp-completion">
+    <div class="cp-completion-bar-wrap">
+      <div class="cp-completion-header">
+        <span class="cp-completion-label">Profile Completion</span>
+        <span class="cp-completion-pct" id="completionPct">72%</span>
+      </div>
+      <div class="cp-completion-track">
+        <div class="cp-completion-fill" id="completionFill" style="width:72%"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="cp-content">
+
+    <!-- Stats Row -->
+    <div class="cp-stats-row">
+      <div class="cp-stat-card">
+        <div class="cp-stat-value accent">847</div>
+        <div class="cp-stat-label">Shape Score</div>
+      </div>
+      <div class="cp-stat-card">
+        <div class="cp-stat-value">156</div>
+        <div class="cp-stat-label">Workouts</div>
+      </div>
+      <div class="cp-stat-card">
+        <div class="cp-stat-value">12</div>
+        <div class="cp-stat-label">Day Streak</div>
+      </div>
+      <div class="cp-stat-card">
+        <div class="cp-stat-value">8,420</div>
+        <div class="cp-stat-label">Minutes Trained</div>
+      </div>
+    </div>
+
+    <!-- 1. Basic Info -->
+    <div class="cp-card" id="section-basic">
+      <div class="cp-card-header">
+        <h2>Basic Info</h2>
+        <button class="cp-edit-btn" onclick="toggleEdit('section-basic')">Edit</button>
+      </div>
+      <div class="cp-field-grid">
+        <div class="cp-field">
+          <div class="cp-field-label">Display Name</div>
+          <div class="cp-field-value">Christopher Perry</div>
+          <input type="text" value="Christopher Perry" data-key="displayName">
+        </div>
+        <div class="cp-field">
+          <div class="cp-field-label">Username</div>
+          <div class="cp-field-value">@chrisperry</div>
+          <input type="text" value="chrisperry" data-key="username">
+        </div>
+        <div class="cp-field">
+          <div class="cp-field-label">Location</div>
+          <div class="cp-field-value">Boston, MA</div>
+          <input type="text" value="Boston, MA" data-key="location">
+        </div>
+        <div class="cp-field">
+          <div class="cp-field-label">Age</div>
+          <div class="cp-field-value">33</div>
+          <input type="number" value="33" data-key="age">
+        </div>
+        <div class="cp-field">
+          <div class="cp-field-label">Height
+            <span class="cp-unit-toggle" data-field="height">
+              <span class="active" data-unit="imperial" onclick="toggleUnit(this)">ft-in</span>
+              <span data-unit="metric" onclick="toggleUnit(this)">cm</span>
+            </span>
+          </div>
+          <div class="cp-field-value">6'0"</div>
+          <input type="text" value="6'0&quot;" data-key="height">
+        </div>
+        <div class="cp-field">
+          <div class="cp-field-label">Weight
+            <span class="cp-unit-toggle" data-field="weight">
+              <span class="active" data-unit="lbs" onclick="toggleUnit(this)">lbs</span>
+              <span data-unit="kg" onclick="toggleUnit(this)">kg</span>
+            </span>
+          </div>
+          <div class="cp-field-value">160 lbs</div>
+          <input type="text" value="160" data-key="weight">
+        </div>
+        <div class="cp-field cp-field-full">
+          <div class="cp-field-label">Bio <span style="font-weight:300;color:var(--text-muted);text-transform:none;letter-spacing:0;">(300 characters max)</span></div>
+          <div class="cp-field-value">Full stack fitness. Lifting, running, and meal prepping. Always chasing the next PR and keeping nutrition dialed in.</div>
+          <textarea maxlength="300" data-key="bio">Full stack fitness. Lifting, running, and meal prepping. Always chasing the next PR and keeping nutrition dialed in.</textarea>
+        </div>
+      </div>
+      <div class="cp-save-actions">
+        <button class="cp-save-btn" onclick="saveSection('section-basic')">Save</button>
+        <button class="cp-cancel-btn" onclick="cancelEdit('section-basic')">Cancel</button>
+      </div>
+    </div>
+
+    <!-- 2. Fitness Profile -->
+    <div class="cp-card" id="section-fitness">
+      <div class="cp-card-header">
+        <h2>Fitness Profile</h2>
+        <button class="cp-edit-btn" onclick="toggleEdit('section-fitness')">Edit</button>
+      </div>
+      <div class="cp-field-grid">
+        <div class="cp-field">
+          <div class="cp-field-label">Primary Goal</div>
+          <div class="cp-field-value">Build Muscle</div>
+          <select data-key="primaryGoal">
+            <option value="Build Muscle" selected>Build Muscle</option>
+            <option value="Lose Weight">Lose Weight</option>
+            <option value="Get Toned">Get Toned</option>
+            <option value="Improve Endurance">Improve Endurance</option>
+            <option value="General Health">General Health</option>
+            <option value="Athletic Performance">Athletic Performance</option>
+          </select>
+        </div>
+        <div class="cp-field">
+          <div class="cp-field-label">Experience Level</div>
+          <div class="cp-field-value">Advanced</div>
+          <select data-key="experience">
+            <option value="Beginner">Beginner</option>
+            <option value="Intermediate">Intermediate</option>
+            <option value="Advanced" selected>Advanced</option>
+            <option value="Elite">Elite</option>
+          </select>
+        </div>
+        <div class="cp-field">
+          <div class="cp-field-label">Training Frequency</div>
+          <div class="cp-field-value">5 days/week</div>
+          <select data-key="frequency">
+            <option value="1">1 day/week</option>
+            <option value="2">2 days/week</option>
+            <option value="3">3 days/week</option>
+            <option value="4">4 days/week</option>
+            <option value="5" selected>5 days/week</option>
+            <option value="6">6 days/week</option>
+            <option value="7">7 days/week</option>
+          </select>
+        </div>
+        <div class="cp-field">
+          <div class="cp-field-label">Preferred Time</div>
+          <div class="cp-field-value">Morning</div>
+          <select data-key="trainingTime">
+            <option value="Morning" selected>Morning</option>
+            <option value="Afternoon">Afternoon</option>
+            <option value="Evening">Evening</option>
+            <option value="Late Night">Late Night</option>
+          </select>
+        </div>
+        <div class="cp-field">
+          <div class="cp-field-label">Current Gym</div>
+          <div class="cp-field-value">Iron Works Fitness</div>
+          <input type="text" value="Iron Works Fitness" data-key="gym">
+        </div>
+        <div class="cp-field">
+          <div class="cp-field-label">Equipment Access</div>
+          <div class="cp-field-value">Full Gym</div>
+          <select data-key="equipment">
+            <option value="Full Gym" selected>Full Gym</option>
+            <option value="Home Gym">Home Gym</option>
+            <option value="Minimal">Minimal</option>
+            <option value="Bodyweight Only">Bodyweight Only</option>
+          </select>
+        </div>
+        <div class="cp-field cp-field-full">
+          <div class="cp-field-label">Preferred Workout Types</div>
+          <div class="cp-tags" id="workoutTypes">
+            <span class="cp-tag selected" data-val="Strength" onclick="toggleTag(this)">Strength</span>
+            <span class="cp-tag selected" data-val="HIIT" onclick="toggleTag(this)">HIIT</span>
+            <span class="cp-tag selected" data-val="Cardio" onclick="toggleTag(this)">Cardio</span>
+            <span class="cp-tag" data-val="Yoga" onclick="toggleTag(this)">Yoga</span>
+            <span class="cp-tag" data-val="CrossFit" onclick="toggleTag(this)">CrossFit</span>
+            <span class="cp-tag selected" data-val="Bodyweight" onclick="toggleTag(this)">Bodyweight</span>
+            <span class="cp-tag" data-val="Boxing" onclick="toggleTag(this)">Boxing</span>
+            <span class="cp-tag" data-val="Swimming" onclick="toggleTag(this)">Swimming</span>
+            <span class="cp-tag selected" data-val="Running" onclick="toggleTag(this)">Running</span>
+          </div>
+        </div>
+      </div>
+      <div class="cp-save-actions">
+        <button class="cp-save-btn" onclick="saveSection('section-fitness')">Save</button>
+        <button class="cp-cancel-btn" onclick="cancelEdit('section-fitness')">Cancel</button>
+      </div>
+    </div>
+
+    <!-- 3. Stats & Achievements -->
+    <div class="cp-card" id="section-achievements">
+      <div class="cp-card-header">
+        <h2>Stats & Achievements</h2>
+        <span style="font-size:0.72rem;font-weight:500;padding:4px 12px;border:1px solid var(--accent);color:var(--accent);text-transform:uppercase;letter-spacing:0.06em;">Platinum</span>
+      </div>
+      <div class="cp-badges-grid">
+        <div class="cp-badge earned">
+          <div class="cp-badge-icon">01</div>
+          <div class="cp-badge-name">First Workout</div>
+        </div>
+        <div class="cp-badge earned">
+          <div class="cp-badge-icon">7D</div>
+          <div class="cp-badge-name">7-Day Streak</div>
+        </div>
+        <div class="cp-badge earned">
+          <div class="cp-badge-icon">30D</div>
+          <div class="cp-badge-name">30-Day Streak</div>
+        </div>
+        <div class="cp-badge earned">
+          <div class="cp-badge-icon">100</div>
+          <div class="cp-badge-name">100 Workouts</div>
+        </div>
+        <div class="cp-badge earned">
+          <div class="cp-badge-icon">200</div>
+          <div class="cp-badge-name">200 Workouts</div>
+        </div>
+        <div class="cp-badge earned">
+          <div class="cp-badge-icon">AM</div>
+          <div class="cp-badge-name">Early Bird</div>
+        </div>
+        <div class="cp-badge earned">
+          <div class="cp-badge-icon">&#127942;</div>
+          <div class="cp-badge-name">Early Adopter</div>
+        </div>
+        <div class="cp-badge earned">
+          <div class="cp-badge-icon">&#9733;</div>
+          <div class="cp-badge-name">Streak Master</div>
+        </div>
+        <div class="cp-badge earned">
+          <div class="cp-badge-icon">&#127860;</div>
+          <div class="cp-badge-name">Meal Prep Pro</div>
+        </div>
+        <div class="cp-badge earned">
+          <div class="cp-badge-icon">10%</div>
+          <div class="cp-badge-name">Top 10%</div>
+        </div>
+        <div class="cp-badge locked">
+          <div class="cp-badge-icon">500</div>
+          <div class="cp-badge-name">500 Workouts</div>
+        </div>
+        <div class="cp-badge locked">
+          <div class="cp-badge-icon">365</div>
+          <div class="cp-badge-name">365-Day Streak</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Body Metrics -->
+    <div class="cp-card" id="section-metrics">
+      <div class="cp-card-header">
+        <h2>Body Metrics <span style="font-size:0.68rem;color:var(--text-muted);font-weight:400;text-transform:uppercase;letter-spacing:0.06em;margin-left:8px;">Private</span></h2>
+        <button class="cp-edit-btn" onclick="toggleEdit('section-metrics')">Edit</button>
+      </div>
+      <div class="cp-field-grid">
+        <div class="cp-field">
+          <div class="cp-field-label">Current Weight</div>
+          <div class="cp-field-value">160 lbs</div>
+          <input type="text" value="160" data-key="currentWeight">
+        </div>
+        <div class="cp-field">
+          <div class="cp-field-label">Goal Weight</div>
+          <div class="cp-field-value">165 lbs</div>
+          <input type="text" value="165" data-key="goalWeight">
+        </div>
+        <div class="cp-field">
+          <div class="cp-field-label">Chest</div>
+          <div class="cp-field-value">40 in</div>
+          <input type="text" value="40" data-key="chest">
+        </div>
+        <div class="cp-field">
+          <div class="cp-field-label">Waist</div>
+          <div class="cp-field-value">31 in</div>
+          <input type="text" value="31" data-key="waist">
+        </div>
+        <div class="cp-field">
+          <div class="cp-field-label">Hips</div>
+          <div class="cp-field-value">36 in</div>
+          <input type="text" value="36" data-key="hips">
+        </div>
+        <div class="cp-field">
+          <div class="cp-field-label">Arms</div>
+          <div class="cp-field-value">14.5 in</div>
+          <input type="text" value="14.5" data-key="arms">
+        </div>
+        <div class="cp-field">
+          <div class="cp-field-label">Thighs</div>
+          <div class="cp-field-value">23 in</div>
+          <input type="text" value="23" data-key="thighs">
+        </div>
+        <div class="cp-field">
+          <div class="cp-field-label">BMI</div>
+          <div class="cp-field-value" id="bmiValue">21.7</div>
+        </div>
+        <div class="cp-field cp-field-full">
+          <div class="cp-field-label">Progress Photos</div>
+          <div class="cp-photos-grid">
+            <div class="cp-photo-placeholder">+ Add Photo</div>
+            <div class="cp-photo-placeholder">+ Add Photo</div>
+            <div class="cp-photo-placeholder">+ Add Photo</div>
+            <div class="cp-photo-placeholder">+ Add Photo</div>
+          </div>
+        </div>
+      </div>
+      <div class="cp-save-actions">
+        <button class="cp-save-btn" onclick="saveSection('section-metrics')">Save</button>
+        <button class="cp-cancel-btn" onclick="cancelEdit('section-metrics')">Cancel</button>
+      </div>
+    </div>
+
+    <!-- 5. Nutrition Preferences -->
+    <div class="cp-card" id="section-nutrition">
+      <div class="cp-card-header">
+        <h2>Nutrition Preferences</h2>
+        <button class="cp-edit-btn" onclick="toggleEdit('section-nutrition')">Edit</button>
+      </div>
+      <div class="cp-field-grid">
+        <div class="cp-field">
+          <div class="cp-field-label">Diet Type</div>
+          <div class="cp-field-value">High Protein</div>
+          <select data-key="dietType">
+            <option value="No Preference">No Preference</option>
+            <option value="High Protein" selected>High Protein</option>
+            <option value="Keto">Keto</option>
+            <option value="Paleo">Paleo</option>
+            <option value="Vegan">Vegan</option>
+            <option value="Vegetarian">Vegetarian</option>
+            <option value="Mediterranean">Mediterranean</option>
+            <option value="Gluten-Free">Gluten-Free</option>
+          </select>
+        </div>
+        <div class="cp-field">
+          <div class="cp-field-label">Daily Calorie Target</div>
+          <div class="cp-field-value">2,800 kcal</div>
+          <input type="number" value="2800" data-key="calorieTarget">
+        </div>
+        <div class="cp-field">
+          <div class="cp-field-label">Water Intake Goal</div>
+          <div class="cp-field-value">10 glasses/day</div>
+          <input type="number" value="10" data-key="waterGoal">
+        </div>
+        <div class="cp-field">
+          <div class="cp-field-label">Allergies / Restrictions</div>
+          <div class="cp-tags" id="allergyTags">
+            <span class="cp-tag" data-val="Dairy" onclick="toggleTag(this)">Dairy</span>
+            <span class="cp-tag" data-val="Gluten" onclick="toggleTag(this)">Gluten</span>
+            <span class="cp-tag" data-val="Nuts" onclick="toggleTag(this)">Nuts</span>
+            <span class="cp-tag" data-val="Soy" onclick="toggleTag(this)">Soy</span>
+            <span class="cp-tag" data-val="Eggs" onclick="toggleTag(this)">Eggs</span>
+            <span class="cp-tag" data-val="Shellfish" onclick="toggleTag(this)">Shellfish</span>
+          </div>
+        </div>
+        <div class="cp-field cp-field-full">
+          <div class="cp-field-label">Macro Split</div>
+          <div class="cp-macro-row">
+            <div class="cp-macro-item">
+              <div class="cp-macro-label"><span>Protein</span><span id="proteinPct">40%</span></div>
+              <input type="range" class="cp-macro-slider" min="5" max="60" value="40" id="proteinSlider" oninput="updateMacros()">
+            </div>
+            <div class="cp-macro-item">
+              <div class="cp-macro-label"><span>Carbs</span><span id="carbsPct">35%</span></div>
+              <input type="range" class="cp-macro-slider" min="5" max="60" value="35" id="carbsSlider" oninput="updateMacros()">
+            </div>
+            <div class="cp-macro-item">
+              <div class="cp-macro-label"><span>Fat</span><span id="fatPct">25%</span></div>
+              <input type="range" class="cp-macro-slider" min="5" max="60" value="25" id="fatSlider" oninput="updateMacros()">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="cp-save-actions">
+        <button class="cp-save-btn" onclick="saveSection('section-nutrition')">Save</button>
+        <button class="cp-cancel-btn" onclick="cancelEdit('section-nutrition')">Cancel</button>
+      </div>
+    </div>
+
+    <!-- 6. My Assigned Plans -->
+    <div class="cp-card" id="section-plans">
+      <div class="cp-card-header">
+        <h2>My Plans</h2>
+      </div>
+
+      <!-- Workout Plans -->
+      <div style="margin-bottom:24px;">
+        <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:12px;">Workout Plans</div>
+        <div id="assignedWorkoutPlans">
+          <div style="color:var(--text-muted);font-size:0.88rem;font-weight:300;">No workout plans assigned yet.</div>
+        </div>
+      </div>
+
+      <!-- Meal Plans -->
+      <div>
+        <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:12px;">Meal Plans</div>
+        <div id="assignedMealPlans">
+          <div style="color:var(--text-muted);font-size:0.88rem;font-weight:300;">No meal plans assigned yet.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. Social & Community -->
+    <div class="cp-card" id="section-social">
+      <div class="cp-card-header">
+        <h2>Social & Community</h2>
+        <button class="cp-edit-btn" onclick="toggleEdit('section-social')">Edit</button>
+      </div>
+      <!-- Social Handles -->
+      <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--border);">Social Accounts</div>
+      <div class="cp-field-grid" style="margin-bottom:24px;">
+        <div class="cp-field">
+          <div class="cp-field-label">Instagram</div>
+          <div class="cp-field-value">@chrisperry_fit</div>
+          <input type="text" value="@chrisperry_fit" data-key="instagram">
+        </div>
+        <div class="cp-field">
+          <div class="cp-field-label">X (Twitter)</div>
+          <div class="cp-field-value">@chrisperry</div>
+          <input type="text" value="@chrisperry" data-key="twitter">
+        </div>
+        <div class="cp-field">
+          <div class="cp-field-label">TikTok</div>
+          <div class="cp-field-value">@chrisperry</div>
+          <input type="text" value="@chrisperry" data-key="tiktok">
+        </div>
+      </div>
+
+      <!-- Favorites -->
+      <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--border);">Favorites</div>
+      <div style="display:flex;flex-direction:column;gap:16px;margin-bottom:24px;">
+        <div class="cp-field">
+          <div class="cp-field-label">Favorite Trainers</div>
+          <div class="cp-tags">
+            <span class="cp-tag selected">Marcus Johnson</span>
+            <span class="cp-tag selected">Damon Clarke</span>
+          </div>
+        </div>
+        <div class="cp-field">
+          <div class="cp-field-label">Favorite Nutritionists</div>
+          <div class="cp-tags">
+            <span class="cp-tag selected">Dr. Sarah Mitchell</span>
+            <span class="cp-tag selected">Rachel Kim</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Community -->
+      <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--border);">Community</div>
+      <div class="cp-field-grid">
+        <div class="cp-field">
+          <div class="cp-field-label">Training Partners</div>
+          <div class="cp-tags">
+            <span class="cp-tag selected">@alexm</span>
+            <span class="cp-tag selected">@rileyw</span>
+          </div>
+        </div>
+        <div class="cp-field">
+          <div class="cp-field-label">Community Groups</div>
+          <div class="cp-tags">
+            <span class="cp-tag selected">Boston Runners</span>
+            <span class="cp-tag selected">Morning Crew</span>
+          </div>
+        </div>
+      </div>
+      <div class="cp-save-actions">
+        <button class="cp-save-btn" onclick="saveSection('section-social')">Save</button>
+        <button class="cp-cancel-btn" onclick="cancelEdit('section-social')">Cancel</button>
+      </div>
+    </div>
+
+    <!-- 7. Privacy Controls -->
+    <div class="cp-card" id="section-privacy">
+      <div class="cp-card-header">
+        <h2>Privacy Controls</h2>
+      </div>
+      <div class="cp-toggle-row">
+        <span class="cp-toggle-label">Profile Photo & Bio</span>
+        <label class="cp-toggle"><input type="checkbox" checked data-privacy="photoBio"><span class="cp-toggle-track"></span><span class="cp-toggle-thumb"></span></label>
+      </div>
+      <div class="cp-toggle-row">
+        <span class="cp-toggle-label">Fitness Stats</span>
+        <label class="cp-toggle"><input type="checkbox" checked data-privacy="fitnessStats"><span class="cp-toggle-track"></span><span class="cp-toggle-thumb"></span></label>
+      </div>
+      <div class="cp-toggle-row">
+        <span class="cp-toggle-label">Body Metrics</span>
+        <label class="cp-toggle"><input type="checkbox" data-privacy="bodyMetrics"><span class="cp-toggle-track"></span><span class="cp-toggle-thumb"></span></label>
+      </div>
+      <div class="cp-toggle-row">
+        <span class="cp-toggle-label">Workout History</span>
+        <label class="cp-toggle"><input type="checkbox" checked data-privacy="workoutHistory"><span class="cp-toggle-track"></span><span class="cp-toggle-thumb"></span></label>
+      </div>
+      <div class="cp-toggle-row">
+        <span class="cp-toggle-label">Nutrition Info</span>
+        <label class="cp-toggle"><input type="checkbox" data-privacy="nutritionInfo"><span class="cp-toggle-track"></span><span class="cp-toggle-thumb"></span></label>
+      </div>
+      <div class="cp-toggle-row">
+        <span class="cp-toggle-label">Social Links</span>
+        <label class="cp-toggle"><input type="checkbox" checked data-privacy="socialLinks"><span class="cp-toggle-track"></span><span class="cp-toggle-thumb"></span></label>
+      </div>
+      <div class="cp-toggle-row">
+        <span class="cp-toggle-label">Achievement Badges</span>
+        <label class="cp-toggle"><input type="checkbox" checked data-privacy="badges"><span class="cp-toggle-track"></span><span class="cp-toggle-thumb"></span></label>
+      </div>
+
+      <div style="margin-top:20px;">
+        <div class="cp-field-label" style="margin-bottom:10px;">Overall Profile Visibility</div>
+        <div class="cp-visibility-select" id="visibilitySelect">
+          <div class="cp-visibility-option active" data-vis="public" onclick="setVisibility(this)">Public</div>
+          <div class="cp-visibility-option" data-vis="friends" onclick="setVisibility(this)">Friends Only</div>
+          <div class="cp-visibility-option" data-vis="private" onclick="setVisibility(this)">Private</div>
+        </div>
+      </div>
+
+      <div style="margin-top:20px;">
+        <div class="cp-field-label" style="margin-bottom:10px;">Direct Messages</div>
+        <p style="font-size:0.78rem;color:var(--text-muted);font-weight:300;margin-bottom:10px;">Choose who can send you direct messages in the community.</p>
+        <div class="cp-visibility-select" id="messagingSelect">
+          <div class="cp-visibility-option" data-msg="everyone" onclick="setMessaging(this)">Everyone</div>
+          <div class="cp-visibility-option active" data-msg="friends" onclick="setMessaging(this)">Friends Only</div>
+          <div class="cp-visibility-option" data-msg="noone" onclick="setMessaging(this)">Leave Me Alone</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <a href="home.html" class="logo">
+            <img src="logo.png" alt="Shape" class="logo-img">
+          </a>
+          <p class="footer-desc">Join the community</p>
+        </div>
+        <div class="footer-col">
+          <h4>Platform</h4>
+          <a href="trainers.html">Trainer Marketplace</a>
+          <a href="nutritionists.html">Nutritionists</a>        <a href="community.html">Community</a>
+          <a href="pricing.html">Pricing</a>
+          <a href="for-clients.html">Clients</a>
+          <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+          <a href="trainer-dashboard.html">Trainer Dashboard</a>
+          <a href="integrations.html">Integrations</a>
+        </div>
+        <div class="footer-col">
+          <h4>Get Started</h4>
+          <a href="signup-client.html">Sign Up as Client</a>
+          <a href="signup-trainer.html">Apply as Trainer</a>
+          <a href="signup-nutritionist.html">Apply as Nutritionist</a>
+        </div>
+        <div class="footer-col">
+          <h4>Support</h4>
+          <a href="help.html">Help Center</a>
+          <a href="contact.html">Contact</a>
+          <a href="radio.html">Shape Radio</a>
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 Shape. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Toast -->
+  <div class="cp-toast" id="cpToast">Profile updated!</div>
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+  <script>
+    // ===== Edit Mode Toggle =====
+    function toggleEdit(sectionId) {
+      document.getElementById(sectionId).classList.add('editing');
+    }
+    function cancelEdit(sectionId) {
+      document.getElementById(sectionId).classList.remove('editing');
+    }
+    function saveSection(sectionId) {
+      const section = document.getElementById(sectionId);
+      // Persist input values to display values
+      section.querySelectorAll('.cp-field').forEach(field => {
+        const input = field.querySelector('input, select, textarea');
+        const display = field.querySelector('.cp-field-value');
+        if (input && display) {
+          let val = input.value;
+          if (input.type === 'number' && input.dataset.key === 'calorieTarget') val = Number(val).toLocaleString() + ' kcal';
+          else if (input.dataset.key === 'waterGoal') val = val + ' glasses/day';
+          else if (input.dataset.key === 'weight' || input.dataset.key === 'currentWeight' || input.dataset.key === 'goalWeight') val = val + ' lbs';
+          else if (['chest','waist','hips','arms','thighs'].includes(input.dataset.key)) val = val + ' in';
+          else if (input.tagName === 'SELECT') val = input.options[input.selectedIndex].text;
+          display.textContent = val;
+        }
+      });
+      section.classList.remove('editing');
+      saveToLocalStorage();
+      showToast('Profile updated!');
+    }
+
+    // ===== Toast =====
+    function showToast(msg) {
+      const t = document.getElementById('cpToast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2500);
+    }
+
+    // ===== Tags Toggle =====
+    function toggleTag(el) {
+      const card = el.closest('.cp-card');
+      if (!card || !card.classList.contains('editing')) return;
+      el.classList.toggle('selected');
+    }
+
+    // ===== Unit Toggle =====
+    function toggleUnit(el) {
+      const group = el.parentElement;
+      group.querySelectorAll('span').forEach(s => s.classList.remove('active'));
+      el.classList.add('active');
+    }
+
+    // ===== Macro Sliders =====
+    function updateMacros() {
+      const p = parseInt(document.getElementById('proteinSlider').value);
+      const c = parseInt(document.getElementById('carbsSlider').value);
+      const f = parseInt(document.getElementById('fatSlider').value);
+      const total = p + c + f;
+      document.getElementById('proteinPct').textContent = Math.round(p/total*100) + '%';
+      document.getElementById('carbsPct').textContent = Math.round(c/total*100) + '%';
+      document.getElementById('fatPct').textContent = Math.round(f/total*100) + '%';
+    }
+
+    // ===== Visibility =====
+    function setVisibility(el) {
+      document.querySelectorAll('#visibilitySelect .cp-visibility-option').forEach(o => o.classList.remove('active'));
+      el.classList.add('active');
+      saveToLocalStorage();
+      showToast('Visibility updated!');
+    }
+
+    function setMessaging(el) {
+      document.querySelectorAll('#messagingSelect .cp-visibility-option').forEach(o => o.classList.remove('active'));
+      el.classList.add('active');
+      const setting = el.dataset.msg;
+      localStorage.setItem('shapeMessagingSetting', setting);
+      saveToLocalStorage();
+      showToast('Messaging preference updated!');
+    }
+
+    // ===== Privacy Toggles =====
+    document.querySelectorAll('.cp-toggle input').forEach(toggle => {
+      toggle.addEventListener('change', () => {
+        saveToLocalStorage();
+        showToast('Privacy setting updated!');
+      });
+    });
+
+    // ===== Profile Completion =====
+    function calcCompletion() {
+      const fields = document.querySelectorAll('.cp-field-value');
+      let filled = 0, total = 0;
+      fields.forEach(f => {
+        total++;
+        const txt = f.textContent.trim();
+        if (txt && txt !== '--' && txt !== '') filled++;
+      });
+      const pct = Math.round((filled / total) * 100);
+      document.getElementById('completionPct').textContent = pct + '%';
+      document.getElementById('completionFill').style.width = pct + '%';
+    }
+
+    // ===== BMI Calculator =====
+    function calcBMI() {
+      const weightField = document.querySelector('[data-key="currentWeight"]');
+      const heightField = document.querySelector('[data-key="height"]');
+      if (!weightField || !heightField) return;
+      const lbs = parseFloat(weightField.value);
+      const heightStr = heightField.value;
+      const match = heightStr.match(/(\d+)'(\d+)/);
+      if (!match) return;
+      const inches = parseInt(match[1]) * 12 + parseInt(match[2]);
+      if (inches > 0 && lbs > 0) {
+        const bmi = ((lbs / (inches * inches)) * 703).toFixed(1);
+        document.getElementById('bmiValue').textContent = bmi;
+      }
+    }
+
+    // ===== localStorage Persistence =====
+    function saveToLocalStorage() {
+      const data = {};
+      document.querySelectorAll('.cp-field input[data-key], .cp-field select[data-key], .cp-field textarea[data-key]').forEach(el => {
+        data[el.dataset.key] = el.value;
+      });
+      // Tags
+      data.workoutTypes = [...document.querySelectorAll('#workoutTypes .cp-tag.selected')].map(t => t.dataset.val);
+      data.allergyTags = [...document.querySelectorAll('#allergyTags .cp-tag.selected')].map(t => t.dataset.val);
+      // Privacy
+      data.privacy = {};
+      document.querySelectorAll('.cp-toggle input[data-privacy]').forEach(t => {
+        data.privacy[t.dataset.privacy] = t.checked;
+      });
+      // Visibility
+      const activeVis = document.querySelector('#visibilitySelect .cp-visibility-option.active');
+      if (activeVis) data.visibility = activeVis.dataset.vis;
+      // Messaging
+      const activeMsg = document.querySelector('#messagingSelect .cp-visibility-option.active');
+      if (activeMsg) data.messaging = activeMsg.dataset.msg;
+      // Macros
+      data.proteinSlider = document.getElementById('proteinSlider').value;
+      data.carbsSlider = document.getElementById('carbsSlider').value;
+      data.fatSlider = document.getElementById('fatSlider').value;
+
+      localStorage.setItem('shapeClientProfile', JSON.stringify(data));
+    }
+
+    function loadFromLocalStorage() {
+      const raw = localStorage.getItem('shapeClientProfile');
+      if (!raw) return;
+      // Clear stale profile data from previous default user
+      try { const d = JSON.parse(raw); if (d.displayName && d.displayName !== 'Christopher Perry') { localStorage.removeItem('shapeClientProfile'); return; } } catch(e) { return; }
+      try {
+        const data = JSON.parse(raw);
+        // Restore inputs
+        Object.keys(data).forEach(key => {
+          if (['workoutTypes','allergyTags','privacy','visibility','proteinSlider','carbsSlider','fatSlider'].includes(key)) return;
+          const el = document.querySelector('[data-key="' + key + '"]');
+          if (el) {
+            el.value = data[key];
+            const display = el.closest('.cp-field').querySelector('.cp-field-value');
+            if (display) {
+              let val = data[key];
+              if (key === 'calorieTarget') val = Number(val).toLocaleString() + ' kcal';
+              else if (key === 'waterGoal') val = val + ' glasses/day';
+              else if (['weight','currentWeight','goalWeight'].includes(key)) val = val + ' lbs';
+              else if (['chest','waist','hips','arms','thighs'].includes(key)) val = val + ' in';
+              else if (el.tagName === 'SELECT') val = el.options[el.selectedIndex].text;
+              display.textContent = val;
+            }
+            // Sync header display
+            if (key === 'displayName') {
+              const h1 = document.querySelector('.cp-name-block h1');
+              const avatar = document.querySelector('.cp-avatar');
+              if (h1) h1.textContent = data[key];
+              if (avatar) { const initials = data[key].split(' ').map(w => w[0]).join(''); avatar.childNodes[0].textContent = initials; }
+            }
+            if (key === 'username') {
+              const handle = document.querySelector('.cp-handle');
+              if (handle) handle.textContent = '@' + data[key];
+            }
+          }
+        });
+        // Tags
+        if (data.workoutTypes) {
+          document.querySelectorAll('#workoutTypes .cp-tag').forEach(t => {
+            t.classList.toggle('selected', data.workoutTypes.includes(t.dataset.val));
+          });
+        }
+        if (data.allergyTags) {
+          document.querySelectorAll('#allergyTags .cp-tag').forEach(t => {
+            t.classList.toggle('selected', data.allergyTags.includes(t.dataset.val));
+          });
+        }
+        // Privacy
+        if (data.privacy) {
+          Object.keys(data.privacy).forEach(key => {
+            const el = document.querySelector('[data-privacy="' + key + '"]');
+            if (el) el.checked = data.privacy[key];
+          });
+        }
+        // Visibility
+        if (data.visibility) {
+          document.querySelectorAll('#visibilitySelect .cp-visibility-option').forEach(o => {
+            o.classList.toggle('active', o.dataset.vis === data.visibility);
+          });
+        }
+        // Messaging
+        if (data.messaging) {
+          document.querySelectorAll('#messagingSelect .cp-visibility-option').forEach(o => {
+            o.classList.toggle('active', o.dataset.msg === data.messaging);
+          });
+          localStorage.setItem('shapeMessagingSetting', data.messaging);
+        }
+        // Macros
+        if (data.proteinSlider) document.getElementById('proteinSlider').value = data.proteinSlider;
+        if (data.carbsSlider) document.getElementById('carbsSlider').value = data.carbsSlider;
+        if (data.fatSlider) document.getElementById('fatSlider').value = data.fatSlider;
+        updateMacros();
+      } catch(e) {}
+    }
+
+    // --- Assigned Plans ---
+    function renderAssignedPlans() {
+      // Workout Plans
+      const wpRaw = localStorage.getItem('shapeClientAssignedPlans');
+      const wpContainer = document.getElementById('assignedWorkoutPlans');
+      if (wpRaw) {
+        try {
+          const plans = JSON.parse(wpRaw);
+          const myPlans = plans.filter(p => p.assignedTo === 'Christopher Perry');
+          if (myPlans.length > 0) {
+            wpContainer.innerHTML = myPlans.map(p => {
+              const typeLabel = p.type === 'shape-template' ? 'Shape Template' : (p.type === 'template' ? 'Shape Template' : 'Uploaded Plan');
+              let detailHtml = '';
+              if (p.type === 'shape-template' && p.days && p.days.length) {
+                detailHtml = '<div style="margin-top:12px;display:none;" class="ap-detail">' +
+                  p.days.map((d, di) => {
+                    let dayContent = '<div style="font-size:0.82rem;font-weight:600;margin-bottom:6px;">' + (d.name || ('Day ' + (di+1))) + '</div>';
+                    if (d.warmup && d.warmup.length && d.warmup[0].exercise) {
+                      dayContent += '<div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--accent-dark);font-weight:600;margin-bottom:4px;">Warm-up</div>';
+                      dayContent += d.warmup.map(w => '<div style="font-size:0.82rem;color:var(--text-muted);">' + w.exercise + (w.duration ? ' — ' + w.duration : '') + '</div>').join('');
+                    }
+                    if (d.exercises && d.exercises.length && d.exercises[0].exercise) {
+                      dayContent += '<div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--accent-dark);font-weight:600;margin:6px 0 4px;">Exercises</div>';
+                      dayContent += '<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:4px;font-size:0.78rem;color:var(--text-muted);margin-bottom:2px;font-weight:500;"><span>Exercise</span><span>Sets</span><span>Reps</span><span>Rest</span></div>';
+                      dayContent += d.exercises.map(ex => '<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:4px;font-size:0.82rem;"><span>' + ex.exercise + '</span><span>' + (ex.sets||'') + '</span><span>' + (ex.reps||'') + '</span><span>' + (ex.rest||'') + '</span></div>').join('');
+                    }
+                    if (d.cooldown && d.cooldown.length && d.cooldown[0].exercise) {
+                      dayContent += '<div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--accent-dark);font-weight:600;margin:6px 0 4px;">Cool-down</div>';
+                      dayContent += d.cooldown.map(c => '<div style="font-size:0.82rem;color:var(--text-muted);">' + c.exercise + (c.duration ? ' — ' + c.duration : '') + '</div>').join('');
+                    }
+                    return '<div style="padding:10px 0;border-bottom:1px solid var(--border);">' + dayContent + '</div>';
+                  }).join('') +
+                '</div>';
+              } else if (p.type === 'custom' && p.files && p.files.length) {
+                detailHtml = '<div style="margin-top:12px;display:none;" class="ap-detail">' +
+                  '<div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px;">Attached Files</div>' +
+                  p.files.map(f => {
+                    const isImage = f.type && f.type.startsWith('image/');
+                    const sizeKB = (f.size / 1024).toFixed(1);
+                    return '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--bg);border:1px solid var(--border);margin-bottom:6px;">' +
+                      (isImage ? '<img src="' + f.data + '" style="width:48px;height:48px;object-fit:cover;border:1px solid var(--border);">' : '<span style="font-size:1.4rem;">&#128196;</span>') +
+                      '<div style="flex:1;"><div style="font-size:0.88rem;font-weight:500;">' + f.name + '</div><div style="font-size:0.72rem;color:var(--text-muted);">' + sizeKB + ' KB</div></div>' +
+                      (isImage ? '<a href="' + f.data + '" target="_blank" style="font-size:0.72rem;color:var(--accent-dark);font-weight:500;text-transform:uppercase;letter-spacing:0.06em;">Open</a>' : '') +
+                    '</div>';
+                  }).join('') +
+                '</div>';
+              }
+              return '<div style="background:var(--bg-card);border:1px solid var(--border);padding:20px;margin-bottom:10px;">' +
+                '<div style="display:flex;justify-content:space-between;align-items:flex-start;">' +
+                  '<div><div style="font-size:1rem;font-weight:600;">' + p.name + '</div>' +
+                  '<div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">' + (p.category || '') + (p.difficulty ? ' · ' + p.difficulty : '') + (p.duration ? ' · ' + p.duration : '') + '</div></div>' +
+                  '<div style="display:flex;gap:8px;align-items:center;">' +
+                    '<span style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.06em;padding:4px 10px;background:rgba(45,212,191,0.1);color:var(--accent-dark);font-weight:600;">' + typeLabel + '</span>' +
+                    '<button class="btn btn-sm btn-outline" onclick="this.closest(\'div\').closest(\'div\').closest(\'div\').querySelector(\'.ap-detail\').style.display=this.closest(\'div\').closest(\'div\').closest(\'div\').querySelector(\'.ap-detail\').style.display===\'none\'?\'block\':\'none\';this.textContent=this.textContent===\'View\'?\'Hide\':\'View\'">View</button>' +
+                  '</div>' +
+                '</div>' +
+                (p.description ? '<div style="font-size:0.85rem;color:var(--text-muted);font-weight:300;margin-top:8px;line-height:1.6;">' + p.description + '</div>' : '') +
+                detailHtml +
+              '</div>';
+            }).join('');
+          }
+        } catch(e) {}
+      }
+
+      // Meal Plans
+      const mpRaw = localStorage.getItem('shapeClientAssignedMealPlans');
+      const mpContainer = document.getElementById('assignedMealPlans');
+      if (mpRaw) {
+        try {
+          const plans = JSON.parse(mpRaw);
+          const myPlans = plans.filter(p => p.assignedTo === 'Christopher Perry');
+          if (myPlans.length > 0) {
+            mpContainer.innerHTML = myPlans.map(p => {
+              const typeLabel = p.type === 'shape-template' ? 'Shape Template' : (p.type === 'template' ? 'Shape Template' : 'Uploaded Plan');
+              let detailHtml = '';
+              if (p.type === 'shape-template' && p.days && p.days.length) {
+                detailHtml = '<div style="margin-top:12px;display:none;" class="ap-detail">' +
+                  p.days.map(d => {
+                    let dayContent = '<div style="font-size:0.82rem;font-weight:600;margin-bottom:8px;">' + d.dayName + '</div>';
+                    if (d.meals && d.meals.length) {
+                      dayContent += d.meals.filter(m => m.name).map(m =>
+                        '<div style="padding:6px 0;border-bottom:1px solid var(--border);">' +
+                          '<div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--accent-dark);font-weight:600;">' + m.type + '</div>' +
+                          '<div style="font-size:0.88rem;font-weight:500;margin:2px 0;">' + m.name + '</div>' +
+                          '<div style="font-size:0.78rem;color:var(--text-muted);">' + (m.calories ? m.calories + ' cal' : '') + (m.protein ? ' · P: ' + m.protein + 'g' : '') + (m.carbs ? ' · C: ' + m.carbs + 'g' : '') + (m.fat ? ' · F: ' + m.fat + 'g' : '') + '</div>' +
+                          (m.ingredients ? '<div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;"><strong>Ingredients:</strong> ' + m.ingredients + '</div>' : '') +
+                          (m.instructions ? '<div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;"><strong>Prep:</strong> ' + m.instructions + '</div>' : '') +
+                        '</div>'
+                      ).join('');
+                    }
+                    return '<div style="padding:10px 0;border-bottom:1px solid var(--border);">' + dayContent + '</div>';
+                  }).join('') +
+                '</div>';
+              } else if (p.type === 'custom' && p.files && p.files.length) {
+                detailHtml = '<div style="margin-top:12px;display:none;" class="ap-detail">' +
+                  '<div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px;">Attached Files</div>' +
+                  p.files.map(f => {
+                    const isImage = f.type && f.type.startsWith('image/');
+                    const sizeKB = (f.size / 1024).toFixed(1);
+                    return '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--bg);border:1px solid var(--border);margin-bottom:6px;">' +
+                      (isImage ? '<img src="' + f.data + '" style="width:48px;height:48px;object-fit:cover;border:1px solid var(--border);">' : '<span style="font-size:1.4rem;">&#128196;</span>') +
+                      '<div style="flex:1;"><div style="font-size:0.88rem;font-weight:500;">' + f.name + '</div><div style="font-size:0.72rem;color:var(--text-muted);">' + sizeKB + ' KB</div></div>' +
+                      (isImage ? '<a href="' + f.data + '" target="_blank" style="font-size:0.72rem;color:var(--accent-dark);font-weight:500;text-transform:uppercase;letter-spacing:0.06em;">Open</a>' : '') +
+                    '</div>';
+                  }).join('') +
+                '</div>';
+              }
+              return '<div style="background:var(--bg-card);border:1px solid var(--border);padding:20px;margin-bottom:10px;">' +
+                '<div style="display:flex;justify-content:space-between;align-items:flex-start;">' +
+                  '<div><div style="font-size:1rem;font-weight:600;">' + p.name + '</div>' +
+                  '<div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">' + (p.goal || '') + (p.dietType ? ' · ' + p.dietType : '') + (p.duration ? ' · ' + p.duration : '') + '</div></div>' +
+                  '<div style="display:flex;gap:8px;align-items:center;">' +
+                    '<span style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.06em;padding:4px 10px;background:rgba(45,212,191,0.1);color:var(--accent-dark);font-weight:600;">' + typeLabel + '</span>' +
+                    '<button class="btn btn-sm btn-outline" onclick="this.closest(\'div\').closest(\'div\').closest(\'div\').querySelector(\'.ap-detail\').style.display=this.closest(\'div\').closest(\'div\').closest(\'div\').querySelector(\'.ap-detail\').style.display===\'none\'?\'block\':\'none\';this.textContent=this.textContent===\'View\'?\'Hide\':\'View\'">View</button>' +
+                  '</div>' +
+                '</div>' +
+                (p.description ? '<div style="font-size:0.85rem;color:var(--text-muted);font-weight:300;margin-top:8px;line-height:1.6;">' + p.description + '</div>' : '') +
+                (p.calories ? '<div style="font-size:0.78rem;color:var(--text-muted);margin-top:6px;">' + p.calories + ' cal/day · Protein: ' + (p.macros?.protein||'--') + '% · Carbs: ' + (p.macros?.carbs||'--') + '% · Fat: ' + (p.macros?.fat||'--') + '%</div>' : '') +
+                detailHtml +
+              '</div>';
+            }).join('');
+          }
+        } catch(e) {}
+      }
+    }
+
+    // Init
+    loadFromLocalStorage();
+    calcCompletion();
+    calcBMI();
+    updateMacros();
+    renderAssignedPlans();
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>

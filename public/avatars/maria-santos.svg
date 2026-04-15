@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#EC4899"/>
+      <stop offset="100%" stop-color="#9D174D"/>
+    </linearGradient>
+    <linearGradient id="skin" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#DEB887"/>
+      <stop offset="100%" stop-color="#C4956A"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="400" fill="url(#bg)"/>
+  <ellipse cx="200" cy="420" rx="125" ry="95" fill="#fff"/>
+  <rect x="183" y="282" width="34" height="30" rx="4" fill="url(#skin)"/>
+  <ellipse cx="200" cy="220" rx="60" ry="74" fill="url(#skin)"/>
+  <!-- Hair - long dark curly -->
+  <ellipse cx="200" cy="175" rx="72" ry="55" fill="#1a1a1a"/>
+  <ellipse cx="138" cy="220" rx="20" ry="55" fill="#1a1a1a"/>
+  <ellipse cx="262" cy="220" rx="20" ry="55" fill="#1a1a1a"/>
+  <ellipse cx="145" cy="285" rx="16" ry="35" fill="#1a1a1a"/>
+  <ellipse cx="255" cy="285" rx="16" ry="35" fill="#1a1a1a"/>
+  <!-- Curl texture -->
+  <circle cx="138" cy="250" r="8" fill="#2a2a2a"/>
+  <circle cx="262" cy="250" r="8" fill="#2a2a2a"/>
+  <!-- Eyes -->
+  <ellipse cx="180" cy="222" rx="6.5" ry="5" fill="#3B2414"/>
+  <ellipse cx="220" cy="222" rx="6.5" ry="5" fill="#3B2414"/>
+  <!-- Eyebrows -->
+  <path d="M168 210 Q180 205 190 211" stroke="#1a1a1a" stroke-width="2" fill="none"/>
+  <path d="M210 211 Q220 205 232 210" stroke="#1a1a1a" stroke-width="2" fill="none"/>
+  <!-- Nose -->
+  <ellipse cx="200" cy="240" rx="4.5" ry="3" fill="#B5895A" opacity="0.4"/>
+  <!-- Smile -->
+  <path d="M188 253 Q200 263 212 253" stroke="#B5895A" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <!-- Blouse -->
+  <path d="M162 308 Q200 325 238 308" fill="white"/>
+  <!-- Leaf accent -->
+  <ellipse cx="48" cy="52" rx="10" ry="20" fill="white" opacity="0.12" transform="rotate(-30 48 52)"/>
+  <line x1="48" y1="35" x2="48" y2="70" stroke="white" stroke-width="1.5" opacity="0.1"/>
+</svg>

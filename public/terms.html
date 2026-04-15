@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape — Terms of Service</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .legal-content {
+      max-width: 720px; margin: 0 auto;
+    }
+    .legal-updated {
+      font-size: 0.82rem; color: var(--text-muted); font-weight: 300;
+      margin-bottom: 48px; text-align: center;
+    }
+    .legal-section {
+      margin-bottom: 40px;
+    }
+    .legal-section h2 {
+      font-size: 1.05rem; font-weight: 500; margin-bottom: 16px;
+      letter-spacing: -0.02em; text-align: center;
+    }
+    .legal-section p {
+      font-size: 0.88rem; color: var(--text-muted); font-weight: 300;
+      line-height: 1.8; margin-bottom: 12px;
+    }
+    .legal-section ul {
+      list-style: none; padding: 0; margin: 0 0 12px 0;
+    }
+    .legal-section ul li {
+      font-size: 0.88rem; color: var(--text-muted); font-weight: 300;
+      line-height: 1.8; padding-left: 16px; position: relative;
+    }
+    .legal-section ul li::before {
+      content: ''; position: absolute; left: 0; top: 11px;
+      width: 4px; height: 4px; border-radius: 50%;
+      background: var(--text-muted);
+    }
+  </style>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+
+  <nav class="navbar" id="navbar">
+    <div class="container nav-container">
+      <a href="home.html" class="logo">
+        <img src="logo.png" alt="Shape" class="logo-img">
+      </a>
+      <div class="nav-links" id="navLinks">
+        <div class="nav-dropdown">
+          <a href="for-clients.html">Clients</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-clients.html">Overview</a>
+            <a href="clients.html">Dashboard</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-trainers.html">Trainers</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-trainers.html">Overview</a>
+            <a href="trainer-dashboard.html">Trainer Dashboard</a>
+            <a href="trainers.html">Trainer Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-nutritionists.html">Nutritionists</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-nutritionists.html">Overview</a>
+            <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+            <a href="nutritionists.html">Nutritionist Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="shape-score.html">Rewards</a>
+          <div class="nav-dropdown-menu">
+            <a href="shape-score.html">Shape Score (Clients)</a>
+            <a href="shape-score-trainer.html">Shape Score (Trainers)</a>
+            <a href="shape-score-nutritionist.html">Shape Score (Nutritionists)</a>
+            <a href="shape-store.html">Shape Store</a>
+          </div>
+        </div>
+        <a href="community.html">Community</a>
+        <a href="pricing.html">Pricing</a>
+      </div>
+      <div class="nav-actions">
+        <a href="login.html" class="btn btn-sm btn-outline shape-auth-logged-out">Log In</a>
+        <span class="shape-auth-logged-in shape-nav-user-name" style="display:none;font-size:0.82rem;color:var(--text-muted);margin-right:4px;"></span>
+        <a href="clients.html" class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" data-shape-dashboard-link>Dashboard</a>
+        <button class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" onclick="shapeSignOut()">Sign Out</button>
+        <a href="landing.html" class="btn btn-sm btn-primary shape-auth-logged-out">Get Started</a>
+        <a href="radio.html" class="btn btn-sm btn-radio"><span class="btn-shape-text"><img src="logo.png" alt="Shape"></span> Radio</a>
+      </div>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Page Hero -->
+  <section class="page-hero" style="padding-bottom:16px;">
+    <div class="container">
+      <span class="tag">Legal</span>
+      <h1>Terms of <span class="gradient-text">Service</span></h1>
+      <p class="page-hero-sub">The rules and guidelines for using the Shape platform.</p>
+    </div>
+  </section>
+
+  <!-- Content -->
+  <section class="section" style="padding-top:32px;">
+    <div class="container">
+      <div class="legal-content">
+        <p class="legal-updated">Last updated: April 1, 2026</p>
+
+        <div class="legal-section">
+          <h2>1. Acceptance of Terms</h2>
+          <p>By accessing or using Shape, you agree to be bound by these Terms of Service. If you do not agree, you may not use the platform. These terms apply to all users — clients, trainers, nutritionists, and gym partners.</p>
+        </div>
+
+        <div class="legal-section">
+          <h2>2. Accounts</h2>
+          <p>You are responsible for maintaining the security of your account and all activity under it. You must provide accurate information when creating an account and keep it up to date.</p>
+          <ul>
+            <li>You must be at least 16 years old to create an account</li>
+            <li>One account per person — duplicate accounts may be removed</li>
+            <li>You are responsible for keeping your login credentials secure</li>
+            <li>Notify us immediately if you suspect unauthorized access</li>
+          </ul>
+        </div>
+
+        <div class="legal-section">
+          <h2>3. Subscriptions & Payments</h2>
+          <p>Shape connects clients with trainers and nutritionists through monthly subscriptions. By subscribing, you agree to the following:</p>
+          <ul>
+            <li>Subscriptions are billed monthly and renew automatically</li>
+            <li>You can cancel any subscription at any time with no penalty</li>
+            <li>After cancellation, access continues through the end of your billing period</li>
+            <li>Refunds are handled on a case-by-case basis</li>
+            <li>Shape processes payments securely and does not store your full payment details</li>
+          </ul>
+        </div>
+
+        <div class="legal-section">
+          <h2>4. For Trainers & Nutritionists</h2>
+          <p>If you join Shape as a trainer or nutritionist, you agree to:</p>
+          <ul>
+            <li>Provide accurate credentials and qualifications during onboarding</li>
+            <li>Deliver the services and programs you offer to your subscribers</li>
+            <li>Maintain professionalism in all client communications</li>
+            <li>Accept Shape's commission structure on subscriber revenue</li>
+            <li>Comply with all applicable laws and regulations in your practice</li>
+          </ul>
+          <p>Shape reserves the right to remove any provider who violates these terms or receives repeated complaints.</p>
+        </div>
+
+        <div class="legal-section">
+          <h2>5. Content & Conduct</h2>
+          <p>You are responsible for the content you create, upload, or share on Shape. You agree not to:</p>
+          <ul>
+            <li>Post false, misleading, or harmful content</li>
+            <li>Harass, abuse, or threaten other users</li>
+            <li>Upload content that infringes on intellectual property rights</li>
+            <li>Use the platform for any unlawful purpose</li>
+            <li>Attempt to access other users' accounts or data</li>
+            <li>Use automated tools to scrape or extract data from the platform</li>
+          </ul>
+        </div>
+
+        <div class="legal-section">
+          <h2>6. Shape Score & Rewards</h2>
+          <p>Shape Score points are earned through platform activity and can be redeemed for rewards. Points have no cash value and cannot be transferred or sold. Shape reserves the right to modify the rewards program, point values, or redemption options at any time.</p>
+        </div>
+
+        <div class="legal-section">
+          <h2>7. Intellectual Property</h2>
+          <p>The Shape platform, brand, logo, and all original content are owned by Shape. Trainers and nutritionists retain ownership of their programs and content but grant Shape a license to display and distribute it through the platform.</p>
+          <p>You may not copy, reproduce, or redistribute any Shape-owned content without written permission.</p>
+        </div>
+
+        <div class="legal-section">
+          <h2>8. Disclaimers</h2>
+          <p>Shape is a platform that connects fitness professionals with clients. We do not provide medical advice, diagnosis, or treatment. Always consult a qualified healthcare provider before starting any fitness or nutrition program.</p>
+          <p>Shape is not responsible for the quality, accuracy, or safety of programs created by individual trainers and nutritionists. Users engage with providers at their own discretion.</p>
+        </div>
+
+        <div class="legal-section">
+          <h2>9. Limitation of Liability</h2>
+          <p>To the maximum extent permitted by law, Shape shall not be liable for any indirect, incidental, or consequential damages arising from your use of the platform. Our total liability is limited to the amount you paid to Shape in the 12 months prior to the claim.</p>
+        </div>
+
+        <div class="legal-section">
+          <h2>10. Termination</h2>
+          <p>We may suspend or terminate your account if you violate these terms. You may also delete your account at any time by contacting support. Upon termination, your access to the platform and any active subscriptions will end.</p>
+        </div>
+
+        <div class="legal-section">
+          <h2>11. Changes to These Terms</h2>
+          <p>We may update these terms from time to time. When we make changes, we will revise the "Last updated" date. Continued use of Shape after changes are posted constitutes acceptance of the revised terms.</p>
+        </div>
+
+        <div class="legal-section">
+          <h2>12. Contact</h2>
+          <p>Questions about these terms? Reach out through the <a href="contact.html" style="color:var(--accent);">contact page</a> or email us at info@theshapecommunity.com.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <a href="home.html" class="logo">
+            <img src="logo.png" alt="Shape" class="logo-img">
+          </a>
+          <p class="footer-desc">Join the community</p>
+        </div>
+        <div class="footer-col">
+          <h4>Platform</h4>
+          <a href="trainers.html">Trainer Marketplace</a>
+          <a href="nutritionists.html">Nutritionists</a>        <a href="community.html">Community</a>
+          <a href="pricing.html">Pricing</a>
+          <a href="for-clients.html">Clients</a>
+          <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+          <a href="trainer-dashboard.html">Trainer Dashboard</a>
+          <a href="integrations.html">Integrations</a>
+        </div>
+        <div class="footer-col">
+          <h4>Get Started</h4>
+          <a href="signup-client.html">Sign Up as Client</a>
+          <a href="signup-trainer.html">Apply as Trainer</a>
+          <a href="signup-nutritionist.html">Apply as Nutritionist</a>
+        </div>
+        <div class="footer-col">
+          <h4>Support</h4>
+          <a href="help.html">Help Center</a>
+          <a href="contact.html">Contact</a>
+          <a href="radio.html">Shape Radio</a>
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 Shape. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <div class="toast" id="toast"></div>
+  <script src="app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>

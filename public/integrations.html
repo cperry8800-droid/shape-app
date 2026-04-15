@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape — Integrations</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .integrations-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 48px;
+    }
+    .integration-card {
+      background: var(--bg-card); border: 1px solid var(--border); padding: 32px;
+      transition: border-color 0.3s;
+    }
+    .integration-card:hover { border-color: var(--accent); }
+    .integration-card-header {
+      display: flex; align-items: center; gap: 16px; margin-bottom: 20px;
+    }
+    .integration-logo {
+      width: 48px; height: 48px; border-radius: 10px; display: flex;
+      align-items: center; justify-content: center; font-weight: 700;
+      font-size: 0.9rem; color: #fff; flex-shrink: 0;
+    }
+    .integration-logo.strava { background: #FC4C02; }
+    .integration-logo.garmin { background: #007CC3; }
+    .integration-logo.apple { background: #000; }
+    .integration-logo.whoop { background: #44D62C; }
+    .integration-card-header h3 {
+      font-size: 1.05rem; font-weight: 500; margin-bottom: 2px;
+    }
+    .integration-card-header p {
+      font-size: 0.78rem; color: var(--text-muted); font-weight: 300;
+    }
+    .integration-card-body p {
+      font-size: 0.85rem; color: var(--text-muted); font-weight: 300;
+      line-height: 1.7; margin-bottom: 20px;
+    }
+    .integration-features {
+      display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px;
+    }
+    .integration-feature {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 0.82rem; font-weight: 300; color: var(--text);
+    }
+    .integration-feature .check {
+      width: 18px; height: 18px; border-radius: 50%; background: rgba(45,212,191,0.1);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.65rem; color: var(--accent-dark); flex-shrink: 0;
+    }
+    .integration-status {
+      display: flex; align-items: center; justify-content: space-between;
+      padding-top: 20px; border-top: 1px solid var(--border);
+    }
+    .status-badge {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.75rem; font-weight: 500; text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+    }
+    .status-dot.connected { background: #22C55E; }
+    .status-dot.disconnected { background: var(--border); }
+    .btn-connect {
+      padding: 8px 20px; font-size: 0.75rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.06em; border: 1px solid var(--accent);
+      background: var(--accent); color: #fff; cursor: pointer; transition: all 0.3s;
+    }
+    .btn-connect:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+    .btn-disconnect {
+      padding: 8px 20px; font-size: 0.75rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.06em; border: 1px solid var(--border);
+      background: transparent; color: var(--text-muted); cursor: pointer; transition: all 0.3s;
+    }
+    .btn-disconnect:hover { border-color: #EF4444; color: #EF4444; }
+
+    .sync-settings {
+      background: var(--bg-card); border: 1px solid var(--border); padding: 32px;
+      margin-bottom: 48px;
+    }
+    .sync-settings h2 {
+      font-size: clamp(1.2rem,2vw,1.5rem); font-weight: 300;
+      letter-spacing: -0.03em; margin-bottom: 24px;
+    }
+    .sync-option {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 0; border-bottom: 1px solid var(--border);
+    }
+    .sync-option:last-child { border-bottom: none; }
+    .sync-option-info h4 { font-size: 0.88rem; font-weight: 500; margin-bottom: 2px; }
+    .sync-option-info p { font-size: 0.78rem; color: var(--text-muted); font-weight: 300; }
+    .toggle-switch {
+      position: relative; width: 44px; height: 24px; cursor: pointer;
+    }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: var(--border); border-radius: 24px; transition: background 0.3s;
+    }
+    .toggle-slider::before {
+      content: ''; position: absolute; width: 18px; height: 18px;
+      left: 3px; bottom: 3px; background: #fff; border-radius: 50%;
+      transition: transform 0.3s;
+    }
+    .toggle-switch input:checked + .toggle-slider { background: var(--accent); }
+    .toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); }
+
+    .recent-syncs {
+      background: var(--bg-card); border: 1px solid var(--border);
+    }
+    .recent-syncs-header {
+      padding: 20px 24px; border-bottom: 1px solid var(--border);
+    }
+    .recent-syncs-header h2 {
+      font-size: clamp(1.2rem,2vw,1.5rem); font-weight: 300; letter-spacing: -0.03em;
+    }
+    .sync-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 24px; border-bottom: 1px solid var(--border);
+    }
+    .sync-item:last-child { border-bottom: none; }
+    .sync-item-left {
+      display: flex; align-items: center; gap: 14px;
+    }
+    .sync-item-icon {
+      width: 32px; height: 32px; border-radius: 6px; display: flex;
+      align-items: center; justify-content: center; font-weight: 700;
+      font-size: 0.6rem; color: #fff; flex-shrink: 0;
+    }
+    .sync-item-info h4 { font-size: 0.85rem; font-weight: 500; margin-bottom: 2px; }
+    .sync-item-info p { font-size: 0.75rem; color: var(--text-muted); font-weight: 300; }
+    .sync-item-right {
+      font-size: 0.75rem; color: var(--text-muted); font-weight: 300; text-align: right;
+    }
+    .sync-item-right .sync-status {
+      font-size: 0.7rem; font-weight: 500; color: #22C55E; text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    @media (max-width: 768px) {
+      .integrations-grid { grid-template-columns: 1fr; }
+      .integration-card { padding: 24px; }
+    }
+  </style>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar" id="navbar">
+    <div class="container nav-container">
+      <a href="home.html" class="logo">
+        <img src="logo.png" alt="Shape" class="logo-img">
+      </a>
+      <div class="nav-links" id="navLinks">
+        <div class="nav-dropdown">
+          <a href="for-clients.html">Clients</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-clients.html">Overview</a>
+            <a href="clients.html">Dashboard</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-trainers.html">Trainers</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-trainers.html">Overview</a>
+            <a href="trainer-dashboard.html">Trainer Dashboard</a>
+            <a href="trainers.html">Trainer Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-nutritionists.html">Nutritionists</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-nutritionists.html">Overview</a>
+            <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+            <a href="nutritionists.html">Nutritionist Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="shape-score.html">Rewards</a>
+          <div class="nav-dropdown-menu">
+            <a href="shape-score.html">Shape Score (Clients)</a>
+            <a href="shape-score-trainer.html">Shape Score (Trainers)</a>
+            <a href="shape-score-nutritionist.html">Shape Score (Nutritionists)</a>
+            <a href="shape-store.html">Shape Store</a>
+          </div>
+        </div>
+        <a href="community.html">Community</a>
+        <a href="pricing.html">Pricing</a>
+      </div>
+      <div class="nav-actions">
+        <a href="login.html" class="btn btn-sm btn-outline shape-auth-logged-out">Log In</a>
+        <span class="shape-auth-logged-in shape-nav-user-name" style="display:none;font-size:0.82rem;color:var(--text-muted);margin-right:4px;"></span>
+        <a href="clients.html" class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" data-shape-dashboard-link>Dashboard</a>
+        <button class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" onclick="shapeSignOut()">Sign Out</button>
+        <a href="landing.html" class="btn btn-sm btn-primary shape-auth-logged-out">Get Started</a>
+        <a href="radio.html" class="btn btn-sm btn-radio"><span class="btn-shape-text"><img src="logo.png" alt="Shape"></span> Radio</a>
+      </div>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Page Hero -->
+  <section class="page-hero" style="padding-bottom:16px;">
+    <div class="container">
+      <span class="tag">Integrations</span>
+      <h1>Connect your <span class="gradient-text">devices</span></h1>
+      <p class="page-hero-sub">Sync your Shape workouts with Strava, Garmin, and more. Log once, track everywhere.</p>
+    </div>
+  </section>
+
+  <!-- Connected Apps -->
+  <section class="section" style="padding-top:32px;">
+    <div class="container">
+      <div style="text-align:center;margin-bottom:32px;">
+        <span class="tag">Apps</span>
+        <h2 style="font-size:clamp(1.2rem,2vw,1.5rem);font-weight:300;letter-spacing:-0.03em;margin-top:8px;">Connect your favorite platforms</h2>
+      </div>
+
+      <div class="integrations-grid">
+        <!-- Strava -->
+        <div class="integration-card" id="stravaCard">
+          <div class="integration-card-header">
+            <div class="integration-logo strava">S</div>
+            <div>
+              <h3>Strava</h3>
+              <p>Activity tracking & social fitness</p>
+            </div>
+          </div>
+          <div class="integration-card-body">
+            <p>Automatically push your Shape workouts to Strava. Your sessions show up in your feed, on your profile, and count toward your weekly stats.</p>
+            <div class="integration-features">
+              <div class="integration-feature">
+                <div class="check">&#10003;</div>
+                <span>Auto-sync completed sessions to Strava</span>
+              </div>
+              <div class="integration-feature">
+                <div class="check">&#10003;</div>
+                <span>Include workout type, duration, and calories</span>
+              </div>
+              <div class="integration-feature">
+                <div class="check">&#10003;</div>
+                <span>Import Strava runs and rides into Shape</span>
+              </div>
+              <div class="integration-feature">
+                <div class="check">&#10003;</div>
+                <span>Share Shape achievements on your Strava feed</span>
+              </div>
+            </div>
+          </div>
+          <div class="integration-status">
+            <div class="status-badge" id="stravaStatus">
+              <span class="status-dot connected"></span>
+              <span style="color:#22C55E;">Connected</span>
+            </div>
+            <button class="btn-disconnect" id="stravaBtn" onclick="toggleIntegration('strava')">Disconnect</button>
+          </div>
+        </div>
+
+        <!-- Garmin -->
+        <div class="integration-card" id="garminCard">
+          <div class="integration-card-header">
+            <div class="integration-logo garmin">G</div>
+            <div>
+              <h3>Garmin Connect</h3>
+              <p>Wearables & health data</p>
+            </div>
+          </div>
+          <div class="integration-card-body">
+            <p>Pair your Garmin watch with Shape. Heart rate, calories, and session data sync automatically. See your real metrics alongside your training plan.</p>
+            <div class="integration-features">
+              <div class="integration-feature">
+                <div class="check">&#10003;</div>
+                <span>Sync heart rate and calorie data from your watch</span>
+              </div>
+              <div class="integration-feature">
+                <div class="check">&#10003;</div>
+                <span>Push Shape sessions to Garmin Connect</span>
+              </div>
+              <div class="integration-feature">
+                <div class="check">&#10003;</div>
+                <span>Import Garmin activities into your Shape log</span>
+              </div>
+              <div class="integration-feature">
+                <div class="check">&#10003;</div>
+                <span>Track recovery and training load data</span>
+              </div>
+            </div>
+          </div>
+          <div class="integration-status">
+            <div class="status-badge" id="garminStatus">
+              <span class="status-dot connected"></span>
+              <span style="color:#22C55E;">Connected</span>
+            </div>
+            <button class="btn-disconnect" id="garminBtn" onclick="toggleIntegration('garmin')">Disconnect</button>
+          </div>
+        </div>
+
+        <!-- Apple Health -->
+        <div class="integration-card" id="appleCard">
+          <div class="integration-card-header">
+            <div class="integration-logo apple">A</div>
+            <div>
+              <h3>Apple Health</h3>
+              <p>iOS health & fitness data</p>
+            </div>
+          </div>
+          <div class="integration-card-body">
+            <p>Connect Apple Health to pull in steps, active calories, and workout data from your Apple Watch or iPhone. All your health data in one place.</p>
+            <div class="integration-features">
+              <div class="integration-feature">
+                <div class="check">&#10003;</div>
+                <span>Sync Apple Watch workout data to Shape</span>
+              </div>
+              <div class="integration-feature">
+                <div class="check">&#10003;</div>
+                <span>Import steps, calories, and heart rate</span>
+              </div>
+              <div class="integration-feature">
+                <div class="check">&#10003;</div>
+                <span>Write Shape sessions back to Apple Health</span>
+              </div>
+            </div>
+          </div>
+          <div class="integration-status">
+            <div class="status-badge" id="appleStatus">
+              <span class="status-dot disconnected"></span>
+              <span style="color:var(--text-muted);">Not Connected</span>
+            </div>
+            <button class="btn-connect" id="appleBtn" onclick="toggleIntegration('apple')">Connect</button>
+          </div>
+        </div>
+
+        <!-- Whoop -->
+        <div class="integration-card" id="whoopCard">
+          <div class="integration-card-header">
+            <div class="integration-logo whoop">W</div>
+            <div>
+              <h3>Whoop</h3>
+              <p>Recovery & strain tracking</p>
+            </div>
+          </div>
+          <div class="integration-card-body">
+            <p>Connect your Whoop to sync recovery scores, strain data, and sleep performance with Shape. Train smarter by knowing when to push and when to rest.</p>
+            <div class="integration-features">
+              <div class="integration-feature">
+                <div class="check">&#10003;</div>
+                <span>Sync strain and recovery scores</span>
+              </div>
+              <div class="integration-feature">
+                <div class="check">&#10003;</div>
+                <span>Import sleep performance data</span>
+              </div>
+              <div class="integration-feature">
+                <div class="check">&#10003;</div>
+                <span>Push Shape sessions to Whoop</span>
+              </div>
+            </div>
+          </div>
+          <div class="integration-status">
+            <div class="status-badge" id="whoopStatus">
+              <span class="status-dot disconnected"></span>
+              <span style="color:var(--text-muted);">Not Connected</span>
+            </div>
+            <button class="btn-connect" id="whoopBtn" onclick="toggleIntegration('whoop')">Connect</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sync Settings -->
+      <div class="sync-settings">
+        <h2>Sync Settings</h2>
+        <div class="sync-option">
+          <div class="sync-option-info">
+            <h4>Auto-sync workouts</h4>
+            <p>Automatically push completed Shape sessions to connected apps.</p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="sync-option">
+          <div class="sync-option-info">
+            <h4>Import external workouts</h4>
+            <p>Pull in activities logged on Strava, Garmin, or other apps into your Shape workout log.</p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="sync-option">
+          <div class="sync-option-info">
+            <h4>Sync heart rate data</h4>
+            <p>Include heart rate zones and averages from your wearable in Shape session reports.</p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="sync-option">
+          <div class="sync-option-info">
+            <h4>Share Shape Score</h4>
+            <p>Display your Shape Score tier on connected platforms.</p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="sync-option">
+          <div class="sync-option-info">
+            <h4>Earn Shape Score from imports</h4>
+            <p>Get +25 pts for workouts imported from connected apps.</p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Recent Sync Activity -->
+      <div class="recent-syncs">
+        <div class="recent-syncs-header">
+          <h2>Recent Sync Activity</h2>
+        </div>
+        <div class="sync-item">
+          <div class="sync-item-left">
+            <div class="sync-item-icon" style="background:#FC4C02;">S</div>
+            <div class="sync-item-info">
+              <h4>5x5 Strength Foundation</h4>
+              <p>Pushed to Strava &middot; 45 min &middot; 380 cal</p>
+            </div>
+          </div>
+          <div class="sync-item-right">
+            <div class="sync-status">Synced</div>
+            <div>2 hours ago</div>
+          </div>
+        </div>
+        <div class="sync-item">
+          <div class="sync-item-left">
+            <div class="sync-item-icon" style="background:#007CC3;">G</div>
+            <div class="sync-item-info">
+              <h4>5x5 Strength Foundation</h4>
+              <p>Pushed to Garmin Connect &middot; 45 min &middot; HR avg 142 bpm</p>
+            </div>
+          </div>
+          <div class="sync-item-right">
+            <div class="sync-status">Synced</div>
+            <div>2 hours ago</div>
+          </div>
+        </div>
+        <div class="sync-item">
+          <div class="sync-item-left">
+            <div class="sync-item-icon" style="background:#FC4C02;">S</div>
+            <div class="sync-item-info">
+              <h4>Tabata Inferno</h4>
+              <p>Pushed to Strava &middot; 25 min &middot; 310 cal</p>
+            </div>
+          </div>
+          <div class="sync-item-right">
+            <div class="sync-status">Synced</div>
+            <div>Yesterday</div>
+          </div>
+        </div>
+        <div class="sync-item">
+          <div class="sync-item-left">
+            <div class="sync-item-icon" style="background:#007CC3;">G</div>
+            <div class="sync-item-info">
+              <h4>Morning Run</h4>
+              <p>Imported from Garmin &middot; 5.2 km &middot; 28 min</p>
+            </div>
+          </div>
+          <div class="sync-item-right">
+            <div class="sync-status">Synced</div>
+            <div>Yesterday</div>
+          </div>
+        </div>
+        <div class="sync-item">
+          <div class="sync-item-left">
+            <div class="sync-item-icon" style="background:#FC4C02;">S</div>
+            <div class="sync-item-info">
+              <h4>Evening Ride</h4>
+              <p>Imported from Strava &middot; 18.4 km &middot; 42 min</p>
+            </div>
+          </div>
+          <div class="sync-item-right">
+            <div class="sync-status">Synced</div>
+            <div>2 days ago</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <a href="home.html" class="logo">
+            <img src="logo.png" alt="Shape" class="logo-img">
+          </a>
+          <p class="footer-desc">Join the community</p>
+        </div>
+        <div class="footer-col">
+          <h4>Platform</h4>
+          <a href="trainers.html">Trainer Marketplace</a>
+          <a href="for-trainers.html">Trainers</a>
+          <a href="nutritionists.html">Nutritionists</a>        <a href="community.html">Community</a>
+          <a href="pricing.html">Pricing</a>
+          <a href="for-clients.html">Clients</a>
+          <a href="integrations.html">Integrations</a>
+          <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+          <a href="trainer-dashboard.html">Trainer Dashboard</a>
+          <a href="integrations.html">Integrations</a>
+        </div>
+        <div class="footer-col">
+          <h4>Get Started</h4>
+          <a href="signup-client.html">Sign Up as Client</a>
+          <a href="signup-trainer.html">Apply as Trainer</a>
+          <a href="signup-nutritionist.html">Apply as Nutritionist</a>
+        </div>
+        <div class="footer-col">
+          <h4>Support</h4>
+          <a href="help.html">Help Center</a>
+          <a href="contact.html">Contact</a>
+          <a href="radio.html">Shape Radio</a>
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 Shape. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+  <script>
+    // Integration state
+    const integrations = {
+      strava: { connected: true, name: 'Strava' },
+      garmin: { connected: true, name: 'Garmin Connect' },
+      apple: { connected: false, name: 'Apple Health' },
+      whoop: { connected: false, name: 'Whoop' }
+    };
+
+    function toggleIntegration(id) {
+      const int = integrations[id];
+      int.connected = !int.connected;
+
+      const statusEl = document.getElementById(id + 'Status');
+      const btnEl = document.getElementById(id + 'Btn');
+
+      if (int.connected) {
+        statusEl.innerHTML = '<span class="status-dot connected"></span><span style="color:#22C55E;">Connected</span>';
+        btnEl.className = 'btn-disconnect';
+        btnEl.textContent = 'Disconnect';
+      } else {
+        statusEl.innerHTML = '<span class="status-dot disconnected"></span><span style="color:var(--text-muted);">Not Connected</span>';
+        btnEl.className = 'btn-connect';
+        btnEl.textContent = 'Connect';
+      }
+
+      const toast = document.getElementById('toast');
+      toast.textContent = int.connected ? `${int.name} connected` : `${int.name} disconnected`;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10B981"/>
+      <stop offset="100%" stop-color="#065F46"/>
+    </linearGradient>
+    <linearGradient id="skin" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FDBCB4"/>
+      <stop offset="100%" stop-color="#E8A090"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="400" fill="url(#bg)"/>
+  <ellipse cx="200" cy="420" rx="125" ry="95" fill="white"/>
+  <rect x="182" y="282" width="36" height="32" rx="4" fill="url(#skin)"/>
+  <ellipse cx="200" cy="218" rx="62" ry="76" fill="url(#skin)"/>
+  <!-- Hair - professional bob -->
+  <ellipse cx="200" cy="175" rx="70" ry="52" fill="#8B4513"/>
+  <ellipse cx="142" cy="215" rx="18" ry="45" fill="#8B4513"/>
+  <ellipse cx="258" cy="215" rx="18" ry="45" fill="#8B4513"/>
+  <ellipse cx="148" cy="260" rx="14" ry="20" fill="#8B4513"/>
+  <ellipse cx="252" cy="260" rx="14" ry="20" fill="#8B4513"/>
+  <!-- Eyes -->
+  <ellipse cx="180" cy="220" rx="6.5" ry="5" fill="#4A6741"/>
+  <ellipse cx="220" cy="220" rx="6.5" ry="5" fill="#4A6741"/>
+  <!-- Glasses -->
+  <circle cx="180" cy="220" r="16" fill="none" stroke="#333" stroke-width="2"/>
+  <circle cx="220" cy="220" r="16" fill="none" stroke="#333" stroke-width="2"/>
+  <line x1="196" y1="220" x2="204" y2="220" stroke="#333" stroke-width="2"/>
+  <!-- Eyebrows -->
+  <path d="M166 204 Q180 199 192 205" stroke="#6B3410" stroke-width="2" fill="none"/>
+  <path d="M208 205 Q220 199 234 204" stroke="#6B3410" stroke-width="2" fill="none"/>
+  <!-- Nose -->
+  <ellipse cx="200" cy="238" rx="4" ry="3" fill="#D4908A" opacity="0.4"/>
+  <!-- Warm smile -->
+  <path d="M187 252 Q200 262 213 252" stroke="#C4806A" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <!-- Lab coat collar -->
+  <path d="M160 305 L185 295 L200 310 L215 295 L240 305" fill="white" stroke="#ddd" stroke-width="1"/>
+  <!-- Stethoscope accent -->
+  <path d="M340 340 Q350 360 340 380" stroke="white" stroke-width="3" fill="none" opacity="0.15"/>
+  <circle cx="340" cy="335" r="8" fill="white" opacity="0.12"/>
+</svg>

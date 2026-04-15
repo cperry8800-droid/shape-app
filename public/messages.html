@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape — Messages</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .msg-layout {
+      display: grid; grid-template-columns: 320px 1fr; height: calc(100vh - 80px);
+      margin-top: 80px; border-top: 1px solid var(--border);
+    }
+
+    /* Sidebar */
+    .msg-sidebar {
+      border-right: 1px solid var(--border); display: flex; flex-direction: column;
+      background: var(--bg-card); overflow: hidden;
+    }
+    .msg-sidebar-header {
+      padding: 24px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .msg-sidebar-header h2 {
+      font-size: 1.1rem; font-weight: 600; letter-spacing: -0.01em;
+    }
+    .msg-search {
+      padding: 12px 24px; border-bottom: 1px solid var(--border);
+    }
+    .msg-search input {
+      width: 100%; padding: 10px 16px; border: 1px solid var(--border);
+      background: var(--bg); color: var(--text); font-family: inherit;
+      font-size: 0.85rem; outline: none; transition: border-color 0.3s;
+    }
+    .msg-search input:focus { border-color: var(--text); }
+
+    .msg-list {
+      flex: 1; overflow-y: auto;
+    }
+    .msg-contact {
+      display: flex; align-items: center; gap: 12px; padding: 16px 24px;
+      cursor: pointer; transition: background 0.2s; border-bottom: 1px solid var(--border);
+    }
+    .msg-contact:hover { background: var(--bg-alt); }
+    .msg-contact.active { background: var(--bg-alt); }
+    .msg-contact-avatar {
+      width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 600; font-size: 0.75rem; color: #fff; background: var(--text);
+    }
+    .msg-contact-info { flex: 1; min-width: 0; }
+    .msg-contact-name {
+      font-size: 0.88rem; font-weight: 500; margin-bottom: 2px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .msg-contact-time { font-size: 0.7rem; color: var(--text-muted); font-weight: 400; }
+    .msg-contact-preview {
+      font-size: 0.78rem; color: var(--text-muted); font-weight: 300;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .msg-contact-badge {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+      flex-shrink: 0;
+    }
+    .msg-role-tag {
+      display: inline-block; font-size: 0.6rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.06em; padding: 2px 6px;
+      margin-left: 6px;
+    }
+    .msg-role-client { background: rgba(45, 212, 191, 0.1); color: var(--accent-dark); }
+    .msg-role-trainer { background: rgba(108, 58, 237, 0.1); color: #6C3AED; }
+    .msg-role-nutritionist { background: rgba(236, 72, 153, 0.1); color: #EC4899; }
+
+    /* Chat Area */
+    .msg-chat {
+      display: flex; flex-direction: column; background: var(--bg);
+    }
+    .msg-chat-header {
+      display: flex; align-items: center; gap: 12px; padding: 18px 24px;
+      border-bottom: 1px solid var(--border); background: var(--bg-card);
+    }
+    .msg-chat-header-info h3 { font-size: 0.95rem; font-weight: 500; }
+    .msg-chat-header-info span { font-size: 0.75rem; color: var(--text-muted); }
+
+    .msg-chat-messages {
+      flex: 1; overflow-y: auto; padding: 24px;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+
+    .msg-bubble { max-width: 70%; animation: msgFadeIn 0.3s ease; }
+    .msg-bubble-sent { align-self: flex-end; }
+    .msg-bubble-received { align-self: flex-start; }
+    .msg-bubble p {
+      padding: 12px 18px; font-size: 0.88rem; line-height: 1.6; font-weight: 300;
+    }
+    .msg-bubble-sent p {
+      background: var(--text); color: #fff;
+    }
+    .msg-bubble-received p {
+      background: var(--bg-card); border: 1px solid var(--border); color: var(--text);
+    }
+    .msg-bubble-time {
+      font-size: 0.68rem; color: var(--text-muted); margin-top: 4px;
+      text-align: right;
+    }
+    .msg-bubble-received .msg-bubble-time { text-align: left; }
+
+    .msg-date-divider {
+      text-align: center; font-size: 0.72rem; color: var(--text-muted);
+      padding: 8px 0; font-weight: 500; text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .msg-chat-input {
+      display: flex; gap: 0; border-top: 1px solid var(--border); background: var(--bg-card);
+    }
+    .msg-chat-input input {
+      flex: 1; padding: 18px 24px; border: none; background: transparent;
+      color: var(--text); font-size: 0.88rem; font-family: inherit; outline: none;
+    }
+    .msg-send-btn {
+      width: 64px; border: none; border-left: 1px solid var(--border);
+      background: transparent; color: var(--text); font-size: 1.1rem;
+      cursor: pointer; transition: all 0.3s;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .msg-send-btn:hover { background: var(--text); color: #fff; }
+
+    /* Empty state */
+    .msg-empty {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      color: var(--text-muted); font-size: 0.92rem; font-weight: 300;
+    }
+
+    @keyframes msgFadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 768px) {
+      .msg-layout { grid-template-columns: 1fr; }
+      .msg-chat { display: none; }
+      .msg-chat.mobile-open { display: flex; }
+      .msg-sidebar.mobile-hidden { display: none; }
+      .msg-back-btn {
+        display: none; background: none; border: none; font-size: 0.85rem;
+        color: var(--text-muted); cursor: pointer; padding: 0; font-family: inherit;
+      }
+    }
+    @media (max-width: 768px) {
+      .msg-back-btn { display: inline-block; }
+    }
+  </style>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar scrolled" id="navbar">
+    <div class="container nav-container">
+      <a href="home.html" class="logo">
+        <img src="logo.png" alt="Shape" class="logo-img">
+      </a>
+      <div class="nav-links" id="navLinks">
+        <div class="nav-dropdown">
+          <a href="for-clients.html">Clients</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-clients.html">Overview</a>
+            <a href="clients.html">Dashboard</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-trainers.html">Trainers</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-trainers.html">Overview</a>
+            <a href="trainer-dashboard.html">Trainer Dashboard</a>
+            <a href="trainers.html">Trainer Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-nutritionists.html">Nutritionists</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-nutritionists.html">Overview</a>
+            <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+            <a href="nutritionists.html">Nutritionist Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="shape-score.html">Rewards</a>
+          <div class="nav-dropdown-menu">
+            <a href="shape-score.html">Shape Score (Clients)</a>
+            <a href="shape-score-trainer.html">Shape Score (Trainers)</a>
+            <a href="shape-score-nutritionist.html">Shape Score (Nutritionists)</a>
+            <a href="shape-store.html">Shape Store</a>
+          </div>
+        </div>
+        <a href="community.html">Community</a>
+        <a href="pricing.html">Pricing</a>
+      </div>
+      <div class="nav-actions">
+        <a href="login.html" class="btn btn-sm btn-outline shape-auth-logged-out">Log In</a>
+        <span class="shape-auth-logged-in shape-nav-user-name" style="display:none;font-size:0.82rem;color:var(--text-muted);margin-right:4px;"></span>
+        <a href="clients.html" class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" data-shape-dashboard-link>Dashboard</a>
+        <button class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" onclick="shapeSignOut()">Sign Out</button>
+        <a href="landing.html" class="btn btn-sm btn-primary shape-auth-logged-out">Get Started</a>
+        <a href="radio.html" class="btn btn-sm btn-radio"><span class="btn-shape-text"><img src="logo.png" alt="Shape"></span> Radio</a>
+      </div>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="msg-layout">
+    <!-- Sidebar -->
+    <div class="msg-sidebar" id="msgSidebar">
+      <div class="msg-sidebar-header">
+        <h2>Messages</h2>
+      </div>
+      <div class="msg-search">
+        <input type="text" placeholder="Search conversations..." id="msgSearch" oninput="filterContacts()">
+      </div>
+      <div class="msg-list" id="msgList">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+    <!-- Chat Area -->
+    <div class="msg-chat" id="msgChat">
+      <div class="msg-empty" id="msgEmpty">
+        Select a conversation to start messaging
+      </div>
+      <div id="msgChatArea" style="display:none;flex-direction:column;height:100%;">
+        <div class="msg-chat-header" id="msgChatHeader"></div>
+        <div class="msg-chat-messages" id="msgChatMessages"></div>
+        <div class="msg-chat-input">
+          <input type="text" placeholder="Type a message..." id="msgInput" onkeydown="if(event.key==='Enter')sendMessage()">
+          <button class="msg-send-btn" onclick="sendMessage()">&#10148;</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+  <script>
+    // Demo conversation data
+    const conversations = [
+      {
+        id: 1, name: "Jake Roberts", role: "client", roleClass: "msg-role-client",
+        status: "online", unread: true,
+        messages: [
+          { from: "them", text: "Hey coach! Just finished the 5x5 Foundation workout. Felt really strong today.", time: "9:15 AM", date: "Today" },
+          { from: "me", text: "That's awesome Jake! How did the squats feel? Were you able to hit the weight we talked about?", time: "9:22 AM", date: "Today" },
+          { from: "them", text: "Yes! Hit 225 for all 5 sets. Form felt solid.", time: "9:25 AM", date: "Today" },
+          { from: "me", text: "Great work. Let's bump it up to 230 next session. Make sure you're getting enough protein today — at least 150g.", time: "9:30 AM", date: "Today" },
+          { from: "them", text: "Will do. Thanks coach!", time: "9:32 AM", date: "Today" },
+        ]
+      },
+      {
+        id: 2, name: "Sarah Kim", role: "client", roleClass: "msg-role-client",
+        status: "online", unread: true,
+        messages: [
+          { from: "them", text: "Hi! I wanted to ask about modifying tomorrow's HIIT session. My knee has been a bit sore.", time: "2:10 PM", date: "Yesterday" },
+          { from: "me", text: "Absolutely, let's swap out the jump squats for goblet squats and replace jumping lunges with reverse lunges. That should be much easier on your knee.", time: "2:18 PM", date: "Yesterday" },
+          { from: "them", text: "Perfect, thank you! Should I still do the same number of rounds?", time: "2:20 PM", date: "Yesterday" },
+          { from: "me", text: "Yes, keep the same structure. If the knee feels fine during the workout, you can add the jumps back in the last round. Listen to your body.", time: "2:25 PM", date: "Yesterday" },
+        ]
+      },
+      {
+        id: 3, name: "Priya Patel", role: "client", roleClass: "msg-role-client",
+        status: "offline", unread: false,
+        messages: [
+          { from: "me", text: "Hey Priya! I noticed you've been crushing it this week — 4 workouts already. Keep it up!", time: "10:00 AM", date: "Apr 7" },
+          { from: "them", text: "Thank you! I'm really enjoying the new program. The deadlift sessions are my favorite.", time: "11:30 AM", date: "Apr 7" },
+          { from: "me", text: "Love to hear that. I'm going to add a PR challenge for you next week. Get ready!", time: "11:45 AM", date: "Apr 7" },
+        ]
+      },
+      {
+        id: 4, name: "Tom Wilson", role: "client", roleClass: "msg-role-client",
+        status: "offline", unread: false,
+        messages: [
+          { from: "me", text: "Hey Tom, I noticed you haven't logged a workout in a while. Everything okay?", time: "3:00 PM", date: "Apr 5" },
+          { from: "me", text: "No pressure — just checking in. Let me know if you want to adjust your program or schedule.", time: "3:01 PM", date: "Apr 5" },
+          { from: "them", text: "Hey, sorry — work has been crazy. I'll get back on track this week.", time: "8:15 PM", date: "Apr 5" },
+          { from: "me", text: "No worries at all. When you're ready, try the 20-Min Torch — it's a quick one for busy days.", time: "8:30 PM", date: "Apr 5" },
+        ]
+      },
+      {
+        id: 5, name: "Dr. Sarah Mitchell", role: "nutritionist", roleClass: "msg-role-nutritionist",
+        status: "online", unread: false,
+        messages: [
+          { from: "them", text: "Hi, I have a shared client — Jake Roberts. He mentioned he's struggling to hit his protein goals. Want to coordinate?", time: "1:00 PM", date: "Apr 6" },
+          { from: "me", text: "Absolutely. He's on a strength program and I recommended 150g/day. What are you seeing on his food logs?", time: "1:15 PM", date: "Apr 6" },
+          { from: "them", text: "He's averaging about 110g. I'm going to adjust his meal plan to include more protein-rich snacks between meals.", time: "1:20 PM", date: "Apr 6" },
+          { from: "me", text: "Perfect. That'll make a big difference. Thanks for the collaboration.", time: "1:25 PM", date: "Apr 6" },
+        ]
+      },
+      {
+        id: 6, name: "Emma Chen", role: "client", roleClass: "msg-role-client",
+        status: "offline", unread: false,
+        messages: [
+          { from: "them", text: "Coach, I just bought the Deadlift Domination plan. Any tips before I start?", time: "4:00 PM", date: "Apr 1" },
+          { from: "me", text: "Good call on that one. Start with Week 1 — focus on form over weight. Record yourself on the main lifts so we can review together.", time: "4:15 PM", date: "Apr 1" },
+          { from: "them", text: "Will do! Really excited to get started.", time: "4:20 PM", date: "Apr 1" },
+        ]
+      },
+      {
+        id: 7, name: "Marcus Johnson", role: "trainer", roleClass: "msg-role-trainer",
+        status: "online", unread: true,
+        messages: [
+          { from: "them", text: "Hey! I saw you have a client doing my 5x5 program. How's their progress?", time: "11:00 AM", date: "Today" },
+          { from: "me", text: "Jake is doing great on it. Hit 225 squats for 5x5 today. Really solid progression.", time: "11:10 AM", date: "Today" },
+          { from: "them", text: "Nice! If he's ready, Week 5 has a deload built in. Make sure he takes it — it sets up the PR attempt in Week 6.", time: "11:15 AM", date: "Today" },
+        ]
+      },
+    ];
+
+    let activeConversation = null;
+
+    // Render contact list
+    function renderContacts(filter) {
+      const list = document.getElementById('msgList');
+      const search = (filter || '').toLowerCase();
+      const filtered = conversations.filter(c =>
+        c.name.toLowerCase().includes(search)
+      );
+
+      list.innerHTML = filtered.map(c => {
+        const initials = c.name.split(' ').map(n => n[0]).join('');
+        const lastMsg = c.messages[c.messages.length - 1];
+        const preview = lastMsg ? (lastMsg.from === 'me' ? 'You: ' : '') + lastMsg.text : '';
+        const time = lastMsg ? lastMsg.time : '';
+        const isActive = activeConversation === c.id;
+
+        return `
+          <div class="msg-contact ${isActive ? 'active' : ''}" onclick="openConversation(${c.id})">
+            <div class="msg-contact-avatar" style="background:${c.status === 'online' ? 'var(--accent-dark)' : 'var(--text)'};">${initials}</div>
+            <div class="msg-contact-info">
+              <div class="msg-contact-name">
+                <span>${c.name}<span class="msg-role-tag ${c.roleClass}">${c.role}</span></span>
+                <span class="msg-contact-time">${time}</span>
+              </div>
+              <div class="msg-contact-preview">${preview}</div>
+            </div>
+            ${c.unread ? '<div class="msg-contact-badge"></div>' : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function filterContacts() {
+      renderContacts(document.getElementById('msgSearch').value);
+    }
+
+    // Open conversation
+    function openConversation(id) {
+      activeConversation = id;
+      const c = conversations.find(conv => conv.id === id);
+      if (!c) return;
+
+      c.unread = false;
+      renderContacts(document.getElementById('msgSearch').value);
+
+      document.getElementById('msgEmpty').style.display = 'none';
+      const chatArea = document.getElementById('msgChatArea');
+      chatArea.style.display = 'flex';
+
+      const initials = c.name.split(' ').map(n => n[0]).join('');
+      document.getElementById('msgChatHeader').innerHTML = `
+        <button class="msg-back-btn" onclick="backToContacts()">&#8592; Back</button>
+        <div class="msg-contact-avatar" style="background:${c.status === 'online' ? 'var(--accent-dark)' : 'var(--text)'};">${initials}</div>
+        <div class="msg-chat-header-info">
+          <h3>${c.name} <span class="msg-role-tag ${c.roleClass}">${c.role}</span></h3>
+          <span>${c.status === 'online' ? 'Online' : 'Offline'}</span>
+        </div>
+      `;
+
+      // Mobile: show chat, hide sidebar
+      if (window.innerWidth <= 768) {
+        document.getElementById('msgSidebar').classList.add('mobile-hidden');
+        document.getElementById('msgChat').classList.add('mobile-open');
+      }
+
+      renderMessages(c);
+      document.getElementById('msgInput').focus();
+    }
+
+    function renderMessages(c) {
+      const container = document.getElementById('msgChatMessages');
+      let html = '';
+      let lastDate = '';
+
+      c.messages.forEach(m => {
+        if (m.date !== lastDate) {
+          html += `<div class="msg-date-divider">${m.date}</div>`;
+          lastDate = m.date;
+        }
+        const cls = m.from === 'me' ? 'msg-bubble-sent' : 'msg-bubble-received';
+        html += `
+          <div class="msg-bubble ${cls}">
+            <p>${m.text}</p>
+            <div class="msg-bubble-time">${m.time}</div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+      container.scrollTop = container.scrollHeight;
+    }
+
+    // Send message
+    function sendMessage() {
+      const input = document.getElementById('msgInput');
+      const text = input.value.trim();
+      if (!text || !activeConversation) return;
+
+      const c = conversations.find(conv => conv.id === activeConversation);
+      if (!c) return;
+
+      const now = new Date();
+      const hours = now.getHours();
+      const mins = now.getMinutes().toString().padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const timeStr = `${hours % 12 || 12}:${mins} ${ampm}`;
+
+      c.messages.push({ from: 'me', text, time: timeStr, date: 'Today' });
+      input.value = '';
+      renderMessages(c);
+      renderContacts(document.getElementById('msgSearch').value);
+
+      // Simulate reply after a delay
+      setTimeout(() => {
+        const replies = [
+          "Got it, thanks!",
+          "Sounds good!",
+          "I'll keep that in mind.",
+          "Appreciate the update!",
+          "Perfect, will do.",
+          "Thanks for letting me know!",
+        ];
+        const reply = replies[Math.floor(Math.random() * replies.length)];
+        const replyNow = new Date();
+        const rh = replyNow.getHours();
+        const rm = replyNow.getMinutes().toString().padStart(2, '0');
+        const ra = rh >= 12 ? 'PM' : 'AM';
+
+        c.messages.push({ from: 'them', text: reply, time: `${rh % 12 || 12}:${rm} ${ra}`, date: 'Today' });
+        if (activeConversation === c.id) renderMessages(c);
+        renderContacts(document.getElementById('msgSearch').value);
+      }, 1500 + Math.random() * 2000);
+    }
+
+    function backToContacts() {
+      document.getElementById('msgSidebar').classList.remove('mobile-hidden');
+      document.getElementById('msgChat').classList.remove('mobile-open');
+      activeConversation = null;
+      document.getElementById('msgEmpty').style.display = '';
+      document.getElementById('msgChatArea').style.display = 'none';
+    }
+
+    // Init
+    renderContacts();
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>

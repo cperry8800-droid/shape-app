@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login — Shape</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      background: var(--bg);
+    }
+
+    .login-page {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      padding: 40px 24px;
+    }
+
+    .login-wrapper {
+      width: 100%; max-width: 420px;
+    }
+
+    .back-link {
+      display: block; text-align: center;
+      color: var(--text-muted); font-size: 0.82rem; font-weight: 400;
+      margin-bottom: 48px; transition: opacity 0.3s;
+      letter-spacing: 0.02em;
+    }
+    .back-link:hover { opacity: 0.5; }
+
+    .login-logo {
+      text-align: center; margin-bottom: 32px;
+    }
+    .login-logo img { height: 76px; margin: 0 auto; }
+
+    .login-tabs {
+      display: flex; gap: 0; margin-bottom: 40px; width: 100%;
+    }
+    .login-tab {
+      flex: 1 1 0; padding: 14px 8px; text-align: center; cursor: pointer;
+      font-weight: 400; font-size: 0.75rem; font-family: inherit;
+      background: none; color: var(--text-muted); border: none;
+      border-bottom: 1px solid var(--border);
+      transition: all 0.3s;
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .login-tab.active {
+      color: var(--text); font-weight: 500;
+      border-bottom: 1px solid var(--text);
+    }
+    .login-tab:hover:not(.active) { color: var(--text); }
+
+    .login-panel {
+      display: none;
+    }
+    .login-panel.active { display: block; }
+
+    .login-heading {
+      font-size: clamp(1.1rem, 1.8vw, 1.3rem); font-weight: 300;
+      letter-spacing: -0.04em; margin-bottom: 8px; text-align: center;
+    }
+    .login-subtitle {
+      color: var(--text-muted); font-size: 0.92rem; font-weight: 300;
+      margin-bottom: 36px; text-align: center;
+    }
+
+    .form-group { margin-bottom: 24px; text-align: center; }
+    .form-group label {
+      display: block; font-size: 0.78rem; font-weight: 500;
+      margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .form-group input {
+      width: 100%; padding: 14px 0; border-radius: 0;
+      border: none; border-bottom: 1px solid var(--border);
+      background: transparent; color: var(--text);
+      font-size: 1rem; font-family: inherit;
+      transition: border-color 0.3s; outline: none;
+      text-align: center;
+    }
+    .form-group input:focus { border-color: var(--text); }
+
+    .form-options {
+      display: flex; justify-content: center; align-items: center; gap: 24px;
+      margin-bottom: 32px; font-size: 0.82rem;
+    }
+    .form-options label {
+      display: flex; align-items: center; gap: 6px;
+      cursor: pointer; font-weight: 400; color: var(--text-muted);
+    }
+    .form-options input[type="checkbox"] { accent-color: var(--text); }
+    .form-options a { color: var(--text-muted); font-weight: 400; transition: opacity 0.3s; }
+    .form-options a:hover { opacity: 0.5; }
+
+    .login-footer-text {
+      text-align: center; font-size: 0.88rem; color: var(--text-muted);
+      margin-top: 32px; font-weight: 300;
+    }
+    .login-footer-text a { color: var(--text); font-weight: 500; }
+    .login-footer-text a:hover { opacity: 0.5; }
+
+    @media (max-width: 768px) {
+      .login-wrapper { max-width: 100%; }
+    }
+  </style>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+
+  <div class="login-page">
+    <div class="login-wrapper">
+
+      <a href="home.html" class="back-link">&#8592; Back to home</a>
+
+      <div class="login-logo">
+        <img src="logo.png" alt="Shape">
+      </div>
+
+      <div class="login-tabs">
+        <button class="login-tab active" onclick="switchTab('client')">Client</button>
+        <button class="login-tab" onclick="switchTab('trainer')">Trainer</button>
+        <button class="login-tab" onclick="switchTab('nutritionist')">Nutritionist</button>
+      </div>
+
+      <!-- Client Login -->
+      <div class="login-panel active" id="panel-client">
+        <h2 class="login-heading">Welcome back</h2>
+        <p class="login-subtitle">Log in to your client account</p>
+
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" placeholder="you@example.com" id="clientEmail">
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" placeholder="Enter your password" id="clientPassword">
+        </div>
+
+        <div class="form-options">
+          <label><input type="checkbox" checked> Remember me</label>
+          <a href="#" onclick="event.preventDefault(); shapeForgotPassword();">Forgot password?</a>
+        </div>
+
+        <button class="btn btn-primary btn-block" onclick="demoLogin('client')">Log In</button>
+
+        <p class="login-footer-text">
+          Don't have an account? <a href="signup-client.html">Sign up</a>
+        </p>
+      </div>
+
+      <!-- Trainer Login -->
+      <div class="login-panel" id="panel-trainer">
+        <h2 class="login-heading">Trainer portal</h2>
+        <p class="login-subtitle">Log in to manage your clients and programs</p>
+
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" placeholder="trainer@example.com" id="trainerEmail">
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" placeholder="Enter your password" id="trainerPassword">
+        </div>
+
+        <div class="form-options">
+          <label><input type="checkbox" checked> Remember me</label>
+          <a href="#" onclick="event.preventDefault(); shapeForgotPassword();">Forgot password?</a>
+        </div>
+
+        <button class="btn btn-primary btn-block" onclick="demoLogin('trainer')">Log In</button>
+
+        <p class="login-footer-text">
+          Want to train on Shape? <a href="signup-trainer.html">Apply as a trainer</a>
+        </p>
+      </div>
+
+      <!-- Nutritionist Login -->
+      <div class="login-panel" id="panel-nutritionist">
+        <h2 class="login-heading">Nutritionist portal</h2>
+        <p class="login-subtitle">Log in to manage your clients and meal plans</p>
+
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" placeholder="nutritionist@example.com" id="nutritionistEmail">
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" placeholder="Enter your password" id="nutritionistPassword">
+        </div>
+
+        <div class="form-options">
+          <label><input type="checkbox" checked> Remember me</label>
+          <a href="#" onclick="event.preventDefault(); shapeForgotPassword();">Forgot password?</a>
+        </div>
+
+        <button class="btn btn-primary btn-block" onclick="demoLogin('nutritionist')">Log In</button>
+
+        <p class="login-footer-text">
+          Want to join Shape? <a href="signup-nutritionist.html">Apply as a nutritionist</a>
+        </p>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    function switchTab(type) {
+      document.querySelectorAll('.login-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.login-panel').forEach(p => p.classList.remove('active'));
+
+      const tabs = document.querySelectorAll('.login-tab');
+      if (type === 'trainer') {
+        tabs[1].classList.add('active');
+        document.getElementById('panel-trainer').classList.add('active');
+      } else if (type === 'nutritionist') {
+        tabs[2].classList.add('active');
+        document.getElementById('panel-nutritionist').classList.add('active');
+      } else {
+        tabs[0].classList.add('active');
+        document.getElementById('panel-client').classList.add('active');
+      }
+    }
+
+    async function demoLogin(type) {
+      var emailId = type + 'Email';
+      var passwordId = type + 'Password';
+      var email = document.getElementById(emailId).value.trim();
+      var password = document.getElementById(passwordId).value.trim();
+
+      if (!email || !password) {
+        alert('Please enter both email and password.');
+        return;
+      }
+      if (!window.shapeDb) {
+        alert('Auth client not loaded. Please refresh.');
+        return;
+      }
+
+      var btn = event && event.target;
+      if (btn) { btn.disabled = true; btn.textContent = 'Logging in...'; }
+
+      var res = await window.shapeDb.signIn(email, password);
+      if (res.error) {
+        alert(res.error.message || 'Login failed.');
+        if (btn) { btn.disabled = false; btn.textContent = 'Log In'; }
+        return;
+      }
+      if (!res.profile) {
+        alert('No profile found for this account. Please sign up.');
+        if (btn) { btn.disabled = false; btn.textContent = 'Log In'; }
+        return;
+      }
+      var has = window.shapeDb.profileHasRole(res.profile, type);
+      if (!has) {
+        alert("This account doesn't have the " + type + " role. Redirecting to your dashboard.");
+        window.location.href = window.shapeDb.dashboardFor(res.profile.role);
+        return;
+      }
+      // User holds the requested role — route directly to that dashboard.
+      window.location.href = window.shapeDb.dashboardFor(type);
+    }
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script>
+    async function shapeForgotPassword() {
+      // Find the email from whichever login panel is active.
+      var active = document.querySelector('.login-panel.active');
+      var emailInput = active && active.querySelector('input[type="email"]');
+      var email = emailInput ? emailInput.value.trim() : '';
+      if (!email) {
+        alert('Enter your email above first, then click "Forgot password?" again.');
+        if (emailInput) emailInput.focus();
+        return;
+      }
+      if (!window.shapeDb) { alert('Auth client not loaded. Please refresh.'); return; }
+      var redirectTo = window.location.origin + '/reset-password.html';
+      var res = await window.shapeDb.client.auth.resetPasswordForEmail(email, { redirectTo: redirectTo });
+      if (res.error) {
+        alert(res.error.message || 'Could not send reset email.');
+        return;
+      }
+      alert('Password reset link sent to ' + email + '. Check your inbox.');
+    }
+  </script>
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>

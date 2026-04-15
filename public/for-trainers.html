@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape — For Trainers</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .ft-hero { padding: 110px 0 30px; text-align: center; }
+    .ft-hero h1 { font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 300; letter-spacing: -0.04em; line-height: 1.1; margin-bottom: 20px; }
+    .ft-hero p { font-size: clamp(1rem, 1.2vw, 1.15rem); color: var(--text-muted); font-weight: 300; max-width: 520px; margin: 0 auto; line-height: 1.8; }
+
+    .ft-stats { padding: 18px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .ft-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; text-align: center; padding: 0; }
+    .ft-stat-value { font-size: clamp(0.95rem, 1.3vw, 1.1rem); font-weight: 300; background: var(--gradient-text); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 2px; }
+    .ft-stat-label { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 400; }
+
+    .ft-how { padding: 44px 0; }
+    .ft-how .section-header { margin-bottom: 28px; }
+    .ft-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+    .ft-step { text-align: center; }
+    .ft-step-num { display: none; }
+    .ft-step h3 { font-size: 0.95rem; font-weight: 500; margin-bottom: 8px; }
+    .ft-step p { font-size: 0.86rem; color: var(--text-muted); font-weight: 300; line-height: 1.6; }
+
+    .ft-features { padding: 80px 0; }
+    .ft-features .section-header { margin-bottom: 48px; }
+    .ft-features-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .ft-feature {
+      background: var(--bg-card); border: 1px solid var(--border); padding: 32px;
+      display: flex; gap: 16px; align-items: flex-start;
+      transition: transform 0.3s, box-shadow 0.3s;
+    }
+    .ft-feature:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,0.06); }
+    .ft-feature-icon { font-size: 0.82rem; font-weight: 500; color: var(--accent-dark); flex-shrink: 0; margin-top: 4px; letter-spacing: 0.02em; }
+    .ft-feature h3 { font-size: 1rem; font-weight: 500; margin-bottom: 6px; }
+    .ft-feature p { font-size: 0.88rem; color: var(--text-muted); font-weight: 300; line-height: 1.6; }
+
+    .ft-earnings { padding: 80px 0; }
+    .ft-earnings .section-header { margin-bottom: 48px; }
+    .ft-earnings-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
+    .ft-earnings-card { background: var(--bg-card); border: 1px solid var(--border); padding: 40px; }
+    .ft-earnings-card h3 { font-size: 1.1rem; font-weight: 500; margin-bottom: 20px; }
+    .ft-earning-row { display: flex; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid var(--border); font-size: 0.92rem; }
+    .ft-earning-row:last-child { border-bottom: none; }
+    .ft-earning-label { color: var(--text-muted); font-weight: 300; }
+    .ft-earning-value { font-weight: 600; }
+    .ft-earning-highlight { color: var(--accent-dark); font-weight: 700; font-size: 1.1rem; }
+    .ft-earnings-info h3 { font-size: clamp(1.2rem, 2vw, 1.4rem); font-weight: 300; margin-bottom: 16px; letter-spacing: -0.03em; }
+    .ft-earnings-info p { font-size: 0.95rem; color: var(--text-muted); font-weight: 300; line-height: 1.8; margin-bottom: 16px; }
+    .ft-earnings-info ul { list-style: none; padding: 0; }
+    .ft-earnings-info li { padding: 8px 0; font-size: 0.92rem; display: flex; align-items: center; gap: 10px; }
+    .ft-earnings-info li span { color: var(--text-muted); font-weight: 400; }
+
+    .ft-testimonial { padding: 80px 0; text-align: center; }
+    .ft-quote { max-width: 700px; margin: 0 auto; font-size: 1.2rem; font-weight: 300; line-height: 1.8; color: var(--text-muted); font-style: italic; margin-bottom: 24px; }
+    .ft-quote-author { font-size: 0.92rem; font-weight: 500; }
+    .ft-quote-role { font-size: 0.82rem; color: var(--text-muted); font-weight: 400; }
+
+    @media (max-width: 900px) {
+      .ft-hero { padding: 100px 0 20px; }
+      .ft-hero h1 { font-size: clamp(1.4rem, 5vw, 2rem); }
+      .ft-stats-grid { grid-template-columns: repeat(2, 1fr); gap: 24px; }
+      .ft-steps { grid-template-columns: 1fr; gap: 20px; }
+      .ft-features-grid { grid-template-columns: 1fr; }
+      .ft-earnings-layout { grid-template-columns: 1fr; }
+      .ft-how { padding: 28px 0; }
+      .ft-features { padding: 36px 0; }
+      .ft-earnings { padding: 36px 0; }
+      .ft-testimonial { padding: 36px 0; }
+      .ft-stats { padding: 14px 0; }
+    }
+  </style>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar" id="navbar">
+    <div class="container nav-container">
+      <a href="home.html" class="logo">
+        <img src="logo.png" alt="Shape" class="logo-img">
+      </a>
+      <div class="nav-links" id="navLinks">
+        <div class="nav-dropdown">
+          <a href="for-clients.html">Clients</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-clients.html">Overview</a>
+            <a href="clients.html">Dashboard</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-trainers.html">Trainers</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-trainers.html">Overview</a>
+            <a href="trainer-dashboard.html">Trainer Dashboard</a>
+            <a href="trainers.html">Trainer Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-nutritionists.html">Nutritionists</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-nutritionists.html">Overview</a>
+            <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+            <a href="nutritionists.html">Nutritionist Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="shape-score.html">Rewards</a>
+          <div class="nav-dropdown-menu">
+            <a href="shape-score.html">Shape Score (Clients)</a>
+            <a href="shape-score-trainer.html">Shape Score (Trainers)</a>
+            <a href="shape-score-nutritionist.html">Shape Score (Nutritionists)</a>
+            <a href="shape-store.html">Shape Store</a>
+          </div>
+        </div>
+        <a href="community.html">Community</a>
+        <a href="pricing.html">Pricing</a>
+      </div>
+      <div class="nav-actions">
+        <a href="login.html" class="btn btn-sm btn-outline shape-auth-logged-out">Log In</a>
+        <span class="shape-auth-logged-in shape-nav-user-name" style="display:none;font-size:0.82rem;color:var(--text-muted);margin-right:4px;"></span>
+        <a href="clients.html" class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" data-shape-dashboard-link>Dashboard</a>
+        <button class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" onclick="shapeSignOut()">Sign Out</button>
+        <a href="landing.html" class="btn btn-sm btn-primary shape-auth-logged-out">Get Started</a>
+        <a href="radio.html" class="btn btn-sm btn-radio"><span class="btn-shape-text"><img src="logo.png" alt="Shape"></span> Radio</a>
+      </div>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="ft-hero">
+    <div class="container">
+      <span class="tag">For Trainers</span>
+      <h1>Build your brand. Start your <span class="gradient-text">business</span>.</h1>
+      <p>Shape puts your training business in front of thousands of members actively looking for custom programs. Build your profile, sell your sessions, and let us handle the marketing. It costs nothing to join.</p>
+    </div>
+  </section>
+
+  <!-- Stats -->
+  <section class="ft-stats">
+    <div class="container">
+      <div class="ft-stats-grid">
+        <div>
+          <div class="ft-stat-value">10k+</div>
+          <div class="ft-stat-label">Active Members Browsing</div>
+        </div>
+        <div>
+          <div class="ft-stat-value">$0</div>
+          <div class="ft-stat-label">Cost to Join</div>
+        </div>
+        <div>
+          <div class="ft-stat-value">100%</div>
+          <div class="ft-stat-label">Your Brand, Your Way</div>
+        </div>
+        <div>
+          <div class="ft-stat-value">24/7</div>
+          <div class="ft-stat-label">Marketing by Shape</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Exposure -->
+  <section class="ft-how section-alt">
+    <div class="container">
+      <div class="section-header">
+        <span class="tag">Exposure</span>
+        <h2>We bring the clients to you</h2>
+        <p>Stop spending time and money finding clients. Shape's marketplace puts you in front of members who are ready to subscribe.</p>
+      </div>
+      <div class="ft-steps">
+        <div class="ft-step">
+          <div class="ft-step-num" style="display:none;">1</div>
+          <h3>Instant Visibility</h3>
+          <p>Your profile goes live in our Trainer Marketplace the moment you're approved. Thousands of active members can discover you immediately.</p>
+        </div>
+        <div class="ft-step">
+          <div class="ft-step-num" style="display:none;">2</div>
+          <h3>Shape Promotes You</h3>
+          <p>We handle all platform marketing, social media promotion, and member outreach. You focus on training — we focus on filling your subscriber list.</p>
+        </div>
+        <div class="ft-step">
+          <div class="ft-step-num" style="display:none;">3</div>
+          <h3>Trainer of the Month</h3>
+          <p>Top trainers get a dedicated spotlight on the platform with homepage features and community shoutouts that drive massive subscriber growth.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Free to Join -->
+  <section class="ft-earnings section-alt">
+    <div class="container">
+      <div class="ft-earnings-layout" style="grid-template-columns:1fr;max-width:640px;margin:0 auto;">
+        <div class="ft-earnings-info" style="text-align:center;">
+          <span class="tag">Free to Join</span>
+          <h3>No cost to get started. Ever.</h3>
+          <p style="text-align:center;">There are no sign-up fees, no monthly platform charges, and no hidden costs. Shape handles all billing, hosting, and marketing so you can focus on what you do best — training.</p>
+          <ul style="display:inline-flex;flex-direction:column;align-items:center;text-align:center;list-style:none;">
+            <li>Free to join, no upfront costs</li>
+            <li>No monthly fees or minimums</li>
+            <li>Shape handles billing and payments</li>
+            <li>All marketing and promotion included</li>
+            <li>Monthly payouts via direct deposit</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Testimonial -->
+  <section class="ft-testimonial">
+    <div class="container">
+      <span class="tag">From Our Trainers</span>
+      <p class="ft-quote">"I used to spend half my time trying to find clients. Shape changed everything — I just upload my programs and the subscribers come to me. The exposure is unreal."</p>
+      <div class="ft-quote-author">Marcus Johnson</div>
+      <div class="ft-quote-role">Strength & Powerlifting — 1,240 subscribers</div>
+    </div>
+  </section>
+
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <a href="home.html" class="logo">
+            <img src="logo.png" alt="Shape" class="logo-img">
+          </a>
+          <p class="footer-desc">Join the community</p>
+        </div>
+        <div class="footer-col">
+          <h4>Platform</h4>
+          <a href="trainers.html">Trainer Marketplace</a>
+          <a href="nutritionists.html">Nutritionists</a>        <a href="community.html">Community</a>
+          <a href="pricing.html">Pricing</a>
+          <a href="for-clients.html">Clients</a>
+          <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+          <a href="trainer-dashboard.html">Trainer Dashboard</a>
+          <a href="integrations.html">Integrations</a>
+        </div>
+        <div class="footer-col">
+          <h4>Get Started</h4>
+          <a href="signup-client.html">Sign Up as Client</a>
+          <a href="signup-trainer.html">Apply as Trainer</a>
+          <a href="signup-nutritionist.html">Apply as Nutritionist</a>
+        </div>
+        <div class="footer-col">
+          <h4>Support</h4>
+          <a href="help.html">Help Center</a>
+          <a href="contact.html">Contact</a>
+          <a href="radio.html">Shape Radio</a>
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 Shape. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>

@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape — Help Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .help-search {
+      max-width: 560px; margin: 0 auto 56px; text-align: center;
+    }
+    .help-search input {
+      width: 100%; padding: 16px 24px; border-radius: 8px;
+      border: 1px solid var(--border); background: var(--bg-card);
+      color: var(--text); font-family: 'Inter', sans-serif;
+      font-size: 1rem; outline: none; transition: border-color 0.3s;
+    }
+    .help-search input:focus { border-color: rgba(255,255,255,0.25); }
+    .help-search input::placeholder { color: var(--text-muted); }
+
+    .help-categories {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 20px; margin-bottom: 72px;
+    }
+    .help-cat-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 32px 24px; text-align: center;
+      transition: all 0.3s; cursor: pointer;
+    }
+    .help-cat-card:hover { border-color: rgba(255,255,255,0.18); background: var(--bg-alt); }
+    .help-cat-icon {
+      font-size: 1.8rem; margin-bottom: 16px; opacity: 0.7;
+    }
+    .help-cat-card h3 {
+      font-size: 0.95rem; font-weight: 500; margin-bottom: 8px;
+    }
+    .help-cat-card p {
+      font-size: 0.82rem; color: var(--text-muted); font-weight: 300; line-height: 1.6;
+    }
+
+    .faq-section { margin-bottom: 64px; }
+    .faq-section-title {
+      font-size: 0.72rem; font-weight: 500; text-transform: uppercase;
+      letter-spacing: 0.15em; color: var(--text-muted); margin-bottom: 24px;
+    }
+    .faq-item {
+      border-bottom: 1px solid var(--border); padding: 20px 0;
+      cursor: pointer;
+    }
+    .faq-question {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 0.95rem; font-weight: 400;
+    }
+    .faq-question span { transition: transform 0.3s; font-size: 0.8rem; color: var(--text-muted); }
+    .faq-item.open .faq-question span { transform: rotate(45deg); }
+    .faq-answer {
+      max-height: 0; overflow: hidden; transition: max-height 0.4s ease, padding 0.3s ease;
+      font-size: 0.88rem; color: var(--text-muted); font-weight: 300; line-height: 1.7;
+    }
+    .faq-item.open .faq-answer { max-height: 300px; padding-top: 16px; }
+
+    .help-contact {
+      text-align: center; padding: 56px 0;
+      border-top: 1px solid var(--border); margin-top: 40px;
+    }
+    .help-contact h2 {
+      font-size: clamp(1.1rem, 2vw, 1.4rem); font-weight: 300;
+      letter-spacing: -0.03em; margin-bottom: 12px;
+    }
+    .help-contact p {
+      color: var(--text-muted); font-size: 0.88rem; font-weight: 300;
+      margin-bottom: 28px;
+    }
+
+    @media (max-width: 768px) {
+      .help-categories { grid-template-columns: 1fr; }
+    }
+  </style>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+
+  <nav class="navbar" id="navbar">
+    <div class="container nav-container">
+      <a href="home.html" class="logo">
+        <img src="logo.png" alt="Shape" class="logo-img">
+      </a>
+      <div class="nav-links" id="navLinks">
+        <div class="nav-dropdown">
+          <a href="for-clients.html">Clients</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-clients.html">Overview</a>
+            <a href="clients.html">Dashboard</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-trainers.html">Trainers</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-trainers.html">Overview</a>
+            <a href="trainer-dashboard.html">Trainer Dashboard</a>
+            <a href="trainers.html">Trainer Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-nutritionists.html">Nutritionists</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-nutritionists.html">Overview</a>
+            <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+            <a href="nutritionists.html">Nutritionist Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="shape-score.html">Rewards</a>
+          <div class="nav-dropdown-menu">
+            <a href="shape-score.html">Shape Score (Clients)</a>
+            <a href="shape-score-trainer.html">Shape Score (Trainers)</a>
+            <a href="shape-score-nutritionist.html">Shape Score (Nutritionists)</a>
+            <a href="shape-store.html">Shape Store</a>
+          </div>
+        </div>
+        <a href="community.html">Community</a>
+        <a href="pricing.html">Pricing</a>
+      </div>
+      <div class="nav-actions">
+        <a href="login.html" class="btn btn-sm btn-outline shape-auth-logged-out">Log In</a>
+        <span class="shape-auth-logged-in shape-nav-user-name" style="display:none;font-size:0.82rem;color:var(--text-muted);margin-right:4px;"></span>
+        <a href="clients.html" class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" data-shape-dashboard-link>Dashboard</a>
+        <button class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" onclick="shapeSignOut()">Sign Out</button>
+        <a href="landing.html" class="btn btn-sm btn-primary shape-auth-logged-out">Get Started</a>
+        <a href="radio.html" class="btn btn-sm btn-radio"><span class="btn-shape-text"><img src="logo.png" alt="Shape"></span> Radio</a>
+      </div>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Page Hero -->
+  <section class="page-hero" style="padding-bottom:16px;">
+    <div class="container">
+      <span class="tag">Support</span>
+      <h1>Help <span class="gradient-text">Center</span></h1>
+      <p class="page-hero-sub">Find answers, get support, and learn how to get the most out of Shape.</p>
+    </div>
+  </section>
+
+  <!-- Search -->
+  <section class="section" style="padding-top:32px;">
+    <div class="container">
+      <div class="help-search">
+        <input type="text" placeholder="Search for help..." id="helpSearch" oninput="filterFAQs()">
+      </div>
+
+      <!-- Categories -->
+      <div class="help-categories">
+        <div class="help-cat-card" onclick="scrollToSection('faq-getting-started')">
+          <h3>Getting Started</h3>
+          <p>Create your account, set up your profile, and find your first trainer or nutritionist.</p>
+        </div>
+        <div class="help-cat-card" onclick="scrollToSection('faq-subscriptions')">
+          <h3>Subscriptions & Billing</h3>
+          <p>Manage your plan, update payment info, and understand how billing works.</p>
+        </div>
+        <div class="help-cat-card" onclick="scrollToSection('faq-trainers')">
+          <h3>For Trainers</h3>
+          <p>Onboarding, dashboard tools, payouts, and growing your subscriber base.</p>
+        </div>
+        <div class="help-cat-card" onclick="scrollToSection('faq-nutritionists')">
+          <h3>For Nutritionists</h3>
+          <p>Setting up meal plans, managing clients, and getting paid on Shape.</p>
+        </div>
+        <div class="help-cat-card" onclick="scrollToSection('faq-shape-score')">
+          <h3>Shape Score & Rewards</h3>
+          <p>How to earn points, track your streak, and redeem rewards.</p>
+        </div>
+        <div class="help-cat-card" onclick="scrollToSection('faq-account')">
+          <h3>Account & Privacy</h3>
+          <p>Update your info, manage notifications, and control your data.</p>
+        </div>
+      </div>
+
+      <!-- FAQ: Getting Started -->
+      <div class="faq-section" id="faq-getting-started">
+        <div class="faq-section-title">Getting Started</div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">How do I create an account?<span>+</span></div>
+          <div class="faq-answer">Head to the <a href="landing.html" style="color:var(--accent);">Get Started</a> page and choose your role — Client, Trainer, Nutritionist, Gym, or Shape Radio. Fill out the form and you're in. It takes less than a minute.</div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">Is Shape free to join?<span>+</span></div>
+          <div class="faq-answer">Yes. Creating an account is completely free for everyone — clients, trainers, and nutritionists. Clients only pay when they subscribe to a trainer or nutritionist. Trainers and nutritionists pay nothing upfront; Shape takes a small percentage when you get paid.</div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">How do I find a trainer or nutritionist?<span>+</span></div>
+          <div class="faq-answer">Browse the <a href="trainers.html" style="color:var(--accent);">Trainer Marketplace</a> or <a href="nutritionists.html" style="color:var(--accent);">Nutritionist Marketplace</a>. You can filter by specialty, price, rating, and more. Each profile shows their programs, reviews, and pricing so you can find the right fit.</div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">Can I try before I subscribe?<span>+</span></div>
+          <div class="faq-answer">Many trainers and nutritionists offer free introductory content or trial periods. Check individual profiles for available previews. You can also browse the community for recommendations before committing.</div>
+        </div>
+      </div>
+
+      <!-- FAQ: Subscriptions & Billing -->
+      <div class="faq-section" id="faq-subscriptions">
+        <div class="faq-section-title">Subscriptions & Billing</div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">How do subscriptions work?<span>+</span></div>
+          <div class="faq-answer">Subscribe to any trainer or nutritionist on a monthly basis. Your subscription gives you access to their programs, meal plans, and direct communication. Cancel anytime — no contracts, no commitments.</div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">Can I subscribe to multiple trainers?<span>+</span></div>
+          <div class="faq-answer">Absolutely. Subscribe to as many trainers and nutritionists as you want. Many members pair a strength coach with a nutritionist for a complete approach to their fitness.</div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">How do I cancel a subscription?<span>+</span></div>
+          <div class="faq-answer">Go to your client dashboard, find the subscription you want to cancel, and click Cancel. Your access continues until the end of your current billing period. No penalties, no questions asked.</div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">What payment methods are accepted?<span>+</span></div>
+          <div class="faq-answer">Shape accepts all major credit and debit cards, Apple Pay, and Google Pay. All payments are processed securely and encrypted end-to-end.</div>
+        </div>
+      </div>
+
+      <!-- FAQ: For Trainers -->
+      <div class="faq-section" id="faq-trainers">
+        <div class="faq-section-title">For Trainers</div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">How do I become a trainer on Shape?<span>+</span></div>
+          <div class="faq-answer">Apply through the <a href="signup-trainer.html" style="color:var(--accent);">trainer sign-up page</a>. We review your credentials and experience. Once approved, you can build your profile, upload programs, and start accepting subscribers.</div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">How do payouts work for trainers?<span>+</span></div>
+          <div class="faq-answer">Shape handles all billing and payments from your subscribers. You receive monthly payouts via direct deposit. Shape takes a small platform fee — the rest goes directly to you.</div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">Can I set my own prices?<span>+</span></div>
+          <div class="faq-answer">Yes. You have full control over your subscription pricing. Set monthly rates that reflect your experience, specialty, and the value you provide. You can adjust pricing at any time.</div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">What tools does Shape provide for trainers?<span>+</span></div>
+          <div class="faq-answer">Your trainer dashboard includes program builders, client management, progress tracking, messaging, scheduling, and analytics. Shape also handles all marketing and promotion to help you grow your subscriber base.</div>
+        </div>
+      </div>
+
+      <!-- FAQ: For Nutritionists -->
+      <div class="faq-section" id="faq-nutritionists">
+        <div class="faq-section-title">For Nutritionists</div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">How do I join Shape as a nutritionist?<span>+</span></div>
+          <div class="faq-answer">Apply through the <a href="signup-nutritionist.html" style="color:var(--accent);">nutritionist sign-up page</a>. Once your credentials are verified, you can create your profile, build meal plans, and start shaping how your clients eat.</div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">What kind of meal plans can I create?<span>+</span></div>
+          <div class="faq-answer">Build any type of plan — macro-based, calorie-focused, specialty diets, prep guides, and more. Shape gives you the tools to create structured plans with descriptions, timelines, difficulty levels, and pricing.</div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">How do nutritionist payouts work?<span>+</span></div>
+          <div class="faq-answer">Same as trainers — Shape handles all billing from your subscribers. You receive monthly payouts via direct deposit. No invoicing, no chasing payments. Shape takes a small percentage, and everything else is yours.</div>
+        </div>
+      </div>
+
+      <!-- FAQ: Shape Score -->
+      <div class="faq-section" id="faq-shape-score">
+        <div class="faq-section-title">Shape Score & Rewards</div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">What is Shape Score?<span>+</span></div>
+          <div class="faq-answer">Shape Score is our built-in rewards system. Every workout you complete earns you points. Stack them up and redeem for real rewards — discounts, free months, exclusive gear, and nutrition.</div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">How do I earn Shape Score points?<span>+</span></div>
+          <div class="faq-answer">Complete workouts, maintain your streak, hit weekly goals, and stay consistent. The more you train, the more you earn. Bonus points are awarded for milestones and streaks.</div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">What can I redeem my points for?<span>+</span></div>
+          <div class="faq-answer">Redeem points for subscription discounts, free months with your trainers or nutritionists, exclusive Shape merchandise, and nutrition plan credits. New rewards are added regularly.</div>
+        </div>
+      </div>
+
+      <!-- FAQ: Account & Privacy -->
+      <div class="faq-section" id="faq-account">
+        <div class="faq-section-title">Account & Privacy</div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">How do I update my profile information?<span>+</span></div>
+          <div class="faq-answer">Log in to your dashboard and navigate to your account settings. From there you can update your name, email, profile photo, and preferences at any time.</div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">How do I reset my password?<span>+</span></div>
+          <div class="faq-answer">Click "Forgot password?" on the login page. Enter your email address and we'll send you a secure link to reset your password. The link expires after 24 hours.</div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">Is my data secure?<span>+</span></div>
+          <div class="faq-answer">Yes. Shape uses industry-standard encryption for all data in transit and at rest. We never sell your personal information. You can review our full privacy policy for details on how we handle and protect your data.</div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">Can I delete my account?<span>+</span></div>
+          <div class="faq-answer">Yes. Contact our support team through the <a href="contact.html" style="color:var(--accent);">contact page</a> and request account deletion. We'll process your request and remove all your data within 30 days, in accordance with our privacy policy.</div>
+        </div>
+      </div>
+
+      <!-- Still need help? -->
+      <div class="help-contact">
+        <h2>Still need help?</h2>
+        <p>Our support team is here for you. Reach out and we'll get back to you as soon as possible.</p>
+        <a href="contact.html" class="btn btn-sm btn-outline">Contact Support</a>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <a href="home.html" class="logo">
+            <img src="logo.png" alt="Shape" class="logo-img">
+          </a>
+          <p class="footer-desc">Join the community</p>
+        </div>
+        <div class="footer-col">
+          <h4>Platform</h4>
+          <a href="trainers.html">Trainer Marketplace</a>
+          <a href="nutritionists.html">Nutritionists</a>        <a href="community.html">Community</a>
+          <a href="pricing.html">Pricing</a>
+          <a href="for-clients.html">Clients</a>
+          <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+          <a href="trainer-dashboard.html">Trainer Dashboard</a>
+          <a href="integrations.html">Integrations</a>
+        </div>
+        <div class="footer-col">
+          <h4>Get Started</h4>
+          <a href="signup-client.html">Sign Up as Client</a>
+          <a href="signup-trainer.html">Apply as Trainer</a>
+          <a href="signup-nutritionist.html">Apply as Nutritionist</a>
+        </div>
+        <div class="footer-col">
+          <h4>Support</h4>
+          <a href="help.html">Help Center</a>
+          <a href="contact.html">Contact</a>
+          <a href="radio.html">Shape Radio</a>
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 Shape. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+  <script>
+    function toggleFaq(item) {
+      item.classList.toggle('open');
+    }
+
+    function scrollToSection(id) {
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function filterFAQs() {
+      const query = document.getElementById('helpSearch').value.toLowerCase();
+      document.querySelectorAll('.faq-item').forEach(item => {
+        const text = item.textContent.toLowerCase();
+        item.style.display = text.includes(query) ? '' : 'none';
+      });
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>

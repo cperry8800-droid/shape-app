@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trainer Application — Shape</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="signup.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <style>
+    .field-group-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted, #888); font-weight: 600; margin: 22px 0 10px; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+    .field-group-title:first-child { margin-top: 4px; }
+    .form-hint { font-size: 0.7rem; color: var(--text-muted, #888); margin-top: 4px; line-height: 1.4; }
+  </style>
+</head>
+<body>
+
+  <nav class="signup-nav">
+    <a href="landing.html"><img src="logo.png" alt="Shape"></a>
+    <a href="login.html" class="nav-link">Already have an account?</a>
+  </nav>
+
+  <div class="signup-layout">
+    <div class="signup-sidebar sidebar-dark">
+      <div class="sidebar-content">
+        <h2>Grow your<br>training business</h2>
+        <p>Join 200+ trainers earning recurring revenue on Shape's platform.</p>
+        <ul class="sidebar-perks">
+          <li><span class="perk-check">&#10003;</span> Free to join — no upfront costs</li>
+          <li><span class="perk-check">&#10003;</span> Set your own pricing</li>
+          <li><span class="perk-check">&#10003;</span> Publish workout programs</li>
+          <li><span class="perk-check">&#10003;</span> Cash out your balance weekly</li>
+          <li><span class="perk-check">&#10003;</span> Built-in client management</li>
+          <li><span class="perk-check">&#10003;</span> Shape handles billing & marketing</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="signup-form-side">
+      <div class="signup-form-container">
+        <div class="signup-step-indicator">
+          <div class="step-dot active"></div>
+          <div class="step-line"></div>
+          <div class="step-dot"></div>
+          <div class="step-line"></div>
+          <div class="step-dot"></div>
+        </div>
+
+        <h1>Apply as a trainer</h1>
+        <p class="signup-subtitle">Step 1 of 3 — Personal & profile</p>
+
+        <form onsubmit="event.preventDefault(); goToStep(2);" id="step1">
+          <div class="form-row">
+            <div class="form-group"><label>First name</label><input type="text" name="firstName" placeholder="Jane" required></div>
+            <div class="form-group"><label>Last name</label><input type="text" name="lastName" placeholder="Smith" required></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Email</label><input type="email" name="email" placeholder="trainer@example.com" required></div>
+            <div class="form-group"><label>Phone</label><input type="tel" name="phone" placeholder="(555) 123-4567" required></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>City, State / Country</label><input type="text" name="location" placeholder="Austin, TX" required></div>
+            <div class="form-group"><label>Time zone</label><input type="text" name="timezone" placeholder="CST / GMT-6" required></div>
+          </div>
+          <div class="form-group">
+            <label>Profile photo</label>
+            <input type="file" name="profilePhoto" accept="image/*">
+            <div class="form-hint">Headshot or branded photo shown on your public profile.</div>
+          </div>
+          <div class="form-group">
+            <label>Social handles (optional)</label>
+            <input type="text" name="socials" placeholder="@yourig · @yourtt · youtube.com/@you">
+          </div>
+          <button type="submit" class="btn-submit">Continue</button>
+        </form>
+
+        <form onsubmit="event.preventDefault(); goToStep(3);" id="step2" style="display:none;">
+          <div class="field-group-title">Credentials &amp; qualifications</div>
+          <div class="form-group">
+            <label>Certifications</label>
+            <input type="text" name="certifications" placeholder="NASM-CPT, ACE, ISSA, ACSM…" required>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Cert expiration</label><input type="text" name="certExpiry" placeholder="MM/YYYY"></div>
+            <div class="form-group"><label>Degree / school</label><input type="text" name="degree" placeholder="BSc Exercise Sci — UT"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Years coaching</label>
+              <select name="experience" required><option value="">Select…</option><option>1-2 years</option><option>3-5 years</option><option>5-10 years</option><option>10+ years</option></select>
+            </div>
+            <div class="form-group">
+              <label>Liability insurance</label>
+              <select name="insurance" required><option value="">Select…</option><option>Yes</option><option>No</option><option>In progress</option></select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Proof of certification</label><input type="file" name="certProof" accept="image/*,.pdf"></div>
+            <div class="form-group"><label>Insurance document</label><input type="file" name="insuranceDoc" accept="image/*,.pdf"></div>
+          </div>
+
+          <div class="field-group-title">Specialty &amp; focus</div>
+          <div class="form-group">
+            <label>Primary specialty</label>
+            <select name="specialty" required><option value="">Select…</option><option>Strength &amp; Powerlifting</option><option>HIIT &amp; Fat Loss</option><option>At Home Workouts</option><option>Cardio &amp; Endurance</option><option>Functional Fitness</option><option>Bodybuilding</option><option>Sports Performance</option><option>Other</option></select>
+          </div>
+          <div class="form-group"><label>Secondary specialties</label><input type="text" name="secondarySpecialties" placeholder="Mobility, kettlebell, pre/post-natal…"></div>
+          <div class="form-group"><label>Populations you work best with</label><input type="text" name="populations" placeholder="Beginners, athletes, seniors, postpartum…"></div>
+          <div class="form-group"><label>Coaching style</label><input type="text" name="coachingStyle" placeholder="Data-driven, high-energy, technique-first…"></div>
+
+          <div class="field-group-title">Experience</div>
+          <div class="form-row">
+            <div class="form-group"><label>Clients coached (career total)</label><input type="text" name="clientsTotal" placeholder="~120"></div>
+            <div class="form-group">
+              <label>Online coaching experience</label>
+              <select name="onlineExp"><option value="">Select…</option><option>None</option><option>&lt; 1 year</option><option>1-3 years</option><option>3+ years</option></select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Previous platforms</label><input type="text" name="prevPlatforms" placeholder="Trainerize, TrueCoach…"></div>
+            <div class="form-group"><label>Online / in-person split</label><input type="text" name="split" placeholder="e.g. 70 / 30"></div>
+          </div>
+          <div class="form-group">
+            <label>Sample workout plan (optional upload)</label>
+            <input type="file" name="samplePlan" accept="image/*,.pdf,.doc,.docx">
+          </div>
+          <button type="submit" class="btn-submit">Continue</button>
+        </form>
+
+        <form onsubmit="event.preventDefault(); completeSignup();" id="step3" style="display:none;">
+          <div class="field-group-title">Availability &amp; capacity</div>
+          <div class="form-row">
+            <div class="form-group"><label>Max clients you can take</label><input type="number" name="capacity" placeholder="20" min="1"></div>
+            <div class="form-group">
+              <label>Accepting new clients</label>
+              <select name="accepting"><option>Yes</option><option>Waitlist</option><option>Not yet</option></select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Offer 1-on-1 consults</label>
+              <select name="consults"><option>Yes</option><option>No</option></select>
+            </div>
+            <div class="form-group">
+              <label>Response time commitment</label>
+              <select name="responseTime"><option>Within 12 hours</option><option>Within 24 hours</option><option>Within 48 hours</option></select>
+            </div>
+          </div>
+
+          <div class="field-group-title">Pricing</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Monthly subscription</label>
+              <div class="price-input"><span class="price-prefix">$</span><input type="number" name="price" placeholder="29.99" min="5" step="0.01" required><span class="price-suffix">/ mo</span></div>
+            </div>
+            <div class="form-group">
+              <label>Offer free trial</label>
+              <select name="freeTrial"><option>No</option><option>7-day free</option><option>14-day free</option><option>First month 50%</option></select>
+            </div>
+          </div>
+
+          <div class="field-group-title">About you</div>
+          <div class="form-group"><label>Short bio</label><textarea name="bio" rows="3" placeholder="Tell clients about your style and what makes you unique…" required></textarea></div>
+          <div class="form-group"><label>Why join Shape?</label><textarea name="whyJoin" rows="2" placeholder="What excites you about coaching on Shape?" required></textarea></div>
+
+          <div class="field-group-title">Agreement &amp; compliance</div>
+          <label class="checkbox-option"><input type="checkbox" name="agreeTos" required> <span>I agree to the <a href="terms.html">Trainer Agreement</a> &amp; <a href="terms.html">Terms of Service</a></span></label>
+          <label class="checkbox-option"><input type="checkbox" name="agreeCoc" required> <span>I agree to Shape's <a href="terms.html">code of conduct</a></span></label>
+          <label class="checkbox-option"><input type="checkbox" name="agreeVerify" required> <span>I understand my credentials may be verified</span></label>
+          <label class="checkbox-option"><input type="checkbox" name="agreeBgCheck"> <span>Consent to an optional background check (trust-building)</span></label>
+
+          <button type="submit" class="btn-submit" style="margin-top:18px;">Submit Application</button>
+        </form>
+
+        <!-- Pending-approval success screen -->
+        <div id="applicationPending" style="display:none; text-align:center; padding:20px 0;">
+          <div style="font-size:3rem; color:#2DD4BF; margin-bottom:16px;">&#10003;</div>
+          <h2 style="margin-bottom:12px;">Application submitted</h2>
+          <p style="color:var(--text-muted, #888); margin-bottom:8px; font-size:0.95rem;">Thanks for applying to coach on Shape, <span id="pendingName">there</span>.</p>
+          <p style="color:var(--text-muted, #888); margin-bottom:24px; font-size:0.95rem;">Your application is <strong style="color:#F59E0B;">pending review and approval</strong>. Our team will review your credentials and reach out at <strong id="pendingEmail"></strong> within 2&ndash;3 business days.</p>
+          <a href="landing.html" class="btn-submit" style="display:inline-block; text-decoration:none;">Back to home</a>
+        </div>
+
+        <p class="signup-footer-text" id="backLink"><a href="landing.html">&#8592; Back to profile selection</a></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var APPLICATION_RECIPIENT_EMAIL = 'info@theshapecommunity.com';
+
+    let currentStep = 1;
+    function goToStep(step) {
+      document.getElementById('step' + currentStep).style.display = 'none';
+      document.getElementById('step' + step).style.display = 'block';
+      currentStep = step;
+      document.querySelectorAll('.step-dot').forEach((d, i) => d.classList.toggle('active', i < step));
+      document.querySelectorAll('.step-line').forEach((l, i) => l.classList.toggle('active', i < step - 1));
+      const titles = ['Step 1 of 3 — Personal & profile', 'Step 2 of 3 — Credentials, specialty & experience', 'Step 3 of 3 — Availability, pricing & agreements'];
+      document.querySelector('.signup-subtitle').textContent = titles[step - 1];
+      window.scrollTo(0, 0);
+    }
+
+    function gatherApplicationData() {
+      var data = {};
+      document.querySelectorAll('#step1 [name], #step2 [name], #step3 [name]').forEach(function (el) {
+        if (el.type === 'checkbox') { data[el.name] = el.checked ? 'Yes' : 'No'; }
+        else if (el.type === 'file') { data[el.name] = el.files && el.files[0] ? el.files[0].name : ''; }
+        else { data[el.name] = (el.value || '').toString().trim(); }
+      });
+      return data;
+    }
+
+    async function completeSignup() {
+      var data = gatherApplicationData();
+      if (!data.email || !data.firstName || !data.lastName) { alert('Please fill in all required fields.'); return; }
+      var btn = document.querySelector('#step3 .btn-submit');
+      if (btn) { btn.disabled = true; btn.textContent = 'Submitting...'; }
+
+      var payload = new FormData();
+      payload.append('_subject', 'New Trainer Application — ' + data.firstName + ' ' + data.lastName);
+      payload.append('_template', 'table');
+      payload.append('_captcha', 'false');
+      payload.append('Role', 'Trainer');
+      payload.append('Name', data.firstName + ' ' + data.lastName);
+      payload.append('Email', data.email);
+      payload.append('Phone', data.phone || '');
+      payload.append('Location', data.location || '');
+      payload.append('Time Zone', data.timezone || '');
+      payload.append('Profile Photo', data.profilePhoto || '(not uploaded)');
+      payload.append('Socials', data.socials || '');
+      payload.append('Certifications', data.certifications || '');
+      payload.append('Cert Expiration', data.certExpiry || '');
+      payload.append('Degree / School', data.degree || '');
+      payload.append('Years Coaching', data.experience || '');
+      payload.append('Cert Proof', data.certProof || '(not uploaded)');
+      payload.append('Liability Insurance', data.insurance || '');
+      payload.append('Insurance Document', data.insuranceDoc || '(not uploaded)');
+      payload.append('Primary Specialty', data.specialty || '');
+      payload.append('Secondary Specialties', data.secondarySpecialties || '');
+      payload.append('Populations', data.populations || '');
+      payload.append('Coaching Style', data.coachingStyle || '');
+      payload.append('Clients Total', data.clientsTotal || '');
+      payload.append('Previous Platforms', data.prevPlatforms || '');
+      payload.append('Online Experience', data.onlineExp || '');
+      payload.append('Online/In-Person Split', data.split || '');
+      payload.append('Sample Plan', data.samplePlan || '(not uploaded)');
+      payload.append('Capacity', data.capacity || '');
+      payload.append('Accepting New Clients', data.accepting || '');
+      payload.append('Offers 1-on-1 Consults', data.consults || '');
+      payload.append('Response Time', data.responseTime || '');
+      payload.append('Monthly Price', '$' + (data.price || ''));
+      payload.append('Free Trial', data.freeTrial || '');
+      payload.append('Bio', data.bio || '');
+      payload.append('Why Join Shape', data.whyJoin || '');
+      payload.append('Agreed to TOS', data.agreeTos || '');
+      payload.append('Agreed to Code of Conduct', data.agreeCoc || '');
+      payload.append('Credential Verify Ack', data.agreeVerify || '');
+      payload.append('Background Check Consent', data.agreeBgCheck || '');
+      payload.append('Submitted At', new Date().toISOString());
+
+      try {
+        await fetch('https://formsubmit.co/ajax/' + encodeURIComponent(APPLICATION_RECIPIENT_EMAIL), { method: 'POST', body: payload });
+      } catch (err) { console.warn('Application email relay failed:', err); }
+
+      ['step1','step2','step3'].forEach(function(id){ var el = document.getElementById(id); if (el) el.style.display = 'none'; });
+      var backLink = document.getElementById('backLink'); if (backLink) backLink.style.display = 'none';
+      document.querySelector('.signup-subtitle').textContent = 'Pending review and approval';
+      document.querySelector('h1').textContent = 'Thanks for applying';
+      document.getElementById('pendingName').textContent = data.firstName || 'there';
+      document.getElementById('pendingEmail').textContent = data.email;
+      var stepInd = document.querySelector('.signup-step-indicator');
+      if (stepInd) {
+        stepInd.querySelectorAll('.step-dot').forEach(function(d){ d.classList.add('active'); });
+        stepInd.querySelectorAll('.step-line').forEach(function(l){ l.classList.add('active'); });
+      }
+      document.getElementById('applicationPending').style.display = 'block';
+    }
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>
