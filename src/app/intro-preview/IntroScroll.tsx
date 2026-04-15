@@ -21,17 +21,14 @@ export default function IntroScroll() {
         <BeatSection key={src} src={src} index={i} isLast={i === BEATS.length - 1} />
       ))}
       {/* Shape wordmark top-left, white, floats over the video */}
-      {/* Logo: triangles-only SVG (both white) stacked above the real
-          legacy wordmark PNG forced white. */}
-      <div className="pointer-events-none absolute left-6 top-6 z-20 flex flex-col items-center md:left-10 md:top-10">
-        <img src="/logo-triangles-only.svg" alt="" className="h-6 w-auto md:h-7" />
-        <img
-          src="/logo-text-trimmed.png"
-          alt="Shape"
-          className="-mt-1 h-5 w-auto md:-mt-1.5 md:h-6"
-          style={{ filter: 'brightness(0) invert(1)' }}
-        />
-      </div>
+      {/* The real legacy logo, forced to pure white via CSS filter.
+          Single image, locked proportions, nothing to fiddle with. */}
+      <img
+        src="/logo-original.png"
+        alt="Shape"
+        className="pointer-events-none absolute left-6 top-6 z-20 h-16 w-auto md:left-10 md:top-10 md:h-20"
+        style={{ filter: 'brightness(0) invert(1)' }}
+      />
     </main>
   );
 }

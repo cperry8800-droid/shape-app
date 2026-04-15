@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 130" width="200" height="130">
+  <!-- Both triangles white, matching logo-full.svg coordinates -->
+  <polygon points="72,38 72,82 105,60" fill="#FFFFFF"/>
+  <polygon points="128,18 128,62 95,40" fill="#FFFFFF"/>
+  <!-- SHAPE wordmark — thin, wide-tracked, all white -->
+  <text x="100" y="120" text-anchor="middle"
+        font-family="'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-size="28" font-weight="100" letter-spacing="10" fill="#FFFFFF">SHAPE</text>
+</svg>
