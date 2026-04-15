@@ -139,7 +139,7 @@ export default function IntroScroll() {
           <img
             src="/logo-text-trimmed.png"
             alt="Shape"
-            className="h-[0.85em] w-auto [filter:brightness(0)_invert(1)]"
+            className="h-[1.1em] w-auto [filter:brightness(0)_invert(1)]"
           />
         </div>
         <button
