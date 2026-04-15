@@ -21,28 +21,14 @@ export default function IntroScroll() {
         <BeatSection key={src} src={src} index={i} isLast={i === BEATS.length - 1} />
       ))}
       {/* Shape wordmark top-left, white, floats over the video */}
-      {/* Shape logo: two triangles meeting at top, SHAPE wordmark below.
-          Left triangle teal, right triangle white, wordmark white. */}
-      <svg
-        viewBox="0 0 200 140"
-        aria-label="Shape"
+      {/* Use the canonical logo-full.svg from /public. Tweak: bottom-left
+          triangle is already teal, we override the right triangle + text
+          to pure white via a filter so it matches the screenshot. */}
+      <img
+        src="/logo-full.svg"
+        alt="Shape"
         className="pointer-events-none absolute left-6 top-6 z-20 h-14 w-auto md:left-10 md:top-10 md:h-20"
-      >
-        <polygon points="78,22 78,72 108,47" fill="#2DD4BF" />
-        <polygon points="122,22 122,72 92,47" fill="#FFFFFF" />
-        <text
-          x="100"
-          y="120"
-          textAnchor="middle"
-          fontFamily="Inter, Helvetica, Arial, sans-serif"
-          fontSize="24"
-          fontWeight="300"
-          letterSpacing="10"
-          fill="#FFFFFF"
-        >
-          SHAPE
-        </text>
-      </svg>
+      />
     </main>
   );
 }
