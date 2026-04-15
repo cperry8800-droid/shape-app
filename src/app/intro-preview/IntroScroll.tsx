@@ -1,23 +1,25 @@
 'use client';
 
-// Cinematic intro. Three scenes on a single fullscreen canvas:
+// Cinematic intro. Four scenes on a single fullscreen canvas:
 //
 //   Scene 1 — hero (beat-5) with Shape logo and Get Started CTA
 //   Scene 2 — market (beat-6) with sequential one-liners
-//   Scene 4 — client reviewing data (beat-8) with Enter Shape CTA
+//   Scene 4 — client reviewing data (beat-8), last one-liner carries
+//   Scene 5 — closer (beat-9) with "Built around you" + Enter Shape
 //
-// Beat-7 was removed — it was only ~4s long and felt choppy.
 // Transitions are fluid opacity crossfades (~1.4s) so the motion
-// reads as one continuous film.
+// reads as one continuous film. Scene numbers skip 3 because beat-7
+// was cut earlier for feeling choppy.
 
 import { useEffect, useRef, useState } from 'react';
 
 const SCENE_1 = '/intro/beat-5.mp4';
 const SCENE_2 = '/intro/beat-6.mp4';
 const SCENE_4 = '/intro/beat-8.mp4';
+const SCENE_5 = '/intro/beat-9.mp4';
 
 export default function IntroScroll() {
-  const [scene, setScene] = useState<1 | 2 | 4>(1);
+  const [scene, setScene] = useState<1 | 2 | 4 | 5>(1);
   const [step, setStep] = useState(0); // 0 = none, 1..4 = which line
   const [showHeadline, setShowHeadline] = useState(false);
   // Once the viewer has reached the end of the film, pin the final
@@ -25,9 +27,11 @@ export default function IntroScroll() {
   // scene 1 so nothing freezes.
   const [looped, setLooped] = useState(false);
   const scene4TriggeredRef = useRef(false);
+  const scene5TriggeredRef = useRef(false);
   const video1Ref = useRef<HTMLVideoElement>(null);
   const video2Ref = useRef<HTMLVideoElement>(null);
   const video4Ref = useRef<HTMLVideoElement>(null);
+  const video5Ref = useRef<HTMLVideoElement>(null);
   const wordTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
@@ -35,7 +39,7 @@ export default function IntroScroll() {
     // and force-load their first frame so there's no transparent gap
     // when the crossfade begins.
     video1Ref.current?.play().catch(() => {});
-    [video2Ref, video4Ref].forEach((r) => {
+    [video2Ref, video4Ref, video5Ref].forEach((r) => {
       const v = r.current;
       if (!v) return;
       v.load();
@@ -49,7 +53,7 @@ export default function IntroScroll() {
     // chain, because those late pauses would fight the real scene
     // transitions and freeze the film.
     const unlock = () => {
-      [video2Ref, video4Ref].forEach((r) => {
+      [video2Ref, video4Ref, video5Ref].forEach((r) => {
         const v = r.current;
         if (!v) return;
         try {
@@ -77,11 +81,11 @@ export default function IntroScroll() {
     };
   }, []);
 
-  // "Built around you" fades in 0.5s after scene 4 actually begins
+  // "Built around you" fades in 0.5s after scene 5 actually begins
   // (not when the word sequence says it should), and fades out again
-  // whenever we leave scene 4 — e.g. during the background loop.
+  // whenever we leave scene 5 — e.g. during the background loop.
   useEffect(() => {
-    if (scene !== 4) {
+    if (scene !== 5) {
       setShowHeadline(false);
       return;
     }
@@ -99,21 +103,18 @@ export default function IntroScroll() {
     // crossfade reveals it.
     setTimeout(() => setScene(2), 120);
 
-    // Schedule the four one-liners so they're evenly spaced across the
-    // combined runtime of scene 2 + scene 4 — each line gets real
-    // breathing room regardless of individual clip length.
+    // Spread the four one-liners across scenes 2 + 4 (scene 5 holds
+    // the headline + final CTAs, so the words don't need to stretch
+    // into it). Derived from real durations so pacing stays matched
+    // to the clips.
     const v4 = video4Ref.current;
-    const d2 = Number.isFinite(v2?.duration) ? (v2!.duration as number) : 10;
+    const d2 = Number.isFinite(v2?.duration) ? (v2!.duration as number) : 14;
     const d4 = Number.isFinite(v4?.duration) ? (v4!.duration as number) : 8;
     const total = (d2 + d4) * 1000; // ms
     const head = 600;
     const tail = 1400;
-    // Each line holds on screen for 4s before the next one takes over.
-    // Uses fixed timing so pacing feels the same regardless of which
-    // video is currently behind the words.
-    void total;
-    void tail;
-    const slot = 3100;
+    const span = total - head - tail;
+    const slot = span / 4;
     // Four one-liners, each holding for `slot` ms. The headline is
     // driven separately off the scene 4 transition (see useEffect).
     const timers = [
@@ -138,24 +139,34 @@ export default function IntroScroll() {
     setTimeout(() => setScene(4), 120);
   };
 
-  // When scene 4 finishes, loop the whole film back to scene 1. The
+  const goToScene5 = () => {
+    if (scene5TriggeredRef.current) return;
+    scene5TriggeredRef.current = true;
+    const v = video5Ref.current;
+    if (v) {
+      v.currentTime = 0;
+      v.play().catch(() => {});
+    }
+    setTimeout(() => setScene(5), 120);
+  };
+
+  // When scene 5 finishes, loop the whole film back to scene 1. The
   // final CTAs remain pinned on top via `looped`.
   const loopBackToScene1 = () => {
     setLooped(true);
     scene4TriggeredRef.current = false;
+    scene5TriggeredRef.current = false;
     const v1 = video1Ref.current;
     const v2 = video2Ref.current;
     const v4 = video4Ref.current;
+    const v5 = video5Ref.current;
     if (v1) {
       v1.currentTime = 0;
       v1.play().catch(() => {});
     }
-    if (v2) {
-      v2.currentTime = 0;
-    }
-    if (v4) {
-      v4.currentTime = 0;
-    }
+    if (v2) v2.currentTime = 0;
+    if (v4) v4.currentTime = 0;
+    if (v5) v5.currentTime = 0;
     setTimeout(() => setScene(1), 120);
   };
 
@@ -199,16 +210,37 @@ export default function IntroScroll() {
         style={{ opacity: scene === 2 ? 1 : 0 }}
       />
 
-      {/* Scene 4 video — plays once, then loops back to scene 1. */}
+      {/* Scene 4 video — plays once. Crossfades into scene 5 1.2s
+          before its natural end to avoid a frozen last-frame pause. */}
       <video
         ref={video4Ref}
         src={SCENE_4}
         muted
         playsInline
-        onEnded={loopBackToScene1}
+        onTimeUpdate={(e) => {
+          if (scene !== 4) return;
+          const v = e.currentTarget;
+          if (v.duration && v.currentTime >= v.duration - 1.2) {
+            goToScene5();
+          }
+        }}
+        onEnded={goToScene5}
         preload="auto"
         className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-out"
         style={{ opacity: scene === 4 ? 1 : 0 }}
+      />
+
+      {/* Scene 5 video — closer (beat-9). Plays once, then loops the
+          whole film back to scene 1. */}
+      <video
+        ref={video5Ref}
+        src={SCENE_5}
+        muted
+        playsInline
+        onEnded={loopBackToScene1}
+        preload="auto"
+        className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-out"
+        style={{ opacity: scene === 5 ? 1 : 0 }}
       />
 
       {/* Shape triangles — exact logo-full.svg geometry */}
@@ -256,10 +288,10 @@ export default function IntroScroll() {
             key={line}
             className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 z-10 px-6 text-center"
             style={{
-              // Fade the last line out the moment scene 4 begins so
-              // "One community" doesn't linger into the headline.
+              // Fade the last line out the moment scene 5 begins so
+              // the final one-liner doesn't linger into the headline.
               opacity:
-                !looped && step === i + 1 && !(i === 3 && scene === 4)
+                !looped && step === i + 1 && !(i === 3 && scene === 5)
                   ? 1
                   : 0,
               transition: 'opacity 900ms ease-out',
@@ -272,12 +304,12 @@ export default function IntroScroll() {
         )
       )}
 
-      {/* Scene 4 headline — fades in half a second after scene 4
+      {/* Scene 5 headline — fades in half a second after scene 5
           begins and fades out again when the film loops. */}
       <div
         className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 z-10 px-6 text-center transition-opacity duration-[1000ms] ease-out"
         style={{
-          opacity: scene === 4 && showHeadline && !looped ? 1 : 0,
+          opacity: scene === 5 && showHeadline && !looped ? 1 : 0,
         }}
       >
         <div className="text-[clamp(2rem,5vw,4rem)] font-light leading-tight tracking-[-0.03em] text-white">
@@ -285,14 +317,14 @@ export default function IntroScroll() {
         </div>
       </div>
 
-      {/* Scene 4 final CTA — comes in a beat after the headline and
+      {/* Scene 5 final CTA — comes in a beat after the headline and
           stays pinned on top for every loop iteration. */}
       <div
         className="absolute inset-x-0 bottom-[10vh] z-10 flex flex-col items-center gap-4 px-6 text-center transition-opacity duration-[1000ms] ease-out"
         style={{
-          opacity: (scene === 4 && showHeadline) || looped ? 1 : 0,
-          pointerEvents: (scene === 4 && showHeadline) || looped ? 'auto' : 'none',
-          transitionDelay: scene === 4 && showHeadline && !looped ? '900ms' : '0ms',
+          opacity: (scene === 5 && showHeadline) || looped ? 1 : 0,
+          pointerEvents: (scene === 5 && showHeadline) || looped ? 'auto' : 'none',
+          transitionDelay: scene === 5 && showHeadline && !looped ? '900ms' : '0ms',
         }}
       >
         <a
