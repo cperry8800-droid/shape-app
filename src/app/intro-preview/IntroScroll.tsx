@@ -92,12 +92,11 @@ export default function IntroScroll() {
         style={{ opacity: scene === 1 ? 1 : 0 }}
       />
 
-      {/* Scene 2 video */}
+      {/* Scene 2 video — no loop so the clip end doesn't restart */}
       <video
         ref={video2Ref}
         src={SCENE_2}
         muted
-        loop
         playsInline
         preload="auto"
         className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-out"
