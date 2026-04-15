@@ -108,11 +108,7 @@ function BeatSection({
         {/* Final CTA floats over the last clip */}
         {isLast && (
           <div
-            className="absolute inset-x-0 bottom-[12vh] z-10 flex flex-col items-center gap-4 px-6 text-center"
-            style={{
-              opacity: progress < 0.2 ? 0 : Math.min(1, (progress - 0.2) / 0.2),
-              transition: 'opacity 0.1s linear',
-            }}
+            className="absolute inset-x-0 bottom-[10vh] z-10 flex flex-col items-center gap-4 px-6 text-center"
           >
             <Link
               href="/trainers"
