@@ -62,12 +62,15 @@ export default function IntroScroll() {
     const tail = 1400;
     const span = total - head - tail;
     const slot = span / 4;
+    // Last line gets ~2s on screen before "Built around you" takes
+    // over — lets the headline land in the middle of scene 4 instead
+    // of clinging to the end.
     const timers = [
       setTimeout(() => setStep(1), head + slot * 0 + 120),
       setTimeout(() => setStep(2), head + slot * 1 + 120),
       setTimeout(() => setStep(3), head + slot * 2 + 120),
       setTimeout(() => setStep(4), head + slot * 3 + 120),
-      setTimeout(() => setStep(5), head + slot * 4 + 120),
+      setTimeout(() => setStep(5), head + slot * 3 + 120 + 2000),
     ];
     wordTimersRef.current = timers;
   };
