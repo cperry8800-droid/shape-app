@@ -19,11 +19,13 @@ const SCENE_4 = '/intro/beat-8.mp4';
 
 export default function IntroScroll() {
   const [scene, setScene] = useState<1 | 2 | 3 | 4>(1);
+  const [step, setStep] = useState(0); // 0 = none, 1..4 = which line, 5 = done
   const scene4TriggeredRef = useRef(false);
   const video1Ref = useRef<HTMLVideoElement>(null);
   const video2Ref = useRef<HTMLVideoElement>(null);
   const video3Ref = useRef<HTMLVideoElement>(null);
   const video4Ref = useRef<HTMLVideoElement>(null);
+  const wordTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
     // Scene 1 autoplays on mount. Later scenes start paused at frame 0
@@ -36,20 +38,45 @@ export default function IntroScroll() {
       v.load();
       v.currentTime = 0;
     });
+    return () => {
+      wordTimersRef.current.forEach(clearTimeout);
+    };
   }, []);
 
   const goToScene2 = () => {
-    const v = video2Ref.current;
-    if (v) {
-      v.currentTime = 0;
-      v.play().catch(() => {});
+    const v2 = video2Ref.current;
+    const v3 = video3Ref.current;
+    if (v2) {
+      v2.currentTime = 0;
+      v2.play().catch(() => {});
     }
     // Brief head-start so video is rendering before the opacity
     // crossfade reveals it.
     setTimeout(() => setScene(2), 120);
-    // Scene 3 is timed to fire halfway through the copy sequence so
-    // trainer → nutritionist visuals land with the nutritionist line.
-    setTimeout(() => goToScene3(), 12800);
+
+    // Schedule the four one-liners so they're evenly spaced across the
+    // combined runtime of scene 2 + scene 3. This way pacing always
+    // matches the clips — no guessing, no cut-off, no loops needed.
+    const d2 = Number.isFinite(v2?.duration) ? (v2!.duration as number) : 10;
+    const d3 = Number.isFinite(v3?.duration) ? (v3!.duration as number) : 10;
+    const total = (d2 + d3) * 1000; // ms
+    // Leave a small pad at the head so line 1 fades in after the
+    // crossfade lands, and at the tail so line 4 isn't swallowed by
+    // the scene 4 crossfade.
+    const head = 600;
+    const tail = 1400;
+    const span = total - head - tail;
+    const slot = span / 4;
+    const timers = [
+      setTimeout(() => setStep(1), head + slot * 0 + 120),
+      setTimeout(() => setStep(2), head + slot * 1 + 120),
+      setTimeout(() => setStep(3), head + slot * 2 + 120),
+      setTimeout(() => setStep(4), head + slot * 3 + 120),
+      setTimeout(() => setStep(5), head + slot * 4 + 120),
+    ];
+    // Stash the timers on the ref so they can be cleared if the user
+    // navigates away mid-sequence (unmount cleanup below).
+    wordTimersRef.current = timers;
   };
 
   const goToScene3 = () => {
@@ -89,27 +116,34 @@ export default function IntroScroll() {
         style={{ opacity: scene === 1 ? 1 : 0 }}
       />
 
-      {/* Scene 2 video — loops while the one-liners run; scene 3 is
-          triggered on a timer in goToScene2, not on video end. */}
+      {/* Scene 2 video — plays once, hands off to scene 3 on end. */}
       <video
         ref={video2Ref}
         src={SCENE_2}
         muted
-        loop
         playsInline
+        onEnded={goToScene3}
         preload="auto"
         className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-out"
         style={{ opacity: scene === 2 ? 1 : 0 }}
       />
 
-      {/* Scene 3 video — loops; scene 4 is triggered by the copy's
-          onDone callback so pacing is locked to the words. */}
+      {/* Scene 3 video — plays once. Crossfade to scene 4 begins 1.3s
+          before its natural end so there's no frozen-frame pause while
+          the opacity transition runs. */}
       <video
         ref={video3Ref}
         src={SCENE_3}
         muted
-        loop
         playsInline
+        onTimeUpdate={(e) => {
+          if (scene !== 3) return;
+          const v = e.currentTarget;
+          if (v.duration && v.currentTime >= v.duration - 1.3) {
+            goToScene4();
+          }
+        }}
+        onEnded={goToScene4}
         preload="auto"
         className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-out"
         style={{ opacity: scene === 3 ? 1 : 0 }}
@@ -163,10 +197,24 @@ export default function IntroScroll() {
         </button>
       </div>
 
-      {/* Sequential one-liners. Runs on its own cadence independent of
-          video timing; when all four lines have shown, it tells the
-          parent to advance to scene 4. */}
-      <Scene2Copy active={scene !== 1} hide={scene === 4} onDone={goToScene4} />
+      {/* Four one-liners, evenly spaced across the combined runtime of
+          scenes 2 and 3. Timings are set up in goToScene2(). */}
+      {['Real trainers', 'Real nutritionists', 'One platform', 'One community'].map(
+        (line, i) => (
+          <div
+            key={line}
+            className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 z-10 px-6 text-center"
+            style={{
+              opacity: scene !== 4 && step === i + 1 ? 1 : 0,
+              transition: 'opacity 900ms ease-out',
+            }}
+          >
+            <div className="text-[clamp(2rem,5vw,4rem)] font-light leading-tight tracking-[-0.03em] text-white">
+              {line}
+            </div>
+          </div>
+        )
+      )}
 
       {/* Scene 4 headline */}
       <div
@@ -210,61 +258,6 @@ export default function IntroScroll() {
         </a>
       </div>
     </main>
-  );
-}
-
-// Six sequential one-liners that fade in/out across scenes 2, 3, and 4.
-// No Continue button — the film auto-advances through all scenes.
-function Scene2Copy({
-  active,
-  hide,
-  onDone,
-}: {
-  active: boolean;
-  hide: boolean;
-  onDone: () => void;
-}) {
-  const [step, setStep] = useState(0);
-  const startedRef = useRef(false);
-
-  useEffect(() => {
-    // Start the sequence exactly once when the copy first becomes
-    // active. Lines hold their cadence independent of the video
-    // timeline so they can never be cut short by a clip ending.
-    if (!active || startedRef.current) return;
-    startedRef.current = true;
-    const timers = [
-      setTimeout(() => setStep(1), 800),
-      setTimeout(() => setStep(2), 6800),
-      setTimeout(() => setStep(3), 12800),
-      setTimeout(() => setStep(4), 18800),
-      setTimeout(() => {
-        setStep(5);
-        onDone();
-      }, 24800),
-    ];
-    return () => timers.forEach(clearTimeout);
-  }, [active, onDone]);
-
-  const lines = ['Real trainers', 'Real nutritionists', 'One platform', 'One community'];
-
-  return (
-    <>
-      {lines.map((line, i) => (
-        <div
-          key={i}
-          className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 z-10 px-6 text-center"
-          style={{
-            opacity: !hide && step === i + 1 ? 1 : 0,
-            transition: 'opacity 900ms ease-out',
-          }}
-        >
-          <div className="text-[clamp(2rem,5vw,4rem)] font-light leading-tight tracking-[-0.03em] text-white">
-            {line}
-          </div>
-        </div>
-      ))}
-    </>
   );
 }
 
