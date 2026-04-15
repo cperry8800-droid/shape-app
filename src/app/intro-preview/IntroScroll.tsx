@@ -19,6 +19,7 @@ const SCENE_4 = '/intro/beat-8.mp4';
 
 export default function IntroScroll() {
   const [scene, setScene] = useState<1 | 2 | 3 | 4>(1);
+  const scene4TriggeredRef = useRef(false);
   const video1Ref = useRef<HTMLVideoElement>(null);
   const video2Ref = useRef<HTMLVideoElement>(null);
   const video3Ref = useRef<HTMLVideoElement>(null);
@@ -61,6 +62,8 @@ export default function IntroScroll() {
   // no guessing clip durations.
 
   const goToScene4 = () => {
+    if (scene4TriggeredRef.current) return;
+    scene4TriggeredRef.current = true;
     const v = video4Ref.current;
     if (v) {
       v.currentTime = 0;
@@ -95,12 +98,20 @@ export default function IntroScroll() {
         style={{ opacity: scene === 2 ? 1 : 0 }}
       />
 
-      {/* Scene 3 video — ends naturally into scene 4 */}
+      {/* Scene 3 video — crossfade begins slightly before end so there's
+          no frozen last-frame pause while the opacity transition runs */}
       <video
         ref={video3Ref}
         src={SCENE_3}
         muted
         playsInline
+        onTimeUpdate={(e) => {
+          if (scene !== 3) return;
+          const v = e.currentTarget;
+          if (v.duration && v.currentTime >= v.duration - 1.5) {
+            goToScene4();
+          }
+        }}
         onEnded={goToScene4}
         preload="auto"
         className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-out"
@@ -215,10 +226,10 @@ function Scene2Copy({ active }: { active: boolean }) {
     }
     const timers = [
       setTimeout(() => setStep(1), 800),
-      setTimeout(() => setStep(2), 4800),
-      setTimeout(() => setStep(3), 8800),
-      setTimeout(() => setStep(4), 12800),
-      setTimeout(() => setStep(5), 16800),
+      setTimeout(() => setStep(2), 5800),
+      setTimeout(() => setStep(3), 10800),
+      setTimeout(() => setStep(4), 15800),
+      setTimeout(() => setStep(5), 20800),
     ];
     return () => timers.forEach(clearTimeout);
   }, [active]);
