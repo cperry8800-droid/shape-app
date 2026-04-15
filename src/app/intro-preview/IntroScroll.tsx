@@ -49,6 +49,14 @@ export default function IntroScroll() {
     }
   };
 
+  // Auto-advance from scene 3 to scene 4 so the film flows straight
+  // through to the final Enter Shape CTA without a second Continue click.
+  useEffect(() => {
+    if (scene !== 3) return;
+    const t = setTimeout(() => goToScene4(), 5000);
+    return () => clearTimeout(t);
+  }, [scene]);
+
   const goToScene4 = () => {
     setScene(4);
     const v = video4Ref.current;
@@ -138,9 +146,6 @@ export default function IntroScroll() {
 
       {/* Scene 2 sequential one-liners + Continue -> scene 3 */}
       <Scene2Copy active={scene === 2} onContinue={goToScene3} />
-
-      {/* Scene 3 Continue -> scene 4 */}
-      <Scene3Copy active={scene === 3} onContinue={goToScene4} />
 
       {/* Scene 4 headline */}
       <div
@@ -242,46 +247,3 @@ function Scene2Copy({
   );
 }
 
-// Scene 3: one-liner over trainer + nutritionist, then Continue -> scene 4.
-function Scene3Copy({
-  active,
-  onContinue,
-}: {
-  active: boolean;
-  onContinue: () => void;
-}) {
-  const [step, setStep] = useState(0);
-
-  useEffect(() => {
-    if (!active) {
-      setStep(0);
-      return;
-    }
-    const timers = [
-      setTimeout(() => setStep(1), 1200),
-      setTimeout(() => setStep(2), 2000),
-    ];
-    return () => timers.forEach(clearTimeout);
-  }, [active]);
-
-  return (
-    <>
-      <div
-        className="absolute inset-x-0 bottom-[10vh] z-10 flex flex-col items-center gap-4 px-6 text-center"
-        style={{
-          opacity: step >= 1 ? 1 : 0,
-          pointerEvents: step >= 1 ? 'auto' : 'none',
-          transition: 'opacity 1000ms ease-out',
-        }}
-      >
-        <button
-          type="button"
-          onClick={onContinue}
-          className="inline-flex items-center justify-center border border-white bg-transparent px-10 py-4 text-[0.82rem] font-medium uppercase tracking-[0.12em] text-white transition-all hover:bg-white hover:text-neutral-950"
-        >
-          Continue →
-        </button>
-      </div>
-    </>
-  );
-}
