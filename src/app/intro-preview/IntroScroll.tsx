@@ -346,7 +346,7 @@ export default function IntroScroll() {
           <img
             src="/logo-text-trimmed.png"
             alt="Shape"
-            className="relative -top-[0.5px] h-[0.83em] w-auto [filter:brightness(0)_invert(1)] group-hover:[filter:brightness(0)] md:top-0 md:h-[0.7rem]"
+            className="relative top-[-0.08em] h-[0.83em] w-auto [filter:brightness(0)_invert(1)] group-hover:[filter:brightness(0)] md:top-0 md:h-[0.7rem]"
           />
           <span>→</span>
         </a>
