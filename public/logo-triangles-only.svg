@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100" width="200" height="100">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="60 14 80 72" width="80" height="72">
   <!-- Bottom-left triangle (teal, pointing right) — matches logo-full.svg -->
   <polygon points="72,38 72,82 105,60" fill="#FFFFFF"/>
   <!-- Top-right triangle (white, pointing left) — matches logo-full.svg -->
