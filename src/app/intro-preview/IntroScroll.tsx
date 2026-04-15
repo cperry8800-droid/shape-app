@@ -100,7 +100,7 @@ export default function IntroScroll() {
     // video is currently behind the words.
     void total;
     void tail;
-    const slot = 4000;
+    const slot = 3500;
     // Last line gets ~2s on screen before "Built around you" takes
     // over — lets the headline land in the middle of scene 4 instead
     // of clinging to the end.
