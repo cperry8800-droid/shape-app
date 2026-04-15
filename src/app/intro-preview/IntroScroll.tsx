@@ -80,13 +80,13 @@ export default function IntroScroll() {
           pointerEvents: scene === 1 ? 'auto' : 'none',
         }}
       >
-        <div className="text-[clamp(1.4rem,3vw,2.2rem)] font-light leading-tight tracking-[-0.02em] text-white">
+        <div className="text-[clamp(1.15rem,2.4vw,1.75rem)] font-light leading-tight tracking-[-0.02em] text-white">
           Join the community
         </div>
         <button
           type="button"
           onClick={goToScene2}
-          className="inline-flex items-center justify-center border border-white bg-transparent px-10 py-4 text-[0.82rem] font-medium uppercase tracking-[0.12em] text-white transition-all hover:bg-white hover:text-neutral-950"
+          className="inline-flex items-center justify-center border border-white bg-transparent px-8 py-3 text-[0.74rem] font-medium uppercase tracking-[0.12em] text-white transition-all hover:bg-white hover:text-neutral-950"
         >
           Get Started →
         </button>
