@@ -151,11 +151,11 @@ function Scene2Copy({
       return;
     }
     const timers = [
-      setTimeout(() => setStep(1), 800),
-      setTimeout(() => setStep(2), 3200),
-      setTimeout(() => setStep(3), 5600),
-      setTimeout(() => setStep(4), 8000),
-      setTimeout(() => setStep(5), 10800),
+      setTimeout(() => setStep(1), 1000),
+      setTimeout(() => setStep(2), 4400),
+      setTimeout(() => setStep(3), 7800),
+      setTimeout(() => setStep(4), 11200),
+      setTimeout(() => setStep(5), 14800),
     ];
     return () => timers.forEach(clearTimeout);
   }, [active]);
