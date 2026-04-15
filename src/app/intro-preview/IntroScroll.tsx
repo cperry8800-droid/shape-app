@@ -49,12 +49,16 @@ export default function IntroScroll() {
     }
   };
 
-  // Auto-advance from scene 3 to scene 4 so the film flows straight
-  // through to the final Enter Shape CTA without a second Continue click.
+  // Auto-advance: scene 2 (after all 4 one-liners) -> scene 3 -> scene 4.
   useEffect(() => {
-    if (scene !== 3) return;
-    const t = setTimeout(() => goToScene4(), 3800);
-    return () => clearTimeout(t);
+    if (scene === 2) {
+      const t = setTimeout(() => goToScene3(), 15500);
+      return () => clearTimeout(t);
+    }
+    if (scene === 3) {
+      const t = setTimeout(() => goToScene4(), 3800);
+      return () => clearTimeout(t);
+    }
   }, [scene]);
 
   const goToScene4 = () => {
@@ -143,8 +147,8 @@ export default function IntroScroll() {
         </button>
       </div>
 
-      {/* Scene 2 sequential one-liners + Continue -> scene 3 */}
-      <Scene2Copy active={scene === 2} onContinue={goToScene3} />
+      {/* Scene 2 sequential one-liners (auto-advance to scene 3) */}
+      <Scene2Copy active={scene === 2} />
 
       {/* Scene 4 headline */}
       <div
@@ -185,22 +189,14 @@ export default function IntroScroll() {
   );
 }
 
-// Four sequential one-liners that fade in/out over scene 2, then a
-// Continue button that triggers scene 3.
-function Scene2Copy({
-  active,
-  onContinue,
-}: {
-  active: boolean;
-  onContinue: () => void;
-}) {
+// Six sequential one-liners that fade in/out across scenes 2, 3, and 4.
+// No Continue button — the film auto-advances through all scenes.
+function Scene2Copy({ active }: { active: boolean }) {
   const [step, setStep] = useState(0);
-  const [showContinue, setShowContinue] = useState(false);
 
   useEffect(() => {
     if (!active) {
       setStep(0);
-      setShowContinue(false);
       return;
     }
     const timers = [
@@ -208,7 +204,6 @@ function Scene2Copy({
       setTimeout(() => setStep(2), 4500),
       setTimeout(() => setStep(3), 8000),
       setTimeout(() => setStep(4), 11500),
-      setTimeout(() => setShowContinue(true), 2000),
     ];
     return () => timers.forEach(clearTimeout);
   }, [active]);
@@ -231,23 +226,6 @@ function Scene2Copy({
           </div>
         </div>
       ))}
-
-      <div
-        className="absolute inset-x-0 bottom-[10vh] z-10 flex flex-col items-center gap-4 px-6 text-center"
-        style={{
-          opacity: showContinue ? 1 : 0,
-          pointerEvents: showContinue ? 'auto' : 'none',
-          transition: 'opacity 1000ms ease-out',
-        }}
-      >
-        <button
-          type="button"
-          onClick={onContinue}
-          className="inline-flex items-center justify-center border border-white bg-transparent px-10 py-4 text-[0.82rem] font-medium uppercase tracking-[0.12em] text-white transition-all hover:bg-white hover:text-neutral-950"
-        >
-          Continue →
-        </button>
-      </div>
     </>
   );
 }
