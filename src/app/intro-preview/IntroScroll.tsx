@@ -12,7 +12,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 
-const BEATS = ['/intro/beat-5.mp4', '/intro/beat-4.mp4'];
+const BEATS = ['/intro/beat-5.mp4'];
 
 export default function IntroScroll() {
   return (
@@ -64,15 +64,28 @@ function BeatSection({
     };
   }, []);
 
+  // Check if the section is on-screen at all (top above viewport bottom,
+  // bottom below viewport top). Play while visible, pause otherwise.
   useEffect(() => {
+    const el = sectionRef.current;
     const v = videoRef.current;
-    if (!v) return;
-    if (progress > 0 && progress < 1) {
-      v.play().catch(() => {});
-    } else {
-      v.pause();
-    }
-  }, [progress]);
+    if (!el || !v) return;
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            v.play().catch(() => {});
+          } else {
+            v.pause();
+          }
+        }
+      },
+      { threshold: 0 }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
   return (
     <section ref={sectionRef} className="relative h-[200vh]">
