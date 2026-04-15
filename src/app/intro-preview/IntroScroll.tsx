@@ -1,29 +1,27 @@
 'use client';
 
-// Cinematic intro. Four scenes on a single fullscreen canvas:
+// Cinematic intro. Three scenes on a single fullscreen canvas:
 //
-//   Scene 1 — hero (beat-5) with Shape logo and Join the community CTA
-//   Scene 2 — market (beat-6) with sequential one-liners + Continue CTA
-//   Scene 3 — trainer + nutritionist (beat-7) + Continue CTA
-//   Scene 4 — client reviewing data (beat-8) + Enter Shape CTA
+//   Scene 1 — hero (beat-5) with Shape logo and Get Started CTA
+//   Scene 2 — market (beat-6) with sequential one-liners
+//   Scene 4 — client reviewing data (beat-8) with Enter Shape CTA
 //
-// Each transition is a fluid opacity crossfade (~1.4s) so the motion
-// reads as one continuous film, horizon.trade style.
+// Beat-7 was removed — it was only ~4s long and felt choppy.
+// Transitions are fluid opacity crossfades (~1.4s) so the motion
+// reads as one continuous film.
 
 import { useEffect, useRef, useState } from 'react';
 
 const SCENE_1 = '/intro/beat-5.mp4';
 const SCENE_2 = '/intro/beat-6.mp4';
-const SCENE_3 = '/intro/beat-7.mp4';
 const SCENE_4 = '/intro/beat-8.mp4';
 
 export default function IntroScroll() {
-  const [scene, setScene] = useState<1 | 2 | 3 | 4>(1);
+  const [scene, setScene] = useState<1 | 2 | 4>(1);
   const [step, setStep] = useState(0); // 0 = none, 1..4 = which line, 5 = done
   const scene4TriggeredRef = useRef(false);
   const video1Ref = useRef<HTMLVideoElement>(null);
   const video2Ref = useRef<HTMLVideoElement>(null);
-  const video3Ref = useRef<HTMLVideoElement>(null);
   const video4Ref = useRef<HTMLVideoElement>(null);
   const wordTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
@@ -32,7 +30,7 @@ export default function IntroScroll() {
     // and force-load their first frame so there's no transparent gap
     // when the crossfade begins.
     video1Ref.current?.play().catch(() => {});
-    [video2Ref, video3Ref, video4Ref].forEach((r) => {
+    [video2Ref, video4Ref].forEach((r) => {
       const v = r.current;
       if (!v) return;
       v.load();
@@ -45,7 +43,6 @@ export default function IntroScroll() {
 
   const goToScene2 = () => {
     const v2 = video2Ref.current;
-    const v3 = video3Ref.current;
     if (v2) {
       v2.currentTime = 0;
       v2.play().catch(() => {});
@@ -55,18 +52,12 @@ export default function IntroScroll() {
     setTimeout(() => setScene(2), 120);
 
     // Schedule the four one-liners so they're evenly spaced across the
-    // combined runtime of scene 2 + scene 3 + scene 4. Scene 3 is only
-    // ~4s in the current cut, so packing the words into 2+3 alone made
-    // everything rushed. Pulling scene 4 into the span gives each line
-    // real room to breathe.
+    // combined runtime of scene 2 + scene 4 — each line gets real
+    // breathing room regardless of individual clip length.
     const v4 = video4Ref.current;
     const d2 = Number.isFinite(v2?.duration) ? (v2!.duration as number) : 10;
-    const d3 = Number.isFinite(v3?.duration) ? (v3!.duration as number) : 10;
     const d4 = Number.isFinite(v4?.duration) ? (v4!.duration as number) : 8;
-    const total = (d2 + d3 + d4) * 1000; // ms
-    // Leave a small pad at the head so line 1 fades in after the
-    // crossfade lands, and at the tail so line 4 isn't swallowed by
-    // the scene 4 crossfade.
+    const total = (d2 + d4) * 1000; // ms
     const head = 600;
     const tail = 1400;
     const span = total - head - tail;
@@ -78,22 +69,8 @@ export default function IntroScroll() {
       setTimeout(() => setStep(4), head + slot * 3 + 120),
       setTimeout(() => setStep(5), head + slot * 4 + 120),
     ];
-    // Stash the timers on the ref so they can be cleared if the user
-    // navigates away mid-sequence (unmount cleanup below).
     wordTimersRef.current = timers;
   };
-
-  const goToScene3 = () => {
-    const v = video3Ref.current;
-    if (v) {
-      v.currentTime = 0;
-      v.play().catch(() => {});
-    }
-    setTimeout(() => setScene(3), 120);
-  };
-
-  // Transitions fire on each clip's natural end — no timers, no freeze,
-  // no guessing clip durations.
 
   const goToScene4 = () => {
     if (scene4TriggeredRef.current) return;
@@ -120,28 +97,16 @@ export default function IntroScroll() {
         style={{ opacity: scene === 1 ? 1 : 0 }}
       />
 
-      {/* Scene 2 video — plays once, hands off to scene 3 on end. */}
+      {/* Scene 2 video — plays once, hands off to scene 4 on end. */}
       <video
         ref={video2Ref}
         src={SCENE_2}
         muted
         playsInline
-        onEnded={goToScene3}
-        preload="auto"
-        className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-out"
-        style={{ opacity: scene === 2 ? 1 : 0 }}
-      />
-
-      {/* Scene 3 video — plays through, onEnded hands off to scene 4. */}
-      <video
-        ref={video3Ref}
-        src={SCENE_3}
-        muted
-        playsInline
         onEnded={goToScene4}
         preload="auto"
         className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-out"
-        style={{ opacity: scene === 3 ? 1 : 0 }}
+        style={{ opacity: scene === 2 ? 1 : 0 }}
       />
 
       {/* Scene 4 video — plays once and freezes on its last frame while
