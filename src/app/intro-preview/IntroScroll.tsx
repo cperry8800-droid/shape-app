@@ -19,6 +19,10 @@ const SCENE_4 = '/intro/beat-8.mp4';
 export default function IntroScroll() {
   const [scene, setScene] = useState<1 | 2 | 4>(1);
   const [step, setStep] = useState(0); // 0 = none, 1..4 = which line, 5 = done
+  // Once the viewer has reached the end of the film, pin the final
+  // CTAs on screen and keep looping the background film back to
+  // scene 1 so nothing freezes.
+  const [looped, setLooped] = useState(false);
   const scene4TriggeredRef = useRef(false);
   const video1Ref = useRef<HTMLVideoElement>(null);
   const video2Ref = useRef<HTMLVideoElement>(null);
@@ -76,6 +80,8 @@ export default function IntroScroll() {
   };
 
   const goToScene4 = () => {
+    // Allow re-entry across loops; only block back-to-back calls in
+    // the same pass of the film.
     if (scene4TriggeredRef.current) return;
     scene4TriggeredRef.current = true;
     const v = video4Ref.current;
@@ -86,15 +92,41 @@ export default function IntroScroll() {
     setTimeout(() => setScene(4), 120);
   };
 
+  // When scene 4 finishes, loop the whole film back to scene 1. The
+  // final CTAs remain pinned on top via `looped`.
+  const loopBackToScene1 = () => {
+    setLooped(true);
+    scene4TriggeredRef.current = false;
+    const v1 = video1Ref.current;
+    const v2 = video2Ref.current;
+    const v4 = video4Ref.current;
+    if (v1) {
+      v1.currentTime = 0;
+      v1.play().catch(() => {});
+    }
+    if (v2) {
+      v2.currentTime = 0;
+    }
+    if (v4) {
+      v4.currentTime = 0;
+    }
+    setTimeout(() => setScene(1), 120);
+  };
+
   return (
     <main className="fixed inset-0 bg-black text-white">
-      {/* Scene 1 video */}
+      {/* Scene 1 video. Loops by itself on first play (hero), but once
+          the film has looped back around it hands off to scene 2 on
+          end so the background cycle keeps rolling. */}
       <video
         ref={video1Ref}
         src={SCENE_1}
         muted
-        loop
+        loop={!looped}
         playsInline
+        onEnded={() => {
+          if (looped) goToScene2();
+        }}
         preload="auto"
         className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-out"
         style={{ opacity: scene === 1 ? 1 : 0 }}
@@ -112,14 +144,13 @@ export default function IntroScroll() {
         style={{ opacity: scene === 2 ? 1 : 0 }}
       />
 
-      {/* Scene 4 video — loops so the final frame never freezes. The
-          headline and CTA stay on top regardless. */}
+      {/* Scene 4 video — plays once, then loops back to scene 1. */}
       <video
         ref={video4Ref}
         src={SCENE_4}
         muted
-        loop
         playsInline
+        onEnded={loopBackToScene1}
         preload="auto"
         className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-out"
         style={{ opacity: scene === 4 ? 1 : 0 }}
@@ -136,12 +167,13 @@ export default function IntroScroll() {
         <polygon points="128,12 128,56 95,34" fill="#FFFFFF" />
       </svg>
 
-      {/* Scene 1 CTA — fades out as scene 2 takes over */}
+      {/* Scene 1 CTA — fades out as scene 2 takes over. Hidden once
+          the film has looped because the final CTAs take its place. */}
       <div
         className="absolute inset-x-0 bottom-[10vh] z-10 flex flex-col items-center gap-5 px-6 text-center transition-opacity duration-[1000ms] ease-out"
         style={{
-          opacity: scene === 1 ? 1 : 0,
-          pointerEvents: scene === 1 ? 'auto' : 'none',
+          opacity: scene === 1 && !looped ? 1 : 0,
+          pointerEvents: scene === 1 && !looped ? 'auto' : 'none',
         }}
       >
         <div className="flex items-center justify-center gap-3 text-[clamp(1rem,2vw,1.55rem)] font-extralight uppercase leading-none tracking-[0.28em] text-white">
@@ -169,7 +201,7 @@ export default function IntroScroll() {
             key={line}
             className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 z-10 px-6 text-center"
             style={{
-              opacity: scene !== 4 && step === i + 1 ? 1 : 0,
+              opacity: !looped && scene !== 4 && step === i + 1 ? 1 : 0,
               transition: 'opacity 900ms ease-out',
             }}
           >
@@ -180,12 +212,12 @@ export default function IntroScroll() {
         )
       )}
 
-      {/* Scene 4 headline — appears only after the four one-liners have
-          finished so it doesn't stack on top of them. */}
+      {/* Scene 4 headline — appears after the four one-liners and then
+          stays pinned on top for every loop iteration. */}
       <div
         className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 z-10 px-6 text-center transition-opacity duration-[1000ms] ease-out"
         style={{
-          opacity: scene === 4 && step >= 5 ? 1 : 0,
+          opacity: (scene === 4 && step >= 5) || looped ? 1 : 0,
         }}
       >
         <div className="text-[clamp(2rem,5vw,4rem)] font-light leading-tight tracking-[-0.03em] text-white">
@@ -193,13 +225,14 @@ export default function IntroScroll() {
         </div>
       </div>
 
-      {/* Scene 4 final CTA — comes in a beat after the headline. */}
+      {/* Scene 4 final CTA — comes in a beat after the headline and
+          stays pinned on top for every loop iteration. */}
       <div
         className="absolute inset-x-0 bottom-[10vh] z-10 flex flex-col items-center gap-4 px-6 text-center transition-opacity duration-[1000ms] ease-out"
         style={{
-          opacity: scene === 4 && step >= 5 ? 1 : 0,
-          pointerEvents: scene === 4 && step >= 5 ? 'auto' : 'none',
-          transitionDelay: scene === 4 && step >= 5 ? '900ms' : '0ms',
+          opacity: (scene === 4 && step >= 5) || looped ? 1 : 0,
+          pointerEvents: (scene === 4 && step >= 5) || looped ? 'auto' : 'none',
+          transitionDelay: scene === 4 && step >= 5 && !looped ? '900ms' : '0ms',
         }}
       >
         <a
