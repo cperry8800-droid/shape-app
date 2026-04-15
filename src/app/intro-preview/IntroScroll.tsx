@@ -127,15 +127,15 @@ export default function IntroScroll() {
         style={{ opacity: scene === 4 ? 1 : 0 }}
       />
 
-      {/* Shape triangles — exact logo-triangles-only.svg geometry */}
+      {/* Shape triangles — exact logo-full.svg geometry */}
       <svg
         xmlns="http://www.w3.org/2000/svg"
-        viewBox="60 14 80 72"
+        viewBox="65 12 70 78"
         aria-label="Shape"
-        className="pointer-events-none absolute left-6 top-6 z-20 h-10 w-auto md:left-10 md:top-10 md:h-12"
+        className="pointer-events-none absolute left-6 top-6 z-20 h-12 w-auto md:left-10 md:top-10 md:h-14"
       >
-        <polygon points="72,38 72,82 100,50" fill="#FFFFFF" />
-        <polygon points="128,18 128,62 100,50" fill="#FFFFFF" />
+        <polygon points="72,38 72,82 105,60" fill="#FFFFFF" />
+        <polygon points="128,18 128,62 95,40" fill="#FFFFFF" />
       </svg>
 
       {/* Scene 1 CTA — fades out as scene 2 takes over */}
