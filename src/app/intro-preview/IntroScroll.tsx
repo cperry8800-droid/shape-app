@@ -120,12 +120,6 @@ function BeatSection({
             >
               Get Started →
             </Link>
-            <Link
-              href="/home"
-              className="text-[0.68rem] uppercase tracking-[0.2em] text-white/55 hover:text-white/85"
-            >
-              Skip intro
-            </Link>
           </div>
         )}
 

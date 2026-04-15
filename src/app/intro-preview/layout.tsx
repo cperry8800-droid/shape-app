@@ -12,16 +12,18 @@ export default function IntroPreviewLayout({
   return (
     <>
       <style>{`
-        .navbar, .footer { display: none !important; }
+        /* Nuke every global chrome element so only the intro video
+           and its CTA are visible. Root layout renders Nav + children
+           wrapper + Footer — we hide Nav and Footer and flatten any
+           inherited padding/margin. */
+        .navbar, .footer, header, footer { display: none !important; }
         html, body {
           background: #000 !important;
           margin: 0 !important;
           padding: 0 !important;
+          overflow-x: hidden;
         }
-        /* Root layout wraps children in a flex-col body + flex-1 div.
-           Collapse any gaps so the intro starts flush at the top. */
-        body > div, body > main, body > section { margin: 0 !important; }
-        body { padding-top: 0 !important; }
+        body > *:not(script):not(style) { margin: 0 !important; padding: 0 !important; }
       `}</style>
       {children}
     </>
