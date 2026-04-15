@@ -48,10 +48,16 @@ export default async function NutritionistDashboardPage() {
       ) : (
         <section className="rounded-xl border border-amber-900/40 bg-amber-900/10 p-6">
           <h2 className="text-lg font-medium mb-2">No nutritionist profile linked</h2>
-          <p className="text-sm text-neutral-400">
-            Your account isn&rsquo;t linked to a nutritionist row yet. Once linked, this dashboard
-            will show your real subscribers and MRR.
+          <p className="text-sm text-neutral-400 mb-4">
+            Your account isn&rsquo;t linked to a nutritionist row yet. Claim an existing listing
+            to start seeing real subscribers and MRR.
           </p>
+          <Link
+            href="/dashboard/claim"
+            className="inline-flex text-xs font-medium uppercase tracking-[0.08em] border border-teal-400/60 text-teal-300 px-4 py-2 hover:bg-teal-400 hover:text-neutral-950 transition-colors"
+          >
+            Claim a nutritionist profile →
+          </Link>
         </section>
       )}
 

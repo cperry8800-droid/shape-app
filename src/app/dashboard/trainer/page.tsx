@@ -48,11 +48,16 @@ export default async function TrainerDashboardPage() {
       ) : (
         <section className="rounded-xl border border-amber-900/40 bg-amber-900/10 p-6">
           <h2 className="text-lg font-medium mb-2">No trainer profile linked</h2>
-          <p className="text-sm text-neutral-400">
-            Your account isn&rsquo;t linked to a trainer row yet. Once an admin claims a profile
-            for you (or the claim-flow ships), this dashboard will show your real subscribers
-            and MRR.
+          <p className="text-sm text-neutral-400 mb-4">
+            Your account isn&rsquo;t linked to a trainer row yet. Claim an existing listing to
+            start seeing real subscribers and MRR.
           </p>
+          <Link
+            href="/dashboard/claim"
+            className="inline-flex text-xs font-medium uppercase tracking-[0.08em] border border-teal-400/60 text-teal-300 px-4 py-2 hover:bg-teal-400 hover:text-neutral-950 transition-colors"
+          >
+            Claim a trainer profile →
+          </Link>
         </section>
       )}
 
