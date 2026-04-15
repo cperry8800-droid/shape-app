@@ -231,7 +231,7 @@ export default function IntroScroll() {
           pointerEvents: scene === 1 && !looped ? 'auto' : 'none',
         }}
       >
-        <div className="flex items-center justify-center gap-3 text-[clamp(1.3rem,2.6vw,2rem)] font-extralight uppercase leading-none tracking-[0.28em] text-white">
+        <div className="flex items-center justify-center gap-2.5 text-[0.95rem] font-extralight uppercase leading-none tracking-[0.28em] text-white md:gap-3 md:text-[clamp(1.3rem,2.6vw,2rem)]">
           <span>Welcome to</span>
           <img
             src="/logo-text-trimmed.png"
@@ -242,7 +242,7 @@ export default function IntroScroll() {
         <button
           type="button"
           onClick={goToScene2}
-          className="inline-flex items-center justify-center border border-white bg-transparent px-8 py-3 text-[0.74rem] font-medium uppercase tracking-[0.12em] text-white transition-all hover:bg-white hover:text-neutral-950"
+          className="inline-flex items-center justify-center border border-white bg-transparent px-6 py-2.5 text-[0.64rem] font-medium uppercase tracking-[0.12em] text-white transition-all hover:bg-white hover:text-neutral-950 md:px-8 md:py-3 md:text-[0.74rem]"
         >
           Get Started →
         </button>
