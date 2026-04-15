@@ -1,37 +1,44 @@
 'use client';
 
-// Cinematic intro. Two scenes on a single fullscreen canvas:
+// Cinematic intro. Three scenes on a single fullscreen canvas:
 //
-//   Scene 1 — hero video (beat-5) with the white Shape logo top-left
-//             and a transparent "Get Started" CTA bottom-center.
-//   Scene 2 — explainer video (beat-6) that crossfades in when the
-//             user clicks Get Started. Fluid opacity blend, no page
-//             navigation, horizon.trade-style continuity.
+//   Scene 1 — hero (beat-5) with Shape logo and Join the community CTA
+//   Scene 2 — market (beat-6) with sequential one-liners + Continue CTA
+//   Scene 3 — trainer + nutritionist (beat-7)
 //
-// When you're ready, drop the explainer clip at /public/intro/beat-6.mp4
-// and it'll play automatically on the transition.
+// Each transition is a fluid opacity crossfade (~1.4s) so the motion
+// reads as one continuous film, horizon.trade style.
 
 import { useEffect, useRef, useState } from 'react';
 
 const SCENE_1 = '/intro/beat-5.mp4';
 const SCENE_2 = '/intro/beat-6.mp4';
+const SCENE_3 = '/intro/beat-7.mp4';
 
 export default function IntroScroll() {
-  const [scene, setScene] = useState<1 | 2>(1);
+  const [scene, setScene] = useState<1 | 2 | 3>(1);
   const video1Ref = useRef<HTMLVideoElement>(null);
   const video2Ref = useRef<HTMLVideoElement>(null);
+  const video3Ref = useRef<HTMLVideoElement>(null);
 
-  // Autoplay both videos; crossfade via opacity so the motion stays
-  // fluid and we don't flash black during the transition.
   useEffect(() => {
     video1Ref.current?.play().catch(() => {});
     video2Ref.current?.play().catch(() => {});
+    video3Ref.current?.play().catch(() => {});
   }, []);
 
   const goToScene2 = () => {
     setScene(2);
-    // Make sure scene-2 video is playing from the top as it fades in.
     const v = video2Ref.current;
+    if (v) {
+      v.currentTime = 0;
+      v.play().catch(() => {});
+    }
+  };
+
+  const goToScene3 = () => {
+    setScene(3);
+    const v = video3Ref.current;
     if (v) {
       v.currentTime = 0;
       v.play().catch(() => {});
@@ -64,6 +71,18 @@ export default function IntroScroll() {
         style={{ opacity: scene === 2 ? 1 : 0 }}
       />
 
+      {/* Scene 3 video */}
+      <video
+        ref={video3Ref}
+        src={SCENE_3}
+        muted
+        loop
+        playsInline
+        preload="auto"
+        className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-out"
+        style={{ opacity: scene === 3 ? 1 : 0 }}
+      />
+
       {/* Shape logo (always visible) */}
       <img
         src="/logo-original.png"
@@ -92,17 +111,38 @@ export default function IntroScroll() {
         </button>
       </div>
 
-      {/* Scene 2 sequential one-liners — each fades in then out over
-          the market video, then the Continue CTA fades in last. */}
-      <Scene2Copy active={scene === 2} />
+      {/* Scene 2 sequential one-liners + Continue -> scene 3 */}
+      <Scene2Copy active={scene === 2} onContinue={goToScene3} />
+
+      {/* Scene 3 final CTA */}
+      <div
+        className="absolute inset-x-0 bottom-[10vh] z-10 flex flex-col items-center gap-4 px-6 text-center transition-opacity duration-[1000ms] ease-out"
+        style={{
+          opacity: scene === 3 ? 1 : 0,
+          pointerEvents: scene === 3 ? 'auto' : 'none',
+          transitionDelay: scene === 3 ? '800ms' : '0ms',
+        }}
+      >
+        <a
+          href="/trainers"
+          className="inline-flex items-center justify-center border border-white bg-transparent px-10 py-4 text-[0.82rem] font-medium uppercase tracking-[0.12em] text-white transition-all hover:bg-white hover:text-neutral-950"
+        >
+          Enter Shape →
+        </a>
+      </div>
     </main>
   );
 }
 
-// Three sequential one-liners that fade in/out over scene 2, then a
-// Continue CTA that fades in last. Timing starts the moment scene 2
-// becomes active.
-function Scene2Copy({ active }: { active: boolean }) {
+// Four sequential one-liners that fade in/out over scene 2, then a
+// Continue button that triggers scene 3.
+function Scene2Copy({
+  active,
+  onContinue,
+}: {
+  active: boolean;
+  onContinue: () => void;
+}) {
   const [step, setStep] = useState(0);
 
   useEffect(() => {
@@ -111,11 +151,11 @@ function Scene2Copy({ active }: { active: boolean }) {
       return;
     }
     const timers = [
-      setTimeout(() => setStep(1), 800),   // "Real trainers."
-      setTimeout(() => setStep(2), 3200),  // "Real nutritionists."
-      setTimeout(() => setStep(3), 5600),  // "One platform."
-      setTimeout(() => setStep(4), 8000),  // "One community."
-      setTimeout(() => setStep(5), 10800), // CTA
+      setTimeout(() => setStep(1), 800),
+      setTimeout(() => setStep(2), 3200),
+      setTimeout(() => setStep(3), 5600),
+      setTimeout(() => setStep(4), 8000),
+      setTimeout(() => setStep(5), 10800),
     ];
     return () => timers.forEach(clearTimeout);
   }, [active]);
@@ -147,12 +187,13 @@ function Scene2Copy({ active }: { active: boolean }) {
           transition: 'opacity 1000ms ease-out',
         }}
       >
-        <a
-          href="/trainers"
+        <button
+          type="button"
+          onClick={onContinue}
           className="inline-flex items-center justify-center border border-white bg-transparent px-10 py-4 text-[0.82rem] font-medium uppercase tracking-[0.12em] text-white transition-all hover:bg-white hover:text-neutral-950"
         >
           Continue →
-        </a>
+        </button>
       </div>
     </>
   );
