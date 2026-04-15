@@ -18,7 +18,8 @@ const SCENE_4 = '/intro/beat-8.mp4';
 
 export default function IntroScroll() {
   const [scene, setScene] = useState<1 | 2 | 4>(1);
-  const [step, setStep] = useState(0); // 0 = none, 1..4 = which line, 5 = done
+  const [step, setStep] = useState(0); // 0 = none, 1..4 = which line
+  const [showHeadline, setShowHeadline] = useState(false);
   // Once the viewer has reached the end of the film, pin the final
   // CTAs on screen and keep looping the background film back to
   // scene 1 so nothing freezes.
@@ -76,6 +77,18 @@ export default function IntroScroll() {
     };
   }, []);
 
+  // "Built around you" fades in 0.5s after scene 4 actually begins
+  // (not when the word sequence says it should), and fades out again
+  // whenever we leave scene 4 — e.g. during the background loop.
+  useEffect(() => {
+    if (scene !== 4) {
+      setShowHeadline(false);
+      return;
+    }
+    const t = setTimeout(() => setShowHeadline(true), 500);
+    return () => clearTimeout(t);
+  }, [scene]);
+
   const goToScene2 = () => {
     const v2 = video2Ref.current;
     if (v2) {
@@ -101,15 +114,13 @@ export default function IntroScroll() {
     void total;
     void tail;
     const slot = 3500;
-    // Last line gets ~2s on screen before "Built around you" takes
-    // over — lets the headline land in the middle of scene 4 instead
-    // of clinging to the end.
+    // Four one-liners, each holding for `slot` ms. The headline is
+    // driven separately off the scene 4 transition (see useEffect).
     const timers = [
       setTimeout(() => setStep(1), head + slot * 0 + 120),
       setTimeout(() => setStep(2), head + slot * 1 + 120),
       setTimeout(() => setStep(3), head + slot * 2 + 120),
       setTimeout(() => setStep(4), head + slot * 3 + 120),
-      setTimeout(() => setStep(5), head + slot * 3 + 120 + 2000),
     ];
     wordTimersRef.current = timers;
   };
@@ -167,12 +178,21 @@ export default function IntroScroll() {
         style={{ opacity: scene === 1 ? 1 : 0 }}
       />
 
-      {/* Scene 2 video — plays once, hands off to scene 4 on end. */}
+      {/* Scene 2 video — plays once. Fires the scene 4 crossfade 1.2s
+          before its natural end so there's no frozen-frame pause while
+          the opacity transition runs. */}
       <video
         ref={video2Ref}
         src={SCENE_2}
         muted
         playsInline
+        onTimeUpdate={(e) => {
+          if (scene !== 2) return;
+          const v = e.currentTarget;
+          if (v.duration && v.currentTime >= v.duration - 1.2) {
+            goToScene4();
+          }
+        }}
         onEnded={goToScene4}
         preload="auto"
         className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-out"
@@ -247,12 +267,12 @@ export default function IntroScroll() {
         )
       )}
 
-      {/* Scene 4 headline — appears after the one-liners finish and
-          disappears again once scene 4 ends / the film loops. */}
+      {/* Scene 4 headline — fades in half a second after scene 4
+          begins and fades out again when the film loops. */}
       <div
         className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 z-10 px-6 text-center transition-opacity duration-[1000ms] ease-out"
         style={{
-          opacity: scene === 4 && step >= 5 ? 1 : 0,
+          opacity: scene === 4 && showHeadline && !looped ? 1 : 0,
         }}
       >
         <div className="text-[clamp(2rem,5vw,4rem)] font-light leading-tight tracking-[-0.03em] text-white">
@@ -265,9 +285,9 @@ export default function IntroScroll() {
       <div
         className="absolute inset-x-0 bottom-[10vh] z-10 flex flex-col items-center gap-4 px-6 text-center transition-opacity duration-[1000ms] ease-out"
         style={{
-          opacity: (scene === 4 && step >= 5) || looped ? 1 : 0,
-          pointerEvents: (scene === 4 && step >= 5) || looped ? 'auto' : 'none',
-          transitionDelay: scene === 4 && step >= 5 && !looped ? '900ms' : '0ms',
+          opacity: (scene === 4 && showHeadline) || looped ? 1 : 0,
+          pointerEvents: (scene === 4 && showHeadline) || looped ? 'auto' : 'none',
+          transitionDelay: scene === 4 && showHeadline && !looped ? '900ms' : '0ms',
         }}
       >
         <a
