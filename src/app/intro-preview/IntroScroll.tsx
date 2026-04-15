@@ -317,6 +317,17 @@ export default function IntroScroll() {
         </div>
       </div>
 
+      {/* Dark gradient behind the final CTAs — pulls contrast up so
+          the buttons pop against whatever frame of scene 5 is behind
+          them. Fades in/out with the CTAs themselves. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-[9] h-[42vh] bg-gradient-to-t from-black/80 via-black/40 to-transparent transition-opacity duration-[1000ms] ease-out"
+        style={{
+          opacity: (scene === 5 && showHeadline) || looped ? 1 : 0,
+        }}
+      />
+
       {/* Scene 5 final CTA — comes in a beat after the headline and
           stays pinned on top for every loop iteration. */}
       <div
@@ -329,7 +340,7 @@ export default function IntroScroll() {
       >
         <a
           href="/"
-          className="group inline-flex items-center justify-center gap-2.5 border border-white bg-transparent px-6 py-2.5 text-[0.62rem] font-light uppercase tracking-[0.12em] text-white transition-all hover:bg-white hover:text-neutral-950 md:gap-3 md:px-10 md:py-4 md:text-[0.82rem] md:font-medium"
+          className="group inline-flex items-center justify-center gap-2.5 border border-white bg-black/35 px-6 py-2.5 text-[0.62rem] font-light uppercase tracking-[0.12em] text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] backdrop-blur-sm transition-all hover:bg-white hover:text-neutral-950 md:gap-3 md:px-10 md:py-4 md:text-[0.82rem] md:font-medium"
         >
           <span className="-mr-1">Enter</span>
           <img
@@ -341,7 +352,7 @@ export default function IntroScroll() {
         </a>
         <a
           href="/login"
-          className="inline-flex items-center justify-center border border-white bg-transparent px-5 py-2 text-[0.58rem] font-light uppercase tracking-[0.12em] text-white transition-all hover:bg-white hover:text-neutral-950 md:px-9 md:py-3.5 md:text-[0.76rem] md:font-medium"
+          className="inline-flex items-center justify-center border border-white bg-black/35 px-5 py-2 text-[0.58rem] font-light uppercase tracking-[0.12em] text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] backdrop-blur-sm transition-all hover:bg-white hover:text-neutral-950 md:px-9 md:py-3.5 md:text-[0.76rem] md:font-medium"
         >
           Log in
         </a>
