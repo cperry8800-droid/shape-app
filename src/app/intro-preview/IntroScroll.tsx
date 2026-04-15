@@ -177,8 +177,7 @@ export default function IntroScroll() {
           <img
             src="/logo-text-trimmed.png"
             alt="Shape"
-            className="h-[0.7rem] w-auto"
-            style={{ filter: 'brightness(0) invert(1)' }}
+            className="h-[0.7rem] w-auto [filter:brightness(0)_invert(1)] group-hover:[filter:brightness(0)]"
           />
           <span>→</span>
         </a>
