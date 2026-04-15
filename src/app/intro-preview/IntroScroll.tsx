@@ -165,7 +165,7 @@ export default function IntroScroll() {
           <img
             src="/logo-text-trimmed.png"
             alt="Shape"
-            className="h-[1.05rem] w-auto"
+            className="h-[0.7rem] w-auto"
             style={{ filter: 'brightness(0) invert(1)' }}
           />
           <span>→</span>
