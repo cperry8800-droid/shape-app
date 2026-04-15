@@ -81,7 +81,7 @@ export default function IntroScroll() {
         }}
       >
         <div
-          className="text-[clamp(1.6rem,3.4vw,2.6rem)] font-light leading-tight tracking-[-0.02em]"
+          className="text-[clamp(1rem,2vw,1.5rem)] font-light leading-tight tracking-[-0.02em]"
           style={{
             color: 'transparent',
             WebkitTextStroke: '1px #FFFFFF',
