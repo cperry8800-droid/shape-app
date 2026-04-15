@@ -199,6 +199,12 @@ export default function IntroScroll() {
           />
           <span>→</span>
         </a>
+        <a
+          href="/login"
+          className="inline-flex items-center justify-center border border-white bg-transparent px-7 py-2.5 text-[0.68rem] font-medium uppercase tracking-[0.12em] text-white transition-all hover:bg-white hover:text-neutral-950"
+        >
+          Log in
+        </a>
       </div>
     </main>
   );
