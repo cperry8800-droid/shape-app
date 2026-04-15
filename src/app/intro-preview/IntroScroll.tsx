@@ -53,7 +53,7 @@ export default function IntroScroll() {
   // through to the final Enter Shape CTA without a second Continue click.
   useEffect(() => {
     if (scene !== 3) return;
-    const t = setTimeout(() => goToScene4(), 5000);
+    const t = setTimeout(() => goToScene4(), 3800);
     return () => clearTimeout(t);
   }, [scene]);
 
@@ -92,12 +92,11 @@ export default function IntroScroll() {
         style={{ opacity: scene === 2 ? 1 : 0 }}
       />
 
-      {/* Scene 3 video */}
+      {/* Scene 3 video — no loop so it doesn't rewind mid-crossfade */}
       <video
         ref={video3Ref}
         src={SCENE_3}
         muted
-        loop
         playsInline
         preload="auto"
         className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-out"
