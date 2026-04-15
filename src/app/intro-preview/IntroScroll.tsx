@@ -119,7 +119,7 @@ function Scene2Copy({ active }: { active: boolean }) {
     return () => timers.forEach(clearTimeout);
   }, [active]);
 
-  const lines = ['Real coaches.', 'Real programs.', 'One platform.'];
+  const lines = ['Real trainers.', 'Real nutritionists.', 'One platform.'];
 
   return (
     <>
