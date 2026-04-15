@@ -188,7 +188,7 @@ export default function IntroScroll() {
         }}
       >
         <a
-          href="/trainers"
+          href="/"
           className="group inline-flex items-center justify-center gap-3 border border-white bg-transparent px-10 py-4 text-[0.82rem] font-medium uppercase tracking-[0.12em] text-white transition-all hover:bg-white hover:text-neutral-950"
         >
           <span className="-mr-1">Enter</span>
