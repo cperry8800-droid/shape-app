@@ -24,7 +24,7 @@ export default function IntroScroll() {
       {/* Logo: triangles-only SVG (both white) stacked above the real
           legacy wordmark PNG forced white. */}
       <div className="pointer-events-none absolute left-6 top-6 z-20 flex flex-col items-center md:left-10 md:top-10">
-        <img src="/logo-triangles-only.svg" alt="" className="h-10 w-auto md:h-12" />
+        <img src="/logo-triangles-only.svg" alt="" className="h-6 w-auto md:h-7" />
         <img
           src="/logo-text-trimmed.png"
           alt="Shape"
