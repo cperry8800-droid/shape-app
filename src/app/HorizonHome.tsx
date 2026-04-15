@@ -54,7 +54,7 @@ const SECTIONS: Array<{
 export default function HorizonHome() {
   const [active, setActive] = useState(0);
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
-  const sectionRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const sectionRefs = useRef<(HTMLElement | null)[]>([]);
 
   // Autoplay every video on mount so crossfades are instant.
   useEffect(() => {
