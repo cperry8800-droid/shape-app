@@ -20,8 +20,10 @@ const legacyPages = [
 
 const nextConfig: NextConfig = {
   async rewrites() {
+    // Root now renders the cinematic intro via src/app/page.tsx.
+    // The legacy static index.html is still in public/ but no longer
+    // mapped to `/` — other legacy pages keep their rewrites.
     return [
-      { source: '/', destination: '/index.html' },
       ...legacyPages.map((p) => ({
         source: `/${p}`,
         destination: `/${p}.html`,
