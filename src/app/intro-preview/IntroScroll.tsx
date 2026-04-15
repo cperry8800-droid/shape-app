@@ -136,7 +136,7 @@ export default function IntroScroll() {
         }}
       >
         <div className="text-[clamp(1.3rem,2.7vw,2rem)] font-light leading-tight tracking-[-0.02em] text-white">
-          Join the community
+          Welcome to Shape
         </div>
         <button
           type="button"
