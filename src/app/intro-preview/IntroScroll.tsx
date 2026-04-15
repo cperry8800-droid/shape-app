@@ -96,7 +96,9 @@ export default function IntroScroll() {
     const head = 600;
     const tail = 1400;
     const span = total - head - tail;
-    const slot = span / 4;
+    // 0.9 multiplier tightens each line slot by ~10% so the cadence
+    // feels a touch snappier without crowding the headline.
+    const slot = (span / 4) * 0.9;
     // Last line gets ~2s on screen before "Built around you" takes
     // over — lets the headline land in the middle of scene 4 instead
     // of clinging to the end.
