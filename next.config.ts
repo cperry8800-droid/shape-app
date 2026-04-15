@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
 
 // The legacy shape-website static files live in /public. Next.js serves
-// them automatically at their .html paths. We just need rewrites so the
-// clean URLs (/, /home, /trainers, etc.) resolve to the right .html file.
+// them automatically at their .html paths. Rewrites map the clean URLs
+// (/, /home, /trainers, etc.) to the right .html file.
 
 const legacyPages = [
   'home', 'landing',
@@ -21,9 +21,7 @@ const legacyPages = [
 const nextConfig: NextConfig = {
   async rewrites() {
     return [
-      // Root → legacy intro splash
       { source: '/', destination: '/index.html' },
-      // Every legacy page at its clean URL
       ...legacyPages.map((p) => ({
         source: `/${p}`,
         destination: `/${p}.html`,
