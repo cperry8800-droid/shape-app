@@ -85,8 +85,12 @@ export async function startCheckout(formData: FormData): Promise<void> {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // Back-to-profile goes to the legacy static profile pages since the
+  // Next.js per-provider detail pages were removed.
   const backHref =
-    providerRole === 'trainer' ? `/trainers/${providerId}` : `/nutritionists/${providerId}`;
+    providerRole === 'trainer'
+      ? `/trainer-profile.html?id=${providerId}`
+      : `/nutritionist-profile.html?id=${providerId}`;
 
   if (!user) {
     redirect(`/login?next=${encodeURIComponent(backHref)}`);
