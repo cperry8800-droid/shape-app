@@ -18,6 +18,7 @@ const legacyPages = [
   'privacy', 'terms',
   'radio', 'ai-trainers', 'live-workout', 'messages', 'consultation',
   'shape-score', 'shape-score-trainer', 'shape-score-nutritionist', 'shape-store',
+  'dashboard-preview',
 ];
 
 const nextConfig: NextConfig = {
