@@ -23,17 +23,17 @@ export default function SettingsForm({
   return (
     <form action={formAction} className="flex flex-col gap-4">
       <label className="flex flex-col gap-1.5">
-        <span className="text-[0.6rem] uppercase tracking-[0.2em] text-white/25">Display name</span>
+        <span className="text-xs uppercase tracking-wider text-neutral-400">Display name</span>
         <input
           type="text"
           name="full_name"
           defaultValue={initialFullName}
-          className="bg-black border border-white/[0.07] text-white text-sm px-4 py-2.5 rounded-sm focus:border-white/30 outline-none transition-colors"
+          className="px-4 py-2.5 rounded-lg bg-neutral-950 border border-neutral-800 text-sm outline-none focus:border-teal-400 transition-colors"
         />
       </label>
 
       <fieldset className="flex flex-col gap-2">
-        <legend className="text-[0.6rem] uppercase tracking-[0.2em] text-white/25 mb-2">
+        <legend className="text-xs uppercase tracking-wider text-neutral-400 mb-2">
           Primary role
         </legend>
         <div className="grid grid-cols-3 gap-2">
@@ -44,7 +44,7 @@ export default function SettingsForm({
           ].map((r) => (
             <label
               key={r.v}
-              className="relative flex items-center justify-center px-2 py-2.5 rounded-sm bg-black border text-sm cursor-pointer transition-colors border-white/[0.07] text-white/40 hover:border-white/20 has-[:checked]:border-white has-[:checked]:text-white has-[:checked]:bg-white/5"
+              className="relative flex items-center justify-center px-2 py-2.5 rounded-lg bg-neutral-950 border border-neutral-800 text-sm cursor-pointer hover:border-neutral-700 has-[:checked]:border-teal-400 has-[:checked]:text-teal-400 has-[:checked]:bg-teal-400/10 transition-colors"
             >
               <input
                 type="radio"
@@ -57,19 +57,19 @@ export default function SettingsForm({
             </label>
           ))}
         </div>
-        <p className="text-xs text-white/30 mt-1">
-          You currently hold: <span className="text-white/50">{roles.join(', ') || '—'}</span>.
+        <p className="text-xs text-neutral-500 mt-1">
+          You currently hold: <span className="text-neutral-300">{roles.join(', ') || '—'}</span>.
           Switching primary role also adds it to your set; existing roles are preserved.
         </p>
       </fieldset>
 
       {state && 'error' in state && (
-        <div className="text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-sm px-3 py-2">
+        <div className="text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">
           {state.error}
         </div>
       )}
       {state && 'ok' in state && (
-        <div className="text-sm text-white/60 border border-white/[0.07] rounded-sm px-3 py-2">
+        <div className="text-sm text-teal-300 bg-teal-400/10 border border-teal-400/20 rounded-lg px-3 py-2">
           Saved.
         </div>
       )}
@@ -77,7 +77,7 @@ export default function SettingsForm({
       <button
         type="submit"
         disabled={pending}
-        className="bg-white text-black rounded-sm px-6 py-2.5 text-sm font-medium hover:bg-white/90 transition-colors disabled:opacity-50 self-start"
+        className="text-sm font-medium bg-teal-400 text-neutral-950 rounded-full px-6 py-3 hover:bg-teal-300 transition-colors disabled:opacity-50 self-start"
       >
         {pending ? 'Saving…' : 'Save changes'}
       </button>

@@ -9,9 +9,9 @@ export default async function SettingsPage() {
 
   return (
     <div className="flex flex-col gap-8 max-w-xl">
-      <section>
-        <h2 className="text-[0.6rem] uppercase tracking-[0.2em] text-white/25 mb-1">Profile</h2>
-        <p className="text-sm text-white/30 mb-6">Your public display name and primary role.</p>
+      <section className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-6">
+        <h2 className="text-lg font-medium mb-1">Profile</h2>
+        <p className="text-sm text-neutral-400 mb-6">Your public display name and primary role.</p>
         <SettingsForm
           initialFullName={profile?.full_name ?? ''}
           initialRole={profile?.role ?? 'client'}
@@ -19,12 +19,10 @@ export default async function SettingsPage() {
         />
       </section>
 
-      <div className="border-t border-white/[0.07]" />
-
-      <section>
-        <h2 className="text-[0.6rem] uppercase tracking-[0.2em] text-white/25 mb-1">Account</h2>
-        <p className="text-sm text-white/30">
-          Email: <span className="text-white/60">{ctx?.email}</span>
+      <section className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-6">
+        <h2 className="text-lg font-medium mb-1">Account</h2>
+        <p className="text-sm text-neutral-400">
+          Email: <span className="text-neutral-200">{ctx?.email}</span>
         </p>
       </section>
     </div>
