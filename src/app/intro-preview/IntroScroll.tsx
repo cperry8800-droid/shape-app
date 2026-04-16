@@ -340,7 +340,7 @@ export default function IntroScroll() {
         }}
       >
         <a
-          href="/"
+          href="/home"
           className="group inline-flex items-center justify-center gap-2.5 border border-white bg-black/35 px-6 py-2.5 text-[0.62rem] font-light uppercase tracking-[0.12em] text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] backdrop-blur-sm transition-all hover:bg-white hover:text-neutral-950 md:gap-3 md:px-10 md:py-4 md:text-[0.82rem] md:font-medium"
         >
           <span className="-mr-1">Enter</span>
