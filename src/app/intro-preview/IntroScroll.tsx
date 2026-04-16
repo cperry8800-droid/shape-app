@@ -11,7 +11,7 @@
 // reads as one continuous film. Scene numbers skip 3 because beat-7
 // was cut earlier for feeling choppy.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 
 const SCENE_1 = '/intro/beat-5.mp4';
 const SCENE_2 = '/intro/beat-6.mp4';
@@ -20,7 +20,7 @@ const SCENE_5 = '/intro/beat-9.mp4';
 
 export default function IntroScroll() {
   const [scene, setScene] = useState<1 | 2 | 4 | 5>(1);
-  const [step, setStep] = useState(0); // 0 = none, 1..4 = which line
+  const [step, setStep] = useState(0); // 0 = none, 1..5 = which line
   const [showHeadline, setShowHeadline] = useState(false);
   // Once the viewer has reached the end of the film, pin the final
   // CTAs on screen and keep looping the background film back to
@@ -28,11 +28,24 @@ export default function IntroScroll() {
   const [looped, setLooped] = useState(false);
   const scene4TriggeredRef = useRef(false);
   const scene5TriggeredRef = useRef(false);
+  const unlockedRef = useRef(false);
   const video1Ref = useRef<HTMLVideoElement>(null);
   const video2Ref = useRef<HTMLVideoElement>(null);
   const video4Ref = useRef<HTMLVideoElement>(null);
   const video5Ref = useRef<HTMLVideoElement>(null);
   const wordTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  // Reliable video play helper — waits for any pending pause to
+  // settle before starting playback. Returns a promise.
+  const safePlay = useCallback((v: HTMLVideoElement) => {
+    return new Promise<void>((resolve) => {
+      // Small delay lets any in-flight pause() from the iOS unlock
+      // finish before we call play() again.
+      setTimeout(() => {
+        v.play().then(resolve).catch(() => resolve());
+      }, 50);
+    });
+  }, []);
 
   useEffect(() => {
     // Scene 1 autoplays on mount. Later scenes start paused at frame 0
@@ -48,11 +61,10 @@ export default function IntroScroll() {
 
     // iOS Safari blocks autoplay until a user gesture, even for muted
     // video. The first tap on the page "primes" each later clip so it
-    // can play on demand. We kick off a quick play() + pause() on the
-    // prepped videos synchronously inside the gesture — no async .then
-    // chain, because those late pauses would fight the real scene
-    // transitions and freeze the film.
+    // can play on demand.
     const unlock = () => {
+      if (unlockedRef.current) return;
+      unlockedRef.current = true;
       [video2Ref, video4Ref, video5Ref].forEach((r) => {
         const v = r.current;
         if (!v) return;
@@ -68,16 +80,12 @@ export default function IntroScroll() {
       // Make sure scene 1 is definitely playing after the gesture.
       video1Ref.current?.play().catch(() => {});
       window.removeEventListener('touchstart', unlock);
-      window.removeEventListener('click', unlock);
     };
-    // Only wire the unlock to touch — desktop doesn't need it and a
-    // global click handler would race with the Get Started button.
     window.addEventListener('touchstart', unlock, { once: true, passive: true });
 
     return () => {
       wordTimersRef.current.forEach(clearTimeout);
       window.removeEventListener('touchstart', unlock);
-      window.removeEventListener('click', unlock);
     };
   }, []);
 
@@ -93,17 +101,36 @@ export default function IntroScroll() {
     return () => clearTimeout(t);
   }, [scene]);
 
-  const goToScene2 = () => {
+  const goToScene2 = useCallback(() => {
+    // On iOS, run the unlock inline if it hasn't happened yet —
+    // this tap counts as a user gesture.
+    if (!unlockedRef.current) {
+      unlockedRef.current = true;
+      [video2Ref, video4Ref, video5Ref].forEach((r) => {
+        const v = r.current;
+        if (!v) return;
+        try {
+          const p = v.play();
+          if (p && typeof p.then === 'function') p.catch(() => {});
+          v.pause();
+          v.currentTime = 0;
+        } catch {
+          /* ignore */
+        }
+      });
+    }
+
     const v2 = video2Ref.current;
     if (v2) {
       v2.currentTime = 0;
-      v2.play().catch(() => {});
+      // Use safePlay to avoid racing with unlock's pause()
+      safePlay(v2);
     }
     // Brief head-start so video is rendering before the opacity
     // crossfade reveals it.
-    setTimeout(() => setScene(2), 120);
+    setTimeout(() => setScene(2), 170);
 
-    // Spread the four one-liners across scenes 2 + 4 (scene 5 holds
+    // Spread the five one-liners across scenes 2 + 4 (scene 5 holds
     // the headline + final CTAs, so the words don't need to stretch
     // into it). Derived from real durations so pacing stays matched
     // to the clips.
@@ -118,16 +145,16 @@ export default function IntroScroll() {
     // Five one-liners, each holding for `slot` ms. The headline is
     // driven separately off the scene 4 transition (see useEffect).
     const timers = [
-      setTimeout(() => setStep(1), head + slot * 0 + 120),
-      setTimeout(() => setStep(2), head + slot * 1 + 120),
-      setTimeout(() => setStep(3), head + slot * 2 + 120),
-      setTimeout(() => setStep(4), head + slot * 3 + 120),
-      setTimeout(() => setStep(5), head + slot * 4 + 120),
+      setTimeout(() => setStep(1), head + slot * 0 + 170),
+      setTimeout(() => setStep(2), head + slot * 1 + 170),
+      setTimeout(() => setStep(3), head + slot * 2 + 170),
+      setTimeout(() => setStep(4), head + slot * 3 + 170),
+      setTimeout(() => setStep(5), head + slot * 4 + 170),
     ];
     wordTimersRef.current = timers;
-  };
+  }, [safePlay]);
 
-  const goToScene4 = () => {
+  const goToScene4 = useCallback(() => {
     // Allow re-entry across loops; only block back-to-back calls in
     // the same pass of the film.
     if (scene4TriggeredRef.current) return;
@@ -135,25 +162,25 @@ export default function IntroScroll() {
     const v = video4Ref.current;
     if (v) {
       v.currentTime = 0;
-      v.play().catch(() => {});
+      safePlay(v);
     }
     setTimeout(() => setScene(4), 120);
-  };
+  }, [safePlay]);
 
-  const goToScene5 = () => {
+  const goToScene5 = useCallback(() => {
     if (scene5TriggeredRef.current) return;
     scene5TriggeredRef.current = true;
     const v = video5Ref.current;
     if (v) {
       v.currentTime = 0;
-      v.play().catch(() => {});
+      safePlay(v);
     }
     setTimeout(() => setScene(5), 120);
-  };
+  }, [safePlay]);
 
   // When scene 5 finishes, loop the whole film back to scene 1. The
   // final CTAs remain pinned on top via `looped`.
-  const loopBackToScene1 = () => {
+  const loopBackToScene1 = useCallback(() => {
     setLooped(true);
     scene4TriggeredRef.current = false;
     scene5TriggeredRef.current = false;
@@ -169,13 +196,14 @@ export default function IntroScroll() {
     if (v4) v4.currentTime = 0;
     if (v5) v5.currentTime = 0;
     setTimeout(() => setScene(1), 120);
-  };
+  }, []);
 
   return (
     <main className="fixed inset-0 bg-black text-white">
       {/* Scene 1 video. Loops by itself on first play (hero), but once
           the film has looped back around it hands off to scene 2 on
-          end so the background cycle keeps rolling. */}
+          end so the background cycle keeps rolling.
+          pointer-events-none prevents videos from stealing clicks. */}
       <video
         ref={video1Ref}
         src={SCENE_1}
@@ -187,7 +215,7 @@ export default function IntroScroll() {
           if (looped) goToScene2();
         }}
         preload="auto"
-        className="absolute inset-0 h-full w-full scale-[1.04] object-cover transition-opacity duration-[1400ms] ease-out"
+        className="pointer-events-none absolute inset-0 h-full w-full scale-[1.04] object-cover transition-opacity duration-[1400ms] ease-out"
         style={{ opacity: scene === 1 ? 1 : 0 }}
       />
 
@@ -208,7 +236,7 @@ export default function IntroScroll() {
         }}
         onEnded={goToScene4}
         preload="auto"
-        className="absolute inset-0 h-full w-full scale-[1.04] object-cover transition-opacity duration-[1400ms] ease-out"
+        className="pointer-events-none absolute inset-0 h-full w-full scale-[1.04] object-cover transition-opacity duration-[1400ms] ease-out"
         style={{ opacity: scene === 2 ? 1 : 0 }}
       />
 
@@ -228,7 +256,7 @@ export default function IntroScroll() {
         }}
         onEnded={goToScene5}
         preload="auto"
-        className="absolute inset-0 h-full w-full scale-[1.04] object-cover transition-opacity duration-[1400ms] ease-out"
+        className="pointer-events-none absolute inset-0 h-full w-full scale-[1.04] object-cover transition-opacity duration-[1400ms] ease-out"
         style={{ opacity: scene === 4 ? 1 : 0 }}
       />
 
@@ -241,7 +269,7 @@ export default function IntroScroll() {
         playsInline
         onEnded={loopBackToScene1}
         preload="auto"
-        className="absolute inset-0 h-full w-full scale-[1.04] object-cover transition-opacity duration-[1400ms] ease-out"
+        className="pointer-events-none absolute inset-0 h-full w-full scale-[1.04] object-cover transition-opacity duration-[1400ms] ease-out"
         style={{ opacity: scene === 5 ? 1 : 0 }}
       />
 
@@ -259,7 +287,7 @@ export default function IntroScroll() {
       {/* Scene 1 CTA — fades out as scene 2 takes over. Hidden once
           the film has looped because the final CTAs take its place. */}
       <div
-        className="absolute inset-x-0 bottom-[10vh] z-10 flex flex-col items-center gap-5 px-6 text-center transition-opacity duration-[1000ms] ease-out"
+        className="absolute inset-x-0 bottom-[10vh] z-30 flex flex-col items-center gap-5 px-6 text-center transition-opacity duration-[1000ms] ease-out"
         style={{
           opacity: scene === 1 && !looped ? 1 : 0,
           pointerEvents: scene === 1 && !looped ? 'auto' : 'none',
@@ -276,14 +304,20 @@ export default function IntroScroll() {
         <button
           type="button"
           onClick={goToScene2}
-          className="inline-flex items-center justify-center border-[0.5px] border-white bg-transparent px-5 py-2 text-[0.58rem] font-normal uppercase tracking-[0.12em] text-white transition-all hover:bg-white hover:text-neutral-950 md:border md:px-8 md:py-3 md:text-[0.74rem] md:font-medium"
+          onTouchEnd={(e) => {
+            // On mobile, fire immediately on touch end to avoid
+            // 300ms click delay and ensure the tap registers.
+            e.preventDefault();
+            goToScene2();
+          }}
+          className="inline-flex items-center justify-center border-[0.5px] border-white bg-transparent px-7 py-3 text-[0.62rem] font-normal uppercase tracking-[0.12em] text-white transition-all hover:bg-white hover:text-neutral-950 md:border md:px-8 md:py-3 md:text-[0.74rem] md:font-medium"
         >
           Get Started →
         </button>
       </div>
 
-      {/* Four one-liners, evenly spaced across the combined runtime of
-          scenes 2 and 3. Timings are set up in goToScene2(). */}
+      {/* Five one-liners, evenly spaced across the combined runtime of
+          scenes 2 and 4. Timings are set up in goToScene2(). */}
       {['No more guessing', 'No more going alone', 'Real coaches. Real plans.', 'One marketplace.', 'One community.'].map(
         (line, i) => (
           <div
@@ -333,7 +367,7 @@ export default function IntroScroll() {
       {/* Scene 5 final CTA — comes in a beat after the headline and
           stays pinned on top for every loop iteration. */}
       <div
-        className="absolute inset-x-0 bottom-[10vh] z-10 flex flex-col items-center gap-4 px-6 text-center transition-opacity duration-[2200ms] ease-out"
+        className="absolute inset-x-0 bottom-[10vh] z-30 flex flex-col items-center gap-4 px-6 text-center transition-opacity duration-[2200ms] ease-out"
         style={{
           opacity: (scene === 5 && showHeadline) || looped ? 1 : 0,
           pointerEvents: (scene === 5 && showHeadline) || looped ? 'auto' : 'none',
@@ -362,4 +396,3 @@ export default function IntroScroll() {
     </main>
   );
 }
-
