@@ -92,6 +92,16 @@ ul { list-style: none; }
   border-bottom: 1px solid var(--border);
   padding: 12px 0;
 }
+/* Mobile: keep navbar solid dark regardless of scroll state or
+   per-page transparent overrides. */
+@media (max-width: 768px) {
+  .navbar, .navbar.scrolled {
+    background: rgba(10,10,10,0.95) !important;
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-bottom: 1px solid var(--border);
+  }
+}
 /* Nav layout: minmax(0,1fr) on both edge columns so they stay EQUAL
    even when one side's content (actions) is wider than the other
    (logo). The middle auto column is therefore always centered at the
