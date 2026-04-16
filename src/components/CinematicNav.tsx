@@ -15,10 +15,10 @@ export default function CinematicNav() {
 
   return (
     <nav
-      className={`sticky top-0 z-50 flex items-center justify-between px-6 py-5 md:px-12 transition-colors bg-neutral-950/95 backdrop-blur-xl border-b border-white/10 md:border-b-0 ${
+      className={`sticky top-0 z-50 flex items-center justify-between px-6 py-5 md:px-12 transition-colors ${
         scrolled
-          ? 'md:bg-neutral-950/85 md:backdrop-blur-xl md:border-b md:border-white/10'
-          : 'md:bg-transparent md:backdrop-blur-0 md:border-b-0'
+          ? 'bg-neutral-950/95 backdrop-blur-xl border-b border-white/10'
+          : 'bg-transparent'
       }`}
     >
       <Link href="/" aria-label="Shape home">

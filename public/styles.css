@@ -92,14 +92,14 @@ ul { list-style: none; }
   border-bottom: 1px solid var(--border);
   padding: 12px 0;
 }
-/* Mobile: keep navbar solid dark regardless of scroll state or
-   per-page transparent overrides. Use higher specificity
-   (html body + attribute) so it beats page-level inline rules. */
+/* Mobile: transparent at top, solid dark once the mobile menu is open
+   or the user has scrolled. Higher specificity beats per-page inline
+   transparent overrides for the scrolled/open states. */
 @media (max-width: 768px) {
-  html body nav.navbar,
   html body nav.navbar.scrolled,
-  html body .navbar,
-  html body .navbar.scrolled {
+  html body .navbar.scrolled,
+  html body nav.navbar.menu-open,
+  html body .navbar.menu-open {
     background: rgba(10,10,10,0.95) !important;
     backdrop-filter: blur(24px) !important;
     -webkit-backdrop-filter: blur(24px) !important;
