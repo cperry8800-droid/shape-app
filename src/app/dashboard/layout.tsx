@@ -20,9 +20,9 @@ export default async function DashboardLayout({
 
   const tabs: { href: string; label: string; show: boolean }[] = [
     { href: '/dashboard', label: 'Overview', show: true },
-    { href: '/dashboard/client', label: 'My Coaches', show: role === 'client' || (profile?.roles ?? []).includes('client') },
-    { href: '/dashboard/trainer', label: 'Trainer', show: role === 'trainer' || (profile?.roles ?? []).includes('trainer') },
-    { href: '/dashboard/nutritionist', label: 'Nutritionist', show: role === 'nutritionist' || (profile?.roles ?? []).includes('nutritionist') },
+    { href: '/dashboard/client', label: 'Client dashboard', show: true },
+    { href: '/dashboard/trainer', label: 'Trainer', show: true },
+    { href: '/dashboard/nutritionist', label: 'Nutritionist', show: true },
     { href: '/dashboard/claim', label: 'Claim profile', show: true },
     { href: '/dashboard/settings', label: 'Settings', show: true },
   ];

@@ -1,12 +1,11 @@
-// Overview page — shows stat cards and routes to the role-specific view.
+// Overview page — shows stat cards and links to every role view.
 
 import Link from 'next/link';
-import { getCurrentUserAndProfile, getMySessions } from '@/lib/queries';
+import { getMySessions } from '@/lib/queries';
 
 export const metadata = { title: 'Dashboard — Shape' };
 
 export default async function DashboardOverview() {
-  const ctx = await getCurrentUserAndProfile();
   const sessions = await getMySessions();
 
   const now = Date.now();
@@ -15,14 +14,6 @@ export default async function DashboardOverview() {
   );
   const pending = sessions.filter((s) => s.status === 'requested');
   const completed = sessions.filter((s) => s.status === 'completed');
-
-  const role = ctx?.profile?.role ?? 'client';
-  const primaryHref =
-    role === 'trainer'
-      ? '/dashboard/trainer'
-      : role === 'nutritionist'
-        ? '/dashboard/nutritionist'
-        : '/dashboard/client';
 
   return (
     <div className="flex flex-col gap-8">
@@ -37,19 +28,23 @@ export default async function DashboardOverview() {
         <p className="text-sm text-neutral-400 mb-4">Jump back into where you left off.</p>
         <div className="flex gap-3 flex-wrap">
           <Link
-            href={primaryHref}
+            href="/dashboard/client"
             className="text-sm font-medium bg-teal-400 text-neutral-950 rounded-full px-5 py-2.5 hover:bg-teal-300 transition-colors"
           >
-            Open {role} view
+            Client dashboard
           </Link>
-          {role === 'client' && (
-            <Link
-              href="/trainers"
-              className="text-sm font-medium border border-neutral-700 text-neutral-100 rounded-full px-5 py-2.5 hover:bg-neutral-900 transition-colors"
-            >
-              Browse trainers
-            </Link>
-          )}
+          <Link
+            href="/dashboard/trainer"
+            className="text-sm font-medium border border-neutral-700 text-neutral-100 rounded-full px-5 py-2.5 hover:bg-neutral-900 transition-colors"
+          >
+            Trainer dashboard
+          </Link>
+          <Link
+            href="/dashboard/nutritionist"
+            className="text-sm font-medium border border-neutral-700 text-neutral-100 rounded-full px-5 py-2.5 hover:bg-neutral-900 transition-colors"
+          >
+            Nutritionist dashboard
+          </Link>
           <Link
             href="/dashboard/settings"
             className="text-sm font-medium border border-neutral-700 text-neutral-100 rounded-full px-5 py-2.5 hover:bg-neutral-900 transition-colors"
