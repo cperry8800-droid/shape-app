@@ -19,7 +19,10 @@
     /* Translucent cards so bg image shows through, text stays readable */
     .community-sidebar, .community-main, .community-dm-panel,
     .community-user.active, .community-post, .message-bubble,
-    [style*="background:var(--bg-card)"] {
+    .community-chat, .chat-header, .chat-channel-tabs, .chat-input-area,
+    .chat-msg-body, .community-right, .activity-panel, .profile-panel,
+    [style*="background:var(--bg-card)"],
+    [style*="background:var(--bg)"]:not(input):not(.community-search input) {
       background: rgba(10,10,10,0.28) !important;
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
