@@ -46,13 +46,16 @@
     .split-hero {
       padding: 160px 0 40px; text-align: center;
       position: relative;
-      background: linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.7) 50%, rgba(0,0,0,0.9) 100%),
-                  url('/intro/Backgounrd.jpeg') center/cover no-repeat fixed;
+      background: url('/intro/Backgounrd.jpeg') center/cover no-repeat fixed;
     }
     .split-hero .tag { display: block; margin-bottom: 16px; }
     .split-hero h1 {
       font-size: clamp(2rem, 4vw, 3rem); font-weight: 300;
       letter-spacing: -0.04em; line-height: 1.1; margin-bottom: 10px;
+      background: url('/intro/Backgounrd.jpeg') center/cover no-repeat fixed;
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
     }
     .split-hero-mark {
       display: block; height: 56px; width: auto; margin: 0 auto 18px;
@@ -80,13 +83,13 @@
 
     .split-grid {
       display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
-      background: var(--border); margin-top: 60px;
+      background: transparent; margin-top: 60px;
     }
     .split-card {
-      background: var(--bg); padding: 48px 40px;
+      background: transparent; padding: 48px 40px;
       transition: background 0.3s; text-align: center;
     }
-    .split-card:hover { background: var(--bg-card); }
+    .split-card:hover { background: rgba(255,255,255,0.05); }
     .split-label {
       font-size: 0.72rem; font-weight: 500; text-transform: uppercase;
       letter-spacing: 0.15em; color: var(--text-muted); margin-bottom: 20px;
@@ -94,6 +97,10 @@
     .split-card h2 {
       font-size: clamp(1.2rem, 2vw, 1.5rem); font-weight: 300;
       letter-spacing: -0.03em; line-height: 1.2; margin-bottom: 16px;
+      background: url('/intro/Backgounrd.jpeg') center/cover no-repeat fixed;
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
     }
     .split-card p {
       font-size: 0.88rem; color: var(--text-muted); font-weight: 300;
