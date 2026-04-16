@@ -1291,14 +1291,14 @@
   <!-- Dashboard Tab Bar (sits below navbar) -->
   <div class="dash-tab-bar" id="dashTabBar">
     <div class="dash-tab-bar-inner">
-      <button class="dash-tab active" data-tab="home" data-icon="&#9737;" onclick="switchDashTab('home', this)">Home</button>
+      <button class="dash-tab active" data-tab="home" data-icon="&#9737;" onclick="switchDashTab('home', this)">Today</button>
       <button class="dash-tab" data-tab="training" data-icon="&#9878;" onclick="switchDashTab('training', this)">Train</button>
       <button class="dash-tab" data-tab="nutrition" data-icon="&#9733;" onclick="switchDashTab('nutrition', this)">Nutri</button>
-      <button class="dash-tab" data-tab="shapescore" data-icon="&#9812;" onclick="switchDashTab('shapescore', this)">Score</button>
-      <a class="dash-tab" data-icon="&#9873;" href="shape-store.html" style="text-decoration:none;" onclick="sessionStorage.setItem('shapeStoreContext','client')">Store</a>
+      <button class="dash-tab" data-tab="progress" data-icon="&#9650;" onclick="switchDashTab('progress', this)">Progress</button>
       <button class="dash-tab" data-tab="library" data-icon="&#9741;" onclick="switchDashTab('library', this)">Library</button>
       <button class="dash-tab" data-tab="myteam" data-icon="&#9825;" onclick="switchDashTab('myteam', this)">Team</button>
-      <button class="dash-tab" data-tab="community" data-icon="&#128172;" onclick="switchDashTab('community', this)">Chat</button>
+      <button class="dash-tab" data-tab="community" data-icon="&#128172;" onclick="switchDashTab('community', this)">Community</button>
+      <button class="dash-tab" data-tab="shapescore" data-icon="&#9812;" onclick="switchDashTab('shapescore', this)">Score</button>
       <button class="dash-tab" data-tab="profile" data-icon="&#9679;" onclick="switchDashTab('profile', this)">Me</button>
     </div>
   </div>
@@ -2253,6 +2253,135 @@
         </div>
       </div>
 
+      <!-- PROGRESS TAB -->
+      <div class="dash-tab-content" id="tabProgress">
+        <div style="max-width:920px;margin:0 auto;">
+
+          <div style="margin-bottom:24px;">
+            <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:6px;">Last 30 days</div>
+            <h2 style="font-size:1.6rem;font-weight:300;letter-spacing:-0.02em;margin:0;">Your progress</h2>
+          </div>
+
+          <!-- Stat strip -->
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:32px;">
+            <div style="background:var(--bg-card);border:1px solid var(--border);padding:18px 20px;">
+              <div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:6px;">Weight</div>
+              <div style="font-size:1.3rem;font-weight:400;letter-spacing:-0.02em;">182.4 lb</div>
+              <div style="font-size:0.72rem;color:#10B981;margin-top:4px;">&#9660; 2.4 lb this month</div>
+            </div>
+            <div style="background:var(--bg-card);border:1px solid var(--border);padding:18px 20px;">
+              <div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:6px;">Strength</div>
+              <div style="font-size:1.3rem;font-weight:400;letter-spacing:-0.02em;">+18%</div>
+              <div style="font-size:0.72rem;color:#10B981;margin-top:4px;">3 PRs set this month</div>
+            </div>
+            <div style="background:var(--bg-card);border:1px solid var(--border);padding:18px 20px;">
+              <div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:6px;">Workouts</div>
+              <div style="font-size:1.3rem;font-weight:400;letter-spacing:-0.02em;">18 / 20</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">90% adherence</div>
+            </div>
+            <div style="background:var(--bg-card);border:1px solid var(--border);padding:18px 20px;">
+              <div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:6px;">Shape Score</div>
+              <div style="font-size:1.3rem;font-weight:400;letter-spacing:-0.02em;">847</div>
+              <div style="font-size:0.72rem;color:var(--accent-dark);margin-top:4px;">153 to Gold tier</div>
+            </div>
+          </div>
+
+          <!-- Weight trend -->
+          <div style="background:var(--bg-card);border:1px solid var(--border);padding:24px;margin-bottom:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:16px;">
+              <h3 style="font-size:0.88rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;margin:0;">Weight trend</h3>
+              <a href="#" onclick="event.preventDefault();" style="font-size:0.72rem;color:var(--text-muted);">Log weigh-in &rarr;</a>
+            </div>
+            <div style="height:180px;display:flex;align-items:flex-end;gap:6px;">
+              <div style="flex:1;background:linear-gradient(to top, var(--accent), transparent);height:62%;border-top:2px solid var(--accent);"></div>
+              <div style="flex:1;background:linear-gradient(to top, var(--accent), transparent);height:68%;border-top:2px solid var(--accent);"></div>
+              <div style="flex:1;background:linear-gradient(to top, var(--accent), transparent);height:65%;border-top:2px solid var(--accent);"></div>
+              <div style="flex:1;background:linear-gradient(to top, var(--accent), transparent);height:72%;border-top:2px solid var(--accent);"></div>
+              <div style="flex:1;background:linear-gradient(to top, var(--accent), transparent);height:70%;border-top:2px solid var(--accent);"></div>
+              <div style="flex:1;background:linear-gradient(to top, var(--accent), transparent);height:78%;border-top:2px solid var(--accent);"></div>
+              <div style="flex:1;background:linear-gradient(to top, var(--accent), transparent);height:74%;border-top:2px solid var(--accent);"></div>
+              <div style="flex:1;background:linear-gradient(to top, var(--accent), transparent);height:82%;border-top:2px solid var(--accent);"></div>
+              <div style="flex:1;background:linear-gradient(to top, var(--accent), transparent);height:80%;border-top:2px solid var(--accent);"></div>
+              <div style="flex:1;background:linear-gradient(to top, var(--accent), transparent);height:86%;border-top:2px solid var(--accent);"></div>
+              <div style="flex:1;background:linear-gradient(to top, var(--accent), transparent);height:84%;border-top:2px solid var(--accent);"></div>
+              <div style="flex:1;background:linear-gradient(to top, var(--accent), transparent);height:88%;border-top:2px solid var(--accent);"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:10px;font-size:0.68rem;color:var(--text-muted);">
+              <span>Mar 16</span><span>Today</span>
+            </div>
+          </div>
+
+          <!-- Strength PRs -->
+          <div style="background:var(--bg-card);border:1px solid var(--border);padding:24px;margin-bottom:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:16px;">
+              <h3 style="font-size:0.88rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;margin:0;">Recent PRs</h3>
+              <a href="#" onclick="event.preventDefault();" style="font-size:0.72rem;color:var(--text-muted);">All records &rarr;</a>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:0;">
+              <div style="display:grid;grid-template-columns:1fr auto auto;gap:16px;align-items:center;padding:14px 0;border-bottom:1px solid var(--border);">
+                <div>
+                  <div style="font-size:0.9rem;font-weight:500;">Bench Press</div>
+                  <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">3 days ago</div>
+                </div>
+                <div style="font-size:1rem;font-weight:400;color:var(--accent-dark);">185 lb &times; 5</div>
+                <div style="font-size:0.72rem;color:#10B981;">+10 lb</div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr auto auto;gap:16px;align-items:center;padding:14px 0;border-bottom:1px solid var(--border);">
+                <div>
+                  <div style="font-size:0.9rem;font-weight:500;">Deadlift</div>
+                  <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">1 week ago</div>
+                </div>
+                <div style="font-size:1rem;font-weight:400;color:var(--accent-dark);">275 lb &times; 3</div>
+                <div style="font-size:0.72rem;color:#10B981;">+15 lb</div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr auto auto;gap:16px;align-items:center;padding:14px 0;">
+                <div>
+                  <div style="font-size:0.9rem;font-weight:500;">Squat</div>
+                  <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">2 weeks ago</div>
+                </div>
+                <div style="font-size:1rem;font-weight:400;color:var(--accent-dark);">225 lb &times; 5</div>
+                <div style="font-size:0.72rem;color:#10B981;">+5 lb</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Check-in history -->
+          <div style="background:var(--bg-card);border:1px solid var(--border);padding:24px;margin-bottom:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:16px;">
+              <h3 style="font-size:0.88rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;margin:0;">Check-in history</h3>
+              <a href="#" onclick="switchDashTab('myteam', document.querySelector('.dash-tab[data-tab=myteam]'));return false;" style="font-size:0.72rem;color:var(--text-muted);">Team &rarr;</a>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:0;">
+              <div style="display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center;padding:14px 0;border-bottom:1px solid var(--border);">
+                <div style="font-size:0.78rem;color:var(--text-muted);width:88px;">Last Thu</div>
+                <div>
+                  <div style="font-size:0.88rem;font-weight:500;">Weekly with Marcus</div>
+                  <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">Talked through form on deadlifts</div>
+                </div>
+                <div style="font-size:0.72rem;color:#10B981;">&#10003; Completed</div>
+              </div>
+              <div style="display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center;padding:14px 0;border-bottom:1px solid var(--border);">
+                <div style="font-size:0.78rem;color:var(--text-muted);width:88px;">2 weeks ago</div>
+                <div>
+                  <div style="font-size:0.88rem;font-weight:500;">Nutrition with Dr. Patel</div>
+                  <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">Bumped protein target to 180g/day</div>
+                </div>
+                <div style="font-size:0.72rem;color:#10B981;">&#10003; Completed</div>
+              </div>
+              <div style="display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center;padding:14px 0;">
+                <div style="font-size:0.78rem;color:var(--text-muted);width:88px;">3 weeks ago</div>
+                <div>
+                  <div style="font-size:0.88rem;font-weight:500;">Weekly with Marcus</div>
+                  <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">Progressed to week 3 of current block</div>
+                </div>
+                <div style="font-size:0.72rem;color:#10B981;">&#10003; Completed</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
       <!-- MY TEAM TAB -->
       <div class="dash-tab-content" id="tabMyteam">
         <div id="shapeSessionsWidget" style="margin-bottom:20px;"></div>
@@ -2883,6 +3012,7 @@
       home: 'tabHome',
       training: 'tabTraining',
       nutrition: 'tabNutrition',
+      progress: 'tabProgress',
       library: 'tabLibrary',
       myteam: 'tabMyteam',
       community: 'tabCommunity',
