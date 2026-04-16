@@ -18,6 +18,9 @@ export default function CinematicPageShell({
          content: ''; position: fixed; inset: 0; z-index: -1;
          background-image: linear-gradient(to bottom, rgba(0,0,0,0.45), rgba(0,0,0,0.6)), url('${backgroundImage}');
          background-size: auto 130vh; background-position: center center; background-repeat: no-repeat;
+       }
+       @media (max-width: 768px) {
+         body::before { background-size: cover !important; background-position: center top !important; }
        }`
     : `html, body { background: #000 !important; margin: 0 !important; padding: 0 !important; }`;
   return (

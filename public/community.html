@@ -23,11 +23,16 @@
     .community-chat, .chat-header, .chat-channel-tabs, .chat-input-area,
     .chat-msg-body, .community-right, .activity-panel, .profile-panel,
     .community-activity, .activity-profile, .activity-feed, .activity-item,
+    .mobile-view-switcher,
     [style*="background:var(--bg-card)"],
     [style*="background:var(--bg)"]:not(input):not(.community-search input) {
-      background: transparent !important;
-      backdrop-filter: blur(6px);
-      -webkit-backdrop-filter: blur(6px);
+      background: rgba(10,10,10,0.22) !important;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    @media (max-width: 768px) {
+      body::before { background-size: cover !important; background-position: center !important; }
+      .community-list, .chat-messages { padding-bottom: 16px; }
     }
     .community-user:hover, .community-user.active { background: rgba(255,255,255,0.05) !important; }
 
