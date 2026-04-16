@@ -33,6 +33,9 @@
     var allRoles = ['client','trainer','nutritionist'];
     var missing = allRoles.filter(function (r) { return current.indexOf(r) === -1; });
 
+    // Nothing to offer — hide the widget entirely.
+    if (!missing.length) { el.innerHTML = ''; return; }
+
     var labels = { client: 'Client', trainer: 'Trainer', nutritionist: 'Nutritionist' };
     var descs = {
       client: 'Train with coaches and track your own workouts.',
@@ -45,16 +48,12 @@
     html += '<div class="sar-sub">You\'re active as: <strong>' +
       current.map(function (r) { return labels[r] || r; }).join(', ') + '</strong>. ' +
       'One account can hold any combination of client, trainer, and nutritionist.</div>';
-    if (!missing.length) {
-      html += '<div class="sar-empty">You already hold every role on Shape.</div>';
-    } else {
-      html += '<div class="sar-btns">';
-      missing.forEach(function (r) {
-        html += '<button class="sar-btn primary" data-add="' + r + '" title="' + descs[r] + '">' +
-          'Become a ' + labels[r].toLowerCase() + '</button>';
-      });
-      html += '</div>';
-    }
+    html += '<div class="sar-btns">';
+    missing.forEach(function (r) {
+      html += '<button class="sar-btn primary" data-add="' + r + '" title="' + descs[r] + '">' +
+        'Become a ' + labels[r].toLowerCase() + '</button>';
+    });
+    html += '</div>';
     html += '</div>';
     el.innerHTML = html;
 
