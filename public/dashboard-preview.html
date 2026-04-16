@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape — Dashboard Restructure Preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    body { background: #0A0A0A; color: var(--text); }
+    .dp-wrap { max-width: 1100px; margin: 0 auto; padding: 110px 24px 80px; }
+    .dp-header { margin-bottom: 24px; text-align: center; }
+    .dp-header h1 { font-size: 1.6rem; font-weight: 300; letter-spacing: -0.03em; margin-bottom: 6px; }
+    .dp-header p { font-size: 0.85rem; color: var(--text-muted); }
+    .dp-toggle { display: flex; gap: 0; justify-content: center; margin: 24px 0 40px; border: 1px solid var(--border); width: fit-content; margin-left: auto; margin-right: auto; }
+    .dp-toggle button {
+      padding: 12px 28px; background: transparent; color: var(--text-muted);
+      border: none; font-family: inherit; font-size: 0.8rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.08em; cursor: pointer; transition: all 0.2s;
+    }
+    .dp-toggle button.active { background: var(--accent); color: #fff; }
+    .dp-variant { display: none; }
+    .dp-variant.active { display: block; }
+    .dp-caption { text-align: center; font-size: 0.82rem; color: var(--text-muted); margin-bottom: 32px; font-style: italic; }
+
+    /* Shared dashboard chrome */
+    .pv-tabbar {
+      display: flex; gap: 0; justify-content: center; border-bottom: 1px solid var(--border);
+      background: var(--bg-alt); margin: 0 -24px 24px; padding: 0 24px;
+      overflow-x: auto; scrollbar-width: none;
+    }
+    .pv-tabbar::-webkit-scrollbar { display: none; }
+    .pv-tab {
+      padding: 12px 18px; font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--text); opacity: 0.5; background: none; border: none;
+      border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; font-family: inherit;
+    }
+    .pv-tab.active { opacity: 1; border-bottom-color: var(--accent); }
+
+    /* ===== Option 2 ===== */
+    .v2-hero {
+      background: linear-gradient(135deg, rgba(45,212,191,0.08), rgba(108,58,237,0.08));
+      border: 1px solid rgba(45,212,191,0.25); padding: 32px;
+      display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 32px; align-items: center;
+      margin-bottom: 32px;
+    }
+    .v2-hero-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 6px; }
+    .v2-hero-title { font-size: 1.5rem; font-weight: 400; letter-spacing: -0.02em; margin-bottom: 8px; }
+    .v2-hero-sub { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 16px; }
+    .v2-hero-cta {
+      padding: 10px 20px; background: var(--accent); color: #fff; border: none;
+      font-family: inherit; font-size: 0.78rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.08em; cursor: pointer;
+    }
+    .v2-hero-stat { display: flex; flex-direction: column; gap: 4px; }
+    .v2-hero-stat-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
+    .v2-hero-stat-val { font-size: 1.6rem; font-weight: 300; letter-spacing: -0.02em; }
+    .v2-hero-stat-sub { font-size: 0.72rem; color: var(--text-muted); }
+
+    .v2-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .v2-card {
+      background: var(--bg-card); border: 1px solid var(--border); padding: 24px;
+      display: flex; flex-direction: column; gap: 8px; cursor: pointer; transition: border-color 0.2s;
+      text-decoration: none; color: var(--text);
+    }
+    .v2-card:hover { border-color: var(--accent); }
+    .v2-card-icon { font-size: 1.4rem; color: var(--accent-dark); margin-bottom: 6px; }
+    .v2-card-title { font-size: 0.92rem; font-weight: 500; }
+    .v2-card-meta { font-size: 0.76rem; color: var(--text-muted); line-height: 1.4; }
+    .v2-card-arrow { margin-top: 8px; font-size: 0.72rem; color: var(--accent-dark); font-weight: 600; }
+
+    /* ===== Option 3 ===== */
+    .v3-feed { display: flex; flex-direction: column; gap: 0; border: 1px solid var(--border); }
+    .v3-item {
+      padding: 20px 24px; display: grid; grid-template-columns: 64px 1fr auto;
+      gap: 20px; align-items: center; border-bottom: 1px solid var(--border);
+    }
+    .v3-item:last-child { border-bottom: none; }
+    .v3-time { font-size: 0.78rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .v3-body { min-width: 0; }
+    .v3-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent-dark); margin-bottom: 4px; font-weight: 600; }
+    .v3-title { font-size: 1rem; font-weight: 500; margin-bottom: 4px; }
+    .v3-sub { font-size: 0.78rem; color: var(--text-muted); }
+    .v3-cta {
+      padding: 8px 16px; background: transparent; color: var(--accent-dark);
+      border: 1px solid var(--accent); font-family: inherit; font-size: 0.72rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer; white-space: nowrap;
+    }
+    .v3-cta:hover { background: var(--accent); color: #fff; }
+    .v3-cta.primary { background: var(--accent); color: #fff; }
+    .v3-section-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin: 32px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+    }
+    .v3-section-head h3 { font-size: 0.82rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
+    .v3-section-head a { font-size: 0.72rem; color: var(--text-muted); }
+    .v3-greet { font-size: 1.6rem; font-weight: 300; letter-spacing: -0.02em; margin-bottom: 6px; }
+    .v3-greet-sub { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 32px; }
+
+    @media (max-width: 768px) {
+      .v2-hero { grid-template-columns: 1fr; gap: 20px; padding: 24px; }
+      .v2-grid { grid-template-columns: 1fr; }
+      .v3-item { grid-template-columns: 1fr; gap: 8px; }
+      .v3-time { order: -1; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar" id="navbar">
+    <div class="container nav-container">
+      <a href="home.html" class="logo"><img src="logo.png" alt="Shape" class="logo-img"></a>
+      <div class="nav-links" id="navLinks">
+        <a href="clients.html">Current Dashboard</a>
+      </div>
+      <div class="nav-actions">
+        <a href="clients.html" class="btn btn-sm btn-outline">Back to real dashboard</a>
+      </div>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu"><span></span><span></span><span></span></button>
+    </div>
+  </nav>
+
+  <div class="dp-wrap">
+    <div class="dp-header">
+      <h1>Dashboard Restructure Preview</h1>
+      <p>Two directions for replacing the widget grid. Click to switch.</p>
+    </div>
+
+    <div class="dp-toggle">
+      <button class="active" data-variant="v2" onclick="dpSwitch('v2', this)">Option 2: Hero + Drill-downs</button>
+      <button data-variant="v3" onclick="dpSwitch('v3', this)">Option 3: Full-page Tabs</button>
+    </div>
+
+    <!-- ===================== OPTION 2 ===================== -->
+    <div class="dp-variant active" id="variant-v2">
+      <div class="dp-caption">Single Today card at the top. Everything else is a link out to a focused page — no mini widgets.</div>
+
+      <div class="pv-tabbar">
+        <button class="pv-tab active">Home</button>
+        <button class="pv-tab">Train</button>
+        <button class="pv-tab">Nutri</button>
+        <button class="pv-tab">Score</button>
+        <button class="pv-tab">Team</button>
+        <button class="pv-tab">Chat</button>
+        <button class="pv-tab">Me</button>
+      </div>
+
+      <div class="v2-hero">
+        <div>
+          <div class="v2-hero-label">Today &middot; Thu Apr 16</div>
+          <div class="v2-hero-title">Upper Body Pull</div>
+          <div class="v2-hero-sub">45 min &middot; 6 exercises &middot; with Marcus</div>
+          <button class="v2-hero-cta">Start Workout &rarr;</button>
+        </div>
+        <div class="v2-hero-stat">
+          <div class="v2-hero-stat-label">Macros</div>
+          <div class="v2-hero-stat-val">1,420 / 2,100</div>
+          <div class="v2-hero-stat-sub">680 cals left &middot; P 112g &middot; C 140g &middot; F 48g</div>
+        </div>
+        <div class="v2-hero-stat">
+          <div class="v2-hero-stat-label">Next Check-In</div>
+          <div class="v2-hero-stat-val">6:30 PM</div>
+          <div class="v2-hero-stat-sub">Weekly with Marcus &middot; 20 min</div>
+        </div>
+      </div>
+
+      <div class="v2-grid">
+        <a href="#" class="v2-card">
+          <div class="v2-card-icon">&#9878;</div>
+          <div class="v2-card-title">Your Plan</div>
+          <div class="v2-card-meta">Week 3 of 8 &middot; 5 workouts this week</div>
+          <div class="v2-card-arrow">Open plan &rarr;</div>
+        </a>
+        <a href="#" class="v2-card">
+          <div class="v2-card-icon">&#9733;</div>
+          <div class="v2-card-title">Meals &amp; Grocery</div>
+          <div class="v2-card-meta">4 meals planned &middot; 12 items left on list</div>
+          <div class="v2-card-arrow">Open meals &rarr;</div>
+        </a>
+        <a href="#" class="v2-card">
+          <div class="v2-card-icon">&#9650;</div>
+          <div class="v2-card-title">Progress</div>
+          <div class="v2-card-meta">-2.4 lb this month &middot; +18% strength</div>
+          <div class="v2-card-arrow">See progress &rarr;</div>
+        </a>
+        <a href="#" class="v2-card">
+          <div class="v2-card-icon">&#9825;</div>
+          <div class="v2-card-title">Your Team</div>
+          <div class="v2-card-meta">Marcus (trainer) &middot; Dr. Patel (nutritionist)</div>
+          <div class="v2-card-arrow">Open team &rarr;</div>
+        </a>
+        <a href="#" class="v2-card">
+          <div class="v2-card-icon">&#9812;</div>
+          <div class="v2-card-title">Shape Score</div>
+          <div class="v2-card-meta">847 pts &middot; Silver tier &middot; 153 to Gold</div>
+          <div class="v2-card-arrow">View score &rarr;</div>
+        </a>
+        <a href="#" class="v2-card">
+          <div class="v2-card-icon">&#128172;</div>
+          <div class="v2-card-title">Messages &amp; Chat</div>
+          <div class="v2-card-meta">2 unread &middot; Marcus, Community</div>
+          <div class="v2-card-arrow">Open chat &rarr;</div>
+        </a>
+      </div>
+    </div>
+
+    <!-- ===================== OPTION 3 ===================== -->
+    <div class="dp-variant" id="variant-v3">
+      <div class="dp-caption">Every tab is a focused full-width screen. The Home tab is a simple timeline of what's next.</div>
+
+      <div class="pv-tabbar">
+        <button class="pv-tab active">Today</button>
+        <button class="pv-tab">Plan</button>
+        <button class="pv-tab">Meals</button>
+        <button class="pv-tab">Progress</button>
+        <button class="pv-tab">Team</button>
+        <button class="pv-tab">Score</button>
+        <button class="pv-tab">Chat</button>
+      </div>
+
+      <div class="v3-greet">Morning, Chris.</div>
+      <div class="v3-greet-sub">Three things to knock out today. No widgets, no grid — just what's next.</div>
+
+      <div class="v3-feed">
+        <div class="v3-item">
+          <div class="v3-time">9:00 AM</div>
+          <div class="v3-body">
+            <div class="v3-label">Workout</div>
+            <div class="v3-title">Upper Body Pull</div>
+            <div class="v3-sub">45 min &middot; 6 exercises &middot; programmed by Marcus</div>
+          </div>
+          <button class="v3-cta primary">Start &rarr;</button>
+        </div>
+        <div class="v3-item">
+          <div class="v3-time">12:30 PM</div>
+          <div class="v3-body">
+            <div class="v3-label">Meal</div>
+            <div class="v3-title">Grilled chicken bowl</div>
+            <div class="v3-sub">620 cal &middot; 52g P &middot; 68g C &middot; 18g F</div>
+          </div>
+          <button class="v3-cta">Log meal</button>
+        </div>
+        <div class="v3-item">
+          <div class="v3-time">6:30 PM</div>
+          <div class="v3-body">
+            <div class="v3-label">Check-in</div>
+            <div class="v3-title">Weekly with Marcus</div>
+            <div class="v3-sub">20 min &middot; video call &middot; in 9 hours</div>
+          </div>
+          <button class="v3-cta">Join</button>
+        </div>
+      </div>
+
+      <div class="v3-section-head">
+        <h3>This week</h3>
+        <a href="#">See plan &rarr;</a>
+      </div>
+      <div class="v3-feed">
+        <div class="v3-item">
+          <div class="v3-time">Tomorrow</div>
+          <div class="v3-body">
+            <div class="v3-label">Workout</div>
+            <div class="v3-title">Lower Body Push</div>
+            <div class="v3-sub">50 min &middot; 7 exercises</div>
+          </div>
+          <button class="v3-cta">Preview</button>
+        </div>
+        <div class="v3-item">
+          <div class="v3-time">Sat</div>
+          <div class="v3-body">
+            <div class="v3-label">Rest + check</div>
+            <div class="v3-title">Body photo + weigh-in</div>
+            <div class="v3-sub">Syncs to Marcus automatically</div>
+          </div>
+          <button class="v3-cta">Remind me</button>
+        </div>
+      </div>
+
+      <div class="v3-section-head">
+        <h3>Recently</h3>
+        <a href="#">Full history &rarr;</a>
+      </div>
+      <div class="v3-feed">
+        <div class="v3-item">
+          <div class="v3-time">Yesterday</div>
+          <div class="v3-body">
+            <div class="v3-label">Workout</div>
+            <div class="v3-title">Push Day &middot; completed</div>
+            <div class="v3-sub">42 min &middot; 3 PRs set &middot; +50 pts</div>
+          </div>
+          <button class="v3-cta">Review</button>
+        </div>
+        <div class="v3-item">
+          <div class="v3-time">2d ago</div>
+          <div class="v3-body">
+            <div class="v3-label">Progress</div>
+            <div class="v3-title">-0.6 lb since last week</div>
+            <div class="v3-sub">Trending toward your Apr 30 goal</div>
+          </div>
+          <button class="v3-cta">See graph</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    function dpSwitch(variant, btn) {
+      document.querySelectorAll('.dp-toggle button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.dp-variant').forEach(v => v.classList.remove('active'));
+      document.getElementById('variant-' + variant).classList.add('active');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  </script>
+
+</body>
+</html>
