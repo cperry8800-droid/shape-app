@@ -378,6 +378,7 @@
     .today-hero-cta:hover { background: var(--accent-dark); transform: translateY(-1px); }
 
     /* ===== Check-in Banner ===== */
+    .checkin-highlight { box-shadow: 0 0 0 2px rgba(245,158,11,0.9), 0 0 24px rgba(245,158,11,0.35); transition: box-shadow 0.6s ease; }
     .checkin-banner {
       display: flex; align-items: center; gap: 14px;
       background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3);
@@ -1317,7 +1318,7 @@
             <div class="checkin-banner-title">Weekly check-in with Marcus</div>
             <div class="checkin-banner-meta">Thursday · 6:30 PM &middot; 20 min</div>
           </div>
-          <button class="checkin-banner-action" onclick="switchDashTab('myteam', document.querySelector('[data-tab=myteam]'))">View</button>
+          <button class="checkin-banner-action" onclick="viewBannerCheckIn()">View</button>
           <button class="checkin-banner-close" onclick="document.getElementById('checkinBanner').style.display='none'" aria-label="Dismiss">&times;</button>
         </div>
 
@@ -2893,6 +2894,17 @@
     let _teamInited = false;
     let _profileInited = false;
     let _shapeScoreInited = false;
+
+    function viewBannerCheckIn() {
+      switchDashTab('home', null);
+      requestAnimationFrame(function(){
+        var widget = document.querySelector('[data-widget-id="cl-checkins"]');
+        if (!widget) return;
+        widget.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        widget.classList.add('checkin-highlight');
+        setTimeout(function(){ widget.classList.remove('checkin-highlight'); }, 2000);
+      });
+    }
 
     function switchDashTab(tab, btn) {
       document.querySelectorAll('.dash-tab').forEach(t => t.classList.remove('active'));
