@@ -4,19 +4,30 @@ export default function CinematicPageShell({
   title,
   subtitle,
   children,
+  backgroundImage,
 }: {
   title: string;
   subtitle?: string;
   children: React.ReactNode;
+  backgroundImage?: string;
 }) {
+  const bgStyle = backgroundImage
+    ? `html { background: #000 !important; }
+       body { background: transparent !important; margin: 0 !important; padding: 0 !important; position: relative; }
+       body::before {
+         content: ''; position: fixed; inset: 0; z-index: -1;
+         background-image: linear-gradient(to bottom, rgba(0,0,0,0.45), rgba(0,0,0,0.6)), url('${backgroundImage}');
+         background-size: cover; background-position: center; background-repeat: no-repeat;
+       }`
+    : `html, body { background: #000 !important; margin: 0 !important; padding: 0 !important; }`;
   return (
     <>
       <style>{`
         .navbar, .footer, header, footer { display: none !important; }
-        html, body { background: #000 !important; margin: 0 !important; padding: 0 !important; }
+        ${bgStyle}
         body > *:not(script):not(style) { margin: 0 !important; padding: 0 !important; }
       `}</style>
-      <div className="min-h-screen bg-black text-white">
+      <div className={`min-h-screen text-white ${backgroundImage ? '' : 'bg-black'}`}>
         {/* Nav */}
         <nav className="flex items-center justify-between px-6 py-5 md:px-12">
           <Link href="/" aria-label="Shape home">

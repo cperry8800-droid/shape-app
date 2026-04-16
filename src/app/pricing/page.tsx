@@ -5,7 +5,7 @@ export const metadata = { title: 'Pricing — Shape' };
 
 export default function PricingPage() {
   return (
-    <CinematicPageShell title="Simple pricing" subtitle="One plan. Everything included.">
+    <CinematicPageShell title="Simple pricing" subtitle="One plan. Everything included." backgroundImage="/intro/Backgounrd.jpeg">
       <div className="mx-auto max-w-lg">
         <div className="flex flex-col items-center rounded-xl border border-neutral-800 bg-neutral-900/30 p-10 text-center">
           <h2 className="text-xl font-medium mb-2">Shape Platform</h2>
