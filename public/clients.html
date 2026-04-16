@@ -3669,6 +3669,8 @@
       }
     }
     document.addEventListener('DOMContentLoaded', libRenderPurchased);
+    window.addEventListener('pageshow', libRenderPurchased);
+    window.addEventListener('focus', libRenderPurchased);
 
     // Library tab — filter/search/preview
     var _libCat = 'all';
@@ -5282,6 +5284,14 @@
       }
     }
     document.addEventListener('DOMContentLoaded', cpRenderAssignedPlans);
+    window.addEventListener('pageshow', cpRenderAssignedPlans);
+    window.addEventListener('focus', cpRenderAssignedPlans);
+    window.addEventListener('storage', function(e){
+      if (e.key === 'shapeClientAssignedPrograms' || e.key === 'shapeClientAssignedMealPlans') {
+        cpRenderAssignedPlans();
+        if (typeof libRenderPurchased === 'function') libRenderPurchased();
+      }
+    });
   </script>
 
   <!-- ===== Shape Score Tab JS ===== -->
