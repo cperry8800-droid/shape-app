@@ -115,10 +115,10 @@ ul { list-style: none; }
 .nav-container > .logo { justify-self: start; }
 .nav-container > .nav-actions { justify-self: end; }
 .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.4rem; flex-shrink: 0; }
-.logo-img { height: 54px; width: auto; }
+.logo-img { height: 46px; width: auto; }
 .footer .logo-img { height: 60px; }
 @media (min-width: 769px) {
-  .logo-img { height: 68px; }
+  .logo-img { height: 58px; }
   .footer .logo-img { height: 76px; }
 }
 .nav-links { display: flex; align-items: center; justify-content: center; gap: clamp(6px, 1vw, 14px); flex-wrap: nowrap; min-width: 0; }
