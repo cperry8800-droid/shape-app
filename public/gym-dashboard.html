@@ -13,6 +13,15 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
+    body { background: #000 !important; }
+    body::before {
+      content: ''; position: fixed; inset: 0; z-index: -1;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.6) 100%),
+                  url('/intro/Backgounrd.jpeg') center/cover no-repeat;
+    }
+    .section-alt, .navbar { background: transparent !important; }
+    .navbar, .navbar.scrolled { background: transparent !important; backdrop-filter: none !important; border-bottom: none !important; }
+    [style*="background:var(--bg-card)"] { background: rgba(10,10,10,0.35) !important; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-color: rgba(255,255,255,0.1) !important; }
     .gd-count-badge {
       display: inline-flex; align-items: center; justify-content: center;
       background: var(--accent); color: #000; font-size: 0.72rem; font-weight: 700;
