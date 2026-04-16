@@ -9,7 +9,7 @@ export async function login(formData: FormData): Promise<{ error: string } | voi
   const password = String(formData.get('password') ?? '');
   const rawNext = String(formData.get('next') ?? '');
   // Only allow internal paths to avoid open-redirect.
-  const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/';
+  const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/dashboard';
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });

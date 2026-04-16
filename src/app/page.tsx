@@ -1,13 +1,24 @@
-// Root route — show the cinematic intro. Same chrome-free layer the
-// /intro-preview route uses so Nav + Footer don't overlap the film.
+// Root route — logged-out visitors get the cinematic intro;
+// logged-in users skip straight to their dashboard.
 
+import { redirect } from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
 import IntroScroll from './intro-preview/IntroScroll';
 
 export const metadata = {
   title: 'Shape — Real coaching, powered by community',
 };
 
-export default function RootPage() {
+export default async function RootPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (user) {
+    redirect('/dashboard');
+  }
+
   return (
     <>
       <style>{`
