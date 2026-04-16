@@ -120,7 +120,29 @@
 
     async getSession() {
       var res = await client.auth.getSession();
-      return res.data && res.data.session;
+      var session = res.data && res.data.session;
+      if (session) return session;
+      // Legacy pages persist sessions in localStorage but the Next.js app
+      // stores them in HTTP cookies. If nothing is in localStorage yet,
+      // try to bootstrap from the Next.js /api/auth/session bridge before
+      // giving up.
+      try {
+        var bridgeRes = await fetch('/api/auth/session', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        if (!bridgeRes.ok) return null;
+        var bridge = await bridgeRes.json();
+        if (!bridge || !bridge.access_token || !bridge.refresh_token) return null;
+        var setRes = await client.auth.setSession({
+          access_token: bridge.access_token,
+          refresh_token: bridge.refresh_token,
+        });
+        return setRes.data && setRes.data.session;
+      } catch (e) {
+        console.warn('[shape] session bridge failed', e);
+        return null;
+      }
     },
 
     async getUser() {
