@@ -8,9 +8,11 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <style>
-    html, body {
+    html, body { background: #000 !important; }
+    body::before {
+      content: ''; position: fixed; inset: 0; z-index: -1;
       background: linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.6) 100%),
-                  url('/intro/Rewards%20background.jpeg') center/cover no-repeat fixed !important;
+                  url('/intro/Rewards%20background.jpeg') center/cover no-repeat;
     }
     .section-alt, .section, .page-hero { background: transparent !important; }
     .navbar, .navbar.scrolled, .nav-container, .nav-links, .nav-actions, .nav-dropdown-menu {
