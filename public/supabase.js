@@ -392,15 +392,38 @@
           else el.textContent = session.user.email || '';
         });
         // Rewrite any dashboard-link anchors with data-shape-dashboard-link
-        // to point at the user's own dashboard.
+        // to point at the user's own dashboard. Use the page context (e.g.
+        // on shape-score-trainer we want Dashboard -> trainer-dashboard, not
+        // the user's primary role's dashboard).
         if (profile) {
-          var dash = shapeDb.dashboardFor(profile.role);
+          var ctxRole = shapeDb._detectPageRole(profile);
+          var dash = shapeDb.dashboardFor(ctxRole);
           document.querySelectorAll('[data-shape-dashboard-link]').forEach(function (el) {
             el.setAttribute('href', dash);
           });
           shapeDb._injectRoleSwitcher(profile);
         }
       }
+    },
+
+    // Figure out which role context the current page belongs to.
+    // Used for the Dashboard link and the role-switcher "active" indicator.
+    _detectPageRole(profile) {
+      var path = (window.location.pathname || '').toLowerCase();
+      if (path.indexOf('trainer-dashboard') !== -1) return 'trainer';
+      if (path.indexOf('nutrition-schedule') !== -1) return 'nutritionist';
+      if (path.indexOf('shape-score-trainer') !== -1) return 'trainer';
+      if (path.indexOf('shape-score-nutritionist') !== -1) return 'nutritionist';
+      if (path.indexOf('trainer-profile') !== -1) return 'trainer';
+      if (path.indexOf('nutritionist-profile') !== -1) return 'nutritionist';
+      if (path.indexOf('clients.html') !== -1 || path.indexOf('/clients') !== -1) return 'client';
+      if (path.indexOf('shape-store') !== -1 || path.indexOf('shape-score') !== -1) {
+        try {
+          var ctx = sessionStorage.getItem('shapeStoreContext');
+          if (ctx === 'trainer' || ctx === 'nutritionist' || ctx === 'client') return ctx;
+        } catch (e) {}
+      }
+      return (profile && profile.role) || 'client';
     },
 
     // Auto-inject a "You're viewing as…" switcher when the user holds 2+ roles.
@@ -425,13 +448,7 @@
 
       var labels = { client: 'Client', trainer: 'Trainer', nutritionist: 'Nutritionist' };
 
-      // Best-guess current role from pathname.
-      var path = window.location.pathname.toLowerCase();
-      var current =
-        path.indexOf('trainer-dashboard') !== -1 ? 'trainer'
-        : path.indexOf('nutrition-schedule') !== -1 ? 'nutritionist'
-        : path.indexOf('clients') !== -1 ? 'client'
-        : profile.role;
+      var current = shapeDb._detectPageRole(profile);
 
       var style = document.createElement('style');
       style.textContent =
