@@ -1387,6 +1387,7 @@
             '<span class="mpb-badge '+badgeCls+'">'+p.status+'</span>'+
             '<span class="mpb-plan-client">'+(p.client||'Unassigned')+'</span>'+
             '<div class="mpb-plan-actions">'+
+              '<button style="border-color:var(--accent);color:var(--accent-dark);" onclick="mpbAddToSchedule('+p.id+')">Add to my schedule</button>'+
               '<button onclick="mpbEditPlan('+p.id+')">Edit</button>'+
               '<button class="mpb-del" onclick="mpbDeletePlan('+p.id+')">Delete</button>'+
             '</div>';
@@ -1395,6 +1396,29 @@
       }
 
       function mpbEsc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
+
+      window.mpbAddToSchedule=function(id){
+        var plan=mpbGetPlans().find(function(p){return p.id===id;});
+        if(!plan) return;
+        var assigned=mpbGetAssigned();
+        if(assigned.some(function(a){return a.id===plan.id;})){
+          mpbToast('Already on your schedule');
+          return;
+        }
+        var coachName='Your nutritionist';
+        try {
+          var profRaw=localStorage.getItem('shapeNutritionistProfile');
+          if(profRaw){var prof=JSON.parse(profRaw); if(prof&&prof.name) coachName=prof.name;}
+        } catch(e){}
+        var entry=Object.assign({}, plan, {
+          coach: coachName,
+          status: 'Published',
+          addedAt: Date.now()
+        });
+        assigned.push(entry);
+        mpbSaveAssigned(assigned);
+        mpbToast('Added "'+plan.name+'" to your schedule');
+      };
 
       window.mpbDeletePlan=function(id){
         var plans=mpbGetPlans().filter(function(p){return p.id!==id;});

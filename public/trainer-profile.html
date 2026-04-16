@@ -1354,6 +1354,7 @@ function saveTags() {
           </div>
           <span class="pb-badge ${badgeClass}">${p.status}</span>
           <div class="pb-plan-item-actions">
+            <button class="btn btn-sm btn-outline" onclick="pbAddToSchedule('${p.id}')" style="border-color:var(--accent);color:var(--accent-dark);">Add to my schedule</button>
             <button class="btn btn-sm btn-outline" onclick="pbEditPlan('${p.id}')">Edit</button>
             <button class="btn btn-sm btn-outline" onclick="pbDeletePlan('${p.id}')" style="border-color:rgba(239,68,68,0.3);color:#EF4444;">Delete</button>
           </div>
@@ -1361,6 +1362,31 @@ function saveTags() {
       `;
     }).join('');
   }
+
+  window.pbAddToSchedule = function(id) {
+    const plans = getPlans();
+    const plan = plans.find(p => p.id === id);
+    if (!plan) return;
+    const KEY = 'shapeClientAssignedPrograms';
+    let assigned = [];
+    try { assigned = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch(e) {}
+    if (assigned.some(a => a.id === plan.id)) {
+      showToast('Already on your schedule');
+      return;
+    }
+    assigned.push({
+      id: plan.id,
+      name: plan.name,
+      coach: (typeof trainerData !== 'undefined' && trainerData.name) ? trainerData.name : 'Your trainer',
+      category: plan.category || '',
+      difficulty: plan.difficulty || '',
+      duration: plan.duration || '',
+      daysPerWeek: plan.daysPerWeek || '',
+      addedAt: Date.now()
+    });
+    localStorage.setItem(KEY, JSON.stringify(assigned));
+    showToast('Added "' + plan.name + '" to your schedule');
+  };
 
   window.pbEditPlan = function(id) {
     const plans = getPlans();
