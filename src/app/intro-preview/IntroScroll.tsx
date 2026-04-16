@@ -283,7 +283,7 @@ export default function IntroScroll() {
 
       {/* Four one-liners, evenly spaced across the combined runtime of
           scenes 2 and 3. Timings are set up in goToScene2(). */}
-      {['One community', 'One platform', 'Real coaches', 'Real nutritionists'].map(
+      {['No more guessing', 'No more going alone', 'Real coaches. Real plans.', 'One community.'].map(
         (line, i) => (
           <div
             key={line}
