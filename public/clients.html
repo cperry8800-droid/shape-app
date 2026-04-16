@@ -377,6 +377,66 @@
     }
     .today-hero-cta:hover { background: var(--accent-dark); transform: translateY(-1px); }
 
+    /* ===== Today-first feed (option 3) ===== */
+    .today-feed { max-width: 860px; margin: 0 auto 32px; }
+    .today-feed-greet { margin-bottom: 24px; }
+    .today-feed-greet-title { font-size: 1.6rem; font-weight: 300; letter-spacing: -0.02em; margin-bottom: 4px; }
+    .today-feed-greet-sub { font-size: 0.88rem; color: var(--text-muted); font-weight: 300; }
+    .today-feed-section-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin: 28px 0 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+    }
+    .today-feed-section-head h3 { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin: 0; color: var(--text); }
+    .today-feed-section-head a { font-size: 0.72rem; color: var(--text-muted); }
+    .today-feed-section-head a:hover { color: var(--text); }
+    .today-feed-list { border: 1px solid var(--border); background: var(--bg-card); }
+    .today-feed-item {
+      padding: 18px 22px; display: grid; grid-template-columns: 88px 1fr auto;
+      gap: 18px; align-items: center; border-bottom: 1px solid var(--border);
+    }
+    .today-feed-item:last-child { border-bottom: none; }
+    .today-feed-time { font-size: 0.78rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .today-feed-body { min-width: 0; }
+    .today-feed-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent-dark); margin-bottom: 4px; font-weight: 600; }
+    .today-feed-title { font-size: 1rem; font-weight: 500; margin-bottom: 4px; }
+    .today-feed-sub { font-size: 0.78rem; color: var(--text-muted); font-weight: 300; }
+    .today-feed-cta {
+      padding: 9px 16px; background: transparent; color: var(--accent-dark);
+      border: 1px solid var(--accent); font-family: inherit; font-size: 0.72rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer; white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .today-feed-cta:hover { background: var(--accent); color: #fff; }
+    .today-feed-cta.primary { background: var(--accent); color: #fff; }
+    .today-feed-cta.primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+
+    .today-legacy-wrap {
+      max-width: 860px; margin: 0 auto; padding: 16px 0;
+    }
+    .today-legacy-summary {
+      cursor: pointer; font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--text-muted); padding: 10px 0;
+      border-top: 1px solid var(--border); list-style: none;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .today-legacy-summary::-webkit-details-marker { display: none; }
+    .today-legacy-summary::before {
+      content: '+'; display: inline-block; width: 16px; height: 16px;
+      border: 1px solid var(--border); text-align: center; line-height: 14px;
+      font-weight: 400; font-size: 0.88rem;
+    }
+    details[open] .today-legacy-summary::before { content: '\2013'; }
+    .today-legacy-summary:hover { color: var(--text); }
+    .today-legacy-wrap[open] { padding-bottom: 24px; }
+    .today-legacy-wrap > .widget-grid { margin-top: 16px; }
+
+    @media (max-width: 768px) {
+      .today-feed-item { grid-template-columns: 1fr; gap: 6px; padding: 14px 16px; }
+      .today-feed-time { order: -1; }
+      .today-feed-cta { justify-self: start; }
+      .today-feed-greet-title { font-size: 1.3rem; }
+    }
+
     /* ===== Check-in Banner ===== */
     .checkin-highlight { box-shadow: 0 0 0 2px rgba(245,158,11,0.9), 0 0 24px rgba(245,158,11,0.35); transition: box-shadow 0.6s ease; }
     .checkin-banner {
@@ -1322,18 +1382,102 @@
           <button class="checkin-banner-close" onclick="document.getElementById('checkinBanner').style.display='none'" aria-label="Dismiss">&times;</button>
         </div>
 
-        <!-- Today-First Hero Card -->
-        <div class="today-hero">
-          <div class="today-hero-label">Today &middot; <span id="todayDateLabel"></span></div>
-          <div class="today-hero-title">Upper Body Pull</div>
-          <div class="today-hero-meta">
-            <span>&#9203; 45 min</span>
-            <span>&#9878; 6 exercises</span>
-            <span>&#9889; +50 pts</span>
+        <!-- Today-first feed (option 3) -->
+        <div class="today-feed">
+          <div class="today-feed-greet">
+            <div class="today-feed-greet-title" id="todayFeedGreet">Good morning.</div>
+            <div class="today-feed-greet-sub">Here's what's on your plate &middot; <span id="todayDateLabel"></span></div>
           </div>
-          <button class="today-hero-cta" onclick="startLiveWorkout(2)">Start Workout &rarr;</button>
+
+          <div class="today-feed-section-head">
+            <h3>Today</h3>
+            <a href="#" onclick="event.preventDefault();switchDashTab('training', document.querySelector('.dash-tab[data-tab=training]'));">Full plan &rarr;</a>
+          </div>
+          <div class="today-feed-list">
+            <div class="today-feed-item">
+              <div class="today-feed-time">9:00 AM</div>
+              <div class="today-feed-body">
+                <div class="today-feed-label">Workout</div>
+                <div class="today-feed-title">Upper Body Pull</div>
+                <div class="today-feed-sub">45 min &middot; 6 exercises &middot; programmed by Marcus</div>
+              </div>
+              <button class="today-feed-cta primary" onclick="startLiveWorkout(2)">Start &rarr;</button>
+            </div>
+            <div class="today-feed-item">
+              <div class="today-feed-time">12:30 PM</div>
+              <div class="today-feed-body">
+                <div class="today-feed-label">Meal</div>
+                <div class="today-feed-title">Grilled chicken bowl</div>
+                <div class="today-feed-sub">620 cal &middot; 52g P &middot; 68g C &middot; 18g F</div>
+              </div>
+              <button class="today-feed-cta" onclick="switchDashTab('nutrition', document.querySelector('.dash-tab[data-tab=nutrition]'))">Log meal</button>
+            </div>
+            <div class="today-feed-item">
+              <div class="today-feed-time">6:30 PM</div>
+              <div class="today-feed-body">
+                <div class="today-feed-label">Check-in</div>
+                <div class="today-feed-title">Weekly with Marcus</div>
+                <div class="today-feed-sub">20 min &middot; video call</div>
+              </div>
+              <button class="today-feed-cta" onclick="viewBannerCheckIn()">Join</button>
+            </div>
+          </div>
+
+          <div class="today-feed-section-head">
+            <h3>This week</h3>
+            <a href="#" onclick="event.preventDefault();switchDashTab('training', document.querySelector('.dash-tab[data-tab=training]'));">Full schedule &rarr;</a>
+          </div>
+          <div class="today-feed-list">
+            <div class="today-feed-item">
+              <div class="today-feed-time">Tomorrow</div>
+              <div class="today-feed-body">
+                <div class="today-feed-label">Workout</div>
+                <div class="today-feed-title">Lower Body Push</div>
+                <div class="today-feed-sub">50 min &middot; 7 exercises</div>
+              </div>
+              <button class="today-feed-cta" onclick="switchDashTab('training', document.querySelector('.dash-tab[data-tab=training]'))">Preview</button>
+            </div>
+            <div class="today-feed-item">
+              <div class="today-feed-time">Sat</div>
+              <div class="today-feed-body">
+                <div class="today-feed-label">Rest + check</div>
+                <div class="today-feed-title">Body photo + weigh-in</div>
+                <div class="today-feed-sub">Syncs to your team automatically</div>
+              </div>
+              <button class="today-feed-cta" onclick="switchDashTab('progress', document.querySelector('.dash-tab[data-tab=progress]'))">Open</button>
+            </div>
+          </div>
+
+          <div class="today-feed-section-head">
+            <h3>Recently</h3>
+            <a href="#" onclick="event.preventDefault();switchDashTab('progress', document.querySelector('.dash-tab[data-tab=progress]'));">Full history &rarr;</a>
+          </div>
+          <div class="today-feed-list">
+            <div class="today-feed-item">
+              <div class="today-feed-time">Yesterday</div>
+              <div class="today-feed-body">
+                <div class="today-feed-label">Workout</div>
+                <div class="today-feed-title">Push Day &middot; completed</div>
+                <div class="today-feed-sub">42 min &middot; 3 PRs set &middot; +50 pts</div>
+              </div>
+              <button class="today-feed-cta" onclick="switchDashTab('progress', document.querySelector('.dash-tab[data-tab=progress]'))">Review</button>
+            </div>
+            <div class="today-feed-item">
+              <div class="today-feed-time">2d ago</div>
+              <div class="today-feed-body">
+                <div class="today-feed-label">Progress</div>
+                <div class="today-feed-title">-0.6 lb since last week</div>
+                <div class="today-feed-sub">Trending toward your goal</div>
+              </div>
+              <button class="today-feed-cta" onclick="switchDashTab('progress', document.querySelector('.dash-tab[data-tab=progress]'))">See graph</button>
+            </div>
+          </div>
         </div>
 
+        <!-- Legacy widget grid — kept in DOM so existing renderers don't crash,
+             but hidden behind a collapsible section now that the feed is primary. -->
+        <details class="today-legacy-wrap">
+          <summary class="today-legacy-summary">Show all widgets</summary>
         <div class="widget-grid" id="clWidgetGrid">
 
           <!-- Widget: Stats -->
@@ -1733,6 +1877,7 @@
 
         </div><!-- /clWidgetGrid -->
         <button class="widget-lib-btn" onclick="wlibOpen()">+ Add Widget from Library</button>
+        </details>
         </div>
       </div>
 
@@ -3973,14 +4118,19 @@
       wlibApply();
     }
     wlibApply();
-    // Today hero date label
+    // Today feed date + greeting
     (function() {
       var el = document.getElementById('todayDateLabel');
-      if (!el) return;
+      var greet = document.getElementById('todayFeedGreet');
       var d = new Date();
       var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
       var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      el.textContent = days[d.getDay()] + ', ' + months[d.getMonth()] + ' ' + d.getDate();
+      if (el) el.textContent = days[d.getDay()] + ', ' + months[d.getMonth()] + ' ' + d.getDate();
+      if (greet) {
+        var h = d.getHours();
+        var phrase = h < 5 ? 'Up late.' : h < 12 ? 'Good morning.' : h < 17 ? 'Good afternoon.' : h < 21 ? 'Good evening.' : 'Winding down.';
+        greet.textContent = phrase;
+      }
     })();
   </script>
   <!-- ===== My Team Tab JS ===== -->
