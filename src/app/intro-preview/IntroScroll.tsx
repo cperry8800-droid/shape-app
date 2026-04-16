@@ -55,7 +55,7 @@ export default function IntroScroll() {
     });
 
     // Show Enter Shape + Log in after a short delay
-    const ctaTimer = setTimeout(() => setShowCTAs(true), 1500);
+    const ctaTimer = setTimeout(() => setShowCTAs(true), 3000);
 
     // iOS Safari blocks autoplay until a user gesture.
     const unlock = () => {
