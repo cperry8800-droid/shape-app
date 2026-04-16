@@ -10,7 +10,7 @@ export default async function NutritionistsPage() {
     .map((v) => ({ value: v!, label: v! }));
 
   return (
-    <CinematicPageShell title="Find a nutritionist" subtitle="Your nutritionist sends the grocery list. You just shop." backgroundImage="/Nutrition 2.png">
+    <CinematicPageShell title="Find a nutritionist" subtitle="Your nutritionist sends the grocery list. You just shop." backgroundImage="/Nutrition 3.png">
       <div className="mx-auto max-w-4xl">
         <ProviderFilter items={nutritionists} categories={categories} kind="nutritionist" hrefPrefix="/nutritionists" />
       </div>
