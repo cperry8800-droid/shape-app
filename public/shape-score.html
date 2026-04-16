@@ -11,10 +11,9 @@
     html { background: #000 !important; }
     body { background: transparent !important; position: relative; }
     body::before {
-      content: ''; position: fixed; inset: -8vh 0; z-index: -1;
+      content: ''; position: fixed; inset: 0; z-index: -1;
       background-image: linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.6) 100%), url('/intro/Rewards%20background.jpeg');
-      background-size: cover; background-position: center; background-repeat: no-repeat;
-      transform: scale(1.04);
+      background-size: auto 130vh; background-position: center center; background-repeat: no-repeat;
     }
     main, .page-hero, .section, .section-alt, .container { background: transparent !important; }
     .section-alt, .section, .page-hero { background: transparent !important; }
