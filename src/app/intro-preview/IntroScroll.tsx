@@ -255,7 +255,7 @@ export default function IntroScroll() {
 
       {/* Welcome to Shape — shows during scene 1, fades when montage starts */}
       <div
-        className="pointer-events-none absolute inset-x-0 bottom-[18vh] z-10 flex flex-col items-center gap-5 px-6 text-center transition-opacity duration-[1000ms] ease-out"
+        className="pointer-events-none absolute inset-x-0 top-[40%] -translate-y-1/2 z-30 flex flex-col items-center gap-5 px-6 text-center transition-opacity duration-[1000ms] ease-out"
         style={{
           opacity: scene === 1 ? 1 : 0,
         }}
