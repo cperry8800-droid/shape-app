@@ -161,7 +161,11 @@ export default function IntroScroll() {
     setTimeout(() => setScene(5), 120);
   }, [safePlay]);
 
+  const loopTriggeredRef = useRef(false);
+
   const loopBackToScene1 = useCallback(() => {
+    if (loopTriggeredRef.current) return;
+    loopTriggeredRef.current = true;
     scene2TriggeredRef.current = false;
     scene4TriggeredRef.current = false;
     scene5TriggeredRef.current = false;
@@ -171,15 +175,20 @@ export default function IntroScroll() {
     const v2 = video2Ref.current;
     const v4 = video4Ref.current;
     const v5 = video5Ref.current;
+    // Start scene 1 playing before the opacity swap so both layers overlap
     if (v1) {
       v1.currentTime = 0;
-      v1.play().catch(() => {});
+      safePlay(v1);
     }
     if (v2) v2.currentTime = 0;
     if (v4) v4.currentTime = 0;
     if (v5) v5.currentTime = 0;
-    setTimeout(() => setScene(1), 120);
-  }, []);
+    // Delay the opacity crossfade slightly for a smooth blend
+    setTimeout(() => {
+      setScene(1);
+      loopTriggeredRef.current = false;
+    }, 200);
+  }, [safePlay]);
 
   return (
     <main className="fixed inset-0 bg-black text-white">
@@ -256,12 +265,19 @@ export default function IntroScroll() {
         style={{ opacity: scene === 4 ? 1 : 0 }}
       />
 
-      {/* Scene 5 — loops back to scene 1 on end. */}
+      {/* Scene 5 — crossfades back to scene 1 near its end. */}
       <video
         ref={video5Ref}
         src={SCENE_5}
         muted
         playsInline
+        onTimeUpdate={(e) => {
+          if (scene !== 5) return;
+          const v = e.currentTarget;
+          if (v.duration && v.currentTime >= v.duration - 1.2) {
+            loopBackToScene1();
+          }
+        }}
         onEnded={loopBackToScene1}
         preload="auto"
         className="pointer-events-none absolute inset-0 h-full w-full scale-[1.04] object-cover transition-opacity duration-[1400ms] ease-out"
