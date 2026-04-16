@@ -1947,7 +1947,7 @@
         <div class="today-feed">
           <div class="today-feed-greet">
             <div class="today-feed-greet-title">Train</div>
-            <div class="today-feed-greet-sub">12-Week Strength Builder &middot; Week 6 of 12</div>
+            <div class="today-feed-greet-sub">12-Week Strength Builder &middot; by Marcus Johnson &middot; Week 6 of 12</div>
             <div style="margin-top:14px;height:4px;background:var(--border);position:relative;max-width:420px;">
               <div style="height:100%;width:50%;background:var(--accent);"></div>
             </div>
@@ -1959,7 +1959,7 @@
               <div class="today-feed-body">
                 <div class="today-feed-label">Workout</div>
                 <div class="today-feed-title">Upper Body Push</div>
-                <div class="today-feed-sub">Bench, OHP, Incline DB, Tricep Dips &middot; ~55 min</div>
+                <div class="today-feed-sub">Bench, OHP, Incline DB, Tricep Dips &middot; ~55 min &middot; by Marcus Johnson</div>
               </div>
               <button class="today-feed-cta primary" onclick="event.stopPropagation();openFeedAction('workout-today')">Start</button>
             </div>
@@ -1968,7 +1968,7 @@
               <div class="today-feed-body">
                 <div class="today-feed-label">Workout</div>
                 <div class="today-feed-title">Lower Body Power</div>
-                <div class="today-feed-sub">Squat, RDL, Lunges, Calf raises &middot; ~50 min</div>
+                <div class="today-feed-sub">Squat, RDL, Lunges, Calf raises &middot; ~50 min &middot; by Marcus Johnson</div>
               </div>
               <button class="today-feed-cta" onclick="event.stopPropagation();openFeedAction('workout-preview')">Preview</button>
             </div>
@@ -1977,7 +1977,7 @@
               <div class="today-feed-body">
                 <div class="today-feed-label">Recap</div>
                 <div class="today-feed-title">Pull Day &middot; completed</div>
-                <div class="today-feed-sub">Rate how it felt, log any notes for your coach.</div>
+                <div class="today-feed-sub">By Marcus Johnson &middot; rate how it felt, log notes for your coach.</div>
               </div>
               <button class="today-feed-cta" onclick="event.stopPropagation();openFeedAction('workout-review')">Review</button>
             </div>
@@ -2215,36 +2215,36 @@
         <div class="today-feed">
           <div class="today-feed-greet">
             <div class="today-feed-greet-title">Nutri</div>
-            <div class="today-feed-greet-sub">Today's fuel &middot; 1,840 / 2,400 kcal &middot; 6 / 8 glasses water</div>
+            <div class="today-feed-greet-sub">High Protein Cut &middot; by Dr. Sarah Mitchell &middot; 1,840 / 2,400 kcal &middot; 6 / 8 glasses water</div>
           </div>
           <div class="today-feed-section-head"><h3>Today's meals</h3><a href="#" onclick="event.preventDefault();var d=document.querySelector('#tabNutrition .today-legacy-wrap');if(d)d.open=true;">All widgets</a></div>
           <div class="today-feed-list">
-            <div class="today-feed-item" onclick="openFeedAction('meal-today')">
+            <div class="today-feed-item" onclick="openFeedAction('meal-breakfast')">
               <div class="today-feed-time">8:00 AM</div>
               <div class="today-feed-body">
                 <div class="today-feed-label">Breakfast &middot; logged</div>
                 <div class="today-feed-title">Oats, berries, protein</div>
-                <div class="today-feed-sub">460 kcal &middot; 38P / 52C / 12F</div>
+                <div class="today-feed-sub">460 kcal &middot; 38P / 52C / 12F &middot; by Dr. Sarah Mitchell</div>
               </div>
-              <button class="today-feed-cta" onclick="event.stopPropagation();openFeedAction('meal-today')">Edit</button>
+              <button class="today-feed-cta" onclick="event.stopPropagation();openFeedAction('meal-breakfast')">View</button>
             </div>
-            <div class="today-feed-item" onclick="openFeedAction('meal-today')">
+            <div class="today-feed-item" onclick="openFeedAction('meal-lunch')">
               <div class="today-feed-time">12:30 PM</div>
               <div class="today-feed-body">
                 <div class="today-feed-label">Lunch &middot; logged</div>
                 <div class="today-feed-title">Chicken, rice, greens</div>
-                <div class="today-feed-sub">620 kcal &middot; 52P / 70C / 14F</div>
+                <div class="today-feed-sub">620 kcal &middot; 52P / 70C / 14F &middot; by Dr. Sarah Mitchell</div>
               </div>
-              <button class="today-feed-cta" onclick="event.stopPropagation();openFeedAction('meal-today')">Edit</button>
+              <button class="today-feed-cta" onclick="event.stopPropagation();openFeedAction('meal-lunch')">View</button>
             </div>
-            <div class="today-feed-item" onclick="openFeedAction('meal-today')">
+            <div class="today-feed-item" onclick="openFeedAction('meal-dinner')">
               <div class="today-feed-time">7:00 PM</div>
               <div class="today-feed-body">
                 <div class="today-feed-label">Dinner</div>
                 <div class="today-feed-title">Salmon, quinoa, salad</div>
-                <div class="today-feed-sub">~640 kcal target &middot; not logged yet</div>
+                <div class="today-feed-sub">~640 kcal target &middot; by Dr. Sarah Mitchell &middot; not logged yet</div>
               </div>
-              <button class="today-feed-cta primary" onclick="event.stopPropagation();openFeedAction('meal-today')">Log</button>
+              <button class="today-feed-cta primary" onclick="event.stopPropagation();openFeedAction('meal-dinner')">Log</button>
             </div>
           </div>
         </div>
@@ -6031,7 +6031,9 @@
           title: 'Grilled chicken bowl',
           body:
             '<p>620 cal &middot; 52g protein &middot; 68g carbs &middot; 18g fat</p>' +
-            '<label style="display:block;font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">Portion eaten</label>' +
+            '<div class="feed-modal-row"><span class="label">Plan</span><span>High Protein Cut</span></div>' +
+            '<div class="feed-modal-row"><span class="label">Coach</span><span>Dr. Sarah Mitchell</span></div>' +
+            '<label style="display:block;font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin:12px 0 6px;">Portion eaten</label>' +
             '<select class="feed-modal-input" id="feedMealPortion">' +
               '<option value="full">Full portion (as planned)</option>' +
               '<option value="half">Half</option>' +
@@ -6041,6 +6043,103 @@
             '</select>' +
             '<label style="display:block;font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">Notes (optional)</label>' +
             '<input class="feed-modal-input" id="feedMealNotes" placeholder="Swapped rice for quinoa, added avocado...">',
+          foot:
+            '<button class="feed-modal-btn" onclick="closeFeedAction()">Cancel</button>' +
+            '<button class="feed-modal-btn primary" onclick="feedLogMeal()">Log meal</button>'
+        },
+        'meal-breakfast': {
+          label: 'Breakfast &middot; Today &middot; 8:00 AM',
+          title: 'Oats, berries + whey protein bowl',
+          body:
+            '<p>460 cal &middot; 38g protein &middot; 52g carbs &middot; 12g fat &middot; 9g fiber</p>' +
+            '<div class="feed-modal-row"><span class="label">Plan</span><span>High Protein Cut</span></div>' +
+            '<div class="feed-modal-row"><span class="label">Coach</span><span>Dr. Sarah Mitchell</span></div>' +
+            '<div class="feed-modal-row"><span class="label">Prep</span><span>5 min</span></div>' +
+            '<div class="feed-modal-row"><span class="label">Status</span><span style="color:#10B981;">Logged at 8:12 AM</span></div>' +
+            '<h4 style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:16px 0 8px;">Ingredients</h4>' +
+            '<div class="feed-modal-exlist">' +
+              '<div class="feed-modal-ex"><span>Rolled oats</span><span class="sets">60 g</span></div>' +
+              '<div class="feed-modal-ex"><span>Whey isolate (vanilla)</span><span class="sets">1 scoop</span></div>' +
+              '<div class="feed-modal-ex"><span>Blueberries</span><span class="sets">80 g</span></div>' +
+              '<div class="feed-modal-ex"><span>Raspberries</span><span class="sets">40 g</span></div>' +
+              '<div class="feed-modal-ex"><span>Almond butter</span><span class="sets">1 tbsp</span></div>' +
+              '<div class="feed-modal-ex"><span>Unsweetened almond milk</span><span class="sets">200 ml</span></div>' +
+              '<div class="feed-modal-ex"><span>Cinnamon</span><span class="sets">pinch</span></div>' +
+            '</div>' +
+            '<h4 style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:16px 0 8px;">Prep</h4>' +
+            '<p style="font-size:0.86rem;color:var(--text-muted);line-height:1.5;">Cook oats with almond milk ~3 min, stir in whey off heat. Top with berries, almond butter, cinnamon.</p>' +
+            '<h4 style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:16px 0 8px;">Swap options</h4>' +
+            '<p style="font-size:0.86rem;color:var(--text-muted);line-height:1.5;">Greek yogurt parfait &middot; Protein pancakes &middot; Egg white scramble + oats</p>' +
+            '<h4 style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:16px 0 6px;">Coach note</h4>' +
+            '<p style="font-size:0.86rem;color:var(--text);line-height:1.5;font-style:italic;">"Add extra berries if you\'re training hard today — great pre-workout carbs." — Dr. Sarah</p>',
+          foot:
+            '<button class="feed-modal-btn" onclick="closeFeedAction()">Close</button>' +
+            '<button class="feed-modal-btn primary" onclick="feedLogMeal()">Edit log</button>'
+        },
+        'meal-lunch': {
+          label: 'Lunch &middot; Today &middot; 12:30 PM',
+          title: 'Chicken, jasmine rice + greens',
+          body:
+            '<p>620 cal &middot; 52g protein &middot; 70g carbs &middot; 14g fat &middot; 7g fiber</p>' +
+            '<div class="feed-modal-row"><span class="label">Plan</span><span>High Protein Cut</span></div>' +
+            '<div class="feed-modal-row"><span class="label">Coach</span><span>Dr. Sarah Mitchell</span></div>' +
+            '<div class="feed-modal-row"><span class="label">Prep</span><span>20 min (batch cook Sunday)</span></div>' +
+            '<div class="feed-modal-row"><span class="label">Status</span><span style="color:#10B981;">Logged at 12:44 PM</span></div>' +
+            '<h4 style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:16px 0 8px;">Ingredients</h4>' +
+            '<div class="feed-modal-exlist">' +
+              '<div class="feed-modal-ex"><span>Chicken breast (grilled)</span><span class="sets">180 g</span></div>' +
+              '<div class="feed-modal-ex"><span>Jasmine rice (cooked)</span><span class="sets">180 g</span></div>' +
+              '<div class="feed-modal-ex"><span>Spinach + arugula</span><span class="sets">2 cups</span></div>' +
+              '<div class="feed-modal-ex"><span>Cherry tomatoes</span><span class="sets">80 g</span></div>' +
+              '<div class="feed-modal-ex"><span>Avocado</span><span class="sets">1/4</span></div>' +
+              '<div class="feed-modal-ex"><span>Olive oil</span><span class="sets">1 tsp</span></div>' +
+              '<div class="feed-modal-ex"><span>Lemon, salt, pepper</span><span class="sets">to taste</span></div>' +
+            '</div>' +
+            '<h4 style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:16px 0 8px;">Prep</h4>' +
+            '<p style="font-size:0.86rem;color:var(--text-muted);line-height:1.5;">Season chicken with paprika + garlic, grill 6 min/side. Plate over warm rice, top with greens, tomatoes, avocado. Drizzle oil + lemon.</p>' +
+            '<h4 style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:16px 0 8px;">Swap options</h4>' +
+            '<p style="font-size:0.86rem;color:var(--text-muted);line-height:1.5;">Ground turkey bowl &middot; Tuna rice bowl &middot; Tempeh + quinoa (vegetarian)</p>' +
+            '<h4 style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:16px 0 6px;">Coach note</h4>' +
+            '<p style="font-size:0.86rem;color:var(--text);line-height:1.5;font-style:italic;">"Keep this as your staple mid-week — easy to batch, hits your macros cleanly." — Dr. Sarah</p>',
+          foot:
+            '<button class="feed-modal-btn" onclick="closeFeedAction()">Close</button>' +
+            '<button class="feed-modal-btn primary" onclick="feedLogMeal()">Edit log</button>'
+        },
+        'meal-dinner': {
+          label: 'Dinner &middot; Today &middot; 7:00 PM',
+          title: 'Salmon, quinoa + roasted veg',
+          body:
+            '<p>640 cal &middot; 46g protein &middot; 58g carbs &middot; 22g fat &middot; 8g fiber</p>' +
+            '<div class="feed-modal-row"><span class="label">Plan</span><span>High Protein Cut</span></div>' +
+            '<div class="feed-modal-row"><span class="label">Coach</span><span>Dr. Sarah Mitchell</span></div>' +
+            '<div class="feed-modal-row"><span class="label">Prep</span><span>25 min</span></div>' +
+            '<div class="feed-modal-row"><span class="label">Status</span><span style="color:#F59E0B;">Not logged yet</span></div>' +
+            '<h4 style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:16px 0 8px;">Ingredients</h4>' +
+            '<div class="feed-modal-exlist">' +
+              '<div class="feed-modal-ex"><span>Salmon fillet (skin on)</span><span class="sets">170 g</span></div>' +
+              '<div class="feed-modal-ex"><span>Quinoa (cooked)</span><span class="sets">150 g</span></div>' +
+              '<div class="feed-modal-ex"><span>Broccoli florets</span><span class="sets">150 g</span></div>' +
+              '<div class="feed-modal-ex"><span>Red bell pepper</span><span class="sets">1/2</span></div>' +
+              '<div class="feed-modal-ex"><span>Mixed greens</span><span class="sets">1 cup</span></div>' +
+              '<div class="feed-modal-ex"><span>Olive oil</span><span class="sets">1 tsp</span></div>' +
+              '<div class="feed-modal-ex"><span>Garlic, lemon, dill</span><span class="sets">to taste</span></div>' +
+            '</div>' +
+            '<h4 style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:16px 0 8px;">Prep</h4>' +
+            '<p style="font-size:0.86rem;color:var(--text-muted);line-height:1.5;">Roast broccoli + peppers 400°F for 18 min. Pan-sear salmon skin-down 4 min, flip 2 min. Plate over quinoa with greens, finish with lemon + dill.</p>' +
+            '<h4 style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:16px 0 8px;">Swap options</h4>' +
+            '<p style="font-size:0.86rem;color:var(--text-muted);line-height:1.5;">White fish + rice &middot; Shrimp stir-fry &middot; Lean steak + sweet potato</p>' +
+            '<h4 style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:16px 0 6px;">Coach note</h4>' +
+            '<p style="font-size:0.86rem;color:var(--text);line-height:1.5;font-style:italic;">"Salmon twice a week keeps omega-3 dialed in — don\'t skip the skin." — Dr. Sarah</p>' +
+            '<label style="display:block;font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin:16px 0 6px;">Portion eaten</label>' +
+            '<select class="feed-modal-input" id="feedMealPortion">' +
+              '<option value="full">Full portion (as planned)</option>' +
+              '<option value="half">Half</option>' +
+              '<option value="three-quarter">3/4</option>' +
+              '<option value="double">Double</option>' +
+              '<option value="skip">Skipped</option>' +
+            '</select>' +
+            '<label style="display:block;font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">Notes (optional)</label>' +
+            '<input class="feed-modal-input" id="feedMealNotes" placeholder="Swapped quinoa for rice, added extra greens...">',
           foot:
             '<button class="feed-modal-btn" onclick="closeFeedAction()">Cancel</button>' +
             '<button class="feed-modal-btn primary" onclick="feedLogMeal()">Log meal</button>'
