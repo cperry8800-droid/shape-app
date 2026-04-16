@@ -8,7 +8,7 @@ import type { NextConfig } from "next";
 // /pricing, /signup, /forgot-password, /reset-password — removed from
 // this list. Everything else still falls through to the legacy .html.
 const legacyPages = [
-  'landing',
+  'home', 'landing',
   'gyms',
   'trainer-profile', 'nutritionist-profile', 'client-profile',
   'trainer-dashboard', 'gym-dashboard', 'nutrition-schedule', 'clients', 'my-team',
