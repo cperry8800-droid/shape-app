@@ -16,6 +16,19 @@
       background-size: cover; background-position: center; background-repeat: no-repeat;
     }
     main, .page-hero, .section, .section-alt, .container { background: transparent !important; }
+    /* Translucent cards that match the transparent navbar look */
+    [style*="background:var(--bg-card)"] {
+      background: rgba(10,10,10,0.45) !important;
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border-color: rgba(255,255,255,0.08) !important;
+    }
+    .reward-card {
+      background: rgba(10,10,10,0.45) !important;
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border-color: rgba(255,255,255,0.08) !important;
+    }
     .section-alt, .section, .page-hero { background: transparent !important; }
     nav.navbar, nav.navbar.scrolled, nav#navbar, nav#navbar.scrolled,
     .navbar, .navbar.scrolled, .nav-container, .nav-links, .nav-actions {
