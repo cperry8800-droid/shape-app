@@ -1033,3 +1033,15 @@ img.card-avatar-inline { background: var(--border); }
   .trainer-detail-stats { justify-content: center; flex-wrap: wrap; }
   .subscribe-bar { flex-direction: column; text-align: center; gap: 16px; }
 }
+
+/* Keep signed-in username on a single line — was wrapping to two lines
+   next to the role switcher when names were long (e.g. "Christopher Perry"). */
+#shapeNavUserName,
+.shape-nav-user-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+  display: inline-block;
+  vertical-align: middle;
+}
