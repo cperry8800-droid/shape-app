@@ -1955,6 +1955,48 @@
       <!-- TRAINING TAB -->
       <div class="dash-tab-content" id="tabTraining">
 
+        <div class="today-feed">
+          <div class="today-feed-greet">
+            <div class="today-feed-greet-title">Train</div>
+            <div class="today-feed-greet-sub">12-Week Strength Builder &middot; Week 6 of 12</div>
+            <div style="margin-top:14px;height:4px;background:var(--border);position:relative;max-width:420px;">
+              <div style="height:100%;width:50%;background:var(--accent);"></div>
+            </div>
+          </div>
+          <div class="today-feed-section-head"><h3>Up next</h3><a href="#" onclick="event.preventDefault();var d=document.querySelector('#tabTraining .today-legacy-wrap');if(d)d.open=true;">All widgets</a></div>
+          <div class="today-feed-list">
+            <div class="today-feed-item" onclick="openFeedAction('workout-today')">
+              <div class="today-feed-time">Today</div>
+              <div class="today-feed-body">
+                <div class="today-feed-label">Workout</div>
+                <div class="today-feed-title">Upper Body Push</div>
+                <div class="today-feed-sub">Bench, OHP, Incline DB, Tricep Dips &middot; ~55 min</div>
+              </div>
+              <button class="today-feed-cta primary" onclick="event.stopPropagation();openFeedAction('workout-today')">Start</button>
+            </div>
+            <div class="today-feed-item" onclick="openFeedAction('workout-preview')">
+              <div class="today-feed-time">Tomorrow</div>
+              <div class="today-feed-body">
+                <div class="today-feed-label">Workout</div>
+                <div class="today-feed-title">Lower Body Power</div>
+                <div class="today-feed-sub">Squat, RDL, Lunges, Calf raises &middot; ~50 min</div>
+              </div>
+              <button class="today-feed-cta" onclick="event.stopPropagation();openFeedAction('workout-preview')">Preview</button>
+            </div>
+            <div class="today-feed-item" onclick="openFeedAction('workout-review')">
+              <div class="today-feed-time">Yesterday</div>
+              <div class="today-feed-body">
+                <div class="today-feed-label">Recap</div>
+                <div class="today-feed-title">Pull Day &middot; completed</div>
+                <div class="today-feed-sub">Rate how it felt, log any notes for your coach.</div>
+              </div>
+              <button class="today-feed-cta" onclick="event.stopPropagation();openFeedAction('workout-review')">Review</button>
+            </div>
+          </div>
+        </div>
+
+        <details class="today-legacy-wrap">
+          <summary class="today-legacy-summary">Show all widgets</summary>
         <div class="widget-grid" id="clTrainingWidgetGrid">
 
           <!-- Widget: Current Program -->
@@ -2144,6 +2186,7 @@
           </div>
 
         </div><!-- /clTrainingWidgetGrid -->
+        </details>
 
         <!-- WORKOUT DETAIL VIEW (hidden by default, outside widget grid) -->
         <div id="workoutDetailView" style="display:none;margin-bottom:40px;">
@@ -2180,6 +2223,45 @@
       <div class="dash-tab-content" id="tabNutrition">
         <div class="nutrition-dashboard">
 
+        <div class="today-feed">
+          <div class="today-feed-greet">
+            <div class="today-feed-greet-title">Nutri</div>
+            <div class="today-feed-greet-sub">Today's fuel &middot; 1,840 / 2,400 kcal &middot; 6 / 8 glasses water</div>
+          </div>
+          <div class="today-feed-section-head"><h3>Today's meals</h3><a href="#" onclick="event.preventDefault();var d=document.querySelector('#tabNutrition .today-legacy-wrap');if(d)d.open=true;">All widgets</a></div>
+          <div class="today-feed-list">
+            <div class="today-feed-item" onclick="openFeedAction('meal-today')">
+              <div class="today-feed-time">8:00 AM</div>
+              <div class="today-feed-body">
+                <div class="today-feed-label">Breakfast &middot; logged</div>
+                <div class="today-feed-title">Oats, berries, protein</div>
+                <div class="today-feed-sub">460 kcal &middot; 38P / 52C / 12F</div>
+              </div>
+              <button class="today-feed-cta" onclick="event.stopPropagation();openFeedAction('meal-today')">Edit</button>
+            </div>
+            <div class="today-feed-item" onclick="openFeedAction('meal-today')">
+              <div class="today-feed-time">12:30 PM</div>
+              <div class="today-feed-body">
+                <div class="today-feed-label">Lunch &middot; logged</div>
+                <div class="today-feed-title">Chicken, rice, greens</div>
+                <div class="today-feed-sub">620 kcal &middot; 52P / 70C / 14F</div>
+              </div>
+              <button class="today-feed-cta" onclick="event.stopPropagation();openFeedAction('meal-today')">Edit</button>
+            </div>
+            <div class="today-feed-item" onclick="openFeedAction('meal-today')">
+              <div class="today-feed-time">7:00 PM</div>
+              <div class="today-feed-body">
+                <div class="today-feed-label">Dinner</div>
+                <div class="today-feed-title">Salmon, quinoa, salad</div>
+                <div class="today-feed-sub">~640 kcal target &middot; not logged yet</div>
+              </div>
+              <button class="today-feed-cta primary" onclick="event.stopPropagation();openFeedAction('meal-today')">Log</button>
+            </div>
+          </div>
+        </div>
+
+        <details class="today-legacy-wrap">
+          <summary class="today-legacy-summary">Show all widgets</summary>
         <div class="widget-grid" id="clNutritionWidgetGrid">
 
           <!-- Widget: Active Meal Plan -->
@@ -2465,6 +2547,7 @@
           </div>
 
         </div><!-- /clNutritionWidgetGrid -->
+        </details>
 
         </div>
       </div>
