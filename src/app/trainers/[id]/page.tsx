@@ -48,7 +48,7 @@ export default async function TrainerDetailPage({
             <h2 className="text-lg font-medium mb-4">Programs</h2>
             <div className="space-y-3">
               {trainer.workouts.map((w: any) => (
-                <div key={w.id} className="rounded-lg border border-neutral-800 bg-neutral-900/30 p-4">
+                <div key={w.id} className="rounded-lg border border-neutral-800 bg-neutral-900/30 backdrop-blur-md p-4">
                   <h3 className="font-medium mb-1">{w.name}</h3>
                   {w.description && <p className="text-sm text-white/50">{w.description}</p>}
                 </div>

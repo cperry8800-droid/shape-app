@@ -48,7 +48,7 @@ export default async function NutritionistDetailPage({
             <h2 className="text-lg font-medium mb-4">Meal Plans</h2>
             <div className="space-y-3">
               {nutritionist.plans.map((p: any) => (
-                <div key={p.id} className="rounded-lg border border-neutral-800 bg-neutral-900/30 p-4">
+                <div key={p.id} className="rounded-lg border border-neutral-800 bg-neutral-900/30 backdrop-blur-md p-4">
                   <h3 className="font-medium mb-1">{p.name}</h3>
                   {p.description && <p className="text-sm text-white/50">{p.description}</p>}
                 </div>
