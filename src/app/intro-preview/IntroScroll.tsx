@@ -178,6 +178,7 @@ export default function IntroScroll() {
       <video
         ref={video1Ref}
         src={SCENE_1}
+        poster="/intro/beat-5-poster.jpg"
         muted
         loop={!looped}
         playsInline

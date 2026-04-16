@@ -45,7 +45,7 @@ export async function signup(
 
   if (!needsConfirm) {
     revalidatePath('/', 'layout');
-    redirect('/');
+    redirect('/dashboard');
   }
 
   return { ok: true, needsConfirm: true };
@@ -71,7 +71,7 @@ export async function updatePassword(
   const { error } = await supabase.auth.updateUser({ password });
   if (error) return { error: error.message };
   revalidatePath('/', 'layout');
-  redirect('/');
+  redirect('/dashboard');
 }
 
 export async function logout(_formData?: FormData): Promise<void> {
