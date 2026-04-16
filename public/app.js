@@ -1555,7 +1555,10 @@ function createTrainerCard(trainer) {
         </div>
         <div class="card-footer">
           <div class="card-price">$${trainer.price}<span>/mo</span></div>
-          <button class="btn btn-sm btn-primary">View Workouts</button>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <a href="trainer-profile.html?id=${trainer.id}" class="btn btn-sm btn-outline" onclick="event.stopPropagation()">Profile</a>
+            <button class="btn btn-sm btn-primary">View Workouts</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1589,7 +1592,10 @@ function createNutritionistCard(nutritionist) {
         </div>
         <div class="card-footer">
           <div class="card-price">$${nutritionist.price}<span>/mo</span></div>
-          <button class="btn btn-sm btn-accent">View Plans</button>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <a href="nutritionist-profile.html?id=${nutritionist.id}" class="btn btn-sm btn-outline" onclick="event.stopPropagation()">Profile</a>
+            <button class="btn btn-sm btn-accent">View Plans</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1672,6 +1678,11 @@ if (totmCard) {
   const totm = trainers.find(t => t.trainerOfMonth);
   if (totm) {
     const initials = totm.name.split(' ').map(n => n[0]).join('');
+    totmCard.style.cursor = 'pointer';
+    totmCard.addEventListener('click', (e) => {
+      if (e.target.closest('button') || e.target.closest('a')) return;
+      openTrainerModal(totm.id);
+    });
     totmCard.innerHTML = `
       <div class="totm-layout">
         <div class="totm-avatar-area">
@@ -1688,9 +1699,10 @@ if (totmCard) {
             <span>${totm.subscribers.toLocaleString()} subscribers</span>
             <span>${totm.experience} experience</span>
           </div>
-          <div style="margin-top: 24px; display: flex; gap: 12px;">
-            <button class="btn btn-primary" onclick="openTrainerModal(${totm.id})">View Workouts</button>
-            <button class="btn btn-outline" onclick="subscribe('${totm.name}', ${totm.price})">Subscribe — $${totm.price}/mo</button>
+          <div style="margin-top: 24px; display: flex; gap: 12px; flex-wrap: wrap;">
+            <button class="btn btn-primary" onclick="event.stopPropagation();openTrainerModal(${totm.id})">View Workouts</button>
+            <a class="btn btn-outline" href="trainer-profile.html?id=${totm.id}" onclick="event.stopPropagation()">Profile</a>
+            <button class="btn btn-outline" onclick="event.stopPropagation();subscribe('${totm.name}', ${totm.price})">Subscribe — $${totm.price}/mo</button>
           </div>
         </div>
       </div>
@@ -1710,6 +1722,11 @@ if (notmCard) {
   const notm = nutritionists.find(n => n.nutritionistOfMonth);
   if (notm) {
     const initials = notm.name.split(' ').map(n => n[0]).join('');
+    notmCard.style.cursor = 'pointer';
+    notmCard.addEventListener('click', (e) => {
+      if (e.target.closest('button') || e.target.closest('a')) return;
+      openNutritionistModal(notm.id);
+    });
     notmCard.innerHTML = `
       <div class="totm-layout">
         <div class="totm-avatar-area">
@@ -1727,8 +1744,9 @@ if (notmCard) {
             <span>${notm.experience} experience</span>
           </div>
           <div class="card-actions">
-            <button class="btn btn-primary" onclick="openNutritionistModal(${notm.id})">View Plans</button>
-            <button class="btn btn-outline" onclick="subscribe('${notm.name}', ${notm.price})">Subscribe — $${notm.price}/mo</button>
+            <button class="btn btn-primary" onclick="event.stopPropagation();openNutritionistModal(${notm.id})">View Plans</button>
+            <a class="btn btn-outline" href="nutritionist-profile.html?id=${notm.id}" onclick="event.stopPropagation()">Profile</a>
+            <button class="btn btn-outline" onclick="event.stopPropagation();subscribe('${notm.name}', ${notm.price})">Subscribe — $${notm.price}/mo</button>
           </div>
         </div>
       </div>
