@@ -3185,35 +3185,74 @@
 
       <!-- Library Tab -->
       <div class="dash-tab-content" id="tabLibrary">
+        <style>
+          .lib-group { border: 1px solid var(--border); margin-bottom: 12px; }
+          .lib-group[open] { background: rgba(255,255,255,0.01); }
+          .lib-group-summary {
+            display: flex; align-items: center; gap: 12px;
+            padding: 14px 18px; cursor: pointer; list-style: none;
+            user-select: none; transition: background .15s;
+          }
+          .lib-group-summary::-webkit-details-marker { display: none; }
+          .lib-group-summary:hover { background: rgba(255,255,255,0.03); }
+          .lib-group-title { flex: 1; font-weight: 600; font-size: 0.95rem; }
+          .lib-group-count {
+            font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em;
+            color: var(--text-muted); background: rgba(255,255,255,0.04);
+            padding: 3px 9px; border-radius: 999px;
+          }
+          .lib-group-chev {
+            color: var(--text-muted); font-size: 0.9rem;
+            transition: transform .2s;
+          }
+          .lib-group[open] .lib-group-chev { transform: rotate(90deg); }
+          .lib-group-body { padding: 4px 18px 18px; border-top: 1px solid var(--border); }
+          .lib-group-sub { font-size: 0.78rem; color: var(--text-muted); font-weight: 300; margin: 12px 0; }
+        </style>
         <div style="max-width:1200px;margin:0 auto;">
-          <!-- My Programs (purchased/added) -->
-          <div style="margin-bottom:28px;">
-            <div style="margin-bottom:12px;">
-              <h2 style="font-size:clamp(1.1rem,2vw,1.4rem);font-weight:300;letter-spacing:-0.03em;margin-bottom:6px;">My Programs</h2>
-              <p style="font-size:0.85rem;color:var(--text-muted);font-weight:300;">Training plans you've added from your coaches.</p>
-            </div>
-            <div id="libProgramsList" style="border:1px solid var(--border);"></div>
-            <div id="libProgramsEmpty" style="display:none;padding:24px 16px;text-align:center;color:var(--text-muted);font-size:0.85rem;border:1px dashed var(--border);">
-              No programs yet. Browse trainers and tap <em>Add to my schedule</em> on any published plan.
-            </div>
-          </div>
-
-          <!-- My Meal Plans (purchased/added) -->
-          <div style="margin-bottom:28px;">
-            <div style="margin-bottom:12px;">
-              <h2 style="font-size:clamp(1.1rem,2vw,1.4rem);font-weight:300;letter-spacing:-0.03em;margin-bottom:6px;">My Meal Plans</h2>
-              <p style="font-size:0.85rem;color:var(--text-muted);font-weight:300;">Nutrition plans you've added from your nutritionists.</p>
-            </div>
-            <div id="libMealPlansList" style="border:1px solid var(--border);"></div>
-            <div id="libMealPlansEmpty" style="display:none;padding:24px 16px;text-align:center;color:var(--text-muted);font-size:0.85rem;border:1px dashed var(--border);">
-              No meal plans yet. Browse nutritionists and tap <em>Add to my schedule</em> on any published plan.
-            </div>
-          </div>
-
           <div style="margin-bottom:24px;">
             <h2 style="font-size:clamp(1.1rem,2vw,1.4rem);font-weight:300;letter-spacing:-0.03em;margin-bottom:6px;">My Library</h2>
-            <p style="font-size:0.85rem;color:var(--text-muted);font-weight:300;">Your saved workouts, ready to go whenever you are.</p>
+            <p style="font-size:0.85rem;color:var(--text-muted);font-weight:300;">Your programs, meal plans, and saved workouts — all in one place.</p>
           </div>
+
+          <details class="lib-group">
+            <summary class="lib-group-summary">
+              <span class="lib-group-title">My Programs</span>
+              <span class="lib-group-count" id="libProgramsCount">0</span>
+              <span class="lib-group-chev">&#8250;</span>
+            </summary>
+            <div class="lib-group-body">
+              <p class="lib-group-sub">Training plans you've added from your coaches.</p>
+              <div id="libProgramsList" style="border:1px solid var(--border);"></div>
+              <div id="libProgramsEmpty" style="display:none;padding:24px 16px;text-align:center;color:var(--text-muted);font-size:0.85rem;border:1px dashed var(--border);">
+                No programs yet. Browse trainers and tap <em>Add to my schedule</em> on any published plan.
+              </div>
+            </div>
+          </details>
+
+          <details class="lib-group">
+            <summary class="lib-group-summary">
+              <span class="lib-group-title">My Meal Plans</span>
+              <span class="lib-group-count" id="libMealPlansCount">0</span>
+              <span class="lib-group-chev">&#8250;</span>
+            </summary>
+            <div class="lib-group-body">
+              <p class="lib-group-sub">Nutrition plans you've added from your nutritionists.</p>
+              <div id="libMealPlansList" style="border:1px solid var(--border);"></div>
+              <div id="libMealPlansEmpty" style="display:none;padding:24px 16px;text-align:center;color:var(--text-muted);font-size:0.85rem;border:1px dashed var(--border);">
+                No meal plans yet. Browse nutritionists and tap <em>Add to my schedule</em> on any published plan.
+              </div>
+            </div>
+          </details>
+
+          <details class="lib-group" open>
+            <summary class="lib-group-summary">
+              <span class="lib-group-title">Saved Workouts</span>
+              <span class="lib-group-count" id="libWorkoutsCount">3</span>
+              <span class="lib-group-chev">&#8250;</span>
+            </summary>
+            <div class="lib-group-body">
+              <p class="lib-group-sub">Your saved workouts, ready to go whenever you are.</p>
           <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px;">
             <input type="text" id="libSearchInput" placeholder="Search workouts…" oninput="libFilter()"
               style="flex:1;min-width:180px;padding:9px 14px;background:var(--bg-card);border:1px solid var(--border);color:var(--text);font-family:inherit;font-size:0.85rem;outline:none;"
@@ -3281,6 +3320,8 @@
             </div>
           </div>
           <div id="libEmptyState" style="display:none;text-align:center;padding:48px 16px;color:var(--text-muted);font-size:0.88rem;">No workouts match your search.</div>
+            </div>
+          </details>
         </div>
       </div>
 
@@ -3620,8 +3661,10 @@
     function libRenderPurchased() {
       var progEl = document.getElementById('libProgramsList');
       var progEmpty = document.getElementById('libProgramsEmpty');
+      var progCount = document.getElementById('libProgramsCount');
       if (progEl && progEmpty) {
         var programs = libLoadList('shapeClientAssignedPrograms');
+        if (progCount) progCount.textContent = programs.length;
         if (!programs.length) {
           progEl.innerHTML = '';
           progEl.style.display = 'none';
@@ -3644,8 +3687,10 @@
       }
       var mpEl = document.getElementById('libMealPlansList');
       var mpEmpty = document.getElementById('libMealPlansEmpty');
+      var mpCount = document.getElementById('libMealPlansCount');
       if (mpEl && mpEmpty) {
         var plans = libLoadList('shapeClientAssignedMealPlans');
+        if (mpCount) mpCount.textContent = plans.length;
         if (!plans.length) {
           mpEl.innerHTML = '';
           mpEl.style.display = 'none';
@@ -3696,6 +3741,8 @@
       });
       var countEl = document.getElementById('libCount');
       if (countEl) countEl.textContent = visible + ' workout' + (visible !== 1 ? 's' : '') + ' saved';
+      var wCount = document.getElementById('libWorkoutsCount');
+      if (wCount) wCount.textContent = visible;
       var empty = document.getElementById('libEmptyState');
       var grid = document.getElementById('libTabGrid');
       if (empty) empty.style.display = visible === 0 ? '' : 'none';
