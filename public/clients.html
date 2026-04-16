@@ -2216,12 +2216,22 @@
 
       <!-- NUTRITION TAB -->
       <div class="dash-tab-content" id="tabNutrition">
-        <div class="nutrition-dashboard">
+        <div class="nutrition-dashboard nutri-default-view">
 
         <div class="today-feed">
           <div class="today-feed-greet">
             <div class="today-feed-greet-title">Nutri</div>
             <div class="today-feed-greet-sub">High Protein Cut &middot; by Dr. Sarah Mitchell &middot; 1,840 / 2,400 kcal &middot; 6 / 8 glasses water</div>
+          </div>
+          <div class="nutri-quicklinks">
+            <button type="button" class="nutri-quicklink" onclick="glOpenPage()">
+              <span class="nutri-quicklink-icon">&#128722;</span>
+              <span class="nutri-quicklink-body">
+                <span class="nutri-quicklink-title">Grocery Lists</span>
+                <span class="nutri-quicklink-sub"><span id="glQuicklinkMeta">Lists from your nutritionist + your own</span></span>
+              </span>
+              <span class="nutri-quicklink-chev">&#8250;</span>
+            </button>
           </div>
           <div class="today-feed-section-head"><h3>Today's meals</h3><a href="#" onclick="event.preventDefault();var d=document.querySelector('#tabNutrition .today-legacy-wrap');if(d)d.open=true;">All widgets</a></div>
           <div class="today-feed-list">
@@ -2508,6 +2518,92 @@
               color: var(--text-muted); border: 1px dashed var(--border);
               border-radius: 10px;
             }
+
+            /* Nutri quicklink button (above today's meals) */
+            .nutri-quicklinks { margin: 12px 0 4px; }
+            .nutri-quicklink {
+              display: flex; align-items: center; gap: 14px; width: 100%;
+              padding: 14px 18px; border: 1px solid var(--border);
+              background: var(--bg-card); color: var(--text); cursor: pointer;
+              font-family: inherit; text-align: left;
+              transition: background .15s, border-color .15s;
+            }
+            .nutri-quicklink:hover { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.18); }
+            .nutri-quicklink-icon { font-size: 1.3rem; flex-shrink: 0; }
+            .nutri-quicklink-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+            .nutri-quicklink-title { font-weight: 600; font-size: 0.92rem; }
+            .nutri-quicklink-sub { font-size: 0.75rem; color: var(--text-muted); }
+            .nutri-quicklink-chev { color: var(--text-muted); font-size: 1.2rem; flex-shrink: 0; }
+
+            /* Grocery Lists page */
+            .nutri-grocery-view { max-width: 1200px; margin: 0 auto; padding: 4px 0 16px; }
+            .gl-page-head {
+              display: flex; align-items: center; gap: 12px; margin-bottom: 6px;
+            }
+            .gl-page-title {
+              flex: 1; margin: 0; font-size: clamp(1.1rem,2vw,1.4rem);
+              font-weight: 300; letter-spacing: -0.03em;
+            }
+            .gl-back {
+              background: none; border: 1px solid var(--border); color: var(--text);
+              padding: 6px 12px; font-family: inherit; font-size: 0.78rem; cursor: pointer;
+              transition: background .15s, border-color .15s;
+            }
+            .gl-back:hover { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.18); }
+            .gl-new-btn {
+              background: var(--accent, #2DD4BF); color: #000; border: none;
+              padding: 8px 14px; font-family: inherit; font-size: 0.78rem; font-weight: 600;
+              cursor: pointer; transition: opacity .15s;
+            }
+            .gl-new-btn:hover { opacity: 0.9; }
+            .gl-page-sub { font-size: 0.85rem; color: var(--text-muted); font-weight: 300; margin: 0 0 24px; }
+            .gl-section { margin-bottom: 28px; }
+            .gl-section-head {
+              display: flex; justify-content: space-between; align-items: baseline;
+              font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em;
+              color: var(--text-muted); margin-bottom: 10px;
+            }
+            .gl-section-count { font-weight: 400; }
+            .gl-list-stack { border: 1px solid var(--border); }
+            .gl-list-card {
+              display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center;
+              padding: 14px 18px; cursor: pointer; transition: background .15s;
+            }
+            .gl-list-card + .gl-list-card { border-top: 1px solid var(--border); }
+            .gl-list-card:hover { background: rgba(255,255,255,0.03); }
+            .gl-list-name { font-weight: 600; font-size: 0.92rem; margin-bottom: 3px; }
+            .gl-list-meta { font-size: 0.74rem; color: var(--text-muted); }
+            .gl-list-progress {
+              min-width: 72px; text-align: right;
+              font-size: 0.72rem; color: var(--text-muted);
+            }
+            .gl-list-progress strong { color: var(--text); font-weight: 500; }
+            .gl-empty {
+              padding: 24px 16px; text-align: center; font-size: 0.85rem;
+              color: var(--text-muted); border: 1px dashed var(--border);
+            }
+
+            /* Detail view */
+            .gl-detail {
+              margin-top: 8px; padding-top: 20px; border-top: 1px solid var(--border);
+              display: flex; flex-direction: column; gap: 12px;
+            }
+            .gl-detail-head {
+              display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center;
+            }
+            .gl-detail-title-wrap { min-width: 0; }
+            .gl-detail-title {
+              margin: 0 0 2px; font-size: 1.05rem; font-weight: 500; letter-spacing: -0.01em;
+              overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            }
+            .gl-detail-meta { font-size: 0.72rem; color: var(--text-muted); }
+            .gl-detail-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+            .gl-detail-items { display: flex; flex-direction: column; gap: 4px; }
+            @media (max-width: 600px) {
+              .gl-detail-head { grid-template-columns: 1fr; }
+              .gl-detail-actions { justify-self: start; }
+              .gl-page-head { flex-wrap: wrap; }
+            }
           </style>
 
           <div class="widget widget-full grocery-widget" data-widget-id="cl-nu-grocery" style="margin-top:24px;">
@@ -2543,6 +2639,68 @@
 
         </div><!-- /clNutritionWidgetGrid -->
         </details>
+
+        </div><!-- /.nutri-default-view -->
+
+        <!-- Grocery Lists page -->
+        <div class="nutri-grocery-view" id="nutriGroceryPage" style="display:none;">
+          <div class="gl-page-head">
+            <button type="button" class="gl-back" onclick="glClosePage()" aria-label="Back">&#8249; Back</button>
+            <h2 class="gl-page-title">Grocery Lists</h2>
+            <button type="button" class="gl-new-btn" onclick="glNewPersonalList()">+ New list</button>
+          </div>
+          <p class="gl-page-sub">Lists from your nutritionist, plus personal lists you can build and edit any time.</p>
+
+          <div class="gl-section">
+            <div class="gl-section-head"><span>From your nutritionist</span><span id="glCoachCount" class="gl-section-count">0</span></div>
+            <div id="glCoachLists" class="gl-list-stack"></div>
+            <div id="glCoachEmpty" class="gl-empty" style="display:none;">Your nutritionist hasn't sent any lists yet.</div>
+          </div>
+
+          <div class="gl-section">
+            <div class="gl-section-head"><span>My lists</span><span id="glPersonalCount" class="gl-section-count">0</span></div>
+            <div id="glPersonalLists" class="gl-list-stack"></div>
+            <div id="glPersonalEmpty" class="gl-empty" style="display:none;">No personal lists yet. Tap <em>+ New list</em> to start one.</div>
+          </div>
+
+          <!-- Detail view -->
+          <div id="glDetail" class="gl-detail" style="display:none;">
+            <div class="gl-detail-head">
+              <button type="button" class="gl-back" onclick="glCloseDetail()" aria-label="Back to lists">&#8249; All lists</button>
+              <div class="gl-detail-title-wrap">
+                <h3 id="glDetailTitle" class="gl-detail-title">Untitled list</h3>
+                <div id="glDetailMeta" class="gl-detail-meta"></div>
+              </div>
+              <div class="gl-detail-actions">
+                <button type="button" id="glRenameBtn" class="btn btn-sm btn-outline" onclick="glRenameActive()" style="font-size:0.72rem;">Rename</button>
+                <button type="button" id="glDeleteBtn" class="btn btn-sm btn-outline" onclick="glDeleteActive()" style="font-size:0.72rem;">Delete</button>
+              </div>
+            </div>
+
+            <div class="grocery-progress">
+              <div class="grocery-progress-row">
+                <span>Shopping progress</span>
+                <strong id="glDetailProgressText" class="grocery-progress-text">0 of 0 items</strong>
+              </div>
+              <div class="grocery-progress-track"><div id="glDetailProgressBar" class="grocery-progress-bar"></div></div>
+            </div>
+
+            <form id="glDetailAddForm" class="grocery-add-form" onsubmit="event.preventDefault(); glAddItemToActive(this);">
+              <input type="text" class="gl-input" data-role="name" name="name" placeholder="Add an item (e.g. Avocados)" required>
+              <input type="text" class="gl-input" name="qty" placeholder="Qty">
+              <select class="gl-select" name="cat">
+                <option value="Produce">Produce</option>
+                <option value="Protein">Protein</option>
+                <option value="Dairy &amp; Eggs">Dairy &amp; Eggs</option>
+                <option value="Pantry">Pantry</option>
+                <option value="Other">Other</option>
+              </select>
+              <button type="submit" class="gl-add-btn">+ Add item</button>
+            </form>
+
+            <div id="glDetailItems" class="gl-detail-items"></div>
+          </div>
+        </div><!-- /.nutri-grocery-view -->
 
         </div>
       </div>
@@ -3368,6 +3526,7 @@
       history.replaceState(null, '', '#' + tab);
       if (tab === 'library' && typeof libRenderPurchased === 'function') libRenderPurchased();
       if (tab === 'nutrition' && typeof renderAll === 'function') renderAll();
+      if (tab !== 'nutrition' && typeof glClosePage === 'function') glClosePage();
       if (tab === 'home' && typeof renderClientCheckIns === 'function') renderClientCheckIns('trainer');
       if (tab === 'nutrition' && typeof renderClientCheckIns === 'function') renderClientCheckIns('nutritionist');
       if (tab === 'community' && !_communityInited) { _communityInited = true; initCommunity(); }
@@ -6406,6 +6565,333 @@
         closeFeedAction();
       };
     })();
+  </script>
+
+  <!-- ===== Grocery Lists (multi-list) ===== -->
+  <script>
+  (function(){
+    var GL_KEY = 'shapeGroceryLists_v2';
+    var _activeListId = null;
+    var _renameModeId = null;
+
+    function escapeHtml(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+        return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c];
+      });
+    }
+
+    function loadState() {
+      try {
+        var raw = localStorage.getItem(GL_KEY);
+        if (raw) {
+          var parsed = JSON.parse(raw);
+          if (parsed && Array.isArray(parsed.lists)) return parsed;
+        }
+      } catch(e) {}
+      return null;
+    }
+    function saveState(state) {
+      try { localStorage.setItem(GL_KEY, JSON.stringify(state)); } catch(e) {}
+    }
+    function ensureSeeded() {
+      var s = loadState();
+      if (s) return s;
+      var now = Date.now();
+      var seed = {
+        lists: [
+          {
+            id: 'coach_1', source: 'coach', coach: 'Dr. Sarah Mitchell',
+            name: 'Week of Apr 13 — High Protein Cut', createdAt: now - 4*86400000, updatedAt: now - 4*86400000,
+            items: [
+              { id: 'i1', name: 'Chicken breast', qty: '2 lbs', cat: 'Protein', checked: false },
+              { id: 'i2', name: 'Salmon fillets', qty: '1.5 lbs', cat: 'Protein', checked: false },
+              { id: 'i3', name: 'Greek yogurt', qty: '32 oz', cat: 'Dairy & Eggs', checked: true },
+              { id: 'i4', name: 'Eggs', qty: '1 dozen', cat: 'Dairy & Eggs', checked: true },
+              { id: 'i5', name: 'Broccoli', qty: '2 heads', cat: 'Produce', checked: false },
+              { id: 'i6', name: 'Bell peppers', qty: '4', cat: 'Produce', checked: false },
+              { id: 'i7', name: 'Spinach', qty: '1 bag', cat: 'Produce', checked: false },
+              { id: 'i8', name: 'Sweet potatoes', qty: '4', cat: 'Produce', checked: false },
+              { id: 'i9', name: 'Brown rice', qty: '2 lbs', cat: 'Pantry', checked: true },
+              { id: 'i10', name: 'Olive oil', qty: '1 bottle', cat: 'Pantry', checked: true }
+            ]
+          },
+          {
+            id: 'coach_2', source: 'coach', coach: 'Dr. Sarah Mitchell',
+            name: 'Travel Prep — Low Sodium', createdAt: now - 12*86400000, updatedAt: now - 10*86400000,
+            items: [
+              { id: 'i1', name: 'Unsalted almonds', qty: '1 bag', cat: 'Pantry', checked: false },
+              { id: 'i2', name: 'Fresh berries', qty: '2 pints', cat: 'Produce', checked: false },
+              { id: 'i3', name: 'Turkey jerky (low-sodium)', qty: '2 packs', cat: 'Protein', checked: false },
+              { id: 'i4', name: 'Rice cakes', qty: '1 box', cat: 'Pantry', checked: false },
+              { id: 'i5', name: 'Bananas', qty: '6', cat: 'Produce', checked: false }
+            ]
+          }
+        ]
+      };
+      saveState(seed);
+      return seed;
+    }
+
+    function getList(id) {
+      var s = ensureSeeded();
+      for (var i=0; i<s.lists.length; i++) if (s.lists[i].id === id) return s.lists[i];
+      return null;
+    }
+    function updateList(id, mutator) {
+      var s = ensureSeeded();
+      for (var i=0; i<s.lists.length; i++) {
+        if (s.lists[i].id === id) {
+          mutator(s.lists[i]);
+          s.lists[i].updatedAt = Date.now();
+          saveState(s);
+          return s.lists[i];
+        }
+      }
+      return null;
+    }
+
+    function formatDate(ts) {
+      if (!ts) return '';
+      try {
+        var d = new Date(ts);
+        return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      } catch(e) { return ''; }
+    }
+
+    function countProgress(list) {
+      var total = (list.items || []).length;
+      var done = (list.items || []).filter(function(i){ return i.checked; }).length;
+      return { total: total, done: done };
+    }
+
+    function renderLists() {
+      var s = ensureSeeded();
+      var coachLists = s.lists.filter(function(l){ return l.source === 'coach'; });
+      var personalLists = s.lists.filter(function(l){ return l.source !== 'coach'; });
+
+      var coachEl = document.getElementById('glCoachLists');
+      var coachEmpty = document.getElementById('glCoachEmpty');
+      var coachCount = document.getElementById('glCoachCount');
+      if (coachEl && coachEmpty && coachCount) {
+        coachCount.textContent = coachLists.length;
+        if (!coachLists.length) {
+          coachEl.style.display = 'none'; coachEl.innerHTML = '';
+          coachEmpty.style.display = '';
+        } else {
+          coachEl.style.display = ''; coachEmpty.style.display = 'none';
+          coachEl.innerHTML = coachLists.map(renderListCard).join('');
+        }
+      }
+
+      var persEl = document.getElementById('glPersonalLists');
+      var persEmpty = document.getElementById('glPersonalEmpty');
+      var persCount = document.getElementById('glPersonalCount');
+      if (persEl && persEmpty && persCount) {
+        persCount.textContent = personalLists.length;
+        if (!personalLists.length) {
+          persEl.style.display = 'none'; persEl.innerHTML = '';
+          persEmpty.style.display = '';
+        } else {
+          persEl.style.display = ''; persEmpty.style.display = 'none';
+          persEl.innerHTML = personalLists.map(renderListCard).join('');
+        }
+      }
+
+      var meta = document.getElementById('glQuicklinkMeta');
+      if (meta) {
+        var totalLists = s.lists.length;
+        meta.textContent = totalLists + ' list' + (totalLists === 1 ? '' : 's') + ' saved';
+      }
+    }
+
+    function renderListCard(list) {
+      var p = countProgress(list);
+      var metaBits = [];
+      if (list.source === 'coach' && list.coach) metaBits.push('By ' + list.coach);
+      else metaBits.push('Personal');
+      if (list.updatedAt) metaBits.push('Updated ' + formatDate(list.updatedAt));
+      metaBits.push(p.total + ' item' + (p.total === 1 ? '' : 's'));
+      return '<div class="gl-list-card" onclick="glOpenDetail(\'' + list.id + '\')">' +
+        '<div><div class="gl-list-name">' + escapeHtml(list.name) + '</div>' +
+        '<div class="gl-list-meta">' + metaBits.map(escapeHtml).join(' &middot; ') + '</div></div>' +
+        '<div class="gl-list-progress"><strong>' + p.done + '</strong> / ' + p.total + '<br>checked</div>' +
+      '</div>';
+    }
+
+    function renderDetail() {
+      var list = _activeListId ? getList(_activeListId) : null;
+      var detail = document.getElementById('glDetail');
+      if (!detail) return;
+      if (!list) { detail.style.display = 'none'; return; }
+      detail.style.display = '';
+
+      document.getElementById('glDetailTitle').textContent = list.name;
+      var metaBits = [];
+      if (list.source === 'coach' && list.coach) metaBits.push('From ' + list.coach);
+      else metaBits.push('Personal list');
+      if (list.createdAt) metaBits.push('Created ' + formatDate(list.createdAt));
+      if (list.updatedAt && list.updatedAt !== list.createdAt) metaBits.push('Updated ' + formatDate(list.updatedAt));
+      document.getElementById('glDetailMeta').innerHTML = metaBits.map(escapeHtml).join(' &middot; ');
+
+      var renameBtn = document.getElementById('glRenameBtn');
+      var deleteBtn = document.getElementById('glDeleteBtn');
+      var addForm = document.getElementById('glDetailAddForm');
+      var isCoach = list.source === 'coach';
+      if (renameBtn) renameBtn.style.display = isCoach ? 'none' : '';
+      if (deleteBtn) deleteBtn.style.display = isCoach ? 'none' : '';
+      // Coach lists: items read-only-ish, but allow checking off + remove? Keep check-off only. No add form.
+      if (addForm) addForm.style.display = isCoach ? 'none' : '';
+
+      var p = countProgress(list);
+      var pct = p.total ? Math.round((p.done / p.total) * 100) : 0;
+      document.getElementById('glDetailProgressText').textContent = p.done + ' of ' + p.total + ' items';
+      document.getElementById('glDetailProgressBar').style.width = pct + '%';
+
+      var itemsEl = document.getElementById('glDetailItems');
+      if (!list.items || !list.items.length) {
+        itemsEl.innerHTML = '<div class="grocery-empty">' + (isCoach ? 'No items in this list.' : 'No items yet. Add some above.') + '</div>';
+        return;
+      }
+      var byCat = {};
+      list.items.forEach(function(it){
+        var c = it.cat || 'Other';
+        if (!byCat[c]) byCat[c] = [];
+        byCat[c].push(it);
+      });
+      var order = ['Produce','Protein','Dairy & Eggs','Pantry','Other'];
+      var cats = Object.keys(byCat).sort(function(a,b){
+        var ia = order.indexOf(a), ib = order.indexOf(b);
+        if (ia < 0) ia = 99; if (ib < 0) ib = 99;
+        return ia - ib || a.localeCompare(b);
+      });
+      var html = '';
+      cats.forEach(function(cat){
+        html += '<div class="grocery-cat">';
+        html += '<div class="grocery-cat-head"><span>' + escapeHtml(cat) + '</span><span class="grocery-cat-count">' + byCat[cat].length + ' ' + (byCat[cat].length === 1 ? 'item' : 'items') + '</span></div>';
+        byCat[cat].forEach(function(item){
+          html += '<div class="grocery-row' + (item.checked ? ' checked' : '') + '" onclick="glToggleItem(\'' + escapeHtml(item.id) + '\')">';
+          html += '<div class="grocery-check">' + (item.checked ? '&#10003;' : '') + '</div>';
+          html += '<div class="grocery-row-body">';
+          html += '<div class="grocery-name-line"><span class="grocery-name">' + escapeHtml(item.name) + '</span></div>';
+          if (item.qty) html += '<div class="grocery-qty">' + escapeHtml(item.qty) + '</div>';
+          html += '</div>';
+          if (!isCoach) {
+            html += '<button type="button" class="grocery-remove" onclick="event.stopPropagation();glRemoveItem(\'' + escapeHtml(item.id) + '\');" title="Remove">&times;</button>';
+          }
+          html += '</div>';
+        });
+        html += '</div>';
+      });
+      itemsEl.innerHTML = html;
+    }
+
+    // ===== Public handlers =====
+    window.glOpenPage = function() {
+      ensureSeeded();
+      var def = document.querySelector('#tabNutrition .nutri-default-view');
+      var gp = document.getElementById('nutriGroceryPage');
+      if (def) def.style.display = 'none';
+      if (gp) gp.style.display = '';
+      _activeListId = null;
+      renderLists();
+      renderDetail();
+      if (gp) gp.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    window.glClosePage = function() {
+      var def = document.querySelector('#tabNutrition .nutri-default-view');
+      var gp = document.getElementById('nutriGroceryPage');
+      if (gp) gp.style.display = 'none';
+      if (def) def.style.display = '';
+    };
+    window.glOpenDetail = function(id) {
+      _activeListId = id;
+      renderDetail();
+      var el = document.getElementById('glDetail');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    window.glCloseDetail = function() {
+      _activeListId = null;
+      renderDetail();
+    };
+    window.glNewPersonalList = function() {
+      var name = (window.prompt('Name your new list', 'My grocery list') || '').trim();
+      if (!name) return;
+      var s = ensureSeeded();
+      var now = Date.now();
+      var list = {
+        id: 'p_' + now, source: 'personal', name: name,
+        createdAt: now, updatedAt: now, items: []
+      };
+      s.lists.push(list);
+      saveState(s);
+      _activeListId = list.id;
+      renderLists();
+      renderDetail();
+    };
+    window.glRenameActive = function() {
+      if (!_activeListId) return;
+      var list = getList(_activeListId);
+      if (!list || list.source === 'coach') return;
+      var name = (window.prompt('Rename list', list.name) || '').trim();
+      if (!name) return;
+      updateList(_activeListId, function(l){ l.name = name; });
+      renderLists();
+      renderDetail();
+    };
+    window.glDeleteActive = function() {
+      if (!_activeListId) return;
+      var list = getList(_activeListId);
+      if (!list || list.source === 'coach') return;
+      if (!window.confirm('Delete "' + list.name + '"? This can\'t be undone.')) return;
+      var s = ensureSeeded();
+      s.lists = s.lists.filter(function(l){ return l.id !== _activeListId; });
+      saveState(s);
+      _activeListId = null;
+      renderLists();
+      renderDetail();
+    };
+    window.glAddItemToActive = function(form) {
+      if (!_activeListId) return;
+      var list = getList(_activeListId);
+      if (!list || list.source === 'coach') return;
+      var name = (form.name.value || '').trim();
+      var qty = (form.qty.value || '').trim();
+      var cat = form.cat.value || 'Other';
+      if (!name) return;
+      updateList(_activeListId, function(l){
+        l.items.push({ id: 'i_' + Date.now(), name: name, qty: qty, cat: cat, checked: false });
+      });
+      form.name.value = ''; form.qty.value = '';
+      renderLists();
+      renderDetail();
+    };
+    window.glToggleItem = function(itemId) {
+      if (!_activeListId) return;
+      updateList(_activeListId, function(l){
+        (l.items || []).forEach(function(it){
+          if (it.id === itemId) it.checked = !it.checked;
+        });
+      });
+      renderLists();
+      renderDetail();
+    };
+    window.glRemoveItem = function(itemId) {
+      if (!_activeListId) return;
+      var list = getList(_activeListId);
+      if (!list || list.source === 'coach') return;
+      updateList(_activeListId, function(l){
+        l.items = (l.items || []).filter(function(it){ return it.id !== itemId; });
+      });
+      renderLists();
+      renderDetail();
+    };
+
+    // Initial seed + quicklink meta on page load
+    document.addEventListener('DOMContentLoaded', function(){
+      ensureSeeded();
+      renderLists();
+    });
+  })();
   </script>
 
   <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
