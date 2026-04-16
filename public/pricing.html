@@ -21,7 +21,16 @@
       background-size: cover; background-position: center; background-repeat: no-repeat;
     }
     main, .page-hero, .section, .section-alt, .container { background: transparent !important; }
-    .pricing-grid { max-width: 360px !important; }
+    .pricing-grid { max-width: 360px !important; background: transparent !important; }
+    .pricing-card, .pricing-card.featured {
+      background: rgba(10,10,10,0.55) !important;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.12) !important;
+      color: #fff !important;
+    }
+    .pricing-card.featured .price span,
+    .pricing-card.featured li { color: rgba(255,255,255,0.7) !important; }
     .pricing-card { padding: 28px 24px !important; }
     .pricing-card h3 { font-size: 0.72rem !important; margin-bottom: 10px !important; }
     .pricing-card .price { font-size: clamp(1.8rem, 3vw, 2.4rem) !important; margin-bottom: 20px !important; }
