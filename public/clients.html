@@ -3028,6 +3028,30 @@
       <!-- Library Tab -->
       <div class="dash-tab-content" id="tabLibrary">
         <div style="max-width:1200px;margin:0 auto;">
+          <!-- My Programs (purchased/added) -->
+          <div style="margin-bottom:28px;">
+            <div style="margin-bottom:12px;">
+              <h2 style="font-size:clamp(1.1rem,2vw,1.4rem);font-weight:300;letter-spacing:-0.03em;margin-bottom:6px;">My Programs</h2>
+              <p style="font-size:0.85rem;color:var(--text-muted);font-weight:300;">Training plans you've added from your coaches.</p>
+            </div>
+            <div id="libProgramsList" style="border:1px solid var(--border);"></div>
+            <div id="libProgramsEmpty" style="display:none;padding:24px 16px;text-align:center;color:var(--text-muted);font-size:0.85rem;border:1px dashed var(--border);">
+              No programs yet. Browse trainers and tap <em>Add to my schedule</em> on any published plan.
+            </div>
+          </div>
+
+          <!-- My Meal Plans (purchased/added) -->
+          <div style="margin-bottom:28px;">
+            <div style="margin-bottom:12px;">
+              <h2 style="font-size:clamp(1.1rem,2vw,1.4rem);font-weight:300;letter-spacing:-0.03em;margin-bottom:6px;">My Meal Plans</h2>
+              <p style="font-size:0.85rem;color:var(--text-muted);font-weight:300;">Nutrition plans you've added from your nutritionists.</p>
+            </div>
+            <div id="libMealPlansList" style="border:1px solid var(--border);"></div>
+            <div id="libMealPlansEmpty" style="display:none;padding:24px 16px;text-align:center;color:var(--text-muted);font-size:0.85rem;border:1px dashed var(--border);">
+              No meal plans yet. Browse nutritionists and tap <em>Add to my schedule</em> on any published plan.
+            </div>
+          </div>
+
           <div style="margin-bottom:24px;">
             <h2 style="font-size:clamp(1.1rem,2vw,1.4rem);font-weight:300;letter-spacing:-0.03em;margin-bottom:6px;">My Library</h2>
             <p style="font-size:0.85rem;color:var(--text-muted);font-weight:300;">Your saved workouts, ready to go whenever you are.</p>
@@ -3342,6 +3366,7 @@
       document.getElementById(tabMap[tab]).classList.add('active');
       sessionStorage.setItem('shapeDashTab', tab);
       history.replaceState(null, '', '#' + tab);
+      if (tab === 'library' && typeof libRenderPurchased === 'function') libRenderPurchased();
       if (tab === 'nutrition' && typeof renderAll === 'function') renderAll();
       if (tab === 'home' && typeof renderClientCheckIns === 'function') renderClientCheckIns('trainer');
       if (tab === 'nutrition' && typeof renderClientCheckIns === 'function') renderClientCheckIns('nutritionist');
@@ -3408,6 +3433,82 @@
 
     var currentWorkoutIdx = null;
     var selectedRating = null;
+
+    // Library tab — purchased programs + meal plans
+    function libEscape(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+        return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c];
+      });
+    }
+    function libLoadList(key) {
+      try { var raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : []; }
+      catch (e) { return []; }
+    }
+    function libSaveList(key, list) {
+      try { localStorage.setItem(key, JSON.stringify(list)); } catch (e) {}
+    }
+    function libRemoveProgram(id) {
+      var list = libLoadList('shapeClientAssignedPrograms').filter(function(p){ return String(p.id) !== String(id); });
+      libSaveList('shapeClientAssignedPrograms', list);
+      libRenderPurchased();
+    }
+    function libRemoveMealPlan(id) {
+      var list = libLoadList('shapeClientAssignedMealPlans').filter(function(p){ return String(p.id) !== String(id); });
+      libSaveList('shapeClientAssignedMealPlans', list);
+      libRenderPurchased();
+    }
+    function libRenderPurchased() {
+      var progEl = document.getElementById('libProgramsList');
+      var progEmpty = document.getElementById('libProgramsEmpty');
+      if (progEl && progEmpty) {
+        var programs = libLoadList('shapeClientAssignedPrograms');
+        if (!programs.length) {
+          progEl.innerHTML = '';
+          progEl.style.display = 'none';
+          progEmpty.style.display = '';
+        } else {
+          progEl.style.display = '';
+          progEmpty.style.display = 'none';
+          progEl.innerHTML = programs.map(function(p, i){
+            var meta = [p.coach, p.category, p.difficulty, p.duration, p.daysPerWeek ? p.daysPerWeek + '×/wk' : '']
+              .filter(Boolean).map(libEscape).join(' &middot; ');
+            return '<div class="lib-workout-item" style="' + (i ? 'border-top:1px solid var(--border);' : '') + '">' +
+              '<div class="lib-workout-row">' +
+                '<div><div style="font-weight:600;font-size:0.92rem;margin-bottom:3px;">' + libEscape(p.name || 'Program') + '</div>' +
+                  '<div style="font-size:0.75rem;color:var(--text-muted);">' + (meta || 'Program') + '</div></div>' +
+                '<button class="btn btn-sm" onclick="libRemoveProgram(\'' + libEscape(p.id) + '\')" style="font-size:0.72rem;">Remove</button>' +
+              '</div>' +
+            '</div>';
+          }).join('');
+        }
+      }
+      var mpEl = document.getElementById('libMealPlansList');
+      var mpEmpty = document.getElementById('libMealPlansEmpty');
+      if (mpEl && mpEmpty) {
+        var plans = libLoadList('shapeClientAssignedMealPlans');
+        if (!plans.length) {
+          mpEl.innerHTML = '';
+          mpEl.style.display = 'none';
+          mpEmpty.style.display = '';
+        } else {
+          mpEl.style.display = '';
+          mpEmpty.style.display = 'none';
+          mpEl.innerHTML = plans.map(function(p, i){
+            var kcal = (p.calories || p.kcal);
+            var meta = [p.coach, p.goal || p.category, p.style, kcal ? kcal + ' kcal' : '']
+              .filter(Boolean).map(libEscape).join(' &middot; ');
+            return '<div class="lib-workout-item" style="' + (i ? 'border-top:1px solid var(--border);' : '') + '">' +
+              '<div class="lib-workout-row">' +
+                '<div><div style="font-weight:600;font-size:0.92rem;margin-bottom:3px;">' + libEscape(p.name || 'Meal Plan') + '</div>' +
+                  '<div style="font-size:0.75rem;color:var(--text-muted);">' + (meta || 'Meal Plan') + '</div></div>' +
+                '<button class="btn btn-sm" onclick="libRemoveMealPlan(\'' + libEscape(p.id) + '\')" style="font-size:0.72rem;">Remove</button>' +
+              '</div>' +
+            '</div>';
+          }).join('');
+        }
+      }
+    }
+    document.addEventListener('DOMContentLoaded', libRenderPurchased);
 
     // Library tab — filter/search/preview
     var _libCat = 'all';
