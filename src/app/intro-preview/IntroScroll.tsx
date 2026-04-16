@@ -323,7 +323,7 @@ export default function IntroScroll() {
       >
         <a
           href="/home"
-          className="group inline-flex items-center justify-center gap-2.5 border border-white bg-black/35 px-6 py-2.5 text-[0.62rem] font-light uppercase tracking-[0.12em] text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] backdrop-blur-sm transition-all hover:bg-white hover:text-neutral-950 md:gap-3 md:px-10 md:py-4 md:text-[0.82rem] md:font-medium"
+          className="group inline-flex items-center justify-center gap-2.5 border border-white bg-black/35 px-6 py-2.5 text-[0.62rem] font-light uppercase tracking-[0.12em] text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] backdrop-blur-sm transition-all hover:bg-white hover:text-neutral-950 md:gap-2.5 md:px-7 md:py-2.5 md:text-[0.72rem] md:font-medium"
         >
           <span className="-mr-1">Enter</span>
           <img
@@ -335,7 +335,7 @@ export default function IntroScroll() {
         </a>
         <a
           href="/login"
-          className="inline-flex items-center justify-center border border-white bg-black/35 px-5 py-2 text-[0.58rem] font-light uppercase tracking-[0.12em] text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] backdrop-blur-sm transition-all hover:bg-white hover:text-neutral-950 md:px-9 md:py-3.5 md:text-[0.76rem] md:font-medium"
+          className="inline-flex items-center justify-center border border-white bg-black/35 px-5 py-2 text-[0.58rem] font-light uppercase tracking-[0.12em] text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] backdrop-blur-sm transition-all hover:bg-white hover:text-neutral-950 md:px-6 md:py-2 md:text-[0.66rem] md:font-medium"
         >
           Log in
         </a>
