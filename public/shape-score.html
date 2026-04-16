@@ -17,6 +17,14 @@
     }
     main, .page-hero, .section, .section-alt, .container { background: transparent !important; }
     .section-alt, .section, .page-hero { background: transparent !important; }
+    /* Translucent cards so bg image shows through, text stays readable */
+    [style*="background:var(--bg-card)"],
+    .reward-item, .redeemed-item {
+      background: rgba(10,10,10,0.55) !important;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-color: rgba(255,255,255,0.1) !important;
+    }
     nav.navbar, nav.navbar.scrolled, nav#navbar, nav#navbar.scrolled,
     .navbar, .navbar.scrolled, .nav-container, .nav-links, .nav-actions {
       background: transparent !important;

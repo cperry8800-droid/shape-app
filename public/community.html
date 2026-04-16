@@ -16,6 +16,15 @@
       background-size: cover; background-position: center; background-repeat: no-repeat;
     }
     main, .page-hero, .section, .section-alt, .container { background: transparent !important; }
+    /* Translucent cards so bg image shows through, text stays readable */
+    .community-sidebar, .community-main, .community-dm-panel,
+    .community-user.active, .community-post, .message-bubble,
+    [style*="background:var(--bg-card)"] {
+      background: rgba(10,10,10,0.55) !important;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+    .community-user:hover, .community-user.active { background: rgba(255,255,255,0.05) !important; }
 
     .community-layout {
       display: grid; grid-template-columns: 300px 1fr 320px;
