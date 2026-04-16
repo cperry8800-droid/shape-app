@@ -358,7 +358,7 @@ img.card-avatar-inline { background: var(--border); }
 }
 
 /* ===== Footer ===== */
-.footer { padding: 80px 0 40px; border-top: 1px solid var(--border); }
+.footer { padding: 80px 0 40px; border-top: 1px solid var(--border); background: rgba(0,0,0,0.85); }
 /* Brand column is absolutely anchored to the left so it doesn't shift
    the three link columns off-center. Link columns are a flex row
    centered on the page — "Get Started" sits in the exact middle. */
