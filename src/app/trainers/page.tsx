@@ -13,7 +13,7 @@ export default async function TrainersPage() {
   const categories = Array.from(existing).sort().map((v) => ({ value: v, label: v }));
 
   return (
-    <CinematicPageShell title="Find a coach" subtitle="Every coach on Shape is verified — credentials, experience, reviews." backgroundImage="/intro/Trainer%20Background.png">
+    <CinematicPageShell title="Find a coach" subtitle="Every coach on Shape is verified — credentials, experience, reviews.">
       <div className="mx-auto max-w-4xl">
         <ProviderFilter items={trainers} categories={categories} kind="trainer" hrefPrefix="/trainers" />
       </div>
