@@ -58,9 +58,9 @@ export default function Sidebar({ role, roles }: { role: string; roles: string[]
       >
         {/* Logo */}
         <Link href="/" className="block px-5 pt-6 pb-8">
-          <svg className="h-8" viewBox="0 0 40 34" fill="none">
-            <path d="M20 0L40 34H0L20 0Z" fill="white" fillOpacity="0.15" />
-            <path d="M20 8L32 30H8L20 8Z" fill="white" fillOpacity="0.3" />
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="70 8 60 84" className="h-8 w-auto">
+            <polygon points="72,44 72,88 105,66" fill="#FFFFFF" />
+            <polygon points="128,12 128,56 95,34" fill="#FFFFFF" />
           </svg>
         </Link>
 
