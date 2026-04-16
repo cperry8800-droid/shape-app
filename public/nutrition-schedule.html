@@ -13,6 +13,25 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="apple-touch-icon" href="icon-192.png">
 <style>
+  html { background: #000 !important; }
+  body { background: transparent !important; position: relative; }
+  body::before {
+    content: ''; position: fixed; inset: 0; z-index: -1;
+    background-image: linear-gradient(to bottom, rgba(0,0,0,0.55), rgba(0,0,0,0.7)), url('/intro/Nutrition%20Background.png');
+    background-size: auto 130vh; background-position: center center; background-repeat: no-repeat;
+  }
+  main, .page-hero, .section, .section-alt, .container { background: transparent !important; }
+  .section-alt, .navbar, .navbar.scrolled {
+    background: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border-bottom: none !important;
+  }
+  [style*="background:var(--bg-card)"], .widget, .widget-half, .widget-full {
+    background: rgba(10,10,10,0.35) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
   /* ===== Dashboard Tab Bar ===== */
   .nd-tab-bar {
     display: flex; gap: 0; justify-content: center; border-bottom: 1px solid var(--border);
