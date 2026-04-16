@@ -20,7 +20,7 @@ export default function CinematicPageShell({
          background-size: auto 130vh; background-position: center center; background-repeat: no-repeat;
        }
        @media (max-width: 768px) {
-         body::before { background-size: cover !important; background-position: center top !important; }
+         body::before { background-size: auto 130vh !important; background-position: center center !important; }
        }`
     : `html, body { background: #000 !important; margin: 0 !important; padding: 0 !important; }`;
   return (
