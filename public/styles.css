@@ -1048,6 +1048,13 @@ img.card-avatar-inline { background: var(--border); }
   .trainer-detail-header { flex-direction: column; align-items: center; text-align: center; }
   .trainer-detail-stats { justify-content: center; flex-wrap: wrap; }
   .subscribe-bar { flex-direction: column; text-align: center; gap: 16px; }
+  /* Trainer/nutritionist cards: let Profile + View fit comfortably on narrow phones */
+  .card-footer { flex-wrap: wrap; gap: 10px; }
+  .card-footer > div { flex-wrap: wrap; }
+  .card-footer .btn-sm { padding: 6px 12px; }
+  .totm-info > div:last-child { flex-wrap: wrap; justify-content: center; }
+  .totm-info .card-actions { display: flex; flex-direction: column; align-items: stretch; gap: 10px; }
+  .totm-info .card-actions .btn { width: 100%; text-align: center; }
 }
 
 /* Keep signed-in username on a single line — was wrapping to two lines
