@@ -114,14 +114,15 @@ export default function IntroScroll() {
     const head = 600;
     const tail = 1400;
     const span = total - head - tail;
-    const slot = span / 4;
-    // Four one-liners, each holding for `slot` ms. The headline is
+    const slot = span / 5;
+    // Five one-liners, each holding for `slot` ms. The headline is
     // driven separately off the scene 4 transition (see useEffect).
     const timers = [
       setTimeout(() => setStep(1), head + slot * 0 + 120),
       setTimeout(() => setStep(2), head + slot * 1 + 120),
       setTimeout(() => setStep(3), head + slot * 2 + 120),
       setTimeout(() => setStep(4), head + slot * 3 + 120),
+      setTimeout(() => setStep(5), head + slot * 4 + 120),
     ];
     wordTimersRef.current = timers;
   };
@@ -283,7 +284,7 @@ export default function IntroScroll() {
 
       {/* Four one-liners, evenly spaced across the combined runtime of
           scenes 2 and 3. Timings are set up in goToScene2(). */}
-      {['No more guessing', 'No more going alone', 'Real coaches. Real plans.', 'One community.'].map(
+      {['No more guessing', 'No more going alone', 'Real coaches. Real plans.', 'One marketplace.', 'One community.'].map(
         (line, i) => (
           <div
             key={line}
@@ -292,7 +293,7 @@ export default function IntroScroll() {
               // Fade the last line out the moment scene 5 begins so
               // the final one-liner doesn't linger into the headline.
               opacity:
-                !looped && step === i + 1 && !(i === 3 && scene === 5)
+                !looped && step === i + 1 && !(i === 4 && scene === 5)
                   ? 1
                   : 0,
               transition: 'opacity 900ms ease-out',
