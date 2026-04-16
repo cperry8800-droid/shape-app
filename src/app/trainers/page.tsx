@@ -6,8 +6,11 @@ export const metadata = { title: 'Coaches — Shape' };
 
 export default async function TrainersPage() {
   const trainers = await getTrainers();
-  const categories = Array.from(new Set(trainers.map((t) => t.category).filter(Boolean)))
-    .map((v) => ({ value: v!, label: v! }));
+  const existing = new Set(trainers.map((t) => t.category).filter(Boolean) as string[]);
+  // Always surface Yoga — it's a first-class discipline on the marketplace
+  // even before we have seeded trainers in that category.
+  existing.add('Yoga');
+  const categories = Array.from(existing).sort().map((v) => ({ value: v, label: v }));
 
   return (
     <CinematicPageShell title="Find a coach" subtitle="Every coach on Shape is verified — credentials, experience, reviews.">
