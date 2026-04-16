@@ -16,6 +16,13 @@
                   url('/intro/Shape%20store.png') center/cover no-repeat;
     }
     .section-alt, .section, .page-hero { background: transparent !important; }
+    [style*="background:var(--bg-card)"],
+    .balance-card, .reward-item, .redeemed-item, .sstore-back-tab-bar {
+      background: rgba(10,10,10,0.5) !important;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-color: rgba(255,255,255,0.1) !important;
+    }
     .navbar, .navbar.scrolled, .nav-container, .nav-links, .nav-actions {
       background: transparent !important; backdrop-filter: none !important;
       -webkit-backdrop-filter: none !important; border-bottom: none !important;
