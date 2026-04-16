@@ -634,9 +634,21 @@
   .tp-stat { text-align: center; }
   .tp-stat-value { font-size: 1.4rem; font-weight: 700; margin-bottom: 2px; }
   .tp-stat-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  .tp-cover {
+    height: 220px; background: linear-gradient(135deg, #2DD4BF15, #0D948810);
+    position: relative; border-bottom: 1px solid var(--border);
+    margin: 0 -24px 0; cursor: pointer; background-size: cover; background-position: center;
+  }
+  .tp-cover-upload {
+    position: absolute; top: 16px; right: 16px; background: rgba(0,0,0,0.5);
+    color: #fff; font-size: 0.7rem; font-weight: 500; padding: 6px 14px;
+    border: 1px solid rgba(255,255,255,0.15); text-transform: uppercase; letter-spacing: 0.06em;
+  }
   .tp-avatar-area {
     display: flex; align-items: flex-end; gap: 28px; margin-bottom: 32px;
+    margin-top: -50px; position: relative; z-index: 1;
   }
+  .tp-avatar { border: 4px solid var(--bg); }
   .tp-avatar {
     width: 100px; height: 100px; border-radius: 50%; background: var(--accent);
     display: flex; align-items: center; justify-content: center;
@@ -1711,6 +1723,11 @@
     <!-- ========== TAB: PROFILE ========== -->
     <div class="td-tab-content" id="tab-profile">
         <div id="shapeAddRole"></div>
+      <!-- Cover Photo -->
+      <div class="tp-cover" id="tpCover" onclick="document.getElementById('tpCoverUpload').click()">
+        <div class="tp-cover-upload">Change Cover Photo</div>
+        <input type="file" id="tpCoverUpload" accept="image/*" style="display:none" onchange="handleCoverUpload(event)">
+      </div>
       <!-- Avatar & Name -->
       <div class="tp-avatar-area">
         <div class="tp-avatar" id="tpAvatar" onclick="document.getElementById('avatarUpload').click()">
@@ -3481,6 +3498,9 @@
     document.getElementById('bioText').textContent = _profileData.bio;
     document.getElementById('bioInput').value = _profileData.bio;
 
+    if (_profileData.avatar) _applyAvatarImage(_profileData.avatar);
+    if (_profileData.cover) _applyCoverImage(_profileData.cover);
+
     // Render tags and certs
     renderProfileTags();
     renderProfileCerts();
@@ -3738,16 +3758,41 @@
     if (!file) return;
     const reader = new FileReader();
     reader.onload = function(e) {
-      const avatar = document.getElementById('tpAvatar');
-      avatar.style.backgroundImage = 'url(' + e.target.result + ')';
-      avatar.style.backgroundSize = 'cover';
-      avatar.style.backgroundPosition = 'center';
-      document.getElementById('tpInitials').style.display = 'none';
+      _applyAvatarImage(e.target.result);
       _profileData.avatar = e.target.result;
       _saveProfileData();
     };
     reader.readAsDataURL(file);
     if (typeof showToast === 'function') showToast('Avatar uploaded!');
+  }
+
+  function _applyAvatarImage(url) {
+    const avatar = document.getElementById('tpAvatar');
+    if (!avatar) return;
+    avatar.style.backgroundImage = 'url(' + url + ')';
+    avatar.style.backgroundSize = 'cover';
+    avatar.style.backgroundPosition = 'center';
+    const initials = document.getElementById('tpInitials');
+    if (initials) initials.style.display = 'none';
+  }
+
+  function _applyCoverImage(url) {
+    const cover = document.getElementById('tpCover');
+    if (!cover) return;
+    cover.style.backgroundImage = 'url(' + url + ')';
+  }
+
+  function handleCoverUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      _applyCoverImage(e.target.result);
+      _profileData.cover = e.target.result;
+      _saveProfileData();
+    };
+    reader.readAsDataURL(file);
+    if (typeof showToast === 'function') showToast('Cover photo updated!');
   }
 
   // Intro Video functions
