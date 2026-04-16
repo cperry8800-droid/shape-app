@@ -378,31 +378,31 @@
     .today-hero-cta:hover { background: var(--accent-dark); transform: translateY(-1px); }
 
     /* ===== Today-first feed (option 3) ===== */
-    .today-feed { max-width: 860px; margin: 0 auto 32px; }
-    .today-feed-greet { margin-bottom: 24px; }
-    .today-feed-greet-title { font-size: 1.6rem; font-weight: 300; letter-spacing: -0.02em; margin-bottom: 4px; }
-    .today-feed-greet-sub { font-size: 0.88rem; color: var(--text-muted); font-weight: 300; }
+    .today-feed { max-width: 1200px; margin: 0 auto 40px; }
+    .today-feed-greet { margin-bottom: 32px; }
+    .today-feed-greet-title { font-size: 2.1rem; font-weight: 300; letter-spacing: -0.02em; margin-bottom: 6px; }
+    .today-feed-greet-sub { font-size: 1rem; color: var(--text-muted); font-weight: 300; }
     .today-feed-section-head {
       display: flex; justify-content: space-between; align-items: baseline;
-      margin: 28px 0 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+      margin: 36px 0 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border);
     }
-    .today-feed-section-head h3 { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin: 0; color: var(--text); }
-    .today-feed-section-head a { font-size: 0.72rem; color: var(--text-muted); }
+    .today-feed-section-head h3 { font-size: 0.88rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin: 0; color: var(--text); }
+    .today-feed-section-head a { font-size: 0.8rem; color: var(--text-muted); }
     .today-feed-section-head a:hover { color: var(--text); }
     .today-feed-list { border: 1px solid var(--border); background: var(--bg-card); }
     .today-feed-item {
-      padding: 18px 22px; display: grid; grid-template-columns: 88px 1fr auto;
-      gap: 18px; align-items: center; border-bottom: 1px solid var(--border);
+      padding: 28px 32px; display: grid; grid-template-columns: 110px 1fr auto;
+      gap: 28px; align-items: center; border-bottom: 1px solid var(--border);
     }
     .today-feed-item:last-child { border-bottom: none; }
-    .today-feed-time { font-size: 0.78rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .today-feed-time { font-size: 0.92rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
     .today-feed-body { min-width: 0; }
-    .today-feed-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent-dark); margin-bottom: 4px; font-weight: 600; }
-    .today-feed-title { font-size: 1rem; font-weight: 500; margin-bottom: 4px; }
-    .today-feed-sub { font-size: 0.78rem; color: var(--text-muted); font-weight: 300; }
+    .today-feed-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent-dark); margin-bottom: 6px; font-weight: 600; }
+    .today-feed-title { font-size: 1.2rem; font-weight: 500; margin-bottom: 6px; }
+    .today-feed-sub { font-size: 0.9rem; color: var(--text-muted); font-weight: 300; }
     .today-feed-cta {
-      padding: 9px 16px; background: transparent; color: var(--accent-dark);
-      border: 1px solid var(--accent); font-family: inherit; font-size: 0.72rem; font-weight: 600;
+      padding: 12px 22px; background: transparent; color: var(--accent-dark);
+      border: 1px solid var(--accent); font-family: inherit; font-size: 0.82rem; font-weight: 600;
       text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer; white-space: nowrap;
       transition: all 0.2s;
     }
@@ -411,7 +411,7 @@
     .today-feed-cta.primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
 
     .today-legacy-wrap {
-      max-width: 860px; margin: 0 auto; padding: 16px 0;
+      max-width: 1200px; margin: 0 auto; padding: 16px 0;
     }
     .today-legacy-summary {
       cursor: pointer; font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
@@ -429,6 +429,80 @@
     .today-legacy-summary:hover { color: var(--text); }
     .today-legacy-wrap[open] { padding-bottom: 24px; }
     .today-legacy-wrap > .widget-grid { margin-top: 16px; }
+
+    .today-feed-item { cursor: pointer; transition: background 0.15s; }
+    .today-feed-item:hover { background: rgba(255,255,255,0.02); }
+
+    /* ===== Feed action modal ===== */
+    .feed-modal-overlay {
+      display: none; position: fixed; inset: 0; z-index: 10000;
+      background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      align-items: center; justify-content: center; padding: 24px;
+    }
+    .feed-modal-overlay.open { display: flex; }
+    .feed-modal {
+      background: var(--bg-card); border: 1px solid var(--border);
+      width: 100%; max-width: 560px; max-height: calc(100vh - 48px);
+      overflow-y: auto; position: relative; animation: feedModalIn 0.2s ease;
+    }
+    @keyframes feedModalIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .feed-modal-head {
+      padding: 20px 24px; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+    }
+    .feed-modal-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent-dark); margin-bottom: 4px; font-weight: 600; }
+    .feed-modal-title { font-size: 1.15rem; font-weight: 400; letter-spacing: -0.02em; }
+    .feed-modal-close {
+      background: none; border: none; color: var(--text-muted); font-size: 1.4rem;
+      cursor: pointer; padding: 0; line-height: 1; flex-shrink: 0;
+    }
+    .feed-modal-close:hover { color: var(--text); }
+    .feed-modal-body { padding: 24px; }
+    .feed-modal-body p { font-size: 0.88rem; color: var(--text); line-height: 1.5; margin-bottom: 16px; font-weight: 300; }
+    .feed-modal-foot {
+      padding: 16px 24px; border-top: 1px solid var(--border);
+      display: flex; gap: 10px; justify-content: flex-end;
+    }
+    .feed-modal-btn {
+      padding: 10px 18px; background: transparent; color: var(--text);
+      border: 1px solid var(--border); font-family: inherit; font-size: 0.78rem; font-weight: 500;
+      cursor: pointer;
+    }
+    .feed-modal-btn:hover { border-color: var(--text); }
+    .feed-modal-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .feed-modal-btn.primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+    .feed-modal-input {
+      width: 100%; padding: 10px 12px; background: var(--bg);
+      border: 1px solid var(--border); color: var(--text); font-family: inherit;
+      font-size: 0.88rem; margin-bottom: 12px;
+    }
+    .feed-modal-input:focus { outline: none; border-color: var(--accent); }
+    .feed-modal-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.88rem;
+    }
+    .feed-modal-row:last-child { border-bottom: none; }
+    .feed-modal-row .label { color: var(--text-muted); }
+    .feed-modal-exlist { display: flex; flex-direction: column; gap: 0; }
+    .feed-modal-ex {
+      display: grid; grid-template-columns: 24px 1fr auto; gap: 12px;
+      padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.88rem;
+    }
+    .feed-modal-ex:last-child { border-bottom: none; }
+    .feed-modal-ex .num { color: var(--text-muted); font-size: 0.78rem; }
+    .feed-modal-ex .sets { color: var(--text-muted); font-size: 0.78rem; }
+    .feed-modal-graph {
+      height: 160px; display: flex; align-items: flex-end; gap: 4px;
+      padding: 12px; background: var(--bg); border: 1px solid var(--border);
+    }
+    .feed-modal-graph > div {
+      flex: 1; background: linear-gradient(to top, var(--accent), transparent);
+      border-top: 2px solid var(--accent);
+    }
 
     @media (max-width: 768px) {
       .today-feed-item { grid-template-columns: 1fr; gap: 6px; padding: 14px 16px; }
@@ -1391,85 +1465,82 @@
 
           <div class="today-feed-section-head">
             <h3>Today</h3>
-            <a href="#" onclick="event.preventDefault();switchDashTab('training', document.querySelector('.dash-tab[data-tab=training]'));">Full plan &rarr;</a>
           </div>
           <div class="today-feed-list">
-            <div class="today-feed-item">
+            <div class="today-feed-item" onclick="openFeedAction('workout-today')">
               <div class="today-feed-time">9:00 AM</div>
               <div class="today-feed-body">
                 <div class="today-feed-label">Workout</div>
                 <div class="today-feed-title">Upper Body Pull</div>
                 <div class="today-feed-sub">45 min &middot; 6 exercises &middot; programmed by Marcus</div>
               </div>
-              <button class="today-feed-cta primary" onclick="startLiveWorkout(2)">Start &rarr;</button>
+              <button class="today-feed-cta primary" onclick="event.stopPropagation();startLiveWorkout(2)">Start &rarr;</button>
             </div>
-            <div class="today-feed-item">
+            <div class="today-feed-item" onclick="openFeedAction('meal-today')">
               <div class="today-feed-time">12:30 PM</div>
               <div class="today-feed-body">
                 <div class="today-feed-label">Meal</div>
                 <div class="today-feed-title">Grilled chicken bowl</div>
                 <div class="today-feed-sub">620 cal &middot; 52g P &middot; 68g C &middot; 18g F</div>
               </div>
-              <button class="today-feed-cta" onclick="switchDashTab('nutrition', document.querySelector('.dash-tab[data-tab=nutrition]'))">Log meal</button>
+              <button class="today-feed-cta" onclick="event.stopPropagation();openFeedAction('meal-today')">Log meal</button>
             </div>
-            <div class="today-feed-item">
+            <div class="today-feed-item" onclick="openFeedAction('checkin-today')">
               <div class="today-feed-time">6:30 PM</div>
               <div class="today-feed-body">
                 <div class="today-feed-label">Check-in</div>
                 <div class="today-feed-title">Weekly with Marcus</div>
                 <div class="today-feed-sub">20 min &middot; video call</div>
               </div>
-              <button class="today-feed-cta" onclick="viewBannerCheckIn()">Join</button>
+              <button class="today-feed-cta" onclick="event.stopPropagation();openFeedAction('checkin-today')">Join</button>
             </div>
           </div>
 
           <div class="today-feed-section-head">
             <h3>This week</h3>
-            <a href="#" onclick="event.preventDefault();switchDashTab('training', document.querySelector('.dash-tab[data-tab=training]'));">Full schedule &rarr;</a>
           </div>
           <div class="today-feed-list">
-            <div class="today-feed-item">
+            <div class="today-feed-item" onclick="openFeedAction('workout-preview')">
               <div class="today-feed-time">Tomorrow</div>
               <div class="today-feed-body">
                 <div class="today-feed-label">Workout</div>
                 <div class="today-feed-title">Lower Body Push</div>
                 <div class="today-feed-sub">50 min &middot; 7 exercises</div>
               </div>
-              <button class="today-feed-cta" onclick="switchDashTab('training', document.querySelector('.dash-tab[data-tab=training]'))">Preview</button>
+              <button class="today-feed-cta" onclick="event.stopPropagation();openFeedAction('workout-preview')">Preview</button>
             </div>
-            <div class="today-feed-item">
+            <div class="today-feed-item" onclick="openFeedAction('body-checkin')">
               <div class="today-feed-time">Sat</div>
               <div class="today-feed-body">
                 <div class="today-feed-label">Rest + check</div>
                 <div class="today-feed-title">Body photo + weigh-in</div>
                 <div class="today-feed-sub">Syncs to your team automatically</div>
               </div>
-              <button class="today-feed-cta" onclick="switchDashTab('progress', document.querySelector('.dash-tab[data-tab=progress]'))">Open</button>
+              <button class="today-feed-cta" onclick="event.stopPropagation();openFeedAction('body-checkin')">Open</button>
             </div>
           </div>
 
           <div class="today-feed-section-head">
             <h3>Recently</h3>
-            <a href="#" onclick="event.preventDefault();switchDashTab('progress', document.querySelector('.dash-tab[data-tab=progress]'));">Full history &rarr;</a>
           </div>
           <div class="today-feed-list">
-            <div class="today-feed-item">
+            <div class="today-feed-item" onclick="openFeedAction('workout-review')">
               <div class="today-feed-time">Yesterday</div>
               <div class="today-feed-body">
                 <div class="today-feed-label">Workout</div>
                 <div class="today-feed-title">Push Day &middot; completed</div>
                 <div class="today-feed-sub">42 min &middot; 3 PRs set &middot; +50 pts</div>
               </div>
-              <button class="today-feed-cta" onclick="switchDashTab('progress', document.querySelector('.dash-tab[data-tab=progress]'))">Review</button>
+              <button class="today-feed-cta" onclick="event.stopPropagation();openFeedAction('workout-review')">Review</button>
             </div>
-            <div class="today-feed-item">
+            <div class="today-feed-item" onclick="openFeedAction('weight-graph')">
               <div class="today-feed-time">2d ago</div>
               <div class="today-feed-body">
                 <div class="today-feed-label">Progress</div>
                 <div class="today-feed-title">-0.6 lb since last week</div>
                 <div class="today-feed-sub">Trending toward your goal</div>
               </div>
-              <button class="today-feed-cta" onclick="switchDashTab('progress', document.querySelector('.dash-tab[data-tab=progress]'))">See graph</button>
+              <button class="today-feed-cta" onclick="event.stopPropagation();openFeedAction('weight-graph')">See graph</button>
             </div>
           </div>
         </div>
@@ -5795,6 +5866,192 @@
       window.location.href = 'home.html';
     }
   </script>
+  <!-- Feed action modal (option 3 inline actions) -->
+  <div class="feed-modal-overlay" id="feedActionModal" onclick="if(event.target===this)closeFeedAction()">
+    <div class="feed-modal" role="dialog" aria-modal="true">
+      <div class="feed-modal-head">
+        <div>
+          <div class="feed-modal-label" id="feedModalLabel"></div>
+          <div class="feed-modal-title" id="feedModalTitle"></div>
+        </div>
+        <button class="feed-modal-close" onclick="closeFeedAction()" aria-label="Close">&times;</button>
+      </div>
+      <div class="feed-modal-body" id="feedModalBody"></div>
+      <div class="feed-modal-foot" id="feedModalFoot"></div>
+    </div>
+  </div>
+  <script>
+    (function(){
+      var FEED_ACTIONS = {
+        'workout-today': {
+          label: 'Workout &middot; Today &middot; 9:00 AM',
+          title: 'Upper Body Pull',
+          body:
+            '<p>45 minutes &middot; 6 exercises &middot; programmed by Marcus</p>' +
+            '<div class="feed-modal-exlist">' +
+              '<div class="feed-modal-ex"><span class="num">1</span><span>Pull-ups</span><span class="sets">4 &times; 6-8</span></div>' +
+              '<div class="feed-modal-ex"><span class="num">2</span><span>Barbell row</span><span class="sets">4 &times; 8</span></div>' +
+              '<div class="feed-modal-ex"><span class="num">3</span><span>Lat pulldown</span><span class="sets">3 &times; 10</span></div>' +
+              '<div class="feed-modal-ex"><span class="num">4</span><span>Face pulls</span><span class="sets">3 &times; 12</span></div>' +
+              '<div class="feed-modal-ex"><span class="num">5</span><span>Barbell curl</span><span class="sets">3 &times; 10</span></div>' +
+              '<div class="feed-modal-ex"><span class="num">6</span><span>Hammer curl</span><span class="sets">3 &times; 12</span></div>' +
+            '</div>',
+          foot:
+            '<button class="feed-modal-btn" onclick="closeFeedAction()">Close</button>' +
+            '<button class="feed-modal-btn primary" onclick="closeFeedAction();startLiveWorkout(2)">Start workout</button>'
+        },
+        'meal-today': {
+          label: 'Meal &middot; Today &middot; 12:30 PM',
+          title: 'Grilled chicken bowl',
+          body:
+            '<p>620 cal &middot; 52g protein &middot; 68g carbs &middot; 18g fat</p>' +
+            '<label style="display:block;font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">Portion eaten</label>' +
+            '<select class="feed-modal-input" id="feedMealPortion">' +
+              '<option value="full">Full portion (as planned)</option>' +
+              '<option value="half">Half</option>' +
+              '<option value="three-quarter">3/4</option>' +
+              '<option value="double">Double</option>' +
+              '<option value="skip">Skipped</option>' +
+            '</select>' +
+            '<label style="display:block;font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">Notes (optional)</label>' +
+            '<input class="feed-modal-input" id="feedMealNotes" placeholder="Swapped rice for quinoa, added avocado...">',
+          foot:
+            '<button class="feed-modal-btn" onclick="closeFeedAction()">Cancel</button>' +
+            '<button class="feed-modal-btn primary" onclick="feedLogMeal()">Log meal</button>'
+        },
+        'checkin-today': {
+          label: 'Check-in &middot; Today &middot; 6:30 PM',
+          title: 'Weekly with Marcus',
+          body:
+            '<p>20 minute video call &middot; starts in about 9 hours</p>' +
+            '<div class="feed-modal-row"><span class="label">With</span><span>Marcus Johnson</span></div>' +
+            '<div class="feed-modal-row"><span class="label">Type</span><span>Weekly check-in</span></div>' +
+            '<div class="feed-modal-row"><span class="label">Agenda</span><span>Review week 3, adjust program</span></div>' +
+            '<div class="feed-modal-row"><span class="label">Link</span><span style="color:var(--accent-dark);">shape.app/call/marcus-c</span></div>',
+          foot:
+            '<button class="feed-modal-btn" onclick="closeFeedAction()">Close</button>' +
+            '<button class="feed-modal-btn" onclick="feedReschedule()">Reschedule</button>' +
+            '<button class="feed-modal-btn primary" onclick="feedJoinCall()">Join call</button>'
+        },
+        'workout-preview': {
+          label: 'Workout &middot; Tomorrow',
+          title: 'Lower Body Push',
+          body:
+            '<p>50 minutes &middot; 7 exercises</p>' +
+            '<div class="feed-modal-exlist">' +
+              '<div class="feed-modal-ex"><span class="num">1</span><span>Back squat</span><span class="sets">5 &times; 5</span></div>' +
+              '<div class="feed-modal-ex"><span class="num">2</span><span>Romanian deadlift</span><span class="sets">4 &times; 8</span></div>' +
+              '<div class="feed-modal-ex"><span class="num">3</span><span>Walking lunges</span><span class="sets">3 &times; 10 ea.</span></div>' +
+              '<div class="feed-modal-ex"><span class="num">4</span><span>Leg press</span><span class="sets">3 &times; 12</span></div>' +
+              '<div class="feed-modal-ex"><span class="num">5</span><span>Leg curl</span><span class="sets">3 &times; 12</span></div>' +
+              '<div class="feed-modal-ex"><span class="num">6</span><span>Standing calf raise</span><span class="sets">4 &times; 15</span></div>' +
+              '<div class="feed-modal-ex"><span class="num">7</span><span>Plank</span><span class="sets">3 &times; 45s</span></div>' +
+            '</div>',
+          foot:
+            '<button class="feed-modal-btn" onclick="closeFeedAction()">Close</button>' +
+            '<button class="feed-modal-btn primary" onclick="feedRemindWorkout()">Remind me</button>'
+        },
+        'body-checkin': {
+          label: 'Rest + check &middot; Saturday',
+          title: 'Body photo + weigh-in',
+          body:
+            '<p>Syncs to Marcus and Dr. Patel automatically so they see the update before Monday.</p>' +
+            '<label style="display:block;font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">Weight (lb)</label>' +
+            '<input class="feed-modal-input" type="number" step="0.1" id="feedBodyWeight" placeholder="182.4">' +
+            '<label style="display:block;font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">Photo</label>' +
+            '<input class="feed-modal-input" type="file" accept="image/*" id="feedBodyPhoto">' +
+            '<label style="display:block;font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">Note to your team (optional)</label>' +
+            '<input class="feed-modal-input" id="feedBodyNote" placeholder="Feeling strong this week...">',
+          foot:
+            '<button class="feed-modal-btn" onclick="closeFeedAction()">Cancel</button>' +
+            '<button class="feed-modal-btn primary" onclick="feedSubmitBodyCheckin()">Save check-in</button>'
+        },
+        'workout-review': {
+          label: 'Workout &middot; Yesterday',
+          title: 'Push Day (completed)',
+          body:
+            '<p>42 minutes &middot; 3 PRs set &middot; +50 Shape points</p>' +
+            '<div class="feed-modal-row"><span class="label">Bench press</span><span>185 lb &times; 5 &middot; <span style="color:#10B981;">PR</span></span></div>' +
+            '<div class="feed-modal-row"><span class="label">Overhead press</span><span>115 lb &times; 5</span></div>' +
+            '<div class="feed-modal-row"><span class="label">Incline DB press</span><span>60 lb &times; 8 &middot; <span style="color:#10B981;">PR</span></span></div>' +
+            '<div class="feed-modal-row"><span class="label">Lateral raise</span><span>20 lb &times; 12</span></div>' +
+            '<div class="feed-modal-row"><span class="label">Tricep pushdown</span><span>70 lb &times; 10 &middot; <span style="color:#10B981;">PR</span></span></div>' +
+            '<div class="feed-modal-row"><span class="label">Overhead extension</span><span>45 lb &times; 12</span></div>',
+          foot:
+            '<button class="feed-modal-btn" onclick="closeFeedAction()">Close</button>' +
+            '<button class="feed-modal-btn primary" onclick="feedShareWorkout()">Share with team</button>'
+        },
+        'weight-graph': {
+          label: 'Progress &middot; Weight',
+          title: '-0.6 lb since last week',
+          body:
+            '<p>You\'re trending toward your Apr 30 goal of 178 lb. Current: 182.4 lb.</p>' +
+            '<div class="feed-modal-graph">' +
+              '<div style="height:62%"></div><div style="height:68%"></div><div style="height:65%"></div>' +
+              '<div style="height:72%"></div><div style="height:70%"></div><div style="height:78%"></div>' +
+              '<div style="height:74%"></div><div style="height:82%"></div><div style="height:80%"></div>' +
+              '<div style="height:86%"></div><div style="height:84%"></div><div style="height:88%"></div>' +
+            '</div>' +
+            '<div style="display:flex;justify-content:space-between;margin-top:8px;font-size:0.7rem;color:var(--text-muted);"><span>Mar 16</span><span>Today</span></div>' +
+            '<div class="feed-modal-row" style="margin-top:16px;"><span class="label">This week</span><span style="color:#10B981;">&#9660; 0.6 lb</span></div>' +
+            '<div class="feed-modal-row"><span class="label">This month</span><span style="color:#10B981;">&#9660; 2.4 lb</span></div>' +
+            '<div class="feed-modal-row"><span class="label">Goal (Apr 30)</span><span>178 lb &middot; 4.4 to go</span></div>',
+          foot:
+            '<button class="feed-modal-btn" onclick="closeFeedAction()">Close</button>' +
+            '<button class="feed-modal-btn primary" onclick="closeFeedAction();switchDashTab(\'progress\', document.querySelector(\'.dash-tab[data-tab=progress]\'));">Full progress</button>'
+        }
+      };
+
+      window.openFeedAction = function(key) {
+        var a = FEED_ACTIONS[key];
+        if (!a) return;
+        document.getElementById('feedModalLabel').innerHTML = a.label;
+        document.getElementById('feedModalTitle').textContent = a.title;
+        document.getElementById('feedModalBody').innerHTML = a.body;
+        document.getElementById('feedModalFoot').innerHTML = a.foot;
+        document.getElementById('feedActionModal').classList.add('open');
+        document.body.style.overflow = 'hidden';
+      };
+      window.closeFeedAction = function() {
+        document.getElementById('feedActionModal').classList.remove('open');
+        document.body.style.overflow = '';
+      };
+      document.addEventListener('keydown', function(e){
+        if (e.key === 'Escape' && document.getElementById('feedActionModal').classList.contains('open')) {
+          closeFeedAction();
+        }
+      });
+
+      window.feedLogMeal = function() {
+        var p = document.getElementById('feedMealPortion');
+        var n = document.getElementById('feedMealNotes');
+        try { if (typeof showToast === 'function') showToast('Meal logged' + (p ? ' (' + p.value + ')' : '')); } catch(e){}
+        closeFeedAction();
+      };
+      window.feedReschedule = function() {
+        try { if (typeof showToast === 'function') showToast('Reschedule request sent to Marcus'); } catch(e){}
+        closeFeedAction();
+      };
+      window.feedJoinCall = function() {
+        try { if (typeof showToast === 'function') showToast('Opening call...'); } catch(e){}
+        closeFeedAction();
+      };
+      window.feedRemindWorkout = function() {
+        try { if (typeof showToast === 'function') showToast('Reminder set for tomorrow 9:00 AM'); } catch(e){}
+        closeFeedAction();
+      };
+      window.feedSubmitBodyCheckin = function() {
+        var w = document.getElementById('feedBodyWeight');
+        try { if (typeof showToast === 'function') showToast('Check-in saved' + (w && w.value ? ' (' + w.value + ' lb)' : '')); } catch(e){}
+        closeFeedAction();
+      };
+      window.feedShareWorkout = function() {
+        try { if (typeof showToast === 'function') showToast('Shared with your team'); } catch(e){}
+        closeFeedAction();
+      };
+    })();
+  </script>
+
   <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
 </body>
 </html>
