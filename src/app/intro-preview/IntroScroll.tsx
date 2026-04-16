@@ -171,23 +171,35 @@ export default function IntroScroll() {
     scene5TriggeredRef.current = false;
     setFadeWelcome(false);
     setStep(0);
+    // Clear any pending word timers so stale words don't flash on scene 1
+    wordTimersRef.current.forEach(clearTimeout);
+    wordTimersRef.current = [];
     const v1 = video1Ref.current;
     const v2 = video2Ref.current;
     const v4 = video4Ref.current;
     const v5 = video5Ref.current;
+    // Pause scene 5 so its onEnded can't re-fire mid-crossfade and
+    // its frame-0 rewind stays hidden behind the fade.
+    if (v5) v5.pause();
+    if (v2) v2.pause();
+    if (v4) v4.pause();
     // Start scene 1 playing before the opacity swap so both layers overlap
     if (v1) {
       v1.currentTime = 0;
       safePlay(v1);
     }
-    if (v2) v2.currentTime = 0;
-    if (v4) v4.currentTime = 0;
-    if (v5) v5.currentTime = 0;
     // Delay the opacity crossfade slightly for a smooth blend
     setTimeout(() => {
       setScene(1);
-      loopTriggeredRef.current = false;
     }, 200);
+    // Rewind the other videos only after the crossfade is done
+    // so a visible rewind flash can't leak through.
+    setTimeout(() => {
+      if (v2) v2.currentTime = 0;
+      if (v4) v4.currentTime = 0;
+      if (v5) v5.currentTime = 0;
+      loopTriggeredRef.current = false;
+    }, 1700);
   }, [safePlay]);
 
   return (
@@ -201,6 +213,7 @@ export default function IntroScroll() {
         muted
         playsInline
         onTimeUpdate={(e) => {
+          if (scene !== 1) return;
           const v = e.currentTarget;
           if (!v.duration) return;
           // Fade out "Welcome to Shape" 2.5s before video ends
@@ -341,7 +354,7 @@ export default function IntroScroll() {
         }}
       >
         <div className="text-[clamp(2rem,5vw,4rem)] font-normal leading-tight tracking-[-0.03em] text-white">
-          Built around you
+          Built around you.
         </div>
       </div>
 
