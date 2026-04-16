@@ -163,6 +163,42 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="apple-touch-icon" href="icon-192.png">
+  <style id="shapeEmbedStyles">
+    /* Applied when page is loaded with ?embed=1 (inside the dashboard Score tab) */
+    html.shape-embed-mode body::before { display: none !important; }
+    html.shape-embed-mode .navbar,
+    html.shape-embed-mode .footer,
+    html.shape-embed-mode .page-hero,
+    html.shape-embed-mode .td-tab-bar { display: none !important; }
+    html.shape-embed-mode body { padding: 0 !important; background: transparent !important; }
+    html.shape-embed-mode .section { padding-top: 8px !important; padding-bottom: 16px !important; }
+  </style>
+  <script>
+    (function(){
+      try {
+        var p = new URLSearchParams(window.location.search);
+        if (p.get('embed') !== '1') return;
+        document.documentElement.classList.add('shape-embed-mode');
+        function post(){
+          try {
+            var h = Math.max(
+              document.documentElement.scrollHeight,
+              document.body ? document.body.scrollHeight : 0
+            );
+            parent.postMessage({ type:'shapeEmbedHeight', source:'score-trainer', height:h }, '*');
+          } catch(e){}
+        }
+        window.addEventListener('load', function(){
+          post();
+          try {
+            new MutationObserver(post).observe(document.body, { childList:true, subtree:true, attributes:true, characterData:true });
+            new ResizeObserver(post).observe(document.body);
+          } catch(e){}
+          setInterval(post, 1200);
+        });
+      } catch(e){}
+    })();
+  </script>
 </head>
 <body>
 

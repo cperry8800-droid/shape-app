@@ -1015,7 +1015,7 @@
     <button class="td-tab-btn" data-tab="community" data-icon="◈" onclick="switchTrainerTab('community', this)">Community</button>
     <button class="td-tab-btn" data-tab="profile" data-icon="◐" onclick="switchTrainerTab('profile', this)">Profile</button>
     <button class="td-tab-btn" data-tab="goalcalc" data-icon="∑" onclick="switchTrainerTab('goalcalc', this)">Calc</button>
-    <a class="td-tab-btn" data-icon="♚" href="shape-score-trainer.html" style="text-decoration:none;">Score</a>
+    <button class="td-tab-btn" data-tab="score" data-icon="♚" onclick="switchTrainerTab('score', this)">Score</button>
     <a class="td-tab-btn" data-icon="⚐" href="shape-store.html" style="text-decoration:none;" onclick="sessionStorage.setItem('shapeStoreContext','trainer')">Store</a>
   </div>
 
@@ -2138,6 +2138,17 @@
       </div>
     </div>
 
+    <!-- ========== TAB: SCORE (embedded shape-score-trainer) ========== -->
+    <div class="td-tab-content" id="tab-score">
+      <iframe
+        id="tdScoreFrame"
+        data-src="shape-score-trainer.html?embed=1"
+        title="Shape Score — Trainers"
+        style="width:100%;border:none;display:block;min-height:1200px;background:transparent;"
+        loading="lazy"
+        scrolling="no"></iframe>
+    </div>
+
   </div>
   </section>
 
@@ -2284,8 +2295,26 @@
       case 'goalcalc':
         gcCalculate();
         break;
+      case 'score':
+        (function(){
+          var f = document.getElementById('tdScoreFrame');
+          if (f && !f.getAttribute('src')) {
+            f.setAttribute('src', f.getAttribute('data-src'));
+          }
+        })();
+        break;
     }
   }
+
+  // Auto-resize the embedded Score iframe based on its content height.
+  window.addEventListener('message', function(e){
+    if (!e.data || e.data.type !== 'shapeEmbedHeight') return;
+    if (e.data.source !== 'score-trainer') return;
+    var f = document.getElementById('tdScoreFrame');
+    if (!f) return;
+    var h = Math.max(600, (parseInt(e.data.height, 10) || 0) + 24);
+    f.style.height = h + 'px';
+  });
 
   // Mark initial tabs as initialized
   _tdTabsInitialized['home'] = true;

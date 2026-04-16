@@ -1088,7 +1088,7 @@
     <button class="nd-tab-btn" data-tab="community" data-icon="◈" onclick="ndSwitchTab('community', this)">Community</button>
     <button class="nd-tab-btn" data-tab="profile" data-icon="◐" onclick="ndSwitchTab('profile', this)">Profile</button>
     <button class="nd-tab-btn" data-tab="goalcalc" data-icon="∑" onclick="ndSwitchTab('goalcalc', this)">Calc</button>
-    <a class="nd-tab-btn" data-icon="♚" href="shape-score-nutritionist.html" style="text-decoration:none;">Score</a>
+    <button class="nd-tab-btn" data-tab="score" data-icon="♚" onclick="ndSwitchTab('score', this)">Score</button>
     <a class="nd-tab-btn" data-icon="⚐" href="shape-store.html" style="text-decoration:none;" onclick="sessionStorage.setItem('shapeStoreContext','nutritionist')">Store</a>
   </div>
 
@@ -1827,6 +1827,17 @@
     </section>
   </div>
 
+  <!-- ===================== TAB 8: SCORE (embedded) ===================== -->
+  <div class="nd-tab-content" id="ndTabScore">
+    <iframe
+      id="ndScoreFrame"
+      data-src="shape-score-nutritionist.html?embed=1"
+      title="Shape Score — Nutritionists"
+      style="width:100%;border:none;display:block;min-height:1200px;background:transparent;"
+      loading="lazy"
+      scrolling="no"></iframe>
+  </div>
+
   <!-- Footer -->
   <footer class="footer">
     <div class="container">
@@ -1956,8 +1967,26 @@
       case 'goalcalc':
         ndGcCalculate();
         break;
+      case 'score':
+        (function(){
+          var f = document.getElementById('ndScoreFrame');
+          if (f && !f.getAttribute('src')) {
+            f.setAttribute('src', f.getAttribute('data-src'));
+          }
+        })();
+        break;
     }
   }
+
+  // Auto-resize the embedded Score iframe based on its content height.
+  window.addEventListener('message', function(e){
+    if (!e.data || e.data.type !== 'shapeEmbedHeight') return;
+    if (e.data.source !== 'score-nutritionist') return;
+    var f = document.getElementById('ndScoreFrame');
+    if (!f) return;
+    var h = Math.max(600, (parseInt(e.data.height, 10) || 0) + 24);
+    f.style.height = h + 'px';
+  });
 
   // Mark home + clients as already initialized (they run on page load from nutritionist-dashboard.js)
   _ndTabsInitialized['home'] = true;
@@ -1966,7 +1995,7 @@
 
   // Hash-based tab routing (lets back-nav from Score/Store pages land on a specific tab)
   (function() {
-    var valid = ['home','clients','mealplans','messages','community','profile','goalcalc'];
+    var valid = ['home','clients','mealplans','messages','community','profile','goalcalc','score'];
     function applyHashTab() {
       var h = (location.hash || '').replace('#','');
       if (h && valid.indexOf(h) !== -1) {
