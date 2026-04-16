@@ -2602,6 +2602,66 @@
               .gl-detail-actions { justify-self: start; }
               .gl-page-head { flex-wrap: wrap; }
             }
+            .gl-modal-overlay {
+              position: fixed; inset: 0; background: rgba(0,0,0,0.72);
+              display: none; align-items: flex-start; justify-content: center;
+              z-index: 9999; padding: 10vh 16px 16px; overflow-y: auto;
+            }
+            .gl-modal-overlay.open { display: flex; }
+            .gl-modal {
+              background: var(--bg, #0a0a0a); border: 1px solid var(--border);
+              width: 100%; max-width: 440px; padding: 22px 22px 18px;
+              box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+            }
+            .gl-modal-head {
+              display: flex; align-items: center; justify-content: space-between;
+              gap: 12px; margin-bottom: 14px;
+            }
+            .gl-modal-head h3 {
+              margin: 0; font-size: 1.05rem; font-weight: 400; letter-spacing: -0.01em;
+            }
+            .gl-modal-close {
+              background: none; border: none; color: var(--text-muted);
+              font-size: 1.4rem; line-height: 1; cursor: pointer; padding: 2px 6px;
+            }
+            .gl-modal-close:hover { color: var(--text); }
+            .gl-modal-label {
+              display: block; font-size: 0.68rem; text-transform: uppercase;
+              letter-spacing: 0.12em; color: var(--text-muted); margin-bottom: 6px;
+            }
+            .gl-modal-input {
+              width: 100%; background: rgba(255,255,255,0.03);
+              border: 1px solid var(--border); color: var(--text);
+              padding: 10px 12px; font-family: inherit; font-size: 0.9rem;
+              box-sizing: border-box;
+            }
+            .gl-modal-input:focus {
+              outline: none; border-color: var(--accent, #2DD4BF);
+              background: rgba(255,255,255,0.05);
+            }
+            .gl-modal-hint {
+              margin: 8px 0 0; font-size: 0.72rem; color: var(--text-muted);
+              line-height: 1.4;
+            }
+            .gl-modal-actions {
+              display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px;
+            }
+            .gl-modal-btn {
+              font-family: inherit; font-size: 0.8rem; padding: 9px 16px;
+              cursor: pointer; border: 1px solid var(--border);
+              transition: opacity .15s, background .15s, border-color .15s;
+            }
+            .gl-modal-btn.secondary {
+              background: none; color: var(--text);
+            }
+            .gl-modal-btn.secondary:hover {
+              background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.18);
+            }
+            .gl-modal-btn.primary {
+              background: var(--accent, #2DD4BF); color: #000;
+              border-color: var(--accent, #2DD4BF); font-weight: 600;
+            }
+            .gl-modal-btn.primary:hover { opacity: 0.9; }
           </style>
 
           <div class="widget widget-full grocery-widget" data-widget-id="cl-nu-grocery" style="margin-top:24px;">
@@ -2697,6 +2757,25 @@
             </form>
 
             <div id="glDetailItems" class="gl-detail-items"></div>
+          </div>
+
+          <!-- Create / Rename list modal -->
+          <div class="gl-modal-overlay" id="glModal" onclick="if(event.target===this)glCloseModal()" role="dialog" aria-modal="true">
+            <div class="gl-modal">
+              <div class="gl-modal-head">
+                <h3 id="glModalTitle">New grocery list</h3>
+                <button type="button" class="gl-modal-close" onclick="glCloseModal()" aria-label="Close">&times;</button>
+              </div>
+              <form id="glModalForm" onsubmit="event.preventDefault(); glSubmitModal();">
+                <label for="glModalName" class="gl-modal-label">List name</label>
+                <input type="text" id="glModalName" class="gl-modal-input" placeholder="e.g. Week of Apr 20" required autocomplete="off">
+                <p id="glModalHint" class="gl-modal-hint">After you save, you'll be able to add items in the list detail view.</p>
+                <div class="gl-modal-actions">
+                  <button type="button" class="gl-modal-btn secondary" onclick="glCloseModal()">Cancel</button>
+                  <button type="submit" class="gl-modal-btn primary" id="glModalSaveBtn">Create list</button>
+                </div>
+              </form>
+            </div>
           </div>
         </div><!-- /.nutri-grocery-view -->
 
@@ -6929,30 +7008,69 @@
       _activeListId = null;
       renderDetail();
     };
-    window.glNewPersonalList = function() {
-      var name = (window.prompt('Name your new list', 'My grocery list') || '').trim();
-      if (!name) return;
-      var s = ensureSeeded();
-      var now = Date.now();
-      var list = {
-        id: 'p_' + now, source: 'personal', name: name,
-        createdAt: now, updatedAt: now, items: []
-      };
-      s.lists.push(list);
-      saveState(s);
-      _activeListId = list.id;
+    var _glModalMode = 'create';
+    var _glModalEditId = null;
+    window.glOpenModal = function(mode, listId) {
+      _glModalMode = mode === 'rename' ? 'rename' : 'create';
+      _glModalEditId = listId || null;
+      var modal = document.getElementById('glModal');
+      var title = document.getElementById('glModalTitle');
+      var input = document.getElementById('glModalName');
+      var saveBtn = document.getElementById('glModalSaveBtn');
+      var hint = document.getElementById('glModalHint');
+      if (!modal || !input) return;
+      if (_glModalMode === 'rename' && _glModalEditId) {
+        var list = getList(_glModalEditId);
+        if (title) title.textContent = 'Rename list';
+        input.value = list ? list.name : '';
+        if (saveBtn) saveBtn.textContent = 'Save name';
+        if (hint) hint.style.display = 'none';
+      } else {
+        if (title) title.textContent = 'New grocery list';
+        input.value = '';
+        if (saveBtn) saveBtn.textContent = 'Create list';
+        if (hint) hint.style.display = '';
+      }
+      modal.classList.add('open');
+      setTimeout(function(){ try { input.focus(); input.select(); } catch(e){} }, 40);
+    };
+    window.glCloseModal = function() {
+      var modal = document.getElementById('glModal');
+      if (modal) modal.classList.remove('open');
+      _glModalEditId = null;
+    };
+    window.glSubmitModal = function() {
+      var input = document.getElementById('glModalName');
+      if (!input) return;
+      var name = (input.value || '').trim();
+      if (!name) { input.focus(); return; }
+      if (_glModalMode === 'rename' && _glModalEditId) {
+        var existing = getList(_glModalEditId);
+        if (!existing || existing.source === 'coach') { window.glCloseModal(); return; }
+        updateList(_glModalEditId, function(l){ l.name = name; });
+      } else {
+        var s = ensureSeeded();
+        var now = Date.now();
+        var list = {
+          id: 'p_' + now, source: 'personal', name: name,
+          createdAt: now, updatedAt: now, items: []
+        };
+        s.lists.push(list);
+        saveState(s);
+        _activeListId = list.id;
+      }
+      window.glCloseModal();
       renderLists();
       renderDetail();
+    };
+    window.glNewPersonalList = function() {
+      window.glOpenModal('create');
     };
     window.glRenameActive = function() {
       if (!_activeListId) return;
       var list = getList(_activeListId);
       if (!list || list.source === 'coach') return;
-      var name = (window.prompt('Rename list', list.name) || '').trim();
-      if (!name) return;
-      updateList(_activeListId, function(l){ l.name = name; });
-      renderLists();
-      renderDetail();
+      window.glOpenModal('rename', _activeListId);
     };
     window.glDeleteActive = function() {
       if (!_activeListId) return;
