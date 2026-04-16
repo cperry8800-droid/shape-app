@@ -7,13 +7,23 @@ import { logout } from '@/app/login/actions';
 export default function Sidebar({ role, roles }: { role: string; roles: string[] }) {
   const [open, setOpen] = useState(false);
 
+  const shapeScoreHref =
+    role === 'trainer' || roles.includes('trainer')
+      ? '/shape-score-trainer'
+      : role === 'nutritionist' || roles.includes('nutritionist')
+        ? '/shape-score-nutritionist'
+        : '/shape-score';
+
   const links: { href: string; label: string; show: boolean }[] = [
     { href: '/dashboard', label: 'Overview', show: true },
     { href: '/dashboard/client', label: 'My Team', show: roles.includes('client') || role === 'client' },
     { href: '/dashboard/trainer', label: 'Trainer', show: roles.includes('trainer') || role === 'trainer' },
     { href: '/dashboard/nutritionist', label: 'Nutritionist', show: roles.includes('nutritionist') || role === 'nutritionist' },
+    { href: shapeScoreHref, label: 'Shape Score', show: true },
+    { href: '/shape-store', label: 'Shape Store', show: true },
     { href: '/dashboard/claim', label: 'Claim', show: true },
     { href: '/dashboard/settings', label: 'Settings', show: true },
+    { href: '/home', label: 'Home', show: true },
   ];
 
   return (
