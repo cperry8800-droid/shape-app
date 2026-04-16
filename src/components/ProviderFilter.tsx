@@ -65,7 +65,7 @@ export default function ProviderFilter({
 
   return (
     <div>
-      <div className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-5 mb-8">
+      <div className="rounded-xl border border-neutral-800 bg-neutral-900/30 backdrop-blur-md p-5 mb-8">
         <div className="flex gap-3 mb-4 flex-col md:flex-row">
           <input
             type="text"

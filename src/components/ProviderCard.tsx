@@ -48,7 +48,7 @@ export default function ProviderCard({
   if (horizontal) {
     return (
       <Wrapper
-        className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-5 flex items-center gap-5 hover:border-neutral-700 hover:bg-neutral-900 transition-colors"
+        className="rounded-xl border border-neutral-800 bg-neutral-900/30 backdrop-blur-md p-5 flex items-center gap-5 hover:border-neutral-700 hover:bg-neutral-900 transition-colors"
         style={{ borderLeft: `3px solid ${accent}` }}
       >
         <Avatar name={name} color={accent} />
@@ -77,7 +77,7 @@ export default function ProviderCard({
 
   return (
     <Wrapper
-      className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-6 flex flex-col hover:border-neutral-700 hover:bg-neutral-900 transition-colors"
+      className="rounded-xl border border-neutral-800 bg-neutral-900/30 backdrop-blur-md p-6 flex flex-col hover:border-neutral-700 hover:bg-neutral-900 transition-colors"
       style={{ borderTop: `3px solid ${accent}` }}
     >
       <Avatar name={name} color={accent} size="lg" />
