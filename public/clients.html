@@ -6076,10 +6076,20 @@
             '<h4 style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:16px 0 8px;">Swap options</h4>' +
             '<p style="font-size:0.86rem;color:var(--text-muted);line-height:1.5;">Greek yogurt parfait &middot; Protein pancakes &middot; Egg white scramble + oats</p>' +
             '<h4 style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:16px 0 6px;">Coach note</h4>' +
-            '<p style="font-size:0.86rem;color:var(--text);line-height:1.5;font-style:italic;">"Add extra berries if you\'re training hard today — great pre-workout carbs." — Dr. Sarah</p>',
+            '<p style="font-size:0.86rem;color:var(--text);line-height:1.5;font-style:italic;">"Add extra berries if you\'re training hard today — great pre-workout carbs." — Dr. Sarah</p>' +
+            '<label style="display:block;font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin:16px 0 6px;">Portion eaten</label>' +
+            '<select class="feed-modal-input" id="feedMealPortion">' +
+              '<option value="full" selected>Full portion (as planned)</option>' +
+              '<option value="half">Half</option>' +
+              '<option value="three-quarter">3/4</option>' +
+              '<option value="double">Double</option>' +
+              '<option value="skip">Skipped</option>' +
+            '</select>' +
+            '<label style="display:block;font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">Notes</label>' +
+            '<input class="feed-modal-input" id="feedMealNotes" placeholder="Add a note..." value="Added extra berries">',
           foot:
-            '<button class="feed-modal-btn" onclick="closeFeedAction()">Close</button>' +
-            '<button class="feed-modal-btn primary" onclick="feedLogMeal()">Edit log</button>'
+            '<button class="feed-modal-btn" onclick="closeFeedAction()">Cancel</button>' +
+            '<button class="feed-modal-btn primary" onclick="feedUpdateMeal()">Save changes</button>'
         },
         'meal-lunch': {
           label: 'Lunch &middot; Today &middot; 12:30 PM',
@@ -6105,10 +6115,20 @@
             '<h4 style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:16px 0 8px;">Swap options</h4>' +
             '<p style="font-size:0.86rem;color:var(--text-muted);line-height:1.5;">Ground turkey bowl &middot; Tuna rice bowl &middot; Tempeh + quinoa (vegetarian)</p>' +
             '<h4 style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:16px 0 6px;">Coach note</h4>' +
-            '<p style="font-size:0.86rem;color:var(--text);line-height:1.5;font-style:italic;">"Keep this as your staple mid-week — easy to batch, hits your macros cleanly." — Dr. Sarah</p>',
+            '<p style="font-size:0.86rem;color:var(--text);line-height:1.5;font-style:italic;">"Keep this as your staple mid-week — easy to batch, hits your macros cleanly." — Dr. Sarah</p>' +
+            '<label style="display:block;font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin:16px 0 6px;">Portion eaten</label>' +
+            '<select class="feed-modal-input" id="feedMealPortion">' +
+              '<option value="full" selected>Full portion (as planned)</option>' +
+              '<option value="half">Half</option>' +
+              '<option value="three-quarter">3/4</option>' +
+              '<option value="double">Double</option>' +
+              '<option value="skip">Skipped</option>' +
+            '</select>' +
+            '<label style="display:block;font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">Notes</label>' +
+            '<input class="feed-modal-input" id="feedMealNotes" placeholder="Add a note..." value="">',
           foot:
-            '<button class="feed-modal-btn" onclick="closeFeedAction()">Close</button>' +
-            '<button class="feed-modal-btn primary" onclick="feedLogMeal()">Edit log</button>'
+            '<button class="feed-modal-btn" onclick="closeFeedAction()">Cancel</button>' +
+            '<button class="feed-modal-btn primary" onclick="feedUpdateMeal()">Save changes</button>'
         },
         'meal-dinner': {
           label: 'Dinner &middot; Today &middot; 7:00 PM',
@@ -6256,6 +6276,11 @@
         var p = document.getElementById('feedMealPortion');
         var n = document.getElementById('feedMealNotes');
         try { if (typeof showToast === 'function') showToast('Meal logged' + (p ? ' (' + p.value + ')' : '')); } catch(e){}
+        closeFeedAction();
+      };
+      window.feedUpdateMeal = function() {
+        var p = document.getElementById('feedMealPortion');
+        try { if (typeof showToast === 'function') showToast('Meal log updated' + (p ? ' (' + p.value + ')' : '')); } catch(e){}
         closeFeedAction();
       };
       window.feedReschedule = function() {
