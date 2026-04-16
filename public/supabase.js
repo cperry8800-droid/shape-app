@@ -343,9 +343,7 @@
       });
     },
 
-    dashboardFor(role) {
-      if (role === 'trainer') return 'trainer-dashboard.html';
-      if (role === 'nutritionist') return 'nutrition-schedule.html';
+    dashboardFor(_role) {
       return 'clients.html';
     },
 
