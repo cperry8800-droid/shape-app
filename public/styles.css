@@ -404,6 +404,7 @@ img.card-avatar-inline { background: var(--border); }
   transition: opacity 0.3s; font-weight: 400; text-align: center;
 }
 .footer-grid > .footer-col:first-child a { text-align: left; }
+.footer-grid > .footer-col:first-child a.logo { text-align: center; display: block; width: 100%; }
 .footer-col a:hover { opacity: 0.5; }
 .footer-bottom { text-align: center; padding-top: 40px; border-top: 1px solid var(--border); }
 .footer-bottom p { font-size: 0.78rem; color: var(--text-muted); font-weight: 300; }
