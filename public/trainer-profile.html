@@ -759,19 +759,35 @@
       </div>
     </div>
 
-    <!-- Subscription Pricing -->
+    <!-- Subscription -->
     <div class="tp-section" id="sectionPricing">
       <div class="tp-section-header">
-        <h2>Subscription Pricing</h2>
+        <h2>Subscription</h2>
         <button class="tp-edit-btn" onclick="toggleSection('sectionPricing')">Edit</button>
       </div>
-      <div style="background: var(--bg-card); border: 1px solid var(--border); padding: 28px; display: flex; justify-content: space-between; align-items: center;">
-        <div>
-          <div class="tp-display-value" style="font-size: 1.4rem; font-weight: 700;" id="subPriceDisplay">$--<span style="font-size: 0.85rem; font-weight: 400; color: var(--text-muted);">/mo</span></div>
-          <input class="tp-edit-input" id="subPriceInput" type="number" placeholder="49.99" style="display:none;width:120px;margin-top:0;">
-          <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">Set your own monthly subscription price</div>
+      <div style="background: var(--bg-card); border: 1px solid var(--border); padding: 28px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+          <div>
+            <div class="tp-display-value" style="font-size: 1.4rem; font-weight: 700;" id="subPriceDisplay">$--<span style="font-size: 0.85rem; font-weight: 400; color: var(--text-muted);">/mo</span></div>
+            <input class="tp-edit-input" id="subPriceInput" type="number" placeholder="49.99" style="display:none;width:120px;margin-top:0;">
+            <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">Set your own monthly subscription price</div>
+          </div>
         </div>
-        <button class="btn btn-primary">Set</button>
+        <div style="border-top:1px solid var(--border); padding-top:18px;">
+          <div style="font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:12px;">What's included</div>
+          <ul id="subIncludesDisplay" class="tp-display-value" style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;font-size:0.9rem;"></ul>
+          <div id="subIncludesEdit" class="tp-edit-input" style="display:none;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;margin-bottom:14px;" id="subIncludesPresets"></div>
+            <div style="border-top:1px solid var(--border);padding-top:14px;">
+              <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px;">Add your own</div>
+              <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+                <input type="text" id="subIncludesCustomInput" placeholder="e.g. Monthly video form review" style="flex:1;min-width:180px;padding:8px 12px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:inherit;font-size:0.88rem;outline:none;">
+                <button class="btn btn-sm btn-outline" type="button" onclick="addCustomInclude()">Add</button>
+              </div>
+              <div id="subIncludesCustomList" style="display:flex;flex-direction:column;gap:6px;"></div>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="tp-save-actions">
         <button class="tp-save-btn" onclick="savePricing()">Save</button>
@@ -839,6 +855,11 @@ let trainerData = {
   certs: [],
   social: { ig: '', yt: '', tt: '', web: '' },
   subPrice: '',
+  subIncludesPresets: {
+    workouts: true, newMonthly: true, checkins: false, messaging: true,
+    progress: true, formReviews: false, liveSessions: false, customProgram: false
+  },
+  subIncludesCustom: [],
   introVideo: null,
   introVideoUrl: '',
   photos: [],
@@ -859,8 +880,12 @@ function toggleSection(id) {
     document.getElementById('socialEditFields').style.display = s.classList.contains('editing') ? 'block' : 'none';
   }
   if (id === 'sectionPricing') {
-    document.getElementById('subPriceInput').style.display = s.classList.contains('editing') ? 'block' : 'none';
-    document.getElementById('subPriceDisplay').style.display = s.classList.contains('editing') ? 'none' : 'block';
+    const editing = s.classList.contains('editing');
+    document.getElementById('subPriceInput').style.display = editing ? 'block' : 'none';
+    document.getElementById('subPriceDisplay').style.display = editing ? 'none' : 'block';
+    document.getElementById('subIncludesEdit').style.display = editing ? 'block' : 'none';
+    document.getElementById('subIncludesDisplay').style.display = editing ? 'none' : 'flex';
+    if (editing) renderSubIncludesEdit();
   }
   if (id === 'sectionTags' && s.classList.contains('editing')) { renderTagsEditable(); }
   if (id === 'sectionCerts' && s.classList.contains('editing')) { renderCertsEditable(); }
@@ -880,7 +905,12 @@ function toggleSection(id) {
 function cancelSection(id) {
   document.getElementById(id).classList.remove('editing');
   if (id === 'sectionSocial') document.getElementById('socialEditFields').style.display = 'none';
-  if (id === 'sectionPricing') { document.getElementById('subPriceInput').style.display = 'none'; document.getElementById('subPriceDisplay').style.display = 'block'; }
+  if (id === 'sectionPricing') {
+    document.getElementById('subPriceInput').style.display = 'none';
+    document.getElementById('subPriceDisplay').style.display = 'block';
+    document.getElementById('subIncludesEdit').style.display = 'none';
+    document.getElementById('subIncludesDisplay').style.display = 'flex';
+  }
   if (id === 'sectionIntroVideo') document.getElementById('introVideoUrlRow').style.display = 'none';
   if (id === 'sectionConsult') { document.getElementById('consultEditFields').style.display = 'none'; document.getElementById('consultDisplay').style.display = 'block'; }
   loadFromStorage();
@@ -1461,17 +1491,77 @@ function saveSocial() {
 }
 
 // --- Pricing ---
+const SUB_INCLUDE_PRESETS = [
+  { key: 'workouts',      label: 'Full workout library' },
+  { key: 'newMonthly',    label: 'New workouts each month' },
+  { key: 'checkins',      label: 'Weekly check-ins' },
+  { key: 'messaging',     label: 'Direct messaging' },
+  { key: 'progress',      label: 'Progress tracking' },
+  { key: 'formReviews',   label: 'Video form reviews' },
+  { key: 'liveSessions',  label: 'Live Q&A sessions' },
+  { key: 'customProgram', label: 'Custom program for you' },
+];
+function renderSubIncludesDisplay() {
+  const ul = document.getElementById('subIncludesDisplay');
+  if (!ul) return;
+  const items = [];
+  SUB_INCLUDE_PRESETS.forEach(p => { if (trainerData.subIncludesPresets[p.key]) items.push(p.label); });
+  (trainerData.subIncludesCustom || []).forEach(c => items.push(c));
+  ul.innerHTML = items.length
+    ? items.map(i => '<li style="display:flex;align-items:center;gap:10px;"><span style="color:var(--accent);font-weight:700;">&#10003;</span><span>' + _esc(i) + '</span></li>').join('')
+    : '<li style="color:var(--text-muted);font-size:0.85rem;">Click Edit to choose what\u2019s included in your subscription.</li>';
+}
+function renderSubIncludesEdit() {
+  const grid = document.getElementById('subIncludesPresets');
+  grid.innerHTML = SUB_INCLUDE_PRESETS.map(p =>
+    '<label style="display:flex;align-items:center;gap:10px;font-size:0.88rem;cursor:pointer;">' +
+      '<input type="checkbox" data-preset="' + p.key + '" ' + (trainerData.subIncludesPresets[p.key] ? 'checked' : '') + '>' +
+      '<span>' + p.label + '</span>' +
+    '</label>'
+  ).join('');
+  renderSubIncludesCustomList();
+}
+function renderSubIncludesCustomList() {
+  const wrap = document.getElementById('subIncludesCustomList');
+  wrap.innerHTML = (trainerData.subIncludesCustom || []).map((c, i) =>
+    '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg);border:1px solid var(--border);font-size:0.88rem;">' +
+      '<span style="flex:1;">' + _esc(c) + '</span>' +
+      '<button type="button" class="btn btn-sm btn-outline" onclick="removeCustomInclude(' + i + ')" style="padding:2px 10px;">Remove</button>' +
+    '</div>'
+  ).join('');
+}
+function addCustomInclude() {
+  const input = document.getElementById('subIncludesCustomInput');
+  const v = (input.value || '').trim();
+  if (!v) return;
+  trainerData.subIncludesCustom = trainerData.subIncludesCustom || [];
+  trainerData.subIncludesCustom.push(v);
+  input.value = '';
+  renderSubIncludesCustomList();
+}
+function removeCustomInclude(i) {
+  trainerData.subIncludesCustom.splice(i, 1);
+  renderSubIncludesCustomList();
+}
+function _esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
 function savePricing() {
   const val = document.getElementById('subPriceInput').value;
   trainerData.subPrice = val;
   document.getElementById('subPriceDisplay').innerHTML = val ? '$' + val + '<span style="font-size:0.85rem;font-weight:400;color:var(--text-muted);">/mo</span>' : '$--<span style="font-size:0.85rem;font-weight:400;color:var(--text-muted);">/mo</span>';
   document.getElementById('statPrice').textContent = val ? '$' + val + '/mo' : '$--/mo';
   trainerData.price = val;
+  document.querySelectorAll('#subIncludesPresets input[type="checkbox"]').forEach(cb => {
+    trainerData.subIncludesPresets[cb.dataset.preset] = cb.checked;
+  });
+  renderSubIncludesDisplay();
   document.getElementById('sectionPricing').classList.remove('editing');
   document.getElementById('subPriceInput').style.display = 'none';
   document.getElementById('subPriceDisplay').style.display = 'block';
+  document.getElementById('subIncludesEdit').style.display = 'none';
+  document.getElementById('subIncludesDisplay').style.display = 'flex';
   saveToStorage();
-  showToast('Pricing saved!');
+  showToast('Subscription saved!');
 }
 
 // --- Avatar ---
@@ -1786,6 +1876,9 @@ function loadFromStorage() {
       document.getElementById('subPriceDisplay').innerHTML = '$' + trainerData.subPrice + '<span style="font-size:0.85rem;font-weight:400;color:var(--text-muted);">/mo</span>';
       document.getElementById('subPriceInput').value = trainerData.subPrice;
     }
+    if (!trainerData.subIncludesPresets) trainerData.subIncludesPresets = { workouts:true,newMonthly:true,checkins:false,messaging:true,progress:true,formReviews:false,liveSessions:false,customProgram:false };
+    if (!trainerData.subIncludesCustom) trainerData.subIncludesCustom = [];
+    renderSubIncludesDisplay();
     renderTags();
     renderCerts();
     // Intro video
@@ -1834,6 +1927,7 @@ if (!localStorage.getItem('shapeTrainerProfile')) {
   renderPhotoGallery();
   renderVideoGallery();
 }
+renderSubIncludesDisplay();
   </script>
 
   <script src="app.js"></script>

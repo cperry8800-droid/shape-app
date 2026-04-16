@@ -828,26 +828,43 @@
       </div>
     </div>
 
-    <!-- Subscription Pricing -->
+    <!-- Subscription -->
     <div class="tp-section" id="pricingSection">
       <div class="tp-section-header">
-        <h2>Subscription Pricing</h2>
+        <h2>Subscription</h2>
         <button class="tp-edit-btn" id="pricingEditBtn" onclick="startPricingEdit()">Edit</button>
       </div>
-      <div id="pricingDisplay" class="tp-inline-display" style="background: var(--bg-card); border: 1px solid var(--border); padding: 28px; display: flex; justify-content: space-between; align-items: center;">
-        <div>
-          <div style="font-size: 1.4rem; font-weight: 700;" id="subscriptionPriceDisplay">$--<span style="font-size: 0.85rem; font-weight: 400; color: var(--text-muted);">/mo</span></div>
-          <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">Set your own monthly subscription price</div>
+      <div id="pricingDisplay" class="tp-inline-display" style="background: var(--bg-card); border: 1px solid var(--border); padding: 28px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+          <div>
+            <div style="font-size: 1.4rem; font-weight: 700;" id="subscriptionPriceDisplay">$--<span style="font-size: 0.85rem; font-weight: 400; color: var(--text-muted);">/mo</span></div>
+            <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">Set your own monthly subscription price</div>
+          </div>
         </div>
-        <button class="btn btn-primary">Set</button>
+        <div style="border-top:1px solid var(--border);padding-top:18px;">
+          <div style="font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:12px;">What's included</div>
+          <ul id="nSubIncludesDisplay" style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;font-size:0.9rem;"></ul>
+        </div>
       </div>
       <div id="pricingEdit" class="tp-inline-edit" style="background: var(--bg-card); border: 1px solid var(--border); padding: 28px;">
-        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 18px;">
           <span style="font-size: 1.4rem; font-weight: 700;">$</span>
           <input type="number" class="tp-edit-input" id="subscriptionPriceInput" placeholder="29" min="0" style="width: 120px; font-size: 1.2rem; font-weight: 600;">
           <span style="font-size: 0.85rem; color: var(--text-muted);">/mo</span>
         </div>
-        <div class="tp-edit-actions">
+        <div style="border-top:1px solid var(--border);padding-top:16px;">
+          <div style="font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:12px;">What's included</div>
+          <div id="nSubIncludesPresets" style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;margin-bottom:14px;"></div>
+          <div style="border-top:1px solid var(--border);padding-top:14px;">
+            <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px;">Add your own</div>
+            <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+              <input type="text" id="nSubIncludesCustomInput" placeholder="e.g. Grocery budget planning" style="flex:1;min-width:180px;padding:8px 12px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:inherit;font-size:0.88rem;outline:none;">
+              <button class="btn btn-sm btn-outline" type="button" onclick="nAddCustomInclude()">Add</button>
+            </div>
+            <div id="nSubIncludesCustomList" style="display:flex;flex-direction:column;gap:6px;"></div>
+          </div>
+        </div>
+        <div class="tp-edit-actions" style="margin-top:18px;">
           <button class="tp-save-btn" onclick="savePricingEdit()">Save</button>
           <button class="tp-cancel-btn" onclick="cancelPricingEdit()">Cancel</button>
         </div>
@@ -926,6 +943,11 @@
         certifications: [],
         social: { instagram: '', youtube: '', tiktok: '', website: '' },
         subscriptionPrice: '',
+        subIncludesPresets: {
+          mealPlans: true, newMonthly: true, checkins: true, messaging: true,
+          groceryLists: true, recipeLibrary: false, supplementGuidance: false, customPlan: false
+        },
+        subIncludesCustom: [],
         introVideo: null,
         introVideoUrl: '',
         photos: [],
@@ -1537,24 +1559,89 @@
       document.getElementById('socialWebsiteLink').textContent = s.website || 'Website';
     }
 
-    // ===== Subscription Pricing =====
+    // ===== Subscription =====
+    const N_SUB_INCLUDE_PRESETS = [
+      { key: 'mealPlans',          label: 'Full meal plan library' },
+      { key: 'newMonthly',         label: 'New meal plans each month' },
+      { key: 'checkins',           label: 'Weekly check-ins' },
+      { key: 'messaging',          label: 'Direct messaging' },
+      { key: 'groceryLists',       label: 'Weekly grocery lists' },
+      { key: 'recipeLibrary',      label: 'Recipe library access' },
+      { key: 'supplementGuidance', label: 'Supplement guidance' },
+      { key: 'customPlan',         label: 'Custom plan for you' },
+    ];
+    function _nEnsureSubDefaults() {
+      if (!nutritionistData.subIncludesPresets) nutritionistData.subIncludesPresets = { mealPlans:true,newMonthly:true,checkins:true,messaging:true,groceryLists:true,recipeLibrary:false,supplementGuidance:false,customPlan:false };
+      if (!nutritionistData.subIncludesCustom) nutritionistData.subIncludesCustom = [];
+    }
+    function renderSubIncludes() {
+      _nEnsureSubDefaults();
+      const ul = document.getElementById('nSubIncludesDisplay');
+      if (!ul) return;
+      const items = [];
+      N_SUB_INCLUDE_PRESETS.forEach(p => { if (nutritionistData.subIncludesPresets[p.key]) items.push(p.label); });
+      (nutritionistData.subIncludesCustom || []).forEach(c => items.push(c));
+      ul.innerHTML = items.length
+        ? items.map(i => '<li style="display:flex;align-items:center;gap:10px;"><span style="color:var(--accent);font-weight:700;">&#10003;</span><span>' + escHtml(i) + '</span></li>').join('')
+        : '<li style="color:var(--text-muted);font-size:0.85rem;">Click Edit to choose what\u2019s included in your subscription.</li>';
+    }
+    function renderSubIncludesEditor() {
+      _nEnsureSubDefaults();
+      const grid = document.getElementById('nSubIncludesPresets');
+      grid.innerHTML = N_SUB_INCLUDE_PRESETS.map(p =>
+        '<label style="display:flex;align-items:center;gap:10px;font-size:0.88rem;cursor:pointer;">' +
+          '<input type="checkbox" data-preset="' + p.key + '" ' + (nutritionistData.subIncludesPresets[p.key] ? 'checked' : '') + '>' +
+          '<span>' + p.label + '</span>' +
+        '</label>'
+      ).join('');
+      renderSubCustomList();
+    }
+    function renderSubCustomList() {
+      const wrap = document.getElementById('nSubIncludesCustomList');
+      wrap.innerHTML = (nutritionistData.subIncludesCustom || []).map((c, i) =>
+        '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg);border:1px solid var(--border);font-size:0.88rem;">' +
+          '<span style="flex:1;">' + escHtml(c) + '</span>' +
+          '<button type="button" class="btn btn-sm btn-outline" onclick="nRemoveCustomInclude(' + i + ')" style="padding:2px 10px;">Remove</button>' +
+        '</div>'
+      ).join('');
+    }
+    function nAddCustomInclude() {
+      const input = document.getElementById('nSubIncludesCustomInput');
+      const v = (input.value || '').trim();
+      if (!v) return;
+      _nEnsureSubDefaults();
+      nutritionistData.subIncludesCustom.push(v);
+      input.value = '';
+      renderSubCustomList();
+    }
+    function nRemoveCustomInclude(i) {
+      nutritionistData.subIncludesCustom.splice(i, 1);
+      renderSubCustomList();
+    }
+
     function startPricingEdit() {
       document.getElementById('pricingDisplay').classList.add('hidden');
       document.getElementById('pricingEdit').classList.add('active');
       document.getElementById('pricingEditBtn').style.display = 'none';
       document.getElementById('subscriptionPriceInput').value = nutritionistData.subscriptionPrice || '';
+      renderSubIncludesEditor();
       document.getElementById('subscriptionPriceInput').focus();
     }
 
     function savePricingEdit() {
       const val = document.getElementById('subscriptionPriceInput').value.trim();
       nutritionistData.subscriptionPrice = val;
+      _nEnsureSubDefaults();
+      document.querySelectorAll('#nSubIncludesPresets input[type="checkbox"]').forEach(cb => {
+        nutritionistData.subIncludesPresets[cb.dataset.preset] = cb.checked;
+      });
       renderPricing();
+      renderSubIncludes();
       document.getElementById('pricingDisplay').classList.remove('hidden');
       document.getElementById('pricingEdit').classList.remove('active');
       document.getElementById('pricingEditBtn').style.display = '';
       saveToLocalStorage();
-      showToast('Pricing updated!');
+      showToast('Subscription updated!');
     }
 
     function cancelPricingEdit() {
@@ -1896,6 +1983,7 @@
 
       // Pricing
       renderPricing();
+      renderSubIncludes();
 
       // Intro Video
       if (nutritionistData.introVideo) {

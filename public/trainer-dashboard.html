@@ -2037,19 +2037,35 @@
         </div>
       </div>
 
-      <!-- Subscription Pricing -->
+      <!-- Subscription -->
       <div class="tp-section" id="sectionPricing">
         <div class="tp-section-header">
-          <h2>Subscription Pricing</h2>
+          <h2>Subscription</h2>
           <button class="tp-edit-btn" onclick="toggleSection('sectionPricing')">Edit</button>
         </div>
-        <div style="background: var(--bg-card); border: 1px solid var(--border); padding: 28px; display: flex; justify-content: space-between; align-items: center;">
-          <div>
-            <div class="tp-display-value" style="font-size: 1.4rem; font-weight: 700;" id="subPriceDisplay">$--<span style="font-size: 0.85rem; font-weight: 400; color: var(--text-muted);">/mo</span></div>
-            <input class="tp-edit-input" id="subPriceInput" type="number" placeholder="49.99" style="display:none;width:120px;margin-top:0;">
-            <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">Set your own monthly subscription price</div>
+        <div style="background: var(--bg-card); border: 1px solid var(--border); padding: 28px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+            <div>
+              <div class="tp-display-value" style="font-size: 1.4rem; font-weight: 700;" id="subPriceDisplay">$--<span style="font-size: 0.85rem; font-weight: 400; color: var(--text-muted);">/mo</span></div>
+              <input class="tp-edit-input" id="subPriceInput" type="number" placeholder="49.99" style="display:none;width:120px;margin-top:0;">
+              <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">Set your own monthly subscription price</div>
+            </div>
           </div>
-          <button class="btn btn-primary">Set</button>
+          <div style="border-top:1px solid var(--border);padding-top:18px;">
+            <div style="font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:12px;">What's included</div>
+            <ul id="tdSubIncludesDisplay" class="tp-display-value" style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;font-size:0.9rem;"></ul>
+            <div id="tdSubIncludesEdit" class="tp-edit-input" style="display:none;">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;margin-bottom:14px;" id="tdSubIncludesPresets"></div>
+              <div style="border-top:1px solid var(--border);padding-top:14px;">
+                <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px;">Add your own</div>
+                <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+                  <input type="text" id="tdSubIncludesCustomInput" placeholder="e.g. Monthly video form review" style="flex:1;min-width:180px;padding:8px 12px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:inherit;font-size:0.88rem;outline:none;">
+                  <button class="btn btn-sm btn-outline" type="button" onclick="tdAddCustomInclude()">Add</button>
+                </div>
+                <div id="tdSubIncludesCustomList" style="display:flex;flex-direction:column;gap:6px;"></div>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="tp-save-actions">
           <button class="tp-save-btn" onclick="savePricing()">Save</button>
@@ -3404,6 +3420,11 @@
     photos: [],
     videos: [],
     subPrice: '',
+    subIncludesPresets: {
+      workouts: true, newMonthly: true, checkins: false, messaging: true,
+      progress: true, formReviews: false, liveSessions: false, customProgram: false
+    },
+    subIncludesCustom: [],
     introVideo: null,
     introVideoUrl: '',
     consult: { duration: '15', priceType: 'free', price: '', format: 'Video', days: [], timeFrom: '09:00', timeTo: '17:00', desc: 'Free 15-minute intro call to discuss your fitness goals and find the right program for you.' }
@@ -3459,6 +3480,7 @@
       document.getElementById('subPriceDisplay').innerHTML = '$' + _profileData.subPrice + '<span style="font-size:0.85rem;font-weight:400;color:var(--text-muted);">/mo</span>';
       document.getElementById('subPriceInput').value = _profileData.subPrice;
     }
+    tdRenderSubIncludesDisplay();
 
     // Intro video
     if (_profileData.introVideo) {
@@ -3521,8 +3543,12 @@
       document.getElementById('socialEditFields').style.display = section.classList.contains('editing') ? '' : 'none';
     }
     if (sectionId === 'sectionPricing') {
-      document.getElementById('subPriceInput').style.display = section.classList.contains('editing') ? 'block' : 'none';
-      document.getElementById('subPriceDisplay').style.display = section.classList.contains('editing') ? 'none' : 'block';
+      const editing = section.classList.contains('editing');
+      document.getElementById('subPriceInput').style.display = editing ? 'block' : 'none';
+      document.getElementById('subPriceDisplay').style.display = editing ? 'none' : 'block';
+      document.getElementById('tdSubIncludesEdit').style.display = editing ? 'block' : 'none';
+      document.getElementById('tdSubIncludesDisplay').style.display = editing ? 'none' : 'flex';
+      if (editing) tdRenderSubIncludesEditor();
     }
     if (sectionId === 'sectionTags' && section.classList.contains('editing')) {
       // Make tags removable
@@ -3548,6 +3574,8 @@
     if (sectionId === 'sectionPricing') {
       document.getElementById('subPriceInput').style.display = 'none';
       document.getElementById('subPriceDisplay').style.display = 'block';
+      document.getElementById('tdSubIncludesEdit').style.display = 'none';
+      document.getElementById('tdSubIncludesDisplay').style.display = 'flex';
     }
     if (sectionId === 'sectionIntroVideo') {
       document.getElementById('introVideoUrlRow').style.display = 'none';
@@ -3969,16 +3997,81 @@
     if (typeof showToast === 'function') showToast('Social links saved!');
   }
 
-  // Subscription pricing
+  // Subscription
+  const TD_SUB_INCLUDE_PRESETS = [
+    { key: 'workouts',      label: 'Full workout library' },
+    { key: 'newMonthly',    label: 'New workouts each month' },
+    { key: 'checkins',      label: 'Weekly check-ins' },
+    { key: 'messaging',     label: 'Direct messaging' },
+    { key: 'progress',      label: 'Progress tracking' },
+    { key: 'formReviews',   label: 'Video form reviews' },
+    { key: 'liveSessions',  label: 'Live Q&A sessions' },
+    { key: 'customProgram', label: 'Custom program for you' },
+  ];
+  function _tdEnsureSubDefaults() {
+    if (!_profileData.subIncludesPresets) _profileData.subIncludesPresets = { workouts:true,newMonthly:true,checkins:false,messaging:true,progress:true,formReviews:false,liveSessions:false,customProgram:false };
+    if (!_profileData.subIncludesCustom) _profileData.subIncludesCustom = [];
+  }
+  function _tdEscape(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function tdRenderSubIncludesDisplay() {
+    _tdEnsureSubDefaults();
+    const ul = document.getElementById('tdSubIncludesDisplay');
+    if (!ul) return;
+    const items = [];
+    TD_SUB_INCLUDE_PRESETS.forEach(p => { if (_profileData.subIncludesPresets[p.key]) items.push(p.label); });
+    (_profileData.subIncludesCustom || []).forEach(c => items.push(c));
+    ul.innerHTML = items.length
+      ? items.map(i => '<li style="display:flex;align-items:center;gap:10px;"><span style="color:var(--accent);font-weight:700;">&#10003;</span><span>' + _tdEscape(i) + '</span></li>').join('')
+      : '<li style="color:var(--text-muted);font-size:0.85rem;">Click Edit to choose what\u2019s included in your subscription.</li>';
+  }
+  function tdRenderSubIncludesEditor() {
+    _tdEnsureSubDefaults();
+    const grid = document.getElementById('tdSubIncludesPresets');
+    grid.innerHTML = TD_SUB_INCLUDE_PRESETS.map(p =>
+      '<label style="display:flex;align-items:center;gap:10px;font-size:0.88rem;cursor:pointer;">' +
+        '<input type="checkbox" data-preset="' + p.key + '" ' + (_profileData.subIncludesPresets[p.key] ? 'checked' : '') + '>' +
+        '<span>' + p.label + '</span>' +
+      '</label>'
+    ).join('');
+    tdRenderSubCustomList();
+  }
+  function tdRenderSubCustomList() {
+    const wrap = document.getElementById('tdSubIncludesCustomList');
+    wrap.innerHTML = (_profileData.subIncludesCustom || []).map((c, i) =>
+      '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg);border:1px solid var(--border);font-size:0.88rem;">' +
+        '<span style="flex:1;">' + _tdEscape(c) + '</span>' +
+        '<button type="button" class="btn btn-sm btn-outline" onclick="tdRemoveCustomInclude(' + i + ')" style="padding:2px 10px;">Remove</button>' +
+      '</div>'
+    ).join('');
+  }
+  function tdAddCustomInclude() {
+    const input = document.getElementById('tdSubIncludesCustomInput');
+    const v = (input.value || '').trim();
+    if (!v) return;
+    _tdEnsureSubDefaults();
+    _profileData.subIncludesCustom.push(v);
+    input.value = '';
+    tdRenderSubCustomList();
+  }
+  function tdRemoveCustomInclude(i) {
+    _profileData.subIncludesCustom.splice(i, 1);
+    tdRenderSubCustomList();
+  }
+
   function savePricing() {
     const val = document.getElementById('subPriceInput').value;
     _profileData.subPrice = val;
     _profileData.price = val;
     document.getElementById('subPriceDisplay').innerHTML = val ? '$' + val + '<span style="font-size:0.85rem;font-weight:400;color:var(--text-muted);">/mo</span>' : '$--<span style="font-size:0.85rem;font-weight:400;color:var(--text-muted);">/mo</span>';
     document.getElementById('statPrice').textContent = val ? '$' + val + '/mo' : '$--/mo';
+    _tdEnsureSubDefaults();
+    document.querySelectorAll('#tdSubIncludesPresets input[type="checkbox"]').forEach(cb => {
+      _profileData.subIncludesPresets[cb.dataset.preset] = cb.checked;
+    });
+    tdRenderSubIncludesDisplay();
     cancelSection('sectionPricing');
     _saveProfileData();
-    if (typeof showToast === 'function') showToast('Pricing saved!');
+    if (typeof showToast === 'function') showToast('Subscription saved!');
   }
   </script>
 
