@@ -8,47 +8,55 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <style>
-    .ft-hero { padding: 110px 0 30px; text-align: center; }
-    .ft-hero h1 { font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 300; letter-spacing: -0.04em; line-height: 1.1; margin-bottom: 20px; }
-    .ft-hero p { font-size: clamp(1rem, 1.2vw, 1.15rem); color: var(--text-muted); font-weight: 300; max-width: 520px; margin: 0 auto; line-height: 1.8; }
+    body {
+      background: linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.6) 100%),
+                  url('/intro/Backgounrd.jpeg') center/cover no-repeat fixed !important;
+    }
+    .section-alt, .footer, .navbar { background: transparent !important; }
+    .footer-col h4, .footer-col a, .footer-bottom p { color: rgba(255,255,255,0.5) !important; }
+    .footer-col h4 { color: rgba(255,255,255,0.7) !important; }
 
-    .ft-stats { padding: 18px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .ft-hero { padding: 110px 0 30px; text-align: center; }
+    .ft-hero h1 { font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 300; letter-spacing: -0.04em; line-height: 1.1; margin-bottom: 20px; color: #fff; }
+    .ft-hero p { font-size: clamp(1rem, 1.2vw, 1.15rem); color: rgba(255,255,255,0.7); font-weight: 300; max-width: 520px; margin: 0 auto; line-height: 1.8; }
+
+    .ft-stats { padding: 18px 0; border-top: 1px solid rgba(255,255,255,0.1); border-bottom: 1px solid rgba(255,255,255,0.1); }
     .ft-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; text-align: center; padding: 0; }
-    .ft-stat-value { font-size: clamp(0.95rem, 1.3vw, 1.1rem); font-weight: 300; background: var(--gradient-text); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 2px; }
-    .ft-stat-label { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 400; }
+    .ft-stat-value { font-size: clamp(0.95rem, 1.3vw, 1.1rem); font-weight: 300; color: #fff; margin-bottom: 2px; }
+    .ft-stat-label { font-size: 0.68rem; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 400; }
 
     .ft-how { padding: 44px 0; }
     .ft-how .section-header { margin-bottom: 28px; }
     .ft-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
     .ft-step { text-align: center; }
-    .ft-step h3 { font-size: 0.95rem; font-weight: 500; margin-bottom: 8px; }
-    .ft-step p { font-size: 0.86rem; color: var(--text-muted); font-weight: 300; line-height: 1.6; }
+    .ft-step h3 { font-size: 0.95rem; font-weight: 500; margin-bottom: 8px; color: #fff; }
+    .ft-step p { font-size: 0.86rem; color: rgba(255,255,255,0.6); font-weight: 300; line-height: 1.6; }
 
     .ft-features { padding: 80px 0; }
     .ft-features .section-header { margin-bottom: 48px; }
     .ft-features-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
     .ft-feature {
-      background: var(--bg-card); border: 1px solid var(--border); padding: 32px;
+      background: transparent; border: 1px solid rgba(255,255,255,0.1); padding: 32px;
       display: flex; gap: 16px; align-items: flex-start;
       transition: transform 0.3s, box-shadow 0.3s;
     }
-    .ft-feature:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,0.06); }
-    .ft-feature h3 { font-size: 1rem; font-weight: 500; margin-bottom: 6px; }
-    .ft-feature p { font-size: 0.88rem; color: var(--text-muted); font-weight: 300; line-height: 1.6; }
+    .ft-feature:hover { transform: translateY(-3px); background: rgba(255,255,255,0.05); }
+    .ft-feature h3 { font-size: 1rem; font-weight: 500; margin-bottom: 6px; color: #fff; }
+    .ft-feature p { font-size: 0.88rem; color: rgba(255,255,255,0.6); font-weight: 300; line-height: 1.6; }
 
     .ft-earnings { padding: 80px 0; }
     .ft-earnings .section-header { margin-bottom: 48px; }
     .ft-earnings-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
-    .ft-earnings-info h3 { font-size: clamp(1.2rem, 2vw, 1.4rem); font-weight: 300; margin-bottom: 16px; letter-spacing: -0.03em; }
-    .ft-earnings-info p { font-size: 0.95rem; color: var(--text-muted); font-weight: 300; line-height: 1.8; margin-bottom: 16px; }
+    .ft-earnings-info h3 { font-size: clamp(1.2rem, 2vw, 1.4rem); font-weight: 300; margin-bottom: 16px; letter-spacing: -0.03em; color: #fff; }
+    .ft-earnings-info p { font-size: 0.95rem; color: rgba(255,255,255,0.6); font-weight: 300; line-height: 1.8; margin-bottom: 16px; }
     .ft-earnings-info ul { list-style: none; padding: 0; }
-    .ft-earnings-info li { padding: 8px 0; font-size: 0.92rem; display: flex; align-items: center; gap: 10px; }
-    .ft-earnings-info li span { color: var(--text-muted); font-weight: 400; }
+    .ft-earnings-info li { padding: 8px 0; font-size: 0.92rem; display: flex; align-items: center; gap: 10px; color: rgba(255,255,255,0.6); }
+    .ft-earnings-info li span { color: rgba(255,255,255,0.6); font-weight: 400; }
 
     .ft-testimonial { padding: 80px 0; text-align: center; }
-    .ft-quote { max-width: 700px; margin: 0 auto; font-size: 1.2rem; font-weight: 300; line-height: 1.8; color: var(--text-muted); font-style: italic; margin-bottom: 24px; }
-    .ft-quote-author { font-size: 0.92rem; font-weight: 500; }
-    .ft-quote-role { font-size: 0.82rem; color: var(--text-muted); font-weight: 400; }
+    .ft-quote { max-width: 700px; margin: 0 auto; font-size: 1.2rem; font-weight: 300; line-height: 1.8; color: rgba(255,255,255,0.7); font-style: italic; margin-bottom: 24px; }
+    .ft-quote-author { font-size: 0.92rem; font-weight: 500; color: #fff; }
+    .ft-quote-role { font-size: 0.82rem; color: rgba(255,255,255,0.5); font-weight: 400; }
 
     @media (max-width: 900px) {
       .ft-hero { padding: 100px 0 20px; }
