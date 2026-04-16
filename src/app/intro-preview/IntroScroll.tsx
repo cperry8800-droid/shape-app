@@ -23,6 +23,8 @@ export default function IntroScroll() {
   const [step, setStep] = useState(0); // 0 = none, 1..5 = which line
   const [showHeadline, setShowHeadline] = useState(false);
   const [showCTAs, setShowCTAs] = useState(false);
+  const [fadeWelcome, setFadeWelcome] = useState(false);
+  const scene2TriggeredRef = useRef(false);
   const scene4TriggeredRef = useRef(false);
   const scene5TriggeredRef = useRef(false);
   const unlockedRef = useRef(false);
@@ -160,8 +162,10 @@ export default function IntroScroll() {
   }, [safePlay]);
 
   const loopBackToScene1 = useCallback(() => {
+    scene2TriggeredRef.current = false;
     scene4TriggeredRef.current = false;
     scene5TriggeredRef.current = false;
+    setFadeWelcome(false);
     setStep(0);
     const v1 = video1Ref.current;
     const v2 = video2Ref.current;
@@ -179,14 +183,36 @@ export default function IntroScroll() {
 
   return (
     <main className="fixed inset-0 bg-black text-white">
-      {/* Scene 1 — plays once then auto-transitions to scene 2. */}
+      {/* Scene 1 — plays once. Starts crossfade to scene 2 1.2s before
+          end so there's no frozen frame. Welcome text fades 2.5s before end. */}
       <video
         ref={video1Ref}
         src={SCENE_1}
         poster="/intro/beat-5-poster.jpg"
         muted
         playsInline
-        onEnded={goToScene2}
+        onTimeUpdate={(e) => {
+          const v = e.currentTarget;
+          if (!v.duration) return;
+          // Fade out "Welcome to Shape" 2.5s before video ends
+          if (v.currentTime >= v.duration - 2.5 && !fadeWelcome) {
+            setFadeWelcome(true);
+          }
+          // Start crossfade to scene 2 1.2s before end
+          if (v.currentTime >= v.duration - 1.2) {
+            if (!scene2TriggeredRef.current) {
+              scene2TriggeredRef.current = true;
+              goToScene2();
+            }
+          }
+        }}
+        onEnded={() => {
+          // Fallback if onTimeUpdate didn't fire
+          if (!scene2TriggeredRef.current) {
+            scene2TriggeredRef.current = true;
+            goToScene2();
+          }
+        }}
         preload="auto"
         className="pointer-events-none absolute inset-0 h-full w-full scale-[1.04] object-cover transition-opacity duration-[1400ms] ease-out"
         style={{ opacity: scene === 1 ? 1 : 0 }}
@@ -257,7 +283,7 @@ export default function IntroScroll() {
       <div
         className="pointer-events-none absolute inset-x-0 top-[40%] -translate-y-1/2 z-30 flex flex-col items-center gap-5 px-6 text-center transition-opacity duration-[1000ms] ease-out"
         style={{
-          opacity: scene === 1 ? 1 : 0,
+          opacity: scene === 1 && !fadeWelcome ? 1 : 0,
         }}
       >
         <div className="flex items-center justify-center gap-2.5 text-[1.1rem] font-extralight uppercase leading-none tracking-[0.22em] text-white md:gap-3 md:text-[clamp(1.3rem,2.6vw,2rem)]">
