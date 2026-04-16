@@ -3532,6 +3532,7 @@
       if (tab === 'community' && !_communityInited) { _communityInited = true; initCommunity(); }
       if (tab === 'myteam' && !_teamInited) { _teamInited = true; initTeamChat(); }
       if (tab === 'profile' && !_profileInited) { _profileInited = true; initProfile(); }
+      else if (tab === 'profile' && typeof cpRenderAssignedPlans === 'function') cpRenderAssignedPlans();
       if (tab === 'shapescore' && !_shapeScoreInited) { _shapeScoreInited = true; initShapeScore(); }
     }
 
@@ -5219,7 +5220,68 @@
       });
       updateMacros();
       cpRestoreImages();
+      cpRenderAssignedPlans();
     }
+
+    function cpEscape(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+        return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c];
+      });
+    }
+    function cpLoadList(key) {
+      try { var raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : []; }
+      catch (e) { return []; }
+    }
+    window.cpRemoveProgram = function(id) {
+      var list = cpLoadList('shapeClientAssignedPrograms').filter(function(p){ return String(p.id) !== String(id); });
+      try { localStorage.setItem('shapeClientAssignedPrograms', JSON.stringify(list)); } catch(e){}
+      cpRenderAssignedPlans();
+      if (typeof libRenderPurchased === 'function') libRenderPurchased();
+    };
+    window.cpRemoveMealPlan = function(id) {
+      var list = cpLoadList('shapeClientAssignedMealPlans').filter(function(p){ return String(p.id) !== String(id); });
+      try { localStorage.setItem('shapeClientAssignedMealPlans', JSON.stringify(list)); } catch(e){}
+      cpRenderAssignedPlans();
+      if (typeof libRenderPurchased === 'function') libRenderPurchased();
+    };
+    function cpRenderAssignedPlans() {
+      var wEl = document.getElementById('assignedWorkoutPlans');
+      if (wEl) {
+        var programs = cpLoadList('shapeClientAssignedPrograms');
+        if (!programs.length) {
+          wEl.innerHTML = '<div style="color:var(--text-muted);font-size:0.88rem;font-weight:300;">No workout plans assigned yet.</div>';
+        } else {
+          wEl.innerHTML = '<div style="border:1px solid var(--border);">' + programs.map(function(p, i){
+            var meta = [p.coach, p.category, p.difficulty, p.duration, p.daysPerWeek ? p.daysPerWeek + '×/wk' : '']
+              .filter(Boolean).map(cpEscape).join(' &middot; ');
+            return '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px;' + (i ? 'border-top:1px solid var(--border);' : '') + '">' +
+              '<div><div style="font-weight:600;font-size:0.92rem;margin-bottom:3px;">' + cpEscape(p.name || 'Program') + '</div>' +
+                '<div style="font-size:0.75rem;color:var(--text-muted);">' + (meta || 'Program') + '</div></div>' +
+              '<button class="btn btn-sm" onclick="cpRemoveProgram(\'' + cpEscape(p.id) + '\')" style="font-size:0.72rem;">Remove</button>' +
+            '</div>';
+          }).join('') + '</div>';
+        }
+      }
+      var mEl = document.getElementById('assignedMealPlans');
+      if (mEl) {
+        var plans = cpLoadList('shapeClientAssignedMealPlans');
+        if (!plans.length) {
+          mEl.innerHTML = '<div style="color:var(--text-muted);font-size:0.88rem;font-weight:300;">No meal plans assigned yet.</div>';
+        } else {
+          mEl.innerHTML = '<div style="border:1px solid var(--border);">' + plans.map(function(p, i){
+            var kcal = (p.calories || p.kcal);
+            var meta = [p.coach, p.goal || p.category, p.style, kcal ? kcal + ' kcal' : '']
+              .filter(Boolean).map(cpEscape).join(' &middot; ');
+            return '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px;' + (i ? 'border-top:1px solid var(--border);' : '') + '">' +
+              '<div><div style="font-weight:600;font-size:0.92rem;margin-bottom:3px;">' + cpEscape(p.name || 'Meal Plan') + '</div>' +
+                '<div style="font-size:0.75rem;color:var(--text-muted);">' + (meta || 'Meal Plan') + '</div></div>' +
+              '<button class="btn btn-sm" onclick="cpRemoveMealPlan(\'' + cpEscape(p.id) + '\')" style="font-size:0.72rem;">Remove</button>' +
+            '</div>';
+          }).join('') + '</div>';
+        }
+      }
+    }
+    document.addEventListener('DOMContentLoaded', cpRenderAssignedPlans);
   </script>
 
   <!-- ===== Shape Score Tab JS ===== -->
