@@ -379,30 +379,30 @@
 
     /* ===== Today-first feed (option 3) ===== */
     .today-feed { max-width: 1200px; margin: 0 auto 40px; }
-    .today-feed-greet { margin-bottom: 32px; }
-    .today-feed-greet-title { font-size: 2.1rem; font-weight: 300; letter-spacing: -0.02em; margin-bottom: 6px; }
-    .today-feed-greet-sub { font-size: 1rem; color: var(--text-muted); font-weight: 300; }
+    .today-feed-greet { margin-bottom: 24px; }
+    .today-feed-greet-title { font-size: clamp(1.1rem, 2vw, 1.4rem); font-weight: 300; letter-spacing: -0.03em; margin-bottom: 6px; }
+    .today-feed-greet-sub { font-size: 0.85rem; color: var(--text-muted); font-weight: 300; }
     .today-feed-section-head {
       display: flex; justify-content: space-between; align-items: baseline;
-      margin: 36px 0 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border);
+      margin: 20px 0 10px;
     }
-    .today-feed-section-head h3 { font-size: 0.88rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin: 0; color: var(--text); }
-    .today-feed-section-head a { font-size: 0.8rem; color: var(--text-muted); }
+    .today-feed-section-head h3 { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin: 0; color: var(--text-muted); }
+    .today-feed-section-head a { font-size: 0.75rem; color: var(--text-muted); }
     .today-feed-section-head a:hover { color: var(--text); }
-    .today-feed-list { border: 1px solid var(--border); background: var(--bg-card); }
+    .today-feed-list { border: 1px solid var(--border); }
     .today-feed-item {
-      padding: 28px 32px; display: grid; grid-template-columns: 110px 1fr auto;
-      gap: 28px; align-items: center; border-bottom: 1px solid var(--border);
+      padding: 16px 20px; display: grid; grid-template-columns: 90px 1fr auto;
+      gap: 20px; align-items: center; border-bottom: 1px solid var(--border);
     }
     .today-feed-item:last-child { border-bottom: none; }
-    .today-feed-time { font-size: 0.92rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .today-feed-time { font-size: 0.78rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
     .today-feed-body { min-width: 0; }
-    .today-feed-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent-dark); margin-bottom: 6px; font-weight: 600; }
-    .today-feed-title { font-size: 1.2rem; font-weight: 500; margin-bottom: 6px; }
-    .today-feed-sub { font-size: 0.9rem; color: var(--text-muted); font-weight: 300; }
+    .today-feed-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent-dark); margin-bottom: 4px; font-weight: 600; }
+    .today-feed-title { font-size: 0.92rem; font-weight: 600; margin-bottom: 3px; }
+    .today-feed-sub { font-size: 0.75rem; color: var(--text-muted); font-weight: 300; }
     .today-feed-cta {
-      padding: 12px 22px; background: transparent; color: var(--accent-dark);
-      border: 1px solid var(--accent); font-family: inherit; font-size: 0.82rem; font-weight: 600;
+      padding: 8px 16px; background: transparent; color: var(--accent-dark);
+      border: 1px solid var(--accent); font-family: inherit; font-size: 0.72rem; font-weight: 600;
       text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer; white-space: nowrap;
       transition: all 0.2s;
     }
