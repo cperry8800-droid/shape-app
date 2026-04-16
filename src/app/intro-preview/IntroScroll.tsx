@@ -26,6 +26,7 @@ export default function IntroScroll() {
   // CTAs on screen and keep looping the background film back to
   // scene 1 so nothing freezes.
   const [looped, setLooped] = useState(false);
+  const [showCTAs, setShowCTAs] = useState(false);
   const scene4TriggeredRef = useRef(false);
   const scene5TriggeredRef = useRef(false);
   const unlockedRef = useRef(false);
@@ -129,6 +130,8 @@ export default function IntroScroll() {
     // Brief head-start so video is rendering before the opacity
     // crossfade reveals it.
     setTimeout(() => setScene(2), 170);
+    // Show Enter Shape + Log in buttons shortly after the montage begins
+    setTimeout(() => setShowCTAs(true), 1200);
 
     // Spread the five one-liners across scenes 2 + 4 (scene 5 holds
     // the headline + final CTAs, so the words don't need to stretch
@@ -353,25 +356,24 @@ export default function IntroScroll() {
         </div>
       </div>
 
-      {/* Dark gradient behind the final CTAs — pulls contrast up so
-          the buttons pop against whatever frame of scene 5 is behind
-          them. Fades in/out with the CTAs themselves. */}
+      {/* Dark gradient behind the CTAs — pulls contrast up so
+          the buttons pop against whatever video frame is behind them.
+          Appears with the CTAs shortly after Get Started is clicked. */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-x-0 bottom-0 z-[9] h-[42vh] bg-gradient-to-t from-black/80 via-black/40 to-transparent transition-opacity duration-[1000ms] ease-out"
         style={{
-          opacity: (scene === 5 && showHeadline) || looped ? 1 : 0,
+          opacity: showCTAs ? 1 : 0,
         }}
       />
 
-      {/* Scene 5 final CTA — comes in a beat after the headline and
-          stays pinned on top for every loop iteration. */}
+      {/* Enter Shape + Log in — appears quickly after Get Started and
+          stays on screen for the entire montage and loop. */}
       <div
-        className="absolute inset-x-0 bottom-[10vh] z-30 flex flex-col items-center gap-4 px-6 text-center transition-opacity duration-[2200ms] ease-out"
+        className="absolute inset-x-0 bottom-[10vh] z-30 flex flex-col items-center gap-4 px-6 text-center transition-opacity duration-[1200ms] ease-out"
         style={{
-          opacity: (scene === 5 && showHeadline) || looped ? 1 : 0,
-          pointerEvents: (scene === 5 && showHeadline) || looped ? 'auto' : 'none',
-          transitionDelay: scene === 5 && showHeadline && !looped ? '2500ms' : '0ms',
+          opacity: showCTAs ? 1 : 0,
+          pointerEvents: showCTAs ? 'auto' : 'none',
         }}
       >
         <a
