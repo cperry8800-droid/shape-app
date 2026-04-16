@@ -495,6 +495,12 @@
     .feed-modal-ex:last-child { border-bottom: none; }
     .feed-modal-ex .num { color: var(--text-muted); font-size: 0.78rem; }
     .feed-modal-ex .sets { color: var(--text-muted); font-size: 0.78rem; }
+    .feed-modal-ing {
+      display: grid; grid-template-columns: 1fr auto; gap: 16px;
+      padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.88rem;
+    }
+    .feed-modal-ing:last-child { border-bottom: none; }
+    .feed-modal-ing .qty { color: var(--text-muted); font-size: 0.82rem; text-align: right; }
     .feed-modal-graph {
       height: 160px; display: flex; align-items: flex-end; gap: 4px;
       padding: 12px; background: var(--bg); border: 1px solid var(--border);
@@ -6057,13 +6063,13 @@
             '<div class="feed-modal-row"><span class="label">Status</span><span style="color:#10B981;">Logged at 8:12 AM</span></div>' +
             '<h4 style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:16px 0 8px;">Ingredients</h4>' +
             '<div class="feed-modal-exlist">' +
-              '<div class="feed-modal-ex"><span>Rolled oats</span><span class="sets">60 g</span></div>' +
-              '<div class="feed-modal-ex"><span>Whey isolate (vanilla)</span><span class="sets">1 scoop</span></div>' +
-              '<div class="feed-modal-ex"><span>Blueberries</span><span class="sets">80 g</span></div>' +
-              '<div class="feed-modal-ex"><span>Raspberries</span><span class="sets">40 g</span></div>' +
-              '<div class="feed-modal-ex"><span>Almond butter</span><span class="sets">1 tbsp</span></div>' +
-              '<div class="feed-modal-ex"><span>Unsweetened almond milk</span><span class="sets">200 ml</span></div>' +
-              '<div class="feed-modal-ex"><span>Cinnamon</span><span class="sets">pinch</span></div>' +
+              '<div class="feed-modal-ing"><span>Rolled oats</span><span class="qty">60 g</span></div>' +
+              '<div class="feed-modal-ing"><span>Whey isolate (vanilla)</span><span class="qty">1 scoop</span></div>' +
+              '<div class="feed-modal-ing"><span>Blueberries</span><span class="qty">80 g</span></div>' +
+              '<div class="feed-modal-ing"><span>Raspberries</span><span class="qty">40 g</span></div>' +
+              '<div class="feed-modal-ing"><span>Almond butter</span><span class="qty">1 tbsp</span></div>' +
+              '<div class="feed-modal-ing"><span>Unsweetened almond milk</span><span class="qty">200 ml</span></div>' +
+              '<div class="feed-modal-ing"><span>Cinnamon</span><span class="qty">pinch</span></div>' +
             '</div>' +
             '<h4 style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:16px 0 8px;">Prep</h4>' +
             '<p style="font-size:0.86rem;color:var(--text-muted);line-height:1.5;">Cook oats with almond milk ~3 min, stir in whey off heat. Top with berries, almond butter, cinnamon.</p>' +
@@ -6086,13 +6092,13 @@
             '<div class="feed-modal-row"><span class="label">Status</span><span style="color:#10B981;">Logged at 12:44 PM</span></div>' +
             '<h4 style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:16px 0 8px;">Ingredients</h4>' +
             '<div class="feed-modal-exlist">' +
-              '<div class="feed-modal-ex"><span>Chicken breast (grilled)</span><span class="sets">180 g</span></div>' +
-              '<div class="feed-modal-ex"><span>Jasmine rice (cooked)</span><span class="sets">180 g</span></div>' +
-              '<div class="feed-modal-ex"><span>Spinach + arugula</span><span class="sets">2 cups</span></div>' +
-              '<div class="feed-modal-ex"><span>Cherry tomatoes</span><span class="sets">80 g</span></div>' +
-              '<div class="feed-modal-ex"><span>Avocado</span><span class="sets">1/4</span></div>' +
-              '<div class="feed-modal-ex"><span>Olive oil</span><span class="sets">1 tsp</span></div>' +
-              '<div class="feed-modal-ex"><span>Lemon, salt, pepper</span><span class="sets">to taste</span></div>' +
+              '<div class="feed-modal-ing"><span>Chicken breast (grilled)</span><span class="qty">180 g</span></div>' +
+              '<div class="feed-modal-ing"><span>Jasmine rice (cooked)</span><span class="qty">180 g</span></div>' +
+              '<div class="feed-modal-ing"><span>Spinach + arugula</span><span class="qty">2 cups</span></div>' +
+              '<div class="feed-modal-ing"><span>Cherry tomatoes</span><span class="qty">80 g</span></div>' +
+              '<div class="feed-modal-ing"><span>Avocado</span><span class="qty">1/4</span></div>' +
+              '<div class="feed-modal-ing"><span>Olive oil</span><span class="qty">1 tsp</span></div>' +
+              '<div class="feed-modal-ing"><span>Lemon, salt, pepper</span><span class="qty">to taste</span></div>' +
             '</div>' +
             '<h4 style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:16px 0 8px;">Prep</h4>' +
             '<p style="font-size:0.86rem;color:var(--text-muted);line-height:1.5;">Season chicken with paprika + garlic, grill 6 min/side. Plate over warm rice, top with greens, tomatoes, avocado. Drizzle oil + lemon.</p>' +
@@ -6115,13 +6121,13 @@
             '<div class="feed-modal-row"><span class="label">Status</span><span style="color:#F59E0B;">Not logged yet</span></div>' +
             '<h4 style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:16px 0 8px;">Ingredients</h4>' +
             '<div class="feed-modal-exlist">' +
-              '<div class="feed-modal-ex"><span>Salmon fillet (skin on)</span><span class="sets">170 g</span></div>' +
-              '<div class="feed-modal-ex"><span>Quinoa (cooked)</span><span class="sets">150 g</span></div>' +
-              '<div class="feed-modal-ex"><span>Broccoli florets</span><span class="sets">150 g</span></div>' +
-              '<div class="feed-modal-ex"><span>Red bell pepper</span><span class="sets">1/2</span></div>' +
-              '<div class="feed-modal-ex"><span>Mixed greens</span><span class="sets">1 cup</span></div>' +
-              '<div class="feed-modal-ex"><span>Olive oil</span><span class="sets">1 tsp</span></div>' +
-              '<div class="feed-modal-ex"><span>Garlic, lemon, dill</span><span class="sets">to taste</span></div>' +
+              '<div class="feed-modal-ing"><span>Salmon fillet (skin on)</span><span class="qty">170 g</span></div>' +
+              '<div class="feed-modal-ing"><span>Quinoa (cooked)</span><span class="qty">150 g</span></div>' +
+              '<div class="feed-modal-ing"><span>Broccoli florets</span><span class="qty">150 g</span></div>' +
+              '<div class="feed-modal-ing"><span>Red bell pepper</span><span class="qty">1/2</span></div>' +
+              '<div class="feed-modal-ing"><span>Mixed greens</span><span class="qty">1 cup</span></div>' +
+              '<div class="feed-modal-ing"><span>Olive oil</span><span class="qty">1 tsp</span></div>' +
+              '<div class="feed-modal-ing"><span>Garlic, lemon, dill</span><span class="qty">to taste</span></div>' +
             '</div>' +
             '<h4 style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:16px 0 8px;">Prep</h4>' +
             '<p style="font-size:0.86rem;color:var(--text-muted);line-height:1.5;">Roast broccoli + peppers 400°F for 18 min. Pan-sear salmon skin-down 4 min, flip 2 min. Plate over quinoa with greens, finish with lemon + dill.</p>' +
