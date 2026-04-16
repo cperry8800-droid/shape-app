@@ -2701,9 +2701,14 @@
       <!-- PROFILE TAB -->
       <div class="dash-tab-content" id="tabProfile">
         <div id="shapeAddRole"></div>
-        <div class="cp-cover"><div class="cp-cover-upload">Change Cover Photo</div></div>
+        <div class="cp-cover" id="cpCover">
+          <div class="cp-cover-upload" onclick="document.getElementById('cpCoverUpload').click()">Change Cover Photo</div>
+          <input type="file" id="cpCoverUpload" accept="image/*" style="display:none" onchange="cpHandleCoverUpload(event)">
+        </div>
         <div class="cp-avatar-row">
-          <div class="cp-avatar">CP<div class="cp-avatar-upload">+</div></div>
+          <div class="cp-avatar" id="cpAvatar" onclick="document.getElementById('cpAvatarUpload').click()"><span id="cpAvatarInitials">CP</span><div class="cp-avatar-upload">+</div>
+            <input type="file" id="cpAvatarUpload" accept="image/*" style="display:none" onchange="cpHandleAvatarUpload(event)">
+          </div>
           <div class="cp-name-block">
             <h1>Christopher Perry</h1>
             <div class="cp-handle">@chrisperry</div>
@@ -4820,11 +4825,63 @@
       localStorage.setItem('shapeClientProfile', JSON.stringify(data));
     }
 
+    function cpApplyCoverImage(url) {
+      const cover = document.getElementById('cpCover');
+      if (!cover) return;
+      cover.style.backgroundImage = 'url(' + url + ')';
+      cover.style.backgroundSize = 'cover';
+      cover.style.backgroundPosition = 'center';
+    }
+
+    function cpApplyAvatarImage(url) {
+      const avatar = document.getElementById('cpAvatar');
+      if (!avatar) return;
+      avatar.style.backgroundImage = 'url(' + url + ')';
+      avatar.style.backgroundSize = 'cover';
+      avatar.style.backgroundPosition = 'center';
+      const initials = document.getElementById('cpAvatarInitials');
+      if (initials) initials.style.display = 'none';
+    }
+
+    function cpHandleCoverUpload(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        cpApplyCoverImage(e.target.result);
+        try { localStorage.setItem('shapeClientProfileCover', e.target.result); } catch(_) {}
+        showCpToast('Cover photo updated!');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function cpHandleAvatarUpload(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        cpApplyAvatarImage(e.target.result);
+        try { localStorage.setItem('shapeClientProfileAvatar', e.target.result); } catch(_) {}
+        showCpToast('Profile photo updated!');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function cpRestoreImages() {
+      try {
+        const cover = localStorage.getItem('shapeClientProfileCover');
+        if (cover) cpApplyCoverImage(cover);
+        const avatar = localStorage.getItem('shapeClientProfileAvatar');
+        if (avatar) cpApplyAvatarImage(avatar);
+      } catch(_) {}
+    }
+
     function initProfile() {
       document.querySelectorAll('.cp-toggle input').forEach(toggle => {
         toggle.addEventListener('change', () => { cpSaveToLocalStorage(); showCpToast('Privacy setting updated!'); });
       });
       updateMacros();
+      cpRestoreImages();
     }
   </script>
 

@@ -1612,7 +1612,10 @@
     <section class="section" style="padding-top:0;">
       <div class="container">
         <!-- Banner -->
-        <div class="nd-profile-banner"></div>
+        <div class="nd-profile-banner" id="ndProfBanner" onclick="document.getElementById('ndProfBannerUpload').click()" style="cursor:pointer;position:relative;">
+          <div style="position:absolute;top:16px;right:16px;background:rgba(0,0,0,0.5);color:#fff;font-size:0.7rem;font-weight:500;padding:6px 14px;border:1px solid rgba(255,255,255,0.15);text-transform:uppercase;letter-spacing:0.06em;">Change Cover Photo</div>
+          <input type="file" id="ndProfBannerUpload" accept="image/*" style="display:none" onchange="ndProfHandleBanner(event)">
+        </div>
         <!-- Avatar & Name -->
         <div class="nd-profile-avatar-area">
           <div class="nd-profile-avatar" id="ndProfAvatarArea" onclick="document.getElementById('ndProfAvatarUpload').click()">
@@ -2204,6 +2207,16 @@
       img.style.display = 'block';
     }
 
+    // Banner
+    if (data.banner) {
+      const banner = document.getElementById('ndProfBanner');
+      if (banner) {
+        banner.style.backgroundImage = 'url(' + data.banner + ')';
+        banner.style.backgroundSize = 'cover';
+        banner.style.backgroundPosition = 'center';
+      }
+    }
+
     // Stats
     if (data.subscribers) document.getElementById('ndProfStatSubs').textContent = data.subscribers;
     if (data.rating) document.getElementById('ndProfStatRating').textContent = data.rating;
@@ -2291,6 +2304,26 @@
       ndInitProfile();
       const t = document.getElementById('toast');
       t.textContent = 'Profile photo updated!';
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2500);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function ndProfHandleBanner(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+      const STORAGE_KEY = 'shapeNutritionistProfile';
+      const raw = localStorage.getItem(STORAGE_KEY);
+      let data = {};
+      try { data = raw ? JSON.parse(raw) : {}; } catch(e2) {}
+      data.banner = ev.target.result;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      ndInitProfile();
+      const t = document.getElementById('toast');
+      t.textContent = 'Cover photo updated!';
       t.classList.add('show');
       setTimeout(() => t.classList.remove('show'), 2500);
     };
