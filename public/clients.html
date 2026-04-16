@@ -1679,6 +1679,40 @@
             </div>
           </div>
 
+          <!-- Widget: Grocery List -->
+          <div class="widget widget-full grocery-widget" data-widget-id="cl-grocery" draggable="true">
+            <div class="widget-header">
+              <span class="widget-title">Grocery list</span>
+              <span class="widget-drag-handle">&#10783;</span>
+            </div>
+            <div class="widget-body">
+              <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
+                <p class="grocery-intro" style="display:block;margin:0;font-size:0.82rem;color:var(--text-muted);">Pulled from this week's meal plan. Add your own items, check them off as you shop &mdash; saved on this device.</p>
+                <button class="btn btn-sm btn-outline" onclick="generateGroceryList()" style="font-size:0.72rem;">Reload from meal plan</button>
+              </div>
+              <div class="grocery-progress">
+                <div class="grocery-progress-row">
+                  <span>Shopping progress</span>
+                  <strong class="grocery-progress-text">0 of 0 items</strong>
+                </div>
+                <div class="grocery-progress-track"><div class="grocery-progress-bar"></div></div>
+              </div>
+              <form class="grocery-add-form" onsubmit="event.preventDefault(); addCustomGroceryItem(this);">
+                <input type="text" class="gl-input grocery-item-name" data-role="name" placeholder="Add an item (e.g. Avocados)" required>
+                <input type="text" class="gl-input grocery-item-qty" placeholder="Qty">
+                <select class="gl-select grocery-item-cat">
+                  <option value="Produce">Produce</option>
+                  <option value="Protein">Protein</option>
+                  <option value="Dairy &amp; Eggs">Dairy &amp; Eggs</option>
+                  <option value="Pantry">Pantry</option>
+                  <option value="Other">Other</option>
+                </select>
+                <button type="submit" class="gl-add-btn">+ Add item</button>
+              </form>
+              <div class="grocery-list-container"></div>
+            </div>
+          </div>
+
           <!-- Widget: Friends Leaderboard -->
           <div class="widget" data-widget-id="cl-friends" draggable="true" data-lib="1"
                data-lib-title="Friends Leaderboard" data-lib-desc="See how you compare to friends and gym-mates this week." style="display:none;">
@@ -2182,7 +2216,7 @@
             }
           </style>
 
-          <div class="widget widget-full grocery-widget" id="groceryWidget" data-widget-id="cl-nu-grocery" style="margin-top:24px;">
+          <div class="widget widget-full grocery-widget" data-widget-id="cl-nu-grocery" style="margin-top:24px;">
             <div class="widget-header">
               <h2>Grocery list</h2>
               <button class="btn btn-sm btn-outline" onclick="generateGroceryList()" style="font-size:0.72rem;">Reload from meal plan</button>
@@ -2192,15 +2226,15 @@
             <div class="grocery-progress">
               <div class="grocery-progress-row">
                 <span>Shopping progress</span>
-                <strong id="groceryProgressText">0 of 0 items</strong>
+                <strong class="grocery-progress-text">0 of 0 items</strong>
               </div>
-              <div class="grocery-progress-track"><div class="grocery-progress-bar" id="groceryProgressBar"></div></div>
+              <div class="grocery-progress-track"><div class="grocery-progress-bar"></div></div>
             </div>
 
-            <form class="grocery-add-form" onsubmit="event.preventDefault(); addCustomGroceryItem();">
-              <input type="text" class="gl-input" data-role="name" id="groceryItemName" placeholder="Add an item (e.g. Avocados)" required>
-              <input type="text" class="gl-input" id="groceryItemQty" placeholder="Qty">
-              <select class="gl-select" id="groceryItemCat">
+            <form class="grocery-add-form" onsubmit="event.preventDefault(); addCustomGroceryItem(this);">
+              <input type="text" class="gl-input grocery-item-name" data-role="name" placeholder="Add an item (e.g. Avocados)" required>
+              <input type="text" class="gl-input grocery-item-qty" placeholder="Qty">
+              <select class="gl-select grocery-item-cat">
                 <option value="Produce">Produce</option>
                 <option value="Protein">Protein</option>
                 <option value="Dairy &amp; Eggs">Dairy &amp; Eggs</option>
@@ -2210,7 +2244,7 @@
               <button type="submit" class="gl-add-btn">+ Add item</button>
             </form>
 
-            <div id="groceryListContainer"></div>
+            <div class="grocery-list-container"></div>
           </div>
 
         </div><!-- /clNutritionWidgetGrid -->
@@ -5296,16 +5330,21 @@
       try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(arr)); } catch(e){}
     }
 
-    window.addCustomGroceryItem = function() {
-      var name = (document.getElementById('groceryItemName').value || '').trim();
-      var qty = (document.getElementById('groceryItemQty').value || '').trim();
-      var cat = document.getElementById('groceryItemCat').value || 'Other';
+    window.addCustomGroceryItem = function(formEl) {
+      var form = formEl || document.querySelector('.grocery-add-form');
+      if (!form) return;
+      var nameEl = form.querySelector('.grocery-item-name');
+      var qtyEl = form.querySelector('.grocery-item-qty');
+      var catEl = form.querySelector('.grocery-item-cat');
+      var name = (nameEl && nameEl.value || '').trim();
+      var qty = (qtyEl && qtyEl.value || '').trim();
+      var cat = (catEl && catEl.value) || 'Other';
       if (!name) return;
       var custom = loadCustom();
       custom.push({ name: name, qty: qty, cat: cat, id: 'c_' + Date.now() });
       saveCustom(custom);
-      document.getElementById('groceryItemName').value = '';
-      document.getElementById('groceryItemQty').value = '';
+      if (nameEl) nameEl.value = '';
+      if (qtyEl) qtyEl.value = '';
       generateGroceryList();
     };
 
@@ -5323,19 +5362,26 @@
       var checked = loadChecked();
       checked[key] = !checked[key];
       saveChecked(checked);
-      el.classList.toggle('checked', checked[key]);
-      var box = el.querySelector('.grocery-check');
-      if (box) box.innerHTML = checked[key] ? '&#10003;' : '';
+      // Sync every instance of this item across widgets
+      document.querySelectorAll('.grocery-row').forEach(function(row){
+        if (row.getAttribute('data-key') === key) {
+          row.classList.toggle('checked', checked[key]);
+          var box = row.querySelector('.grocery-check');
+          if (box) box.innerHTML = checked[key] ? '&#10003;' : '';
+        }
+      });
       updateGroceryProgress();
     };
 
     function updateGroceryProgress() {
-      var total = document.querySelectorAll('.grocery-row').length;
-      var done = document.querySelectorAll('.grocery-row.checked').length;
-      var bar = document.getElementById('groceryProgressBar');
-      var txt = document.getElementById('groceryProgressText');
-      if (bar) bar.style.width = (total ? Math.round((done/total)*100) : 0) + '%';
-      if (txt) txt.textContent = done + ' of ' + total + ' items';
+      document.querySelectorAll('.grocery-widget').forEach(function(widget){
+        var total = widget.querySelectorAll('.grocery-row').length;
+        var done = widget.querySelectorAll('.grocery-row.checked').length;
+        var bar = widget.querySelector('.grocery-progress-bar');
+        var txt = widget.querySelector('.grocery-progress-text');
+        if (bar) bar.style.width = (total ? Math.round((done/total)*100) : 0) + '%';
+        if (txt) txt.textContent = done + ' of ' + total + ' items';
+      });
     }
 
     function escapeHtml(s) {
@@ -5360,49 +5406,48 @@
       custom.forEach(function(it){ pushItem(it.cat || 'Other', it.name, it.qty || '', it.id); });
 
       var order = ['Produce', 'Protein', 'Dairy & Eggs', 'Pantry', 'Other'];
-      var container = document.getElementById('groceryListContainer');
-      if (!container) return;
+      var containers = document.querySelectorAll('.grocery-list-container');
+      if (!containers.length) return;
 
       var totalItems = 0;
       order.forEach(function(c){ if (byCat[c]) totalItems += byCat[c].length; });
-      if (!totalItems) {
-        container.innerHTML = '<div class="grocery-empty">No items yet. Add your own above, or reload from your meal plan.</div>';
-        updateGroceryProgress();
-        return;
-      }
 
       var html = '';
-      order.forEach(function(cat){
-        if (!byCat[cat] || !byCat[cat].length) return;
-        html += '<div class="grocery-cat">';
-        html += '<div class="grocery-cat-head"><span>' + cat + '</span><span class="grocery-cat-count">' + byCat[cat].length + ' ' + (byCat[cat].length === 1 ? 'item' : 'items') + '</span></div>';
-        byCat[cat].forEach(function(item){
-          var isChecked = !!checked[item.key];
-          var safeKey = item.key.replace(/'/g, "\\'");
-          html += '<div class="grocery-row' + (isChecked ? ' checked' : '') + '" onclick="toggleGroceryItem(\'' + safeKey + '\', this)">';
-          html += '<div class="grocery-check">' + (isChecked ? '&#10003;' : '') + '</div>';
-          html += '<div class="grocery-row-body">';
-          html += '<div class="grocery-name-line"><span class="grocery-name">' + escapeHtml(item.name) + '</span>';
-          if (item.customId) html += '<span class="grocery-badge">Custom</span>';
-          html += '</div>';
-          if (item.qty) html += '<div class="grocery-qty">' + escapeHtml(item.qty) + '</div>';
-          html += '</div>';
-          if (item.customId) {
-            html += '<button type="button" class="grocery-remove" onclick="event.stopPropagation();removeCustomGroceryItem(\'' + item.customId + '\');" title="Remove">&times;</button>';
-          }
+      if (!totalItems) {
+        html = '<div class="grocery-empty">No items yet. Add your own above, or reload from your meal plan.</div>';
+      } else {
+        order.forEach(function(cat){
+          if (!byCat[cat] || !byCat[cat].length) return;
+          html += '<div class="grocery-cat">';
+          html += '<div class="grocery-cat-head"><span>' + cat + '</span><span class="grocery-cat-count">' + byCat[cat].length + ' ' + (byCat[cat].length === 1 ? 'item' : 'items') + '</span></div>';
+          byCat[cat].forEach(function(item){
+            var isChecked = !!checked[item.key];
+            var safeKey = item.key.replace(/'/g, "\\'");
+            html += '<div class="grocery-row' + (isChecked ? ' checked' : '') + '" data-key="' + escapeHtml(item.key) + '" onclick="toggleGroceryItem(\'' + safeKey + '\', this)">';
+            html += '<div class="grocery-check">' + (isChecked ? '&#10003;' : '') + '</div>';
+            html += '<div class="grocery-row-body">';
+            html += '<div class="grocery-name-line"><span class="grocery-name">' + escapeHtml(item.name) + '</span>';
+            if (item.customId) html += '<span class="grocery-badge">Custom</span>';
+            html += '</div>';
+            if (item.qty) html += '<div class="grocery-qty">' + escapeHtml(item.qty) + '</div>';
+            html += '</div>';
+            if (item.customId) {
+              html += '<button type="button" class="grocery-remove" onclick="event.stopPropagation();removeCustomGroceryItem(\'' + item.customId + '\');" title="Remove">&times;</button>';
+            }
+            html += '</div>';
+          });
           html += '</div>';
         });
-        html += '</div>';
-      });
-      container.innerHTML = html;
+      }
+      containers.forEach(function(c){ c.innerHTML = html; });
       updateGroceryProgress();
     };
 
     document.addEventListener('DOMContentLoaded', function(){
-      if (document.getElementById('groceryListContainer')) generateGroceryList();
+      if (document.querySelector('.grocery-list-container')) generateGroceryList();
     });
     setTimeout(function(){
-      if (document.getElementById('groceryListContainer') && !document.querySelector('.grocery-row')) generateGroceryList();
+      if (document.querySelector('.grocery-list-container') && !document.querySelector('.grocery-row')) generateGroceryList();
     }, 500);
   })();
   </script>
