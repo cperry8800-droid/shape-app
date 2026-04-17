@@ -1,10 +1,14 @@
-const CACHE_NAME = 'shape-v86';
+const CACHE_NAME = 'shape-v87';
 const ASSETS = [
   '/',
   '/index.html',
   '/home.html',
   '/styles.css',
   '/app.js',
+  '/pwa-install.js',
+  '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png',
   '/logo.png',
   '/trainers.html',
   '/nutritionists.html',
