@@ -135,9 +135,9 @@ export default async function PurchasePage({ searchParams }: Props) {
       </p>
 
       <div style={{ marginTop: 40, fontSize: '0.78rem' }}>
-        <Link href={`/${role}-profile.html?id=${id}`} style={{ color: 'rgba(255,255,255,0.62)' }}>
+        <a href={`/${role}-profile.html?id=${id}`} style={{ color: 'rgba(255,255,255,0.62)' }}>
           ← Back to profile
-        </Link>
+        </a>
       </div>
     </main>
   );

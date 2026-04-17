@@ -1,4 +1,4 @@
-const CACHE_NAME = 'shape-v106';
+const CACHE_NAME = 'shape-v107';
 const ASSETS = [
   '/',
   '/index.html',
@@ -48,6 +48,10 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
+  // Only handle GET — Cache.put rejects POST/PUT/DELETE and those are
+  // server actions / API calls we never want to cache anyway.
+  if (e.request.method !== 'GET') return;
+
   // Always go network-first, never serve stale HTML pages from cache
   const url = new URL(e.request.url);
   const isHTML = url.pathname.endsWith('.html') || url.pathname === '/';
