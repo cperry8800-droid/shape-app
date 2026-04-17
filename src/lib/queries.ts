@@ -200,9 +200,12 @@ export async function getMySessions(): Promise<SessionBooking[]> {
 
 export async function getTrainers(): Promise<Trainer[]> {
   const supabase = await createClient();
+  // Hide seed rows with no linked Supabase user — they have no Stripe
+  // Connect account so subscribe / book would dead-end at checkout.
   const { data, error } = await supabase
     .from('trainers')
     .select('*, workouts:trainer_workouts(*, sample_days:workout_sample_days(*))')
+    .not('owner_id', 'is', null)
     .order('sort_order', { ascending: true });
   if (error) {
     console.error('[shape-app] getTrainers error', error);
@@ -216,6 +219,7 @@ export async function getNutritionists(): Promise<Nutritionist[]> {
   const { data, error } = await supabase
     .from('nutritionists')
     .select('*, plans:nutritionist_plans(*, sample_days:plan_sample_days(*))')
+    .not('owner_id', 'is', null)
     .order('sort_order', { ascending: true });
   if (error) {
     console.error('[shape-app] getNutritionists error', error);
