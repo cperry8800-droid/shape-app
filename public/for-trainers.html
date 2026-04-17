@@ -36,11 +36,12 @@
     .ft-features .section-header { margin-bottom: 48px; }
     .ft-features-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
     .ft-feature {
-      background: transparent; border: 1px solid rgba(255,255,255,0.1); padding: 32px;
+      background: rgba(10,10,10,0.55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.12); padding: 32px;
       display: flex; gap: 16px; align-items: flex-start;
       transition: transform 0.3s, box-shadow 0.3s;
     }
-    .ft-feature:hover { transform: translateY(-3px); background: rgba(255,255,255,0.05); }
+    .ft-feature:hover { transform: translateY(-3px); background: rgba(20,20,20,0.65); }
     .ft-feature-icon { font-size: 0.82rem; font-weight: 500; color: rgba(255,255,255,0.5); flex-shrink: 0; margin-top: 4px; letter-spacing: 0.02em; }
     .ft-feature h3 { font-size: 1rem; font-weight: 500; margin-bottom: 6px; color: #fff; }
     .ft-feature p { font-size: 0.88rem; color: rgba(255,255,255,0.6); font-weight: 300; line-height: 1.6; }
