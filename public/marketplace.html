@@ -304,6 +304,7 @@
       flex-shrink: 0;
     }
     .mkt-sort:focus { border-color: var(--accent); }
+    .mkt-category { min-width: 200px; max-width: 260px; }
 
     /* Chip row (wraps to show all options without scrolling) */
     .mkt-chips {
@@ -565,25 +566,23 @@
         <!-- Filter row -->
         <div class="mkt-filter">
           <input type="text" class="mkt-search" id="trainerSearch" placeholder="Search trainers..." oninput="filterTrainers()">
+          <select class="mkt-sort mkt-category" id="trainerCategory" onchange="mktSetTrainerCategory(this.value)">
+            <option value="all">All Categories</option>
+            <option value="strength">Strength &amp; Resistance</option>
+            <option value="cardio">Cardio &amp; Endurance</option>
+            <option value="mobility">Mobility, Recovery &amp; Rehab</option>
+            <option value="functional">Functional &amp; Hybrid</option>
+            <option value="bodybuilding">Bodybuilding</option>
+            <option value="hiit">HIIT</option>
+            <option value="weightloss">Fat Burn</option>
+            <option value="athome">At Home</option>
+          </select>
           <select class="mkt-sort" id="trainerSort" onchange="filterTrainers()">
             <option value="subscribers">Most Popular</option>
             <option value="rating">Highest Rated</option>
             <option value="price">Lowest Price</option>
             <option value="experience">Most Experience</option>
           </select>
-        </div>
-
-        <!-- Category chips -->
-        <div class="mkt-chips" role="tablist">
-          <button class="mkt-chip active" data-filter="all" onclick="mktSetTrainerChip(this)">All</button>
-          <button class="mkt-chip" data-filter="strength" onclick="mktSetTrainerChip(this)">Strength &amp; Resistance</button>
-          <button class="mkt-chip" data-filter="cardio" onclick="mktSetTrainerChip(this)">Cardio &amp; Endurance</button>
-          <button class="mkt-chip" data-filter="mobility" onclick="mktSetTrainerChip(this)">Mobility, Recovery &amp; Rehab</button>
-          <button class="mkt-chip" data-filter="functional" onclick="mktSetTrainerChip(this)">Functional &amp; Hybrid</button>
-          <button class="mkt-chip" data-filter="bodybuilding" onclick="mktSetTrainerChip(this)">Bodybuilding</button>
-          <button class="mkt-chip" data-filter="hiit" onclick="mktSetTrainerChip(this)">HIIT</button>
-          <button class="mkt-chip" data-filter="weightloss" onclick="mktSetTrainerChip(this)">Fat Burn</button>
-          <button class="mkt-chip" data-filter="athome" onclick="mktSetTrainerChip(this)">At Home</button>
         </div>
 
         <div id="trainerGrid"></div>
@@ -600,26 +599,25 @@
 
         <div class="mkt-filter">
           <input type="text" class="mkt-search" id="nutritionistSearch" placeholder="Search nutritionists..." oninput="filterNutritionists()">
+          <select class="mkt-sort mkt-category" id="nutritionistCategory" onchange="mktSetNutritionistCategory(this.value)">
+            <option value="all">All Categories</option>
+            <option value="sportsperf">Sports Performance &amp; Hydration</option>
+            <option value="performance">Performance Nutrition</option>
+            <option value="medical">Medical &amp; Condition-Specific</option>
+            <option value="musclegain">Muscle Gain / Bulking</option>
+            <option value="gutfunc">Gut Health &amp; Functional Nutrition</option>
+            <option value="longevity">Longevity &amp; Healthspan</option>
+            <option value="weightloss">Weight Mgmt</option>
+            <option value="plantbased">Plant-Based</option>
+            <option value="prenatal">Prenatal</option>
+            <option value="mealprep">Meal Prep</option>
+          </select>
           <select class="mkt-sort" id="nutritionistSort" onchange="filterNutritionists()">
             <option value="subscribers">Most Popular</option>
             <option value="rating">Highest Rated</option>
             <option value="price">Lowest Price</option>
             <option value="experience">Most Experience</option>
           </select>
-        </div>
-
-        <div class="mkt-chips" role="tablist">
-          <button class="mkt-chip active" data-filter="all" onclick="mktSetNutritionistChip(this)">All</button>
-          <button class="mkt-chip" data-filter="sportsperf" onclick="mktSetNutritionistChip(this)">Sports Performance &amp; Hydration</button>
-          <button class="mkt-chip" data-filter="performance" onclick="mktSetNutritionistChip(this)">Performance Nutrition</button>
-          <button class="mkt-chip" data-filter="medical" onclick="mktSetNutritionistChip(this)">Medical &amp; Condition-Specific</button>
-          <button class="mkt-chip" data-filter="musclegain" onclick="mktSetNutritionistChip(this)">Muscle Gain / Bulking</button>
-          <button class="mkt-chip" data-filter="gutfunc" onclick="mktSetNutritionistChip(this)">Gut Health &amp; Functional Nutrition</button>
-          <button class="mkt-chip" data-filter="longevity" onclick="mktSetNutritionistChip(this)">Longevity &amp; Healthspan</button>
-          <button class="mkt-chip" data-filter="weightloss" onclick="mktSetNutritionistChip(this)">Weight Mgmt</button>
-          <button class="mkt-chip" data-filter="plantbased" onclick="mktSetNutritionistChip(this)">Plant-Based</button>
-          <button class="mkt-chip" data-filter="prenatal" onclick="mktSetNutritionistChip(this)">Prenatal</button>
-          <button class="mkt-chip" data-filter="mealprep" onclick="mktSetNutritionistChip(this)">Meal Prep</button>
         </div>
 
         <div id="nutritionistGrid"></div>
@@ -971,17 +969,13 @@
       if (count) count.textContent = filtered.length + ' nutritionists across ' + Object.keys(groups).length + ' regions';
     };
 
-    function mktSetTrainerChip(btn) {
-      document.querySelectorAll('#pane-trainers .mkt-chip').forEach(function(c) { c.classList.remove('active'); });
-      btn.classList.add('active');
-      window.activeTrainerFilter = btn.dataset.filter;
+    function mktSetTrainerCategory(value) {
+      window.activeTrainerFilter = value || 'all';
       filterTrainers();
     }
 
-    function mktSetNutritionistChip(btn) {
-      document.querySelectorAll('#pane-nutritionists .mkt-chip').forEach(function(c) { c.classList.remove('active'); });
-      btn.classList.add('active');
-      window.activeNutritionistFilter = btn.dataset.filter;
+    function mktSetNutritionistCategory(value) {
+      window.activeNutritionistFilter = value || 'all';
       filterNutritionists();
     }
 
