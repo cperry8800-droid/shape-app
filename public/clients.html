@@ -2791,44 +2791,6 @@
             <div id="glPersonalEmpty" class="gl-empty" style="display:none;">No personal lists yet. Tap <em>+ New list</em> to start one.</div>
           </div>
 
-          <!-- Detail view -->
-          <div id="glDetail" class="gl-detail" style="display:none;">
-            <div class="gl-detail-head">
-              <button type="button" class="gl-back" onclick="glCloseDetail()" aria-label="Back to lists">&#8249; All lists</button>
-              <div class="gl-detail-title-wrap">
-                <h3 id="glDetailTitle" class="gl-detail-title">Untitled list</h3>
-                <div id="glDetailMeta" class="gl-detail-meta"></div>
-              </div>
-              <div class="gl-detail-actions">
-                <button type="button" id="glRenameBtn" class="btn btn-sm btn-outline" onclick="glRenameActive()" style="font-size:0.72rem;">Rename</button>
-                <button type="button" id="glDeleteBtn" class="btn btn-sm btn-outline" onclick="glDeleteActive()" style="font-size:0.72rem;">Delete</button>
-              </div>
-            </div>
-
-            <div class="grocery-progress">
-              <div class="grocery-progress-row">
-                <span>Shopping progress</span>
-                <strong id="glDetailProgressText" class="grocery-progress-text">0 of 0 items</strong>
-              </div>
-              <div class="grocery-progress-track"><div id="glDetailProgressBar" class="grocery-progress-bar"></div></div>
-            </div>
-
-            <form id="glDetailAddForm" class="grocery-add-form" onsubmit="event.preventDefault(); glAddItemToActive(this);">
-              <input type="text" class="gl-input" data-role="name" name="name" placeholder="Add an item (e.g. Avocados)" required>
-              <input type="text" class="gl-input" name="qty" placeholder="Qty">
-              <select class="gl-select" name="cat">
-                <option value="Produce">Produce</option>
-                <option value="Protein">Protein</option>
-                <option value="Dairy &amp; Eggs">Dairy &amp; Eggs</option>
-                <option value="Pantry">Pantry</option>
-                <option value="Other">Other</option>
-              </select>
-              <button type="submit" class="gl-add-btn">+ Add item</button>
-            </form>
-
-            <div id="glDetailItems" class="gl-detail-items"></div>
-          </div>
-
         </div><!-- /.nutri-grocery-view -->
 
       </div><!-- /#tabNutrition -->
