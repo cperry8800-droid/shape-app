@@ -1500,15 +1500,47 @@ function saveCerts() {
 }
 
 // --- Social ---
+function _socialUrl(platform, val) {
+  if (!val) return '';
+  var v = String(val).trim();
+  if (/^https?:\/\//i.test(v)) return v;
+  var handle = v.replace(/^@/, '').replace(/^\/+/, '');
+  if (platform === 'ig') return 'https://instagram.com/' + handle;
+  if (platform === 'yt') {
+    if (handle.includes('/')) return 'https://youtube.com/' + handle;
+    return 'https://youtube.com/@' + handle;
+  }
+  if (platform === 'tt') return 'https://tiktok.com/@' + handle;
+  if (platform === 'web') return 'https://' + v;
+  return v;
+}
+
+function _renderSocialDisplay() {
+  var container = document.getElementById('socialDisplay');
+  if (!container) return;
+  var items = [
+    { key: 'ig',  id: 'socialIG',  label: 'Instagram' },
+    { key: 'yt',  id: 'socialYT',  label: 'YouTube' },
+    { key: 'tt',  id: 'socialTT',  label: 'TikTok' },
+    { key: 'web', id: 'socialWeb', label: 'Website' }
+  ];
+  var social = (trainerData && trainerData.social) || {};
+  container.innerHTML = items.map(function(it) {
+    var val = social[it.key] || '';
+    if (val) {
+      var url = _socialUrl(it.key, val);
+      return '<a class="tp-social-link" id="' + it.id + '" href="' + url + '" target="_blank" rel="noopener noreferrer">' + it.label + ': ' + val + '</a>';
+    }
+    return '<span class="tp-social-link tp-social-link-empty" id="' + it.id + '">' + it.label + '</span>';
+  }).join('');
+}
+
 function saveSocial() {
   trainerData.social.ig = document.getElementById('inputIG').value;
   trainerData.social.yt = document.getElementById('inputYT').value;
   trainerData.social.tt = document.getElementById('inputTT').value;
   trainerData.social.web = document.getElementById('inputWeb').value;
-  document.getElementById('socialIG').textContent = trainerData.social.ig || 'Instagram';
-  document.getElementById('socialYT').textContent = trainerData.social.yt || 'YouTube';
-  document.getElementById('socialTT').textContent = trainerData.social.tt || 'TikTok';
-  document.getElementById('socialWeb').textContent = trainerData.social.web || 'Website';
+  _renderSocialDisplay();
   document.getElementById('sectionSocial').classList.remove('editing');
   document.getElementById('socialEditFields').style.display = 'none';
   saveToStorage();
@@ -1891,10 +1923,7 @@ function loadFromStorage() {
       document.getElementById('inputYT').value = trainerData.social.yt || '';
       document.getElementById('inputTT').value = trainerData.social.tt || '';
       document.getElementById('inputWeb').value = trainerData.social.web || '';
-      document.getElementById('socialIG').textContent = trainerData.social.ig || 'Instagram';
-      document.getElementById('socialYT').textContent = trainerData.social.yt || 'YouTube';
-      document.getElementById('socialTT').textContent = trainerData.social.tt || 'TikTok';
-      document.getElementById('socialWeb').textContent = trainerData.social.web || 'Website';
+      _renderSocialDisplay();
     }
     // Pricing
     if (trainerData.subPrice) {

@@ -1574,12 +1574,39 @@
       document.getElementById('socialEditBtn').style.display = '';
     }
 
+    function _socialUrl(platform, val) {
+      if (!val) return '';
+      var v = String(val).trim();
+      if (/^https?:\/\//i.test(v)) return v;
+      var handle = v.replace(/^@/, '').replace(/^\/+/, '');
+      if (platform === 'instagram') return 'https://instagram.com/' + handle;
+      if (platform === 'youtube') {
+        if (handle.includes('/')) return 'https://youtube.com/' + handle;
+        return 'https://youtube.com/@' + handle;
+      }
+      if (platform === 'tiktok') return 'https://tiktok.com/@' + handle;
+      if (platform === 'website') return 'https://' + v;
+      return v;
+    }
+
     function renderSocialLinks() {
-      const s = nutritionistData.social;
-      document.getElementById('socialInstagramLink').textContent = s.instagram || 'Instagram';
-      document.getElementById('socialYoutubeLink').textContent = s.youtube || 'YouTube';
-      document.getElementById('socialTiktokLink').textContent = s.tiktok || 'TikTok';
-      document.getElementById('socialWebsiteLink').textContent = s.website || 'Website';
+      const s = nutritionistData.social || {};
+      const container = document.getElementById('socialDisplay');
+      if (!container) return;
+      const items = [
+        { key: 'instagram', id: 'socialInstagramLink', label: 'Instagram' },
+        { key: 'youtube',   id: 'socialYoutubeLink',   label: 'YouTube' },
+        { key: 'tiktok',    id: 'socialTiktokLink',    label: 'TikTok' },
+        { key: 'website',   id: 'socialWebsiteLink',   label: 'Website' }
+      ];
+      container.innerHTML = items.map(function(it) {
+        const val = s[it.key] || '';
+        if (val) {
+          const url = _socialUrl(it.key, val);
+          return '<a class="tp-social-link" id="' + it.id + '" href="' + url + '" target="_blank" rel="noopener noreferrer">' + it.label + ': ' + val + '</a>';
+        }
+        return '<span class="tp-social-link tp-social-link-empty" id="' + it.id + '">' + it.label + '</span>';
+      }).join('');
     }
 
     // ===== Subscription =====
