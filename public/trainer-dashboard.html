@@ -13,6 +13,16 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="apple-touch-icon" href="icon-192.png">
 <style>
+  /* ===== Dashboard background ===== */
+  html { background: #000 !important; }
+  body { background: transparent !important; position: relative; }
+  body::before {
+    content: ''; position: fixed; inset: 0; z-index: -1;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.88) 100%),
+                url('/Training%201.png') center/cover no-repeat fixed;
+  }
+  .dash-main, .dash-tab-bar, .navbar, .td-tab-bar { background: transparent !important; }
+
   /* ===== Dashboard Tab Bar ===== */
   .td-tab-bar {
     display: flex; align-items: center; gap: 8px; justify-content: center;
