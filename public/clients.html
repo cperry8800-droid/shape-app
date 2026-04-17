@@ -2628,6 +2628,40 @@
             .gl-modal-lg h3 {
               margin: 0; font-size: 1.35rem; font-weight: 300; letter-spacing: -0.02em;
             }
+            .gl-modal-head-text { flex: 1; min-width: 0; }
+            .gl-modal-meta {
+              margin-top: 6px; font-size: 0.74rem;
+              color: var(--text-muted); line-height: 1.4;
+            }
+            .gl-modal-head-actions {
+              display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;
+            }
+            .gl-modal-head-actions:empty { display: none; }
+            .gl-modal-headbtn {
+              background: none; border: 1px solid var(--border); color: var(--text);
+              padding: 6px 12px; font-family: inherit; font-size: 0.74rem;
+              cursor: pointer; transition: background .15s, border-color .15s, color .15s;
+            }
+            .gl-modal-headbtn:hover {
+              background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.22);
+            }
+            .gl-modal-headbtn.danger { color: #F87171; border-color: rgba(248,113,113,0.35); }
+            .gl-modal-headbtn.danger:hover {
+              background: rgba(248,113,113,0.08); border-color: rgba(248,113,113,0.6);
+            }
+            .gl-list-card-row {
+              display: grid; grid-template-columns: 1fr auto auto; gap: 8px;
+              align-items: center;
+            }
+            .gl-card-del {
+              background: none; border: 1px solid var(--border); color: var(--text-muted);
+              width: 32px; height: 32px; font-size: 1rem; cursor: pointer;
+              display: flex; align-items: center; justify-content: center;
+              transition: background .15s, border-color .15s, color .15s;
+            }
+            .gl-card-del:hover {
+              background: rgba(248,113,113,0.08); border-color: rgba(248,113,113,0.5); color: #F87171;
+            }
             .gl-items-add { margin-bottom: 14px; }
             .gl-items-count {
               font-size: 0.7rem; text-transform: uppercase;
@@ -6938,10 +6972,15 @@
       else metaBits.push('Personal');
       if (list.updatedAt) metaBits.push('Updated ' + formatDate(list.updatedAt));
       metaBits.push(p.total + ' item' + (p.total === 1 ? '' : 's'));
+      var del = list.source === 'coach' ? '' :
+        '<button type="button" class="gl-card-del" title="Delete list" onclick="event.stopPropagation();glDeleteListFromCard(\'' + escapeHtml(list.id) + '\');">&times;</button>';
       return '<div class="gl-list-card" onclick="glOpenDetail(\'' + list.id + '\')">' +
-        '<div><div class="gl-list-name">' + escapeHtml(list.name) + '</div>' +
-        '<div class="gl-list-meta">' + metaBits.map(escapeHtml).join(' &middot; ') + '</div></div>' +
-        '<div class="gl-list-progress"><strong>' + p.done + '</strong> / ' + p.total + '<br>checked</div>' +
+        '<div class="gl-list-card-row">' +
+          '<div><div class="gl-list-name">' + escapeHtml(list.name) + '</div>' +
+          '<div class="gl-list-meta">' + metaBits.map(escapeHtml).join(' &middot; ') + '</div></div>' +
+          '<div class="gl-list-progress"><strong>' + p.done + '</strong> / ' + p.total + '<br>checked</div>' +
+          del +
+        '</div>' +
       '</div>';
     }
 
@@ -7031,14 +7070,41 @@
       if (def) def.style.display = '';
     };
     window.glOpenDetail = function(id) {
-      _activeListId = id;
-      renderDetail();
-      var el = document.getElementById('glDetail');
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      window.glOpenItemsModal(id);
     };
     window.glCloseDetail = function() {
       _activeListId = null;
       renderDetail();
+    };
+    window.glDeleteListFromCard = function(id) {
+      var list = getList(id);
+      if (!list || list.source === 'coach') return;
+      if (!window.confirm('Delete "' + list.name + '"? This can\'t be undone.')) return;
+      var s = ensureSeeded();
+      s.lists = s.lists.filter(function(l){ return l.id !== id; });
+      saveState(s);
+      if (_activeListId === id) _activeListId = null;
+      if (_glItemsModalListId === id) window.glCloseItemsModal();
+      renderLists();
+      renderDetail();
+    };
+    window.glRenameFromItemsModal = function() {
+      if (!_glItemsModalListId) return;
+      var list = getList(_glItemsModalListId);
+      if (!list || list.source === 'coach') return;
+      window.glOpenModal('rename', _glItemsModalListId);
+    };
+    window.glDeleteFromItemsModal = function() {
+      if (!_glItemsModalListId) return;
+      var list = getList(_glItemsModalListId);
+      if (!list || list.source === 'coach') return;
+      if (!window.confirm('Delete "' + list.name + '"? This can\'t be undone.')) return;
+      var s = ensureSeeded();
+      var id = _glItemsModalListId;
+      s.lists = s.lists.filter(function(l){ return l.id !== id; });
+      saveState(s);
+      _activeListId = null;
+      window.glCloseItemsModal();
     };
     var _glModalMode = 'create';
     var _glModalEditId = null;
@@ -7105,6 +7171,7 @@
       var body = document.getElementById('glItemsModalBody');
       var countEl = document.getElementById('glItemsModalCount');
       if (!body || !list) return;
+      var isCoachCtx = list.source === 'coach';
       var total = (list.items || []).length;
       if (countEl) countEl.textContent = total + ' item' + (total === 1 ? '' : 's');
       if (!total) {
@@ -7134,7 +7201,9 @@
           html += '<div class="grocery-name-line"><span class="grocery-name">' + escapeHtml(item.name) + '</span></div>';
           if (item.qty) html += '<div class="grocery-qty">' + escapeHtml(item.qty) + '</div>';
           html += '</div>';
-          html += '<button type="button" class="grocery-remove" onclick="event.stopPropagation();glRemoveItemFromModal(\'' + escapeHtml(item.id) + '\');" title="Remove">&times;</button>';
+          if (!isCoachCtx) {
+            html += '<button type="button" class="grocery-remove" onclick="event.stopPropagation();glRemoveItemFromModal(\'' + escapeHtml(item.id) + '\');" title="Remove">&times;</button>';
+          }
           html += '</div>';
         });
         html += '</div>';
@@ -7150,13 +7219,30 @@
       _activeListId = id;
       var modal = document.getElementById('glItemsModal');
       var title = document.getElementById('glItemsModalTitle');
+      var eyebrow = document.getElementById('glItemsModalEyebrow');
+      var metaEl = document.getElementById('glItemsModalMeta');
+      var addForm = document.getElementById('glItemsModalForm');
+      var renameBtn = document.getElementById('glItemsRenameBtn');
+      var deleteBtn = document.getElementById('glItemsDeleteBtn');
+      var isCoach = list.source === 'coach';
       if (title) title.textContent = list.name;
+      if (eyebrow) eyebrow.textContent = isCoach ? 'From your nutritionist' : 'Your list';
+      if (metaEl) {
+        var metaBits = [];
+        if (isCoach && list.coach) metaBits.push('By ' + list.coach);
+        if (list.createdAt) metaBits.push('Created ' + formatDate(list.createdAt));
+        if (list.updatedAt && list.updatedAt !== list.createdAt) metaBits.push('Updated ' + formatDate(list.updatedAt));
+        metaEl.textContent = metaBits.join(' \u00b7 ');
+      }
+      if (addForm) addForm.style.display = isCoach ? 'none' : '';
+      if (renameBtn) renameBtn.style.display = isCoach ? 'none' : '';
+      if (deleteBtn) deleteBtn.style.display = isCoach ? 'none' : '';
       renderItemsModalBody();
       if (modal) modal.classList.add('open');
       setTimeout(function(){
         var f = document.getElementById('glItemsModalForm');
         var nameIn = f && f.querySelector('[data-role="name"]');
-        if (nameIn) { try { nameIn.focus(); } catch(e){} }
+        if (nameIn && !isCoach) { try { nameIn.focus(); } catch(e){} }
       }, 60);
     };
     window.glCloseItemsModal = function() {
@@ -7262,11 +7348,17 @@
   <div class="gl-modal-overlay gl-items-overlay" id="glItemsModal" onclick="if(event.target===this)glCloseItemsModal()" role="dialog" aria-modal="true">
     <div class="gl-modal gl-modal-lg">
       <div class="gl-modal-head">
-        <div>
-          <div class="gl-modal-eyebrow">Add ingredients</div>
+        <div class="gl-modal-head-text">
+          <div class="gl-modal-eyebrow" id="glItemsModalEyebrow">Add ingredients</div>
           <h3 id="glItemsModalTitle">New list</h3>
+          <div class="gl-modal-meta" id="glItemsModalMeta"></div>
         </div>
         <button type="button" class="gl-modal-close" onclick="glCloseItemsModal()" aria-label="Close">&times;</button>
+      </div>
+
+      <div class="gl-modal-head-actions" id="glItemsModalHeadActions">
+        <button type="button" class="gl-modal-headbtn" id="glItemsRenameBtn" onclick="glRenameFromItemsModal()">Rename</button>
+        <button type="button" class="gl-modal-headbtn danger" id="glItemsDeleteBtn" onclick="glDeleteFromItemsModal()">Delete list</button>
       </div>
 
       <form id="glItemsModalForm" class="grocery-add-form gl-items-add" onsubmit="event.preventDefault(); glAddItemToModal(this);">
