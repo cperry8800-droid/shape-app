@@ -1214,6 +1214,46 @@
     </div>
   </section>
 
+  <!-- Stripe Connect banner (shown until payouts are active) -->
+  <div class="container" id="shapeStripeBanner" style="display:none;margin-top:14px;">
+    <div style="background:linear-gradient(135deg,rgba(45,212,191,0.12),rgba(45,212,191,0.04));border:1px solid rgba(45,212,191,0.35);padding:16px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:220px;">
+        <div style="font-size:0.78rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#2DD4BF;margin-bottom:4px;" id="shapeStripeBannerTitle">Connect payouts</div>
+        <div style="font-size:0.86rem;color:var(--text-muted);" id="shapeStripeBannerMsg">Finish Stripe setup so clients can pay you. Shape keeps 15%; you keep 85% — paid directly to your Stripe account.</div>
+      </div>
+      <button type="button" id="shapeStripeBannerBtn" class="btn btn-primary" style="white-space:nowrap;">Connect Stripe</button>
+    </div>
+  </div>
+  <script>
+    (async function () {
+      if (!window.shapeDb) return;
+      var provider = await window.shapeDb.getMyProvider('nutritionist');
+      if (!provider) return;
+      var banner = document.getElementById('shapeStripeBanner');
+      var btn = document.getElementById('shapeStripeBannerBtn');
+      var title = document.getElementById('shapeStripeBannerTitle');
+      var msg = document.getElementById('shapeStripeBannerMsg');
+      if (!banner || !btn) return;
+      var status = provider.stripe_account_status;
+      if (status === 'active') return;
+      banner.style.display = 'block';
+      if (status === 'pending' && provider.stripe_account_id) {
+        title.textContent = 'Finish Stripe setup';
+        msg.textContent = 'Stripe still needs a bit more info before you can accept payments.';
+        btn.textContent = 'Continue setup';
+      } else if (status === 'restricted') {
+        title.textContent = 'Stripe account restricted';
+        msg.textContent = 'Stripe has flagged something on your account. Open Stripe to resolve.';
+        btn.textContent = 'Open Stripe';
+      }
+      btn.addEventListener('click', function () {
+        btn.disabled = true;
+        btn.textContent = 'Opening Stripe…';
+        window.shapeDb.startStripeOnboarding('nutritionist', provider.id);
+      });
+    })();
+  </script>
+
   <!-- Tab Bar -->
   <div class="nd-tab-bar" id="ndTabBar">
     <button class="nd-tab-btn active" data-tab="home" data-icon="☉" onclick="ndSwitchTab('home', this)">Today</button>

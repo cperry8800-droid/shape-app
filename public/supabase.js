@@ -274,6 +274,48 @@
       return await client.from('sessions').update(patch).eq('id', id).select().single();
     },
 
+    // Fetch the trainer or nutritionist row owned by the signed-in user.
+    // Used by dashboard pages to drive Stripe Connect onboarding banners.
+    async getMyProvider(role) {
+      var session = await shapeDb.getSession();
+      if (!session) return null;
+      var table = role === 'trainer' ? 'trainers' : role === 'nutritionist' ? 'nutritionists' : null;
+      if (!table) return null;
+      var res = await client
+        .from(table)
+        .select('id, name, stripe_account_id, stripe_account_status')
+        .eq('owner_id', session.user.id)
+        .maybeSingle();
+      if (res.error) {
+        console.warn('[shape] getMyProvider error', res.error);
+        return null;
+      }
+      return res.data;
+    },
+
+    // Kick off Stripe Connect onboarding for the signed-in provider. Server
+    // creates (or reuses) the Connect account and returns a hosted
+    // onboarding URL; we send the user there.
+    async startStripeOnboarding(role, providerId) {
+      var session = await shapeDb.getSession();
+      if (!session) { window.location.href = 'login.html'; return; }
+      var res = await fetch('/api/stripe/connect/onboard', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + session.access_token,
+        },
+        body: JSON.stringify({ provider_role: role, provider_id: providerId }),
+      });
+      if (!res.ok) {
+        var text = await res.text();
+        alert('Stripe onboarding failed: ' + text);
+        return;
+      }
+      var json = await res.json();
+      if (json.url) window.location.href = json.url;
+    },
+
     // ===== Marketplace reads (Phase 1b) =====
     // These return data in the SAME SHAPE as the hardcoded arrays in app.js
     // (camelCase field names, nested workouts/plans, etc.) so the existing

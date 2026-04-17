@@ -345,6 +345,23 @@
       </div>
     </div>
 
+    <!-- Stripe CTAs: visitors subscribe or buy a meal plan -->
+    <div id="tpStripeCtas" style="display:flex;gap:10px;flex-wrap:wrap;margin:0 0 24px;">
+      <a id="tpSubscribeLink" href="#" class="btn btn-primary" style="flex:1;min-width:160px;text-align:center;">Subscribe monthly</a>
+      <a id="tpBuyMealPlanLink" href="#" class="btn btn-secondary" style="flex:1;min-width:160px;text-align:center;">Buy meal plan</a>
+    </div>
+    <script>
+      (function () {
+        var params = new URLSearchParams(window.location.search);
+        var id = params.get('id') || params.get('provider');
+        if (!id) { var c = document.getElementById('tpStripeCtas'); if (c) c.style.display = 'none'; return; }
+        var sub = document.getElementById('tpSubscribeLink');
+        var buy = document.getElementById('tpBuyMealPlanLink');
+        if (sub) sub.href = '/subscribe?role=nutritionist&id=' + encodeURIComponent(id);
+        if (buy) buy.href = '/purchase?role=nutritionist&kind=meal_plan&id=' + encodeURIComponent(id);
+      })();
+    </script>
+
     <!-- Bio -->
     <div class="tp-section" id="bioSection">
       <div class="tp-section-header">
