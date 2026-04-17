@@ -249,6 +249,19 @@
       opacity: 1;
       transition-delay: 0.3s;
     }
+    /* Radial bloom burst */
+    .dissolve-bloom {
+      position: fixed; inset: 0; z-index: 198;
+      pointer-events: none;
+      background: radial-gradient(circle at center, rgba(45,212,191,0.55) 0%, rgba(45,212,191,0.15) 22%, rgba(0,0,0,0) 55%);
+      opacity: 0;
+      transform: scale(0.3);
+      transition: opacity 0.9s ease-out, transform 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .dissolve-bloom.active {
+      opacity: 1;
+      transform: scale(2.4);
+    }
 
     /* Content dissolve state */
     .intro-content.leaving {
@@ -355,6 +368,7 @@
 
   <!-- Dissolve Transition Layers -->
   <canvas class="dissolve-particles" id="dissolveCanvas"></canvas>
+  <div class="dissolve-bloom" id="dissolveBloom"></div>
   <div class="dissolve-overlay" id="dissolveOverlay">
     <div class="dissolve-flash"></div>
   </div>
@@ -507,9 +521,10 @@
       // 1. Spawn dissolve particles
       spawnDissolveParticles();
 
-      // 2. Trigger content dissolve
+      // 2. Trigger content dissolve + radial bloom burst
       document.getElementById('introContent').classList.add('leaving');
       document.querySelector('.bg-flow').classList.add('leaving');
+      document.getElementById('dissolveBloom').classList.add('active');
 
       // 3. Activate flash overlay
       setTimeout(() => {
