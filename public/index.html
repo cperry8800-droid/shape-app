@@ -7,26 +7,17 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
-    /* Cross-document view transition — intro morphs into home */
-    @view-transition { navigation: auto; }
-
-    ::view-transition-old(root) {
-      animation: 900ms cubic-bezier(0.4, 0, 0.2, 1) both shape-morph-out;
-    }
-    ::view-transition-new(root) {
-      animation: 1200ms cubic-bezier(0.16, 1, 0.3, 1) both shape-morph-in;
-    }
-    @keyframes shape-morph-out {
-      0%   { opacity: 1; filter: blur(0) brightness(1); transform: scale(1); }
-      100% { opacity: 0; filter: blur(14px) brightness(1.4); transform: scale(1.08); }
-    }
-    @keyframes shape-morph-in {
-      0%   { opacity: 0; filter: blur(12px) brightness(0.85); transform: scale(1.04); }
-      60%  { opacity: 1; }
-      100% { opacity: 1; filter: blur(0) brightness(1); transform: scale(1); }
-    }
-
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    /* Morph-out: whole page blurs, brightens, scales, fades — animates to a snapshot
+       that visually matches home.html's morph-in keyframes */
+    body.shape-leaving {
+      animation: shapeLeave 750ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+    @keyframes shapeLeave {
+      0%   { opacity: 1; filter: blur(0) brightness(1); transform: scale(1); }
+      100% { opacity: 0; filter: blur(14px) brightness(1.5); transform: scale(1.08); }
+    }
 
     body {
       font-family: 'Inter', -apple-system, sans-serif;
@@ -535,22 +526,23 @@
     })();
 
     // ===== Morph Transition =====
-    // Content scales + blooms for ~350ms, then navigates.
-    // The View Transitions API (see @view-transition in <style>) cross-fades
-    // the snapshot into home.html so it feels like a seamless morph.
+    // The whole intro page animates out (blur + scale + fade). At the end,
+    // we navigate to home.html, which detects the sessionStorage flag and
+    // plays the matching morph-in animation — so the two pages visually
+    // connect into one continuous morph instead of a hard cut.
     function enterSite(e) {
       e.preventDefault();
       stopIntroSound();
 
-      // Brief cinematic flourish before the view transition snapshot
-      document.getElementById('introContent').classList.add('leaving');
-      document.querySelector('.bg-flow').classList.add('leaving');
+      try { sessionStorage.setItem('shape-from-intro', '1'); } catch (_) {}
+
       document.getElementById('dissolveBloom').classList.add('active');
       spawnDissolveParticles();
+      document.body.classList.add('shape-leaving');
 
       setTimeout(() => {
         window.location.href = 'home.html';
-      }, 380);
+      }, 720);
     }
 
     // Dissolve particles effect
