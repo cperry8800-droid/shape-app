@@ -5517,6 +5517,22 @@
   <script>
     function toggleEdit(sectionId) { document.getElementById(sectionId).classList.add('editing'); }
     function cancelEdit(sectionId) { document.getElementById(sectionId).classList.remove('editing'); }
+    const CP_SOCIAL_KEYS = ['instagram', 'twitter', 'tiktok'];
+    function _cpSocialUrl(key, val) {
+      if (!val) return '';
+      const v = String(val).trim();
+      if (/^https?:\/\//i.test(v)) return v;
+      const handle = v.replace(/^@/, '').replace(/^\/+/, '');
+      if (key === 'instagram') return 'https://instagram.com/' + handle;
+      if (key === 'twitter')   return 'https://x.com/' + handle;
+      if (key === 'tiktok')    return 'https://tiktok.com/@' + handle;
+      return v;
+    }
+    function _cpRenderSocialDisplay(display, key, val) {
+      if (!val) { display.textContent = ''; return; }
+      const url = _cpSocialUrl(key, val);
+      display.innerHTML = '<a href="' + url + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent);text-decoration:none;">' + val + '</a>';
+    }
     function saveSection(sectionId) {
       const section = document.getElementById(sectionId);
       section.querySelectorAll('.cp-field').forEach(field => {
@@ -5529,13 +5545,27 @@
           else if (input.dataset.key === 'weight' || input.dataset.key === 'currentWeight' || input.dataset.key === 'goalWeight') val = val + ' lbs';
           else if (['chest','waist','hips','arms','thighs'].includes(input.dataset.key)) val = val + ' in';
           else if (input.tagName === 'SELECT') val = input.options[input.selectedIndex].text;
-          display.textContent = val;
+          if (CP_SOCIAL_KEYS.includes(input.dataset.key)) {
+            _cpRenderSocialDisplay(display, input.dataset.key, val);
+          } else {
+            display.textContent = val;
+          }
         }
       });
       section.classList.remove('editing');
       cpSaveToLocalStorage();
       showCpToast('Profile updated!');
     }
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('#section-social .cp-field').forEach(function(field) {
+        const input = field.querySelector('input[data-key]');
+        const display = field.querySelector('.cp-field-value');
+        if (input && display && CP_SOCIAL_KEYS.includes(input.dataset.key)) {
+          const val = (display.textContent || '').trim();
+          if (val) _cpRenderSocialDisplay(display, input.dataset.key, val);
+        }
+      });
+    });
 
     function showCpToast(msg) {
       const t = document.getElementById('cpToast');
