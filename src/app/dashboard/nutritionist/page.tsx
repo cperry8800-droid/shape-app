@@ -32,12 +32,20 @@ export default async function NutritionistDashboardPage() {
                 Your nutritionist profile · ID #{nutritionist.id}
               </p>
             </div>
-            <Link
-              href={`/nutritionist-profile.html?id=${nutritionist.id}`}
-              className="text-xs text-teal-400 hover:text-teal-300"
-            >
-              View public profile →
-            </Link>
+            <div className="flex items-center gap-4">
+              <Link
+                href="/nutrition-schedule.html"
+                className="text-xs font-medium uppercase tracking-[0.08em] border border-teal-400/60 text-teal-300 px-3 py-2 hover:bg-teal-400 hover:text-neutral-950 transition-colors"
+              >
+                Open full dashboard →
+              </Link>
+              <Link
+                href={`/nutritionist-profile.html?id=${nutritionist.id}`}
+                className="text-xs text-teal-400 hover:text-teal-300"
+              >
+                View public profile →
+              </Link>
+            </div>
           </div>
           <div className="grid grid-cols-3 gap-4 text-sm">
             <Stat label="Active subs" value={activeSubs.length.toString()} />
