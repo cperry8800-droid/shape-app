@@ -1306,22 +1306,27 @@
   .tcal-body { padding: 18px 22px; overflow: auto; flex: 1; }
   .tcal-grid-month { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
   .tcal-dow { font-size: 0.62rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); padding: 6px 4px; text-align: center; }
-  .tcal-cell { min-height: 86px; padding: 6px 8px; border: 1px solid var(--border); background: var(--bg); display: flex; flex-direction: column; gap: 3px; font-size: 0.72rem; }
-  .tcal-cell.empty { background: transparent; border-color: transparent; }
+  .tcal-cell { min-height: 86px; padding: 6px 8px; border: 1px solid var(--border); background: var(--bg); display: flex; flex-direction: column; gap: 3px; font-size: 0.72rem; cursor: pointer; transition: background 0.15s, border-color 0.15s; }
+  .tcal-cell:hover { background: var(--bg-card); border-color: var(--accent); }
+  .tcal-cell.empty { background: transparent; border-color: transparent; cursor: default; }
+  .tcal-cell.empty:hover { background: transparent; border-color: transparent; }
   .tcal-cell.today { border-color: var(--accent); }
   .tcal-cell-date { font-size: 0.72rem; color: var(--text-muted); margin-bottom: 2px; font-variant-numeric: tabular-nums; }
   .tcal-cell.today .tcal-cell-date { color: var(--accent); font-weight: 600; }
-  .tcal-event { font-size: 0.64rem; padding: 2px 5px; border-left: 2px solid var(--accent); background: rgba(45,212,191,0.08); color: var(--text); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  .tcal-event { font-size: 0.64rem; padding: 2px 5px; border-left: 2px solid var(--accent); background: rgba(45,212,191,0.08); color: var(--text); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; transition: filter 0.15s; }
+  .tcal-event:hover { filter: brightness(1.4); }
   .tcal-event.ev-workout { border-color: #2DD4BF; background: rgba(45,212,191,0.1); }
   .tcal-event.ev-meal { border-color: #3B82F6; background: rgba(59,130,246,0.1); }
   .tcal-event.ev-checkin { border-color: #F59E0B; background: rgba(245,158,11,0.1); }
   .tcal-event.ev-rest { border-color: #6C3AED; background: rgba(108,58,237,0.1); }
   .tcal-grid-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
-  .tcal-week-cell { min-height: 360px; padding: 8px; border: 1px solid var(--border); background: var(--bg); display: flex; flex-direction: column; gap: 4px; }
+  .tcal-week-cell { min-height: 360px; padding: 8px; border: 1px solid var(--border); background: var(--bg); display: flex; flex-direction: column; gap: 4px; cursor: pointer; transition: background 0.15s, border-color 0.15s; }
+  .tcal-week-cell:hover { background: var(--bg-card); border-color: var(--accent); }
   .tcal-week-cell.today { border-color: var(--accent); }
   .tcal-week-head { font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 4px; text-align: center; }
   .tcal-week-cell.today .tcal-week-head { color: var(--accent); }
-  .tcal-week-event { font-size: 0.7rem; padding: 6px 8px; border-left: 2px solid var(--accent); background: rgba(45,212,191,0.08); line-height: 1.4; cursor: pointer; }
+  .tcal-week-event { font-size: 0.7rem; padding: 6px 8px; border-left: 2px solid var(--accent); background: rgba(45,212,191,0.08); line-height: 1.4; cursor: pointer; transition: filter 0.15s, transform 0.15s; }
+  .tcal-week-event:hover { filter: brightness(1.4); transform: translateX(2px); }
   .tcal-week-event.ev-workout { border-color: #2DD4BF; background: rgba(45,212,191,0.1); }
   .tcal-week-event.ev-meal { border-color: #3B82F6; background: rgba(59,130,246,0.1); }
   .tcal-week-event.ev-checkin { border-color: #F59E0B; background: rgba(245,158,11,0.1); }
@@ -1336,6 +1341,28 @@
   .tcal-legend-swatch.ev-meal { border-color: #3B82F6; background: rgba(59,130,246,0.1); }
   .tcal-legend-swatch.ev-checkin { border-color: #F59E0B; background: rgba(245,158,11,0.1); }
   .tcal-legend-swatch.ev-rest { border-color: #6C3AED; background: rgba(108,58,237,0.1); }
+  .tcal-detail-overlay { display: none; position: fixed; inset: 0; z-index: 10001; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); align-items: center; justify-content: center; padding: 24px; }
+  .tcal-detail-overlay.open { display: flex; }
+  .tcal-detail-modal { background: var(--bg-card); border: 1px solid var(--border); width: 100%; max-width: 480px; max-height: calc(100vh - 48px); overflow: auto; display: flex; flex-direction: column; }
+  .tcal-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 22px 10px; border-bottom: 1px solid var(--border); }
+  .tcal-detail-head h3 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--text); }
+  .tcal-detail-date { font-size: 0.72rem; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .tcal-detail-close { background: transparent; border: 0; color: var(--text-muted); font-size: 1.4rem; line-height: 1; cursor: pointer; padding: 0; }
+  .tcal-detail-close:hover { color: var(--text); }
+  .tcal-detail-body { padding: 14px 22px 18px; display: flex; flex-direction: column; gap: 10px; }
+  .tcal-detail-event { border-left: 3px solid var(--accent); background: rgba(45,212,191,0.08); padding: 10px 12px; }
+  .tcal-detail-event.ev-workout { border-color: #2DD4BF; background: rgba(45,212,191,0.1); }
+  .tcal-detail-event.ev-meal { border-color: #3B82F6; background: rgba(59,130,246,0.1); }
+  .tcal-detail-event.ev-checkin { border-color: #F59E0B; background: rgba(245,158,11,0.1); }
+  .tcal-detail-event.ev-rest { border-color: #6C3AED; background: rgba(108,58,237,0.1); }
+  .tcal-detail-event-time { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+  .tcal-detail-event-title { font-weight: 600; font-size: 0.9rem; color: var(--text); }
+  .tcal-detail-event-sub { font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; }
+  .tcal-detail-event-type { display: inline-block; font-size: 0.6rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-top: 8px; padding: 2px 6px; border: 1px solid var(--border); }
+  .tcal-detail-empty { text-align: center; padding: 28px 12px; color: var(--text-muted); font-size: 0.82rem; }
+  .tcal-detail-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .tcal-detail-action-btn { flex: 1; min-width: 120px; background: transparent; border: 1px solid var(--border); color: var(--text); padding: 8px 12px; font-family: inherit; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; cursor: pointer; transition: border-color 0.15s, color 0.15s; }
+  .tcal-detail-action-btn:hover { border-color: var(--accent); color: var(--accent); }
   @media (max-width: 768px) {
     .tcal-overlay { padding: 0; }
     .tcal-modal { max-height: 100vh; height: 100vh; }
@@ -1343,6 +1370,7 @@
     .tcal-week-cell { min-height: 0; }
     .tcal-cell { min-height: 64px; padding: 4px 5px; font-size: 0.65rem; }
     .tcal-dow { font-size: 0.55rem; }
+    .tcal-detail-overlay { padding: 12px; }
   }
   .widget-body > *:first-child { margin-top: 0 !important; }
   .widget-body > *:last-child { margin-bottom: 0 !important; }
@@ -4984,6 +5012,20 @@
       </div>
     </div>
   </div>
+
+  <!-- ===== Today Calendar Detail Popup ===== -->
+  <div class="tcal-detail-overlay" id="tcalDetailOverlay" onclick="if(event.target===this)tcalCloseDetail()">
+    <div class="tcal-detail-modal">
+      <div class="tcal-detail-head">
+        <div>
+          <h3 id="tcalDetailTitle">Details</h3>
+          <div class="tcal-detail-date" id="tcalDetailDate"></div>
+        </div>
+        <button class="tcal-detail-close" onclick="tcalCloseDetail()">&times;</button>
+      </div>
+      <div class="tcal-detail-body" id="tcalDetailBody"></div>
+    </div>
+  </div>
   <script>
     (function(){
       var view = 'week';
@@ -5039,11 +5081,12 @@
           for (var i = 0; i < 7; i++) {
             var d = addDays(start, i);
             var isToday = sameDay(d, today);
-            var events = window.tcalEvents[ymd(d)] || [];
-            html += '<div class="tcal-week-cell' + (isToday ? ' today' : '') + '">';
+            var dKey = ymd(d);
+            var events = window.tcalEvents[dKey] || [];
+            html += '<div class="tcal-week-cell' + (isToday ? ' today' : '') + '" data-cell-date="' + dKey + '" role="button" tabindex="0">';
             html += '<div class="tcal-week-head">' + dows[d.getDay()] + ' ' + d.getDate() + '</div>';
-            events.forEach(function(ev) {
-              html += '<div class="tcal-week-event ' + ev.type + '"><div class="tcal-week-event-time">' + ev.time + '</div><div class="tcal-week-event-title">' + ev.title + '</div><div class="tcal-week-event-sub">' + ev.sub + '</div></div>';
+            events.forEach(function(ev, idx) {
+              html += '<div class="tcal-week-event ' + ev.type + '" data-ev-date="' + dKey + '" data-ev-idx="' + idx + '" role="button" tabindex="0"><div class="tcal-week-event-time">' + ev.time + '</div><div class="tcal-week-event-title">' + ev.title + '</div><div class="tcal-week-event-sub">' + ev.sub + '</div></div>';
             });
             html += '</div>';
           }
@@ -5061,11 +5104,12 @@
           for (var i = 1; i <= daysInMonth; i++) {
             var d = new Date(first.getFullYear(), first.getMonth(), i);
             var isToday = sameDay(d, today);
-            var events = window.tcalEvents[ymd(d)] || [];
-            html += '<div class="tcal-cell' + (isToday ? ' today' : '') + '">';
+            var dKey = ymd(d);
+            var events = window.tcalEvents[dKey] || [];
+            html += '<div class="tcal-cell' + (isToday ? ' today' : '') + '" data-cell-date="' + dKey + '" role="button" tabindex="0">';
             html += '<div class="tcal-cell-date">' + i + '</div>';
-            events.slice(0,3).forEach(function(ev) {
-              html += '<div class="tcal-event ' + ev.type + '" title="' + ev.time + ' — ' + ev.title + '">' + ev.title + '</div>';
+            events.slice(0,3).forEach(function(ev, idx) {
+              html += '<div class="tcal-event ' + ev.type + '" data-ev-date="' + dKey + '" data-ev-idx="' + idx + '" role="button" tabindex="0" title="' + ev.time + ' — ' + ev.title + '">' + ev.title + '</div>';
             });
             if (events.length > 3) html += '<div class="tcal-cell-date" style="margin-top:2px;">+' + (events.length-3) + ' more</div>';
             html += '</div>';
@@ -5074,6 +5118,78 @@
           body.innerHTML = html;
         }
       }
+
+      function escHtml(s) { return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+      function typeLabel(t) {
+        return { 'ev-workout':'Workout', 'ev-meal':'Meal', 'ev-checkin':'Check-in', 'ev-rest':'Rest / body-check' }[t] || 'Event';
+      }
+      function formatDateLong(dateKey) {
+        var parts = dateKey.split('-');
+        var d = new Date(parseInt(parts[0],10), parseInt(parts[1],10)-1, parseInt(parts[2],10));
+        var longDows = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+        var longMonths = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        return longDows[d.getDay()] + ', ' + longMonths[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+      }
+      function renderEventHtml(ev) {
+        return '<div class="tcal-detail-event ' + escHtml(ev.type) + '">'
+          + '<div class="tcal-detail-event-time">' + escHtml(ev.time) + '</div>'
+          + '<div class="tcal-detail-event-title">' + escHtml(ev.title) + '</div>'
+          + (ev.sub ? '<div class="tcal-detail-event-sub">' + escHtml(ev.sub) + '</div>' : '')
+          + '<span class="tcal-detail-event-type">' + escHtml(typeLabel(ev.type)) + '</span>'
+          + '</div>';
+      }
+      function showDay(dateKey) {
+        var events = window.tcalEvents[dateKey] || [];
+        document.getElementById('tcalDetailTitle').textContent = events.length ? (events.length + ' event' + (events.length>1?'s':'')) : 'No events';
+        document.getElementById('tcalDetailDate').textContent = formatDateLong(dateKey);
+        var body = document.getElementById('tcalDetailBody');
+        if (!events.length) {
+          body.innerHTML = '<div class="tcal-detail-empty">Nothing scheduled for this day.</div>';
+        } else {
+          body.innerHTML = events.map(renderEventHtml).join('');
+        }
+        document.getElementById('tcalDetailOverlay').classList.add('open');
+      }
+      function showEvent(dateKey, idx) {
+        var events = window.tcalEvents[dateKey] || [];
+        var ev = events[idx];
+        if (!ev) return;
+        document.getElementById('tcalDetailTitle').textContent = ev.title;
+        document.getElementById('tcalDetailDate').textContent = formatDateLong(dateKey);
+        document.getElementById('tcalDetailBody').innerHTML = renderEventHtml(ev);
+        document.getElementById('tcalDetailOverlay').classList.add('open');
+      }
+      window.tcalCloseDetail = function() {
+        document.getElementById('tcalDetailOverlay').classList.remove('open');
+      };
+
+      document.getElementById('tcalBody').addEventListener('click', function(e) {
+        var evEl = e.target.closest('[data-ev-idx]');
+        if (evEl) {
+          e.stopPropagation();
+          showEvent(evEl.getAttribute('data-ev-date'), parseInt(evEl.getAttribute('data-ev-idx'), 10));
+          return;
+        }
+        var cellEl = e.target.closest('[data-cell-date]');
+        if (cellEl) showDay(cellEl.getAttribute('data-cell-date'));
+      });
+      document.getElementById('tcalBody').addEventListener('keydown', function(e) {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        var evEl = e.target.closest('[data-ev-idx]');
+        if (evEl) {
+          e.preventDefault();
+          showEvent(evEl.getAttribute('data-ev-date'), parseInt(evEl.getAttribute('data-ev-idx'), 10));
+          return;
+        }
+        var cellEl = e.target.closest('[data-cell-date]');
+        if (cellEl) { e.preventDefault(); showDay(cellEl.getAttribute('data-cell-date')); }
+      });
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+          var det = document.getElementById('tcalDetailOverlay');
+          if (det && det.classList.contains('open')) { det.classList.remove('open'); return; }
+        }
+      });
     })();
   </script>
 
