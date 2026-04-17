@@ -6861,7 +6861,8 @@
     }
     function ensureSeeded() {
       var s = loadState();
-      if (s) return s;
+      var hasCoach = s && Array.isArray(s.lists) && s.lists.some(function(l){ return l && l.source === 'coach'; });
+      if (s && hasCoach) return s;
       var now = Date.now();
       var seed = {
         lists: [
@@ -6894,6 +6895,10 @@
           }
         ]
       };
+      if (s && Array.isArray(s.lists)) {
+        var personal = s.lists.filter(function(l){ return l && l.source !== 'coach'; });
+        seed.lists = seed.lists.concat(personal);
+      }
       saveState(seed);
       return seed;
     }
@@ -7061,7 +7066,7 @@
       _activeListId = null;
       renderLists();
       renderDetail();
-      if (gp) gp.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch(e) { window.scrollTo(0, 0); }
     };
     window.glClosePage = function() {
       var def = document.querySelector('#tabNutrition .nutri-default-view');
