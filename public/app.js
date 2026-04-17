@@ -1702,7 +1702,7 @@ if (totmCard) {
           <div style="margin-top: 24px; display: flex; gap: 12px; flex-wrap: wrap;">
             <button class="btn btn-primary" onclick="event.stopPropagation();openTrainerModal(${totm.id})">View Workouts</button>
             <a class="btn btn-outline" href="trainer-profile.html?id=${totm.id}" onclick="event.stopPropagation()">Profile</a>
-            <button class="btn btn-outline" onclick="event.stopPropagation();subscribe('${totm.name}', ${totm.price})">Subscribe — $${totm.price}/mo</button>
+            <button class="btn btn-outline" onclick="event.stopPropagation();shapeSubscribe('trainer', ${totm.id})">Subscribe — $${totm.price}/mo</button>
           </div>
         </div>
       </div>
@@ -1746,7 +1746,7 @@ if (notmCard) {
           <div class="card-actions">
             <button class="btn btn-primary" onclick="event.stopPropagation();openNutritionistModal(${notm.id})">View Plans</button>
             <a class="btn btn-outline" href="nutritionist-profile.html?id=${notm.id}" onclick="event.stopPropagation()">Profile</a>
-            <button class="btn btn-outline" onclick="event.stopPropagation();subscribe('${notm.name}', ${notm.price})">Subscribe — $${notm.price}/mo</button>
+            <button class="btn btn-outline" onclick="event.stopPropagation();shapeSubscribe('nutritionist', ${notm.id})">Subscribe — $${notm.price}/mo</button>
           </div>
         </div>
       </div>
@@ -2013,7 +2013,10 @@ function openTrainerModal(id) {
         <div class="card-price">$${t.price}<span>/mo</span></div>
         <div style="font-size:0.82rem;color:var(--text-muted);">Subscribe for all workouts + new plans monthly</div>
       </div>
-      <button class="btn btn-primary" onclick="subscribe('${t.name}', ${t.price})">Subscribe Now</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-outline" onclick="shapeBookOneTime('trainer', ${t.id}, 'booking')">Book a session</button>
+        <button class="btn btn-primary" onclick="shapeSubscribe('trainer', ${t.id})">Subscribe Now</button>
+      </div>
     </div>
   `;
   document.getElementById('trainerModal').classList.add('active');
@@ -2097,7 +2100,10 @@ function openNutritionistModal(id) {
         <div class="card-price">$${n.price}<span>/mo</span></div>
         <div style="font-size:0.82rem;color:var(--text-muted);">Subscribe for all plans + new ones monthly</div>
       </div>
-      <button class="btn btn-accent" onclick="subscribe('${n.name}', ${n.price})">Subscribe Now</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-outline" onclick="shapeBookOneTime('nutritionist', ${n.id}, 'meal_plan')">Buy meal plan</button>
+        <button class="btn btn-accent" onclick="shapeSubscribe('nutritionist', ${n.id})">Subscribe Now</button>
+      </div>
     </div>
   `;
   document.getElementById('trainerModal').classList.add('active');
@@ -2107,6 +2113,18 @@ function openNutritionistModal(id) {
 function subscribe(name, price) {
   closeAllModals();
   showToast(`Subscribed to ${name} — $${price}/mo`);
+}
+
+// Real Stripe flow — redirect to the Next.js /subscribe or /purchase landing,
+// which spawns a Checkout Session bound to the provider's connected account.
+function shapeSubscribe(role, id) {
+  window.location.href = '/subscribe?role=' + encodeURIComponent(role) + '&id=' + encodeURIComponent(id);
+}
+function shapeBookOneTime(role, id, kind) {
+  window.location.href =
+    '/purchase?role=' + encodeURIComponent(role) +
+    '&id=' + encodeURIComponent(id) +
+    '&kind=' + encodeURIComponent(kind);
 }
 
 function bookConsultation(name, type) {
