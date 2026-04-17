@@ -305,16 +305,14 @@
     }
     .mkt-sort:focus { border-color: var(--accent); }
 
-    /* Chip row (horizontal scroll on mobile) */
+    /* Chip row (wraps to show all options without scrolling) */
     .mkt-chips {
       display: flex;
+      flex-wrap: wrap;
       gap: 8px;
-      overflow-x: auto;
       padding-bottom: 4px;
       margin-bottom: 24px;
-      scrollbar-width: none;
     }
-    .mkt-chips::-webkit-scrollbar { display: none; }
     .mkt-chip {
       flex-shrink: 0;
       padding: 7px 14px;
@@ -330,6 +328,10 @@
       cursor: pointer;
       transition: all 0.2s;
       white-space: nowrap;
+    }
+    @media (max-width: 640px) {
+      .mkt-chip { font-size: 0.72rem; padding: 6px 11px; }
+      .mkt-chips { gap: 6px; }
     }
     .mkt-chip:hover { color: var(--text); border-color: rgba(255,255,255,0.25); }
     .mkt-chip.active {
