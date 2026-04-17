@@ -4,6 +4,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Shape — Pricing</title>
+  <meta name="description" content="Shape pricing — simple, transparent plans for clients, trainers, nutritionists, and gyms. Start free.">
+  <link rel="canonical" href="https://theshapecommunity.com/pricing.html">
+  <meta property="og:site_name" content="Shape">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://theshapecommunity.com/pricing.html">
+  <meta property="og:title" content="Shape — Pricing">
+  <meta property="og:description" content="Shape pricing — simple, transparent plans for clients, trainers, nutritionists, and gyms. Start free.">
+  <meta property="og:image" content="https://theshapecommunity.com/icon-512.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Shape — Pricing">
+  <meta name="twitter:description" content="Shape pricing — simple, transparent plans for clients, trainers, nutritionists, and gyms. Start free.">
+  <meta name="twitter:image" content="https://theshapecommunity.com/icon-512.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
@@ -53,6 +65,7 @@
       }
     }
   </style>
+  <script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body>
 
@@ -138,7 +151,7 @@
             <li>Community forum access</li>
             <li>Shape Radio — ad-free workout music</li>
           </ul>
-          <a href="landing.html" class="btn btn-primary btn-block">Get Started</a>
+          <button type="button" class="btn btn-primary btn-block" id="platformCheckoutBtn" onclick="startPlatformCheckout()">Get Started</button>
         </div>
       </div>
       <div style="text-align:center;margin-top:48px;max-width:640px;margin-left:auto;margin-right:auto;">
@@ -230,6 +243,52 @@
   <script src="app.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase.js"></script>
+  <script>
+    async function startPlatformCheckout() {
+      var btn = document.getElementById('platformCheckoutBtn');
+      if (btn.disabled) return;
+      btn.disabled = true;
+      var originalLabel = btn.textContent;
+      btn.textContent = 'Loading…';
+      try {
+        // Wait briefly for supabase.js to initialize.
+        for (var i = 0; i < 20 && !window.shapeDb; i++) {
+          await new Promise(function (r) { setTimeout(r, 50); });
+        }
+        var session = window.shapeDb ? await window.shapeDb.getSession() : null;
+        if (!session) {
+          // Not signed in — send them to sign up, then bounce back to pricing.
+          window.location.href = 'signup-client.html?next=/pricing.html';
+          return;
+        }
+        var res = await fetch('/api/stripe/platform-checkout', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + session.access_token
+          },
+          body: JSON.stringify({})
+        });
+        var data = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+          if (res.status === 401 && data.redirectTo) {
+            window.location.href = data.redirectTo;
+            return;
+          }
+          throw new Error(data.error || 'Checkout failed.');
+        }
+        if (data.url) {
+          window.location.href = data.url;
+          return;
+        }
+        throw new Error('No checkout URL returned.');
+      } catch (e) {
+        alert(e.message || 'Something went wrong. Please try again.');
+        btn.disabled = false;
+        btn.textContent = originalLabel;
+      }
+    }
+  </script>
   <script src="/pwa-install.js" defer></script>
 </body>
 </html>

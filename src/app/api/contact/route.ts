@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
   if (error) {
     console.error('contact_submissions insert failed:', error);
     return NextResponse.json(
-      { error: 'Could not save your message. Please email hello@shape.app directly.' },
+      { error: 'Could not save your message. Please email info@theshapecommunity.com directly.' },
       { status: 500 }
     );
   }

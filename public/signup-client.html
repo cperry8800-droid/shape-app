@@ -4,6 +4,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Create Client Profile — Shape</title>
+  <meta name="description" content="Create your Shape client account. Free to start — find your trainer or nutritionist in minutes.">
+  <link rel="canonical" href="https://theshapecommunity.com/signup-client.html">
+  <meta property="og:site_name" content="Shape">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://theshapecommunity.com/signup-client.html">
+  <meta property="og:title" content="Create Client Profile — Shape">
+  <meta property="og:description" content="Create your Shape client account. Free to start — find your trainer or nutritionist in minutes.">
+  <meta property="og:image" content="https://theshapecommunity.com/icon-512.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Create Client Profile — Shape">
+  <meta name="twitter:description" content="Create your Shape client account. Free to start — find your trainer or nutritionist in minutes.">
+  <meta name="twitter:image" content="https://theshapecommunity.com/icon-512.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="signup.css">
@@ -12,6 +24,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="apple-touch-icon" href="icon-192.png">
+  <script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body>
 
@@ -330,6 +343,14 @@
         console.warn('Intake persist failed:', err);
       }
 
+      // Honor ?next= (e.g. pricing checkout flow) if present and same-origin.
+      try {
+        var nextParam = new URLSearchParams(location.search).get('next');
+        if (nextParam && nextParam.charAt(0) === '/' && !nextParam.startsWith('//')) {
+          window.location.href = nextParam;
+          return;
+        }
+      } catch (e) {}
       window.location.href = 'clients.html';
     }
   </script>

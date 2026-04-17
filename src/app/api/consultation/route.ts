@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
   if (error) {
     console.error('consultation_bookings insert failed:', error);
     return NextResponse.json(
-      { error: 'Could not save your booking. Please email hello@shape.app directly.' },
+      { error: 'Could not save your booking. Please email info@theshapecommunity.com directly.' },
       { status: 500 }
     );
   }
