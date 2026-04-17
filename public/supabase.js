@@ -365,7 +365,9 @@
       });
     },
 
-    dashboardFor(_role) {
+    dashboardFor(role) {
+      if (role === 'trainer') return 'trainer-dashboard.html';
+      if (role === 'nutritionist') return 'nutrition-schedule.html';
       return 'clients.html';
     },
 
@@ -459,7 +461,17 @@
         '#shapeRoleSwitcher .srs-menu a{display:flex;align-items:center;gap:10px;padding:10px 12px;color:var(--text,#fff);font-size:0.82rem;border-radius:6px;text-decoration:none;}' +
         '#shapeRoleSwitcher .srs-menu a:hover{background:rgba(255,255,255,0.06);}' +
         '#shapeRoleSwitcher .srs-menu a.active{background:rgba(255,255,255,0.08);font-weight:600;}' +
-        '#shapeRoleSwitcher .srs-menu a .srs-check{margin-left:auto;opacity:0.6;font-size:0.72rem;}';
+        '#shapeRoleSwitcher .srs-menu a .srs-check{margin-left:auto;opacity:0.6;font-size:0.72rem;}' +
+        // Mobile: .nav-actions is hidden on <=768px site-wide; force the
+        // switcher (and only the switcher) to remain visible and sit next
+        // to the hamburger toggle so users can still change roles.
+        '@media (max-width: 768px){' +
+          '.nav-container .nav-actions{display:flex !important;position:absolute;right:52px;top:50%;transform:translateY(-50%);margin:0;gap:0;background:transparent;padding:0;pointer-events:none;z-index:1055;}' +
+          '.nav-container .nav-actions > *{display:none !important;}' +
+          '.nav-container .nav-actions > #shapeRoleSwitcher{display:inline-flex !important;pointer-events:auto;}' +
+          '#shapeRoleSwitcher .srs-btn{padding:6px 10px;font-size:0.68rem;}' +
+          '#shapeRoleSwitcher .srs-menu{min-width:160px;}' +
+        '}';
       document.head.appendChild(style);
 
       var wrap = document.createElement('div');
