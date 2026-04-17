@@ -765,7 +765,12 @@
     <!-- 5. Nutrition Preferences -->
     <div class="cp-card" id="section-nutrition">
       <div class="cp-card-header">
-        <h2>Nutrition Preferences</h2>
+        <div class="cp-card-title">
+          <span class="cp-card-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4c-1.5-1.2-4-2-6-2 0 4 2 8 5 8 1 0 1.8-.3 2.5-.8"/><path d="M18 7c-1.2 0-2.4.3-3.4.9-3 1.9-4.6 5.5-4.6 8.6 0 2 .5 3.5 1.5 4.5 1.7 1.7 5.1 1.5 7-.4 3-3 4.1-9 2-13-.8-.4-1.7-.6-2.5-.6z"/></svg>
+          </span>
+          <h2>Nutrition Preferences</h2>
+        </div>
         <button class="cp-edit-btn" onclick="toggleEdit('section-nutrition')">Edit</button>
       </div>
       <div class="cp-field-grid">
@@ -831,7 +836,12 @@
     <!-- 6. My Assigned Plans -->
     <div class="cp-card" id="section-plans">
       <div class="cp-card-header">
-        <h2>My Plans</h2>
+        <div class="cp-card-title">
+          <span class="cp-card-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="1"/><path d="M9 3h6v3H9z"/><path d="M9 11h6M9 15h6"/></svg>
+          </span>
+          <h2>My Plans</h2>
+        </div>
       </div>
 
       <!-- Workout Plans -->
@@ -854,7 +864,12 @@
     <!-- 7. Social & Community -->
     <div class="cp-card" id="section-social">
       <div class="cp-card-header">
-        <h2>Social & Community</h2>
+        <div class="cp-card-title">
+          <span class="cp-card-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="3"/><circle cx="17" cy="8" r="2.3"/><path d="M3 19c0-3 2.7-5 6-5s6 2 6 5"/><path d="M14 14c2.7 0 5 1.5 5 4"/></svg>
+          </span>
+          <h2>Social &amp; Community</h2>
+        </div>
         <button class="cp-edit-btn" onclick="toggleEdit('section-social')">Edit</button>
       </div>
       <!-- Social Handles -->
@@ -920,10 +935,15 @@
       </div>
     </div>
 
-    <!-- 7. Privacy Controls -->
+    <!-- 8. Privacy Controls -->
     <div class="cp-card" id="section-privacy">
       <div class="cp-card-header">
-        <h2>Privacy Controls</h2>
+        <div class="cp-card-title">
+          <span class="cp-card-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6l7-3z"/><path d="M9.5 12l2 2 3.5-4"/></svg>
+          </span>
+          <h2>Privacy Controls</h2>
+        </div>
       </div>
       <div class="cp-toggle-row">
         <span class="cp-toggle-label">Profile Photo & Bio</span>
@@ -1044,6 +1064,20 @@
       const url = _cpSocialUrl(key, val);
       display.innerHTML = '<a href="' + url + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent);text-decoration:none;">' + val + '</a>';
     }
+    function _cpSyncHeroSocial(key, val) {
+      const link = document.querySelector('.cp-id-social[data-social="' + key + '"]');
+      if (!link) return;
+      const v = (val || '').trim();
+      if (!v) { link.style.display = 'none'; link.removeAttribute('href'); return; }
+      link.style.display = '';
+      link.setAttribute('href', _cpSocialUrl(key, v));
+    }
+    function _cpSyncAllHeroSocials() {
+      SOCIAL_KEYS.forEach(function(key) {
+        const input = document.querySelector('#section-social input[data-key="' + key + '"]');
+        _cpSyncHeroSocial(key, input ? input.value : '');
+      });
+    }
     function saveSection(sectionId) {
       const section = document.getElementById(sectionId);
       // Persist input values to display values
@@ -1066,6 +1100,7 @@
       });
       section.classList.remove('editing');
       saveToLocalStorage();
+      if (sectionId === 'section-social') _cpSyncAllHeroSocials();
       showToast('Profile updated!');
     }
 
@@ -1079,6 +1114,7 @@
           if (val) _cpRenderSocialDisplay(display, input.dataset.key, val);
         }
       });
+      _cpSyncAllHeroSocials();
     });
 
     // ===== Toast =====
@@ -1222,13 +1258,13 @@
             }
             // Sync header display
             if (key === 'displayName') {
-              const h1 = document.querySelector('.cp-name-block h1');
-              const avatar = document.querySelector('.cp-avatar');
+              const h1 = document.querySelector('.cp-id-name-row h1') || document.querySelector('.cp-name-block h1');
+              const initialsEl = document.querySelector('.cp-avatar-initials');
               if (h1) h1.textContent = data[key];
-              if (avatar) { const initials = data[key].split(' ').map(w => w[0]).join(''); avatar.childNodes[0].textContent = initials; }
+              if (initialsEl) { initialsEl.textContent = data[key].split(' ').map(w => w[0]).join(''); }
             }
             if (key === 'username') {
-              const handle = document.querySelector('.cp-handle');
+              const handle = document.querySelector('.cp-id-handle') || document.querySelector('.cp-handle');
               if (handle) handle.textContent = '@' + data[key];
             }
           }
@@ -1269,6 +1305,7 @@
         if (data.carbsSlider) document.getElementById('carbsSlider').value = data.carbsSlider;
         if (data.fatSlider) document.getElementById('fatSlider').value = data.fatSlider;
         updateMacros();
+        _cpSyncAllHeroSocials();
       } catch(e) {}
     }
 
