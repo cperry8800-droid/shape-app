@@ -12,22 +12,27 @@
     if (new URLSearchParams(location.search).get('from') === 'intro') {
       // Dark background peeks behind the rising page
       document.documentElement.style.background = '#0a0a0a';
-      // Start page off-screen below
+      // Start page off-screen below with slight zoom-in + blur for focus-pull feel
       document.addEventListener('DOMContentLoaded', () => {
-        document.body.style.transform = 'translateY(100vh)';
+        document.body.style.transform = 'translateY(100vh) scale(1.06)';
+        document.body.style.filter = 'blur(10px) brightness(0.7)';
         document.body.style.boxShadow = '0 -24px 80px rgba(0,0,0,0.8)';
         document.body.style.transition = 'none';
-        // Rise up on next frame
+        document.body.style.transformOrigin = 'center top';
+        // Rise up on next frame with coordinated zoom + focus + brighten
         requestAnimationFrame(() => requestAnimationFrame(() => {
-          document.body.style.transition = 'transform 1.1s cubic-bezier(0.16, 1, 0.3, 1)';
-          document.body.style.transform = 'translateY(0)';
+          document.body.style.transition = 'transform 1.2s cubic-bezier(0.16, 1, 0.3, 1), filter 1s cubic-bezier(0.16, 1, 0.3, 1) 0.15s';
+          document.body.style.transform = 'translateY(0) scale(1)';
+          document.body.style.filter = 'blur(0) brightness(1)';
           // Clean up after animation
           setTimeout(() => {
             document.body.style.transform = '';
             document.body.style.boxShadow = '';
             document.body.style.transition = '';
+            document.body.style.filter = '';
+            document.body.style.transformOrigin = '';
             document.documentElement.style.background = '';
-          }, 1200);
+          }, 1300);
         }));
       });
     }
