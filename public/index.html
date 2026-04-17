@@ -7,6 +7,25 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
+    /* Cross-document view transition — intro morphs into home */
+    @view-transition { navigation: auto; }
+
+    ::view-transition-old(root) {
+      animation: 900ms cubic-bezier(0.4, 0, 0.2, 1) both shape-morph-out;
+    }
+    ::view-transition-new(root) {
+      animation: 1200ms cubic-bezier(0.16, 1, 0.3, 1) both shape-morph-in;
+    }
+    @keyframes shape-morph-out {
+      0%   { opacity: 1; filter: blur(0) brightness(1); transform: scale(1); }
+      100% { opacity: 0; filter: blur(14px) brightness(1.4); transform: scale(1.08); }
+    }
+    @keyframes shape-morph-in {
+      0%   { opacity: 0; filter: blur(12px) brightness(0.85); transform: scale(1.04); }
+      60%  { opacity: 1; }
+      100% { opacity: 1; filter: blur(0) brightness(1); transform: scale(1); }
+    }
+
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
@@ -515,30 +534,23 @@
       setTimeout(tick, 600);
     })();
 
-    // ===== Dissolve Transition =====
+    // ===== Morph Transition =====
+    // Content scales + blooms for ~350ms, then navigates.
+    // The View Transitions API (see @view-transition in <style>) cross-fades
+    // the snapshot into home.html so it feels like a seamless morph.
     function enterSite(e) {
       e.preventDefault();
+      stopIntroSound();
 
-      // 1. Spawn dissolve particles
-      spawnDissolveParticles();
-
-      // 2. Trigger content dissolve + radial bloom burst
+      // Brief cinematic flourish before the view transition snapshot
       document.getElementById('introContent').classList.add('leaving');
       document.querySelector('.bg-flow').classList.add('leaving');
       document.getElementById('dissolveBloom').classList.add('active');
+      spawnDissolveParticles();
 
-      // 3. Activate flash overlay
       setTimeout(() => {
-        document.getElementById('dissolveOverlay').classList.add('active');
-      }, 200);
-
-      // 4. Fade out engine sound
-      stopIntroSound();
-
-      // 5. Navigate after dissolve completes (black overlay fully covering)
-      setTimeout(() => {
-        window.location.href = 'home.html?from=intro';
-      }, 1500);
+        window.location.href = 'home.html';
+      }, 380);
     }
 
     // Dissolve particles effect
