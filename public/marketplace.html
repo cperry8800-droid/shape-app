@@ -26,182 +26,267 @@
                   url('/Nutrition%203.png') center/cover no-repeat;
     }
     .section, .section-alt, .page-hero { background: transparent !important; }
-    .section-alt, .navbar { background: transparent !important; }
-    .card, .filter-bar, .totm-card {
-      background: rgba(10,10,10,0.3) !important;
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border-color: rgba(255,255,255,0.1) !important;
-    }
-    .filter-search, .filter-sort {
-      background: rgba(10,10,10,0.4) !important;
-      border-color: rgba(255,255,255,0.1) !important;
-    }
+    .navbar { background: transparent !important; }
 
-    /* Marketplace toggle */
+    /* ===== Slim hero ===== */
+    .mkt-hero {
+      padding: 120px 0 24px;
+      text-align: center;
+    }
+    .mkt-hero h1 {
+      font-size: clamp(1.8rem, 3.5vw, 2.6rem);
+      font-weight: 300;
+      letter-spacing: -0.03em;
+      margin: 8px 0 20px;
+      line-height: 1.1;
+    }
     .mkt-toggle {
       display: inline-flex;
-      background: rgba(10,10,10,0.45);
+      background: rgba(10,10,10,0.5);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       border: 1px solid rgba(255,255,255,0.12);
       border-radius: 999px;
       padding: 4px;
       gap: 4px;
-      margin-top: 20px;
     }
     .mkt-toggle-btn {
       background: transparent;
       border: none;
       color: var(--text-muted);
-      font-family: 'Inter', sans-serif;
-      font-size: 0.92rem;
+      font-family: inherit;
+      font-size: 0.88rem;
       font-weight: 600;
-      padding: 10px 24px;
+      padding: 9px 22px;
       border-radius: 999px;
       cursor: pointer;
       transition: all 0.2s;
-      min-width: 140px;
     }
-    .mkt-toggle-btn:hover {
-      color: var(--text);
-    }
-    .mkt-toggle-btn.active {
-      background: var(--text);
-      color: #0a0a0a;
-    }
+    .mkt-toggle-btn:hover { color: var(--text); }
+    .mkt-toggle-btn.active { background: var(--text); color: #0a0a0a; }
 
     .mkt-pane { display: none; }
     .mkt-pane.active { display: block; }
 
-    .filter-bar {
-      border-radius: 12px;
-      padding: 20px;
-      margin-bottom: 32px;
-    }
-    .filter-bar-top {
+    /* ===== Spotlight strip (inline, compact) ===== */
+    .mkt-spotlight {
       display: flex;
-      gap: 12px;
       align-items: center;
-      margin-bottom: 16px;
+      gap: 16px;
+      padding: 14px 18px;
+      background: rgba(10,10,10,0.45);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      margin-bottom: 24px;
+      cursor: pointer;
+      transition: border-color 0.2s, transform 0.2s;
     }
-    .filter-search {
-      flex: 1;
-      padding: 10px 16px;
-      border: 1px solid var(--border);
+    .mkt-spotlight:hover {
+      border-color: rgba(45,212,191,0.4);
+      transform: translateY(-1px);
+    }
+    .mkt-spotlight-badge {
+      font-size: 0.58rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      padding: 4px 8px;
+      border: 1px solid var(--accent);
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .mkt-spotlight-avatar {
+      width: 44px; height: 44px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 0.95rem; color: #fff;
+      flex-shrink: 0;
+      object-fit: cover;
+    }
+    .mkt-spotlight-info { flex: 1; min-width: 0; }
+    .mkt-spotlight-info h3 {
+      font-size: 0.98rem; font-weight: 500; color: #fff;
+      margin: 0; line-height: 1.2;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .mkt-spotlight-info .meta {
+      font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .mkt-spotlight-rating {
+      font-size: 0.85rem; color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    /* ===== Filter row (single horizontal line) ===== */
+    .mkt-filter {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: nowrap;
+    }
+    .mkt-search {
+      flex: 1; min-width: 0;
+      padding: 10px 14px;
+      background: rgba(10,10,10,0.45);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.1);
       border-radius: 8px;
       color: var(--text);
-      font-family: 'Inter', sans-serif;
-      font-size: 0.92rem;
+      font-family: inherit;
+      font-size: 0.9rem;
       outline: none;
       transition: border-color 0.2s;
     }
-    .filter-search:focus { border-color: var(--accent, #2DD4BF); }
-    .filter-search::placeholder { color: var(--text-muted); }
-    .filter-sort {
-      padding: 10px 16px;
-      border: 1px solid var(--border);
+    .mkt-search:focus { border-color: var(--accent); }
+    .mkt-search::placeholder { color: var(--text-muted); }
+    .mkt-sort {
+      padding: 10px 32px 10px 14px;
+      background: rgba(10,10,10,0.45);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.1);
       border-radius: 8px;
       color: var(--text);
-      font-family: 'Inter', sans-serif;
-      font-size: 0.92rem;
+      font-family: inherit;
+      font-size: 0.9rem;
       cursor: pointer;
       outline: none;
-      min-width: 180px;
-      transition: border-color 0.2s;
       -webkit-appearance: none;
       -moz-appearance: none;
       appearance: none;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23999' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
       background-repeat: no-repeat;
       background-position: right 12px center;
-      padding-right: 32px;
+      flex-shrink: 0;
     }
-    .filter-sort:focus { border-color: var(--accent, #2DD4BF); }
-    .filter-bar-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+    .mkt-sort:focus { border-color: var(--accent); }
 
-    #trainerGrid.card-grid, #nutritionistGrid.card-grid {
-      grid-template-columns: 1fr;
-      gap: 12px;
+    /* Chip row (horizontal scroll on mobile) */
+    .mkt-chips {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      margin-bottom: 24px;
+      scrollbar-width: none;
     }
-    .mkt-spotlight-h {
-      font-size: clamp(1.6rem, 3vw, 2.4rem);
-      font-weight: 300;
-      letter-spacing: -0.03em;
-      margin: 10px 0 0;
-      color: #fff;
-      line-height: 1.1;
+    .mkt-chips::-webkit-scrollbar { display: none; }
+    .mkt-chip {
+      flex-shrink: 0;
+      padding: 7px 14px;
+      background: rgba(10,10,10,0.45);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 999px;
+      color: var(--text-muted);
+      font-family: inherit;
+      font-size: 0.78rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
     }
-    .mkt-spotlight-h::after {
-      content: '';
+    .mkt-chip:hover { color: var(--text); border-color: rgba(255,255,255,0.25); }
+    .mkt-chip.active {
+      background: var(--text);
+      color: #0a0a0a;
+      border-color: var(--text);
+    }
+
+    /* ===== Compact grid ===== */
+    .mkt-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    @media (max-width: 1024px) { .mkt-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 640px)  { .mkt-grid { grid-template-columns: 1fr; } }
+
+    .mkt-card {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px;
+      background: rgba(10,10,10,0.45);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .mkt-card:hover {
+      border-color: rgba(45,212,191,0.4);
+      transform: translateY(-1px);
+    }
+    .mkt-card-avatar {
+      width: 52px; height: 52px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 1rem; color: #fff;
+      flex-shrink: 0;
+      object-fit: cover;
+    }
+    .mkt-card-body { flex: 1; min-width: 0; }
+    .mkt-card-name {
+      font-size: 0.98rem; font-weight: 500; color: #fff;
+      margin: 0; line-height: 1.2;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .mkt-card-specialty {
+      font-size: 0.78rem; color: var(--text-muted);
+      margin-top: 3px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .mkt-card-meta {
+      display: flex; gap: 10px; align-items: center;
+      font-size: 0.78rem; color: var(--text-muted);
+      margin-top: 6px;
+    }
+    .mkt-card-meta .rating { color: #fbbf24; }
+    .mkt-card-meta .price { color: var(--text); font-weight: 500; }
+
+    .mkt-empty {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-muted);
+      font-size: 0.92rem;
+    }
+    .mkt-load-more {
       display: block;
-      width: 48px;
-      height: 2px;
-      background: var(--accent);
-      margin: 14px auto 0;
+      margin: 28px auto 0;
+      padding: 10px 28px;
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 999px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.82rem;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .mkt-load-more:hover { border-color: var(--accent); color: var(--accent); }
+    .mkt-count {
+      text-align: center;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-top: 16px;
+      letter-spacing: 0.05em;
     }
 
-    .mkt-top-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
-    .mkt-featured-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; }
-
-    /* Compact of-the-month card for the marketplace */
-    #pane-trainers .totm-card,
-    #pane-nutritionists .totm-card {
-      padding: 24px;
-      margin-top: 20px;
-      max-width: 820px;
-      margin-left: auto;
-      margin-right: auto;
-    }
-    #pane-trainers .totm-layout,
-    #pane-nutritionists .totm-layout {
-      gap: 24px;
-    }
-    #pane-trainers .totm-avatar,
-    #pane-nutritionists .totm-avatar {
-      width: 72px; height: 72px; font-size: 1.4rem; margin-bottom: 10px;
-    }
-    #pane-trainers .totm-badge,
-    #pane-nutritionists .totm-badge {
-      font-size: 0.62rem; padding: 4px 10px;
-    }
-    #pane-trainers .totm-info h2,
-    #pane-nutritionists .totm-info h2 {
-      font-size: clamp(1.2rem, 2vw, 1.5rem);
-    }
-    #pane-trainers .totm-quote,
-    #pane-nutritionists .totm-quote {
-      font-size: 0.88rem; margin: 8px 0; line-height: 1.5;
-    }
-    #pane-trainers .totm-info .card-desc,
-    #pane-nutritionists .totm-info .card-desc {
-      font-size: 0.82rem; line-height: 1.55;
-    }
-    #pane-trainers .totm-info .btn,
-    #pane-nutritionists .totm-info .btn {
-      padding: 6px 14px; font-size: 0.78rem;
-    }
-    @media (max-width: 768px) {
-      .filter-bar-top { flex-direction: column; }
-      .filter-sort { min-width: unset; width: 100%; }
-      .mkt-toggle { margin-top: 14px; }
-      .mkt-toggle-btn { min-width: 0; padding: 9px 18px; font-size: 0.85rem; }
-      .mkt-top-grid { grid-template-columns: 1fr; gap: 12px; }
-      .mkt-featured-grid { grid-template-columns: 1fr; gap: 12px; }
-      .mkt-spotlight-h { font-size: 1.4rem !important; }
-      .mkt-spotlight-h::after { margin-top: 10px; width: 36px; }
-      #pane-trainers .totm-card,
-      #pane-nutritionists .totm-card { padding: 18px; }
-      #pane-trainers .totm-avatar,
-      #pane-nutritionists .totm-avatar { width: 60px; height: 60px; font-size: 1.2rem; }
-      #pane-trainers .totm-info h2,
-      #pane-nutritionists .totm-info h2 { font-size: 1.15rem; }
-      #pane-trainers .totm-quote,
-      #pane-nutritionists .totm-quote { font-size: 0.82rem; }
-      #pane-trainers .totm-info .card-desc,
-      #pane-nutritionists .totm-info .card-desc { font-size: 0.78rem; }
-      .filter-bar-buttons { gap: 6px; }
-      .filter-bar-buttons .filter-btn { padding: 8px 12px; font-size: 0.72rem; }
+    @media (max-width: 640px) {
+      .mkt-hero { padding: 100px 0 16px; }
+      .mkt-filter { flex-wrap: wrap; }
+      .mkt-search { flex: 1 1 100%; }
+      .mkt-sort { flex: 1 1 100%; }
     }
   </style>
 </head>
@@ -262,12 +347,11 @@
     </div>
   </nav>
 
-  <!-- Page Hero -->
-  <section class="page-hero" style="padding-bottom:20px;">
-    <div class="container" style="text-align:center;">
+  <!-- Slim Hero -->
+  <section class="mkt-hero">
+    <div class="container">
       <span class="tag">Marketplace</span>
       <h1>Find your <span class="gradient-text">coach</span></h1>
-      <p class="page-hero-sub">Browse every Shape coach in one place.</p>
       <div class="mkt-toggle" role="tablist" aria-label="Marketplace type">
         <button class="mkt-toggle-btn active" data-pane="trainers" onclick="mktSwitch('trainers')" role="tab" aria-selected="true">Trainers</button>
         <button class="mkt-toggle-btn" data-pane="nutritionists" onclick="mktSwitch('nutritionists')" role="tab" aria-selected="false">Nutritionists</button>
@@ -277,159 +361,71 @@
 
   <!-- TRAINERS PANE -->
   <div class="mkt-pane active" id="pane-trainers">
-    <!-- Trainer of the Month -->
-    <section class="section section-alt" style="padding:48px 0;">
+    <section class="section" style="padding: 12px 0 48px;">
       <div class="container">
-        <div style="text-align:center;margin-bottom:20px;">
-          <span class="tag">Spotlight</span>
-          <h2 class="mkt-spotlight-h">Trainer of the Month</h2>
-        </div>
-        <div class="totm-card" id="totmCard"><!-- Populated by JS --></div>
-      </div>
-    </section>
+        <!-- Inline spotlight -->
+        <div class="mkt-spotlight" id="trainerSpotlight" onclick="mktOpenSpotlight('trainer')"></div>
 
-    <!-- Most Popular Trainers -->
-    <section class="section" style="padding:48px 0;">
-      <div class="container">
-        <div style="text-align:center;margin-bottom:32px;">
-          <span class="tag">Most Popular</span>
-          <h2 style="font-size:clamp(1.2rem,2vw,1.5rem);font-weight:300;letter-spacing:-0.03em;margin-top:8px;">Highest rated trainers on Shape</h2>
-        </div>
-        <div id="topCoachesGrid" class="mkt-top-grid"></div>
-      </div>
-    </section>
-
-    <!-- Featured Trainers -->
-    <section class="section section-alt" style="padding:48px 0;">
-      <div class="container">
-        <div style="text-align:center;margin-bottom:32px;">
-          <span class="tag">Featured Coaches</span>
-          <h2 style="font-size:clamp(1.2rem,2vw,1.5rem);font-weight:300;letter-spacing:-0.03em;margin-top:8px;">Hand-picked by Shape this month</h2>
-        </div>
-        <div id="featuredCoachesGrid" class="mkt-featured-grid"></div>
-      </div>
-    </section>
-
-    <!-- All Trainers -->
-    <section class="section">
-      <div class="container">
-        <div style="text-align:center;margin-bottom:32px;">
-          <span class="tag">All Trainers</span>
-          <h2 style="font-size:clamp(1.2rem,2vw,1.5rem);font-weight:300;letter-spacing:-0.03em;margin-top:8px;">Browse the full marketplace</h2>
-        </div>
-        <div class="filter-bar">
-          <div class="filter-bar-top">
-            <input type="text" class="filter-search" id="trainerSearch" placeholder="Search trainers by name..." oninput="filterTrainers()">
-            <select class="filter-sort" id="trainerSort" onchange="filterTrainers()">
-              <option value="subscribers">Most Subscribers</option>
-              <option value="rating">Highest Rated</option>
-              <option value="price">Lowest Price</option>
-              <option value="experience">Most Experience</option>
-            </select>
-          </div>
-          <div class="filter-bar-buttons">
-            <button class="filter-btn active" data-filter="all" onclick="setTrainerFilter(this)">All</button>
-            <button class="filter-btn" data-filter="strength" onclick="setTrainerFilter(this)">Strength & Conditioning</button>
-            <button class="filter-btn" data-filter="bodybuilding" onclick="setTrainerFilter(this)">Bodybuilding</button>
-            <button class="filter-btn" data-filter="fullbody" onclick="setTrainerFilter(this)">Full-Body</button>
-            <button class="filter-btn" data-filter="hiit" onclick="setTrainerFilter(this)">HIIT & CrossFit</button>
-            <button class="filter-btn" data-filter="cardio" onclick="setTrainerFilter(this)">Cardio & Endurance</button>
-            <button class="filter-btn" data-filter="weightloss" onclick="setTrainerFilter(this)">Weight Loss</button>
-            <button class="filter-btn" data-filter="mobility" onclick="setTrainerFilter(this)">Mobility & Flexibility</button>
-            <button class="filter-btn" data-filter="athome" onclick="setTrainerFilter(this)">At Home & Bodyweight</button>
-          </div>
-          <div class="filter-bar-buttons" style="margin-top:8px;">
-            <span style="font-size:0.68rem;font-weight:500;color:var(--text-muted);padding:6px 0;text-transform:uppercase;letter-spacing:0.08em;">Credential:</span>
-            <button class="filter-btn trainer-credential-filter active" data-credential="all" onclick="setTrainerCredentialFilter(this)">All</button>
-            <button class="filter-btn trainer-credential-filter cred-tip" data-tip="Certified Strength & Conditioning Specialist" data-credential="CSCS" onclick="setTrainerCredentialFilter(this)">CSCS</button>
-            <button class="filter-btn trainer-credential-filter cred-tip" data-tip="NASM Certified Personal Trainer" data-credential="NASM" onclick="setTrainerCredentialFilter(this)">NASM</button>
-            <button class="filter-btn trainer-credential-filter cred-tip" data-tip="ACE Certified Personal Trainer" data-credential="ACE-CPT" onclick="setTrainerCredentialFilter(this)">ACE-CPT</button>
-            <button class="filter-btn trainer-credential-filter cred-tip" data-tip="ISSA Certified Personal Trainer" data-credential="ISSA-CPT" onclick="setTrainerCredentialFilter(this)">ISSA-CPT</button>
-            <button class="filter-btn trainer-credential-filter cred-tip" data-tip="NSCA Certified Personal Trainer" data-credential="NSCA-CPT" onclick="setTrainerCredentialFilter(this)">NSCA-CPT</button>
-          </div>
+        <!-- Filter row -->
+        <div class="mkt-filter">
+          <input type="text" class="mkt-search" id="trainerSearch" placeholder="Search trainers..." oninput="filterTrainers()">
+          <select class="mkt-sort" id="trainerSort" onchange="filterTrainers()">
+            <option value="subscribers">Most Popular</option>
+            <option value="rating">Highest Rated</option>
+            <option value="price">Lowest Price</option>
+            <option value="experience">Most Experience</option>
+          </select>
         </div>
 
-        <div class="card-grid" id="trainerGrid">
-          <!-- Populated by JS -->
+        <!-- Category chips -->
+        <div class="mkt-chips" role="tablist">
+          <button class="mkt-chip active" data-filter="all" onclick="mktSetTrainerChip(this)">All</button>
+          <button class="mkt-chip" data-filter="strength" onclick="mktSetTrainerChip(this)">Strength</button>
+          <button class="mkt-chip" data-filter="bodybuilding" onclick="mktSetTrainerChip(this)">Bodybuilding</button>
+          <button class="mkt-chip" data-filter="fullbody" onclick="mktSetTrainerChip(this)">Full-Body</button>
+          <button class="mkt-chip" data-filter="hiit" onclick="mktSetTrainerChip(this)">HIIT</button>
+          <button class="mkt-chip" data-filter="cardio" onclick="mktSetTrainerChip(this)">Cardio</button>
+          <button class="mkt-chip" data-filter="weightloss" onclick="mktSetTrainerChip(this)">Weight Loss</button>
+          <button class="mkt-chip" data-filter="mobility" onclick="mktSetTrainerChip(this)">Mobility</button>
+          <button class="mkt-chip" data-filter="athome" onclick="mktSetTrainerChip(this)">At Home</button>
         </div>
+
+        <div class="mkt-grid" id="trainerGrid"></div>
+        <button class="mkt-load-more" id="trainerLoadMore" style="display:none;" onclick="mktLoadMore('trainer')">Load more</button>
+        <p class="mkt-count" id="trainerCount"></p>
       </div>
     </section>
   </div>
 
   <!-- NUTRITIONISTS PANE -->
   <div class="mkt-pane" id="pane-nutritionists">
-    <!-- Nutritionist of the Month -->
-    <section class="section section-alt" style="padding:48px 0;">
+    <section class="section" style="padding: 12px 0 48px;">
       <div class="container">
-        <div style="text-align:center;margin-bottom:20px;">
-          <span class="tag">Spotlight</span>
-          <h2 class="mkt-spotlight-h">Nutritionist of the Month</h2>
-        </div>
-        <div class="totm-card" id="notmCard"><!-- Populated by JS --></div>
-      </div>
-    </section>
+        <div class="mkt-spotlight" id="nutritionistSpotlight" onclick="mktOpenSpotlight('nutritionist')"></div>
 
-    <!-- Most Popular Nutritionists -->
-    <section class="section" style="padding:48px 0;">
-      <div class="container">
-        <div style="text-align:center;margin-bottom:32px;">
-          <span class="tag">Most Popular</span>
-          <h2 style="font-size:clamp(1.2rem,2vw,1.5rem);font-weight:300;letter-spacing:-0.03em;margin-top:8px;">Highest rated nutritionists on Shape</h2>
-        </div>
-        <div id="topNutritionistsGrid" class="mkt-top-grid"></div>
-      </div>
-    </section>
-
-    <!-- Featured Nutritionists -->
-    <section class="section section-alt" style="padding:48px 0;">
-      <div class="container">
-        <div style="text-align:center;margin-bottom:32px;">
-          <span class="tag">Featured Nutritionists</span>
-          <h2 style="font-size:clamp(1.2rem,2vw,1.5rem);font-weight:300;letter-spacing:-0.03em;margin-top:8px;">Hand-picked by Shape this month</h2>
-        </div>
-        <div id="featuredNutritionistsGrid" class="mkt-featured-grid"></div>
-      </div>
-    </section>
-
-    <!-- All Nutritionists -->
-    <section class="section">
-      <div class="container">
-        <div style="text-align:center;margin-bottom:32px;">
-          <span class="tag">All Nutritionists</span>
-          <h2 style="font-size:clamp(1.2rem,2vw,1.5rem);font-weight:300;letter-spacing:-0.03em;margin-top:8px;">Browse the full marketplace</h2>
-        </div>
-        <div class="filter-bar">
-          <div class="filter-bar-top">
-            <input type="text" class="filter-search" id="nutritionistSearch" placeholder="Search nutritionists by name..." oninput="filterNutritionists()">
-            <select class="filter-sort" id="nutritionistSort" onchange="filterNutritionists()">
-              <option value="subscribers">Most Subscribers</option>
-              <option value="rating">Highest Rated</option>
-              <option value="price">Lowest Price</option>
-              <option value="experience">Most Experience</option>
-            </select>
-          </div>
-          <div class="filter-bar-buttons">
-            <button class="filter-btn active" data-filter="all" onclick="setNutritionistFilter(this)">All</button>
-            <button class="filter-btn" data-filter="sports" onclick="setNutritionistFilter(this)">Sports & Performance</button>
-            <button class="filter-btn" data-filter="weightloss" onclick="setNutritionistFilter(this)">Weight Management</button>
-            <button class="filter-btn" data-filter="plantbased" onclick="setNutritionistFilter(this)">Plant-Based & Ayurvedic</button>
-            <button class="filter-btn" data-filter="guthealth" onclick="setNutritionistFilter(this)">Gut Health & Functional</button>
-            <button class="filter-btn" data-filter="prenatal" onclick="setNutritionistFilter(this)">Prenatal & Maternal</button>
-            <button class="filter-btn" data-filter="mealprep" onclick="setNutritionistFilter(this)">Meal Prep & Budget</button>
-          </div>
-          <div class="filter-bar-buttons" style="margin-top:8px;">
-            <span style="font-size:0.68rem;font-weight:500;color:var(--text-muted);padding:6px 0;text-transform:uppercase;letter-spacing:0.08em;">Credential:</span>
-            <button class="filter-btn credential-filter active" data-credential="all" onclick="setCredentialFilter(this)">All</button>
-            <button class="filter-btn credential-filter cred-tip" data-tip="RD / RDN — Registered Dietitian / Registered Dietitian Nutritionist" data-credential="RDN" onclick="setCredentialFilter(this)">Registered Dietitian</button>
-            <button class="filter-btn credential-filter cred-tip" data-tip="Certified Nutrition Specialist" data-credential="CNS" onclick="setCredentialFilter(this)">CNS</button>
-            <button class="filter-btn credential-filter cred-tip" data-tip="Certified Nutritionist" data-credential="CN" onclick="setCredentialFilter(this)">CN</button>
-            <button class="filter-btn credential-filter cred-tip" data-tip="Certified Health & Nutrition Coach" data-credential="Health Coach" onclick="setCredentialFilter(this)">Health Coach</button>
-          </div>
+        <div class="mkt-filter">
+          <input type="text" class="mkt-search" id="nutritionistSearch" placeholder="Search nutritionists..." oninput="filterNutritionists()">
+          <select class="mkt-sort" id="nutritionistSort" onchange="filterNutritionists()">
+            <option value="subscribers">Most Popular</option>
+            <option value="rating">Highest Rated</option>
+            <option value="price">Lowest Price</option>
+            <option value="experience">Most Experience</option>
+          </select>
         </div>
 
-        <div class="card-grid" id="nutritionistGrid">
-          <!-- Populated by JS -->
+        <div class="mkt-chips" role="tablist">
+          <button class="mkt-chip active" data-filter="all" onclick="mktSetNutritionistChip(this)">All</button>
+          <button class="mkt-chip" data-filter="sports" onclick="mktSetNutritionistChip(this)">Sports</button>
+          <button class="mkt-chip" data-filter="weightloss" onclick="mktSetNutritionistChip(this)">Weight Mgmt</button>
+          <button class="mkt-chip" data-filter="plantbased" onclick="mktSetNutritionistChip(this)">Plant-Based</button>
+          <button class="mkt-chip" data-filter="guthealth" onclick="mktSetNutritionistChip(this)">Gut Health</button>
+          <button class="mkt-chip" data-filter="prenatal" onclick="mktSetNutritionistChip(this)">Prenatal</button>
+          <button class="mkt-chip" data-filter="mealprep" onclick="mktSetNutritionistChip(this)">Meal Prep</button>
         </div>
+
+        <div class="mkt-grid" id="nutritionistGrid"></div>
+        <button class="mkt-load-more" id="nutritionistLoadMore" style="display:none;" onclick="mktLoadMore('nutritionist')">Load more</button>
+        <p class="mkt-count" id="nutritionistCount"></p>
       </div>
     </section>
   </div>
@@ -488,13 +484,209 @@
 
   <script src="app.js"></script>
   <script>
+    // ===== Marketplace revamp: compact cards + chip filters + pagination =====
+    var MKT_PAGE_SIZE = 12;
+    var mktTrainerVisible = MKT_PAGE_SIZE;
+    var mktNutritionistVisible = MKT_PAGE_SIZE;
+
+    function mktInitials(name) {
+      return name.split(' ').map(function(n) { return n[0]; }).join('').slice(0, 2);
+    }
+
+    function compactTrainerCard(t) {
+      var initials = mktInitials(t.name);
+      var avatar = t.avatar
+        ? '<img class="mkt-card-avatar" src="' + t.avatar + '" alt="' + t.name + '">'
+        : '<div class="mkt-card-avatar" style="background:' + (t.color || '#2DD4BF') + ';">' + initials + '</div>';
+      return (
+        '<div class="mkt-card" data-category="' + t.category + '" onclick="openTrainerModal(' + t.id + ')">' +
+          avatar +
+          '<div class="mkt-card-body">' +
+            '<div class="mkt-card-name">' + t.name + '</div>' +
+            '<div class="mkt-card-specialty">' + (t.specialty || '') + '</div>' +
+            '<div class="mkt-card-meta">' +
+              '<span class="rating">★ ' + (t.rating || '—') + '</span>' +
+              '<span class="price">$' + t.price + '/mo</span>' +
+            '</div>' +
+          '</div>' +
+        '</div>'
+      );
+    }
+
+    function compactNutritionistCard(n) {
+      var initials = mktInitials(n.name);
+      var avatar = n.avatar
+        ? '<img class="mkt-card-avatar" src="' + n.avatar + '" alt="' + n.name + '">'
+        : '<div class="mkt-card-avatar" style="background:' + (n.color || '#2DD4BF') + ';">' + initials + '</div>';
+      return (
+        '<div class="mkt-card" onclick="openNutritionistModal(' + n.id + ')">' +
+          avatar +
+          '<div class="mkt-card-body">' +
+            '<div class="mkt-card-name">' + n.name + '</div>' +
+            '<div class="mkt-card-specialty">' + (n.specialty || '') + '</div>' +
+            '<div class="mkt-card-meta">' +
+              '<span class="rating">★ ' + (n.rating || '—') + '</span>' +
+              '<span class="price">$' + n.price + '/mo</span>' +
+            '</div>' +
+          '</div>' +
+        '</div>'
+      );
+    }
+
+    // Override the global renderers
+    window.createTrainerCard = compactTrainerCard;
+    window.createNutritionistCard = compactNutritionistCard;
+
+    function mktSortData(arr, sortBy) {
+      var sorted = arr.slice();
+      sorted.sort(function(a, b) {
+        if (sortBy === 'rating') return (b.rating || 0) - (a.rating || 0);
+        if (sortBy === 'price') return (a.price || 0) - (b.price || 0);
+        if (sortBy === 'experience') {
+          var ax = parseInt(String(a.experience || '0'), 10);
+          var bx = parseInt(String(b.experience || '0'), 10);
+          return bx - ax;
+        }
+        return (b.subscribers || 0) - (a.subscribers || 0);
+      });
+      return sorted;
+    }
+
+    // Override filter functions to apply pagination
+    window.filterTrainers = function() {
+      var grid = document.getElementById('trainerGrid');
+      if (!grid || typeof trainers === 'undefined') return;
+      var search = (document.getElementById('trainerSearch').value || '').toLowerCase().trim();
+      var sortBy = document.getElementById('trainerSort').value;
+      var filtered = trainers.filter(function(t) {
+        var matchSearch = !search || t.name.toLowerCase().includes(search) || (t.specialty && t.specialty.toLowerCase().includes(search));
+        var matchCat = (window.activeTrainerFilter || 'all') === 'all' || t.category === window.activeTrainerFilter;
+        return matchSearch && matchCat;
+      });
+      filtered = mktSortData(filtered, sortBy);
+      var visible = filtered.slice(0, mktTrainerVisible);
+      grid.innerHTML = visible.length
+        ? visible.map(compactTrainerCard).join('')
+        : '<div class="mkt-empty">No trainers match your filters.</div>';
+      var more = document.getElementById('trainerLoadMore');
+      if (more) more.style.display = filtered.length > mktTrainerVisible ? 'block' : 'none';
+      var count = document.getElementById('trainerCount');
+      if (count) count.textContent = 'Showing ' + visible.length + ' of ' + filtered.length;
+    };
+
+    window.filterNutritionists = function() {
+      var grid = document.getElementById('nutritionistGrid');
+      if (!grid || typeof nutritionists === 'undefined') return;
+      var search = (document.getElementById('nutritionistSearch').value || '').toLowerCase().trim();
+      var sortBy = document.getElementById('nutritionistSort').value;
+      var filtered = nutritionists.filter(function(n) {
+        var matchSearch = !search || n.name.toLowerCase().includes(search) || (n.specialty && n.specialty.toLowerCase().includes(search));
+        var matchCat = (window.activeNutritionistFilter || 'all') === 'all' || n.category === window.activeNutritionistFilter;
+        return matchSearch && matchCat;
+      });
+      filtered = mktSortData(filtered, sortBy);
+      var visible = filtered.slice(0, mktNutritionistVisible);
+      grid.innerHTML = visible.length
+        ? visible.map(compactNutritionistCard).join('')
+        : '<div class="mkt-empty">No nutritionists match your filters.</div>';
+      var more = document.getElementById('nutritionistLoadMore');
+      if (more) more.style.display = filtered.length > mktNutritionistVisible ? 'block' : 'none';
+      var count = document.getElementById('nutritionistCount');
+      if (count) count.textContent = 'Showing ' + visible.length + ' of ' + filtered.length;
+    };
+
+    function mktSetTrainerChip(btn) {
+      document.querySelectorAll('#pane-trainers .mkt-chip').forEach(function(c) { c.classList.remove('active'); });
+      btn.classList.add('active');
+      window.activeTrainerFilter = btn.dataset.filter;
+      mktTrainerVisible = MKT_PAGE_SIZE;
+      filterTrainers();
+    }
+
+    function mktSetNutritionistChip(btn) {
+      document.querySelectorAll('#pane-nutritionists .mkt-chip').forEach(function(c) { c.classList.remove('active'); });
+      btn.classList.add('active');
+      window.activeNutritionistFilter = btn.dataset.filter;
+      mktNutritionistVisible = MKT_PAGE_SIZE;
+      filterNutritionists();
+    }
+
+    function mktLoadMore(type) {
+      if (type === 'trainer') {
+        mktTrainerVisible += MKT_PAGE_SIZE;
+        filterTrainers();
+      } else {
+        mktNutritionistVisible += MKT_PAGE_SIZE;
+        filterNutritionists();
+      }
+    }
+
+    function mktRenderSpotlight() {
+      try {
+        if (typeof trainers !== 'undefined') {
+          var t = trainers.slice().sort(function(a, b) {
+            return (b.rating || 0) - (a.rating || 0) || (b.subscribers || 0) - (a.subscribers || 0);
+          })[0];
+          if (t) {
+            var el = document.getElementById('trainerSpotlight');
+            if (el) {
+              el.dataset.id = t.id;
+              var initials = mktInitials(t.name);
+              var av = t.avatar
+                ? '<img class="mkt-spotlight-avatar" src="' + t.avatar + '" alt="' + t.name + '">'
+                : '<div class="mkt-spotlight-avatar" style="background:' + (t.color || '#2DD4BF') + ';">' + initials + '</div>';
+              el.innerHTML =
+                '<span class="mkt-spotlight-badge">Spotlight</span>' +
+                av +
+                '<div class="mkt-spotlight-info">' +
+                  '<h3>' + t.name + '</h3>' +
+                  '<div class="meta">' + (t.specialty || '') + '</div>' +
+                '</div>' +
+                '<div class="mkt-spotlight-rating">★ ' + (t.rating || '—') + '</div>';
+            }
+          }
+        }
+        if (typeof nutritionists !== 'undefined') {
+          var n = nutritionists.slice().sort(function(a, b) {
+            return (b.rating || 0) - (a.rating || 0) || (b.subscribers || 0) - (a.subscribers || 0);
+          })[0];
+          if (n) {
+            var eln = document.getElementById('nutritionistSpotlight');
+            if (eln) {
+              eln.dataset.id = n.id;
+              var initials2 = mktInitials(n.name);
+              var av2 = n.avatar
+                ? '<img class="mkt-spotlight-avatar" src="' + n.avatar + '" alt="' + n.name + '">'
+                : '<div class="mkt-spotlight-avatar" style="background:' + (n.color || '#2DD4BF') + ';">' + initials2 + '</div>';
+              eln.innerHTML =
+                '<span class="mkt-spotlight-badge">Spotlight</span>' +
+                av2 +
+                '<div class="mkt-spotlight-info">' +
+                  '<h3>' + n.name + '</h3>' +
+                  '<div class="meta">' + (n.specialty || '') + '</div>' +
+                '</div>' +
+                '<div class="mkt-spotlight-rating">★ ' + (n.rating || '—') + '</div>';
+            }
+          }
+        }
+      } catch (e) { console.warn('[shape] spotlight render failed', e); }
+    }
+
+    function mktOpenSpotlight(type) {
+      var el = document.getElementById(type === 'trainer' ? 'trainerSpotlight' : 'nutritionistSpotlight');
+      var id = el && el.dataset.id;
+      if (!id) return;
+      if (type === 'trainer' && typeof openTrainerModal === 'function') openTrainerModal(parseInt(id, 10));
+      if (type === 'nutritionist' && typeof openNutritionistModal === 'function') openNutritionistModal(parseInt(id, 10));
+    }
+
     function mktSwitch(pane) {
-      document.querySelectorAll('.mkt-toggle-btn').forEach(function(b){
+      document.querySelectorAll('.mkt-toggle-btn').forEach(function(b) {
         var on = b.getAttribute('data-pane') === pane;
         b.classList.toggle('active', on);
         b.setAttribute('aria-selected', on ? 'true' : 'false');
       });
-      document.querySelectorAll('.mkt-pane').forEach(function(p){
+      document.querySelectorAll('.mkt-pane').forEach(function(p) {
         p.classList.toggle('active', p.id === 'pane-' + pane);
       });
       document.body.classList.toggle('mkt-nutri', pane === 'nutritionists');
@@ -505,55 +697,14 @@
       } catch (e) {}
     }
 
-    function renderTopAndFeatured() {
-      try {
-        if (typeof trainers !== 'undefined' && typeof createTrainerCard === 'function') {
-          var topT = document.getElementById('topCoachesGrid');
-          if (topT) {
-            var top = trainers.slice().sort(function(a,b){
-              return (b.rating - a.rating) || (b.subscribers - a.subscribers);
-            }).slice(0,3);
-            topT.innerHTML = top.map(createTrainerCard).join('');
-          }
-          var featT = document.getElementById('featuredCoachesGrid');
-          if (featT) {
-            var feat = trainers.filter(function(t){ return t.featured; });
-            if (!feat.length) {
-              feat = trainers.slice().sort(function(a,b){ return b.subscribers - a.subscribers; }).slice(0,2);
-            }
-            featT.innerHTML = feat.map(createTrainerCard).join('');
-          }
-        }
-        if (typeof nutritionists !== 'undefined' && typeof createNutritionistCard === 'function') {
-          var topN = document.getElementById('topNutritionistsGrid');
-          if (topN) {
-            var topNl = nutritionists.slice().sort(function(a,b){
-              return (b.rating - a.rating) || (b.subscribers - a.subscribers);
-            }).slice(0,3);
-            topN.innerHTML = topNl.map(createNutritionistCard).join('');
-          }
-          var featN = document.getElementById('featuredNutritionistsGrid');
-          if (featN) {
-            var featNl = nutritionists.filter(function(n){ return n.featured; });
-            if (!featNl.length) {
-              featNl = nutritionists.slice().sort(function(a,b){ return b.subscribers - a.subscribers; }).slice(0,2);
-            }
-            featN.innerHTML = featNl.map(createNutritionistCard).join('');
-          }
-        }
-      } catch (e) { console.warn('[shape] marketplace top/featured render failed', e); }
-    }
+    window.activeTrainerFilter = 'all';
+    window.activeNutritionistFilter = 'all';
 
-    // Initial render for both lists, and honor hash on load
-    (function() {
-      if (typeof trainers !== 'undefined' && typeof filterTrainers === 'function') {
-        filterTrainers();
-      }
-      if (typeof nutritionists !== 'undefined' && typeof filterNutritionists === 'function') {
-        filterNutritionists();
-      }
-      renderTopAndFeatured();
-      var h = (window.location.hash || '').replace('#','');
+    (function init() {
+      if (typeof trainers !== 'undefined') filterTrainers();
+      if (typeof nutritionists !== 'undefined') filterNutritionists();
+      mktRenderSpotlight();
+      var h = (window.location.hash || '').replace('#', '');
       if (h === 'nutritionists' || h === 'trainers') mktSwitch(h);
     })();
   </script>
@@ -561,15 +712,15 @@
   <script src="supabase.js"></script>
   <script src="booking.js"></script>
   <script>
-    // Phase 1b — swap hardcoded arrays for Supabase data when available.
-    (async function () {
+    // Swap to Supabase data when available
+    (async function() {
       try {
         if (window.shapeDb && typeof shapeDb.listTrainers === 'function') {
           var freshT = await shapeDb.listTrainers();
           if (Array.isArray(freshT) && freshT.length) {
             trainers.length = 0;
             for (var i = 0; i < freshT.length; i++) trainers.push(freshT[i]);
-            if (typeof filterTrainers === 'function') filterTrainers();
+            filterTrainers();
           }
         }
         if (window.shapeDb && typeof shapeDb.listNutritionists === 'function') {
@@ -577,12 +728,12 @@
           if (Array.isArray(freshN) && freshN.length) {
             nutritionists.length = 0;
             for (var j = 0; j < freshN.length; j++) nutritionists.push(freshN[j]);
-            if (typeof filterNutritionists === 'function') filterNutritionists();
+            filterNutritionists();
           }
         }
-        if (typeof renderTopAndFeatured === 'function') renderTopAndFeatured();
+        mktRenderSpotlight();
       } catch (e) {
-        console.warn('[shape] marketplace supabase swap failed, using hardcoded data', e);
+        console.warn('[shape] marketplace supabase swap failed', e);
       }
     })();
   </script>
