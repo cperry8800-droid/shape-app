@@ -675,6 +675,16 @@
       line-height: 1; flex-shrink: 0; margin-left: 8px;
     }
     .lib-chevron.open { transform: rotate(90deg); color: var(--accent); }
+    .lib-del-btn {
+      background: none; border: 1px solid var(--border); color: var(--text-muted);
+      width: 30px; height: 30px; font-size: 1rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      margin-left: 8px; flex-shrink: 0; line-height: 1;
+      transition: background .15s, border-color .15s, color .15s;
+    }
+    .lib-del-btn:hover {
+      background: rgba(248,113,113,0.08); border-color: rgba(248,113,113,0.5); color: #F87171;
+    }
     .lib-workout-preview {
       display: none; padding: 0 20px 16px;
       border-top: 1px solid var(--border);
@@ -3312,7 +3322,10 @@
               <span class="lib-group-chev">&#8250;</span>
             </summary>
             <div class="lib-group-body">
-              <p class="lib-group-sub">Training plans you've added from your coaches.</p>
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 0 8px;">
+                <p class="lib-group-sub" style="margin:0;">Training plans you've added from your coaches.</p>
+                <button type="button" class="btn btn-sm btn-outline" onclick="libDeleteAllPrograms()" style="border-color:rgba(239,68,68,0.3);color:#EF4444;font-size:0.72rem;">Delete all</button>
+              </div>
               <div id="libProgramsList" style="border:1px solid var(--border);"></div>
               <div id="libProgramsEmpty" style="display:none;padding:24px 16px;text-align:center;color:var(--text-muted);font-size:0.85rem;border:1px dashed var(--border);">
                 No programs yet. Browse trainers and tap <em>Add to my schedule</em> on any published plan.
@@ -3327,7 +3340,10 @@
               <span class="lib-group-chev">&#8250;</span>
             </summary>
             <div class="lib-group-body">
-              <p class="lib-group-sub">Nutrition plans you've added from your nutritionists.</p>
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 0 8px;">
+                <p class="lib-group-sub" style="margin:0;">Nutrition plans you've added from your nutritionists.</p>
+                <button type="button" class="btn btn-sm btn-outline" onclick="libDeleteAllMealPlans()" style="border-color:rgba(239,68,68,0.3);color:#EF4444;font-size:0.72rem;">Delete all</button>
+              </div>
               <div id="libMealPlansList" style="border:1px solid var(--border);"></div>
               <div id="libMealPlansEmpty" style="display:none;padding:24px 16px;text-align:center;color:var(--text-muted);font-size:0.85rem;border:1px dashed var(--border);">
                 No meal plans yet. Browse nutritionists and tap <em>Add to my schedule</em> on any published plan.
@@ -3342,7 +3358,10 @@
               <span class="lib-group-chev">&#8250;</span>
             </summary>
             <div class="lib-group-body">
-              <p class="lib-group-sub">Your saved workouts, ready to go whenever you are.</p>
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 0 8px;">
+                <p class="lib-group-sub" style="margin:0;">Your saved workouts, ready to go whenever you are.</p>
+                <button type="button" class="btn btn-sm btn-outline" onclick="libDeleteAllWorkouts()" style="border-color:rgba(239,68,68,0.3);color:#EF4444;font-size:0.72rem;">Delete all</button>
+              </div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px;">
             <input type="text" id="libSearchInput" placeholder="Search workouts…" oninput="libFilter()"
               style="flex:1;min-width:180px;padding:9px 14px;background:var(--bg-card);border:1px solid var(--border);color:var(--text);font-family:inherit;font-size:0.85rem;outline:none;"
@@ -3356,9 +3375,10 @@
           </div>
           <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:10px;" id="libCount">3 workouts saved</div>
           <div id="libTabGrid" style="border:1px solid var(--border);">
-            <div class="lib-workout-item lib-tab-item" data-name="5x5 strength foundation" data-cat="Strength" onclick="toggleLibTabPreview('ltp-1',this)">
+            <div class="lib-workout-item lib-tab-item" data-wid="ltp-1" data-name="5x5 strength foundation" data-cat="Strength" onclick="toggleLibTabPreview('ltp-1',this)">
               <div class="lib-workout-row">
                 <div><div style="font-weight:600;font-size:0.92rem;margin-bottom:3px;">5×5 Strength Foundation</div><div style="font-size:0.75rem;color:var(--text-muted);">Marcus Johnson &middot; Strength &middot; 45 min &middot; Saved Apr 2</div></div>
+                <button type="button" class="lib-del-btn" title="Delete workout" onclick="event.stopPropagation();libDeleteWorkout('ltp-1')">&times;</button>
                 <span class="lib-chevron">&#8250;</span>
               </div>
               <div class="lib-workout-preview" id="ltp-1">
@@ -3373,9 +3393,10 @@
                 <button class="btn btn-sm btn-primary" style="width:100%;margin-top:12px;" onclick="event.stopPropagation();startLiveWorkout()">Start Workout</button>
               </div>
             </div>
-            <div class="lib-workout-item lib-tab-item" data-name="tabata inferno" data-cat="HIIT" onclick="toggleLibTabPreview('ltp-2',this)" style="border-top:1px solid var(--border);">
+            <div class="lib-workout-item lib-tab-item" data-wid="ltp-2" data-name="tabata inferno" data-cat="HIIT" onclick="toggleLibTabPreview('ltp-2',this)" style="border-top:1px solid var(--border);">
               <div class="lib-workout-row">
                 <div><div style="font-weight:600;font-size:0.92rem;margin-bottom:3px;">Tabata Inferno</div><div style="font-size:0.75rem;color:var(--text-muted);">Aisha Patel &middot; HIIT &middot; 28 min &middot; Saved Mar 28</div></div>
+                <button type="button" class="lib-del-btn" title="Delete workout" onclick="event.stopPropagation();libDeleteWorkout('ltp-2')">&times;</button>
                 <span class="lib-chevron">&#8250;</span>
               </div>
               <div class="lib-workout-preview" id="ltp-2">
@@ -3391,9 +3412,10 @@
                 <button class="btn btn-sm btn-primary" style="width:100%;margin-top:12px;" onclick="event.stopPropagation();startLiveWorkout()">Start Workout</button>
               </div>
             </div>
-            <div class="lib-workout-item lib-tab-item" data-name="living room hiit" data-cat="At Home" onclick="toggleLibTabPreview('ltp-3',this)" style="border-top:1px solid var(--border);">
+            <div class="lib-workout-item lib-tab-item" data-wid="ltp-3" data-name="living room hiit" data-cat="At Home" onclick="toggleLibTabPreview('ltp-3',this)" style="border-top:1px solid var(--border);">
               <div class="lib-workout-row">
                 <div><div style="font-weight:600;font-size:0.92rem;margin-bottom:3px;">Living Room HIIT</div><div style="font-size:0.75rem;color:var(--text-muted);">Nina Brooks &middot; At Home &middot; 30 min &middot; Saved Mar 15</div></div>
+                <button type="button" class="lib-del-btn" title="Delete workout" onclick="event.stopPropagation();libDeleteWorkout('ltp-3')">&times;</button>
                 <span class="lib-chevron">&#8250;</span>
               </div>
               <div class="lib-workout-preview" id="ltp-3">
@@ -3809,8 +3831,70 @@
         }
       }
     }
-    document.addEventListener('DOMContentLoaded', libRenderPurchased);
-    window.addEventListener('pageshow', libRenderPurchased);
+    window.libDeleteAllPrograms = function() {
+      var list = libLoadList('shapeClientAssignedPrograms');
+      if (!list.length) return;
+      if (!confirm('Delete all ' + list.length + ' program' + (list.length === 1 ? '' : 's') + ' from your library? This can\'t be undone.')) return;
+      libSaveList('shapeClientAssignedPrograms', []);
+      libRenderPurchased();
+    };
+    window.libDeleteAllMealPlans = function() {
+      var list = libLoadList('shapeClientAssignedMealPlans');
+      if (!list.length) return;
+      if (!confirm('Delete all ' + list.length + ' meal plan' + (list.length === 1 ? '' : 's') + ' from your library? This can\'t be undone.')) return;
+      libSaveList('shapeClientAssignedMealPlans', []);
+      libRenderPurchased();
+    };
+
+    var LIB_WORKOUTS_REMOVED_KEY = 'shapeLibRemovedWorkouts';
+    function libGetRemovedWorkouts() {
+      try { var raw = localStorage.getItem(LIB_WORKOUTS_REMOVED_KEY); return raw ? JSON.parse(raw) : []; }
+      catch (e) { return []; }
+    }
+    function libSaveRemovedWorkouts(ids) {
+      try { localStorage.setItem(LIB_WORKOUTS_REMOVED_KEY, JSON.stringify(ids)); } catch (e) {}
+    }
+    function libApplyRemovedWorkouts() {
+      var ids = libGetRemovedWorkouts();
+      ids.forEach(function(id){
+        var item = document.querySelector('#libTabGrid [data-wid="' + id + '"]');
+        if (item && item.parentNode) item.parentNode.removeChild(item);
+      });
+      if (typeof libFilter === 'function') libFilter();
+    }
+    window.libDeleteWorkout = function(id) {
+      if (!id) return;
+      if (!confirm('Delete this workout from your library?')) return;
+      var item = document.querySelector('#libTabGrid [data-wid="' + id + '"]');
+      if (item && item.parentNode) item.parentNode.removeChild(item);
+      var ids = libGetRemovedWorkouts();
+      if (ids.indexOf(id) < 0) { ids.push(id); libSaveRemovedWorkouts(ids); }
+      if (typeof libFilter === 'function') libFilter();
+    };
+    window.libDeleteAllWorkouts = function() {
+      var grid = document.getElementById('libTabGrid');
+      if (!grid) return;
+      var items = grid.querySelectorAll('[data-wid]');
+      if (!items.length) return;
+      if (!confirm('Delete all ' + items.length + ' saved workout' + (items.length === 1 ? '' : 's') + '? This can\'t be undone.')) return;
+      var ids = libGetRemovedWorkouts();
+      items.forEach(function(it){
+        var id = it.getAttribute('data-wid');
+        if (id && ids.indexOf(id) < 0) ids.push(id);
+        if (it.parentNode) it.parentNode.removeChild(it);
+      });
+      libSaveRemovedWorkouts(ids);
+      if (typeof libFilter === 'function') libFilter();
+    };
+
+    document.addEventListener('DOMContentLoaded', function(){
+      libRenderPurchased();
+      libApplyRemovedWorkouts();
+    });
+    window.addEventListener('pageshow', function(){
+      libRenderPurchased();
+      libApplyRemovedWorkouts();
+    });
     window.addEventListener('focus', libRenderPurchased);
 
     // Library tab — filter/search/preview
