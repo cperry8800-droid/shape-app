@@ -8,11 +8,25 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <style>
+    html { background: #000 !important; }
     body {
       min-height: 100vh;
       display: flex; flex-direction: column;
-      background: var(--bg);
+      background: transparent;
+      position: relative;
     }
+    body::before {
+      content: ''; position: fixed; inset: 0; z-index: -1;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.9) 100%),
+                  url('/login%20page.png') center/cover no-repeat;
+    }
+    @media (max-width: 768px) {
+      body::before {
+        background: linear-gradient(to bottom, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.94) 100%),
+                    url('/login%20page.png') center top/cover no-repeat;
+      }
+    }
+    .login-page, .navbar { background: transparent !important; }
 
     .login-page {
       flex: 1; display: flex; align-items: center; justify-content: center;
