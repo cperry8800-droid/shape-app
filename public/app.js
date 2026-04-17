@@ -1998,7 +1998,7 @@ function openTrainerModal(id) {
           </div>
           <div class="workout-item-buy">
             <div class="workout-item-price">$${w.price.toFixed(2)}</div>
-            <button class="btn btn-sm btn-outline" onclick="purchaseWorkout('${w.name}', ${w.price}, event)">Buy Plan</button>
+            <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();shapeBookOneTime('trainer', ${t.id}, 'booking')">Buy Plan</button>
           </div>
         </div>
       `).join('')}
@@ -2072,7 +2072,7 @@ function openNutritionistModal(id) {
           </div>
           <div class="workout-item-buy">
             <div class="workout-item-price">$${p.price.toFixed(2)}</div>
-            <button class="btn btn-sm btn-outline" onclick="purchaseWorkout('${p.name}', ${p.price}, event)">Buy Plan</button>
+            <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();shapeBookOneTime('nutritionist', ${n.id}, 'meal_plan')">Buy Plan</button>
           </div>
         </div>
       `).join('')}
