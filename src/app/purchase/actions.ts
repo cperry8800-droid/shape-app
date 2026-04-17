@@ -19,6 +19,10 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
   const providerRole = String(formData.get('provider_role') ?? '') as ProviderRole;
   const providerId = Number(formData.get('provider_id') ?? 0);
   const kind = String(formData.get('kind') ?? '') as Kind;
+  const workoutIdRaw = formData.get('workout_id');
+  const planIdRaw = formData.get('plan_id');
+  const workoutId = workoutIdRaw ? Number(workoutIdRaw) : null;
+  const planId = planIdRaw ? Number(planIdRaw) : null;
 
   if (
     !['trainer', 'nutritionist'].includes(providerRole) ||
@@ -54,20 +58,48 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
     redirect(`${backHref}?error=provider_not_onboarded`);
   }
 
-  // Trainers expose `session_price` (single-session fee); nutritionists
-  // expose `meal_plan_price`. Fall back to the monthly `price` if the
-  // per-item column is unset, so older rows still check out at something.
+  // If a specific workout or plan was targeted, use its price + name so
+  // the Stripe receipt shows the actual item. Otherwise fall back to the
+  // provider-level session / meal-plan fee, then the monthly price.
+  let itemName: string | null = null;
+  let itemPrice: number | null = null;
+  if (providerRole === 'trainer' && workoutId && Number.isFinite(workoutId)) {
+    const { data: wk } = await admin
+      .from('trainer_workouts')
+      .select('id, name, price, trainer_id')
+      .eq('id', workoutId)
+      .maybeSingle();
+    if (wk && wk.trainer_id === providerId) {
+      itemName = (wk as { name: string }).name;
+      itemPrice = (wk as { price: number | null }).price ?? null;
+    }
+  }
+  if (providerRole === 'nutritionist' && planId && Number.isFinite(planId)) {
+    const { data: pl } = await admin
+      .from('nutritionist_plans')
+      .select('id, name, price, nutritionist_id')
+      .eq('id', planId)
+      .maybeSingle();
+    if (pl && pl.nutritionist_id === providerId) {
+      itemName = (pl as { name: string }).name;
+      itemPrice = (pl as { price: number | null }).price ?? null;
+    }
+  }
+
   const rawPrice =
-    kind === 'booking'
+    itemPrice ??
+    (kind === 'booking'
       ? provider.session_price ?? provider.price
-      : provider.meal_plan_price ?? provider.price;
+      : provider.meal_plan_price ?? provider.price);
   const priceCents = Math.round(Number(rawPrice ?? 0) * 100);
   if (!priceCents || priceCents <= 0) {
     redirect(`${backHref}?error=price_not_set`);
   }
 
   const label = kind === 'booking' ? 'Booking' : 'Meal plan';
-  const productName = `${provider.name} — ${label}`;
+  const productName = itemName
+    ? `${provider.name} — ${itemName}`
+    : `${provider.name} — ${label}`;
 
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
   const applicationFeeCents = Math.floor((priceCents * APPLICATION_FEE_BASIS_POINTS) / 10000);
@@ -92,6 +124,8 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
       provider_role: providerRole,
       kind,
       price_cents: String(priceCents),
+      workout_id: workoutId ? String(workoutId) : '',
+      plan_id: planId ? String(planId) : '',
     },
     payment_intent_data: {
       application_fee_amount: applicationFeeCents,
@@ -101,6 +135,8 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
         provider_id: String(providerId),
         provider_role: providerRole,
         kind,
+        workout_id: workoutId ? String(workoutId) : '',
+        plan_id: planId ? String(planId) : '',
       },
     },
     success_url: `${origin}/purchase/success?session_id={CHECKOUT_SESSION_ID}`,
