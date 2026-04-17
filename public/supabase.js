@@ -102,12 +102,34 @@
       var res = await client.auth.signInWithPassword({ email: email, password: password });
       if (res.error) return { error: res.error };
       var user = res.data.user;
+      // Push the session into Next.js auth cookies so server-rendered
+      // /dashboard/* routes recognize the user. Non-blocking — if this fails
+      // legacy HTML pages still work via localStorage.
+      try {
+        var session = res.data.session;
+        if (session && session.access_token && session.refresh_token) {
+          await fetch('/api/auth/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              access_token: session.access_token,
+              refresh_token: session.refresh_token,
+            }),
+          });
+        }
+      } catch (e) { console.warn('[shape] cookie bridge failed', e); }
       var profile = await shapeDb.getProfile(user.id);
       return { user: user, profile: profile };
     },
 
     async signOut() {
       await client.auth.signOut();
+      // Clear the Next.js cookie session too so server-rendered routes
+      // don't think the user is still signed in.
+      try {
+        await fetch('/api/auth/session', { method: 'DELETE', credentials: 'include' });
+      } catch (e) {}
       // Clear legacy demo keys so stale UI state doesn't linger.
       try {
         localStorage.removeItem('shapeLoggedIn');
@@ -420,6 +442,21 @@
     async applyNavAuthState() {
       var session = await shapeDb.getSession();
       var loggedIn = !!session;
+      // Sync the session into Next.js auth cookies so server-rendered
+      // /dashboard/* routes don't redirect to /login. Fire-and-forget.
+      if (loggedIn && session.access_token && session.refresh_token) {
+        try {
+          fetch('/api/auth/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              access_token: session.access_token,
+              refresh_token: session.refresh_token,
+            }),
+          }).catch(function () {});
+        } catch (e) {}
+      }
       if (document.body) {
         document.body.classList.toggle('shape-logged-in', loggedIn);
       }
