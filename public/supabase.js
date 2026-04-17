@@ -326,6 +326,7 @@
       var res = await client
         .from('trainers')
         .select('*, trainer_workouts(*, workout_sample_days(*))')
+        .not('owner_id', 'is', null)
         .order('sort_order', { ascending: true });
       if (res.error) { console.warn('[shape] listTrainers error', res.error); return []; }
       return (res.data || []).map(function (t) {
@@ -357,6 +358,7 @@
       var res = await client
         .from('nutritionists')
         .select('*, nutritionist_plans(*, plan_sample_days(*))')
+        .not('owner_id', 'is', null)
         .order('sort_order', { ascending: true });
       if (res.error) { console.warn('[shape] listNutritionists error', res.error); return []; }
       return (res.data || []).map(function (n) {
