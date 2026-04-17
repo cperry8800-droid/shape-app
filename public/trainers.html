@@ -330,7 +330,7 @@
       const topGrid = document.getElementById('topCoachesGrid');
       const featuredGrid = document.getElementById('featuredCoachesGrid');
       if (topGrid && typeof trainers !== 'undefined') {
-        const top = [...trainers].sort((a,b) => b.rating - a.rating || b.subscribers - a.subscribers).slice(0,3);
+        const top = [...trainers].sort((a,b) => (b.rating || 0) - (a.rating || 0) || b.subscribers - a.subscribers).slice(0,3);
         topGrid.innerHTML = top.map(t => createTrainerCard(t)).join('');
       }
       if (featuredGrid && typeof trainers !== 'undefined') {
@@ -369,7 +369,7 @@
         var featuredGrid = document.getElementById('featuredCoachesGrid');
         if (topGrid) {
           var top = trainers.slice().sort(function (a, b) {
-            return (b.rating - a.rating) || (b.subscribers - a.subscribers);
+            return ((b.rating || 0) - (a.rating || 0)) || (b.subscribers - a.subscribers);
           }).slice(0, 3);
           topGrid.innerHTML = top.map(createTrainerCard).join('');
         }
