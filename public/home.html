@@ -80,20 +80,17 @@
       letter-spacing: -0.04em; line-height: 1.1; margin-bottom: 10px;
       color: #fff;
     }
-    .split-hero-logo-wrap {
-      display: flex; flex-direction: column; align-items: center;
-      margin-bottom: 14px;
-    }
     .split-hero-mark {
-      display: block; height: 56px; width: auto; margin: 0;
+      display: block; height: 56px; width: auto; margin: 0 auto;
       overflow: visible;
     }
     .split-hero-wordmark {
-      margin: -6px 0 0; padding: 0;
+      margin: -4px auto 14px; padding: 0;
       line-height: 0; font-size: 0;
+      text-align: center;
     }
     .split-hero-wordmark img {
-      height: 44px; width: auto; display: block;
+      height: 26px; width: auto; display: inline-block;
       filter: brightness(0) invert(1);
     }
     .split-hero-mark .s-beam-path {
@@ -179,11 +176,10 @@
       .split-hero { padding: 110px 0 8px; }
       .split-hero-sub { margin-bottom: 20px; }
       .split-grid { margin-top: 0; }
-      .split-hero-logo-wrap { margin-bottom: 12px; }
-      .split-hero-mark { height: 40px; margin: 0; }
+      .split-hero-mark { height: 40px; margin: 0 auto; }
       .split-hero-mark .s-beam-path { stroke-width: 3; }
-      .split-hero-wordmark { margin: -4px 0 0; }
-      .split-hero-wordmark img { height: 30px; }
+      .split-hero-wordmark { margin: -3px auto 12px; }
+      .split-hero-wordmark img { height: 20px; }
     }
   </style>
   <link rel="manifest" href="manifest.json">
@@ -253,15 +249,13 @@
   <!-- Hero -->
   <section class="split-hero">
     <div class="container">
-      <div class="split-hero-logo-wrap">
-        <svg class="split-hero-mark" viewBox="0 0 95 110" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <polygon points="5,113 5,43 55,78" fill="#2DD4BF"/>
-          <polygon points="90,-3 90,67 40,32" fill="#fff"/>
-          <path d="M90,-3 L40,32 L90,67" class="s-beam-path s-beam-upper" />
-          <path d="M5,43 L55,78 L5,113" class="s-beam-path s-beam-lower" />
-        </svg>
-        <h1 class="split-hero-wordmark"><img src="logo-text-trimmed.png" alt="Shape"></h1>
-      </div>
+      <svg class="split-hero-mark" viewBox="0 0 95 110" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <polygon points="5,113 5,43 55,78" fill="#2DD4BF"/>
+        <polygon points="90,-3 90,67 40,32" fill="#fff"/>
+        <path d="M90,-3 L40,32 L90,67" class="s-beam-path s-beam-upper" />
+        <path d="M5,43 L55,78 L5,113" class="s-beam-path s-beam-lower" />
+      </svg>
+      <h1 class="split-hero-wordmark"><img src="logo-text-trimmed.png" alt="Shape"></h1>
       <p class="split-hero-sub">Real Coaches. One marketplace. One community.<br>One platform.</p>
 
       <!-- Split Paths -->
