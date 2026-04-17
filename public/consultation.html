@@ -398,9 +398,11 @@
       }
     }
 
-    function confirmBooking() {
+    async function confirmBooking() {
+      const btn = document.querySelector('button[onclick="confirmBooking()"]');
       const name = document.getElementById('consultName').value.trim();
       const email = document.getElementById('consultEmail').value.trim();
+      const topic = document.getElementById('consultTopic').value.trim();
 
       if (!selectedDate || !selectedTime) {
         showToast('Please select a date and time');
@@ -414,7 +416,39 @@
       const d = new Date(selectedDate + 'T00:00:00');
       const dateStr = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
-      // Save booking
+      const originalLabel = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Booking...';
+
+      try {
+        const res = await fetch('/api/consultation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            professionalName: proName,
+            professionalType: proType,
+            date: selectedDate,
+            time: selectedTime,
+            clientName: name,
+            clientEmail: email,
+            topic: topic
+          })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showToast(data.error || 'Could not book. Please try again.');
+          btn.disabled = false;
+          btn.textContent = originalLabel;
+          return;
+        }
+      } catch (_) {
+        showToast('Network error. Please try again.');
+        btn.disabled = false;
+        btn.textContent = originalLabel;
+        return;
+      }
+
+      // Keep a local copy for the user's own records.
       const bookings = JSON.parse(localStorage.getItem('shapeConsultations') || '[]');
       bookings.push({
         professional: proName,
@@ -423,7 +457,7 @@
         time: selectedTime,
         clientName: name,
         clientEmail: email,
-        topic: document.getElementById('consultTopic').value.trim(),
+        topic: topic,
         bookedAt: new Date().toISOString()
       });
       localStorage.setItem('shapeConsultations', JSON.stringify(bookings));

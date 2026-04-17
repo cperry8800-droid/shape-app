@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard-preview.html
+Disallow: /reset-password.html
+Disallow: /live-workout.html
+Disallow: /api/
+Disallow: /clients.html
+Disallow: /trainer-dashboard.html
+Disallow: /gym-dashboard.html
+Disallow: /nutrition-schedule.html
+Disallow: /messages.html
+Disallow: /my-team.html
+
+Sitemap: https://shape.app/sitemap.xml
