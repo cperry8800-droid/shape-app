@@ -2613,6 +2613,44 @@
               width: 100%; max-width: 440px; padding: 22px 22px 18px;
               box-shadow: 0 20px 60px rgba(0,0,0,0.6);
             }
+            .gl-items-overlay { padding: 4vh 16px 16px; }
+            .gl-modal-lg {
+              max-width: 880px; padding: 30px 32px 24px;
+              max-height: 92vh; display: flex; flex-direction: column;
+            }
+            .gl-modal-lg .gl-items-body { min-height: 320px; }
+            .gl-modal-lg .gl-modal-head { margin-bottom: 18px; align-items: flex-start; }
+            .gl-modal-eyebrow {
+              font-size: 0.68rem; text-transform: uppercase;
+              letter-spacing: 0.14em; color: var(--text-muted); margin-bottom: 4px;
+            }
+            .gl-modal-lg h3 {
+              margin: 0; font-size: 1.35rem; font-weight: 300; letter-spacing: -0.02em;
+            }
+            .gl-items-add { margin-bottom: 14px; }
+            .gl-items-count {
+              font-size: 0.7rem; text-transform: uppercase;
+              letter-spacing: 0.1em; color: var(--text-muted);
+              margin: 4px 0 10px;
+            }
+            .gl-items-body {
+              flex: 1; overflow-y: auto; min-height: 220px;
+              border-top: 1px solid var(--border);
+              padding: 10px 0 4px;
+            }
+            .gl-items-body .grocery-empty {
+              padding: 40px 12px; text-align: center;
+              color: var(--text-muted); font-size: 0.85rem;
+            }
+            .gl-modal-lg .gl-modal-actions {
+              border-top: 1px solid var(--border);
+              padding-top: 14px; margin-top: 14px;
+            }
+            @media (max-width: 640px) {
+              .gl-items-overlay { padding: 2vh 8px 8px; }
+              .gl-modal-lg { padding: 18px 16px 14px; max-height: 94vh; }
+              .gl-modal-lg h3 { font-size: 1.15rem; }
+            }
             .gl-modal-head {
               display: flex; align-items: center; justify-content: space-between;
               gap: 12px; margin-bottom: 14px;
@@ -2757,6 +2795,39 @@
             </form>
 
             <div id="glDetailItems" class="gl-detail-items"></div>
+          </div>
+
+          <!-- Add items modal (large) -->
+          <div class="gl-modal-overlay gl-items-overlay" id="glItemsModal" onclick="if(event.target===this)glCloseItemsModal()" role="dialog" aria-modal="true">
+            <div class="gl-modal gl-modal-lg">
+              <div class="gl-modal-head">
+                <div>
+                  <div class="gl-modal-eyebrow">Add ingredients</div>
+                  <h3 id="glItemsModalTitle">New list</h3>
+                </div>
+                <button type="button" class="gl-modal-close" onclick="glCloseItemsModal()" aria-label="Close">&times;</button>
+              </div>
+
+              <form id="glItemsModalForm" class="grocery-add-form gl-items-add" onsubmit="event.preventDefault(); glAddItemToModal(this);">
+                <input type="text" class="gl-input" data-role="name" name="name" placeholder="Add an item (e.g. Avocados)" required autocomplete="off">
+                <input type="text" class="gl-input" name="qty" placeholder="Qty" autocomplete="off">
+                <select class="gl-select" name="cat">
+                  <option value="Produce">Produce</option>
+                  <option value="Protein">Protein</option>
+                  <option value="Dairy &amp; Eggs">Dairy &amp; Eggs</option>
+                  <option value="Pantry">Pantry</option>
+                  <option value="Other">Other</option>
+                </select>
+                <button type="submit" class="gl-add-btn">+ Add item</button>
+              </form>
+
+              <div class="gl-items-count" id="glItemsModalCount">0 items</div>
+              <div class="gl-items-body" id="glItemsModalBody"></div>
+
+              <div class="gl-modal-actions">
+                <button type="button" class="gl-modal-btn primary" onclick="glCloseItemsModal()">Done</button>
+              </div>
+            </div>
           </div>
 
           <!-- Create / Rename list modal -->
@@ -7044,6 +7115,7 @@
       if (!input) return;
       var name = (input.value || '').trim();
       if (!name) { input.focus(); return; }
+      var justCreatedId = null;
       if (_glModalMode === 'rename' && _glModalEditId) {
         var existing = getList(_glModalEditId);
         if (!existing || existing.source === 'coach') { window.glCloseModal(); return; }
@@ -7058,10 +7130,106 @@
         s.lists.push(list);
         saveState(s);
         _activeListId = list.id;
+        justCreatedId = list.id;
       }
       window.glCloseModal();
       renderLists();
       renderDetail();
+      if (justCreatedId) window.glOpenItemsModal(justCreatedId);
+    };
+
+    var _glItemsModalListId = null;
+    function renderItemsModalBody() {
+      var list = _glItemsModalListId ? getList(_glItemsModalListId) : null;
+      var body = document.getElementById('glItemsModalBody');
+      var countEl = document.getElementById('glItemsModalCount');
+      if (!body || !list) return;
+      var total = (list.items || []).length;
+      if (countEl) countEl.textContent = total + ' item' + (total === 1 ? '' : 's');
+      if (!total) {
+        body.innerHTML = '<div class="grocery-empty">No items yet. Add your first ingredient above.</div>';
+        return;
+      }
+      var byCat = {};
+      list.items.forEach(function(it){
+        var c = it.cat || 'Other';
+        if (!byCat[c]) byCat[c] = [];
+        byCat[c].push(it);
+      });
+      var order = ['Produce','Protein','Dairy & Eggs','Pantry','Other'];
+      var cats = Object.keys(byCat).sort(function(a,b){
+        var ia = order.indexOf(a), ib = order.indexOf(b);
+        if (ia < 0) ia = 99; if (ib < 0) ib = 99;
+        return ia - ib || a.localeCompare(b);
+      });
+      var html = '';
+      cats.forEach(function(cat){
+        html += '<div class="grocery-cat">';
+        html += '<div class="grocery-cat-head"><span>' + escapeHtml(cat) + '</span><span class="grocery-cat-count">' + byCat[cat].length + ' ' + (byCat[cat].length === 1 ? 'item' : 'items') + '</span></div>';
+        byCat[cat].forEach(function(item){
+          html += '<div class="grocery-row' + (item.checked ? ' checked' : '') + '" onclick="glToggleItem(\'' + escapeHtml(item.id) + '\')">';
+          html += '<div class="grocery-check">' + (item.checked ? '&#10003;' : '') + '</div>';
+          html += '<div class="grocery-row-body">';
+          html += '<div class="grocery-name-line"><span class="grocery-name">' + escapeHtml(item.name) + '</span></div>';
+          if (item.qty) html += '<div class="grocery-qty">' + escapeHtml(item.qty) + '</div>';
+          html += '</div>';
+          html += '<button type="button" class="grocery-remove" onclick="event.stopPropagation();glRemoveItemFromModal(\'' + escapeHtml(item.id) + '\');" title="Remove">&times;</button>';
+          html += '</div>';
+        });
+        html += '</div>';
+      });
+      body.innerHTML = html;
+    }
+    window.glOpenItemsModal = function(listId) {
+      var id = listId || _activeListId;
+      if (!id) return;
+      var list = getList(id);
+      if (!list) return;
+      _glItemsModalListId = id;
+      _activeListId = id;
+      var modal = document.getElementById('glItemsModal');
+      var title = document.getElementById('glItemsModalTitle');
+      if (title) title.textContent = list.name;
+      renderItemsModalBody();
+      if (modal) modal.classList.add('open');
+      setTimeout(function(){
+        var f = document.getElementById('glItemsModalForm');
+        var nameIn = f && f.querySelector('[data-role="name"]');
+        if (nameIn) { try { nameIn.focus(); } catch(e){} }
+      }, 60);
+    };
+    window.glCloseItemsModal = function() {
+      var modal = document.getElementById('glItemsModal');
+      if (modal) modal.classList.remove('open');
+      _glItemsModalListId = null;
+      renderLists();
+      renderDetail();
+    };
+    window.glAddItemToModal = function(form) {
+      if (!_glItemsModalListId) return;
+      var fd = new FormData(form);
+      var name = (fd.get('name') || '').toString().trim();
+      if (!name) return;
+      var qty = (fd.get('qty') || '').toString().trim();
+      var cat = (fd.get('cat') || 'Other').toString();
+      updateList(_glItemsModalListId, function(l){
+        l.items = l.items || [];
+        l.items.push({
+          id: 'i_' + Date.now() + '_' + Math.floor(Math.random()*1000),
+          name: name, qty: qty, cat: cat, checked: false
+        });
+      });
+      form.reset();
+      var nameIn = form.querySelector('[data-role="name"]');
+      if (nameIn) { try { nameIn.focus(); } catch(e){} }
+      renderItemsModalBody();
+    };
+    window.glRemoveItemFromModal = function(itemId) {
+      if (!_glItemsModalListId) return;
+      updateList(_glItemsModalListId, function(l){
+        l.items = (l.items || []).filter(function(it){ return it.id !== itemId; });
+      });
+      renderItemsModalBody();
     };
     window.glNewPersonalList = function() {
       window.glOpenModal('create');
@@ -7108,6 +7276,7 @@
       });
       renderLists();
       renderDetail();
+      if (_glItemsModalListId) renderItemsModalBody();
     };
     window.glRemoveItem = function(itemId) {
       if (!_activeListId) return;
