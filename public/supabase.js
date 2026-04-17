@@ -298,6 +298,8 @@
 
     // Fetch the trainer or nutritionist row owned by the signed-in user.
     // Used by dashboard pages to drive Stripe Connect onboarding banners.
+    // If the user somehow owns multiple rows (stale claims, data import),
+    // we just return the lowest-id row instead of erroring.
     async getMyProvider(role) {
       var session = await shapeDb.getSession();
       if (!session) return null;
@@ -307,12 +309,13 @@
         .from(table)
         .select('id, name, stripe_account_id, stripe_account_status')
         .eq('owner_id', session.user.id)
-        .maybeSingle();
+        .order('id', { ascending: true })
+        .limit(1);
       if (res.error) {
         console.warn('[shape] getMyProvider error', res.error);
         return null;
       }
-      return res.data;
+      return (res.data && res.data[0]) || null;
     },
 
     // Kick off Stripe Connect onboarding for the signed-in provider. Server
