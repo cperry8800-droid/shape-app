@@ -99,6 +99,25 @@
     .today-feed-greet-title { font-size: 1.3rem; }
   }
 
+  /* ===== Legacy widgets collapse (matches client dashboard) ===== */
+  .today-legacy-wrap { max-width: 1200px; margin: 0 auto; padding: 16px 0; }
+  .today-legacy-summary {
+    cursor: pointer; font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.1em; color: var(--text-muted); padding: 10px 0;
+    border-top: 1px solid var(--border); list-style: none;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .today-legacy-summary::-webkit-details-marker { display: none; }
+  .today-legacy-summary::before {
+    content: '+'; display: inline-block; width: 16px; height: 16px;
+    border: 1px solid var(--border); text-align: center; line-height: 14px;
+    font-weight: 400; font-size: 0.88rem;
+  }
+  details[open] .today-legacy-summary::before { content: '\2013'; }
+  .today-legacy-summary:hover { color: var(--text); }
+  .today-legacy-wrap[open] { padding-bottom: 24px; }
+  .today-legacy-wrap > .widget-grid { margin-top: 16px; }
+
   /* ===== Messages Panel ===== */
   .td-messages-panel {
     display: grid; grid-template-columns: 260px 1fr; border: 1px solid var(--border);
@@ -1049,6 +1068,8 @@
           <div class="today-feed-greet-sub">Here's what's on your plate &middot; <span id="tdTodayDateLabel"></span></div>
         </div>
       </div>
+      <details class="today-legacy-wrap">
+        <summary class="today-legacy-summary">Show all widgets</summary>
       <div class="widget-grid" id="tdWidgetGrid">
 
         <!-- Widget: Trainer Stats -->
@@ -1258,6 +1279,7 @@
 
       </div><!-- /tdWidgetGrid -->
       <button class="widget-lib-btn" onclick="wlibOpen()">+ Add Widget from Library</button>
+      </details>
     </div>
 
     <!-- ========== TAB: CLIENTS ========== -->
