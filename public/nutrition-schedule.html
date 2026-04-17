@@ -1528,7 +1528,10 @@
 
           <!-- My Meal Plans List -->
           <div class="mpb-plans-list">
-            <label class="mpb-label" style="margin-bottom:12px;">My Meal Plans</label>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
+              <label class="mpb-label" style="margin:0;">My Meal Plans</label>
+              <button type="button" class="btn btn-sm btn-outline" id="mpbDeleteAllBtn" onclick="mpbDeleteAllPlans()" style="border-color:rgba(239,68,68,0.3);color:#EF4444;font-size:0.72rem;">Delete all</button>
+            </div>
             <div id="mpbPlansList"></div>
           </div>
         </div>
@@ -2613,6 +2616,16 @@
       var assigned=mpbGetAssigned().filter(function(p){return p.id!==id;});
       mpbSaveAssigned(assigned);
       mpbToast('Plan deleted');
+      mpbRenderList();
+    };
+
+    window.mpbDeleteAllPlans=function(){
+      var plans=mpbGetPlans();
+      if(!plans.length){mpbToast('No plans to delete');return;}
+      if(!confirm('Delete all '+plans.length+' meal plan'+(plans.length===1?'':'s')+'? This can\'t be undone.'))return;
+      mpbSavePlans([]);
+      mpbSaveAssigned([]);
+      mpbToast('All plans deleted');
       mpbRenderList();
     };
 
