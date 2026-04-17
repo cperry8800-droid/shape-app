@@ -1998,7 +1998,7 @@ function openTrainerModal(id) {
           </div>
           <div class="workout-item-buy">
             <div class="workout-item-price">$${w.price.toFixed(2)}</div>
-            <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();shapeBookOneTime('trainer', ${t.id}, 'booking')">Buy Plan</button>
+            <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();shapeBookOneTime('trainer', ${t.id}, 'booking', ${w.id})">Buy Plan</button>
           </div>
         </div>
       `).join('')}
@@ -2072,7 +2072,7 @@ function openNutritionistModal(id) {
           </div>
           <div class="workout-item-buy">
             <div class="workout-item-price">$${p.price.toFixed(2)}</div>
-            <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();shapeBookOneTime('nutritionist', ${n.id}, 'meal_plan')">Buy Plan</button>
+            <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();shapeBookOneTime('nutritionist', ${n.id}, 'meal_plan', ${p.id})">Buy Plan</button>
           </div>
         </div>
       `).join('')}
@@ -2120,11 +2120,16 @@ function subscribe(name, price) {
 function shapeSubscribe(role, id) {
   window.location.href = '/subscribe?role=' + encodeURIComponent(role) + '&id=' + encodeURIComponent(id);
 }
-function shapeBookOneTime(role, id, kind) {
-  window.location.href =
+function shapeBookOneTime(role, id, kind, itemId) {
+  var url =
     '/purchase?role=' + encodeURIComponent(role) +
     '&id=' + encodeURIComponent(id) +
     '&kind=' + encodeURIComponent(kind);
+  if (itemId != null) {
+    var paramName = kind === 'meal_plan' ? 'plan_id' : 'workout_id';
+    url += '&' + paramName + '=' + encodeURIComponent(itemId);
+  }
+  window.location.href = url;
 }
 
 function bookConsultation(name, type) {
