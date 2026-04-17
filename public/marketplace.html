@@ -184,9 +184,24 @@
     @media (max-width: 768px) {
       .filter-bar-top { flex-direction: column; }
       .filter-sort { min-width: unset; width: 100%; }
-      .mkt-toggle-btn { min-width: 100px; padding: 10px 16px; }
-      .mkt-top-grid { grid-template-columns: 1fr; }
-      .mkt-featured-grid { grid-template-columns: 1fr; }
+      .mkt-toggle { margin-top: 14px; }
+      .mkt-toggle-btn { min-width: 0; padding: 9px 18px; font-size: 0.85rem; }
+      .mkt-top-grid { grid-template-columns: 1fr; gap: 12px; }
+      .mkt-featured-grid { grid-template-columns: 1fr; gap: 12px; }
+      .mkt-spotlight-h { font-size: 1.4rem !important; }
+      .mkt-spotlight-h::after { margin-top: 10px; width: 36px; }
+      #pane-trainers .totm-card,
+      #pane-nutritionists .totm-card { padding: 18px; }
+      #pane-trainers .totm-avatar,
+      #pane-nutritionists .totm-avatar { width: 60px; height: 60px; font-size: 1.2rem; }
+      #pane-trainers .totm-info h2,
+      #pane-nutritionists .totm-info h2 { font-size: 1.15rem; }
+      #pane-trainers .totm-quote,
+      #pane-nutritionists .totm-quote { font-size: 0.82rem; }
+      #pane-trainers .totm-info .card-desc,
+      #pane-nutritionists .totm-info .card-desc { font-size: 0.78rem; }
+      .filter-bar-buttons { gap: 6px; }
+      .filter-bar-buttons .filter-btn { padding: 8px 12px; font-size: 0.72rem; }
     }
   </style>
 </head>
