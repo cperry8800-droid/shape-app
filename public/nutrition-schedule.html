@@ -15,22 +15,24 @@
 <style>
   /* ===== Dashboard Tab Bar ===== */
   .nd-tab-bar {
-    display: flex; gap: 0; justify-content: center; border-bottom: 1px solid var(--border);
-    background: var(--bg-card); position: sticky; top: 88px; z-index: 100;
-    overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none;
+    display: flex; gap: 8px; justify-content: center; border-bottom: 1px solid var(--border);
+    background: var(--bg-alt); position: sticky; top: 88px; z-index: 100;
+    max-width: 1440px; margin: 0 auto; padding: 0 24px;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; -ms-overflow-style: none;
   }
   .nd-tab-bar::-webkit-scrollbar { display: none; }
   .nd-tab-btn {
-    padding: 10px 16px; font-size: 0.72rem; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.1em;
-    color: var(--text-muted); background: none; border: none;
+    padding: 10px 16px; font-size: 0.75rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text); background: transparent; border: none;
     border-bottom: 2px solid transparent;
     cursor: pointer; font-family: inherit; white-space: nowrap;
-    transition: color 0.2s, border-color 0.2s;
+    transition: all 0.2s; opacity: 0.5; flex-shrink: 0;
   }
-  .nd-tab-btn:hover { color: var(--text); }
+  .nd-tab-btn:hover { opacity: 0.8; }
   .nd-tab-btn.active {
-    color: var(--accent); border-bottom-color: var(--accent);
+    opacity: 1; color: var(--text); border-bottom-color: var(--accent);
   }
   .nd-tab-content { display: none; }
   .nd-tab-content.active { display: block; }
@@ -1086,12 +1088,11 @@
   <div class="nd-tab-bar" id="ndTabBar">
     <button class="nd-tab-btn active" data-tab="home" data-icon="☉" onclick="ndSwitchTab('home', this)">Home</button>
     <button class="nd-tab-btn" data-tab="clients" data-icon="◉" onclick="ndSwitchTab('clients', this)">Clients</button>
-    <button class="nd-tab-btn" data-tab="mealplans" data-icon="▤" onclick="ndSwitchTab('mealplans', this)">Meals</button>
+    <button class="nd-tab-btn" data-tab="mealplans" data-icon="▤" onclick="ndSwitchTab('mealplans', this)">Plans</button>
     <button class="nd-tab-btn" data-tab="messages" data-icon="✉" onclick="ndSwitchTab('messages', this)">Messages</button>
     <button class="nd-tab-btn" data-tab="community" data-icon="◈" onclick="ndSwitchTab('community', this)">Community</button>
     <button class="nd-tab-btn" data-tab="goalcalc" data-icon="∑" onclick="ndSwitchTab('goalcalc', this)">Calc</button>
     <button class="nd-tab-btn" data-tab="score" data-icon="♚" onclick="ndSwitchTab('score', this)">Score</button>
-    <a class="nd-tab-btn" data-icon="⚐" href="shape-store.html" style="text-decoration:none;" onclick="sessionStorage.setItem('shapeStoreContext','nutritionist')">Store</a>
     <button class="nd-tab-btn" data-tab="profile" data-icon="◐" onclick="ndSwitchTab('profile', this)">Profile</button>
   </div>
 
