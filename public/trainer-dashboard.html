@@ -90,13 +90,43 @@
     .td-checkin-banner { display: none; }
   }
 
-  /* ===== Today-feed greeting (matches client dashboard) ===== */
-  .today-feed { max-width: 1200px; margin: 0 auto 24px; }
+  /* ===== Today-feed (matches client dashboard) ===== */
+  .today-feed { max-width: 1200px; margin: 0 auto 40px; }
   .today-feed-greet { margin-bottom: 24px; }
   .today-feed-greet-title { font-size: clamp(1.1rem, 2vw, 1.4rem); font-weight: 300; letter-spacing: -0.03em; margin-bottom: 6px; }
   .today-feed-greet-sub { font-size: 0.85rem; color: var(--text-muted); font-weight: 300; }
+  .today-feed-section-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin: 20px 0 10px;
+  }
+  .today-feed-section-head h3 { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin: 0; color: var(--text-muted); }
+  .today-feed-list { border: 1px solid var(--border); }
+  .today-feed-item {
+    padding: 16px 20px; display: grid; grid-template-columns: 90px 1fr auto;
+    gap: 20px; align-items: center; border-bottom: 1px solid var(--border);
+    cursor: pointer; transition: background 0.15s;
+  }
+  .today-feed-item:last-child { border-bottom: none; }
+  .today-feed-item:hover { background: rgba(255,255,255,0.02); }
+  .today-feed-time { font-size: 0.78rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .today-feed-body { min-width: 0; }
+  .today-feed-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent-dark); margin-bottom: 4px; font-weight: 600; }
+  .today-feed-title { font-size: 0.92rem; font-weight: 600; margin-bottom: 3px; }
+  .today-feed-sub { font-size: 0.75rem; color: var(--text-muted); font-weight: 300; }
+  .today-feed-cta {
+    padding: 8px 16px; background: transparent; color: var(--accent-dark);
+    border: 1px solid var(--accent); font-family: inherit; font-size: 0.72rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer; white-space: nowrap;
+    transition: all 0.2s;
+  }
+  .today-feed-cta:hover { background: var(--accent); color: #fff; }
+  .today-feed-cta.primary { background: var(--accent); color: #fff; }
+  .today-feed-cta.primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
   @media (max-width: 768px) {
     .today-feed-greet-title { font-size: 1.3rem; }
+    .today-feed-item { grid-template-columns: 1fr; gap: 6px; padding: 14px 16px; }
+    .today-feed-time { order: -1; }
+    .today-feed-cta { justify-self: start; }
   }
 
   /* ===== Legacy widgets collapse (matches client dashboard) ===== */
@@ -1066,6 +1096,87 @@
         <div class="today-feed-greet">
           <div class="today-feed-greet-title" id="tdTodayFeedGreet">Good morning.</div>
           <div class="today-feed-greet-sub">Here's what's on your plate &middot; <span id="tdTodayDateLabel"></span></div>
+        </div>
+
+        <div class="today-feed-section-head">
+          <h3>Today's sessions</h3>
+        </div>
+        <div class="today-feed-list">
+          <div class="today-feed-item" onclick="switchTrainerTab('clients', document.querySelector('.td-tab-btn[data-tab=clients]'))">
+            <div class="today-feed-time">10:30 AM</div>
+            <div class="today-feed-body">
+              <div class="today-feed-label">Session</div>
+              <div class="today-feed-title">Sarah K. &middot; Upper Body</div>
+              <div class="today-feed-sub">60 min &middot; in-person &middot; Week 4 / Hypertrophy Block</div>
+            </div>
+            <button class="today-feed-cta primary" onclick="event.stopPropagation();switchTrainerTab('clients', document.querySelector('.td-tab-btn[data-tab=clients]'))">Open</button>
+          </div>
+          <div class="today-feed-item" onclick="switchTrainerTab('clients', document.querySelector('.td-tab-btn[data-tab=clients]'))">
+            <div class="today-feed-time">12:00 PM</div>
+            <div class="today-feed-body">
+              <div class="today-feed-label">Session</div>
+              <div class="today-feed-title">Jordan M. &middot; Lower Body</div>
+              <div class="today-feed-sub">45 min &middot; virtual &middot; Week 2 / Strength Base</div>
+            </div>
+            <button class="today-feed-cta" onclick="event.stopPropagation();switchTrainerTab('clients', document.querySelector('.td-tab-btn[data-tab=clients]'))">Open</button>
+          </div>
+          <div class="today-feed-item" onclick="switchTrainerTab('clients', document.querySelector('.td-tab-btn[data-tab=clients]'))">
+            <div class="today-feed-time">3:00 PM</div>
+            <div class="today-feed-body">
+              <div class="today-feed-label">Check-in</div>
+              <div class="today-feed-title">Alex R. &middot; weekly review</div>
+              <div class="today-feed-sub">20 min &middot; video call</div>
+            </div>
+            <button class="today-feed-cta" onclick="event.stopPropagation();switchTrainerTab('clients', document.querySelector('.td-tab-btn[data-tab=clients]'))">Join</button>
+          </div>
+        </div>
+
+        <div class="today-feed-section-head">
+          <h3>Needs action</h3>
+        </div>
+        <div class="today-feed-list">
+          <div class="today-feed-item" onclick="switchTrainerTab('programs', document.querySelector('.td-tab-btn[data-tab=programs]'))">
+            <div class="today-feed-time">Due today</div>
+            <div class="today-feed-body">
+              <div class="today-feed-label">Program</div>
+              <div class="today-feed-title">Emma T. &middot; Week 5 not published</div>
+              <div class="today-feed-sub">Client expects new block tomorrow</div>
+            </div>
+            <button class="today-feed-cta" onclick="event.stopPropagation();switchTrainerTab('programs', document.querySelector('.td-tab-btn[data-tab=programs]'))">Publish</button>
+          </div>
+          <div class="today-feed-item" onclick="switchTrainerTab('messages', document.querySelector('.td-tab-btn[data-tab=messages]'))">
+            <div class="today-feed-time">2 unread</div>
+            <div class="today-feed-body">
+              <div class="today-feed-label">Messages</div>
+              <div class="today-feed-title">Client replies waiting</div>
+              <div class="today-feed-sub">Sarah K. &middot; Jordan M.</div>
+            </div>
+            <button class="today-feed-cta" onclick="event.stopPropagation();switchTrainerTab('messages', document.querySelector('.td-tab-btn[data-tab=messages]'))">Reply</button>
+          </div>
+        </div>
+
+        <div class="today-feed-section-head">
+          <h3>Recently</h3>
+        </div>
+        <div class="today-feed-list">
+          <div class="today-feed-item" onclick="switchTrainerTab('clients', document.querySelector('.td-tab-btn[data-tab=clients]'))">
+            <div class="today-feed-time">Yesterday</div>
+            <div class="today-feed-body">
+              <div class="today-feed-label">New client</div>
+              <div class="today-feed-title">Chris B. signed up</div>
+              <div class="today-feed-sub">Hypertrophy Block &middot; $129/mo</div>
+            </div>
+            <button class="today-feed-cta" onclick="event.stopPropagation();switchTrainerTab('clients', document.querySelector('.td-tab-btn[data-tab=clients]'))">View</button>
+          </div>
+          <div class="today-feed-item" onclick="switchTrainerTab('clients', document.querySelector('.td-tab-btn[data-tab=clients]'))">
+            <div class="today-feed-time">2d ago</div>
+            <div class="today-feed-body">
+              <div class="today-feed-label">Session</div>
+              <div class="today-feed-title">Sarah K. &middot; completed Upper Body</div>
+              <div class="today-feed-sub">58 min &middot; 2 PRs &middot; notes logged</div>
+            </div>
+            <button class="today-feed-cta" onclick="event.stopPropagation();switchTrainerTab('clients', document.querySelector('.td-tab-btn[data-tab=clients]'))">Review</button>
+          </div>
         </div>
       </div>
       <details class="today-legacy-wrap">
