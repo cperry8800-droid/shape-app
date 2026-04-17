@@ -1181,7 +1181,11 @@
       }
       whenReady(async function () {
         var provider = await window.shapeDb.getMyProvider('trainer');
-        if (!provider) return;
+        console.log('[shape] trainer banner: provider =', provider);
+        if (!provider) {
+          console.warn('[shape] no trainer row linked to this account. Visit /dashboard/claim to link one.');
+          return;
+        }
         var banner = document.getElementById('shapeStripeBanner');
         var btn = document.getElementById('shapeStripeBannerBtn');
         var title = document.getElementById('shapeStripeBannerTitle');
