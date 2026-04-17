@@ -1,5 +1,5 @@
-import Link from 'next/link';
 import CinematicPageShell from '@/components/CinematicPageShell';
+import { startPlatformCheckout } from './actions';
 
 export const metadata = { title: 'Pricing — Shape' };
 
@@ -16,12 +16,14 @@ export default function PricingPage() {
             <span className="text-5xl font-light">$5</span>
             <span className="text-sm text-white/40">/ month</span>
           </div>
-          <Link
-            href="/signup"
-            className="block w-full text-center text-sm font-medium bg-white text-neutral-950 rounded-full px-6 py-3 hover:bg-white/90 transition-colors"
-          >
-            Get Started
-          </Link>
+          <form action={startPlatformCheckout} className="w-full">
+            <button
+              type="submit"
+              className="block w-full text-center text-sm font-medium bg-white text-neutral-950 rounded-full px-6 py-3 hover:bg-white/90 transition-colors"
+            >
+              Get Started
+            </button>
+          </form>
         </div>
       </div>
     </CinematicPageShell>
