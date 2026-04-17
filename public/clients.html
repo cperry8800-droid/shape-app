@@ -2606,8 +2606,9 @@
               position: fixed; inset: 0; background: rgba(0,0,0,0.72);
               display: none; align-items: flex-start; justify-content: center;
               z-index: 9999; padding: 10vh 16px 16px; overflow-y: auto;
+              pointer-events: none;
             }
-            .gl-modal-overlay.open { display: flex; }
+            .gl-modal-overlay.open { display: flex; pointer-events: auto; }
             .gl-modal {
               background: var(--bg, #0a0a0a); border: 1px solid var(--border);
               width: 100%; max-width: 440px; padding: 22px 22px 18px;
@@ -3715,6 +3716,12 @@
       if (tab === 'library' && typeof libRenderPurchased === 'function') libRenderPurchased();
       if (tab === 'nutrition' && typeof renderAll === 'function') renderAll();
       if (tab !== 'nutrition' && typeof glClosePage === 'function') glClosePage();
+      if (tab !== 'nutrition') {
+        var _glM1 = document.getElementById('glModal');
+        var _glM2 = document.getElementById('glItemsModal');
+        if (_glM1) _glM1.classList.remove('open');
+        if (_glM2) _glM2.classList.remove('open');
+      }
       if (tab === 'home' && typeof renderClientCheckIns === 'function') renderClientCheckIns('trainer');
       if (tab === 'nutrition' && typeof renderClientCheckIns === 'function') renderClientCheckIns('nutritionist');
       if (tab === 'community' && !_communityInited) { _communityInited = true; initCommunity(); }
