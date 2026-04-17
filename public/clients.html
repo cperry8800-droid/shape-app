@@ -1363,6 +1363,13 @@
     .progress-week { gap: 4px; }
     .td-client-stats-mini { flex-wrap: wrap; gap: 8px; }
     .td-mini-stat { flex: 1 1 40%; min-width: 0; }
+    /* Library section headers: ensure Delete-all never gets crushed */
+    .lib-group-body > div[style*="justify-content:space-between"] { flex-wrap: wrap; }
+    .lib-group-body > div[style*="justify-content:space-between"] .btn { flex-shrink: 0; }
+    .lib-group-body .lib-group-sub { flex: 1 1 100%; min-width: 0; }
+    .lib-workout-row { padding: 12px 14px; gap: 6px; }
+    .lib-del-btn { width: 34px; height: 34px; margin-left: 4px; }
+    .lib-chevron { margin-left: 4px; }
   }
 
   </style>
@@ -2690,8 +2697,16 @@
             }
             @media (max-width: 640px) {
               .gl-items-overlay { padding: 2vh 8px 8px; }
-              .gl-modal-lg { padding: 18px 16px 14px; max-height: 94vh; }
+              .gl-modal-lg { padding: 18px 16px 14px; }
               .gl-modal-lg h3 { font-size: 1.15rem; }
+              .gl-modal-head-actions { gap: 6px; margin-bottom: 12px; }
+              .gl-modal-headbtn {
+                padding: 8px 12px; font-size: 0.78rem;
+                min-height: 36px; flex: 1 1 auto;
+              }
+              .gl-list-card-row { gap: 6px; }
+              .gl-card-del { width: 34px; height: 34px; }
+              .grocery-remove { font-size: 1.35rem; padding: 6px 10px; min-width: 36px; min-height: 36px; }
             }
             .gl-modal-head {
               display: flex; align-items: center; justify-content: space-between;
