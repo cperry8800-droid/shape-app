@@ -124,10 +124,14 @@
       grid-template-columns: 1fr;
       gap: 12px;
     }
+    .mkt-top-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+    .mkt-featured-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; }
     @media (max-width: 768px) {
       .filter-bar-top { flex-direction: column; }
       .filter-sort { min-width: unset; width: 100%; }
       .mkt-toggle-btn { min-width: 100px; padding: 10px 16px; }
+      .mkt-top-grid { grid-template-columns: 1fr; }
+      .mkt-featured-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -203,8 +207,43 @@
 
   <!-- TRAINERS PANE -->
   <div class="mkt-pane active" id="pane-trainers">
+    <!-- Trainer of the Month -->
+    <section class="section section-alt" style="padding:48px 0;">
+      <div class="container">
+        <div style="text-align:center;"><span class="tag">Trainer of the Month</span></div>
+        <div class="totm-card" id="totmCard"><!-- Populated by JS --></div>
+      </div>
+    </section>
+
+    <!-- Most Popular Trainers -->
+    <section class="section" style="padding:48px 0;">
+      <div class="container">
+        <div style="text-align:center;margin-bottom:32px;">
+          <span class="tag">Most Popular</span>
+          <h2 style="font-size:clamp(1.2rem,2vw,1.5rem);font-weight:300;letter-spacing:-0.03em;margin-top:8px;">Highest rated trainers on Shape</h2>
+        </div>
+        <div id="topCoachesGrid" class="mkt-top-grid"></div>
+      </div>
+    </section>
+
+    <!-- Featured Trainers -->
+    <section class="section section-alt" style="padding:48px 0;">
+      <div class="container">
+        <div style="text-align:center;margin-bottom:32px;">
+          <span class="tag">Featured Coaches</span>
+          <h2 style="font-size:clamp(1.2rem,2vw,1.5rem);font-weight:300;letter-spacing:-0.03em;margin-top:8px;">Hand-picked by Shape this month</h2>
+        </div>
+        <div id="featuredCoachesGrid" class="mkt-featured-grid"></div>
+      </div>
+    </section>
+
+    <!-- All Trainers -->
     <section class="section">
       <div class="container">
+        <div style="text-align:center;margin-bottom:32px;">
+          <span class="tag">All Trainers</span>
+          <h2 style="font-size:clamp(1.2rem,2vw,1.5rem);font-weight:300;letter-spacing:-0.03em;margin-top:8px;">Browse the full marketplace</h2>
+        </div>
         <div class="filter-bar">
           <div class="filter-bar-top">
             <input type="text" class="filter-search" id="trainerSearch" placeholder="Search trainers by name..." oninput="filterTrainers()">
@@ -246,8 +285,43 @@
 
   <!-- NUTRITIONISTS PANE -->
   <div class="mkt-pane" id="pane-nutritionists">
+    <!-- Nutritionist of the Month -->
+    <section class="section section-alt" style="padding:48px 0;">
+      <div class="container">
+        <div style="text-align:center;"><span class="tag">Nutritionist of the Month</span></div>
+        <div class="totm-card" id="notmCard"><!-- Populated by JS --></div>
+      </div>
+    </section>
+
+    <!-- Most Popular Nutritionists -->
+    <section class="section" style="padding:48px 0;">
+      <div class="container">
+        <div style="text-align:center;margin-bottom:32px;">
+          <span class="tag">Most Popular</span>
+          <h2 style="font-size:clamp(1.2rem,2vw,1.5rem);font-weight:300;letter-spacing:-0.03em;margin-top:8px;">Highest rated nutritionists on Shape</h2>
+        </div>
+        <div id="topNutritionistsGrid" class="mkt-top-grid"></div>
+      </div>
+    </section>
+
+    <!-- Featured Nutritionists -->
+    <section class="section section-alt" style="padding:48px 0;">
+      <div class="container">
+        <div style="text-align:center;margin-bottom:32px;">
+          <span class="tag">Featured Nutritionists</span>
+          <h2 style="font-size:clamp(1.2rem,2vw,1.5rem);font-weight:300;letter-spacing:-0.03em;margin-top:8px;">Hand-picked by Shape this month</h2>
+        </div>
+        <div id="featuredNutritionistsGrid" class="mkt-featured-grid"></div>
+      </div>
+    </section>
+
+    <!-- All Nutritionists -->
     <section class="section">
       <div class="container">
+        <div style="text-align:center;margin-bottom:32px;">
+          <span class="tag">All Nutritionists</span>
+          <h2 style="font-size:clamp(1.2rem,2vw,1.5rem);font-weight:300;letter-spacing:-0.03em;margin-top:8px;">Browse the full marketplace</h2>
+        </div>
         <div class="filter-bar">
           <div class="filter-bar-top">
             <input type="text" class="filter-search" id="nutritionistSearch" placeholder="Search nutritionists by name..." oninput="filterNutritionists()">
@@ -355,6 +429,45 @@
       } catch (e) {}
     }
 
+    function renderTopAndFeatured() {
+      try {
+        if (typeof trainers !== 'undefined' && typeof createTrainerCard === 'function') {
+          var topT = document.getElementById('topCoachesGrid');
+          if (topT) {
+            var top = trainers.slice().sort(function(a,b){
+              return (b.rating - a.rating) || (b.subscribers - a.subscribers);
+            }).slice(0,3);
+            topT.innerHTML = top.map(createTrainerCard).join('');
+          }
+          var featT = document.getElementById('featuredCoachesGrid');
+          if (featT) {
+            var feat = trainers.filter(function(t){ return t.featured; });
+            if (!feat.length) {
+              feat = trainers.slice().sort(function(a,b){ return b.subscribers - a.subscribers; }).slice(0,2);
+            }
+            featT.innerHTML = feat.map(createTrainerCard).join('');
+          }
+        }
+        if (typeof nutritionists !== 'undefined' && typeof createNutritionistCard === 'function') {
+          var topN = document.getElementById('topNutritionistsGrid');
+          if (topN) {
+            var topNl = nutritionists.slice().sort(function(a,b){
+              return (b.rating - a.rating) || (b.subscribers - a.subscribers);
+            }).slice(0,3);
+            topN.innerHTML = topNl.map(createNutritionistCard).join('');
+          }
+          var featN = document.getElementById('featuredNutritionistsGrid');
+          if (featN) {
+            var featNl = nutritionists.filter(function(n){ return n.featured; });
+            if (!featNl.length) {
+              featNl = nutritionists.slice().sort(function(a,b){ return b.subscribers - a.subscribers; }).slice(0,2);
+            }
+            featN.innerHTML = featNl.map(createNutritionistCard).join('');
+          }
+        }
+      } catch (e) { console.warn('[shape] marketplace top/featured render failed', e); }
+    }
+
     // Initial render for both lists, and honor hash on load
     (function() {
       if (typeof trainers !== 'undefined' && typeof filterTrainers === 'function') {
@@ -363,6 +476,7 @@
       if (typeof nutritionists !== 'undefined' && typeof filterNutritionists === 'function') {
         filterNutritionists();
       }
+      renderTopAndFeatured();
       var h = (window.location.hash || '').replace('#','');
       if (h === 'nutritionists' || h === 'trainers') mktSwitch(h);
     })();
@@ -390,6 +504,7 @@
             if (typeof filterNutritionists === 'function') filterNutritionists();
           }
         }
+        if (typeof renderTopAndFeatured === 'function') renderTopAndFeatured();
       } catch (e) {
         console.warn('[shape] marketplace supabase swap failed, using hardcoded data', e);
       }
