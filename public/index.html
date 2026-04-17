@@ -343,6 +343,18 @@
       .intro-tagline {
         padding: 0 20px;
       }
+      /* Kill GPU-heavy effects on mobile to prevent freeze */
+      .s-beam-path {
+        filter: none !important;
+        animation: none !important;
+        display: none !important;
+      }
+      .loader-triangles svg polygon,
+      .intro-triangles svg polygon {
+        animation: none !important;
+        opacity: 1 !important;
+      }
+      .grain { display: none !important; }
     }
   </style>
   <link rel="manifest" href="manifest.json">
@@ -408,7 +420,8 @@
   </div>
 
   <script>
-    // Flowing mesh gradient animation
+    // Flowing mesh gradient animation — disabled on mobile to prevent freeze
+    const isMobile = window.innerWidth <= 768 || /Mobi|Android/i.test(navigator.userAgent);
     const canvas = document.getElementById('flowCanvas');
     const ctx = canvas.getContext('2d');
     let w, h, time = 0;
@@ -477,7 +490,7 @@
       requestAnimationFrame(draw);
     }
 
-    draw();
+    if (!isMobile) draw();
 
     // No canvas-based beam needed — S-beam is pure SVG/CSS above
 
