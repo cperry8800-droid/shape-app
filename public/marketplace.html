@@ -580,7 +580,7 @@
           <button class="mkt-chip" data-filter="functional" onclick="mktSetTrainerChip(this)">Functional &amp; Hybrid</button>
           <button class="mkt-chip" data-filter="bodybuilding" onclick="mktSetTrainerChip(this)">Bodybuilding</button>
           <button class="mkt-chip" data-filter="hiit" onclick="mktSetTrainerChip(this)">HIIT</button>
-          <button class="mkt-chip" data-filter="weightloss" onclick="mktSetTrainerChip(this)">Weight Loss</button>
+          <button class="mkt-chip" data-filter="weightloss" onclick="mktSetTrainerChip(this)">Fat Burn</button>
           <button class="mkt-chip" data-filter="athome" onclick="mktSetTrainerChip(this)">At Home</button>
         </div>
 
@@ -608,10 +608,14 @@
 
         <div class="mkt-chips" role="tablist">
           <button class="mkt-chip active" data-filter="all" onclick="mktSetNutritionistChip(this)">All</button>
-          <button class="mkt-chip" data-filter="sports" onclick="mktSetNutritionistChip(this)">Sports</button>
+          <button class="mkt-chip" data-filter="sportsperf" onclick="mktSetNutritionistChip(this)">Sports Performance &amp; Hydration</button>
+          <button class="mkt-chip" data-filter="performance" onclick="mktSetNutritionistChip(this)">Performance Nutrition</button>
+          <button class="mkt-chip" data-filter="medical" onclick="mktSetNutritionistChip(this)">Medical &amp; Condition-Specific</button>
+          <button class="mkt-chip" data-filter="musclegain" onclick="mktSetNutritionistChip(this)">Muscle Gain / Bulking</button>
+          <button class="mkt-chip" data-filter="gutfunc" onclick="mktSetNutritionistChip(this)">Gut Health &amp; Functional Nutrition</button>
+          <button class="mkt-chip" data-filter="longevity" onclick="mktSetNutritionistChip(this)">Longevity &amp; Healthspan</button>
           <button class="mkt-chip" data-filter="weightloss" onclick="mktSetNutritionistChip(this)">Weight Mgmt</button>
           <button class="mkt-chip" data-filter="plantbased" onclick="mktSetNutritionistChip(this)">Plant-Based</button>
-          <button class="mkt-chip" data-filter="guthealth" onclick="mktSetNutritionistChip(this)">Gut Health</button>
           <button class="mkt-chip" data-filter="prenatal" onclick="mktSetNutritionistChip(this)">Prenatal</button>
           <button class="mkt-chip" data-filter="mealprep" onclick="mktSetNutritionistChip(this)">Meal Prep</button>
         </div>
@@ -913,6 +917,33 @@
       if (count) count.textContent = filtered.length + ' trainers across ' + Object.keys(groups).length + ' regions';
     };
 
+    function mktMatchNutritionistCategory(nutri, filter) {
+      if (!filter || filter === 'all') return true;
+      var spec = (nutri.specialty || '').toLowerCase();
+      var bio = (nutri.bio || '').toLowerCase();
+      var blob = spec + ' ' + bio;
+      var cat = nutri.category || '';
+      if (filter === 'sportsperf') {
+        return cat === 'sports' || /hydration|electrolyte|athlete|endurance|performance/.test(blob);
+      }
+      if (filter === 'performance') {
+        return cat === 'sports' || /performance|athlete|competition|pre[-\s]?workout|post[-\s]?workout/.test(blob);
+      }
+      if (filter === 'medical') {
+        return cat === 'clinical' || /medical|clinical|disease|diabet|cardio(vascular|metabolic)|cholesterol|hypertens|autoimmune|condition|disorder|recovery/.test(blob);
+      }
+      if (filter === 'musclegain') {
+        return cat === 'sports' || /muscle\s*gain|bulk(ing)?|hypertrophy|mass\s*gain|bodybuild|strength/.test(blob);
+      }
+      if (filter === 'gutfunc') {
+        return cat === 'guthealth' || /gut|functional|microbiome|probiotic|digest|ibs|inflammation/.test(blob);
+      }
+      if (filter === 'longevity') {
+        return /longev|healthspan|anti[-\s]?aging|aging|metabolic\s*health|fasting|intermittent/.test(blob);
+      }
+      return cat === filter;
+    }
+
     window.filterNutritionists = function() {
       var grid = document.getElementById('nutritionistGrid');
       if (!grid || typeof nutritionists === 'undefined') return;
@@ -920,7 +951,7 @@
       var sortBy = document.getElementById('nutritionistSort').value;
       var filtered = nutritionists.filter(function(n) {
         var matchSearch = !search || n.name.toLowerCase().includes(search) || (n.specialty && n.specialty.toLowerCase().includes(search));
-        var matchCat = (window.activeNutritionistFilter || 'all') === 'all' || n.category === window.activeNutritionistFilter;
+        var matchCat = mktMatchNutritionistCategory(n, window.activeNutritionistFilter || 'all');
         return matchSearch && matchCat;
       });
       if (!filtered.length) {
