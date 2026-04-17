@@ -1438,8 +1438,9 @@
       </div>
 
       <!-- My Programs List -->
-      <div class="pb-header" style="margin-top:12px;">
-        <h3 style="font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);">My Programs</h3>
+      <div class="pb-header" style="margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <h3 style="font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin:0;">My Programs</h3>
+        <button type="button" class="btn btn-sm btn-outline" id="pbDeleteAllBtn" onclick="pbDeleteAllPrograms()" style="border-color:rgba(239,68,68,0.3);color:#EF4444;font-size:0.72rem;">Delete all</button>
       </div>
       <div class="pb-plan-list" id="pbPlanList">
         <div class="pb-empty">No programs yet. Create your first workout program above.</div>
@@ -1636,8 +1637,9 @@
         </div>
 
         <!-- My Workouts List -->
-        <div class="pb-header" style="margin-top:12px;">
-          <h3 style="font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);">My Workouts</h3>
+        <div class="pb-header" style="margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <h3 style="font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin:0;">My Workouts</h3>
+          <button type="button" class="btn btn-sm btn-outline" id="wbDeleteAllBtn" onclick="wbDeleteAllWorkouts()" style="border-color:rgba(239,68,68,0.3);color:#EF4444;font-size:0.72rem;">Delete all</button>
         </div>
         <div class="pb-plan-list" id="wbWorkoutList">
           <div class="pb-empty">No workouts yet. Create your first single workout session above.</div>
@@ -2739,6 +2741,17 @@
     renderPbPlanList();
   }
 
+  function pbDeleteAllPrograms() {
+    var programs = _getPbPrograms();
+    if (!programs.length) { if (typeof showToast === 'function') showToast('No programs to delete.'); return; }
+    if (!confirm('Delete all ' + programs.length + ' program' + (programs.length === 1 ? '' : 's') + '? This can\'t be undone.')) return;
+    _savePbPrograms([]);
+    _savePbClientPlans([]);
+    if (typeof showToast === 'function') showToast('All programs deleted.');
+    renderPbPlanList();
+  }
+  window.pbDeleteAllPrograms = pbDeleteAllPrograms;
+
   function renderPbPlanList() {
     const programs = _getPbPrograms();
     const list = document.getElementById('pbPlanList');
@@ -3195,6 +3208,16 @@
     if (typeof showToast === 'function') showToast('Workout deleted.');
     renderWbWorkoutList();
   }
+
+  function wbDeleteAllWorkouts() {
+    var workouts = _getWbWorkouts();
+    if (!workouts.length) { if (typeof showToast === 'function') showToast('No workouts to delete.'); return; }
+    if (!confirm('Delete all ' + workouts.length + ' workout' + (workouts.length === 1 ? '' : 's') + '? This can\'t be undone.')) return;
+    _saveWbWorkouts([]);
+    if (typeof showToast === 'function') showToast('All workouts deleted.');
+    renderWbWorkoutList();
+  }
+  window.wbDeleteAllWorkouts = wbDeleteAllWorkouts;
 
   function wbHandleFiles(files) {
     if (!files || files.length === 0) return;
