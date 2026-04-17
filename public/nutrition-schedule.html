@@ -64,20 +64,6 @@
     .nd-tab-btn.active { opacity: 1; color: var(--accent); border-top-color: var(--accent); }
     .nd-tab-content.active { padding-bottom: 16px; }
 
-    .nd-today-hero {
-      background: linear-gradient(135deg, rgba(45,212,191,0.12) 0%, rgba(108,58,237,0.08) 100%);
-      border: 1px solid rgba(45,212,191,0.3);
-      padding: 24px; margin-bottom: 20px; position: relative; overflow: hidden;
-    }
-    .nd-today-hero::before {
-      content: ''; position: absolute; top: -40%; right: -20%; width: 280px; height: 280px;
-      background: radial-gradient(circle, rgba(45,212,191,0.15) 0%, transparent 65%); pointer-events: none;
-    }
-    .nd-today-hero-label { font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent); margin-bottom: 10px; position: relative; }
-    .nd-today-hero-title { font-size: clamp(1.4rem, 3.2vw, 1.9rem); font-weight: 300; letter-spacing: -0.03em; margin-bottom: 16px; position: relative; }
-    .nd-today-hero-meta { display: flex; gap: 18px; flex-wrap: wrap; font-size: 0.78rem; color: var(--text-muted); margin-bottom: 20px; position: relative; }
-    .nd-today-hero-cta { background: var(--accent); color: #fff; border: none; padding: 14px 26px; font-size: 0.82rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; cursor: pointer; font-family: inherit; position: relative; }
-
     .nd-checkin-banner { display: flex; align-items: center; gap: 14px; background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); padding: 12px 16px; margin-bottom: 16px; }
     .nd-checkin-banner.nd-checkin-banner-stack { display: block; padding: 12px 16px 8px; }
     .nd-checkin-banner-head { display: flex; align-items: center; gap: 14px; }
@@ -97,8 +83,17 @@
     .nd-checkin-banner-close { background: none; border: none; color: var(--text-muted); font-size: 1.3rem; line-height: 1; cursor: pointer; padding: 4px 8px; flex-shrink: 0; }
   }
   @media (min-width: 769px) {
-    .nd-today-hero, .nd-checkin-banner { display: none; }
+    .nd-checkin-banner { display: none; }
     .nd-recent-meals-widget { display: none !important; }
+  }
+
+  /* ===== Today-feed greeting (matches client dashboard) ===== */
+  .today-feed { max-width: 1200px; margin: 0 auto 24px; }
+  .today-feed-greet { margin-bottom: 24px; }
+  .today-feed-greet-title { font-size: clamp(1.1rem, 2vw, 1.4rem); font-weight: 300; letter-spacing: -0.03em; margin-bottom: 6px; }
+  .today-feed-greet-sub { font-size: 0.85rem; color: var(--text-muted); font-weight: 300; }
+  @media (max-width: 768px) {
+    .today-feed-greet-title { font-size: 1.3rem; }
   }
   @media (max-width: 768px) {
     .nd-mealsched-grid { grid-template-columns: 1fr !important; gap: 0 !important; }
@@ -1111,11 +1106,11 @@
           </div>
           <div class="nd-checkin-banner-list" id="ndCheckinBannerList"></div>
         </div>
-        <div class="nd-today-hero">
-          <div class="nd-today-hero-label">Today · <span id="ndTodayDateLabel"></span></div>
-          <div class="nd-today-hero-title">8 consults scheduled</div>
-          <div class="nd-today-hero-meta">Next: Emma T. at 11:00 AM · Follow-up</div>
-          <button class="nd-today-hero-cta" onclick="ndSwitchTab('clients', document.querySelector('.nd-tab-btn[data-tab=clients]'))">Open consults →</button>
+        <div class="today-feed">
+          <div class="today-feed-greet">
+            <div class="today-feed-greet-title" id="ndTodayFeedGreet">Good morning.</div>
+            <div class="today-feed-greet-sub">Here's what's on your plate &middot; <span id="ndTodayDateLabel"></span></div>
+          </div>
         </div>
         <div class="widget-grid" id="ndWidgetGrid">
 
@@ -2031,7 +2026,15 @@
   // Also ensure the nutritionist-dashboard.js onload wraps after DOM is ready
   document.addEventListener('DOMContentLoaded', function() {
     const dl = document.getElementById('ndTodayDateLabel');
-    if (dl) dl.textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+    const greet = document.getElementById('ndTodayFeedGreet');
+    const d = new Date();
+    const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    if (dl) dl.textContent = days[d.getDay()] + ', ' + months[d.getMonth()] + ' ' + d.getDate();
+    if (greet) {
+      const h = d.getHours();
+      greet.textContent = h < 5 ? 'Up late.' : h < 12 ? 'Good morning.' : h < 17 ? 'Good afternoon.' : h < 21 ? 'Good evening.' : 'Winding down.';
+    }
     if (typeof openNdChat === 'function' && !window._ndChatWrapped) {
       const orig = openNdChat;
       window.openNdChat = function(clientId) {
