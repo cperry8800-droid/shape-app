@@ -2617,9 +2617,7 @@
             .gl-items-overlay { padding: 4vh 16px 16px; }
             .gl-modal-lg {
               max-width: 880px; padding: 30px 32px 24px;
-              max-height: 92vh; display: flex; flex-direction: column;
             }
-            .gl-modal-lg .gl-items-body { min-height: 320px; }
             .gl-modal-lg .gl-modal-head { margin-bottom: 18px; align-items: flex-start; }
             .gl-modal-eyebrow {
               font-size: 0.68rem; text-transform: uppercase;
@@ -2669,7 +2667,6 @@
               margin: 4px 0 10px;
             }
             .gl-items-body {
-              flex: 1; overflow-y: auto; min-height: 220px;
               border-top: 1px solid var(--border);
               padding: 10px 0 4px;
             }
@@ -7201,9 +7198,7 @@
           html += '<div class="grocery-name-line"><span class="grocery-name">' + escapeHtml(item.name) + '</span></div>';
           if (item.qty) html += '<div class="grocery-qty">' + escapeHtml(item.qty) + '</div>';
           html += '</div>';
-          if (!isCoachCtx) {
-            html += '<button type="button" class="grocery-remove" onclick="event.stopPropagation();glRemoveItemFromModal(\'' + escapeHtml(item.id) + '\');" title="Remove">&times;</button>';
-          }
+          html += '<button type="button" class="grocery-remove" onclick="event.stopPropagation();glRemoveItemFromModal(\'' + escapeHtml(item.id) + '\');" title="Remove item">&times;</button>';
           html += '</div>';
         });
         html += '</div>';
@@ -7378,7 +7373,7 @@
       <div class="gl-items-body" id="glItemsModalBody"></div>
 
       <div class="gl-modal-actions">
-        <button type="button" class="gl-modal-btn primary" onclick="glCloseItemsModal()">Done</button>
+        <button type="button" class="gl-modal-btn primary" onclick="glCloseItemsModal()">Save</button>
       </div>
     </div>
   </div>
