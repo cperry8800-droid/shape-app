@@ -19,31 +19,35 @@
     } catch (_) {}
   </script>
   <style>
-    /* Full-screen morph-in overlay — guaranteed visible regardless of body styles */
+    /* Morph-in overlay: a full-screen teal bloom that fades + expands
+       away to reveal the home page. Uses opacity, not display, so the
+       animation reliably plays the moment the class is applied. */
     .shape-arrival-overlay {
-      display: none;
       position: fixed; inset: 0; z-index: 99999;
       pointer-events: none;
+      opacity: 0;
       background:
-        radial-gradient(ellipse 60% 60% at center, rgba(45,212,191,0.55) 0%, rgba(20,184,166,0.2) 30%, rgba(10,10,10,0.96) 60%, #0a0a0a 100%);
-      will-change: opacity, transform, filter;
+        radial-gradient(ellipse 80% 80% at center, rgba(45,212,191,0.75) 0%, rgba(20,184,166,0.35) 25%, rgba(10,10,10,0.98) 60%, #0a0a0a 100%);
     }
     html.intro-arriving .shape-arrival-overlay {
-      display: block;
       animation: shapeArrivalBloom 1400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
     html.intro-arriving body {
       animation: shapeArrivalBody 1300ms cubic-bezier(0.16, 1, 0.3, 1) both;
     }
     @keyframes shapeArrivalBloom {
-      0%   { opacity: 1; transform: scale(0.9); filter: blur(20px); }
-      45%  { opacity: 1; transform: scale(1.1); filter: blur(10px); }
-      100% { opacity: 0; transform: scale(1.8); filter: blur(0); }
+      0%   { opacity: 1; transform: scale(0.85); }
+      45%  { opacity: 1; transform: scale(1.15); }
+      100% { opacity: 0; transform: scale(2.0); }
     }
     @keyframes shapeArrivalBody {
-      0%   { opacity: 0; filter: blur(22px) brightness(0.6); transform: scale(1.08); }
-      50%  { opacity: 0.9; }
-      100% { opacity: 1; filter: blur(0) brightness(1); transform: scale(1); }
+      0%   { opacity: 0; transform: scale(1.06); }
+      55%  { opacity: 0.85; }
+      100% { opacity: 1; transform: scale(1); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html.intro-arriving .shape-arrival-overlay,
+      html.intro-arriving body { animation: none !important; }
     }
   </style>
   <style>
@@ -76,9 +80,21 @@
       letter-spacing: -0.04em; line-height: 1.1; margin-bottom: 10px;
       color: #fff;
     }
+    .split-hero-logo-wrap {
+      display: flex; flex-direction: column; align-items: center;
+      margin-bottom: 14px;
+    }
     .split-hero-mark {
-      display: block; height: 56px; width: auto; margin: 0 auto 18px;
+      display: block; height: 56px; width: auto; margin: 0;
       overflow: visible;
+    }
+    .split-hero-wordmark {
+      margin: -6px 0 0; padding: 0;
+      line-height: 0; font-size: 0;
+    }
+    .split-hero-wordmark img {
+      height: 44px; width: auto; display: block;
+      filter: brightness(0) invert(1);
     }
     .split-hero-mark .s-beam-path {
       stroke: #2DD4BF; stroke-width: 2.5; fill: none;
@@ -163,8 +179,11 @@
       .split-hero { padding: 110px 0 8px; }
       .split-hero-sub { margin-bottom: 20px; }
       .split-grid { margin-top: 0; }
-      .split-hero-mark { height: 40px; margin-bottom: 14px; }
+      .split-hero-logo-wrap { margin-bottom: 12px; }
+      .split-hero-mark { height: 40px; margin: 0; }
       .split-hero-mark .s-beam-path { stroke-width: 3; }
+      .split-hero-wordmark { margin: -4px 0 0; }
+      .split-hero-wordmark img { height: 30px; }
     }
   </style>
   <link rel="manifest" href="manifest.json">
@@ -234,13 +253,15 @@
   <!-- Hero -->
   <section class="split-hero">
     <div class="container">
-      <svg class="split-hero-mark" viewBox="0 0 95 110" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <polygon points="5,113 5,43 55,78" fill="#2DD4BF"/>
-        <polygon points="90,-3 90,67 40,32" fill="#fff"/>
-        <path d="M90,-3 L40,32 L90,67" class="s-beam-path s-beam-upper" />
-        <path d="M5,43 L55,78 L5,113" class="s-beam-path s-beam-lower" />
-      </svg>
-      <h1><span class="hero-shape-logo"><img src="logo-text-trimmed.png" alt="Shape"></span></h1>
+      <div class="split-hero-logo-wrap">
+        <svg class="split-hero-mark" viewBox="0 0 95 110" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <polygon points="5,113 5,43 55,78" fill="#2DD4BF"/>
+          <polygon points="90,-3 90,67 40,32" fill="#fff"/>
+          <path d="M90,-3 L40,32 L90,67" class="s-beam-path s-beam-upper" />
+          <path d="M5,43 L55,78 L5,113" class="s-beam-path s-beam-lower" />
+        </svg>
+        <h1 class="split-hero-wordmark"><img src="logo-text-trimmed.png" alt="Shape"></h1>
+      </div>
       <p class="split-hero-sub">Real Coaches. One marketplace. One community.<br>One platform.</p>
 
       <!-- Split Paths -->
