@@ -117,6 +117,10 @@ ul { list-style: none; }
 .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.4rem; flex-shrink: 0; }
 .logo-img { height: 26px; width: auto; }
 .footer .logo-img { height: 48px; display: inline-block; }
+.footer-logo-full {
+  height: 72px; width: auto; display: inline-block;
+  filter: brightness(0) invert(1);
+}
 .footer .logo {
   display: block; width: 100%; text-align: center; line-height: 1;
   gap: 0; padding: 0; margin: 0;
@@ -124,6 +128,7 @@ ul { list-style: none; }
 @media (min-width: 769px) {
   .logo-img { height: 32px; }
   .footer .logo-img { height: 60px; }
+  .footer-logo-full { height: 88px; }
 }
 .nav-links { display: flex; align-items: center; justify-content: center; gap: clamp(8px, 1.1vw, 18px); flex-wrap: nowrap; min-width: 0; }
 .nav-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; margin-right: -16px; }
