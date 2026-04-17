@@ -77,10 +77,10 @@ ul { list-style: none; }
 .btn-block { width: 100%; }
 .btn-accent { background: var(--accent); color: var(--text); border-color: var(--accent); }
 .btn-accent:hover { background: var(--accent-dark); border-color: var(--accent-dark); color: #fff; }
-.btn-radio { background: transparent; color: #FFFFFF; border: none; font-weight: 700; display: inline-flex; align-items: baseline; gap: 6px; padding: 8px 0; font-size: 0.78rem; line-height: 1; letter-spacing: 0.06em; text-transform: uppercase; }
+.btn-radio { background: transparent; color: #FFFFFF; border: none; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; padding: 8px 0; font-size: 0.82rem; line-height: 1; letter-spacing: 0.04em; text-transform: none; }
 .btn-radio:hover { opacity: 0.6; }
-.btn-radio .btn-shape-text { color: #FFFFFF; font-weight: 800; letter-spacing: 0.14em; }
-.btn-radio .btn-shape-text img { display: none; }
+.btn-radio .btn-shape-text { display: inline-flex; align-items: center; line-height: 0; }
+.btn-radio .btn-shape-text img { height: 12px; width: auto; display: block; filter: brightness(0) invert(1); }
 
 /* ===== Navbar ===== */
 .navbar {
