@@ -1225,31 +1225,42 @@
     </div>
   </div>
   <script>
-    (async function () {
-      if (!window.shapeDb) return;
-      var provider = await window.shapeDb.getMyProvider('nutritionist');
-      if (!provider) return;
-      var banner = document.getElementById('shapeStripeBanner');
-      var btn = document.getElementById('shapeStripeBannerBtn');
-      var title = document.getElementById('shapeStripeBannerTitle');
-      var msg = document.getElementById('shapeStripeBannerMsg');
-      if (!banner || !btn) return;
-      var status = provider.stripe_account_status;
-      if (status === 'active') return;
-      banner.style.display = 'block';
-      if (status === 'pending' && provider.stripe_account_id) {
-        title.textContent = 'Finish Stripe setup';
-        msg.textContent = 'Stripe still needs a bit more info before you can accept payments.';
-        btn.textContent = 'Continue setup';
-      } else if (status === 'restricted') {
-        title.textContent = 'Stripe account restricted';
-        msg.textContent = 'Stripe has flagged something on your account. Open Stripe to resolve.';
-        btn.textContent = 'Open Stripe';
+    (function () {
+      function whenReady(cb) {
+        if (window.shapeDb) return cb();
+        var tries = 0;
+        var t = setInterval(function () {
+          if (window.shapeDb || ++tries > 60) {
+            clearInterval(t);
+            if (window.shapeDb) cb();
+          }
+        }, 100);
       }
-      btn.addEventListener('click', function () {
-        btn.disabled = true;
-        btn.textContent = 'Opening Stripe…';
-        window.shapeDb.startStripeOnboarding('nutritionist', provider.id);
+      whenReady(async function () {
+        var provider = await window.shapeDb.getMyProvider('nutritionist');
+        if (!provider) return;
+        var banner = document.getElementById('shapeStripeBanner');
+        var btn = document.getElementById('shapeStripeBannerBtn');
+        var title = document.getElementById('shapeStripeBannerTitle');
+        var msg = document.getElementById('shapeStripeBannerMsg');
+        if (!banner || !btn) return;
+        var status = provider.stripe_account_status;
+        if (status === 'active') return;
+        banner.style.display = 'block';
+        if (status === 'pending' && provider.stripe_account_id) {
+          title.textContent = 'Finish Stripe setup';
+          msg.textContent = 'Stripe still needs a bit more info before you can accept payments.';
+          btn.textContent = 'Continue setup';
+        } else if (status === 'restricted') {
+          title.textContent = 'Stripe account restricted';
+          msg.textContent = 'Stripe has flagged something on your account. Open Stripe to resolve.';
+          btn.textContent = 'Open Stripe';
+        }
+        btn.addEventListener('click', function () {
+          btn.disabled = true;
+          btn.textContent = 'Opening Stripe…';
+          window.shapeDb.startStripeOnboarding('nutritionist', provider.id);
+        });
       });
     })();
   </script>
