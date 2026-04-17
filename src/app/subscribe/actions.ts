@@ -21,10 +21,13 @@ import { stripe } from '@/lib/stripe';
 
 type ProviderRole = 'trainer' | 'nutritionist';
 
-async function getOrCreateStripePriceId(
+async function getProviderConnectInfo(
   providerRole: ProviderRole,
   providerId: number
-): Promise<{ priceId: string; priceCents: number } | { error: string }> {
+): Promise<
+  | { priceId: string; priceCents: number; stripeAccountId: string }
+  | { error: string }
+> {
   const table = providerRole === 'trainer' ? 'trainers' : 'nutritionists';
 
   // Use admin client so we can both read AND write the cached Stripe IDs
@@ -33,20 +36,29 @@ async function getOrCreateStripePriceId(
   const admin = createAdminClient();
   const { data: provider, error } = await admin
     .from(table)
-    .select('id, name, price, stripe_product_id, stripe_price_id')
+    .select('id, name, price, stripe_product_id, stripe_price_id, stripe_account_id, stripe_account_status')
     .eq('id', providerId)
     .maybeSingle();
 
   if (error || !provider) return { error: 'Provider not found.' };
   if (!provider.price || provider.price <= 0) return { error: 'Provider has no price set.' };
+  if (!provider.stripe_account_id || provider.stripe_account_status !== 'active') {
+    return { error: 'Provider has not finished Stripe onboarding yet.' };
+  }
 
   const priceCents = Math.round(Number(provider.price) * 100);
 
   if (provider.stripe_price_id) {
-    return { priceId: provider.stripe_price_id, priceCents };
+    return {
+      priceId: provider.stripe_price_id,
+      priceCents,
+      stripeAccountId: provider.stripe_account_id,
+    };
   }
 
-  // Create product (or reuse if we have a product_id but no price_id).
+  // Prices / products live on the PLATFORM account (not the connected
+  // account) — that way Shape owns the catalog and can apply the same
+  // price object across multiple Checkout Sessions.
   let productId = provider.stripe_product_id;
   if (!productId) {
     const product = await stripe.products.create({
@@ -69,7 +81,11 @@ async function getOrCreateStripePriceId(
     .update({ stripe_product_id: productId, stripe_price_id: price.id })
     .eq('id', provider.id);
 
-  return { priceId: price.id, priceCents };
+  return {
+    priceId: price.id,
+    priceCents,
+    stripeAccountId: provider.stripe_account_id,
+  };
 }
 
 export async function startCheckout(formData: FormData): Promise<void> {
@@ -96,13 +112,15 @@ export async function startCheckout(formData: FormData): Promise<void> {
     redirect(`/login?next=${encodeURIComponent(backHref)}`);
   }
 
-  const priceResult = await getOrCreateStripePriceId(providerRole, providerId);
+  const priceResult = await getProviderConnectInfo(providerRole, providerId);
   if ('error' in priceResult) {
     redirect(`${backHref}?error=${encodeURIComponent(priceResult.error)}`);
   }
 
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
+  // Shape takes a 15% application fee on every trainer/nutritionist charge;
+  // the remaining 85% settles into the provider's connected Stripe account.
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
     line_items: [{ price: priceResult.priceId, quantity: 1 }],
@@ -115,6 +133,8 @@ export async function startCheckout(formData: FormData): Promise<void> {
       price_cents: String(priceResult.priceCents),
     },
     subscription_data: {
+      application_fee_percent: 15,
+      transfer_data: { destination: priceResult.stripeAccountId },
       metadata: {
         client_id: user.id,
         provider_id: String(providerId),

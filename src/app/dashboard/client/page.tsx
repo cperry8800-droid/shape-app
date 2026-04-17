@@ -6,6 +6,7 @@
 import Link from 'next/link';
 import { getMySessions, getMySubscriptions, getTrainers, getNutritionists } from '@/lib/queries';
 import { cancelSubscription } from '@/app/subscribe/actions';
+import { requestRefund } from '@/app/refunds/actions';
 
 export const metadata = { title: 'My Coaches — Shape' };
 
@@ -89,15 +90,26 @@ export default async function ClientDashboardPage() {
                       </div>
                     )}
                   </div>
-                  <form action={cancelSubscription}>
-                    <input type="hidden" name="subscription_id" value={s.id} />
-                    <button
-                      type="submit"
-                      className="text-xs text-neutral-400 hover:text-red-400 border border-neutral-800 hover:border-red-400/40 rounded-full px-3 py-1.5 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </form>
+                  <div className="flex gap-2 flex-wrap">
+                    <form action={requestRefund}>
+                      <input type="hidden" name="subscription_id" value={s.id} />
+                      <button
+                        type="submit"
+                        className="text-xs text-neutral-400 hover:text-amber-300 border border-neutral-800 hover:border-amber-300/40 rounded-full px-3 py-1.5 transition-colors"
+                      >
+                        Request refund
+                      </button>
+                    </form>
+                    <form action={cancelSubscription}>
+                      <input type="hidden" name="subscription_id" value={s.id} />
+                      <button
+                        type="submit"
+                        className="text-xs text-neutral-400 hover:text-red-400 border border-neutral-800 hover:border-red-400/40 rounded-full px-3 py-1.5 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </form>
+                  </div>
                 </li>
               );
             })}
