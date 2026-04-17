@@ -8,35 +8,33 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <script>
-    // Run immediately in <head> before first paint to avoid flash
+    // Intro → Home cinematic transition
     if (new URLSearchParams(location.search).get('from') === 'intro') {
-      // Dark background peeks behind the rising page
-      document.documentElement.style.background = '#0a0a0a';
-      // Start page off-screen below with slight zoom-in + blur for focus-pull feel
-      document.addEventListener('DOMContentLoaded', () => {
-        document.body.style.transform = 'translateY(100vh) scale(1.06)';
-        document.body.style.filter = 'blur(10px) brightness(0.7)';
-        document.body.style.boxShadow = '0 -24px 80px rgba(0,0,0,0.8)';
-        document.body.style.transition = 'none';
-        document.body.style.transformOrigin = 'center top';
-        // Rise up on next frame with coordinated zoom + focus + brighten
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-          document.body.style.transition = 'transform 1.2s cubic-bezier(0.16, 1, 0.3, 1), filter 1s cubic-bezier(0.16, 1, 0.3, 1) 0.15s';
-          document.body.style.transform = 'translateY(0) scale(1)';
-          document.body.style.filter = 'blur(0) brightness(1)';
-          // Clean up after animation
-          setTimeout(() => {
-            document.body.style.transform = '';
-            document.body.style.boxShadow = '';
-            document.body.style.transition = '';
-            document.body.style.filter = '';
-            document.body.style.transformOrigin = '';
-            document.documentElement.style.background = '';
-          }, 1300);
-        }));
-      });
+      document.documentElement.classList.add('intro-arriving');
     }
   </script>
+  <style>
+    /* Cinematic arrival overlay when coming from intro */
+    html.intro-arriving::after {
+      content: ''; position: fixed; inset: 0; z-index: 9999;
+      background: radial-gradient(ellipse at center, rgba(45,212,191,0.35) 0%, rgba(10,10,10,0.95) 45%, #0a0a0a 100%);
+      pointer-events: none;
+      animation: introArriveFade 1.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    html.intro-arriving body {
+      animation: introArriveRise 1.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    @keyframes introArriveFade {
+      0%   { opacity: 1; transform: scale(1); }
+      60%  { opacity: 0.6; }
+      100% { opacity: 0; transform: scale(1.3); }
+    }
+    @keyframes introArriveRise {
+      0%   { transform: translateY(60px) scale(1.04); filter: blur(8px) brightness(0.75); opacity: 0; }
+      60%  { opacity: 1; }
+      100% { transform: translateY(0) scale(1); filter: blur(0) brightness(1); opacity: 1; }
+    }
+  </style>
   <style>
     .hero-shape-logo {
       display: inline-block;
