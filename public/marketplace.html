@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape — Marketplace</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <style>
+    html { background: #000 !important; }
+    body { background: transparent !important; position: relative; }
+    body::before {
+      content: ''; position: fixed; inset: 0; z-index: -1;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.7) 100%),
+                  url('/Training%202.png') center/cover no-repeat;
+      transition: background-image 0.4s ease;
+    }
+    body.mkt-nutri::before {
+      background: linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.7) 100%),
+                  url('/Nutrition%203.png') center/cover no-repeat;
+    }
+    .section, .section-alt, .page-hero { background: transparent !important; }
+    .section-alt, .navbar { background: transparent !important; }
+    .card, .filter-bar, .totm-card {
+      background: rgba(10,10,10,0.3) !important;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-color: rgba(255,255,255,0.1) !important;
+    }
+    .filter-search, .filter-sort {
+      background: rgba(10,10,10,0.4) !important;
+      border-color: rgba(255,255,255,0.1) !important;
+    }
+
+    /* Marketplace toggle */
+    .mkt-toggle {
+      display: inline-flex;
+      background: rgba(10,10,10,0.45);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 999px;
+      padding: 4px;
+      gap: 4px;
+      margin-top: 20px;
+    }
+    .mkt-toggle-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.92rem;
+      font-weight: 600;
+      padding: 10px 24px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all 0.2s;
+      min-width: 140px;
+    }
+    .mkt-toggle-btn:hover {
+      color: var(--text);
+    }
+    .mkt-toggle-btn.active {
+      background: var(--text);
+      color: #0a0a0a;
+    }
+
+    .mkt-pane { display: none; }
+    .mkt-pane.active { display: block; }
+
+    .filter-bar {
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 32px;
+    }
+    .filter-bar-top {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .filter-search {
+      flex: 1;
+      padding: 10px 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.92rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .filter-search:focus { border-color: var(--accent, #2DD4BF); }
+    .filter-search::placeholder { color: var(--text-muted); }
+    .filter-sort {
+      padding: 10px 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.92rem;
+      cursor: pointer;
+      outline: none;
+      min-width: 180px;
+      transition: border-color 0.2s;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23999' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
+    }
+    .filter-sort:focus { border-color: var(--accent, #2DD4BF); }
+    .filter-bar-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    #trainerGrid.card-grid, #nutritionistGrid.card-grid {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 768px) {
+      .filter-bar-top { flex-direction: column; }
+      .filter-sort { min-width: unset; width: 100%; }
+      .mkt-toggle-btn { min-width: 100px; padding: 10px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar" id="navbar">
+    <div class="container nav-container">
+      <a href="home.html" class="logo">
+        <img src="logo.png" alt="Shape" class="logo-img">
+      </a>
+      <div class="nav-links" id="navLinks">
+        <div class="nav-dropdown">
+          <a href="for-clients.html">Clients</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-clients.html">Overview</a>
+            <a href="clients.html">Dashboard</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-trainers.html">Trainers</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-trainers.html">Overview</a>
+            <a href="trainer-dashboard.html">Trainer Dashboard</a>
+            <a href="trainers.html">Trainer Marketplace</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <a href="for-nutritionists.html">Nutritionists</a>
+          <div class="nav-dropdown-menu">
+            <a href="for-nutritionists.html">Overview</a>
+            <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+            <a href="nutritionists.html">Nutritionist Marketplace</a>
+          </div>
+        </div>
+        <a href="marketplace.html">Marketplace</a>
+        <div class="nav-dropdown">
+          <a href="shape-score.html">Rewards</a>
+          <div class="nav-dropdown-menu">
+            <a href="shape-score.html">Shape Score (Clients)</a>
+            <a href="shape-score-trainer.html">Shape Score (Trainers)</a>
+            <a href="shape-score-nutritionist.html">Shape Score (Nutritionists)</a>
+            <a href="shape-store.html">Shape Store</a>
+          </div>
+        </div>
+        <a href="community.html">Community</a>
+        <a href="pricing.html">Pricing</a>
+      </div>
+      <div class="nav-actions">
+        <a href="login.html" class="btn btn-sm btn-outline shape-auth-logged-out">Log In</a>
+        <span class="shape-auth-logged-in shape-nav-user-name" style="display:none;font-size:0.82rem;color:var(--text-muted);margin-right:4px;"></span>
+        <a href="clients.html" class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" data-shape-dashboard-link>Dashboard</a>
+        <button class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" onclick="shapeSignOut()">Sign Out</button>
+        <a href="landing.html" class="btn btn-sm btn-primary shape-auth-logged-out">Get Started</a>
+        <a href="radio.html" class="btn btn-sm btn-radio"><span class="btn-shape-text"><img src="logo-text-trimmed.png" alt="Shape"></span> Radio</a>
+      </div>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Page Hero -->
+  <section class="page-hero" style="padding-bottom:20px;">
+    <div class="container" style="text-align:center;">
+      <span class="tag">Marketplace</span>
+      <h1>Find your <span class="gradient-text">coach</span></h1>
+      <p class="page-hero-sub">Browse every trainer and nutritionist on Shape in one place.</p>
+      <div class="mkt-toggle" role="tablist" aria-label="Marketplace type">
+        <button class="mkt-toggle-btn active" data-pane="trainers" onclick="mktSwitch('trainers')" role="tab" aria-selected="true">Trainers</button>
+        <button class="mkt-toggle-btn" data-pane="nutritionists" onclick="mktSwitch('nutritionists')" role="tab" aria-selected="false">Nutritionists</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- TRAINERS PANE -->
+  <div class="mkt-pane active" id="pane-trainers">
+    <section class="section">
+      <div class="container">
+        <div class="filter-bar">
+          <div class="filter-bar-top">
+            <input type="text" class="filter-search" id="trainerSearch" placeholder="Search trainers by name..." oninput="filterTrainers()">
+            <select class="filter-sort" id="trainerSort" onchange="filterTrainers()">
+              <option value="subscribers">Most Subscribers</option>
+              <option value="rating">Highest Rated</option>
+              <option value="price">Lowest Price</option>
+              <option value="experience">Most Experience</option>
+            </select>
+          </div>
+          <div class="filter-bar-buttons">
+            <button class="filter-btn active" data-filter="all" onclick="setTrainerFilter(this)">All</button>
+            <button class="filter-btn" data-filter="strength" onclick="setTrainerFilter(this)">Strength & Conditioning</button>
+            <button class="filter-btn" data-filter="bodybuilding" onclick="setTrainerFilter(this)">Bodybuilding</button>
+            <button class="filter-btn" data-filter="fullbody" onclick="setTrainerFilter(this)">Full-Body</button>
+            <button class="filter-btn" data-filter="hiit" onclick="setTrainerFilter(this)">HIIT & CrossFit</button>
+            <button class="filter-btn" data-filter="cardio" onclick="setTrainerFilter(this)">Cardio & Endurance</button>
+            <button class="filter-btn" data-filter="weightloss" onclick="setTrainerFilter(this)">Weight Loss</button>
+            <button class="filter-btn" data-filter="mobility" onclick="setTrainerFilter(this)">Mobility & Flexibility</button>
+            <button class="filter-btn" data-filter="athome" onclick="setTrainerFilter(this)">At Home & Bodyweight</button>
+          </div>
+          <div class="filter-bar-buttons" style="margin-top:8px;">
+            <span style="font-size:0.68rem;font-weight:500;color:var(--text-muted);padding:6px 0;text-transform:uppercase;letter-spacing:0.08em;">Credential:</span>
+            <button class="filter-btn trainer-credential-filter active" data-credential="all" onclick="setTrainerCredentialFilter(this)">All</button>
+            <button class="filter-btn trainer-credential-filter cred-tip" data-tip="Certified Strength & Conditioning Specialist" data-credential="CSCS" onclick="setTrainerCredentialFilter(this)">CSCS</button>
+            <button class="filter-btn trainer-credential-filter cred-tip" data-tip="NASM Certified Personal Trainer" data-credential="NASM" onclick="setTrainerCredentialFilter(this)">NASM</button>
+            <button class="filter-btn trainer-credential-filter cred-tip" data-tip="ACE Certified Personal Trainer" data-credential="ACE-CPT" onclick="setTrainerCredentialFilter(this)">ACE-CPT</button>
+            <button class="filter-btn trainer-credential-filter cred-tip" data-tip="ISSA Certified Personal Trainer" data-credential="ISSA-CPT" onclick="setTrainerCredentialFilter(this)">ISSA-CPT</button>
+            <button class="filter-btn trainer-credential-filter cred-tip" data-tip="NSCA Certified Personal Trainer" data-credential="NSCA-CPT" onclick="setTrainerCredentialFilter(this)">NSCA-CPT</button>
+          </div>
+        </div>
+
+        <div class="card-grid" id="trainerGrid">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- NUTRITIONISTS PANE -->
+  <div class="mkt-pane" id="pane-nutritionists">
+    <section class="section">
+      <div class="container">
+        <div class="filter-bar">
+          <div class="filter-bar-top">
+            <input type="text" class="filter-search" id="nutritionistSearch" placeholder="Search nutritionists by name..." oninput="filterNutritionists()">
+            <select class="filter-sort" id="nutritionistSort" onchange="filterNutritionists()">
+              <option value="subscribers">Most Subscribers</option>
+              <option value="rating">Highest Rated</option>
+              <option value="price">Lowest Price</option>
+              <option value="experience">Most Experience</option>
+            </select>
+          </div>
+          <div class="filter-bar-buttons">
+            <button class="filter-btn active" data-filter="all" onclick="setNutritionistFilter(this)">All</button>
+            <button class="filter-btn" data-filter="sports" onclick="setNutritionistFilter(this)">Sports & Performance</button>
+            <button class="filter-btn" data-filter="weightloss" onclick="setNutritionistFilter(this)">Weight Management</button>
+            <button class="filter-btn" data-filter="plantbased" onclick="setNutritionistFilter(this)">Plant-Based & Ayurvedic</button>
+            <button class="filter-btn" data-filter="guthealth" onclick="setNutritionistFilter(this)">Gut Health & Functional</button>
+            <button class="filter-btn" data-filter="prenatal" onclick="setNutritionistFilter(this)">Prenatal & Maternal</button>
+            <button class="filter-btn" data-filter="mealprep" onclick="setNutritionistFilter(this)">Meal Prep & Budget</button>
+          </div>
+          <div class="filter-bar-buttons" style="margin-top:8px;">
+            <span style="font-size:0.68rem;font-weight:500;color:var(--text-muted);padding:6px 0;text-transform:uppercase;letter-spacing:0.08em;">Credential:</span>
+            <button class="filter-btn credential-filter active" data-credential="all" onclick="setCredentialFilter(this)">All</button>
+            <button class="filter-btn credential-filter cred-tip" data-tip="RD / RDN — Registered Dietitian / Registered Dietitian Nutritionist" data-credential="RDN" onclick="setCredentialFilter(this)">Registered Dietitian</button>
+            <button class="filter-btn credential-filter cred-tip" data-tip="Certified Nutrition Specialist" data-credential="CNS" onclick="setCredentialFilter(this)">CNS</button>
+            <button class="filter-btn credential-filter cred-tip" data-tip="Certified Nutritionist" data-credential="CN" onclick="setCredentialFilter(this)">CN</button>
+            <button class="filter-btn credential-filter cred-tip" data-tip="Certified Health & Nutrition Coach" data-credential="Health Coach" onclick="setCredentialFilter(this)">Health Coach</button>
+          </div>
+        </div>
+
+        <div class="card-grid" id="nutritionistGrid">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <a href="home.html" class="logo">
+            <img src="logo.png" alt="Shape" class="logo-img">
+          </a>
+          <p class="footer-desc">Join the community</p>
+        </div>
+        <div class="footer-col">
+          <h4>Platform</h4>
+          <a href="marketplace.html">Marketplace</a>
+          <a href="trainers.html">Trainer Marketplace</a>
+          <a href="nutritionists.html">Nutritionist Marketplace</a>
+          <a href="community.html">Community</a>
+          <a href="pricing.html">Pricing</a>
+          <a href="for-clients.html">Clients</a>
+          <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
+          <a href="trainer-dashboard.html">Trainer Dashboard</a>
+          <a href="integrations.html">Integrations</a>
+        </div>
+        <div class="footer-col">
+          <h4>Get Started</h4>
+          <a href="signup-client.html">Sign Up as Client</a>
+          <a href="signup-trainer.html">Apply as Trainer</a>
+          <a href="signup-nutritionist.html">Apply as Nutritionist</a>
+        </div>
+        <div class="footer-col">
+          <h4>Support</h4>
+          <a href="help.html">Help Center</a>
+          <a href="contact.html">Contact</a>
+          <a href="radio.html">Shape Radio</a>
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 Shape. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Detail Modal (shared) -->
+  <div class="modal-overlay" id="trainerModal">
+    <div class="modal modal-lg">
+      <button class="modal-close" onclick="closeAllModals()">&times;</button>
+      <div id="trainerModalContent"></div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+  <script>
+    function mktSwitch(pane) {
+      document.querySelectorAll('.mkt-toggle-btn').forEach(function(b){
+        var on = b.getAttribute('data-pane') === pane;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      document.querySelectorAll('.mkt-pane').forEach(function(p){
+        p.classList.toggle('active', p.id === 'pane-' + pane);
+      });
+      document.body.classList.toggle('mkt-nutri', pane === 'nutritionists');
+      try {
+        var url = new URL(window.location.href);
+        url.hash = pane;
+        history.replaceState(null, '', url.toString());
+      } catch (e) {}
+    }
+
+    // Initial render for both lists, and honor hash on load
+    (function() {
+      if (typeof trainers !== 'undefined' && typeof filterTrainers === 'function') {
+        filterTrainers();
+      }
+      if (typeof nutritionists !== 'undefined' && typeof filterNutritionists === 'function') {
+        filterNutritionists();
+      }
+      var h = (window.location.hash || '').replace('#','');
+      if (h === 'nutritionists' || h === 'trainers') mktSwitch(h);
+    })();
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script src="booking.js"></script>
+  <script>
+    // Phase 1b — swap hardcoded arrays for Supabase data when available.
+    (async function () {
+      try {
+        if (window.shapeDb && typeof shapeDb.listTrainers === 'function') {
+          var freshT = await shapeDb.listTrainers();
+          if (Array.isArray(freshT) && freshT.length) {
+            trainers.length = 0;
+            for (var i = 0; i < freshT.length; i++) trainers.push(freshT[i]);
+            if (typeof filterTrainers === 'function') filterTrainers();
+          }
+        }
+        if (window.shapeDb && typeof shapeDb.listNutritionists === 'function') {
+          var freshN = await shapeDb.listNutritionists();
+          if (Array.isArray(freshN) && freshN.length) {
+            nutritionists.length = 0;
+            for (var j = 0; j < freshN.length; j++) nutritionists.push(freshN[j]);
+            if (typeof filterNutritionists === 'function') filterNutritionists();
+          }
+        }
+      } catch (e) {
+        console.warn('[shape] marketplace supabase swap failed, using hardcoded data', e);
+      }
+    })();
+  </script>
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>
