@@ -219,6 +219,7 @@
       position: relative;
       overflow: hidden;
     }
+    .login-btn { margin-top: 12px; }
     .enter-btn.show {
       animation: fadeUp 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.4s forwards;
       pointer-events: auto;
@@ -405,6 +406,9 @@
     <a href="home.html" class="enter-btn" id="enterBtn" onclick="enterSite(event)">
       <span>Enter</span>
     </a>
+    <a href="login.html" class="enter-btn login-btn" id="loginBtn">
+      <span>Log In</span>
+    </a>
   </div>
 
   <script>
@@ -519,6 +523,7 @@
               document.getElementById('introLogo').classList.add('show');
               document.getElementById('introTagline').classList.add('show');
               document.getElementById('enterBtn').classList.add('show');
+              document.getElementById('loginBtn').classList.add('show');
             }, 300);
           }, 300);
         }
