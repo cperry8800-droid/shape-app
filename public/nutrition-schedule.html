@@ -989,6 +989,8 @@
   .widget-expand-btn:hover { border-color: var(--accent); color: var(--accent); }
   .widget-drag-handle { font-size: 1.1rem; color: var(--text-muted); cursor: grab; user-select: none; line-height: 1; padding: 0 2px; }
   .widget-drag-handle:active { cursor: grabbing; }
+  .widget-delete-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.1rem; line-height: 1; padding: 2px 6px; font-family: inherit; transition: color 0.15s; }
+  .widget-delete-btn:hover { color: #EF4444; }
   .widget-body { padding: 16px; overflow-x: auto; min-width: 0; }
   .widget-body > *:first-child { margin-top: 0 !important; }
   .widget-body > *:last-child { margin-bottom: 0 !important; }
@@ -1111,7 +1113,7 @@
         <a href="landing.html" class="btn btn-sm btn-primary shape-auth-logged-out">Get Started</a>
         <span class="shape-auth-logged-in" style="display:none;font-size:0.82rem;color:var(--text-muted);margin-right:4px;" id="shapeNavUserName"></span>
         <button class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" onclick="shapeSignOut()">Sign Out</button>
-        <a href="radio.html" class="btn btn-sm btn-radio"><span class="btn-shape-text"><img src="logo.png" alt="Shape"></span> Radio</a>
+        <a href="radio.html" class="btn btn-sm btn-radio"><span class="btn-shape-text"><img src="logo-text-trimmed.png" alt="Shape"></span> Radio</a>
       </div>
       <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
         <span></span><span></span><span></span>
@@ -3396,6 +3398,23 @@
       });
     }
 
+    var ND_DEL_KEY = 'shapeNutritionistDeletedWidgets';
+    function ndGetDeleted() { try { return JSON.parse(localStorage.getItem(ND_DEL_KEY) || '[]'); } catch(e) { return []; } }
+    function ndSetDeleted(arr) { localStorage.setItem(ND_DEL_KEY, JSON.stringify(arr)); }
+    function ndApplyDeleted() {
+      ndGetDeleted().forEach(function(id) {
+        var w = document.querySelector('[data-widget-id="' + id + '"]');
+        if (w) w.style.display = 'none';
+      });
+    }
+    window.ndRestoreWidget = function(id) {
+      var list = ndGetDeleted();
+      var i = list.indexOf(id);
+      if (i >= 0) { list.splice(i, 1); ndSetDeleted(list); }
+      var w = document.querySelector('[data-widget-id="' + id + '"]');
+      if (w) w.style.display = '';
+    };
+
     function injectExpandButtons() {
       var grid = document.getElementById(gridId);
       if (!grid) return;
@@ -3415,10 +3434,24 @@
           btn.textContent = w.classList.contains('widget-full') ? '⊟ Collapse' : '⊞ Expand';
           saveSizes();
         });
+        var del = document.createElement('button');
+        del.className = 'widget-delete-btn';
+        del.textContent = '×';
+        del.title = 'Remove widget';
+        del.addEventListener('click', function(e) {
+          e.stopPropagation();
+          if (!confirm('Remove this widget from your dashboard?')) return;
+          var id = w.dataset.widgetId;
+          var list = ndGetDeleted();
+          if (id && list.indexOf(id) < 0) { list.push(id); ndSetDeleted(list); }
+          w.style.display = 'none';
+        });
         controls.appendChild(btn);
+        controls.appendChild(del);
         if (handle) controls.appendChild(handle);
         header.appendChild(controls);
       });
+      ndApplyDeleted();
     }
 
     function saveOrder() {
