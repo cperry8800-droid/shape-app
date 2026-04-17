@@ -327,14 +327,21 @@
         if (btn) { btn.disabled = false; btn.textContent = 'Log In'; }
         return;
       }
+      // Honor ?next= if same-origin (e.g. /radio.html, /pricing.html).
+      var nextParam = null;
+      try {
+        var raw = new URLSearchParams(location.search).get('next');
+        if (raw && raw.charAt(0) === '/' && !raw.startsWith('//')) nextParam = raw;
+      } catch (e) {}
+
       var has = window.shapeDb.profileHasRole(res.profile, type);
       if (!has) {
         alert("This account doesn't have the " + type + " role. Redirecting to your dashboard.");
-        window.location.href = window.shapeDb.dashboardFor(res.profile.role);
+        window.location.href = nextParam || window.shapeDb.dashboardFor(res.profile.role);
         return;
       }
-      // User holds the requested role — route directly to that dashboard.
-      window.location.href = window.shapeDb.dashboardFor(type);
+      // User holds the requested role — route to ?next= if provided, else dashboard.
+      window.location.href = nextParam || window.shapeDb.dashboardFor(type);
     }
   </script>
 

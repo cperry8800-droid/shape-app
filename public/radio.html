@@ -269,18 +269,10 @@
     <div class="radio-gate-box">
       <div class="radio-logo" style="margin-bottom:24px;"><span class="shape-text"><img src="logo.png" alt="Shape"></span><span class="radio-label">R A D I O</span></div>
       <h2>Welcome back</h2>
-      <p class="subtitle">Log in to start listening</p>
-      <div class="form-group">
-        <label>Email</label>
-        <input type="email" id="radioEmail" placeholder="you@example.com">
-      </div>
-      <div class="form-group">
-        <label>Password</label>
-        <input type="password" id="radioPassword" placeholder="Enter your password">
-      </div>
-      <button class="btn-radio-login" onclick="radioLogin()">Log In</button>
+      <p class="subtitle">Shape Radio is included with every Shape account.</p>
+      <button class="btn-radio-login" onclick="radioGoLogin()">Log In to Your Shape Account</button>
       <div class="gate-divider">or</div>
-      <button class="btn-radio-subscribe" onclick="radioSubscribe()">Subscribe to Shape</button>
+      <button class="btn-radio-subscribe" onclick="radioSubscribe()">Create an Account</button>
       <p class="radio-gate-price">Included free with your <a href="landing.html" style="color:#2DD4BF;">Shape membership — $5/mo</a>.</p>
     </div>
   </div>
@@ -301,22 +293,30 @@
         <div class="np-bar"></div><div class="np-bar"></div><div class="np-bar"></div>
       </div>
       <div class="np-label">NOW PLAYING</div>
-      <div class="np-title">Actin' Tough</div>
-      <div class="np-artist">Dean Turnley</div>
+      <div class="np-title" id="npTitle">—</div>
+      <div class="np-artist" id="npArtist">—</div>
     </div>
 
     <div class="radio-controls">
+      <button class="radio-btn-prev" id="prevBtn" onclick="prevTrack()" aria-label="Previous track" title="Previous" style="background:none;border:none;color:rgba(255,255,255,0.7);cursor:pointer;padding:12px;">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><polygon points="6,5 6,19 8,19 8,5"/><polygon points="20,5 9,12 20,19"/></svg>
+      </button>
       <button class="radio-btn-play" id="playBtn" onclick="togglePlay()">
         <svg id="playIcon" viewBox="0 0 24 24"><polygon points="8,5 19,12 8,19"/></svg>
         <svg id="pauseIcon" viewBox="0 0 24 24" style="display:none;"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+      </button>
+      <button class="radio-btn-next" id="nextBtn" onclick="nextTrack()" aria-label="Next track" title="Next" style="background:none;border:none;color:rgba(255,255,255,0.7);cursor:pointer;padding:12px;">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><polygon points="4,5 15,12 4,19"/><polygon points="16,5 16,19 18,19 18,5"/></svg>
       </button>
     </div>
 
     <div class="volume-control">
       <svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" stroke-linejoin="round"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-      <input type="range" class="volume-slider" min="0" max="100" value="75">
+      <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="75">
       <svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" stroke-linejoin="round"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
     </div>
+
+    <audio id="radioAudio" preload="none" crossorigin="anonymous"></audio>
 
   </div>
 
@@ -327,59 +327,146 @@
   </footer>
 
   <script>
-    let isPlaying = false;
+    // ===== Shape Radio playlist =====
+    // Swap these entries with your licensed track URLs (Epidemic Sound,
+    // Artlist, Soundstripe exports, or your own hosted MP3/HLS files).
+    // Each track: { title, artist, src }. Tracks loop from the top.
+    // Placeholder tracks below are free demo MP3s from SoundHelix, meant
+    // only to prove the player works end-to-end.
+    var SHAPE_RADIO_PLAYLIST = [
+      { title: 'Warmup',       artist: 'Shape Radio', src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' },
+      { title: 'Tempo Lift',   artist: 'Shape Radio', src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3' },
+      { title: 'Main Set',     artist: 'Shape Radio', src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-12.mp3' },
+      { title: 'Push',         artist: 'Shape Radio', src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3' },
+      { title: 'Cool Down',    artist: 'Shape Radio', src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-14.mp3' }
+    ];
 
-    function togglePlay() {
-      isPlaying = !isPlaying;
-      document.getElementById('playIcon').style.display = isPlaying ? 'none' : 'block';
-      document.getElementById('pauseIcon').style.display = isPlaying ? 'block' : 'none';
-      document.getElementById('visualizer').classList.toggle('paused', !isPlaying);
+    var audio = document.getElementById('radioAudio');
+    var visualizer = document.getElementById('visualizer');
+    var playIcon = document.getElementById('playIcon');
+    var pauseIcon = document.getElementById('pauseIcon');
+    var npTitle = document.getElementById('npTitle');
+    var npArtist = document.getElementById('npArtist');
+    var volumeSlider = document.getElementById('volumeSlider');
+    var trackIndex = 0;
+
+    visualizer.classList.add('paused');
+    audio.volume = (parseInt(volumeSlider.value, 10) || 75) / 100;
+
+    function loadTrack(idx) {
+      if (!SHAPE_RADIO_PLAYLIST.length) return;
+      trackIndex = ((idx % SHAPE_RADIO_PLAYLIST.length) + SHAPE_RADIO_PLAYLIST.length) % SHAPE_RADIO_PLAYLIST.length;
+      var t = SHAPE_RADIO_PLAYLIST[trackIndex];
+      audio.src = t.src;
+      npTitle.textContent = t.title || '—';
+      npArtist.textContent = t.artist || '—';
+      if ('mediaSession' in navigator) {
+        try {
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: t.title || 'Shape Radio',
+            artist: t.artist || 'Shape Radio',
+            album: 'Shape Radio'
+          });
+        } catch (e) {}
+      }
     }
 
-    document.getElementById('visualizer').classList.add('paused');
+    function syncPlayUI(playing) {
+      playIcon.style.display = playing ? 'none' : 'block';
+      pauseIcon.style.display = playing ? 'block' : 'none';
+      visualizer.classList.toggle('paused', !playing);
+    }
 
+    function togglePlay() {
+      if (!audio.src) loadTrack(trackIndex);
+      if (audio.paused) {
+        var p = audio.play();
+        if (p && typeof p.catch === 'function') {
+          p.catch(function (err) {
+            console.warn('[shape-radio] play blocked:', err);
+            syncPlayUI(false);
+          });
+        }
+      } else {
+        audio.pause();
+      }
+    }
+
+    function nextTrack() {
+      var wasPlaying = !audio.paused && !audio.ended;
+      loadTrack(trackIndex + 1);
+      if (wasPlaying) audio.play().catch(function () {});
+    }
+
+    function prevTrack() {
+      var wasPlaying = !audio.paused && !audio.ended;
+      // If we're >3s into the current track, restart it instead of going back.
+      if (audio.currentTime > 3) {
+        audio.currentTime = 0;
+        return;
+      }
+      loadTrack(trackIndex - 1);
+      if (wasPlaying) audio.play().catch(function () {});
+    }
+
+    audio.addEventListener('play', function () { syncPlayUI(true); });
+    audio.addEventListener('playing', function () { syncPlayUI(true); });
+    audio.addEventListener('pause', function () { syncPlayUI(false); });
+    audio.addEventListener('ended', function () {
+      loadTrack(trackIndex + 1);
+      audio.play().catch(function () { syncPlayUI(false); });
+    });
+    audio.addEventListener('error', function () {
+      console.warn('[shape-radio] track failed, skipping:', audio.src);
+      loadTrack(trackIndex + 1);
+      audio.play().catch(function () { syncPlayUI(false); });
+    });
+
+    volumeSlider.addEventListener('input', function () {
+      audio.volume = (parseInt(volumeSlider.value, 10) || 0) / 100;
+    });
+
+    if ('mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.setActionHandler('play', function () { audio.play(); });
+        navigator.mediaSession.setActionHandler('pause', function () { audio.pause(); });
+        navigator.mediaSession.setActionHandler('previoustrack', prevTrack);
+        navigator.mediaSession.setActionHandler('nexttrack', nextTrack);
+      } catch (e) {}
+    }
+
+    // ===== Auth gate =====
     function openRadio(autoPlay) {
       document.getElementById('radioGate').style.display = 'none';
       document.getElementById('radioContent').classList.add('active');
-      if (autoPlay && !isPlaying) togglePlay();
+      loadTrack(0);
+      if (autoPlay) {
+        var p = audio.play();
+        if (p && typeof p.catch === 'function') {
+          p.catch(function () { /* autoplay blocked; user will click play */ });
+        }
+      }
     }
 
-    // Check if already logged in (legacy localStorage fallback)
-    if (localStorage.getItem('shapeRadioLoggedIn')) {
-      openRadio(true);
+    function radioGoLogin() {
+      window.location.href = 'login.html?next=/radio.html';
     }
 
-    // Any Shape account (client / trainer / nutritionist) unlocks radio.
+    function radioSubscribe() {
+      window.location.href = 'signup-client.html?next=/radio.html';
+    }
+
+    // Only a real Shape (Supabase) session unlocks radio.
     (async function () {
       try {
-        // Wait a tick for supabase.js to initialize window.shapeDb.
-        for (var i = 0; i < 20 && !window.shapeDb; i++) {
+        for (var i = 0; i < 40 && !window.shapeDb; i++) {
           await new Promise(function (r) { setTimeout(r, 50); });
         }
         if (!window.shapeDb) return;
         var session = await window.shapeDb.getSession();
-        if (session) {
-          localStorage.setItem('shapeRadioLoggedIn', 'true');
-          openRadio(true);
-        }
+        if (session) openRadio(false);
       } catch (e) {}
     })();
-
-    function radioLogin() {
-      const email = document.getElementById('radioEmail').value;
-      const password = document.getElementById('radioPassword').value;
-      if (!email || !password) {
-        alert('Please enter your email and password.');
-        return;
-      }
-      localStorage.setItem('shapeRadioLoggedIn', 'true');
-      document.getElementById('radioGate').style.display = 'none';
-      document.getElementById('radioContent').classList.add('active');
-    }
-
-    function radioSubscribe() {
-      window.location.href = 'signup-radio.html';
-    }
   </script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase.js"></script>
