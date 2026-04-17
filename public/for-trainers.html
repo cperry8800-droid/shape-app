@@ -27,7 +27,11 @@
     .ft-how { padding: 44px 0; }
     .ft-how .section-header { margin-bottom: 28px; }
     .ft-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
-    .ft-step { text-align: center; }
+    .ft-step {
+      text-align: center; padding: 28px 24px;
+      background: rgba(10,10,10,0.55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.12);
+    }
     .ft-step-num { display: none; }
     .ft-step h3 { font-size: 0.95rem; font-weight: 500; margin-bottom: 8px; color: #fff; }
     .ft-step p { font-size: 0.86rem; color: rgba(255,255,255,0.6); font-weight: 300; line-height: 1.6; }
