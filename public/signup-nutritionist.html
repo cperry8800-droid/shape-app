@@ -67,11 +67,6 @@
             <div class="form-group"><label>Time zone</label><input type="text" name="timezone" placeholder="PST / GMT-8" required></div>
           </div>
           <div class="form-group">
-            <label>Profile photo</label>
-            <input type="file" name="profilePhoto" accept="image/*">
-            <div class="form-hint">Headshot or branded photo shown on your public profile.</div>
-          </div>
-          <div class="form-group">
             <label>Social handles (optional)</label>
             <input type="text" name="socials" placeholder="@yourig · @yourtt · youtube.com/@you">
           </div>
@@ -250,7 +245,6 @@
       payload.append('Phone', data.phone || '');
       payload.append('Location', data.location || '');
       payload.append('Time Zone', data.timezone || '');
-      payload.append('Profile Photo', data.profilePhoto || '(not uploaded)');
       payload.append('Socials', data.socials || '');
       payload.append('Credentials', data.credentials || '');
       payload.append('Cert Expiration', data.certExpiry || '');
