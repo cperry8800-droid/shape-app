@@ -297,6 +297,39 @@
         window.location.href = 'login.html';
         return;
       }
+
+      // Persist intake server-side so we have it across devices / after
+      // localStorage clears. Non-blocking — localStorage copy is authoritative
+      // locally, Supabase copy is authoritative for admin/cross-device views.
+      try {
+        await fetch('/api/intake', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + session.access_token
+          },
+          body: JSON.stringify({
+            firstName: data.firstName,
+            lastName: data.lastName,
+            dob: data.dob,
+            sex: data.sex,
+            goal: data.goal,
+            level: data.level,
+            frequency: data.frequency,
+            injuries: data.injuries,
+            medical: data.medical,
+            dietary: data.dietary,
+            emergencyContact: data.emergencyContact,
+            accountability: data.accountability,
+            interests: data.interests,
+            budget: data.budget,
+            details: data
+          })
+        });
+      } catch (err) {
+        console.warn('Intake persist failed:', err);
+      }
+
       window.location.href = 'clients.html';
     }
   </script>

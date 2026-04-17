@@ -258,6 +258,39 @@
       payload.append('Background Check Consent', data.agreeBgCheck || '');
       payload.append('Submitted At', new Date().toISOString());
 
+      // Primary: persist to Supabase via /api/apply so we have a reviewable
+      // queue even if the email relay drops a submission.
+      try {
+        var apiRes = await fetch('/api/apply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            providerType: 'trainer',
+            firstName: data.firstName,
+            lastName: data.lastName,
+            email: data.email,
+            phone: data.phone,
+            location: data.location,
+            specialty: data.specialty,
+            yearsExperience: data.experience,
+            monthlyPrice: data.price,
+            details: data
+          })
+        });
+        if (!apiRes.ok) {
+          var errBody = await apiRes.json().catch(function(){ return {}; });
+          alert(errBody.error || 'Could not submit your application. Please try again.');
+          if (btn) { btn.disabled = false; btn.textContent = 'Submit Application'; }
+          return;
+        }
+      } catch (err) {
+        console.warn('Application API failed:', err);
+        alert('Network error. Please check your connection and try again.');
+        if (btn) { btn.disabled = false; btn.textContent = 'Submit Application'; }
+        return;
+      }
+
+      // Secondary: email notification (non-blocking).
       try {
         await fetch('https://formsubmit.co/ajax/' + encodeURIComponent(APPLICATION_RECIPIENT_EMAIL), { method: 'POST', body: payload });
       } catch (err) { console.warn('Application email relay failed:', err); }
