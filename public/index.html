@@ -408,76 +408,72 @@
   </div>
 
   <script>
-    // Flowing mesh gradient animation
+    // Flowing mesh gradient animation — desktop only
+    const isMobile = window.innerWidth <= 768 || /Mobi|Android/i.test(navigator.userAgent);
     const canvas = document.getElementById('flowCanvas');
-    const ctx = canvas.getContext('2d');
-    let w, h, time = 0;
 
-    function resize() {
-      w = canvas.width = window.innerWidth;
-      h = canvas.height = window.innerHeight;
-    }
-    resize();
-    window.addEventListener('resize', resize);
+    if (!isMobile) {
+      const ctx = canvas.getContext('2d');
+      let w, h, time = 0, lastFrame = 0;
 
-    // Gradient orbs
-    const orbs = [
-      { x: 0.3, y: 0.3, r: 0.4, vx: 0.0003, vy: 0.0002, color: [45, 212, 191] },
-      { x: 0.7, y: 0.6, r: 0.35, vx: -0.0002, vy: 0.0003, color: [20, 184, 166] },
-      { x: 0.5, y: 0.8, r: 0.3, vx: 0.0004, vy: -0.0002, color: [59, 130, 246] },
-      { x: 0.2, y: 0.6, r: 0.25, vx: -0.0003, vy: -0.0001, color: [139, 92, 246] },
-      { x: 0.8, y: 0.2, r: 0.3, vx: 0.0001, vy: 0.0004, color: [45, 212, 191] },
-    ];
-
-    function draw() {
-      time++;
-      ctx.fillStyle = '#0a0a0a';
-      ctx.fillRect(0, 0, w, h);
-
-      orbs.forEach((orb, i) => {
-        // Organic movement
-        orb.x += orb.vx + Math.sin(time * 0.001 + i * 1.5) * 0.0002;
-        orb.y += orb.vy + Math.cos(time * 0.0012 + i * 2) * 0.0002;
-
-        // Wrap around
-        if (orb.x < -0.2) orb.x = 1.2;
-        if (orb.x > 1.2) orb.x = -0.2;
-        if (orb.y < -0.2) orb.y = 1.2;
-        if (orb.y > 1.2) orb.y = -0.2;
-
-        const cx = orb.x * w;
-        const cy = orb.y * h;
-        const radius = orb.r * Math.min(w, h);
-
-        const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-        const [r, g, b] = orb.color;
-        const pulse = 0.06 + Math.sin(time * 0.002 + i) * 0.02;
-        gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${pulse})`);
-        gradient.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, ${pulse * 0.4})`);
-        gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
-
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, w, h);
-      });
-
-      // Flowing lines
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.015)';
-      ctx.lineWidth = 1;
-      for (let i = 0; i < 8; i++) {
-        ctx.beginPath();
-        const startY = (h / 8) * i + Math.sin(time * 0.003 + i) * 40;
-        ctx.moveTo(0, startY);
-        for (let x = 0; x <= w; x += 20) {
-          const y = startY + Math.sin(x * 0.003 + time * 0.002 + i) * 60 + Math.cos(x * 0.001 + time * 0.001) * 30;
-          ctx.lineTo(x, y);
-        }
-        ctx.stroke();
+      function resize() {
+        w = canvas.width = window.innerWidth;
+        h = canvas.height = window.innerHeight;
       }
+      resize();
+      window.addEventListener('resize', resize);
 
+      const orbs = [
+        { x: 0.3, y: 0.3, r: 0.4, vx: 0.0003, vy: 0.0002, color: [45, 212, 191] },
+        { x: 0.7, y: 0.6, r: 0.35, vx: -0.0002, vy: 0.0003, color: [20, 184, 166] },
+        { x: 0.5, y: 0.8, r: 0.3, vx: 0.0004, vy: -0.0002, color: [59, 130, 246] },
+        { x: 0.2, y: 0.6, r: 0.25, vx: -0.0003, vy: -0.0001, color: [139, 92, 246] },
+        { x: 0.8, y: 0.2, r: 0.3, vx: 0.0001, vy: 0.0004, color: [45, 212, 191] },
+      ];
+
+      function draw(ts) {
+        if (ts - lastFrame < 32) { requestAnimationFrame(draw); return; } // ~30fps cap
+        lastFrame = ts;
+        time++;
+        ctx.fillStyle = '#0a0a0a';
+        ctx.fillRect(0, 0, w, h);
+
+        orbs.forEach((orb, i) => {
+          orb.x += orb.vx + Math.sin(time * 0.001 + i * 1.5) * 0.0002;
+          orb.y += orb.vy + Math.cos(time * 0.0012 + i * 2) * 0.0002;
+          if (orb.x < -0.2) orb.x = 1.2;
+          if (orb.x > 1.2) orb.x = -0.2;
+          if (orb.y < -0.2) orb.y = 1.2;
+          if (orb.y > 1.2) orb.y = -0.2;
+
+          const cx = orb.x * w, cy = orb.y * h;
+          const radius = orb.r * Math.min(w, h);
+          const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+          const [r, g, b] = orb.color;
+          const pulse = 0.06 + Math.sin(time * 0.002 + i) * 0.02;
+          gradient.addColorStop(0, `rgba(${r},${g},${b},${pulse})`);
+          gradient.addColorStop(0.5, `rgba(${r},${g},${b},${pulse * 0.4})`);
+          gradient.addColorStop(1, `rgba(${r},${g},${b},0)`);
+          ctx.fillStyle = gradient;
+          ctx.fillRect(0, 0, w, h);
+        });
+
+        ctx.strokeStyle = 'rgba(255,255,255,0.015)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 8; i++) {
+          ctx.beginPath();
+          const startY = (h / 8) * i + Math.sin(time * 0.003 + i) * 40;
+          ctx.moveTo(0, startY);
+          for (let x = 0; x <= w; x += 20) {
+            const y = startY + Math.sin(x * 0.003 + time * 0.002 + i) * 60 + Math.cos(x * 0.001 + time * 0.001) * 30;
+            ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+        }
+        requestAnimationFrame(draw);
+      }
       requestAnimationFrame(draw);
     }
-
-    draw();
 
     // No canvas-based beam needed — S-beam is pure SVG/CSS above
 
