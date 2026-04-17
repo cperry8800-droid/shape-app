@@ -2322,6 +2322,14 @@
               </span>
               <span class="nutri-quicklink-chev">&#8250;</span>
             </button>
+            <button type="button" class="nutri-quicklink" onclick="rcOpenPage()">
+              <span class="nutri-quicklink-icon">&#127859;</span>
+              <span class="nutri-quicklink-body">
+                <span class="nutri-quicklink-title">Recipes</span>
+                <span class="nutri-quicklink-sub"><span id="rcQuicklinkMeta">Save your go-to meals</span></span>
+              </span>
+              <span class="nutri-quicklink-chev">&#8250;</span>
+            </button>
           </div>
           <div class="today-feed-section-head"><h3>Today's meals</h3><a href="#" onclick="event.preventDefault();var d=document.querySelector('#tabNutrition .today-legacy-wrap');if(d)d.open=true;">All widgets</a></div>
           <div class="today-feed-list">
@@ -2892,6 +2900,142 @@
           </div>
 
         </div><!-- /.nutri-grocery-view -->
+
+        <!-- Recipes page -->
+        <style>
+          .nutri-recipe-view { max-width: 1200px; margin: 0 auto; padding: 4px 0 16px; }
+          .rc-page-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+          .rc-page-title { margin: 0; font-size: 1.25rem; font-weight: 500; letter-spacing: -0.01em; }
+          .rc-back, .rc-new-btn {
+            font-family: inherit; font-size: 0.78rem; padding: 8px 14px;
+            cursor: pointer; border: 1px solid var(--border);
+            background: none; color: var(--text); border-radius: 0;
+          }
+          .rc-back:hover { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.18); }
+          .rc-new-btn {
+            background: var(--accent, #2DD4BF); color: #000;
+            border-color: var(--accent, #2DD4BF); font-weight: 600;
+          }
+          .rc-new-btn:hover { opacity: 0.9; }
+          .rc-page-sub { font-size: 0.82rem; color: var(--text-muted); margin: 0 0 18px; }
+
+          .rc-section { margin-bottom: 28px; }
+          .rc-section-head {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.14em;
+            color: var(--text-muted); margin-bottom: 8px; font-weight: 500;
+          }
+          .rc-section-count { font-weight: 400; }
+          .rc-list-stack { border: 1px solid var(--border); }
+          .rc-list-card {
+            display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center;
+            padding: 14px 18px; cursor: pointer; transition: background .15s;
+          }
+          .rc-list-card + .rc-list-card { border-top: 1px solid var(--border); }
+          .rc-list-card:hover { background: rgba(255,255,255,0.03); }
+          .rc-list-name { font-weight: 600; font-size: 0.92rem; margin-bottom: 3px; }
+          .rc-list-meta { font-size: 0.74rem; color: var(--text-muted); }
+          .rc-list-cat {
+            font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em;
+            color: var(--accent, #2DD4BF); padding: 3px 8px;
+            border: 1px solid var(--border); border-radius: 4px;
+          }
+          .rc-card-del {
+            background: none; border: 1px solid var(--border); color: var(--text-muted);
+            width: 34px; height: 34px; cursor: pointer; font-size: 1.1rem; line-height: 1;
+            border-radius: 4px;
+          }
+          .rc-card-del:hover { color: #EF4444; border-color: #EF4444; background: rgba(239,68,68,0.06); }
+          .rc-empty {
+            padding: 24px 16px; text-align: center; font-size: 0.85rem;
+            color: var(--text-muted); border: 1px dashed var(--border);
+          }
+          @media (max-width: 600px) {
+            .rc-page-head { flex-wrap: wrap; }
+            .rc-list-card { grid-template-columns: 1fr auto; }
+            .rc-list-cat { grid-column: 1; grid-row: 2; justify-self: start; }
+          }
+
+          /* Recipe modal */
+          .rc-modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.72);
+            display: none; align-items: flex-start; justify-content: center;
+            z-index: 9999; padding: 6vh 16px 16px; overflow-y: auto;
+            pointer-events: none;
+          }
+          .rc-modal-overlay.open { display: flex; pointer-events: auto; }
+          .rc-modal {
+            background: var(--bg, #0a0a0a); border: 1px solid var(--border);
+            width: 100%; max-width: 640px; padding: 26px 28px 22px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+          }
+          .rc-modal-head {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 12px; margin-bottom: 16px;
+          }
+          .rc-modal-head h3 { margin: 0; font-size: 1.05rem; font-weight: 400; letter-spacing: -0.01em; }
+          .rc-modal-close {
+            background: none; border: none; color: var(--text-muted);
+            font-size: 1.4rem; line-height: 1; cursor: pointer; padding: 2px 6px;
+          }
+          .rc-modal-close:hover { color: var(--text); }
+          .rc-form-row { display: grid; gap: 10px; margin-bottom: 12px; }
+          .rc-form-row-3 { grid-template-columns: 1fr 1fr 1fr; }
+          @media (max-width: 600px) {
+            .rc-form-row-3 { grid-template-columns: 1fr; }
+          }
+          .rc-label {
+            display: block; font-size: 0.68rem; text-transform: uppercase;
+            letter-spacing: 0.12em; color: var(--text-muted); margin-bottom: 6px;
+          }
+          .rc-input, .rc-select, .rc-textarea {
+            width: 100%; background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border); color: var(--text);
+            padding: 10px 12px; font-family: inherit; font-size: 0.88rem;
+            box-sizing: border-box; border-radius: 0;
+          }
+          .rc-textarea { resize: vertical; min-height: 86px; line-height: 1.55; font-size: 0.85rem; }
+          .rc-input:focus, .rc-select:focus, .rc-textarea:focus {
+            outline: none; border-color: var(--accent, #2DD4BF);
+            background: rgba(255,255,255,0.05);
+          }
+          .rc-modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+          .rc-modal-btn {
+            font-family: inherit; font-size: 0.8rem; padding: 9px 16px;
+            cursor: pointer; border: 1px solid var(--border);
+            transition: opacity .15s, background .15s, border-color .15s;
+          }
+          .rc-modal-btn.secondary { background: none; color: var(--text); }
+          .rc-modal-btn.secondary:hover { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.18); }
+          .rc-modal-btn.primary {
+            background: var(--accent, #2DD4BF); color: #000;
+            border-color: var(--accent, #2DD4BF); font-weight: 600;
+          }
+          .rc-modal-btn.primary:hover { opacity: 0.9; }
+
+          /* View modal */
+          .rc-view-section { margin-bottom: 16px; }
+          .rc-view-section:last-child { margin-bottom: 0; }
+          .rc-view-meta { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 14px; display: flex; flex-wrap: wrap; gap: 12px; }
+          .rc-view-meta span::before { content: "•\00a0"; opacity: 0.5; }
+          .rc-view-meta span:first-child::before { content: ""; }
+          .rc-view-body { font-size: 0.88rem; color: var(--text); line-height: 1.6; white-space: pre-wrap; }
+        </style>
+
+        <div class="nutri-recipe-view" id="nutriRecipePage" style="display:none;">
+          <div class="rc-page-head">
+            <button type="button" class="rc-back" onclick="rcClosePage()" aria-label="Back">&#8249; Back</button>
+            <h2 class="rc-page-title">Recipes</h2>
+            <button type="button" class="rc-new-btn" onclick="rcNewRecipe()">+ New recipe</button>
+          </div>
+          <p class="rc-page-sub">Save your go-to meals so ingredients and steps are one tap away &mdash; stored on this device.</p>
+
+          <div class="rc-section">
+            <div class="rc-section-head"><span>My recipes</span><span id="rcCount" class="rc-section-count">0</span></div>
+            <div id="rcList" class="rc-list-stack"></div>
+            <div id="rcEmpty" class="rc-empty" style="display:none;">No recipes yet. Tap <em>+ New recipe</em> to add your first.</div>
+          </div>
+        </div><!-- /.nutri-recipe-view -->
 
       </div><!-- /#tabNutrition -->
 
@@ -3768,11 +3912,16 @@
       if (tab === 'library' && typeof libRenderPurchased === 'function') libRenderPurchased();
       if (tab === 'nutrition' && typeof renderAll === 'function') renderAll();
       if (tab !== 'nutrition' && typeof glClosePage === 'function') glClosePage();
+      if (tab !== 'nutrition' && typeof rcClosePage === 'function') rcClosePage();
       if (tab !== 'nutrition') {
         var _glM1 = document.getElementById('glModal');
         var _glM2 = document.getElementById('glItemsModal');
         if (_glM1) _glM1.classList.remove('open');
         if (_glM2) _glM2.classList.remove('open');
+        var _rcM1 = document.getElementById('rcEditModal');
+        var _rcM2 = document.getElementById('rcViewModal');
+        if (_rcM1) _rcM1.classList.remove('open');
+        if (_rcM2) _rcM2.classList.remove('open');
       }
       if (tab === 'home' && typeof renderClientCheckIns === 'function') renderClientCheckIns('trainer');
       if (tab === 'nutrition' && typeof renderClientCheckIns === 'function') renderClientCheckIns('nutritionist');
@@ -7679,6 +7828,287 @@
       </form>
     </div>
   </div>
+
+  <!-- Recipes modals -->
+  <div class="rc-modal-overlay" id="rcEditModal" onclick="if(event.target===this)rcCloseEditModal()" role="dialog" aria-modal="true">
+    <div class="rc-modal">
+      <div class="rc-modal-head">
+        <h3 id="rcEditModalTitle">New recipe</h3>
+        <button type="button" class="rc-modal-close" onclick="rcCloseEditModal()" aria-label="Close">&times;</button>
+      </div>
+      <form id="rcEditForm" onsubmit="event.preventDefault(); rcSubmitEdit();">
+        <input type="hidden" id="rcEditId" value="">
+        <div class="rc-form-row">
+          <label for="rcEditName" class="rc-label">Name</label>
+          <input type="text" id="rcEditName" class="rc-input" placeholder="e.g. Overnight oats" required autocomplete="off">
+        </div>
+        <div class="rc-form-row rc-form-row-3">
+          <div>
+            <label for="rcEditCategory" class="rc-label">Category</label>
+            <select id="rcEditCategory" class="rc-select">
+              <option value="Breakfast">Breakfast</option>
+              <option value="Lunch">Lunch</option>
+              <option value="Dinner">Dinner</option>
+              <option value="Snack">Snack</option>
+              <option value="Dessert">Dessert</option>
+              <option value="Drink">Drink</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label for="rcEditServings" class="rc-label">Servings</label>
+            <input type="text" id="rcEditServings" class="rc-input" placeholder="2" autocomplete="off">
+          </div>
+          <div>
+            <label for="rcEditTime" class="rc-label">Time</label>
+            <input type="text" id="rcEditTime" class="rc-input" placeholder="20 min" autocomplete="off">
+          </div>
+        </div>
+        <div class="rc-form-row">
+          <label for="rcEditIngredients" class="rc-label">Ingredients</label>
+          <textarea id="rcEditIngredients" class="rc-textarea" rows="5" placeholder="One per line&#10;1 cup rolled oats&#10;1 cup almond milk&#10;1 tbsp chia seeds"></textarea>
+        </div>
+        <div class="rc-form-row">
+          <label for="rcEditInstructions" class="rc-label">Instructions</label>
+          <textarea id="rcEditInstructions" class="rc-textarea" rows="5" placeholder="Step-by-step. One step per line."></textarea>
+        </div>
+        <div class="rc-form-row">
+          <label for="rcEditNotes" class="rc-label">Notes (optional)</label>
+          <textarea id="rcEditNotes" class="rc-textarea" rows="2" placeholder="Macros, swaps, reminders..."></textarea>
+        </div>
+        <div class="rc-modal-actions">
+          <button type="button" class="rc-modal-btn secondary" onclick="rcCloseEditModal()">Cancel</button>
+          <button type="submit" class="rc-modal-btn primary" id="rcEditSaveBtn">Save recipe</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="rc-modal-overlay" id="rcViewModal" onclick="if(event.target===this)rcCloseViewModal()" role="dialog" aria-modal="true">
+    <div class="rc-modal">
+      <div class="rc-modal-head">
+        <h3 id="rcViewTitle">Recipe</h3>
+        <button type="button" class="rc-modal-close" onclick="rcCloseViewModal()" aria-label="Close">&times;</button>
+      </div>
+      <div class="rc-view-meta" id="rcViewMeta"></div>
+      <div class="rc-view-section">
+        <div class="rc-label">Ingredients</div>
+        <div class="rc-view-body" id="rcViewIngredients"></div>
+      </div>
+      <div class="rc-view-section">
+        <div class="rc-label">Instructions</div>
+        <div class="rc-view-body" id="rcViewInstructions"></div>
+      </div>
+      <div class="rc-view-section" id="rcViewNotesWrap">
+        <div class="rc-label">Notes</div>
+        <div class="rc-view-body" id="rcViewNotes"></div>
+      </div>
+      <div class="rc-modal-actions">
+        <button type="button" class="rc-modal-btn secondary" onclick="rcEditFromView()">Edit</button>
+        <button type="button" class="rc-modal-btn primary" onclick="rcCloseViewModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // ===== Recipes =====
+  (function() {
+    var STORAGE_KEY = 'shapeRecipes_v1';
+    var CAT_ORDER = ['Breakfast','Lunch','Dinner','Snack','Dessert','Drink','Other'];
+
+    function load() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch(e) { return []; }
+    }
+    function save(arr) {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); } catch(e){}
+    }
+    function uid() { return 'rc_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }
+    function escapeHtmlRc(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+    function getById(id) {
+      var all = load();
+      for (var i = 0; i < all.length; i++) if (all[i].id === id) return all[i];
+      return null;
+    }
+
+    function renderList() {
+      var listEl = document.getElementById('rcList');
+      var emptyEl = document.getElementById('rcEmpty');
+      var countEl = document.getElementById('rcCount');
+      var metaEl = document.getElementById('rcQuicklinkMeta');
+      if (!listEl) return;
+      var all = load();
+      if (countEl) countEl.textContent = String(all.length);
+      if (metaEl) metaEl.textContent = all.length
+        ? (all.length + ' recipe' + (all.length === 1 ? '' : 's') + ' saved')
+        : 'Save your go-to meals';
+      if (!all.length) {
+        listEl.innerHTML = '';
+        listEl.style.display = 'none';
+        if (emptyEl) emptyEl.style.display = '';
+        return;
+      }
+      listEl.style.display = '';
+      if (emptyEl) emptyEl.style.display = 'none';
+      var sorted = all.slice().sort(function(a, b){
+        var ia = CAT_ORDER.indexOf(a.category); if (ia < 0) ia = 99;
+        var ib = CAT_ORDER.indexOf(b.category); if (ib < 0) ib = 99;
+        if (ia !== ib) return ia - ib;
+        return (a.name || '').localeCompare(b.name || '');
+      });
+      var html = '';
+      sorted.forEach(function(r){
+        var meta = [];
+        if (r.servings) meta.push(escapeHtmlRc(r.servings) + ' serv');
+        if (r.time) meta.push(escapeHtmlRc(r.time));
+        var ingCount = (r.ingredients || '').split('\n').filter(function(l){return l.trim();}).length;
+        if (ingCount) meta.push(ingCount + ' ingredient' + (ingCount === 1 ? '' : 's'));
+        html += '<div class="rc-list-card" onclick="rcOpenView(\'' + r.id + '\')">';
+        html +=   '<div><div class="rc-list-name">' + escapeHtmlRc(r.name) + '</div>';
+        html +=   '<div class="rc-list-meta">' + (meta.length ? meta.join(' &middot; ') : 'Tap to view') + '</div></div>';
+        html +=   '<div class="rc-list-cat">' + escapeHtmlRc(r.category || 'Other') + '</div>';
+        html +=   '<button type="button" class="rc-card-del" onclick="event.stopPropagation();rcDelete(\'' + r.id + '\');" title="Delete">&times;</button>';
+        html += '</div>';
+      });
+      listEl.innerHTML = html;
+    }
+
+    window.rcOpenPage = function() {
+      var def = document.querySelector('#tabNutrition .nutri-default-view');
+      var rp = document.getElementById('nutriRecipePage');
+      if (def) def.style.display = 'none';
+      if (rp) rp.style.display = '';
+      renderList();
+      try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch(e) { window.scrollTo(0, 0); }
+    };
+
+    window.rcClosePage = function() {
+      var def = document.querySelector('#tabNutrition .nutri-default-view');
+      var rp = document.getElementById('nutriRecipePage');
+      if (rp) rp.style.display = 'none';
+      if (def) def.style.display = '';
+    };
+
+    window.rcNewRecipe = function() {
+      window.rcOpenEditModal(null);
+    };
+
+    window.rcOpenEditModal = function(id) {
+      var modal = document.getElementById('rcEditModal');
+      if (!modal) return;
+      var rec = id ? getById(id) : null;
+      document.getElementById('rcEditId').value = rec ? rec.id : '';
+      document.getElementById('rcEditName').value = rec ? (rec.name || '') : '';
+      document.getElementById('rcEditCategory').value = rec ? (rec.category || 'Other') : 'Breakfast';
+      document.getElementById('rcEditServings').value = rec ? (rec.servings || '') : '';
+      document.getElementById('rcEditTime').value = rec ? (rec.time || '') : '';
+      document.getElementById('rcEditIngredients').value = rec ? (rec.ingredients || '') : '';
+      document.getElementById('rcEditInstructions').value = rec ? (rec.instructions || '') : '';
+      document.getElementById('rcEditNotes').value = rec ? (rec.notes || '') : '';
+      document.getElementById('rcEditModalTitle').textContent = rec ? 'Edit recipe' : 'New recipe';
+      document.getElementById('rcEditSaveBtn').textContent = rec ? 'Save changes' : 'Save recipe';
+      modal.classList.add('open');
+      setTimeout(function(){ var n = document.getElementById('rcEditName'); if (n) n.focus(); }, 40);
+    };
+
+    window.rcCloseEditModal = function() {
+      var modal = document.getElementById('rcEditModal');
+      if (modal) modal.classList.remove('open');
+    };
+
+    window.rcSubmitEdit = function() {
+      var id = (document.getElementById('rcEditId').value || '').trim();
+      var name = (document.getElementById('rcEditName').value || '').trim();
+      if (!name) return;
+      var data = {
+        name: name,
+        category: document.getElementById('rcEditCategory').value || 'Other',
+        servings: (document.getElementById('rcEditServings').value || '').trim(),
+        time: (document.getElementById('rcEditTime').value || '').trim(),
+        ingredients: (document.getElementById('rcEditIngredients').value || '').trim(),
+        instructions: (document.getElementById('rcEditInstructions').value || '').trim(),
+        notes: (document.getElementById('rcEditNotes').value || '').trim()
+      };
+      var all = load();
+      if (id) {
+        for (var i = 0; i < all.length; i++) {
+          if (all[i].id === id) {
+            Object.keys(data).forEach(function(k){ all[i][k] = data[k]; });
+            all[i].updated = Date.now();
+            break;
+          }
+        }
+      } else {
+        data.id = uid();
+        data.created = Date.now();
+        data.updated = data.created;
+        all.push(data);
+      }
+      save(all);
+      window.rcCloseEditModal();
+      renderList();
+    };
+
+    window.rcDelete = function(id) {
+      var rec = getById(id);
+      if (!rec) return;
+      if (!window.confirm('Delete "' + rec.name + '"? This can\'t be undone.')) return;
+      var all = load().filter(function(r){ return r.id !== id; });
+      save(all);
+      renderList();
+    };
+
+    var _rcViewId = null;
+    window.rcOpenView = function(id) {
+      var rec = getById(id);
+      if (!rec) return;
+      _rcViewId = id;
+      var modal = document.getElementById('rcViewModal');
+      if (!modal) return;
+      document.getElementById('rcViewTitle').textContent = rec.name || 'Recipe';
+      var meta = [];
+      meta.push(escapeHtmlRc(rec.category || 'Other'));
+      if (rec.servings) meta.push(escapeHtmlRc(rec.servings) + ' serv');
+      if (rec.time) meta.push(escapeHtmlRc(rec.time));
+      document.getElementById('rcViewMeta').innerHTML = meta.map(function(m){return '<span>' + m + '</span>';}).join('');
+      document.getElementById('rcViewIngredients').textContent = rec.ingredients || '(none)';
+      document.getElementById('rcViewInstructions').textContent = rec.instructions || '(none)';
+      var notesWrap = document.getElementById('rcViewNotesWrap');
+      if (rec.notes) {
+        if (notesWrap) notesWrap.style.display = '';
+        document.getElementById('rcViewNotes').textContent = rec.notes;
+      } else {
+        if (notesWrap) notesWrap.style.display = 'none';
+      }
+      modal.classList.add('open');
+    };
+
+    window.rcCloseViewModal = function() {
+      var modal = document.getElementById('rcViewModal');
+      if (modal) modal.classList.remove('open');
+      _rcViewId = null;
+    };
+
+    window.rcEditFromView = function() {
+      var id = _rcViewId;
+      window.rcCloseViewModal();
+      if (id) window.rcOpenEditModal(id);
+    };
+
+    document.addEventListener('DOMContentLoaded', renderList);
+    document.addEventListener('keydown', function(e){
+      if (e.key !== 'Escape') return;
+      var em = document.getElementById('rcEditModal');
+      var vm = document.getElementById('rcViewModal');
+      if (em && em.classList.contains('open')) { window.rcCloseEditModal(); return; }
+      if (vm && vm.classList.contains('open')) { window.rcCloseViewModal(); return; }
+    });
+    setTimeout(renderList, 300);
+  })();
+  </script>
 
   <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
 </body>
