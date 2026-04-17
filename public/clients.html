@@ -2798,57 +2798,6 @@
             <div id="glDetailItems" class="gl-detail-items"></div>
           </div>
 
-          <!-- Add items modal (large) -->
-          <div class="gl-modal-overlay gl-items-overlay" id="glItemsModal" onclick="if(event.target===this)glCloseItemsModal()" role="dialog" aria-modal="true">
-            <div class="gl-modal gl-modal-lg">
-              <div class="gl-modal-head">
-                <div>
-                  <div class="gl-modal-eyebrow">Add ingredients</div>
-                  <h3 id="glItemsModalTitle">New list</h3>
-                </div>
-                <button type="button" class="gl-modal-close" onclick="glCloseItemsModal()" aria-label="Close">&times;</button>
-              </div>
-
-              <form id="glItemsModalForm" class="grocery-add-form gl-items-add" onsubmit="event.preventDefault(); glAddItemToModal(this);">
-                <input type="text" class="gl-input" data-role="name" name="name" placeholder="Add an item (e.g. Avocados)" required autocomplete="off">
-                <input type="text" class="gl-input" name="qty" placeholder="Qty" autocomplete="off">
-                <select class="gl-select" name="cat">
-                  <option value="Produce">Produce</option>
-                  <option value="Protein">Protein</option>
-                  <option value="Dairy &amp; Eggs">Dairy &amp; Eggs</option>
-                  <option value="Pantry">Pantry</option>
-                  <option value="Other">Other</option>
-                </select>
-                <button type="submit" class="gl-add-btn">+ Add item</button>
-              </form>
-
-              <div class="gl-items-count" id="glItemsModalCount">0 items</div>
-              <div class="gl-items-body" id="glItemsModalBody"></div>
-
-              <div class="gl-modal-actions">
-                <button type="button" class="gl-modal-btn primary" onclick="glCloseItemsModal()">Done</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Create / Rename list modal -->
-          <div class="gl-modal-overlay" id="glModal" onclick="if(event.target===this)glCloseModal()" role="dialog" aria-modal="true">
-            <div class="gl-modal">
-              <div class="gl-modal-head">
-                <h3 id="glModalTitle">New grocery list</h3>
-                <button type="button" class="gl-modal-close" onclick="glCloseModal()" aria-label="Close">&times;</button>
-              </div>
-              <form id="glModalForm" onsubmit="event.preventDefault(); glSubmitModal();">
-                <label for="glModalName" class="gl-modal-label">List name</label>
-                <input type="text" id="glModalName" class="gl-modal-input" placeholder="e.g. Week of Apr 20" required autocomplete="off">
-                <p id="glModalHint" class="gl-modal-hint">After you save, you'll be able to add items in the list detail view.</p>
-                <div class="gl-modal-actions">
-                  <button type="button" class="gl-modal-btn secondary" onclick="glCloseModal()">Cancel</button>
-                  <button type="submit" class="gl-modal-btn primary" id="glModalSaveBtn">Create list</button>
-                </div>
-              </form>
-            </div>
-          </div>
         </div><!-- /.nutri-grocery-view -->
 
       </div><!-- /#tabNutrition -->
@@ -7308,6 +7257,57 @@
     });
   })();
   </script>
+
+  <!-- Grocery Lists modals (kept at body level so no ancestor can clip/break layout) -->
+  <div class="gl-modal-overlay gl-items-overlay" id="glItemsModal" onclick="if(event.target===this)glCloseItemsModal()" role="dialog" aria-modal="true">
+    <div class="gl-modal gl-modal-lg">
+      <div class="gl-modal-head">
+        <div>
+          <div class="gl-modal-eyebrow">Add ingredients</div>
+          <h3 id="glItemsModalTitle">New list</h3>
+        </div>
+        <button type="button" class="gl-modal-close" onclick="glCloseItemsModal()" aria-label="Close">&times;</button>
+      </div>
+
+      <form id="glItemsModalForm" class="grocery-add-form gl-items-add" onsubmit="event.preventDefault(); glAddItemToModal(this);">
+        <input type="text" class="gl-input" data-role="name" name="name" placeholder="Add an item (e.g. Avocados)" required autocomplete="off">
+        <input type="text" class="gl-input" name="qty" placeholder="Qty" autocomplete="off">
+        <select class="gl-select" name="cat">
+          <option value="Produce">Produce</option>
+          <option value="Protein">Protein</option>
+          <option value="Dairy &amp; Eggs">Dairy &amp; Eggs</option>
+          <option value="Pantry">Pantry</option>
+          <option value="Other">Other</option>
+        </select>
+        <button type="submit" class="gl-add-btn">+ Add item</button>
+      </form>
+
+      <div class="gl-items-count" id="glItemsModalCount">0 items</div>
+      <div class="gl-items-body" id="glItemsModalBody"></div>
+
+      <div class="gl-modal-actions">
+        <button type="button" class="gl-modal-btn primary" onclick="glCloseItemsModal()">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="gl-modal-overlay" id="glModal" onclick="if(event.target===this)glCloseModal()" role="dialog" aria-modal="true">
+    <div class="gl-modal">
+      <div class="gl-modal-head">
+        <h3 id="glModalTitle">New grocery list</h3>
+        <button type="button" class="gl-modal-close" onclick="glCloseModal()" aria-label="Close">&times;</button>
+      </div>
+      <form id="glModalForm" onsubmit="event.preventDefault(); glSubmitModal();">
+        <label for="glModalName" class="gl-modal-label">List name</label>
+        <input type="text" id="glModalName" class="gl-modal-input" placeholder="e.g. Week of Apr 20" required autocomplete="off">
+        <p id="glModalHint" class="gl-modal-hint">After you save, you'll be able to add items in the list detail view.</p>
+        <div class="gl-modal-actions">
+          <button type="button" class="gl-modal-btn secondary" onclick="glCloseModal()">Cancel</button>
+          <button type="submit" class="gl-modal-btn primary" id="glModalSaveBtn">Create list</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
 </body>
