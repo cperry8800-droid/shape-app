@@ -194,10 +194,16 @@
       letter-spacing: 0.2em;
       text-transform: uppercase;
       margin-bottom: 48px;
+    }
+    .intro-tagline .tagline-line {
+      display: block;
       opacity: 0;
     }
-    .intro-tagline.show {
+    .intro-tagline.show .tagline-line-1 {
       animation: fadeUp 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.2s forwards;
+    }
+    .intro-tagline.show .tagline-line-2 {
+      animation: fadeUp 1.2s cubic-bezier(0.16, 1, 0.3, 1) 1.4s forwards;
     }
 
     .enter-btn {
@@ -220,7 +226,7 @@
       overflow: hidden;
     }
     .enter-btn.show {
-      animation: fadeUp 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.4s forwards;
+      animation: fadeUp 1.2s cubic-bezier(0.16, 1, 0.3, 1) 2.4s forwards;
       pointer-events: auto;
     }
 
@@ -413,7 +419,10 @@
         <img src="logo.png" alt="Shape" class="intro-shape-text">
       </div>
     </div>
-    <p class="intro-tagline" id="introTagline">One Community<br>One Platform</p>
+    <p class="intro-tagline" id="introTagline">
+      <span class="tagline-line tagline-line-1">One Community.</span>
+      <span class="tagline-line tagline-line-2">One Platform.</span>
+    </p>
     <a href="home.html" class="enter-btn" id="enterBtn" onclick="enterSite(event)">
       <span>Get Started</span>
     </a>
