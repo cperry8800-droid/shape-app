@@ -574,13 +574,13 @@
         <!-- Category chips -->
         <div class="mkt-chips" role="tablist">
           <button class="mkt-chip active" data-filter="all" onclick="mktSetTrainerChip(this)">All</button>
-          <button class="mkt-chip" data-filter="strength" onclick="mktSetTrainerChip(this)">Strength</button>
+          <button class="mkt-chip" data-filter="strength" onclick="mktSetTrainerChip(this)">Strength &amp; Resistance</button>
+          <button class="mkt-chip" data-filter="cardio" onclick="mktSetTrainerChip(this)">Cardio &amp; Endurance</button>
+          <button class="mkt-chip" data-filter="mobility" onclick="mktSetTrainerChip(this)">Mobility, Recovery &amp; Rehab</button>
+          <button class="mkt-chip" data-filter="functional" onclick="mktSetTrainerChip(this)">Functional &amp; Hybrid</button>
           <button class="mkt-chip" data-filter="bodybuilding" onclick="mktSetTrainerChip(this)">Bodybuilding</button>
-          <button class="mkt-chip" data-filter="fullbody" onclick="mktSetTrainerChip(this)">Full-Body</button>
           <button class="mkt-chip" data-filter="hiit" onclick="mktSetTrainerChip(this)">HIIT</button>
-          <button class="mkt-chip" data-filter="cardio" onclick="mktSetTrainerChip(this)">Cardio</button>
           <button class="mkt-chip" data-filter="weightloss" onclick="mktSetTrainerChip(this)">Weight Loss</button>
-          <button class="mkt-chip" data-filter="mobility" onclick="mktSetTrainerChip(this)">Mobility</button>
           <button class="mkt-chip" data-filter="athome" onclick="mktSetTrainerChip(this)">At Home</button>
         </div>
 
@@ -869,6 +869,25 @@
       );
     }
 
+    function mktMatchTrainerCategory(trainer, filter) {
+      if (!filter || filter === 'all') return true;
+      var spec = (trainer.specialty || '').toLowerCase();
+      var cat = trainer.category || '';
+      if (filter === 'strength') {
+        return cat === 'strength' || cat === 'bodybuilding' || /resistance|powerlifting|weightlifting|olympic|kettlebell|calisthenics/.test(spec);
+      }
+      if (filter === 'cardio') {
+        return cat === 'cardio' || /endurance|running|cycling|rowing|marathon|obstacle/.test(spec);
+      }
+      if (filter === 'mobility') {
+        return cat === 'mobility' || /recovery|rehab|rehabilitation|flexibility|stretching|yoga|pilates/.test(spec);
+      }
+      if (filter === 'functional') {
+        return cat === 'fullbody' || /functional|hybrid|cross[-\s]?training|crossfit|athlete|obstacle/.test(spec);
+      }
+      return cat === filter;
+    }
+
     window.filterTrainers = function() {
       var grid = document.getElementById('trainerGrid');
       if (!grid || typeof trainers === 'undefined') return;
@@ -876,7 +895,7 @@
       var sortBy = document.getElementById('trainerSort').value;
       var filtered = trainers.filter(function(t) {
         var matchSearch = !search || t.name.toLowerCase().includes(search) || (t.specialty && t.specialty.toLowerCase().includes(search));
-        var matchCat = (window.activeTrainerFilter || 'all') === 'all' || t.category === window.activeTrainerFilter;
+        var matchCat = mktMatchTrainerCategory(t, window.activeTrainerFilter || 'all');
         return matchSearch && matchCat;
       });
       if (!filtered.length) {
