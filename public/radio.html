@@ -185,12 +185,22 @@
     }
     .radio-gate-box input {
       width: 100%; padding: 14px 16px; border: 1px solid rgba(255,255,255,0.15);
-      background: rgba(255,255,255,0.05); color: #fff; font-size: 0.92rem;
+      background: transparent; color: #fff; font-size: 0.92rem;
       font-family: 'Inter', sans-serif; outline: none; transition: border-color 0.3s;
       border-radius: 0; box-sizing: border-box;
     }
     .radio-gate-box input::placeholder { color: rgba(255,255,255,0.3); }
     .radio-gate-box input:focus { border-color: #2DD4BF; }
+    .radio-gate-box input:-webkit-autofill,
+    .radio-gate-box input:-webkit-autofill:hover,
+    .radio-gate-box input:-webkit-autofill:focus,
+    .radio-gate-box input:-webkit-autofill:active {
+      -webkit-text-fill-color: #fff !important;
+      -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
+      box-shadow: 0 0 0 1000px transparent inset !important;
+      caret-color: #fff;
+      transition: background-color 9999s ease-in-out 0s;
+    }
     .radio-gate-box .btn-radio-login {
       width: 100%; padding: 16px; background: transparent; color: #FFFFFF;
       border: 1px solid rgba(255,255,255,0.15); font-size: 0.88rem; font-weight: 500; font-family: 'Inter', sans-serif;
