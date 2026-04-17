@@ -119,6 +119,145 @@
       font-size: 0.85rem; color: var(--text-muted);
       flex-shrink: 0;
     }
+    .mkt-spotlight-cta {
+      font-size: 0.7rem;
+      color: var(--accent);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      flex-shrink: 0;
+      opacity: 0.9;
+    }
+
+    /* ===== Spotlight info popup ===== */
+    .mkt-info-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .mkt-info-overlay.active {
+      display: flex;
+      opacity: 1;
+    }
+    .mkt-info-modal {
+      background: #0a0a0a;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 16px;
+      max-width: 440px;
+      width: 100%;
+      padding: 28px 26px 22px;
+      position: relative;
+      transform: scale(0.96);
+      transition: transform 0.2s;
+    }
+    .mkt-info-overlay.active .mkt-info-modal { transform: scale(1); }
+    .mkt-info-close {
+      position: absolute;
+      top: 12px; right: 14px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.5rem;
+      line-height: 1;
+      cursor: pointer;
+      padding: 4px 8px;
+    }
+    .mkt-info-close:hover { color: #fff; }
+    .mkt-info-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+    .mkt-info-avatar {
+      width: 56px; height: 56px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 1.1rem; color: #fff;
+      flex-shrink: 0; object-fit: cover;
+    }
+    .mkt-info-name {
+      font-size: 1.05rem; font-weight: 500; color: #fff;
+      margin: 0; line-height: 1.2;
+    }
+    .mkt-info-sub {
+      font-size: 0.78rem; color: var(--text-muted);
+      margin-top: 3px;
+    }
+    .mkt-info-badge {
+      display: inline-block;
+      font-size: 0.62rem;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+      padding: 4px 10px;
+      border: 1px solid var(--accent);
+      border-radius: 4px;
+      margin-bottom: 14px;
+    }
+    .mkt-info-why {
+      font-size: 0.9rem;
+      color: var(--text);
+      line-height: 1.55;
+      margin: 0 0 18px;
+    }
+    .mkt-info-reasons {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .mkt-info-reasons li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 0.84rem;
+      color: var(--text);
+      line-height: 1.4;
+    }
+    .mkt-info-reasons li::before {
+      content: '✓';
+      color: var(--accent);
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .mkt-info-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .mkt-info-btn {
+      flex: 1;
+      padding: 11px 16px;
+      border-radius: 999px;
+      font-family: inherit;
+      font-size: 0.82rem;
+      font-weight: 500;
+      letter-spacing: 0.03em;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 1px solid transparent;
+    }
+    .mkt-info-btn.primary {
+      background: var(--text);
+      color: #0a0a0a;
+      border-color: var(--text);
+    }
+    .mkt-info-btn.primary:hover { background: var(--accent); border-color: var(--accent); color: #0a0a0a; }
+    .mkt-info-btn.ghost {
+      background: transparent;
+      border-color: rgba(255,255,255,0.18);
+      color: var(--text);
+    }
+    .mkt-info-btn.ghost:hover { border-color: var(--text); }
 
     /* ===== Filter row (single horizontal line) ===== */
     .mkt-filter {
@@ -530,6 +669,21 @@
     </div>
   </div>
 
+  <!-- Spotlight info popup -->
+  <div class="mkt-info-overlay" id="mktInfoOverlay" onclick="mktCloseInfo(event)">
+    <div class="mkt-info-modal" onclick="event.stopPropagation()">
+      <button class="mkt-info-close" onclick="mktCloseInfo()" aria-label="Close">&times;</button>
+      <span class="mkt-info-badge">Why they're featured</span>
+      <div class="mkt-info-header" id="mktInfoHeader"></div>
+      <p class="mkt-info-why" id="mktInfoWhy"></p>
+      <ul class="mkt-info-reasons" id="mktInfoReasons"></ul>
+      <div class="mkt-info-actions">
+        <button class="mkt-info-btn ghost" onclick="mktCloseInfo()">Close</button>
+        <button class="mkt-info-btn primary" id="mktInfoViewBtn">View profile</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast -->
   <div class="toast" id="toast"></div>
 
@@ -798,7 +952,8 @@
                   '<h3>' + t.name + '</h3>' +
                   '<div class="meta">' + (t.specialty || '') + '</div>' +
                 '</div>' +
-                '<div class="mkt-spotlight-rating">★ ' + (t.rating || '—') + '</div>';
+                '<div class="mkt-spotlight-rating">★ ' + (t.rating || '—') + '</div>' +
+                '<div class="mkt-spotlight-cta">Why?</div>';
             }
           }
         }
@@ -821,20 +976,79 @@
                   '<h3>' + n.name + '</h3>' +
                   '<div class="meta">' + (n.specialty || '') + '</div>' +
                 '</div>' +
-                '<div class="mkt-spotlight-rating">★ ' + (n.rating || '—') + '</div>';
+                '<div class="mkt-spotlight-rating">★ ' + (n.rating || '—') + '</div>' +
+                '<div class="mkt-spotlight-cta">Why?</div>';
             }
           }
         }
       } catch (e) { console.warn('[shape] spotlight render failed', e); }
     }
 
+    function mktBuildReasons(item, type) {
+      var reasons = [];
+      if (item.rating && item.rating >= 4.8) reasons.push('Top-tier ' + item.rating + '★ average rating from verified members');
+      else if (item.rating) reasons.push(item.rating + '★ average rating from verified members');
+      if (item.subscribers) reasons.push(mktFormatSubs(item.subscribers) + ' active subscribers on Shape');
+      if (item.experience) reasons.push(item.experience + ' of professional coaching experience');
+      if (item.credential) reasons.push('Credentialed: ' + (item.credentialFull || item.credential));
+      if (item.trainerOfMonth || item.coachOfMonth || item.nutritionistOfMonth) {
+        reasons.unshift((type === 'trainer' ? 'Trainer' : 'Nutritionist') + ' of the Month — selected by the Shape team');
+      }
+      if (!reasons.length) reasons.push('Hand-picked by the Shape team for exceptional member outcomes');
+      return reasons;
+    }
+
     function mktOpenSpotlight(type) {
       var el = document.getElementById(type === 'trainer' ? 'trainerSpotlight' : 'nutritionistSpotlight');
       var id = el && el.dataset.id;
       if (!id) return;
-      if (type === 'trainer' && typeof openTrainerModal === 'function') openTrainerModal(parseInt(id, 10));
-      if (type === 'nutritionist' && typeof openNutritionistModal === 'function') openNutritionistModal(parseInt(id, 10));
+      var idNum = parseInt(id, 10);
+      var source = type === 'trainer' ? (typeof trainers !== 'undefined' ? trainers : []) : (typeof nutritionists !== 'undefined' ? nutritionists : []);
+      var item = source.find(function(x) { return x.id === idNum; });
+      if (!item) return;
+
+      var loc = mktLookup(type, idNum);
+      var initials = mktInitials(item.name);
+      var av = item.avatar
+        ? '<img class="mkt-info-avatar" src="' + item.avatar + '" alt="' + item.name + '">'
+        : '<div class="mkt-info-avatar" style="background:' + (item.color || '#2DD4BF') + ';">' + initials + '</div>';
+      document.getElementById('mktInfoHeader').innerHTML =
+        av +
+        '<div>' +
+          '<h3 class="mkt-info-name">' + item.name + '</h3>' +
+          '<div class="mkt-info-sub">' + (item.specialty || '') + ' · ' + loc.city + '</div>' +
+        '</div>';
+
+      var why = item.totmQuote
+        ? '"' + item.totmQuote + '"'
+        : 'Each week the Shape team highlights one coach who stands out for consistency, member outcomes, and community engagement. Here\u2019s why ' + item.name.split(' ')[0] + ' is featured:';
+      document.getElementById('mktInfoWhy').textContent = why;
+
+      var reasons = mktBuildReasons(item, type);
+      document.getElementById('mktInfoReasons').innerHTML = reasons.map(function(r) {
+        return '<li>' + r + '</li>';
+      }).join('');
+
+      var viewBtn = document.getElementById('mktInfoViewBtn');
+      viewBtn.onclick = function() {
+        mktCloseInfo();
+        if (type === 'trainer' && typeof openTrainerModal === 'function') openTrainerModal(idNum);
+        if (type === 'nutritionist' && typeof openNutritionistModal === 'function') openNutritionistModal(idNum);
+      };
+
+      document.getElementById('mktInfoOverlay').classList.add('active');
+      document.body.style.overflow = 'hidden';
     }
+
+    function mktCloseInfo(e) {
+      if (e && e.target && e.target !== e.currentTarget) return;
+      document.getElementById('mktInfoOverlay').classList.remove('active');
+      document.body.style.overflow = '';
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') mktCloseInfo();
+    });
 
     function mktSwitch(pane) {
       document.querySelectorAll('.mkt-toggle-btn').forEach(function(b) {
