@@ -2,7 +2,7 @@
 const trainers = [
   {
     id: 1, name: "Marcus Johnson", specialty: "Strength & Powerlifting",
-    category: "strength", price: 49.99, rating: 4.9, subscribers: 1240, experience: "12 yrs",
+    category: "strength", price: 49.99, rating: null, subscribers: 1240, experience: "12 yrs",
     credential: "CSCS", credentialFull: "Certified Strength & Conditioning Specialist",
     specialtyType: "Strength & Conditioning Coach",
     bio: "CSCS-certified former competitive powerlifter turned coach. Specializes in progressive overload programs for all levels.",
@@ -34,7 +34,7 @@ const trainers = [
   },
   {
     id: 2, name: "Aisha Patel", specialty: "HIIT & Fat Loss",
-    category: "hiit", price: 39.99, rating: 4.8, subscribers: 2100, experience: "8 yrs",
+    category: "hiit", price: 39.99, rating: null, subscribers: 2100, experience: "8 yrs",
     credential: "NASM-CPT", credentialFull: "NASM Certified Personal Trainer",
     specialtyType: "Weight Loss Coach",
     bio: "NASM-certified high-energy coach known for efficient, no-equipment HIIT sessions that burn maximum calories in minimum time.",
@@ -65,7 +65,7 @@ const trainers = [
   },
   {
     id: 3, name: "Nina Brooks", specialty: "At Home & Functional Fitness",
-    category: "fullbody", price: 29.99, rating: 4.8, subscribers: 2100, experience: "8 yrs",
+    category: "fullbody", price: 29.99, rating: null, subscribers: 2100, experience: "8 yrs",
     credential: "ACE-CPT", credentialFull: "ACE Certified Personal Trainer",
     specialtyType: "Functional Fitness Trainer",
     bio: "ACE-certified trainer designing effective bodyweight and minimal-equipment workouts you can do anywhere in your home.",
@@ -96,7 +96,7 @@ const trainers = [
   },
   {
     id: 4, name: "Damon Clarke", specialty: "Cardio & Endurance",
-    category: "cardio", price: 44.99, rating: 4.7, subscribers: 890, experience: "10 yrs",
+    category: "cardio", price: 44.99, rating: null, subscribers: 890, experience: "10 yrs",
     credential: "CSCS", credentialFull: "Certified Strength & Conditioning Specialist",
     specialtyType: "Strength & Conditioning Coach",
     bio: "CSCS-certified endurance specialist who builds heart-pounding cardio programs. Improve stamina, burn fat, and boost your cardiovascular health.",
@@ -127,7 +127,7 @@ const trainers = [
   },
   {
     id: 5, name: "Sophie Turner", specialty: "Mobility & Recovery",
-    category: "mobility", price: 54.99, rating: 4.8, subscribers: 1560, experience: "9 yrs",
+    category: "mobility", price: 54.99, rating: null, subscribers: 1560, experience: "9 yrs",
     credential: "NASM-CES", credentialFull: "NASM Corrective Exercise Specialist",
     specialtyType: "Mobility/Flexibility Coach",
     bio: "Corrective exercise specialist who builds programs that keep you moving well — fewer injuries, better range, more years training.",
@@ -158,7 +158,7 @@ const trainers = [
   },
   {
     id: 6, name: "Jordan Blake", specialty: "Weight Loss & Lifestyle",
-    category: "weightloss", price: 44.99, rating: 4.9, subscribers: 2180, experience: "7 yrs",
+    category: "weightloss", price: 44.99, rating: null, subscribers: 2180, experience: "7 yrs",
     credential: "NASM-CPT", credentialFull: "NASM Certified Personal Trainer",
     specialtyType: "Weight Loss Coach",
     bio: "NASM-certified trainer with straight-up fat loss programs that work. No gimmicks, no crash diets — just structured training and accountability.",
@@ -189,7 +189,7 @@ const trainers = [
   },
   {
     id: 7, name: "Reese Calloway", specialty: "Strength & Hypertrophy",
-    category: "bodybuilding", price: 42.99, rating: 4.7, subscribers: 1890, experience: "6 yrs",
+    category: "bodybuilding", price: 42.99, rating: null, subscribers: 1890, experience: "6 yrs",
     credential: "ISSA-CPT", credentialFull: "ISSA Certified Personal Trainer",
     specialtyType: "Bodybuilding/Physique Coach",
     bio: "ISSA-certified trainer with programs built around progressive overload and time under tension. If you want to get bigger and stronger — this is the playbook.",
@@ -220,7 +220,7 @@ const trainers = [
   },
   {
     id: 8, name: "Leah Kim", specialty: "HIIT & Weight Loss",
-    category: "hiit", price: 34.99, rating: 4.9, subscribers: 3200, experience: "5 yrs", featured: true,
+    category: "hiit", price: 34.99, rating: null, subscribers: 3200, experience: "5 yrs", featured: true,
     credential: "ACE-CPT", credentialFull: "ACE Certified Personal Trainer",
     specialtyType: "Weight Loss Coach",
     bio: "ACE-certified trainer. Short sessions. Big results. Leah's HIIT programs are designed for people who don't have time to waste.",
@@ -253,7 +253,7 @@ const trainers = [
     id: 9, name: "Carlos Mendez", specialty: "Cardio & Endurance",
     credential: "NSCA-CPT", credentialFull: "NSCA Certified Personal Trainer",
     specialtyType: "Strength & Conditioning Coach",
-    category: "cardio", price: 39.99, rating: 4.6, subscribers: 760, experience: "11 yrs",
+    category: "cardio", price: 39.99, rating: null, subscribers: 760, experience: "11 yrs",
     bio: "Marathon runner and endurance coach. Whether you're training for a 5K or an ultramarathon — Carlos has a plan for it.",
     color: "#0EA5E9",
     workouts: [
@@ -284,7 +284,7 @@ const trainers = [
     id: 10, name: "Tanya West", specialty: "At Home & Bodyweight",
     credential: "ACE-CPT", credentialFull: "ACE Certified Personal Trainer",
     specialtyType: "Functional Fitness Trainer",
-    category: "athome", price: 27.99, rating: 4.8, subscribers: 2850, experience: "6 yrs", featured: true,
+    category: "athome", price: 27.99, rating: null, subscribers: 2850, experience: "6 yrs", featured: true,
     bio: "You don't need a gym. Tanya's programs use nothing but your bodyweight and prove that simplicity works.",
     color: "#14B8A6",
     workouts: [
@@ -315,7 +315,7 @@ const trainers = [
     id: 11, name: "Derek Osei", specialty: "Weight Loss & Strength",
     credential: "CSCS", credentialFull: "Certified Strength & Conditioning Specialist",
     specialtyType: "Weight Loss Coach",
-    category: "weightloss", price: 49.99, rating: 4.8, subscribers: 1650, experience: "9 yrs",
+    category: "weightloss", price: 49.99, rating: null, subscribers: 1650, experience: "9 yrs",
     bio: "Fat loss through strength training. Derek's approach is simple — build muscle, burn more at rest, lose weight for good.",
     color: "#D97706",
     workouts: [
@@ -344,7 +344,7 @@ const trainers = [
   },
   {
     id: 12, name: "Mia Vasquez", specialty: "Yoga & Strength Fusion",
-    category: "fullbody", price: 34.99, rating: 4.9, subscribers: 1870, experience: "8 yrs",
+    category: "fullbody", price: 34.99, rating: null, subscribers: 1870, experience: "8 yrs",
     credential: "NASM-CPT", credentialFull: "NASM Certified Personal Trainer",
     specialtyType: "Functional Fitness Trainer",
     bio: "NASM-certified yoga strength coach blending vinyasa flow with resistance training. Build flexibility and power in every session.",
@@ -375,7 +375,7 @@ const trainers = [
   },
   {
     id: 13, name: "Tyrone Mitchell", specialty: "Boxing & Combat Fitness",
-    category: "hiit", price: 44.99, rating: 4.7, subscribers: 1340, experience: "14 yrs",
+    category: "hiit", price: 44.99, rating: null, subscribers: 1340, experience: "14 yrs",
     credential: "ISSA-CPT", credentialFull: "ISSA Certified Personal Trainer",
     specialtyType: "Combat Fitness Coach",
     bio: "Former amateur boxer turned fitness coach. ISSA-certified with 14 years building knockout conditioning programs.",
@@ -406,7 +406,7 @@ const trainers = [
   },
   {
     id: 14, name: "Hannah Price", specialty: "Pre & Postnatal Fitness",
-    category: "fullbody", price: 37.99, rating: 4.9, subscribers: 2240, experience: "10 yrs",
+    category: "fullbody", price: 37.99, rating: null, subscribers: 2240, experience: "10 yrs",
     credential: "ACE-CPT", credentialFull: "ACE Certified Personal Trainer",
     specialtyType: "Pre/Postnatal Fitness Specialist",
     bio: "ACE-certified pre/postnatal specialist. Safe, effective workouts for every trimester and postpartum recovery.",
@@ -437,7 +437,7 @@ const trainers = [
   },
   {
     id: 15, name: "Kai Nakamura", specialty: "Calisthenics & Street Workout",
-    category: "strength", price: 39.99, rating: 4.8, subscribers: 1580, experience: "7 yrs",
+    category: "strength", price: 39.99, rating: null, subscribers: 1580, experience: "7 yrs",
     credential: "NSCA-CPT", credentialFull: "NSCA Certified Personal Trainer",
     specialtyType: "Calisthenics Coach",
     bio: "NSCA-certified calisthenics athlete. Mastered the muscle-up, front lever, and planche — now teaching you how to do the same.",
@@ -468,7 +468,7 @@ const trainers = [
   },
   {
     id: 16, name: "Aaliyah Robinson", specialty: "Dance & Cardio Fitness",
-    category: "cardio", price: 32.99, rating: 4.8, subscribers: 3100, experience: "6 yrs",
+    category: "cardio", price: 32.99, rating: null, subscribers: 3100, experience: "6 yrs",
     credential: "ACE-CPT", credentialFull: "ACE Certified Personal Trainer",
     specialtyType: "Dance Fitness Coach",
     bio: "ACE-certified dance fitness instructor who makes cardio fun. High-energy choreography that burns calories without feeling like exercise.",
@@ -499,7 +499,7 @@ const trainers = [
   },
   {
     id: 17, name: "Ryan Foster", specialty: "Olympic Lifting",
-    category: "strength", price: 54.99, rating: 4.7, subscribers: 720, experience: "13 yrs",
+    category: "strength", price: 54.99, rating: null, subscribers: 720, experience: "13 yrs",
     credential: "CSCS", credentialFull: "Certified Strength & Conditioning Specialist",
     specialtyType: "Olympic Lifting Coach",
     bio: "CSCS-certified Olympic weightlifting coach. National-level competitor teaching clean, jerk, and snatch technique to all levels.",
@@ -530,7 +530,7 @@ const trainers = [
   },
   {
     id: 18, name: "Zara Williams", specialty: "Senior Fitness & Active Aging",
-    category: "mobility", price: 29.99, rating: 4.9, subscribers: 1920, experience: "11 yrs",
+    category: "mobility", price: 29.99, rating: null, subscribers: 1920, experience: "11 yrs",
     credential: "ACE-CPT", credentialFull: "ACE Certified Personal Trainer",
     specialtyType: "Senior Fitness Specialist",
     bio: "ACE-certified senior fitness specialist. Keeping adults 55+ strong, balanced, and independent through safe, effective exercise.",
@@ -561,7 +561,7 @@ const trainers = [
   },
   {
     id: 19, name: "Jake Morrison", specialty: "Obstacle Course & Functional",
-    category: "fullbody", price: 44.99, rating: 4.7, subscribers: 980, experience: "8 yrs",
+    category: "fullbody", price: 44.99, rating: null, subscribers: 980, experience: "8 yrs",
     credential: "CSCS", credentialFull: "Certified Strength & Conditioning Specialist",
     specialtyType: "Obstacle Course Coach",
     bio: "CSCS-certified Spartan Race champion. Training athletes to conquer obstacle courses and build real-world functional strength.",
@@ -592,7 +592,7 @@ const trainers = [
   },
   {
     id: 20, name: "Sasha Petrov", specialty: "Kettlebell Training",
-    category: "strength", price: 39.99, rating: 4.8, subscribers: 1450, experience: "9 yrs",
+    category: "strength", price: 39.99, rating: null, subscribers: 1450, experience: "9 yrs",
     credential: "NASM-CPT", credentialFull: "NASM Certified Personal Trainer",
     specialtyType: "Kettlebell Specialist",
     bio: "NASM-certified kettlebell specialist trained in Russian hardstyle technique. One bell is all you need to transform your body.",
@@ -623,7 +623,7 @@ const trainers = [
   },
   {
     id: 21, name: "Camille Dupont", specialty: "Pilates & Core Training",
-    category: "mobility", price: 36.99, rating: 4.8, subscribers: 2100, experience: "10 yrs",
+    category: "mobility", price: 36.99, rating: null, subscribers: 2100, experience: "10 yrs",
     credential: "NASM-CES", credentialFull: "NASM Corrective Exercise Specialist",
     specialtyType: "Pilates & Core Specialist",
     bio: "NASM corrective exercise specialist with classical Pilates training. Strengthen your core, fix your posture, move with control.",
@@ -657,7 +657,7 @@ const trainers = [
 const nutritionists = [
   {
     id: 101, name: "Dr. Sarah Mitchell", specialty: "Sports & Performance Nutrition",
-    category: "sports", price: 59.99, rating: 4.9, subscribers: 980, experience: "14 yrs",
+    category: "sports", price: 59.99, rating: null, subscribers: 980, experience: "14 yrs",
     credential: "RDN", credentialFull: "Registered Dietitian Nutritionist",
     specialtyType: "Sports/Performance Nutritionist",
     bio: "PhD in Nutritional Science. Registered Dietitian specializing in performance nutrition for athletes — from amateur to Olympic level.",
@@ -690,7 +690,7 @@ const nutritionists = [
   },
   {
     id: 102, name: "James Okafor", specialty: "Weight Management",
-    category: "weightloss", price: 44.99, rating: 4.8, subscribers: 1650, experience: "9 yrs",
+    category: "weightloss", price: 44.99, rating: null, subscribers: 1650, experience: "9 yrs",
     credential: "RD", credentialFull: "Registered Dietitian",
     specialtyType: "Clinical Nutritionist",
     bio: "Registered Dietitian focused on sustainable weight loss. No fad diets — just science-backed strategies that stick.",
@@ -722,7 +722,7 @@ const nutritionists = [
   },
   {
     id: 103, name: "Maria Santos", specialty: "Plant-Based Nutrition",
-    category: "plantbased", price: 39.99, rating: 4.7, subscribers: 1120, experience: "7 yrs",
+    category: "plantbased", price: 39.99, rating: null, subscribers: 1120, experience: "7 yrs",
     credential: "CN", credentialFull: "Certified Nutritionist",
     specialtyType: "Functional/Integrative Nutritionist",
     bio: "Certified Nutritionist helping people thrive on vegan and vegetarian diets without missing nutrients.",
@@ -754,7 +754,7 @@ const nutritionists = [
   },
   {
     id: 104, name: "Dr. Kevin Park", specialty: "Gut Health & Wellness",
-    category: "guthealth", price: 54.99, rating: 4.9, subscribers: 760, experience: "16 yrs",
+    category: "guthealth", price: 54.99, rating: null, subscribers: 760, experience: "16 yrs",
     credential: "CNS", credentialFull: "Certified Nutrition Specialist",
     specialtyType: "Functional/Integrative Nutritionist",
     bio: "Certified Nutrition Specialist in functional medicine specializing in gut health, food sensitivities, and anti-inflammatory protocols.",
@@ -786,7 +786,7 @@ const nutritionists = [
   },
   {
     id: 105, name: "Rachel Kim", specialty: "Prenatal & Postnatal",
-    category: "prenatal", price: 49.99, rating: 4.8, subscribers: 540, experience: "10 yrs",
+    category: "prenatal", price: 49.99, rating: null, subscribers: 540, experience: "10 yrs",
     credential: "RDN", credentialFull: "Registered Dietitian Nutritionist",
     specialtyType: "Prenatal/Maternal Nutritionist",
     bio: "Registered Dietitian specializing in nutrition for expecting and new mothers. Ensures optimal nutrition for both mom and baby.",
@@ -818,7 +818,7 @@ const nutritionists = [
   },
   {
     id: 106, name: "Alex Rivera", specialty: "Meal Prep & Budget",
-    category: "mealprep", price: 32.99, rating: 4.7, subscribers: 2200, experience: "6 yrs",
+    category: "mealprep", price: 32.99, rating: null, subscribers: 2200, experience: "6 yrs",
     credential: "Health Coach", credentialFull: "Certified Health & Nutrition Coach",
     specialtyType: "Health Coach/Nutrition Coach",
     bio: "Certified Nutrition Coach making healthy eating affordable and easy. Weekly meal prep plans that save time, money, and taste amazing.",
@@ -850,7 +850,7 @@ const nutritionists = [
   },
   {
     id: 107, name: "Tanya Brooks", specialty: "Sports & Performance Nutrition",
-    category: "sports", price: 54.99, rating: 4.9, subscribers: 1340, experience: "11 yrs",
+    category: "sports", price: 54.99, rating: null, subscribers: 1340, experience: "11 yrs",
     credential: "RD", credentialFull: "Registered Dietitian",
     specialtyType: "Sports/Performance Nutritionist",
     bio: "Former collegiate athlete turned Registered Dietitian. Builds fuel strategies for strength, endurance, and recovery.",
@@ -882,7 +882,7 @@ const nutritionists = [
   },
   {
     id: 108, name: "Omar Hassan", specialty: "Weight Management",
-    category: "weightloss", price: 42.99, rating: 4.8, subscribers: 1890, experience: "8 yrs",
+    category: "weightloss", price: 42.99, rating: null, subscribers: 1890, experience: "8 yrs",
     credential: "CNS", credentialFull: "Certified Nutrition Specialist",
     specialtyType: "Clinical Nutritionist",
     bio: "Certified Nutrition Specialist with an evidence-based approach to body composition. Combines flexible dieting with behavioral strategies that last.",
@@ -914,7 +914,7 @@ const nutritionists = [
   },
   {
     id: 109, name: "Lisa Chen", specialty: "Gut Health & Wellness",
-    category: "guthealth", price: 49.99, rating: 4.7, subscribers: 920, experience: "12 yrs",
+    category: "guthealth", price: 49.99, rating: null, subscribers: 920, experience: "12 yrs",
     credential: "CN", credentialFull: "Certified Nutritionist",
     specialtyType: "Functional/Integrative Nutritionist",
     bio: "Certified Nutritionist combining Eastern and Western dietary science for whole-body gut wellness.",
@@ -946,7 +946,7 @@ const nutritionists = [
   },
   {
     id: 110, name: "Derek Williams", specialty: "Meal Prep & Budget",
-    category: "mealprep", price: 29.99, rating: 4.6, subscribers: 2450, experience: "5 yrs",
+    category: "mealprep", price: 29.99, rating: null, subscribers: 2450, experience: "5 yrs",
     credential: "Health Coach", credentialFull: "Certified Health & Nutrition Coach",
     specialtyType: "Health Coach/Nutrition Coach",
     bio: "College athlete who learned to eat well on nothing. Now teaches thousands to meal prep like a pro on any budget.",
@@ -978,7 +978,7 @@ const nutritionists = [
   },
   {
     id: 111, name: "Priya Sharma", specialty: "Ayurvedic & Plant-Based Nutrition",
-    category: "plantbased", price: 44.99, rating: 4.8, subscribers: 1050, experience: "9 yrs",
+    category: "plantbased", price: 44.99, rating: null, subscribers: 1050, experience: "9 yrs",
     credential: "CN", credentialFull: "Certified Nutritionist",
     specialtyType: "Ayurvedic Nutritionist",
     bio: "Certified Ayurvedic practitioner and plant-based nutritionist. Blends traditional Ayurvedic wisdom with modern nutrition science.",
@@ -1010,7 +1010,7 @@ const nutritionists = [
   },
   {
     id: 112, name: "Marcus Johnson", specialty: "Sports & Performance Nutrition",
-    category: "sports", price: 59.99, rating: 4.9, subscribers: 1580, experience: "13 yrs",
+    category: "sports", price: 59.99, rating: null, subscribers: 1580, experience: "13 yrs",
     credential: "RDN", credentialFull: "Registered Dietitian Nutritionist",
     specialtyType: "Sports/Performance Nutritionist",
     bio: "Registered Dietitian and NFL nutritionist for 8 seasons. Now bringing pro-level fuel strategies to everyday athletes on Shape.",
@@ -1042,7 +1042,7 @@ const nutritionists = [
   },
   {
     id: 113, name: "Olivia Tran", specialty: "Vegan & Plant-Based Nutrition",
-    category: "plantbased", price: 42.99, rating: 4.9, subscribers: 1820, experience: "8 yrs",
+    category: "plantbased", price: 42.99, rating: null, subscribers: 1820, experience: "8 yrs",
     credential: "RDN", credentialFull: "Registered Dietitian Nutritionist",
     specialtyType: "Plant-Based Nutritionist",
     bio: "Registered Dietitian proving that plant-based eating fuels elite performance. No compromises on protein, no compromises on taste.",
@@ -1074,7 +1074,7 @@ const nutritionists = [
   },
   {
     id: 114, name: "James Rivera", specialty: "Keto & Low-Carb Nutrition",
-    category: "weightloss", price: 47.99, rating: 4.7, subscribers: 1340, experience: "7 yrs",
+    category: "weightloss", price: 47.99, rating: null, subscribers: 1340, experience: "7 yrs",
     credential: "CNS", credentialFull: "Certified Nutrition Specialist",
     specialtyType: "Low-Carb Specialist",
     bio: "Certified Nutrition Specialist and former type 2 diabetic. Reversed his own condition through keto and now helps others do the same.",
@@ -1106,7 +1106,7 @@ const nutritionists = [
   },
   {
     id: 115, name: "Dr. Angela Foster", specialty: "Clinical & Medical Nutrition",
-    category: "clinical", price: 64.99, rating: 4.9, subscribers: 680, experience: "16 yrs",
+    category: "clinical", price: 64.99, rating: null, subscribers: 680, experience: "16 yrs",
     credential: "RD", credentialFull: "Registered Dietitian",
     specialtyType: "Clinical Nutritionist",
     bio: "Board-certified Registered Dietitian with a doctorate in clinical nutrition. Specializes in medical nutrition therapy for chronic conditions.",
@@ -1138,7 +1138,7 @@ const nutritionists = [
   },
   {
     id: 116, name: "Tyler Washington", specialty: "Bodybuilding Nutrition",
-    category: "sports", price: 52.99, rating: 4.8, subscribers: 1560, experience: "10 yrs",
+    category: "sports", price: 52.99, rating: null, subscribers: 1560, experience: "10 yrs",
     credential: "CNS", credentialFull: "Certified Nutrition Specialist",
     specialtyType: "Bodybuilding Nutritionist",
     bio: "Certified Nutrition Specialist and NPC competitor. 10 years prepping athletes for the stage with precise macro programming.",
@@ -1170,7 +1170,7 @@ const nutritionists = [
   },
   {
     id: 117, name: "Nadia Kowalski", specialty: "Family & Kids Nutrition",
-    category: "general", price: 34.99, rating: 4.8, subscribers: 2100, experience: "9 yrs",
+    category: "general", price: 34.99, rating: null, subscribers: 2100, experience: "9 yrs",
     credential: "RDN", credentialFull: "Registered Dietitian Nutritionist",
     specialtyType: "Family Nutritionist",
     bio: "Registered Dietitian and mom of 3. Creates meal plans the whole family will actually eat — nutritious, quick, and kid-approved.",
@@ -1202,7 +1202,7 @@ const nutritionists = [
   },
   {
     id: 118, name: "Chris Andersen", specialty: "Intermittent Fasting & Metabolic Health",
-    category: "weightloss", price: 44.99, rating: 4.7, subscribers: 1680, experience: "8 yrs",
+    category: "weightloss", price: 44.99, rating: null, subscribers: 1680, experience: "8 yrs",
     credential: "CN", credentialFull: "Certified Nutritionist",
     specialtyType: "Metabolic Health Coach",
     bio: "Certified Nutritionist specializing in intermittent fasting protocols. Science-backed approaches to metabolic health and body composition.",
@@ -1234,7 +1234,7 @@ const nutritionists = [
   },
   {
     id: 119, name: "Maria Santos", specialty: "Latin & Mediterranean Nutrition",
-    category: "general", price: 39.99, rating: 4.8, subscribers: 1450, experience: "11 yrs",
+    category: "general", price: 39.99, rating: null, subscribers: 1450, experience: "11 yrs",
     credential: "RD", credentialFull: "Registered Dietitian",
     specialtyType: "Cultural Nutrition Specialist",
     bio: "Registered Dietitian celebrating cultural food traditions. Healthy eating shouldn't mean giving up the flavors you grew up with.",
@@ -1266,7 +1266,7 @@ const nutritionists = [
   },
   {
     id: 120, name: "Brandon Lee", specialty: "Sports Supplements & Optimization",
-    category: "sports", price: 49.99, rating: 4.7, subscribers: 1280, experience: "7 yrs",
+    category: "sports", price: 49.99, rating: null, subscribers: 1280, experience: "7 yrs",
     credential: "CNS", credentialFull: "Certified Nutrition Specialist",
     specialtyType: "Sports Supplement Specialist",
     bio: "Certified Nutrition Specialist with a biochemistry background. Evidence-based supplement protocols — no bro science, just what works.",
@@ -1298,7 +1298,7 @@ const nutritionists = [
   },
   {
     id: 121, name: "Emma Richardson", specialty: "Eating Disorder Recovery Nutrition",
-    category: "clinical", price: 59.99, rating: 4.9, subscribers: 580, experience: "12 yrs",
+    category: "clinical", price: 59.99, rating: null, subscribers: 580, experience: "12 yrs",
     credential: "RDN", credentialFull: "Registered Dietitian Nutritionist",
     specialtyType: "ED Recovery Nutritionist",
     bio: "Registered Dietitian specializing in eating disorder recovery. Gentle, compassionate approach to rebuilding a healthy relationship with food.",
@@ -1330,7 +1330,7 @@ const nutritionists = [
   },
   {
     id: 122, name: "Daniel Park", specialty: "Asian-Inspired Nutrition",
-    category: "general", price: 37.99, rating: 4.7, subscribers: 1180, experience: "6 yrs",
+    category: "general", price: 37.99, rating: null, subscribers: 1180, experience: "6 yrs",
     credential: "CN", credentialFull: "Certified Nutritionist",
     specialtyType: "Cultural Nutrition Coach",
     bio: "Certified Nutritionist blending traditional Asian dietary wisdom with modern sports nutrition. Rice is not the enemy.",
@@ -1366,7 +1366,7 @@ const nutritionists = [
 const gyms = [
   {
     id: 201, name: "Iron House Fitness", type: "Full-Service Gym",
-    category: "gym", location: "Austin, TX", rating: 4.9, members: 2400,
+    category: "gym", location: "Austin, TX", rating: null, members: 2400,
     trainers: 18, price: 49.99, featured: true, gymOfMonth: true,
     gotmQuote: "We built Iron House to be the gym people never want to leave.",
     bio: "A 25,000 sq ft full-service facility with free weights, machines, turf area, and group fitness studios. Open 24/7 with personal training included in every membership.",
@@ -1377,7 +1377,7 @@ const gyms = [
   },
   {
     id: 202, name: "Flow Studio", type: "Boutique Studio",
-    category: "studio", location: "Brooklyn, NY", rating: 4.8, members: 860,
+    category: "studio", location: "Brooklyn, NY", rating: null, members: 860,
     trainers: 8, price: 89.99, featured: true,
     bio: "A premium yoga and pilates studio in the heart of Williamsburg. Heated rooms, infrared saunas, and small class sizes for a personalized experience.",
     color: "#8B5CF6",
@@ -1387,7 +1387,7 @@ const gyms = [
   },
   {
     id: 203, name: "Grit Athletics", type: "CrossFit Box",
-    category: "crossfit", location: "Denver, CO", rating: 4.9, members: 520,
+    category: "crossfit", location: "Denver, CO", rating: null, members: 520,
     trainers: 6, price: 159.99,
     bio: "A no-frills CrossFit affiliate focused on community, competition, and results. Programming updated daily with scalable options for every fitness level.",
     color: "#F59E0B",
@@ -1397,7 +1397,7 @@ const gyms = [
   },
   {
     id: 204, name: "Elevate Performance", type: "Full-Service Gym",
-    category: "gym", location: "Miami, FL", rating: 4.7, members: 3100,
+    category: "gym", location: "Miami, FL", rating: null, members: 3100,
     trainers: 24, price: 59.99,
     bio: "Miami's premier training facility with ocean views, rooftop recovery suites, and a team of nationally certified coaches. Two floors of equipment and dedicated functional training zones.",
     color: "#0EA5E9",
@@ -1407,7 +1407,7 @@ const gyms = [
   },
   {
     id: 205, name: "The Sweat Lab", type: "Boutique Studio",
-    category: "studio", location: "Nashville, TN", rating: 4.8, members: 640,
+    category: "studio", location: "Nashville, TN", rating: null, members: 640,
     trainers: 5, price: 79.99,
     bio: "A high-energy boutique studio specializing in HIIT, cycling, and strength circuits. Music-driven classes capped at 20 people for maximum coaching attention.",
     color: "#EC4899",
@@ -1417,7 +1417,7 @@ const gyms = [
   },
   {
     id: 206, name: "Forge Barbell Club", type: "Specialty Gym",
-    category: "specialty", location: "Portland, OR", rating: 4.9, members: 280,
+    category: "specialty", location: "Portland, OR", rating: null, members: 280,
     trainers: 4, price: 99.99,
     bio: "A powerlifting and Olympic weightlifting gym built for serious lifters. Calibrated plates, competition benches, and a coaching staff with national-level experience.",
     color: "#10B981",
@@ -1427,7 +1427,7 @@ const gyms = [
   },
   {
     id: 207, name: "Basecamp Fitness", type: "Full-Service Gym",
-    category: "gym", location: "Chicago, IL", rating: 4.6, members: 4200,
+    category: "gym", location: "Chicago, IL", rating: null, members: 4200,
     trainers: 32, price: 39.99,
     bio: "Affordable, no-contract fitness for everyone. Three locations across Chicago with clean facilities, modern equipment, and free group classes for all members.",
     color: "#6C3AED",
@@ -1437,7 +1437,7 @@ const gyms = [
   },
   {
     id: 208, name: "Apex MMA & Fitness", type: "Specialty Gym",
-    category: "specialty", location: "Las Vegas, NV", rating: 4.8, members: 750,
+    category: "specialty", location: "Las Vegas, NV", rating: null, members: 750,
     trainers: 12, price: 129.99,
     bio: "A combat sports training center with world-class coaches in boxing, Muay Thai, Brazilian Jiu-Jitsu, and MMA. Open to all levels from beginners to fighters.",
     color: "#DC2626",
@@ -1447,7 +1447,7 @@ const gyms = [
   },
   {
     id: 209, name: "Solstice Wellness", type: "Boutique Studio",
-    category: "studio", location: "San Diego, CA", rating: 4.7, members: 480,
+    category: "studio", location: "San Diego, CA", rating: null, members: 480,
     trainers: 7, price: 69.99,
     bio: "A holistic wellness studio combining yoga, meditation, and breathwork. Focused on mind-body connection with certified instructors and intimate class settings.",
     color: "#14B8A6",
@@ -1457,7 +1457,7 @@ const gyms = [
   },
   {
     id: 210, name: "Titan Strength Co.", type: "Full-Service Gym",
-    category: "gym", location: "Atlanta, GA", rating: 4.8, members: 1800,
+    category: "gym", location: "Atlanta, GA", rating: null, members: 1800,
     trainers: 15, price: 54.99,
     bio: "A strength-focused gym with dedicated zones for powerlifting, bodybuilding, and functional training. Known for its community and coaching culture.",
     color: "#F97316",
@@ -1467,7 +1467,7 @@ const gyms = [
   },
   {
     id: 211, name: "Northeast Barbell", type: "Specialty Gym",
-    category: "specialty", location: "Boston, MA", rating: 4.9, members: 420,
+    category: "specialty", location: "Boston, MA", rating: null, members: 420,
     trainers: 5, price: 89.99,
     bio: "A no-nonsense barbell gym in South Boston built for lifters who want to get strong. Calibrated equipment, experienced coaching, and a tight-knit community of dedicated athletes.",
     color: "#1D4ED8",
@@ -1477,7 +1477,7 @@ const gyms = [
   },
   {
     id: 212, name: "Harbor Fitness Club", type: "Full-Service Gym",
-    category: "gym", location: "Portland, ME", rating: 4.7, members: 1600,
+    category: "gym", location: "Portland, ME", rating: null, members: 1600,
     trainers: 12, price: 44.99,
     bio: "Portland's largest full-service gym overlooking the harbor. Two floors of cardio and strength equipment, a lap pool, and over 40 group classes per week.",
     color: "#0891B2",
@@ -1487,7 +1487,7 @@ const gyms = [
   },
   {
     id: 213, name: "Elm City CrossFit", type: "CrossFit Box",
-    category: "crossfit", location: "New Haven, CT", rating: 4.8, members: 340,
+    category: "crossfit", location: "New Haven, CT", rating: null, members: 340,
     trainers: 4, price: 175.99,
     bio: "A welcoming CrossFit affiliate in the heart of New Haven. Scalable programming for all levels, a strong competition team, and a community that shows up for each other every day.",
     color: "#059669",
@@ -1497,7 +1497,7 @@ const gyms = [
   },
   {
     id: 214, name: "Summit Studio", type: "Boutique Studio",
-    category: "studio", location: "Burlington, VT", rating: 4.8, members: 380,
+    category: "studio", location: "Burlington, VT", rating: null, members: 380,
     trainers: 6, price: 74.99,
     bio: "A mountain-inspired boutique studio offering cycling, barre, and strength classes. Small class sizes, locally sourced smoothie bar, and a rooftop stretch deck with views of the Green Mountains.",
     color: "#7C3AED",
@@ -1507,7 +1507,7 @@ const gyms = [
   },
   {
     id: 215, name: "Granite State Athletics", type: "Full-Service Gym",
-    category: "gym", location: "Manchester, NH", rating: 4.6, members: 2100,
+    category: "gym", location: "Manchester, NH", rating: null, members: 2100,
     trainers: 14, price: 34.99,
     bio: "New Hampshire's most affordable full-service gym. Clean, well-maintained, and open early to late. No frills, no gimmicks — just solid equipment and a welcoming atmosphere.",
     color: "#64748B",
@@ -1517,7 +1517,7 @@ const gyms = [
   },
   {
     id: 216, name: "Coastline Yoga", type: "Boutique Studio",
-    category: "studio", location: "Newport, RI", rating: 4.9, members: 290,
+    category: "studio", location: "Newport, RI", rating: null, members: 290,
     trainers: 5, price: 79.99,
     bio: "A serene oceanside yoga studio offering heated and unheated classes in a restored seaside building. Specializing in Vinyasa, Yin, and meditation with views of Narragansett Bay.",
     color: "#2DD4BF",

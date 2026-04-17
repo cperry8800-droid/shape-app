@@ -322,7 +322,7 @@
       const topGrid = document.getElementById('topNutritionistsGrid');
       const featuredGrid = document.getElementById('featuredNutritionistsGrid');
       if (topGrid && typeof nutritionists !== 'undefined') {
-        const top = [...nutritionists].sort((a,b) => b.rating - a.rating || b.subscribers - a.subscribers).slice(0,3);
+        const top = [...nutritionists].sort((a,b) => (b.rating || 0) - (a.rating || 0) || b.subscribers - a.subscribers).slice(0,3);
         topGrid.innerHTML = top.map(n => createNutritionistCard(n)).join('');
       }
       if (featuredGrid && typeof nutritionists !== 'undefined') {
@@ -355,7 +355,7 @@
         var featuredGrid = document.getElementById('featuredNutritionistsGrid');
         if (topGrid) {
           var top = nutritionists.slice().sort(function (a, b) {
-            return (b.rating - a.rating) || (b.subscribers - a.subscribers);
+            return ((b.rating || 0) - (a.rating || 0)) || (b.subscribers - a.subscribers);
           }).slice(0, 3);
           topGrid.innerHTML = top.map(createNutritionistCard).join('');
         }

@@ -306,7 +306,7 @@
                 <p class="totm-quote">"${gotm.gotmQuote}"</p>
                 <p class="card-desc">${gotm.bio}</p>
                 <div class="trainer-detail-stats">
-                  <span>${gotm.rating} rating</span>
+                  <span>${gotm.rating || '—'} rating</span>
                   <span>${gotm.members.toLocaleString()} members</span>
                   <span>${gotm.trainers} trainers</span>
                 </div>
@@ -323,7 +323,7 @@
       // Top Gyms
       const topGrid = document.getElementById('topGymsGrid');
       if (topGrid && typeof gyms !== 'undefined') {
-        const top = [...gyms].sort((a,b) => b.rating - a.rating || b.members - a.members).slice(0,3);
+        const top = [...gyms].sort((a,b) => (b.rating || 0) - (a.rating || 0) || b.members - a.members).slice(0,3);
         topGrid.innerHTML = top.map(g => createGymCard(g)).join('');
       }
 
@@ -360,7 +360,7 @@
         var featuredGrid = document.getElementById('featuredGymsGrid');
         if (topGrid) {
           var top = gyms.slice().sort(function (a, b) {
-            return (b.rating - a.rating) || (b.members - a.members);
+            return ((b.rating || 0) - (a.rating || 0)) || (b.members - a.members);
           }).slice(0, 3);
           topGrid.innerHTML = top.map(createGymCard).join('');
         }
