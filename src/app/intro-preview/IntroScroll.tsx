@@ -326,7 +326,7 @@ export default function IntroScroll() {
       </div>
 
       {/* Five one-liners during scenes 2 + 4 */}
-      {['No more guessing', 'No more going alone', 'Real coaches. Real plans.', 'One marketplace.', 'One community.'].map(
+      {['No more guessing', 'No more going alone', 'Real coaches.', 'One marketplace.', 'One platform.'].map(
         (line, i) => (
           <div
             key={line}
