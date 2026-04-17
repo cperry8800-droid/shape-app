@@ -378,14 +378,9 @@ export default function IntroScroll() {
       >
         <a
           href="/home"
-          className="group inline-flex items-center justify-center gap-2.5 border border-white bg-black/35 px-6 py-2.5 text-[0.62rem] font-light uppercase tracking-[0.12em] text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] backdrop-blur-sm transition-all hover:bg-white hover:text-neutral-950 md:gap-2.5 md:px-7 md:py-2.5 md:text-[0.72rem] md:font-medium"
+          className="group inline-flex items-center justify-center gap-2 border border-white bg-black/35 px-6 py-2.5 text-[0.62rem] font-light uppercase tracking-[0.12em] text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] backdrop-blur-sm transition-all hover:bg-white hover:text-neutral-950 md:px-7 md:py-2.5 md:text-[0.72rem] md:font-medium"
         >
-          <span className="-mr-1">Enter</span>
-          <img
-            src="/logo-text-trimmed.png"
-            alt="Shape"
-            className="relative top-[-0.075em] h-[0.78em] w-auto [filter:brightness(0)_invert(1)] group-hover:[filter:brightness(0)] md:top-0 md:h-[0.7rem]"
-          />
+          <span>Get Started</span>
           <span>→</span>
         </a>
         <a
