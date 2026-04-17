@@ -23,13 +23,26 @@
       -moz-osx-font-smoothing: grayscale;
     }
 
+    html { background: #000 !important; }
     body {
       font-family: 'Inter', -apple-system, sans-serif;
-      background: var(--bg);
+      background: transparent;
       color: var(--text);
       line-height: 1.7;
+      position: relative;
       overflow-x: hidden;
       min-height: 100vh;
+    }
+    body::before {
+      content: ''; position: fixed; inset: 0; z-index: -1;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.88) 100%),
+                  url('/get%20started.png') center/cover no-repeat;
+    }
+    @media (max-width: 768px) {
+      body::before {
+        background: linear-gradient(to bottom, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.92) 100%),
+                    url('/get%20started.png') center top/cover no-repeat;
+      }
     }
 
     /* ===== Landing Layout ===== */
