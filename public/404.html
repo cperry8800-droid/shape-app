@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Page Not Found — Shape</title>
+  <meta name="description" content="The page you're looking for doesn't exist. Head back to Shape to find trainers, nutritionists, and workout plans.">
+  <meta name="robots" content="noindex, follow">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1A1A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="icon" type="image/png" href="icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    body {
+      min-height: 100vh; display: flex; flex-direction: column;
+      background: var(--bg); color: var(--text);
+    }
+    .nf-wrap {
+      flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 60px 24px; text-align: center;
+    }
+    .nf-code {
+      font-size: clamp(5rem, 18vw, 10rem); font-weight: 200; letter-spacing: -0.05em;
+      line-height: 1; margin-bottom: 12px;
+      background: var(--gradient-text); -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .nf-title {
+      font-size: clamp(1.2rem, 2.4vw, 1.6rem); font-weight: 300;
+      letter-spacing: -0.03em; margin-bottom: 12px;
+    }
+    .nf-sub {
+      color: var(--text-muted); font-size: 0.95rem; font-weight: 300;
+      max-width: 440px; line-height: 1.55; margin-bottom: 32px;
+    }
+    .nf-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    .nf-links {
+      margin-top: 48px; padding-top: 32px;
+      border-top: 1px solid var(--border); width: 100%; max-width: 560px;
+    }
+    .nf-links-label {
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.14em;
+      color: var(--text-muted); margin-bottom: 16px;
+    }
+    .nf-link-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 8px;
+    }
+    .nf-link-grid a {
+      padding: 10px 14px; border: 1px solid var(--border);
+      color: var(--text); text-decoration: none;
+      font-size: 0.82rem; font-weight: 400; transition: all 0.2s;
+    }
+    .nf-link-grid a:hover { border-color: var(--accent); color: var(--accent); }
+  </style>
+</head>
+<body>
+  <nav class="navbar" id="navbar">
+    <div class="container nav-container">
+      <a href="home.html" class="logo"><svg class="logo-img" viewBox="0 0 95 110" style="overflow:visible" xmlns="http://www.w3.org/2000/svg" aria-label="Shape" role="img"><polygon points="5,113 5,43 55,78" fill="#fff"/><polygon points="90,-3 90,67 40,32" fill="#fff"/></svg></a>
+      <div class="nav-links" id="navLinks">
+        <a href="home.html">Home</a>
+        <a href="marketplace.html">Marketplace</a>
+        <a href="pricing.html">Pricing</a>
+      </div>
+      <div class="nav-actions">
+        <a href="login.html" class="btn btn-sm btn-outline">Log In</a>
+        <a href="landing.html" class="btn btn-sm btn-primary">Get Started</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="nf-wrap">
+    <div class="nf-code">404</div>
+    <h1 class="nf-title">Page not found</h1>
+    <p class="nf-sub">We can't find the page you're looking for. It may have moved, or the link might be broken.</p>
+    <div class="nf-actions">
+      <a href="home.html" class="btn btn-primary">Back to Home</a>
+      <a href="marketplace.html" class="btn btn-outline">Browse Marketplace</a>
+    </div>
+    <div class="nf-links">
+      <div class="nf-links-label">Popular destinations</div>
+      <div class="nf-link-grid">
+        <a href="trainers.html">Trainers</a>
+        <a href="nutritionists.html">Nutritionists</a>
+        <a href="gyms.html">Gyms</a>
+        <a href="community.html">Community</a>
+        <a href="pricing.html">Pricing</a>
+        <a href="contact.html">Contact</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="/pwa-install.js" defer></script>
+</body>
+</html>

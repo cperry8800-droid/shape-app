@@ -502,6 +502,7 @@ img.card-avatar-inline { background: var(--border); }
   transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .toast.active { transform: translateX(-50%) translateY(0); opacity: 1; }
+.toast.toast-error { background: #EF4444; }
 
 /* ===== AI Trainer ===== */
 .ai-trainer-layout {

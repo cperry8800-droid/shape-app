@@ -420,13 +420,56 @@
 
   <script src="app.js"></script>
   <script>
-    document.getElementById('contactForm').addEventListener('submit', function(e) {
+    document.getElementById('contactForm').addEventListener('submit', async function(e) {
       e.preventDefault();
-      const toast = document.getElementById('toast');
-      toast.textContent = 'Message sent! We\'ll get back to you soon.';
-      toast.classList.add('show');
-      setTimeout(() => toast.classList.remove('show'), 3000);
-      this.reset();
+      var form = this;
+      var btn = form.querySelector('button[type="submit"]');
+      var toast = document.getElementById('toast');
+      var originalLabel = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+
+      var payload = {
+        firstName: form.querySelector('#firstName').value,
+        lastName: form.querySelector('#lastName').value,
+        email: form.querySelector('#email').value,
+        phone: form.querySelector('#phone').value,
+        subject: form.querySelector('#subject').value,
+        message: form.querySelector('#message').value
+      };
+
+      function showToast(msg, isError) {
+        toast.textContent = msg;
+        toast.classList.add('active');
+        if (isError) toast.classList.add('toast-error');
+        else toast.classList.remove('toast-error');
+        setTimeout(function() {
+          toast.classList.remove('active');
+          toast.classList.remove('toast-error');
+        }, 4000);
+      }
+
+      try {
+        var res = await fetch('/api/contact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        var data = await res.json().catch(function() { return {}; });
+        if (!res.ok) {
+          showToast(data.error || 'Could not send message. Please try again.', true);
+          btn.disabled = false;
+          btn.textContent = originalLabel;
+          return;
+        }
+        showToast("Message sent! We'll get back to you within 24 hours.");
+        form.reset();
+      } catch (err) {
+        showToast('Network error. Please check your connection and try again.', true);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalLabel;
+      }
     });
   </script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
