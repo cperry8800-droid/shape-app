@@ -61,9 +61,9 @@ export async function claimProviderRow(formData: FormData): Promise<void> {
 
   const dashTarget =
     role === 'trainer'
-      ? '/dashboard/trainer'
+      ? '/trainer-dashboard.html'
       : role === 'nutritionist'
-        ? '/dashboard/nutritionist'
+        ? '/nutrition-schedule.html'
         : '/dashboard';
   redirect(dashTarget);
 }
