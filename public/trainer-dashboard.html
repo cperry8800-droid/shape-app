@@ -923,6 +923,69 @@
   .widget-drag-handle:active { cursor: grabbing; }
   .widget-delete-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.1rem; line-height: 1; padding: 2px 6px; font-family: inherit; transition: color 0.15s; }
   .widget-delete-btn:hover { color: #EF4444; }
+
+  /* ===== Today calendar link + modal ===== */
+  .today-cal-link { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); cursor: pointer; background: none; border: none; font-family: inherit; padding: 0; transition: opacity 0.15s; }
+  .today-cal-link:hover { opacity: 0.7; }
+  .tcal-overlay { display: none; position: fixed; inset: 0; z-index: 10000; background: rgba(0,0,0,0.75); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); align-items: center; justify-content: center; padding: 24px; }
+  .tcal-overlay.open { display: flex; }
+  .tcal-modal { background: var(--bg-card); border: 1px solid var(--border); width: 100%; max-width: 960px; max-height: calc(100vh - 48px); overflow: hidden; display: flex; flex-direction: column; }
+  .tcal-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-bottom: 1px solid var(--border); gap: 12px; flex-wrap: wrap; }
+  .tcal-head h2 { font-size: 1rem; font-weight: 500; margin: 0; letter-spacing: -0.01em; }
+  .tcal-head-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .tcal-nav { display: flex; align-items: center; gap: 6px; }
+  .tcal-nav-btn { background: transparent; border: 1px solid var(--border); color: var(--text); font-family: inherit; font-size: 0.8rem; padding: 6px 10px; cursor: pointer; line-height: 1; transition: all 0.2s; }
+  .tcal-nav-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .tcal-view-toggle { display: flex; border: 1px solid var(--border); }
+  .tcal-view-btn { background: transparent; border: none; color: var(--text-muted); font-family: inherit; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; padding: 7px 14px; cursor: pointer; transition: all 0.2s; }
+  .tcal-view-btn.active { background: var(--accent); color: #fff; }
+  .tcal-close { background: none; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer; padding: 0 4px; line-height: 1; }
+  .tcal-close:hover { color: var(--text); }
+  .tcal-body { padding: 18px 22px; overflow: auto; flex: 1; }
+  .tcal-title { font-size: 0.78rem; font-weight: 500; color: var(--text); margin-bottom: 14px; letter-spacing: -0.01em; }
+  .tcal-grid-month { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .tcal-dow { font-size: 0.62rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); padding: 6px 4px; text-align: center; }
+  .tcal-cell { min-height: 86px; padding: 6px 8px; border: 1px solid var(--border); background: var(--bg); display: flex; flex-direction: column; gap: 3px; font-size: 0.72rem; }
+  .tcal-cell.empty { background: transparent; border-color: transparent; }
+  .tcal-cell.today { border-color: var(--accent); }
+  .tcal-cell-date { font-size: 0.72rem; color: var(--text-muted); margin-bottom: 2px; font-variant-numeric: tabular-nums; }
+  .tcal-cell.today .tcal-cell-date { color: var(--accent); font-weight: 600; }
+  .tcal-event { font-size: 0.64rem; padding: 2px 5px; border-left: 2px solid var(--accent); background: rgba(45,212,191,0.08); color: var(--text); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  .tcal-event.ev-session { border-color: #2DD4BF; background: rgba(45,212,191,0.1); }
+  .tcal-event.ev-checkin { border-color: #F59E0B; background: rgba(245,158,11,0.1); }
+  .tcal-event.ev-program { border-color: #6C3AED; background: rgba(108,58,237,0.1); }
+  .tcal-event.ev-consult { border-color: #10B981; background: rgba(16,185,129,0.1); }
+  .tcal-event.ev-plan { border-color: #3B82F6; background: rgba(59,130,246,0.1); }
+  .tcal-grid-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .tcal-week-cell { min-height: 360px; padding: 8px; border: 1px solid var(--border); background: var(--bg); display: flex; flex-direction: column; gap: 4px; }
+  .tcal-week-cell.today { border-color: var(--accent); }
+  .tcal-week-head { font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 4px; text-align: center; }
+  .tcal-week-cell.today .tcal-week-head { color: var(--accent); }
+  .tcal-week-event { font-size: 0.7rem; padding: 6px 8px; border-left: 2px solid var(--accent); background: rgba(45,212,191,0.08); line-height: 1.4; cursor: pointer; }
+  .tcal-week-event.ev-session { border-color: #2DD4BF; background: rgba(45,212,191,0.1); }
+  .tcal-week-event.ev-checkin { border-color: #F59E0B; background: rgba(245,158,11,0.1); }
+  .tcal-week-event.ev-program { border-color: #6C3AED; background: rgba(108,58,237,0.1); }
+  .tcal-week-event.ev-consult { border-color: #10B981; background: rgba(16,185,129,0.1); }
+  .tcal-week-event.ev-plan { border-color: #3B82F6; background: rgba(59,130,246,0.1); }
+  .tcal-week-event-time { color: var(--text-muted); font-size: 0.62rem; margin-bottom: 2px; }
+  .tcal-week-event-title { font-weight: 600; font-size: 0.72rem; }
+  .tcal-week-event-sub { color: var(--text-muted); font-size: 0.62rem; font-weight: 300; margin-top: 2px; }
+  .tcal-legend { display: flex; flex-wrap: wrap; gap: 10px; padding: 8px 22px 14px; font-size: 0.65rem; color: var(--text-muted); border-top: 1px solid var(--border); }
+  .tcal-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+  .tcal-legend-swatch { width: 10px; height: 10px; border-left: 2px solid var(--accent); background: rgba(45,212,191,0.1); }
+  .tcal-legend-swatch.ev-session { border-color: #2DD4BF; background: rgba(45,212,191,0.1); }
+  .tcal-legend-swatch.ev-checkin { border-color: #F59E0B; background: rgba(245,158,11,0.1); }
+  .tcal-legend-swatch.ev-program { border-color: #6C3AED; background: rgba(108,58,237,0.1); }
+  .tcal-legend-swatch.ev-consult { border-color: #10B981; background: rgba(16,185,129,0.1); }
+  .tcal-legend-swatch.ev-plan { border-color: #3B82F6; background: rgba(59,130,246,0.1); }
+  @media (max-width: 768px) {
+    .tcal-overlay { padding: 0; }
+    .tcal-modal { max-height: 100vh; height: 100vh; }
+    .tcal-grid-week { grid-template-columns: 1fr; }
+    .tcal-week-cell { min-height: 0; }
+    .tcal-cell { min-height: 64px; padding: 4px 5px; font-size: 0.65rem; }
+    .tcal-dow { font-size: 0.55rem; }
+  }
   .widget-body { padding: 16px; overflow-x: auto; min-width: 0; }
   .widget-body > *:first-child { margin-top: 0 !important; }
   .widget-body > *:last-child { margin-bottom: 0 !important; }
@@ -1102,6 +1165,7 @@
 
         <div class="today-feed-section-head">
           <h3>Today's sessions</h3>
+          <button class="today-cal-link" onclick="tcalOpen()">Open calendar &rarr;</button>
         </div>
         <div class="today-feed-list">
           <div class="today-feed-item" onclick="switchTrainerTab('clients', document.querySelector('.td-tab-btn[data-tab=clients]'))">
@@ -5032,6 +5096,126 @@
       }
     });
   })();
+  </script>
+
+  <!-- ===== Today Calendar Modal ===== -->
+  <div class="tcal-overlay" id="tcalOverlay" onclick="if(event.target===this)tcalClose()">
+    <div class="tcal-modal">
+      <div class="tcal-head">
+        <h2 id="tcalTitle">Calendar</h2>
+        <div class="tcal-head-controls">
+          <div class="tcal-nav">
+            <button class="tcal-nav-btn" onclick="tcalPrev()">&larr;</button>
+            <button class="tcal-nav-btn" onclick="tcalToday()">Today</button>
+            <button class="tcal-nav-btn" onclick="tcalNext()">&rarr;</button>
+          </div>
+          <div class="tcal-view-toggle">
+            <button class="tcal-view-btn active" data-view="week" onclick="tcalSetView('week')">Week</button>
+            <button class="tcal-view-btn" data-view="month" onclick="tcalSetView('month')">Month</button>
+          </div>
+          <button class="tcal-close" onclick="tcalClose()">&times;</button>
+        </div>
+      </div>
+      <div class="tcal-body" id="tcalBody"></div>
+      <div class="tcal-legend">
+        <span class="tcal-legend-item"><span class="tcal-legend-swatch ev-session"></span> Session</span>
+        <span class="tcal-legend-item"><span class="tcal-legend-swatch ev-checkin"></span> Check-in</span>
+        <span class="tcal-legend-item"><span class="tcal-legend-swatch ev-program"></span> Program publish</span>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function(){
+      var view = 'week';
+      var cursor = new Date();
+      function startOfWeek(d) { var n = new Date(d); var day = n.getDay(); n.setDate(n.getDate() - day); n.setHours(0,0,0,0); return n; }
+      function addDays(d, n) { var x = new Date(d); x.setDate(x.getDate() + n); return x; }
+      function ymd(d) { return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+      function sameDay(a, b) { return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
+      function buildTrainerEvents() {
+        var today = new Date(); today.setHours(0,0,0,0);
+        var out = {};
+        function put(d, ev) { var k = ymd(d); (out[k] = out[k] || []).push(ev); }
+        put(today, { time:'10:30 AM', title:'Sarah K. · Upper Body', sub:'60 min · in-person', type:'ev-session' });
+        put(today, { time:'12:00 PM', title:'Jordan M. · Lower Body', sub:'45 min · virtual', type:'ev-session' });
+        put(today, { time:'3:00 PM', title:'Alex R. · weekly review', sub:'20 min · video', type:'ev-checkin' });
+        put(addDays(today,1), { time:'9:00 AM', title:'Sarah K. · Lower Body', sub:'60 min · in-person', type:'ev-session' });
+        put(addDays(today,1), { time:'2:00 PM', title:'Chris B. · Intake', sub:'45 min · new client', type:'ev-session' });
+        put(addDays(today,2), { time:'All day', title:'Emma T. Week 5', sub:'Program publish', type:'ev-program' });
+        put(addDays(today,2), { time:'11:00 AM', title:'Jordan M. · Upper Body', sub:'45 min · virtual', type:'ev-session' });
+        put(addDays(today,3), { time:'10:00 AM', title:'Priya S. · Conditioning', sub:'45 min · in-person', type:'ev-session' });
+        put(addDays(today,3), { time:'4:00 PM', title:'Alex R. · check-in', sub:'20 min · video', type:'ev-checkin' });
+        put(addDays(today,4), { time:'9:30 AM', title:'Sarah K. · Push day', sub:'60 min · in-person', type:'ev-session' });
+        put(addDays(today,4), { time:'All day', title:'Chris B. Week 1', sub:'Program publish', type:'ev-program' });
+        put(addDays(today,5), { time:'10:00 AM', title:'Rest day reviews', sub:'3 clients', type:'ev-checkin' });
+        put(addDays(today,7), { time:'9:00 AM', title:'Sarah K. · Pull day', sub:'60 min · in-person', type:'ev-session' });
+        put(addDays(today,7), { time:'All day', title:'Jordan M. Week 3', sub:'Program publish', type:'ev-program' });
+        put(addDays(today,10), { time:'11:00 AM', title:'Emma T. · follow-up', sub:'30 min · video', type:'ev-checkin' });
+        put(addDays(today,14), { time:'All day', title:'Monthly review week', sub:'All active clients', type:'ev-checkin' });
+        return out;
+      }
+      window.tcalEvents = buildTrainerEvents();
+      window.tcalOpen = function() { document.getElementById('tcalOverlay').classList.add('open'); render(); };
+      window.tcalClose = function() { document.getElementById('tcalOverlay').classList.remove('open'); };
+      window.tcalPrev = function() { if (view==='week') cursor = addDays(cursor,-7); else cursor = new Date(cursor.getFullYear(), cursor.getMonth()-1, 1); render(); };
+      window.tcalNext = function() { if (view==='week') cursor = addDays(cursor,7); else cursor = new Date(cursor.getFullYear(), cursor.getMonth()+1, 1); render(); };
+      window.tcalToday = function() { cursor = new Date(); render(); };
+      window.tcalSetView = function(v) {
+        view = v;
+        document.querySelectorAll('.tcal-view-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.view===v); });
+        render();
+      };
+      function render() {
+        var body = document.getElementById('tcalBody');
+        var title = document.getElementById('tcalTitle');
+        if (!body) return;
+        var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        var dows = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        if (view === 'week') {
+          var start = startOfWeek(cursor);
+          var end = addDays(start, 6);
+          title.textContent = months[start.getMonth()] + ' ' + start.getDate() + ' – ' + (start.getMonth()===end.getMonth() ? '' : months[end.getMonth()] + ' ') + end.getDate() + ', ' + end.getFullYear();
+          var today = new Date();
+          var html = '<div class="tcal-grid-week">';
+          for (var i = 0; i < 7; i++) {
+            var d = addDays(start, i);
+            var isToday = sameDay(d, today);
+            var events = window.tcalEvents[ymd(d)] || [];
+            html += '<div class="tcal-week-cell' + (isToday ? ' today' : '') + '">';
+            html += '<div class="tcal-week-head">' + dows[d.getDay()] + ' ' + d.getDate() + '</div>';
+            events.forEach(function(ev) {
+              html += '<div class="tcal-week-event ' + ev.type + '"><div class="tcal-week-event-time">' + ev.time + '</div><div class="tcal-week-event-title">' + ev.title + '</div><div class="tcal-week-event-sub">' + ev.sub + '</div></div>';
+            });
+            html += '</div>';
+          }
+          html += '</div>';
+          body.innerHTML = html;
+        } else {
+          var first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+          title.textContent = months[first.getMonth()] + ' ' + first.getFullYear();
+          var startPad = first.getDay();
+          var daysInMonth = new Date(first.getFullYear(), first.getMonth()+1, 0).getDate();
+          var today = new Date();
+          var html = '<div class="tcal-grid-month">';
+          dows.forEach(function(d){ html += '<div class="tcal-dow">' + d + '</div>'; });
+          for (var p = 0; p < startPad; p++) html += '<div class="tcal-cell empty"></div>';
+          for (var i = 1; i <= daysInMonth; i++) {
+            var d = new Date(first.getFullYear(), first.getMonth(), i);
+            var isToday = sameDay(d, today);
+            var events = window.tcalEvents[ymd(d)] || [];
+            html += '<div class="tcal-cell' + (isToday ? ' today' : '') + '">';
+            html += '<div class="tcal-cell-date">' + i + '</div>';
+            events.slice(0,3).forEach(function(ev) {
+              html += '<div class="tcal-event ' + ev.type + '" title="' + ev.time + ' — ' + ev.title + '">' + ev.title + '</div>';
+            });
+            if (events.length > 3) html += '<div class="tcal-cell-date" style="margin-top:2px;">+' + (events.length-3) + ' more</div>';
+            html += '</div>';
+          }
+          html += '</div>';
+          body.innerHTML = html;
+        }
+      }
+    })();
   </script>
 
   <!-- ===== Widget Library Modal ===== -->
