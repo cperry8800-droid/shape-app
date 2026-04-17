@@ -131,11 +131,17 @@ ul { list-style: none; }
   font-size: clamp(0.68rem, 0.78vw, 0.78rem); font-weight: 400; transition: opacity 0.3s;
   letter-spacing: 0.02em; text-transform: uppercase; opacity: 0.6; white-space: nowrap;
 }
-.shape-nav-user-name {
-  max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-@media (max-width: 1200px) {
-  .shape-nav-user-name { display: none !important; }
+/* Username in nav: hidden — the role switcher pill + Dashboard button
+   already signal who's logged in, and the full name kept pushing into
+   the nav links on narrower viewports. */
+.nav-actions .shape-nav-user-name { display: none !important; }
+/* Tighten nav action buttons below wide desktop so SHAPE Radio and
+   the auth buttons don't crowd the nav links. */
+@media (max-width: 1280px) {
+  .nav-actions .btn-sm { padding: 3px 8px; font-size: 0.68rem; }
+  .nav-actions { gap: 6px; }
+  .btn-radio { font-size: 0.72rem; }
+  .btn-radio .btn-shape-text { letter-spacing: 0.1em; }
 }
 .nav-links a:hover { opacity: 1; }
 .nav-dropdown { position: relative; display: flex; align-items: center; }
