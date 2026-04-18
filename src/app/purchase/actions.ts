@@ -114,44 +114,50 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
   const applicationFeeCents = Math.floor((priceCents * APPLICATION_FEE_BASIS_POINTS) / 10000);
 
-  const session = await stripe.checkout.sessions.create({
-    mode: 'payment',
-    line_items: [
-      {
-        quantity: 1,
-        price_data: {
-          currency: 'usd',
-          unit_amount: priceCents,
-          product_data: { name: productName },
+  let session;
+  try {
+    session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: 'usd',
+            unit_amount: priceCents,
+            product_data: { name: productName },
+          },
         },
-      },
-    ],
-    customer_email: user.email ?? undefined,
-    client_reference_id: user.id,
-    metadata: {
-      client_id: user.id,
-      provider_id: String(providerId),
-      provider_role: providerRole,
-      kind,
-      price_cents: String(priceCents),
-      workout_id: workoutId ? String(workoutId) : '',
-      plan_id: planId ? String(planId) : '',
-    },
-    payment_intent_data: {
-      application_fee_amount: applicationFeeCents,
-      transfer_data: { destination: provider.stripe_account_id },
+      ],
+      customer_email: user.email ?? undefined,
+      client_reference_id: user.id,
       metadata: {
         client_id: user.id,
         provider_id: String(providerId),
         provider_role: providerRole,
         kind,
+        price_cents: String(priceCents),
         workout_id: workoutId ? String(workoutId) : '',
         plan_id: planId ? String(planId) : '',
       },
-    },
-    success_url: `${origin}/purchase/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${origin}${backHref}&error=purchase_cancelled`,
-  });
+      payment_intent_data: {
+        application_fee_amount: applicationFeeCents,
+        transfer_data: { destination: provider.stripe_account_id },
+        metadata: {
+          client_id: user.id,
+          provider_id: String(providerId),
+          provider_role: providerRole,
+          kind,
+          workout_id: workoutId ? String(workoutId) : '',
+          plan_id: planId ? String(planId) : '',
+        },
+      },
+      success_url: `${origin}/purchase/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}${backHref}&error=purchase_cancelled`,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    redirect(`${backHref}&error=${encodeURIComponent(`stripe: ${msg}`.slice(0, 300))}`);
+  }
 
   if (!session.url) {
     redirect(`${backHref}&error=checkout_failed`);
