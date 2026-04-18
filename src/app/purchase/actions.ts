@@ -23,6 +23,9 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
   const planIdRaw = formData.get('plan_id');
   const workoutId = workoutIdRaw ? Number(workoutIdRaw) : null;
   const planId = planIdRaw ? Number(planIdRaw) : null;
+  const urlItemName = formData.get('item_name')
+    ? String(formData.get('item_name')).slice(0, 120)
+    : null;
 
   if (
     !['trainer', 'nutritionist'].includes(providerRole) ||
@@ -97,8 +100,9 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
   }
 
   const label = kind === 'booking' ? 'Booking' : 'Meal plan';
-  const productName = itemName
-    ? `${provider.name} — ${itemName}`
+  const displayItemName = itemName ?? urlItemName;
+  const productName = displayItemName
+    ? `${provider.name} — ${displayItemName}`
     : `${provider.name} — ${label}`;
 
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';

@@ -15,6 +15,8 @@ type Props = {
     kind?: string;
     workout_id?: string;
     plan_id?: string;
+    item_name?: string;
+    item_price?: string;
   }>;
 };
 
@@ -25,6 +27,8 @@ export default async function PurchasePage({ searchParams }: Props) {
   const id = sp.id ? Number(sp.id) : NaN;
   const workoutId = sp.workout_id ? Number(sp.workout_id) : null;
   const planId = sp.plan_id ? Number(sp.plan_id) : null;
+  const urlItemName = sp.item_name ? String(sp.item_name).slice(0, 120) : null;
+  const urlItemPrice = sp.item_price ? Number(sp.item_price) : null;
 
   if (!role || !kind || !Number.isFinite(id) || id <= 0) {
     return <ErrorShell message="Invalid purchase link. Missing role, kind, or provider id." />;
@@ -80,6 +84,13 @@ export default async function PurchasePage({ searchParams }: Props) {
   }
 
   const row = provider as { id: number; name: string; specialty: string | null; price: number | null } & Record<string, number | null>;
+  // Display-only override from URL (used when the marketplace card doesn't
+  // have a real DB row yet — demo workouts/plans). Stripe still charges the
+  // DB-validated session_price/meal_plan_price; URL price is just for the UI.
+  if (!itemName && urlItemName) itemName = urlItemName;
+  if (itemPrice == null && urlItemPrice != null && Number.isFinite(urlItemPrice)) {
+    itemPrice = urlItemPrice;
+  }
   const price = itemPrice ?? row[priceCol] ?? row.price ?? null;
   const priceDisplay = price && price > 0 ? `$${Number(price).toFixed(0)}` : 'Contact for pricing';
   const label = itemName
@@ -116,6 +127,7 @@ export default async function PurchasePage({ searchParams }: Props) {
           <input type="hidden" name="kind" value={kind} />
           {workoutId ? <input type="hidden" name="workout_id" value={workoutId} /> : null}
           {planId ? <input type="hidden" name="plan_id" value={planId} /> : null}
+          {urlItemName ? <input type="hidden" name="item_name" value={urlItemName} /> : null}
           <button
             type="submit"
             style={{
