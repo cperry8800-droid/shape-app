@@ -2101,6 +2101,12 @@
                 <option>Sofia Rodriguez</option><option>Marcus Thompson</option>
               </select>
             </div>
+            <div class="pb-field">
+              <label class="pb-label">Playlist (optional)</label>
+              <select class="pb-select" id="pbTplPlaylist" data-wb-playlist>
+                <option value="">None</option>
+              </select>
+            </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;">
               <button class="btn btn-outline" onclick="pbSaveDraft('template')" style="border-color:var(--accent);color:var(--accent);">Save Draft</button>
               <button class="btn btn-accent" onclick="pbSavePlan('template')">Publish &amp; Send to Client</button>
@@ -2146,6 +2152,12 @@
                 <option value="">None</option>
                 <option>Christopher Perry</option><option>Emma Chen</option><option>David Kim</option>
                 <option>Sofia Rodriguez</option><option>Marcus Thompson</option>
+              </select>
+            </div>
+            <div class="pb-field">
+              <label class="pb-label">Playlist (optional)</label>
+              <select class="pb-select" id="pbCustPlaylist" data-wb-playlist>
+                <option value="">None</option>
               </select>
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;">
@@ -3409,7 +3421,8 @@
       daysPerWeek: document.getElementById('pbTplDays').value,
       description: document.getElementById('pbTplDesc').value,
       days: days,
-      client: document.getElementById('pbTplClient').value
+      client: document.getElementById('pbTplClient').value,
+      playlistId: document.getElementById('pbTplPlaylist').value
     };
   }
 
@@ -3419,7 +3432,8 @@
       name: document.getElementById('pbCustName').value,
       description: document.getElementById('pbCustDesc').value,
       files: _pbUploadedFiles.map(function(f) { return { name: f.name, type: f.type, size: f.size, data: f.data }; }),
-      client: document.getElementById('pbCustClient').value
+      client: document.getElementById('pbCustClient').value,
+      playlistId: document.getElementById('pbCustPlaylist').value
     };
   }
 
@@ -3492,6 +3506,7 @@
       document.getElementById('pbTplDays').value = plan.daysPerWeek || '';
       document.getElementById('pbTplDesc').value = plan.description || '';
       document.getElementById('pbTplClient').value = plan.client || '';
+      document.getElementById('pbTplPlaylist').value = plan.playlistId || '';
       (plan.days || []).forEach(function(day, idx) {
         pbAddDay();
         var dayId = idx + 1;
@@ -3529,6 +3544,7 @@
       document.getElementById('pbCustName').value = plan.name || '';
       document.getElementById('pbCustDesc').value = plan.description || '';
       document.getElementById('pbCustClient').value = plan.client || '';
+      document.getElementById('pbCustPlaylist').value = plan.playlistId || '';
       _pbUploadedFiles = (plan.files || []).map(function(f) { return { name: f.name, type: f.type, size: f.size, data: f.data }; });
       pbRenderFileList();
     }
