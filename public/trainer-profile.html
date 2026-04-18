@@ -781,6 +781,57 @@
       </div>
     </div>
 
+    <!-- Branding (Custom Logo + Theme) -->
+    <div class="tp-section" id="sectionBrand">
+      <div class="tp-section-header">
+        <h2>Branding</h2>
+        <button class="tp-edit-btn" onclick="toggleSection('sectionBrand')">Edit</button>
+      </div>
+      <p style="font-size:0.88rem;color:var(--text-muted);font-weight:300;margin-bottom:16px;">Add your business name, upload a custom logo, and choose a color scheme. Your branding carries through to the mobile app for both you and your clients.</p>
+      <div style="margin-bottom:20px;">
+        <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Business Name</label>
+        <div class="tp-display-value" id="brandBusinessDisplay" style="font-size:1.1rem;font-weight:600;margin-top:4px;">Your Business</div>
+        <input class="tp-edit-input" id="brandBusinessInput" placeholder="e.g. Marcus Johnson Training" style="margin-top:4px;">
+      </div>
+      <div style="display:grid;grid-template-columns:260px 1fr;gap:24px;align-items:start;">
+        <div>
+          <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:10px;">Custom Logo</div>
+          <div id="brandLogoDisplay" style="width:100%;height:160px;background:var(--bg-card);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;" onclick="document.getElementById('brandLogoUpload').click()">
+            <div id="brandLogoPlaceholder" style="text-align:center;">
+              <div style="font-size:0.85rem;font-weight:500;color:var(--text-muted);">+ Upload Logo</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">PNG, SVG, JPG</div>
+            </div>
+            <img id="brandLogoImg" style="display:none;max-width:100%;max-height:100%;object-fit:contain;" />
+          </div>
+          <input type="file" id="brandLogoUpload" accept="image/*" style="display:none" onchange="handleBrandLogoUpload(event)">
+          <button class="tp-cancel-btn" id="brandLogoRemove" style="display:none;width:100%;margin-top:8px;" onclick="removeBrandLogo()">Remove logo</button>
+        </div>
+        <div>
+          <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:10px;">Color Scheme</div>
+          <div id="brandPalettes" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-bottom:18px;"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+            <div>
+              <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Accent</label>
+              <input class="tp-edit-input" id="brandAccent" type="color" value="#2DD4BF" oninput="onBrandColorChange()" style="margin-top:4px;display:block;height:40px;padding:2px;">
+            </div>
+            <div>
+              <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Accent Dark</label>
+              <input class="tp-edit-input" id="brandAccentDark" type="color" value="#14B8A6" oninput="onBrandColorChange()" style="margin-top:4px;display:block;height:40px;padding:2px;">
+            </div>
+            <div>
+              <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Accent Light</label>
+              <input class="tp-edit-input" id="brandAccentLight" type="color" value="#5EEAD4" oninput="onBrandColorChange()" style="margin-top:4px;display:block;height:40px;padding:2px;">
+            </div>
+          </div>
+          <div style="font-size:0.72rem;color:var(--text-muted);margin-top:14px;line-height:1.6;">Colors apply instantly to your web dashboard and your clients' mobile app.</div>
+        </div>
+      </div>
+      <div class="tp-save-actions">
+        <button class="tp-save-btn" onclick="saveBrand()">Save</button>
+        <button class="tp-cancel-btn" onclick="cancelSection('sectionBrand')">Cancel</button>
+      </div>
+    </div>
+
     <!-- Photos & Videos -->
     <div class="tp-section" id="sectionMedia">
       <div class="tp-section-header">
@@ -938,6 +989,37 @@
       </div>
     </div>
 
+    <!-- Testimonials -->
+    <div class="tp-section" id="sectionTestimonials">
+      <div class="tp-section-header">
+        <h2>Testimonials</h2>
+        <button class="tp-edit-btn" onclick="toggleSection('sectionTestimonials')">Edit</button>
+      </div>
+      <p style="font-size:0.88rem;color:var(--text-muted);font-weight:300;margin-bottom:16px;">Add quotes from past clients. Shown on your public profile as social proof.</p>
+      <div id="testimonialList" style="display:flex;flex-direction:column;gap:12px;"></div>
+      <div class="tp-edit-fields" style="display:none;margin-top:16px;" id="testimonialEditFields">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Client Name</label>
+            <input class="tp-edit-input" id="testimonialName" placeholder="e.g. Sarah K." style="margin-top:4px;">
+          </div>
+          <div>
+            <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Result / Title (optional)</label>
+            <input class="tp-edit-input" id="testimonialRole" placeholder="Lost 22 lbs in 12 weeks" style="margin-top:4px;">
+          </div>
+        </div>
+        <div style="margin-top:12px;">
+          <label style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Quote</label>
+          <textarea class="tp-edit-textarea" id="testimonialQuote" placeholder="What did this client say about training with you?" style="margin-top:4px;"></textarea>
+        </div>
+        <button class="btn btn-sm btn-outline" type="button" onclick="addTestimonial()" style="margin-top:10px;">+ Add Testimonial</button>
+      </div>
+      <div class="tp-save-actions">
+        <button class="tp-save-btn" onclick="document.getElementById('sectionTestimonials').classList.remove('editing'); document.getElementById('testimonialEditFields').style.display='none'; showToast('Testimonials saved!');">Done</button>
+        <button class="tp-cancel-btn" onclick="cancelSection('sectionTestimonials')">Cancel</button>
+      </div>
+    </div>
+
     <!-- Subscription -->
     <div class="tp-section" id="sectionPricing">
       <div class="tp-section-header">
@@ -1041,8 +1123,21 @@ let trainerData = {
   introVideoUrl: '',
   photos: [],
   videos: [],
-  consult: { duration: '15', priceType: 'free', price: '', format: 'Video', days: [], timeFrom: '09:00', timeTo: '17:00', desc: 'Free 15-minute intro call to discuss your fitness goals and find the right program for you.' }
+  consult: { duration: '15', priceType: 'free', price: '', format: 'Video', days: [], timeFrom: '09:00', timeTo: '17:00', desc: 'Free 15-minute intro call to discuss your fitness goals and find the right program for you.' },
+  brand: { businessName: '', logo: null, accent: '#2DD4BF', accentDark: '#14B8A6', accentLight: '#5EEAD4' },
+  testimonials: []
 };
+
+const BRAND_PALETTES = [
+  { name: 'Shape Teal',  accent: '#2DD4BF', dark: '#14B8A6', light: '#5EEAD4' },
+  { name: 'Indigo',      accent: '#6366F1', dark: '#4F46E5', light: '#A5B4FC' },
+  { name: 'Rose',        accent: '#F43F5E', dark: '#E11D48', light: '#FDA4AF' },
+  { name: 'Amber',       accent: '#F59E0B', dark: '#D97706', light: '#FCD34D' },
+  { name: 'Emerald',     accent: '#10B981', dark: '#059669', light: '#6EE7B7' },
+  { name: 'Sky',         accent: '#0EA5E9', dark: '#0284C7', light: '#7DD3FC' },
+  { name: 'Violet',      accent: '#8B5CF6', dark: '#7C3AED', light: '#C4B5FD' },
+  { name: 'Slate',       accent: '#475569', dark: '#334155', light: '#94A3B8' }
+];
 
 function showToast(msg) {
   const t = document.getElementById('toast');
@@ -1077,6 +1172,12 @@ function toggleSection(id) {
     document.getElementById('consultEditFields').style.display = s.classList.contains('editing') ? 'block' : 'none';
     document.getElementById('consultDisplay').style.display = s.classList.contains('editing') ? 'none' : 'block';
   }
+  if (id === 'sectionBrand' && s.classList.contains('editing')) {
+    renderBrandPalettes();
+  }
+  if (id === 'sectionTestimonials') {
+    document.getElementById('testimonialEditFields').style.display = s.classList.contains('editing') ? 'block' : 'none';
+  }
 }
 
 function cancelSection(id) {
@@ -1090,7 +1191,133 @@ function cancelSection(id) {
   }
   if (id === 'sectionIntroVideo') document.getElementById('introVideoUrlRow').style.display = 'none';
   if (id === 'sectionConsult') { document.getElementById('consultEditFields').style.display = 'none'; document.getElementById('consultDisplay').style.display = 'block'; }
+  if (id === 'sectionTestimonials') document.getElementById('testimonialEditFields').style.display = 'none';
   loadFromStorage();
+}
+
+// --- Brand / Theme ---
+function applyTheme(brand) {
+  if (!brand) return;
+  const r = document.documentElement.style;
+  if (brand.accent) r.setProperty('--accent', brand.accent);
+  if (brand.accentDark) r.setProperty('--accent-dark', brand.accentDark);
+  if (brand.accentLight) r.setProperty('--accent-light', brand.accentLight);
+}
+function renderBrandPalettes() {
+  const c = document.getElementById('brandPalettes');
+  if (!c) return;
+  c.innerHTML = BRAND_PALETTES.map((p, i) => `
+    <button type="button" onclick="selectPalette(${i})" style="cursor:pointer;background:var(--bg-card);border:1px solid var(--border);padding:10px;display:flex;flex-direction:column;gap:6px;align-items:flex-start;font-family:inherit;">
+      <div style="display:flex;gap:4px;">
+        <span style="width:18px;height:18px;background:${p.accent};border:1px solid rgba(0,0,0,0.05);"></span>
+        <span style="width:18px;height:18px;background:${p.dark};border:1px solid rgba(0,0,0,0.05);"></span>
+        <span style="width:18px;height:18px;background:${p.light};border:1px solid rgba(0,0,0,0.05);"></span>
+      </div>
+      <span style="font-size:0.72rem;font-weight:500;color:var(--text);">${p.name}</span>
+    </button>
+  `).join('');
+}
+function selectPalette(i) {
+  const p = BRAND_PALETTES[i];
+  document.getElementById('brandAccent').value = p.accent;
+  document.getElementById('brandAccentDark').value = p.dark;
+  document.getElementById('brandAccentLight').value = p.light;
+  onBrandColorChange();
+}
+function onBrandColorChange() {
+  applyTheme({
+    accent: document.getElementById('brandAccent').value,
+    accentDark: document.getElementById('brandAccentDark').value,
+    accentLight: document.getElementById('brandAccentLight').value
+  });
+}
+function handleBrandLogoUpload(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    trainerData.brand = trainerData.brand || {};
+    trainerData.brand.logo = e.target.result;
+    renderBrandLogo();
+  };
+  reader.readAsDataURL(file);
+}
+function renderBrandLogo() {
+  const img = document.getElementById('brandLogoImg');
+  const ph = document.getElementById('brandLogoPlaceholder');
+  const rm = document.getElementById('brandLogoRemove');
+  if (trainerData.brand && trainerData.brand.logo) {
+    img.src = trainerData.brand.logo;
+    img.style.display = 'block';
+    ph.style.display = 'none';
+    rm.style.display = 'block';
+  } else {
+    img.style.display = 'none';
+    ph.style.display = 'block';
+    rm.style.display = 'none';
+  }
+}
+function removeBrandLogo() {
+  if (trainerData.brand) trainerData.brand.logo = null;
+  renderBrandLogo();
+}
+function saveBrand() {
+  trainerData.brand = trainerData.brand || {};
+  trainerData.brand.businessName = document.getElementById('brandBusinessInput').value.trim();
+  trainerData.brand.accent = document.getElementById('brandAccent').value;
+  trainerData.brand.accentDark = document.getElementById('brandAccentDark').value;
+  trainerData.brand.accentLight = document.getElementById('brandAccentLight').value;
+  applyTheme(trainerData.brand);
+  renderBrandBusinessName();
+  document.getElementById('sectionBrand').classList.remove('editing');
+  saveToStorage();
+  showToast('Branding saved!');
+}
+function renderBrandBusinessName() {
+  const el = document.getElementById('brandBusinessDisplay');
+  if (!el) return;
+  const name = (trainerData.brand && trainerData.brand.businessName) || '';
+  el.textContent = name || 'Your Business';
+  el.style.color = name ? 'var(--text)' : 'var(--text-muted)';
+  const input = document.getElementById('brandBusinessInput');
+  if (input) input.value = name;
+}
+
+// --- Testimonials ---
+function renderTestimonials() {
+  const list = document.getElementById('testimonialList');
+  if (!list) return;
+  const items = trainerData.testimonials || [];
+  if (!items.length) {
+    list.innerHTML = '<div style="font-size:0.85rem;color:var(--text-muted);font-style:italic;">No testimonials yet. Add one to build social proof.</div>';
+    return;
+  }
+  list.innerHTML = items.map((t, i) => `
+    <div style="background:var(--bg-card);border:1px solid var(--border);padding:18px 20px;position:relative;">
+      <div style="font-size:0.92rem;line-height:1.6;color:var(--text);font-weight:300;">&ldquo;${t.quote}&rdquo;</div>
+      <div style="font-size:0.78rem;font-weight:600;margin-top:10px;">${t.name}${t.role ? ' · <span style="font-weight:400;color:var(--text-muted);">' + t.role + '</span>' : ''}</div>
+      <button onclick="removeTestimonial(${i})" class="tp-cancel-btn" style="position:absolute;top:10px;right:10px;padding:3px 10px;font-size:0.68rem;">Remove</button>
+    </div>
+  `).join('');
+}
+function addTestimonial() {
+  const name = document.getElementById('testimonialName').value.trim();
+  const role = document.getElementById('testimonialRole').value.trim();
+  const quote = document.getElementById('testimonialQuote').value.trim();
+  if (!name || !quote) { showToast('Name and quote are required'); return; }
+  trainerData.testimonials = trainerData.testimonials || [];
+  trainerData.testimonials.push({ name, role, quote });
+  document.getElementById('testimonialName').value = '';
+  document.getElementById('testimonialRole').value = '';
+  document.getElementById('testimonialQuote').value = '';
+  renderTestimonials();
+  saveToStorage();
+  showToast('Testimonial added!');
+}
+function removeTestimonial(i) {
+  trainerData.testimonials.splice(i, 1);
+  renderTestimonials();
+  saveToStorage();
 }
 
 // --- Name / Specialty inline edit ---
@@ -2126,6 +2353,19 @@ function loadFromStorage() {
     // Photos & Videos
     if (trainerData.photos && trainerData.photos.length) renderPhotoGallery();
     if (trainerData.videos && trainerData.videos.length) renderVideoGallery();
+    // Brand
+    if (trainerData.brand) {
+      applyTheme(trainerData.brand);
+      if (document.getElementById('brandAccent')) {
+        document.getElementById('brandAccent').value = trainerData.brand.accent || '#2DD4BF';
+        document.getElementById('brandAccentDark').value = trainerData.brand.accentDark || '#14B8A6';
+        document.getElementById('brandAccentLight').value = trainerData.brand.accentLight || '#5EEAD4';
+      }
+      renderBrandBusinessName();
+      renderBrandLogo();
+    }
+    // Testimonials
+    renderTestimonials();
     // Consultation
     if (trainerData.consult) {
       const c = trainerData.consult;
@@ -2158,8 +2398,12 @@ if (!localStorage.getItem('shapeTrainerProfile')) {
   renderCerts();
   renderPhotoGallery();
   renderVideoGallery();
+  renderTestimonials();
 }
 renderSubIncludesDisplay();
+renderBrandPalettes();
+renderBrandLogo();
+renderBrandBusinessName();
   </script>
 
   <script src="app.js"></script>
