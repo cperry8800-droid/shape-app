@@ -3,10 +3,20 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
+import { headers } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { logout } from '@/app/login/actions';
 
+// Routes that get a minimal layout (no marketing nav). The pathname is
+// forwarded by the proxy via the x-pathname header.
+const HIDE_NAV_PREFIXES = ['/purchase', '/subscribe'];
+
 export default async function Nav() {
+  const pathname = (await headers()).get('x-pathname') ?? '';
+  if (HIDE_NAV_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'))) {
+    return null;
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
