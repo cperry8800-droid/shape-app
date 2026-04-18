@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape — Option B: Dashboard-as-hero</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: {
+        fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+        colors: { brand: { 300:'#5EEAD4', 400:'#2DD4BF', 500:'#14B8A6', 600:'#0D9488' } },
+        letterSpacing: { tightest: '-0.04em', tighter: '-0.03em' }
+      }}
+    };
+  </script>
+  <style>
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+    .num { font-variant-numeric: tabular-nums; letter-spacing: -0.04em; }
+    .bg-dots {
+      background-image: radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px);
+      background-size: 22px 22px;
+    }
+    section { scroll-margin-top: 80px; }
+  </style>
+</head>
+<body class="bg-neutral-950 text-neutral-100 antialiased">
+
+  <!-- Nav -->
+  <header class="fixed top-0 inset-x-0 z-50 backdrop-blur bg-neutral-950/70 border-b border-white/5">
+    <div class="max-w-[1280px] mx-auto h-14 px-6 flex items-center justify-between">
+      <a href="#" class="flex items-center gap-2">
+        <svg viewBox="0 0 95 110" class="h-6 w-auto" aria-label="Shape"><polygon points="5,113 5,43 55,78" fill="#fff"/><polygon points="90,-3 90,67 40,32" fill="#fff"/></svg>
+        <span class="text-[13px] font-semibold">Shape</span>
+      </a>
+      <nav class="hidden md:flex items-center gap-8 text-[13px] text-neutral-400">
+        <a href="#economics" class="hover:text-white">Pricing</a>
+        <a href="#how" class="hover:text-white">How it works</a>
+        <a href="#founding" class="hover:text-white">Founding 500</a>
+        <a href="#faq" class="hover:text-white">FAQ</a>
+      </nav>
+      <a href="#" class="text-[13px] font-medium bg-white text-neutral-950 hover:bg-neutral-200 px-3.5 py-1.5 rounded-md">Find your coach</a>
+    </div>
+  </header>
+
+  <!-- ===== 1. Hero — dashboard as hero ===== -->
+  <section class="relative pt-32 pb-20 overflow-hidden">
+    <div class="absolute left-1/2 -translate-x-1/2 top-28 h-[380px] w-[720px] rounded-full bg-brand-400/10 blur-[120px] pointer-events-none"></div>
+
+    <div class="relative max-w-[1280px] mx-auto px-6">
+      <!-- Top: headline + CTA (compact, leaves room for panel) -->
+      <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-8 mb-12">
+        <div class="max-w-[620px]">
+          <div class="flex items-center gap-2 text-[11px] tracking-[0.2em] text-neutral-500 mb-5">
+            <span class="w-1.5 h-1.5 rounded-full bg-brand-400"></span>SHAPE
+          </div>
+          <h1 class="text-[clamp(2.25rem,4.5vw,3.75rem)] font-medium leading-[1.04] tracking-tightest">
+            The <span class="text-brand-300">operating system</span> for training.
+          </h1>
+          <p class="mt-5 text-[16px] text-neutral-400 leading-relaxed max-w-[520px] font-light">
+            One subscription. Real coach. Every metric. Shape replaces the spreadsheet, the DMs, and the notebook your trainer is juggling.
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-3">
+          <a href="#" class="bg-brand-400 hover:bg-brand-300 text-neutral-950 font-medium text-sm px-5 py-3 rounded-md">Find your coach</a>
+          <a href="#" class="text-sm text-neutral-300 hover:text-white font-medium px-5 py-3 rounded-md border border-white/10 hover:border-white/20">Apply to coach</a>
+        </div>
+      </div>
+
+      <!-- Dashboard panel -->
+      <div class="relative rounded-2xl border border-white/10 bg-neutral-900/60 backdrop-blur overflow-hidden">
+        <!-- Top strip -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-white/5 text-xs text-neutral-400">
+          <div class="flex items-center gap-4">
+            <div class="w-7 h-7 rounded-full bg-neutral-800 flex items-center justify-center text-[10px] font-semibold text-neutral-200">SK</div>
+            <div>
+              <div class="text-[13px] text-neutral-100 font-medium leading-tight">Sarah K.</div>
+              <div class="text-[11px] text-neutral-500">Week 12 · Coached by Marcus Johnson</div>
+            </div>
+          </div>
+          <div class="hidden md:flex items-center gap-6">
+            <div class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse"></span>Live sync</div>
+            <div class="num text-neutral-200">Thu · 6:42 AM</div>
+          </div>
+        </div>
+
+        <!-- Dashboard grid -->
+        <div class="grid grid-cols-12 gap-px bg-white/5">
+          <!-- Coach match -->
+          <div class="col-span-12 md:col-span-4 bg-neutral-900/70 p-6">
+            <div class="flex items-baseline justify-between mb-2">
+              <div class="text-[10px] tracking-[0.2em] text-neutral-500 uppercase">Coach match</div>
+              <div class="num text-[11px] text-neutral-500">vs plan</div>
+            </div>
+            <div class="num text-4xl font-medium tracking-tightest">96<span class="text-neutral-600 text-xl">/100</span></div>
+            <div class="mt-4 h-1.5 bg-white/5 rounded-full overflow-hidden">
+              <div class="h-full bg-brand-400 rounded-full" style="width: 96%"></div>
+            </div>
+            <div class="mt-4 text-xs text-neutral-400 leading-relaxed">Programming, tone, and schedule fit all above threshold. Your retention model predicts <span class="text-brand-300 num">94%</span> through week 24.</div>
+          </div>
+
+          <!-- Recovery -->
+          <div class="col-span-6 md:col-span-3 bg-neutral-900/70 p-6">
+            <div class="text-[10px] tracking-[0.2em] text-neutral-500 uppercase mb-2">Recovery</div>
+            <div class="num text-4xl font-medium tracking-tightest text-brand-300">82<span class="text-neutral-600 text-xl">%</span></div>
+            <div class="mt-3 text-[11px] text-neutral-500">HRV 58ms · RHR 54</div>
+            <!-- Mini sparkline -->
+            <svg viewBox="0 0 120 32" class="mt-4 w-full h-7" preserveAspectRatio="none">
+              <polyline points="0,22 15,18 30,20 45,14 60,16 75,11 90,13 105,8 120,10" fill="none" stroke="#2DD4BF" stroke-width="1.5"/>
+            </svg>
+          </div>
+
+          <!-- Strain -->
+          <div class="col-span-6 md:col-span-3 bg-neutral-900/70 p-6">
+            <div class="text-[10px] tracking-[0.2em] text-neutral-500 uppercase mb-2">7-day strain</div>
+            <div class="num text-4xl font-medium tracking-tightest">14.2</div>
+            <div class="mt-3 text-[11px] text-neutral-500">Target: 12–16</div>
+            <!-- Bar chart -->
+            <div class="mt-4 flex items-end gap-1 h-7">
+              <div class="flex-1 bg-neutral-700 rounded-sm" style="height: 50%"></div>
+              <div class="flex-1 bg-neutral-700 rounded-sm" style="height: 35%"></div>
+              <div class="flex-1 bg-neutral-700 rounded-sm" style="height: 65%"></div>
+              <div class="flex-1 bg-brand-400 rounded-sm" style="height: 85%"></div>
+              <div class="flex-1 bg-neutral-700 rounded-sm" style="height: 40%"></div>
+              <div class="flex-1 bg-neutral-700 rounded-sm" style="height: 72%"></div>
+              <div class="flex-1 bg-brand-400 rounded-sm" style="height: 90%"></div>
+            </div>
+          </div>
+
+          <!-- Monthly revenue (coach side) -->
+          <div class="col-span-12 md:col-span-2 bg-neutral-900/70 p-6">
+            <div class="text-[10px] tracking-[0.2em] text-neutral-500 uppercase mb-2">Coach MRR</div>
+            <div class="num text-2xl font-medium tracking-tightest">$12,840</div>
+            <div class="mt-3 text-[11px] text-neutral-500 flex items-center gap-1"><span class="text-brand-300">↑ 8%</span>vs. last mo</div>
+          </div>
+
+          <!-- Next session (large) -->
+          <div class="col-span-12 md:col-span-7 bg-neutral-900/70 p-6">
+            <div class="flex items-baseline justify-between mb-4">
+              <div class="text-[10px] tracking-[0.2em] text-neutral-500 uppercase">Next session · Today 7:30 PM</div>
+              <div class="num text-[11px] text-neutral-500">45 min</div>
+            </div>
+            <div class="text-lg font-medium mb-1">Lower body · Strength phase</div>
+            <div class="text-xs text-neutral-500 mb-5">Built by Marcus · 4 exercises · progressive overload week 3/6</div>
+            <div class="grid grid-cols-2 gap-2 text-xs">
+              <div class="flex items-center justify-between border-t border-white/5 pt-2.5">
+                <span class="text-neutral-400">Back squat</span><span class="num text-neutral-200">5 × 5 @ 185</span>
+              </div>
+              <div class="flex items-center justify-between border-t border-white/5 pt-2.5">
+                <span class="text-neutral-400">RDL</span><span class="num text-neutral-200">4 × 8 @ 155</span>
+              </div>
+              <div class="flex items-center justify-between border-t border-white/5 pt-2.5">
+                <span class="text-neutral-400">Bulgarian split sq.</span><span class="num text-neutral-200">3 × 10 ea</span>
+              </div>
+              <div class="flex items-center justify-between border-t border-white/5 pt-2.5">
+                <span class="text-neutral-400">Hanging knee raise</span><span class="num text-neutral-200">3 × 12</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Activity feed -->
+          <div class="col-span-12 md:col-span-5 bg-neutral-900/70 p-6">
+            <div class="text-[10px] tracking-[0.2em] text-neutral-500 uppercase mb-4">Recent activity</div>
+            <ul class="space-y-3 text-xs">
+              <li class="flex items-center justify-between gap-4">
+                <div class="flex items-center gap-3"><span class="w-1.5 h-1.5 rounded-full bg-brand-400"></span><span>Marcus logged a form check on your squat</span></div>
+                <span class="num text-neutral-500">2m</span>
+              </li>
+              <li class="flex items-center justify-between gap-4">
+                <div class="flex items-center gap-3"><span class="w-1.5 h-1.5 rounded-full bg-neutral-600"></span><span>You completed Upper Pull · 42 min</span></div>
+                <span class="num text-neutral-500">Tue</span>
+              </li>
+              <li class="flex items-center justify-between gap-4">
+                <div class="flex items-center gap-3"><span class="w-1.5 h-1.5 rounded-full bg-neutral-600"></span><span>Nutrition plan updated — Zone B carbs</span></div>
+                <span class="num text-neutral-500">Mon</span>
+              </li>
+              <li class="flex items-center justify-between gap-4">
+                <div class="flex items-center gap-3"><span class="w-1.5 h-1.5 rounded-full bg-neutral-600"></span><span>3-week strength PR · back squat</span></div>
+                <span class="num text-neutral-500">Sun</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stat bar below panel -->
+      <div class="mt-10 grid grid-cols-2 md:grid-cols-4 gap-px bg-white/5 border border-white/5 rounded-xl overflow-hidden">
+        <div class="bg-neutral-950 px-6 py-5"><div class="num text-2xl font-medium">1,200+</div><div class="text-[11px] tracking-[0.18em] text-neutral-500 uppercase mt-1">Coaches</div></div>
+        <div class="bg-neutral-950 px-6 py-5"><div class="num text-2xl font-medium">90<span class="text-brand-300">%</span></div><div class="text-[11px] tracking-[0.18em] text-neutral-500 uppercase mt-1">Revenue to coach</div></div>
+        <div class="bg-neutral-950 px-6 py-5"><div class="num text-2xl font-medium">48h</div><div class="text-[11px] tracking-[0.18em] text-neutral-500 uppercase mt-1">Payouts</div></div>
+        <div class="bg-neutral-950 px-6 py-5"><div class="num text-2xl font-medium">40</div><div class="text-[11px] tracking-[0.18em] text-neutral-500 uppercase mt-1">States live</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 2. Social proof ===== -->
+  <section class="border-y border-white/5 bg-neutral-950">
+    <div class="max-w-[1280px] mx-auto px-6 py-12">
+      <div class="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr_auto_1fr] gap-6 md:gap-12 items-center">
+        <div>
+          <div class="text-[11px] tracking-[0.2em] text-neutral-500 uppercase mb-1.5">Avg rating</div>
+          <div class="num text-3xl font-medium">4.9<span class="text-neutral-600 text-xl">/5</span></div>
+          <div class="text-xs text-neutral-500 mt-1">across 8,400 sessions</div>
+        </div>
+        <div class="hidden md:block w-px h-12 bg-white/10"></div>
+        <div>
+          <div class="text-[11px] tracking-[0.2em] text-neutral-500 uppercase mb-1.5">90-day retention</div>
+          <div class="num text-3xl font-medium">82<span class="text-brand-300">%</span></div>
+          <div class="text-xs text-neutral-500 mt-1">vs ~31% industry</div>
+        </div>
+        <div class="hidden md:block w-px h-12 bg-white/10"></div>
+        <div>
+          <div class="text-[11px] tracking-[0.2em] text-neutral-500 uppercase mb-1.5">Featured in</div>
+          <div class="text-[15px] font-medium text-neutral-300">Women's Health · GQ · Runner's World</div>
+          <div class="text-xs text-neutral-500 mt-1">Press kit available on request</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 3. Economics ===== -->
+  <section id="economics" class="py-24">
+    <div class="max-w-[1280px] mx-auto px-6">
+      <div class="mb-14">
+        <div class="text-[11px] tracking-[0.2em] text-neutral-500 uppercase mb-3">The economics</div>
+        <h2 class="text-4xl md:text-5xl font-medium tracking-tighter leading-[1.05] max-w-[680px]">Coaches keep what they earn.<br><span class="text-neutral-500">Clients pay for training, not middlemen.</span></h2>
+      </div>
+      <div class="grid md:grid-cols-2 gap-px bg-white/5 border border-white/5 rounded-2xl overflow-hidden">
+        <div class="bg-neutral-950 p-10 md:p-14">
+          <div class="text-[11px] tracking-[0.2em] text-brand-300 uppercase mb-6">Shape</div>
+          <div class="num text-[96px] md:text-[128px] font-medium leading-none tracking-tightest">90<span class="text-brand-300">%</span></div>
+          <div class="text-neutral-400 mt-4 text-sm">goes to the coach. 10% platform fee, no surprise deductions.</div>
+        </div>
+        <div class="bg-neutral-950 p-10 md:p-14">
+          <div class="text-[11px] tracking-[0.2em] text-neutral-500 uppercase mb-6">Industry</div>
+          <div class="num text-[96px] md:text-[128px] font-medium leading-none tracking-tightest text-neutral-600">~60%</div>
+          <div class="text-neutral-500 mt-4 text-sm">typical coach take on big-name platforms, after fees and retention clawbacks.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 4. How it works ===== -->
+  <section id="how" class="py-24 border-t border-white/5">
+    <div class="max-w-[1280px] mx-auto px-6">
+      <div class="text-[11px] tracking-[0.2em] text-neutral-500 uppercase mb-3">How it works</div>
+      <h2 class="text-4xl md:text-5xl font-medium tracking-tighter leading-[1.05] max-w-[680px] mb-16">Three steps. No onboarding marathon.</h2>
+      <div class="grid md:grid-cols-3 gap-8">
+        <div class="border-t border-white/10 pt-6"><div class="num text-[11px] tracking-[0.2em] text-brand-300 uppercase mb-8">01</div><h3 class="text-xl font-medium mb-3">Tell us what you want.</h3><p class="text-neutral-400 text-sm leading-relaxed max-w-[340px]">Goals, training style, schedule, injuries, what you won't eat. Five minutes, no personality quiz.</p></div>
+        <div class="border-t border-white/10 pt-6"><div class="num text-[11px] tracking-[0.2em] text-brand-300 uppercase mb-8">02</div><h3 class="text-xl font-medium mb-3">Match with a coach.</h3><p class="text-neutral-400 text-sm leading-relaxed max-w-[340px]">We surface 3–5 coaches based on how you actually train. Pick one. Switch anytime.</p></div>
+        <div class="border-t border-white/10 pt-6"><div class="num text-[11px] tracking-[0.2em] text-brand-300 uppercase mb-8">03</div><h3 class="text-xl font-medium mb-3">Train, message, track.</h3><p class="text-neutral-400 text-sm leading-relaxed max-w-[340px]">One subscription covers programming, messaging, video check-ins, and nutrition.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 5. Testimonial ===== -->
+  <section class="py-24 border-t border-white/5">
+    <div class="max-w-[900px] mx-auto px-6">
+      <div class="pl-8 border-l-2 border-brand-400">
+        <blockquote class="text-[clamp(1.5rem,3vw,2.4rem)] font-light leading-[1.35] tracking-tight">&ldquo;I trained with two other apps before Shape. They all felt like software. This feels like a coach who actually knows my name, my schedule, and the stuff I'm dodging in the gym.&rdquo;</blockquote>
+        <div class="mt-8 flex items-center gap-4">
+          <div class="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center text-sm font-medium">SK</div>
+          <div><div class="text-sm font-medium">Sarah K.</div><div class="text-xs text-neutral-500">Client · coached by Marcus Johnson · 22 lbs lost in 14 weeks</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 6. Founding cohort ===== -->
+  <section id="founding" class="py-24 border-t border-white/5">
+    <div class="max-w-[1280px] mx-auto px-6">
+      <div class="grid md:grid-cols-[1fr_1fr] gap-16 items-end">
+        <div>
+          <div class="text-[11px] tracking-[0.2em] text-brand-300 uppercase mb-3">Founding 500</div>
+          <h2 class="text-4xl md:text-5xl font-medium tracking-tighter leading-[1.05] mb-6">First in. Best rate. Forever.</h2>
+          <p class="text-neutral-400 max-w-[460px] leading-relaxed">The first 500 coaches and 2,000 clients to join lock in founding rates for life. Not a discount window.</p>
+        </div>
+        <div class="space-y-6">
+          <div>
+            <div class="flex items-baseline justify-between mb-3"><div class="text-[11px] tracking-[0.2em] text-neutral-500 uppercase">Coach spots</div><div class="num text-sm"><span class="text-brand-300 font-medium">327</span> / 500</div></div>
+            <div class="h-1.5 bg-white/5 rounded-full overflow-hidden"><div class="h-full bg-brand-400 rounded-full" style="width: 65.4%"></div></div>
+          </div>
+          <div>
+            <div class="flex items-baseline justify-between mb-3"><div class="text-[11px] tracking-[0.2em] text-neutral-500 uppercase">Client spots</div><div class="num text-sm"><span class="text-brand-300 font-medium">1,418</span> / 2,000</div></div>
+            <div class="h-1.5 bg-white/5 rounded-full overflow-hidden"><div class="h-full bg-brand-400 rounded-full" style="width: 70.9%"></div></div>
+          </div>
+          <div class="flex flex-wrap gap-3 pt-4">
+            <a href="#" class="bg-brand-400 hover:bg-brand-300 text-neutral-950 font-medium text-sm px-5 py-3 rounded-md">Join as a client</a>
+            <a href="#" class="text-sm text-neutral-300 hover:text-white font-medium px-5 py-3 rounded-md border border-white/10 hover:border-white/20">Apply as a coach</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 7. FAQ ===== -->
+  <section id="faq" class="py-24 border-t border-white/5">
+    <div class="max-w-[1280px] mx-auto px-6">
+      <div class="grid md:grid-cols-[0.8fr_1.4fr] gap-16">
+        <div>
+          <div class="text-[11px] tracking-[0.2em] text-neutral-500 uppercase mb-3">FAQ</div>
+          <h2 class="text-3xl md:text-4xl font-medium tracking-tighter leading-[1.1] mb-4">Questions worth answering.</h2>
+        </div>
+        <div class="divide-y divide-white/5 border-t border-white/5">
+          <details class="group py-6" open><summary class="flex items-center justify-between cursor-pointer list-none"><h3 class="text-base font-medium">How much does it cost?</h3><span class="text-neutral-500 group-open:rotate-45 transition-transform text-xl leading-none">+</span></summary><p class="mt-3 text-sm text-neutral-400 leading-relaxed max-w-[620px]">Coaches set their own rates — typically $49 to $199/mo. Everything's included: programming, messaging, video check-ins, nutrition.</p></details>
+          <details class="group py-6" open><summary class="flex items-center justify-between cursor-pointer list-none"><h3 class="text-base font-medium">Can I cancel any time?</h3><span class="text-neutral-500 group-open:rotate-45 transition-transform text-xl leading-none">+</span></summary><p class="mt-3 text-sm text-neutral-400 leading-relaxed max-w-[620px]">Month-to-month. Cancel from your dashboard.</p></details>
+          <details class="group py-6"><summary class="flex items-center justify-between cursor-pointer list-none"><h3 class="text-base font-medium">How are coaches vetted?</h3><span class="text-neutral-500 group-open:rotate-45 transition-transform text-xl leading-none">+</span></summary><p class="mt-3 text-sm text-neutral-400 leading-relaxed max-w-[620px]">Every coach is reviewed for credentials, insurance, and a sample program before going live.</p></details>
+          <details class="group py-6"><summary class="flex items-center justify-between cursor-pointer list-none"><h3 class="text-base font-medium">How fast do coaches get paid?</h3><span class="text-neutral-500 group-open:rotate-45 transition-transform text-xl leading-none">+</span></summary><p class="mt-3 text-sm text-neutral-400 leading-relaxed max-w-[620px]">Within 48 hours of the subscription charge, via Stripe Connect.</p></details>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 8. Footer ===== -->
+  <footer class="border-t border-white/5 bg-neutral-950">
+    <div class="max-w-[1280px] mx-auto px-6 py-16">
+      <div class="grid md:grid-cols-[1.4fr_1fr_1fr_1fr] gap-10">
+        <div>
+          <div class="flex items-center gap-2 mb-4"><svg viewBox="0 0 95 110" class="h-6 w-auto"><polygon points="5,113 5,43 55,78" fill="#fff"/><polygon points="90,-3 90,67 40,32" fill="#fff"/></svg><span class="text-[13px] font-semibold">Shape</span></div>
+          <p class="text-sm text-neutral-500 max-w-[280px] leading-relaxed">Train with a coach, not an app.</p>
+        </div>
+        <div><div class="text-[11px] tracking-[0.2em] text-neutral-500 uppercase mb-4">Platform</div><ul class="space-y-2 text-sm text-neutral-400"><li><a href="#" class="hover:text-white">Marketplace</a></li><li><a href="#" class="hover:text-white">For trainers</a></li><li><a href="#" class="hover:text-white">Pricing</a></li></ul></div>
+        <div><div class="text-[11px] tracking-[0.2em] text-neutral-500 uppercase mb-4">Get started</div><ul class="space-y-2 text-sm text-neutral-400"><li><a href="#" class="hover:text-white">Sign up as client</a></li><li><a href="#" class="hover:text-white">Apply as trainer</a></li></ul></div>
+        <div><div class="text-[11px] tracking-[0.2em] text-neutral-500 uppercase mb-4">Support</div><ul class="space-y-2 text-sm text-neutral-400"><li><a href="#" class="hover:text-white">Help center</a></li><li><a href="#" class="hover:text-white">Contact</a></li><li><a href="#" class="hover:text-white">Privacy</a></li></ul></div>
+      </div>
+      <div class="mt-14 pt-8 border-t border-white/5 text-xs text-neutral-600">&copy; 2026 Shape.</div>
+    </div>
+  </footer>
+
+</body>
+</html>
