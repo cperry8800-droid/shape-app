@@ -1297,13 +1297,17 @@
       font-size: 0.7rem;
     }
     #shapeAvailGrid td.avail-cell {
-      width: 40px; height: 24px;
+      width: 32px; height: 18px;
       cursor: pointer;
       transition: background 0.12s;
     }
     #shapeAvailGrid td.avail-cell:hover { background: rgba(45,212,191,0.15); }
     #shapeAvailGrid td.avail-cell.on { background: #2DD4BF; }
     #shapeAvailGrid td.avail-cell.on:hover { background: #5eead4; }
+    #shapeAvailCard details > summary { list-style: none; cursor: pointer; }
+    #shapeAvailCard details > summary::-webkit-details-marker { display: none; }
+    #shapeAvailCard details[open] .shape-avail-caret { transform: rotate(180deg); }
+    .shape-avail-caret { display:inline-block; transition: transform 0.15s; }
   </style>
   <script>
     (function () {
@@ -1354,6 +1358,13 @@
         });
       }
       function setStatus(s) { document.getElementById('shapeAvailStatus').textContent = s || ''; }
+      function setSummary() {
+        var el = document.getElementById('shapeAvailSummary');
+        if (!el) return;
+        el.textContent = selected.size
+          ? selected.size + ' slot' + (selected.size === 1 ? '' : 's') + ' set · tap to edit'
+          : 'No slots set — tap to add availability.';
+      }
 
       async function load() {
         try {
@@ -1363,6 +1374,7 @@
           (data.slots || []).forEach(function (s) { selected.add(key(s.weekday, s.start_minute)); });
           buildGrid();
           dirty = false;
+          setSummary();
           setStatus(selected.size ? '' : 'No slots set. Click cells to add availability.');
         } catch (e) {
           setStatus('Could not load availability.');
@@ -1384,6 +1396,7 @@
           var data = await res.json().catch(function () { return {}; });
           if (!res.ok) { setStatus('Save failed: ' + (data.error || res.status)); return; }
           dirty = false;
+          setSummary();
           setStatus('Saved ' + slots.length + ' slots.');
         } catch (e) {
           setStatus('Save failed: network error.');
@@ -1405,7 +1418,7 @@
         load();
         document.getElementById('shapeAvailSave').addEventListener('click', save);
         document.getElementById('shapeAvailClear').addEventListener('click', function () {
-          selected.clear(); buildGrid(); dirty = true; setStatus('Cleared — remember to save.');
+          selected.clear(); buildGrid(); dirty = true; setSummary(); setStatus('Cleared — remember to save.');
         });
         document.getElementById('shapeAvailPreset').addEventListener('click', function () {
           selected.clear();
@@ -1417,38 +1430,15 @@
           }
           buildGrid();
           dirty = true;
+          setSummary();
           setStatus('Preset applied — remember to save.');
         });
       });
     })();
   </script>
 
-  <!-- Client playlists — trainers curate Spotify playlists; subscribers see them on Shape Radio -->
-  <div class="container" id="shapePlaylistsCard" style="display:none;margin-top:14px;">
-    <div style="background:#141414;border:1px solid rgba(255,255,255,0.09);padding:16px 18px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
-        <div>
-          <div style="font-size:0.78rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.62);margin-bottom:4px;">Client playlists</div>
-          <div style="font-size:0.82rem;color:var(--text-muted);">Send Spotify playlists to your subscribers via <a href="radio.html" style="color:#2DD4BF;">Shape Radio</a>.</div>
-        </div>
-      </div>
+  <!-- Client playlists — moved to Programs tab (see #tab-programs below) -->
 
-      <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:14px;">
-        <input id="shapePlTitle" type="text" placeholder="Playlist title (e.g. Leg day heat)" maxlength="200"
-          style="padding:10px 12px;background:#0a0a0a;border:1px solid rgba(255,255,255,0.12);color:#fff;font-family:inherit;font-size:0.86rem;" />
-        <input id="shapePlUrl" type="url" placeholder="Paste Spotify playlist link — https://open.spotify.com/playlist/..."
-          style="padding:10px 12px;background:#0a0a0a;border:1px solid rgba(255,255,255,0.12);color:#fff;font-family:inherit;font-size:0.86rem;" />
-        <input id="shapePlDesc" type="text" placeholder="Optional note for clients" maxlength="300"
-          style="padding:10px 12px;background:#0a0a0a;border:1px solid rgba(255,255,255,0.12);color:#fff;font-family:inherit;font-size:0.86rem;" />
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <button id="shapePlAdd" type="button" class="btn btn-primary" style="padding:9px 18px;font-size:0.8rem;">Add playlist</button>
-          <span id="shapePlStatus" style="font-size:0.78rem;color:var(--text-muted);"></span>
-        </div>
-      </div>
-
-      <div id="shapePlList" style="display:flex;flex-direction:column;gap:10px;"></div>
-    </div>
-  </div>
   <script>
     (function () {
       function ready(cb) {
@@ -2311,6 +2301,29 @@
           <div class="pb-empty">No workouts yet. Create your first single workout session above.</div>
         </div>
       </div>
+
+      <!-- ===== CLIENT PLAYLISTS SECTION ===== -->
+      <div id="shapePlaylistsCard" style="display:none;margin-top:48px;padding-top:32px;border-top:1px solid var(--border);">
+        <div class="pb-header">
+          <h2>Client Playlists</h2>
+        </div>
+        <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 16px;">Send Spotify playlists to your subscribers via <a href="radio.html" style="color:#2DD4BF;">Shape Radio</a>, or attach them to workouts.</p>
+        <div style="background:#141414;border:1px solid rgba(255,255,255,0.09);padding:16px 18px;">
+          <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:14px;">
+            <input id="shapePlTitle" type="text" placeholder="Playlist title (e.g. Leg day heat)" maxlength="200"
+              style="padding:10px 12px;background:#0a0a0a;border:1px solid rgba(255,255,255,0.12);color:#fff;font-family:inherit;font-size:0.86rem;" />
+            <input id="shapePlUrl" type="url" placeholder="Paste Spotify playlist link — https://open.spotify.com/playlist/..."
+              style="padding:10px 12px;background:#0a0a0a;border:1px solid rgba(255,255,255,0.12);color:#fff;font-family:inherit;font-size:0.86rem;" />
+            <input id="shapePlDesc" type="text" placeholder="Optional note for clients" maxlength="300"
+              style="padding:10px 12px;background:#0a0a0a;border:1px solid rgba(255,255,255,0.12);color:#fff;font-family:inherit;font-size:0.86rem;" />
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <button id="shapePlAdd" type="button" class="btn btn-primary" style="padding:9px 18px;font-size:0.8rem;">Add playlist</button>
+              <span id="shapePlStatus" style="font-size:0.78rem;color:var(--text-muted);"></span>
+            </div>
+          </div>
+          <div id="shapePlList" style="display:flex;flex-direction:column;gap:10px;"></div>
+        </div>
+      </div>
     </div>
 
     <!-- ========== TAB: MESSAGES ========== -->
@@ -2638,23 +2651,26 @@
 
           <!-- Weekly availability grid — drives the real slots on /consultation.html -->
           <div id="shapeAvailCard" style="display:none;margin-bottom:20px;">
-            <div style="background:#141414;border:1px solid rgba(255,255,255,0.09);padding:16px 18px;">
-              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
-                <div>
-                  <div style="font-size:0.78rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.62);margin-bottom:4px;">Weekly availability</div>
-                  <div style="font-size:0.82rem;color:var(--text-muted);">Click slots to toggle. Clients see these on your consultation page.</div>
+            <details style="background:#141414;border:1px solid rgba(255,255,255,0.09);">
+              <summary style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                <div style="min-width:0;">
+                  <div style="font-size:0.78rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.62);">Weekly availability</div>
+                  <div id="shapeAvailSummary" style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">Click to edit your bookable slots.</div>
                 </div>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                  <button id="shapeAvailPreset" type="button" style="padding:8px 14px;font-size:0.78rem;background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.72);cursor:pointer;">9–5 weekdays</button>
-                  <button id="shapeAvailClear" type="button" style="padding:8px 14px;font-size:0.78rem;background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.72);cursor:pointer;">Clear all</button>
-                  <button id="shapeAvailSave" type="button" class="btn btn-primary" style="padding:8px 16px;font-size:0.78rem;">Save</button>
+                <span class="shape-avail-caret" style="font-size:0.7rem;color:rgba(255,255,255,0.5);">▾</span>
+              </summary>
+              <div style="padding:12px 16px 16px;border-top:1px solid rgba(255,255,255,0.06);">
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+                  <button id="shapeAvailPreset" type="button" style="padding:6px 12px;font-size:0.74rem;background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.72);cursor:pointer;">9–5 weekdays</button>
+                  <button id="shapeAvailClear" type="button" style="padding:6px 12px;font-size:0.74rem;background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.72);cursor:pointer;">Clear all</button>
+                  <button id="shapeAvailSave" type="button" class="btn btn-primary" style="padding:6px 14px;font-size:0.74rem;">Save</button>
                 </div>
+                <div id="shapeAvailGridWrap" style="overflow-x:auto;">
+                  <table id="shapeAvailGrid" style="border-collapse:collapse;font-size:0.72rem;"></table>
+                </div>
+                <div id="shapeAvailStatus" style="margin-top:10px;font-size:0.76rem;color:var(--text-muted);"></div>
               </div>
-              <div id="shapeAvailGridWrap" style="overflow-x:auto;">
-                <table id="shapeAvailGrid" style="border-collapse:collapse;font-size:0.74rem;"></table>
-              </div>
-              <div id="shapeAvailStatus" style="margin-top:10px;font-size:0.78rem;color:var(--text-muted);"></div>
-            </div>
+            </details>
           </div>
 
           <button class="btn btn-primary" onclick="openBookingModal()" style="width:100%;">Book a 1-on-1 Consultation</button>
