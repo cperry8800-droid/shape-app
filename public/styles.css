@@ -439,7 +439,9 @@ img.card-avatar-inline { background: var(--border); }
   padding: 48px; max-width: 520px; width: 90%; max-height: 90vh; overflow-y: auto;
   transform: translateY(20px); transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
+  scrollbar-width: none; -ms-overflow-style: none;
 }
+.modal::-webkit-scrollbar { display: none; }
 .modal-lg { max-width: 760px; }
 .modal-overlay.active .modal { transform: translateY(0); }
 .modal-close {
