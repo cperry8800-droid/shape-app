@@ -36,7 +36,7 @@ async function getProviderConnectInfo(
   const admin = createAdminClient();
   const { data: provider, error } = await admin
     .from(table)
-    .select('id, name, price, stripe_product_id, stripe_price_id, stripe_account_id, stripe_account_status')
+    .select('id, name, price, stripe_account_id, stripe_account_status')
     .eq('id', providerId)
     .maybeSingle();
 
@@ -49,38 +49,21 @@ async function getProviderConnectInfo(
 
   const priceCents = Math.round(Number(provider.price) * 100);
 
-  if (provider.stripe_price_id) {
-    return {
-      priceId: provider.stripe_price_id,
-      priceCents,
-      stripeAccountId: provider.stripe_account_id,
-    };
-  }
-
-  // Prices / products live on the PLATFORM account (not the connected
-  // account) — that way Shape owns the catalog and can apply the same
-  // price object across multiple Checkout Sessions.
-  let productId = provider.stripe_product_id;
-  if (!productId) {
-    const product = await stripe.products.create({
-      name: `${provider.name} — ${providerRole} subscription`,
-      metadata: { provider_id: String(provider.id), provider_role: providerRole },
-    });
-    productId = product.id;
-  }
-
+  // Create a fresh product + price on the PLATFORM account for each
+  // Checkout Session. Cheap, and avoids needing cache columns on the
+  // trainers / nutritionists table. (We can re-introduce caching once
+  // those columns exist in the schema.)
+  const product = await stripe.products.create({
+    name: `${provider.name} — ${providerRole} subscription`,
+    metadata: { provider_id: String(provider.id), provider_role: providerRole },
+  });
   const price = await stripe.prices.create({
-    product: productId,
+    product: product.id,
     currency: 'usd',
     unit_amount: priceCents,
     recurring: { interval: 'month' },
     metadata: { provider_id: String(provider.id), provider_role: providerRole },
   });
-
-  await admin
-    .from(table)
-    .update({ stripe_product_id: productId, stripe_price_id: price.id })
-    .eq('id', provider.id);
 
   return {
     priceId: price.id,
