@@ -307,7 +307,7 @@
       if (!table) return null;
       var res = await client
         .from(table)
-        .select('id, name, stripe_account_id, stripe_account_status, at_capacity')
+        .select('id, name, stripe_account_id, stripe_account_status, at_capacity, capacity_resume_at')
         .eq('owner_id', session.user.id)
         .order('id', { ascending: true })
         .limit(1);
@@ -315,20 +315,40 @@
         console.warn('[shape] getMyProvider error', res.error);
         return null;
       }
-      return (res.data && res.data[0]) || null;
+      var row = (res.data && res.data[0]) || null;
+      // Lazy cleanup: if resume date has passed, flip at_capacity off so
+      // the dashboard + listings reflect reality without a cron job.
+      if (row && row.at_capacity && row.capacity_resume_at) {
+        var resumeMs = new Date(row.capacity_resume_at).getTime();
+        if (isFinite(resumeMs) && resumeMs <= Date.now()) {
+          await client
+            .from(table)
+            .update({ at_capacity: false, capacity_resume_at: null })
+            .eq('id', row.id);
+          row.at_capacity = false;
+          row.capacity_resume_at = null;
+        }
+      }
+      return row;
     },
 
-    // Flip the at_capacity flag on the signed-in provider's row. RLS only
-    // allows updates when owner_id = auth.uid(), so this is safe to call
-    // from the dashboard without an extra ownership check.
-    async setAtCapacity(role, providerId, isAtCapacity) {
+    // Flip the at_capacity flag on the signed-in provider's row and
+    // optionally schedule an auto-resume date. RLS only allows updates
+    // when owner_id = auth.uid(), so this is safe to call from the
+    // dashboard without an extra ownership check.
+    //
+    // resumeAt: ISO string or null. Ignored when isAtCapacity is false
+    // (auto-resume only makes sense while paused).
+    async setAtCapacity(role, providerId, isAtCapacity, resumeAt) {
       var table = role === 'trainer' ? 'trainers' : role === 'nutritionist' ? 'nutritionists' : null;
       if (!table) return { error: { message: 'invalid role' } };
+      var patch = { at_capacity: !!isAtCapacity };
+      patch.capacity_resume_at = isAtCapacity ? (resumeAt || null) : null;
       return await client
         .from(table)
-        .update({ at_capacity: !!isAtCapacity })
+        .update(patch)
         .eq('id', providerId)
-        .select('id, at_capacity')
+        .select('id, at_capacity, capacity_resume_at')
         .single();
     },
 

@@ -377,12 +377,22 @@
           try {
             var res = await window.shapeDb.client
               .from('nutritionists')
-              .select('at_capacity')
+              .select('at_capacity, capacity_resume_at')
               .eq('id', id)
               .maybeSingle();
-            if (res && res.data && res.data.at_capacity) {
-              if (ctas) ctas.style.display = 'none';
-              if (notice) notice.style.display = 'block';
+            if (res && res.data) {
+              var resume = res.data.capacity_resume_at;
+              var effective = res.data.at_capacity && (!resume || new Date(resume).getTime() > Date.now());
+              if (effective) {
+                if (ctas) ctas.style.display = 'none';
+                if (notice) {
+                  if (resume) {
+                    var nice = new Date(resume).toLocaleDateString();
+                    notice.innerHTML = '<strong style="color:#fca5a5;">Currently at capacity.</strong> This nutritionist is accepting new clients again on ' + nice + '.';
+                  }
+                  notice.style.display = 'block';
+                }
+              }
             }
           } catch (e) { /* leave CTAs visible on error */ }
         });

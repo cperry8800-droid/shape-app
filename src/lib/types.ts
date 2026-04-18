@@ -21,6 +21,7 @@ export type Trainer = {
   totm_quote: string | null;
   featured: boolean;
   at_capacity: boolean;
+  capacity_resume_at: string | null;
   workouts?: TrainerWorkout[];
 };
 
@@ -62,6 +63,7 @@ export type Nutritionist = {
   notm_quote: string | null;
   featured: boolean;
   at_capacity: boolean;
+  capacity_resume_at: string | null;
   plans?: NutritionistPlan[];
 };
 

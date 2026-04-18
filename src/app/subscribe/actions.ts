@@ -18,6 +18,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { stripe } from '@/lib/stripe';
+import { isEffectivelyAtCapacity } from '@/lib/capacity';
 
 type ProviderRole = 'trainer' | 'nutritionist';
 
@@ -36,13 +37,13 @@ async function getProviderConnectInfo(
   const admin = createAdminClient();
   const { data: provider, error } = await admin
     .from(table)
-    .select('id, name, price, stripe_account_id, stripe_account_status, at_capacity')
+    .select('id, name, price, stripe_account_id, stripe_account_status, at_capacity, capacity_resume_at')
     .eq('id', providerId)
     .maybeSingle();
 
   if (error) return { error: `db_${error.code ?? 'error'}: ${error.message}` };
   if (!provider) return { error: 'provider_not_found' };
-  if (provider.at_capacity) return { error: 'provider_at_capacity' };
+  if (isEffectivelyAtCapacity(provider)) return { error: 'provider_at_capacity' };
   if (!provider.price || provider.price <= 0) return { error: 'price_not_set' };
   if (!provider.stripe_account_id || provider.stripe_account_status !== 'active') {
     return { error: 'stripe_not_onboarded' };

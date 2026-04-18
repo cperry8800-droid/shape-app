@@ -6,6 +6,7 @@
 
 import { useMemo, useState } from 'react';
 import ProviderCard from './ProviderCard';
+import { isEffectivelyAtCapacity } from '@/lib/capacity';
 
 type Item = {
   id: number;
@@ -22,6 +23,7 @@ type Item = {
   location?: string | null;
   price: number | null;
   at_capacity?: boolean | null;
+  capacity_resume_at?: string | null;
 };
 
 export type SortKey = 'subscribers' | 'rating' | 'price';
@@ -129,7 +131,10 @@ export default function ProviderFilter({
             priceSuffix="/ month"
             horizontal
             href={`${hrefPrefix}/${it.id}`}
-            atCapacity={!!it.at_capacity}
+            atCapacity={isEffectivelyAtCapacity({
+              at_capacity: it.at_capacity ?? false,
+              capacity_resume_at: it.capacity_resume_at,
+            })}
           />
         ))}
         {filtered.length === 0 && (

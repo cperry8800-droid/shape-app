@@ -1271,15 +1271,23 @@
 
   <!-- At-capacity toggle: pause new client sign-ups when overwhelmed -->
   <div class="container" id="shapeCapacityCard" style="display:none;margin-top:14px;">
-    <div style="background:#141414;border:1px solid rgba(255,255,255,0.09);padding:16px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-      <div style="flex:1;min-width:220px;">
-        <div style="font-size:0.78rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.62);margin-bottom:4px;">Booking status</div>
-        <div style="font-size:0.86rem;color:var(--text-muted);" id="shapeCapacityMsg">Accepting new clients. Toggle on if you're at capacity and want to pause new sign-ups.</div>
+    <div style="background:#141414;border:1px solid rgba(255,255,255,0.09);padding:16px 18px;">
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:220px;">
+          <div style="font-size:0.78rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.62);margin-bottom:4px;">Booking status</div>
+          <div style="font-size:0.86rem;color:var(--text-muted);" id="shapeCapacityMsg">Accepting new clients. Toggle on if you're at capacity and want to pause new sign-ups.</div>
+        </div>
+        <label style="display:inline-flex;align-items:center;gap:10px;cursor:pointer;user-select:none;white-space:nowrap;">
+          <span style="font-size:0.82rem;font-weight:500;letter-spacing:0.04em;text-transform:uppercase;color:rgba(255,255,255,0.85);">At capacity</span>
+          <input type="checkbox" id="shapeCapacityToggle" style="width:42px;height:24px;appearance:none;-webkit-appearance:none;background:rgba(255,255,255,0.14);border-radius:999px;position:relative;cursor:pointer;outline:none;transition:background 0.2s;" />
+        </label>
       </div>
-      <label style="display:inline-flex;align-items:center;gap:10px;cursor:pointer;user-select:none;white-space:nowrap;">
-        <span style="font-size:0.82rem;font-weight:500;letter-spacing:0.04em;text-transform:uppercase;color:rgba(255,255,255,0.85);">At capacity</span>
-        <input type="checkbox" id="shapeCapacityToggle" style="width:42px;height:24px;appearance:none;-webkit-appearance:none;background:rgba(255,255,255,0.14);border-radius:999px;position:relative;cursor:pointer;outline:none;transition:background 0.2s;" />
-      </label>
+      <div id="shapeCapacityResumeRow" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <label for="shapeCapacityResumeAt" style="font-size:0.82rem;color:rgba(255,255,255,0.72);">Auto-resume on (optional):</label>
+        <input id="shapeCapacityResumeAt" type="date" style="padding:8px 10px;background:#0a0a0a;border:1px solid rgba(255,255,255,0.12);color:#fff;font-family:inherit;color-scheme:dark;" />
+        <button id="shapeCapacityResumeSave" type="button" class="btn btn-secondary" style="padding:8px 14px;font-size:0.78rem;">Save date</button>
+        <button id="shapeCapacityResumeClear" type="button" style="padding:8px 14px;font-size:0.78rem;background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.62);cursor:pointer;">Clear</button>
+      </div>
     </div>
   </div>
   <style>
@@ -1316,26 +1324,73 @@
         var card = document.getElementById('shapeCapacityCard');
         var toggle = document.getElementById('shapeCapacityToggle');
         var msg = document.getElementById('shapeCapacityMsg');
+        var resumeRow = document.getElementById('shapeCapacityResumeRow');
+        var resumeInput = document.getElementById('shapeCapacityResumeAt');
+        var resumeSave = document.getElementById('shapeCapacityResumeSave');
+        var resumeClear = document.getElementById('shapeCapacityResumeClear');
         if (!card || !toggle || !msg) return;
         card.style.display = 'block';
-        function paint(isAtCap) {
-          toggle.checked = !!isAtCap;
-          msg.textContent = isAtCap
-            ? "You're marked as at capacity. New clients can't subscribe or buy plans until you toggle this off."
-            : "Accepting new clients. Toggle on if you're at capacity and want to pause new sign-ups.";
+        function isoToDateInput(iso) {
+          if (!iso) return '';
+          var d = new Date(iso);
+          if (isNaN(d.getTime())) return '';
+          var y = d.getFullYear();
+          var m = String(d.getMonth() + 1).padStart(2, '0');
+          var day = String(d.getDate()).padStart(2, '0');
+          return y + '-' + m + '-' + day;
         }
-        paint(provider.at_capacity);
+        function paint(isAtCap, resumeAt) {
+          toggle.checked = !!isAtCap;
+          if (isAtCap) {
+            if (resumeAt) {
+              var nice = new Date(resumeAt).toLocaleDateString();
+              msg.textContent = "At capacity. Auto-resuming on " + nice + ".";
+            } else {
+              msg.textContent = "You're marked as at capacity. New clients can't subscribe or buy plans until you toggle this off.";
+            }
+            resumeRow.style.display = 'flex';
+            resumeInput.value = isoToDateInput(resumeAt);
+          } else {
+            msg.textContent = "Accepting new clients. Toggle on if you're at capacity and want to pause new sign-ups.";
+            resumeRow.style.display = 'none';
+            resumeInput.value = '';
+          }
+        }
+        paint(provider.at_capacity, provider.capacity_resume_at);
         toggle.addEventListener('change', async function () {
           var next = toggle.checked;
           toggle.disabled = true;
-          var res = await window.shapeDb.setAtCapacity('nutritionist', provider.id, next);
+          var res = await window.shapeDb.setAtCapacity('nutritionist', provider.id, next, null);
           toggle.disabled = false;
           if (res && res.error) {
             alert('Could not update: ' + (res.error.message || 'unknown error'));
-            paint(!next);
+            paint(!next, provider.capacity_resume_at);
             return;
           }
-          paint(next);
+          provider.at_capacity = next;
+          provider.capacity_resume_at = null;
+          paint(next, null);
+        });
+        resumeSave.addEventListener('click', async function () {
+          if (!toggle.checked) return;
+          var val = resumeInput.value;
+          if (!val) { alert('Pick a date first, or use Clear.'); return; }
+          var iso = new Date(val + 'T00:00:00').toISOString();
+          resumeSave.disabled = true;
+          var res = await window.shapeDb.setAtCapacity('nutritionist', provider.id, true, iso);
+          resumeSave.disabled = false;
+          if (res && res.error) { alert('Could not save date: ' + (res.error.message || 'unknown')); return; }
+          provider.capacity_resume_at = iso;
+          paint(true, iso);
+        });
+        resumeClear.addEventListener('click', async function () {
+          if (!toggle.checked) return;
+          resumeClear.disabled = true;
+          var res = await window.shapeDb.setAtCapacity('nutritionist', provider.id, true, null);
+          resumeClear.disabled = false;
+          if (res && res.error) { alert('Could not clear: ' + (res.error.message || 'unknown')); return; }
+          provider.capacity_resume_at = null;
+          paint(true, null);
         });
       });
     })();

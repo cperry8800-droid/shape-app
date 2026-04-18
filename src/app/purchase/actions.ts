@@ -9,6 +9,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { stripe } from '@/lib/stripe';
+import { isEffectivelyAtCapacity } from '@/lib/capacity';
 
 type ProviderRole = 'trainer' | 'nutritionist';
 type Kind = 'booking' | 'meal_plan';
@@ -55,7 +56,7 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
   const { data: provider, error: providerError } = await admin
     .from(table)
     .select(
-      `id, name, price, ${priceCol}, stripe_account_id, stripe_account_status, at_capacity`
+      `id, name, price, ${priceCol}, stripe_account_id, stripe_account_status, at_capacity, capacity_resume_at`
     )
     .eq('id', providerId)
     .maybeSingle();
@@ -64,7 +65,7 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
     redirect(`${backHref}&error=${encodeURIComponent(`db_${providerError.code ?? 'error'}: ${providerError.message}`)}`);
   }
   if (!provider) redirect(`${backHref}&error=provider_not_found`);
-  if (provider.at_capacity) redirect(`${backHref}&error=provider_at_capacity`);
+  if (isEffectivelyAtCapacity(provider)) redirect(`${backHref}&error=provider_at_capacity`);
   if (!provider.stripe_account_id || provider.stripe_account_status !== 'active') {
     redirect(`${backHref}&error=provider_not_onboarded`);
   }
