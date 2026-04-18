@@ -1,4 +1,4 @@
-const CACHE_NAME = 'shape-v117';
+const CACHE_NAME = 'shape-v118';
 const ASSETS = [
   '/',
   '/index.html',
@@ -25,7 +25,9 @@ const ASSETS = [
   '/signup-client.html',
   '/signup-trainer.html',
   '/signup-nutritionist.html',
-  '/signup-gym.html'
+  '/signup-gym.html',
+  '/my-workouts.html',
+  '/workout.html'
 ];
 
 self.addEventListener('install', e => {

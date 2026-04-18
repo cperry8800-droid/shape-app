@@ -2089,6 +2089,9 @@
               <div style="height:100%;width:50%;background:var(--accent);"></div>
             </div>
           </div>
+          <!-- Real workouts assigned by the trainer (pulled from Supabase) -->
+          <div id="clAssignedWorkouts" style="margin-top:18px;"></div>
+
           <div class="today-feed-section-head"><h3>Up next</h3><a href="#" onclick="event.preventDefault();var d=document.querySelector('#tabTraining .today-legacy-wrap');if(d)d.open=true;">All widgets</a></div>
           <div class="today-feed-list">
             <div class="today-feed-item" onclick="openFeedAction('workout-today')">
@@ -7088,6 +7091,49 @@
       if (window.shapeDb) await window.shapeDb.signOut();
       window.location.href = 'home.html';
     }
+
+    // Render real workouts the trainer has assigned. Hits Supabase after
+    // shapeDb is ready; fails silently if the client isn't signed in so the
+    // demo banner view isn't broken.
+    (function () {
+      function ready(cb) {
+        if (window.shapeDb) return cb();
+        var tries = 0;
+        var t = setInterval(function () {
+          if (window.shapeDb || ++tries > 60) { clearInterval(t); if (window.shapeDb) cb(); }
+        }, 100);
+      }
+      function esc(s) { return String(s || '').replace(/[&<>"']/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
+      ready(async function () {
+        var root = document.getElementById('clAssignedWorkouts');
+        if (!root) return;
+        var session = await window.shapeDb.getSession();
+        if (!session) return;
+        var res = await window.shapeDb.listMyClientWorkouts();
+        if (res.error) return;
+        var rows = res.data || [];
+        if (rows.length === 0) return;
+        var top = rows.slice(0, 3);
+        var cards = top.map(function (w) {
+          var music = w.trainer_playlists && w.trainer_playlists.title ? ' &middot; &#9835; ' + esc(w.trainer_playlists.title) : '';
+          var trainer = w.trainers && w.trainers.name ? w.trainers.name : 'Your trainer';
+          return '<a href="workout.html?id=' + esc(w.id) + '" class="today-feed-item" style="text-decoration:none;color:inherit;">'
+            + '<div class="today-feed-time">New</div>'
+            + '<div class="today-feed-body">'
+            + '<div class="today-feed-label">From ' + esc(trainer) + music + '</div>'
+            + '<div class="today-feed-title">' + esc(w.title) + '</div>'
+            + '</div>'
+            + '<span class="today-feed-cta primary">Open</span>'
+            + '</a>';
+        }).join('');
+        root.innerHTML =
+          '<div class="today-feed-section-head" style="margin-top:0;">'
+          + '<h3>Workouts from your trainer</h3>'
+          + '<a href="my-workouts.html">See all</a>'
+          + '</div>'
+          + '<div class="today-feed-list">' + cards + '</div>';
+      });
+    })();
   </script>
   <!-- Feed action modal (option 3 inline actions) -->
   <div class="feed-modal-overlay" id="feedActionModal" onclick="if(event.target===this)closeFeedAction()">

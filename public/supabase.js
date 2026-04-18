@@ -391,6 +391,74 @@
       return await client.from('trainer_playlists').delete().eq('id', playlistId);
     },
 
+    // List the signed-in provider's active subscribers with their first/last
+    // names from client_intakes. Powers the "Assign to Client" dropdown in
+    // the workout builder. Falls back to an empty array if either query
+    // fails — the caller renders "None" in that case.
+    async listMySubscribers(role, providerId) {
+      var subs = await client
+        .from('subscriptions')
+        .select('client_id, status')
+        .eq('provider_id', providerId)
+        .eq('provider_role', role)
+        .in('status', ['active', 'trialing']);
+      if (subs.error || !subs.data || subs.data.length === 0) return { data: [], error: subs.error || null };
+      var ids = subs.data.map(function (s) { return s.client_id; });
+      var intakes = await client
+        .from('client_intakes')
+        .select('user_id, first_name, last_name')
+        .in('user_id', ids);
+      if (intakes.error) return { data: [], error: intakes.error };
+      var byId = {};
+      (intakes.data || []).forEach(function (r) { byId[r.user_id] = r; });
+      var out = ids.map(function (id) {
+        var r = byId[id];
+        var name = r ? ((r.first_name || '') + ' ' + (r.last_name || '')).trim() : '';
+        return { id: id, name: name || 'Client' };
+      });
+      return { data: out, error: null };
+    },
+
+    // Publish a workout from the builder to Supabase so it reaches a real
+    // assigned client. localStorage still holds the in-progress draft — this
+    // only runs on "Publish & Send to Client".
+    async publishClientWorkout(trainerId, fields) {
+      var row = {
+        trainer_id: trainerId,
+        client_id: fields.clientId,
+        title: (fields.title || '').slice(0, 200),
+        description: fields.description ? String(fields.description).slice(0, 2000) : null,
+        kind: fields.kind === 'custom' ? 'custom' : 'template',
+        payload: fields.payload || {},
+        playlist_id: fields.playlistId || null,
+        status: 'published',
+      };
+      if (!row.client_id) return { error: { message: 'Pick a client first.' } };
+      if (!row.title) return { error: { message: 'Workout name is required.' } };
+      return await client.from('client_workouts').insert(row).select().single();
+    },
+
+    // Pull all workouts assigned to the signed-in client. Joins the playlist
+    // so the detail view can embed Spotify without a second round-trip.
+    async listMyClientWorkouts() {
+      var session = await shapeDb.getSession();
+      if (!session) return { data: [], error: null };
+      return await client
+        .from('client_workouts')
+        .select('id, title, description, kind, payload, playlist_id, created_at, trainer_id, trainers:trainer_id(name), trainer_playlists:playlist_id(id, title, spotify_playlist_id)')
+        .eq('client_id', session.user.id)
+        .eq('status', 'published')
+        .order('created_at', { ascending: false });
+    },
+
+    async getClientWorkout(id) {
+      return await client
+        .from('client_workouts')
+        .select('id, title, description, kind, payload, playlist_id, created_at, trainer_id, trainers:trainer_id(name), trainer_playlists:playlist_id(id, title, spotify_playlist_id)')
+        .eq('id', id)
+        .maybeSingle();
+    },
+
     // Fetch playlists from trainers the signed-in user subscribes to.
     // Returns [{ id, title, description, spotify_playlist_id, trainer_id, trainer_name }].
     async listPlaylistsForMe() {

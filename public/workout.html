@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape — Workout</title>
+  <meta name="description" content="Your Shape workout session.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .wo-wrap { max-width: 900px; margin: 0 auto; padding: 130px 24px 60px; }
+    .wo-back { font-size: 0.8rem; color: var(--text-muted); display: inline-block; margin-bottom: 18px; }
+    .wo-back:hover { color: var(--text); }
+    .wo-header { margin-bottom: 24px; }
+    .wo-header h1 { font-size: 1.8rem; font-weight: 500; letter-spacing: -0.02em; margin: 0 0 6px; }
+    .wo-header .wo-meta { color: var(--text-muted); font-size: 0.84rem; }
+    .wo-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      padding: 20px; margin-bottom: 16px;
+    }
+    .wo-card h2 {
+      font-size: 0.74rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--text-muted); margin: 0 0 14px;
+    }
+    .wo-spotify {
+      padding: 0; overflow: hidden; background: #000;
+    }
+    .wo-spotify iframe { width: 100%; height: 152px; border: 0; display: block; }
+    .wo-desc { color: var(--text); font-size: 0.92rem; line-height: 1.55; white-space: pre-wrap; }
+    .wo-row {
+      display: grid; grid-template-columns: 2fr 0.6fr 0.8fr 0.6fr 1.4fr; gap: 10px;
+      padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.88rem;
+    }
+    .wo-row:last-child { border-bottom: none; }
+    .wo-row-head {
+      font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--text-muted); padding-bottom: 8px; border-bottom: 1px solid var(--border);
+    }
+    .wo-subrow {
+      display: flex; justify-content: space-between; gap: 10px;
+      padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 0.86rem;
+    }
+    .wo-subrow:last-child { border-bottom: none; }
+    .wo-subrow span:last-child { color: var(--text-muted); }
+    .wo-loading, .wo-empty {
+      padding: 60px 20px; text-align: center; color: var(--text-muted);
+      border: 1px dashed var(--border); font-size: 0.88rem;
+    }
+    @media (max-width: 640px) {
+      .wo-row { grid-template-columns: 2fr 0.6fr 0.8fr; }
+      .wo-row .wo-rest, .wo-row .wo-notes { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar scrolled" id="navbar">
+    <div class="container nav-container">
+      <a href="home.html" class="logo">
+        <svg class="logo-img" viewBox="0 0 95 110" style="overflow:visible" xmlns="http://www.w3.org/2000/svg" aria-label="Shape" role="img"><polygon points="5,113 5,43 55,78" fill="#fff"/><polygon points="90,-3 90,67 40,32" fill="#fff"/></svg>
+      </a>
+      <div class="nav-links" id="navLinks">
+        <a href="clients.html">Dashboard</a>
+        <a href="my-workouts.html">Workouts</a>
+        <a href="radio.html">Radio</a>
+      </div>
+      <div class="nav-actions">
+        <a href="login.html" class="btn btn-sm btn-outline shape-auth-logged-out">Log In</a>
+        <span class="shape-auth-logged-in" style="display:none;font-size:0.82rem;color:var(--text-muted);margin-right:4px;" id="shapeNavUserName"></span>
+        <button class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" onclick="shapeSignOut()">Sign Out</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="wo-wrap">
+    <a href="my-workouts.html" class="wo-back">&larr; All workouts</a>
+    <div id="woRoot">
+      <div class="wo-loading">Loading…</div>
+    </div>
+  </main>
+
+  <script src="supabase.js"></script>
+  <script>
+    (function () {
+      function ready(cb) {
+        if (window.shapeDb) return cb();
+        var tries = 0;
+        var t = setInterval(function () {
+          if (window.shapeDb || ++tries > 60) { clearInterval(t); if (window.shapeDb) cb(); }
+        }, 100);
+      }
+      function esc(s) { return String(s || '').replace(/[&<>"']/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
+      function fmtDate(iso) {
+        try { return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); }
+        catch (e) { return ''; }
+      }
+      function renderList(title, items, mapFn) {
+        if (!items || items.length === 0) return '';
+        return '<div class="wo-card"><h2>' + esc(title) + '</h2>' + items.map(mapFn).join('') + '</div>';
+      }
+      ready(async function () {
+        var id = new URL(window.location.href).searchParams.get('id');
+        var root = document.getElementById('woRoot');
+        if (!id) { root.innerHTML = '<div class="wo-empty">Missing workout id.</div>'; return; }
+        var session = await window.shapeDb.getSession();
+        if (!session) { window.location.href = 'login.html?next=' + encodeURIComponent('/workout.html?id=' + id); return; }
+        var res = await window.shapeDb.getClientWorkout(id);
+        if (res.error || !res.data) { root.innerHTML = '<div class="wo-empty">Workout not found or no longer available.</div>'; return; }
+        var w = res.data;
+        var trainer = w.trainers && w.trainers.name ? w.trainers.name : 'Your trainer';
+        var pl = w.trainer_playlists;
+        var payload = w.payload || {};
+        var parts = [];
+        parts.push(
+          '<div class="wo-header">'
+          + '<h1>' + esc(w.title) + '</h1>'
+          + '<div class="wo-meta">' + esc(trainer) + ' &middot; ' + esc(fmtDate(w.created_at))
+          + (payload.category ? ' &middot; ' + esc(payload.category) : '')
+          + (payload.difficulty ? ' &middot; ' + esc(payload.difficulty) : '')
+          + (payload.duration ? ' &middot; ' + esc(payload.duration) : '')
+          + '</div>'
+          + '</div>'
+        );
+        if (pl && pl.spotify_playlist_id) {
+          parts.push(
+            '<div class="wo-card wo-spotify">'
+            + '<iframe src="https://open.spotify.com/embed/playlist/' + esc(pl.spotify_playlist_id) + '?theme=0" '
+            + 'allow="autoplay; clipboard-write; encrypted-media; picture-in-picture" loading="lazy"></iframe>'
+            + '</div>'
+          );
+        }
+        if (w.description) {
+          parts.push('<div class="wo-card"><h2>Notes</h2><div class="wo-desc">' + esc(w.description) + '</div></div>');
+        }
+        parts.push(renderList('Warm-up', payload.warmup, function (r) {
+          return '<div class="wo-subrow"><span>' + esc(r.exercise || '') + '</span><span>' + esc(r.duration || '') + '</span></div>';
+        }));
+        if (payload.exercises && payload.exercises.length) {
+          parts.push(
+            '<div class="wo-card"><h2>Exercises</h2>'
+            + '<div class="wo-row wo-row-head"><span>Exercise</span><span>Sets</span><span>Reps</span><span class="wo-rest">Rest</span><span class="wo-notes">Weight / Notes</span></div>'
+            + payload.exercises.map(function (ex) {
+              return '<div class="wo-row">'
+                + '<span>' + esc(ex.name || '') + '</span>'
+                + '<span>' + esc(ex.sets || '') + '</span>'
+                + '<span>' + esc(ex.reps || '') + '</span>'
+                + '<span class="wo-rest">' + esc(ex.rest || '') + '</span>'
+                + '<span class="wo-notes">' + esc(ex.notes || '') + '</span>'
+                + '</div>';
+            }).join('')
+            + '</div>'
+          );
+        }
+        parts.push(renderList('Cool-down', payload.cooldown, function (r) {
+          return '<div class="wo-subrow"><span>' + esc(r.exercise || '') + '</span><span>' + esc(r.duration || '') + '</span></div>';
+        }));
+        if (w.kind === 'custom' && payload.files && payload.files.length) {
+          parts.push('<div class="wo-card"><h2>Files</h2>' + payload.files.map(function (f) {
+            return '<div class="wo-subrow"><span>' + esc(f.name || 'File') + '</span><span>' + esc(f.type || '') + '</span></div>';
+          }).join('') + '</div>');
+        }
+        root.innerHTML = parts.join('');
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shape — My Workouts</title>
+  <meta name="description" content="Workouts your Shape trainer assigned to you.">
+  <link rel="canonical" href="https://theshapecommunity.com/my-workouts.html">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .mw-wrap { max-width: 900px; margin: 0 auto; padding: 130px 24px 60px; }
+    .mw-title { font-size: 1.8rem; font-weight: 500; letter-spacing: -0.02em; margin-bottom: 6px; }
+    .mw-sub { color: var(--text-muted); font-size: 0.88rem; margin-bottom: 28px; }
+    .mw-list { display: flex; flex-direction: column; gap: 12px; }
+    .mw-card {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      padding: 18px 20px; background: var(--bg-card); border: 1px solid var(--border);
+      transition: border-color .2s;
+    }
+    .mw-card:hover { border-color: var(--accent); }
+    .mw-card h3 { font-size: 1rem; font-weight: 500; margin: 0 0 4px; }
+    .mw-card .mw-meta { font-size: 0.78rem; color: var(--text-muted); }
+    .mw-card .mw-music {
+      font-size: 0.72rem; color: #2DD4BF; margin-top: 4px; display: inline-flex; align-items: center; gap: 4px;
+    }
+    .mw-empty {
+      padding: 40px 20px; text-align: center; color: var(--text-muted);
+      border: 1px dashed var(--border); font-size: 0.88rem;
+    }
+    .mw-loading { color: var(--text-muted); font-size: 0.88rem; padding: 20px 0; }
+  </style>
+</head>
+<body>
+  <nav class="navbar scrolled" id="navbar">
+    <div class="container nav-container">
+      <a href="home.html" class="logo">
+        <svg class="logo-img" viewBox="0 0 95 110" style="overflow:visible" xmlns="http://www.w3.org/2000/svg" aria-label="Shape" role="img"><polygon points="5,113 5,43 55,78" fill="#fff"/><polygon points="90,-3 90,67 40,32" fill="#fff"/></svg>
+      </a>
+      <div class="nav-links" id="navLinks">
+        <a href="clients.html">Dashboard</a>
+        <a href="marketplace.html">Marketplace</a>
+        <a href="community.html">Community</a>
+        <a href="radio.html">Radio</a>
+      </div>
+      <div class="nav-actions">
+        <a href="login.html" class="btn btn-sm btn-outline shape-auth-logged-out">Log In</a>
+        <a href="landing.html" class="btn btn-sm btn-primary shape-auth-logged-out">Get Started</a>
+        <span class="shape-auth-logged-in" style="display:none;font-size:0.82rem;color:var(--text-muted);margin-right:4px;" id="shapeNavUserName"></span>
+        <button class="btn btn-sm btn-outline shape-auth-logged-in" style="display:none;" onclick="shapeSignOut()">Sign Out</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="mw-wrap">
+    <h1 class="mw-title">My workouts</h1>
+    <p class="mw-sub">Sessions your trainer built for you. Tap one to start.</p>
+    <div id="mwList" class="mw-list">
+      <div class="mw-loading">Loading workouts…</div>
+    </div>
+  </main>
+
+  <script src="supabase.js"></script>
+  <script>
+    (function () {
+      function ready(cb) {
+        if (window.shapeDb) return cb();
+        var tries = 0;
+        var t = setInterval(function () {
+          if (window.shapeDb || ++tries > 60) { clearInterval(t); if (window.shapeDb) cb(); }
+        }, 100);
+      }
+      function esc(s) { return String(s || '').replace(/[&<>"']/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
+      function fmtDate(iso) {
+        try {
+          var d = new Date(iso);
+          return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+        } catch (e) { return ''; }
+      }
+      ready(async function () {
+        var session = await window.shapeDb.getSession();
+        if (!session) { window.location.href = 'login.html?next=' + encodeURIComponent('/my-workouts.html'); return; }
+        var res = await window.shapeDb.listMyClientWorkouts();
+        var list = document.getElementById('mwList');
+        if (res.error) { list.innerHTML = '<div class="mw-empty">Could not load workouts. Try again.</div>'; return; }
+        var rows = res.data || [];
+        if (rows.length === 0) {
+          list.innerHTML = '<div class="mw-empty">No workouts yet. When your trainer publishes one, it\'ll appear here.</div>';
+          return;
+        }
+        list.innerHTML = rows.map(function (w) {
+          var trainer = w.trainers && w.trainers.name ? w.trainers.name : 'Your trainer';
+          var music = w.trainer_playlists && w.trainer_playlists.title ? w.trainer_playlists.title : '';
+          return '<a href="workout.html?id=' + esc(w.id) + '" class="mw-card" style="text-decoration:none;color:inherit;">'
+            + '<div>'
+            + '<h3>' + esc(w.title) + '</h3>'
+            + '<div class="mw-meta">' + esc(trainer) + ' · ' + esc(fmtDate(w.created_at)) + '</div>'
+            + (music ? '<div class="mw-music">&#9835; ' + esc(music) + '</div>' : '')
+            + '</div>'
+            + '<span class="btn btn-sm btn-primary">Open</span>'
+            + '</a>';
+        }).join('');
+      });
+    })();
+  </script>
+</body>
+</html>

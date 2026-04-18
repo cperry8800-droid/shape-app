@@ -1539,12 +1539,38 @@
         if (res.error) { setStatus('Could not load playlists.', true); return; }
         render(res.data || []);
       }
+      // Refresh the workout-builder's "Music (optional)" selects from the
+      // same list. Called after every playlist add/remove so the dropdown
+      // stays in sync while the trainer is mid-flow.
+      async function refreshWorkoutBuilderSelects() {
+        if (!currentProviderId) return;
+        var plRes = await window.shapeDb.listMyPlaylists(currentProviderId);
+        var playlists = (plRes && plRes.data) || [];
+        document.querySelectorAll('[data-wb-playlist]').forEach(function (sel) {
+          var current = sel.value;
+          sel.innerHTML = '<option value="">None</option>' + playlists.map(function (p) {
+            return '<option value="' + esc(p.id) + '">' + esc(p.title) + '</option>';
+          }).join('');
+          if (current) sel.value = current;
+        });
+        var subRes = await window.shapeDb.listMySubscribers('trainer', currentProviderId);
+        var clients = (subRes && subRes.data) || [];
+        document.querySelectorAll('[data-wb-client]').forEach(function (sel) {
+          var current = sel.value;
+          sel.innerHTML = '<option value="">None</option>' + clients.map(function (c) {
+            return '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>';
+          }).join('');
+          if (current) sel.value = current;
+        });
+      }
       ready(async function () {
         var provider = await window.shapeDb.getMyProvider('trainer');
         if (!provider) return;
         currentProviderId = provider.id;
+        window.__wbTrainerId = provider.id;
         document.getElementById('shapePlaylistsCard').style.display = 'block';
         refresh();
+        refreshWorkoutBuilderSelects();
         document.getElementById('shapePlAdd').addEventListener('click', async function () {
           var title = document.getElementById('shapePlTitle').value.trim();
           var url = document.getElementById('shapePlUrl').value.trim();
@@ -1560,7 +1586,12 @@
           document.getElementById('shapePlDesc').value = '';
           setStatus('Saved.');
           refresh();
+          refreshWorkoutBuilderSelects();
         });
+        // Reload after remove too — render() re-binds listeners on each call
+        // so we patch the top-level refresh() to also update selects.
+        var origRefresh = refresh;
+        refresh = async function () { await origRefresh(); refreshWorkoutBuilderSelects(); };
       });
     })();
   </script>
@@ -2241,10 +2272,14 @@
             <div class="pb-assign-bar">
               <div class="pb-field">
                 <label class="pb-label">Assign to Client</label>
-                <select class="pb-select" id="wbTplClient">
+                <select class="pb-select wb-client-select" id="wbTplClient" data-wb-client>
                   <option value="">None</option>
-                  <option>Christopher Perry</option><option>Emma Chen</option><option>David Kim</option>
-                  <option>Sofia Rodriguez</option><option>Marcus Thompson</option>
+                </select>
+              </div>
+              <div class="pb-field">
+                <label class="pb-label">Music (optional)</label>
+                <select class="pb-select wb-playlist-select" id="wbTplPlaylist" data-wb-playlist>
+                  <option value="">None</option>
                 </select>
               </div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;">
@@ -2288,10 +2323,14 @@
             <div class="pb-assign-bar">
               <div class="pb-field">
                 <label class="pb-label">Assign to Client</label>
-                <select class="pb-select" id="wbCustClient">
+                <select class="pb-select wb-client-select" id="wbCustClient" data-wb-client>
                   <option value="">None</option>
-                  <option>Christopher Perry</option><option>Emma Chen</option><option>David Kim</option>
-                  <option>Sofia Rodriguez</option><option>Marcus Thompson</option>
+                </select>
+              </div>
+              <div class="pb-field">
+                <label class="pb-label">Music (optional)</label>
+                <select class="pb-select wb-playlist-select" id="wbCustPlaylist" data-wb-playlist>
+                  <option value="">None</option>
                 </select>
               </div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;">
@@ -3692,6 +3731,10 @@
       var inputs = r.querySelectorAll('.pb-input');
       if (inputs[0] && inputs[0].value) cooldown.push({ exercise: inputs[0].value, duration: inputs[1] ? inputs[1].value : '' });
     });
+    var clientSel = document.getElementById('wbTplClient');
+    var plSel = document.getElementById('wbTplPlaylist');
+    var clientId = clientSel ? clientSel.value : '';
+    var clientLabel = clientSel && clientSel.selectedOptions[0] ? clientSel.selectedOptions[0].textContent : '';
     return {
       type: 'template',
       name: document.getElementById('wbTplName') ? document.getElementById('wbTplName').value : '',
@@ -3704,17 +3747,25 @@
       warmup: warmup,
       exercises: exercises,
       cooldown: cooldown,
-      client: document.getElementById('wbTplClient') ? document.getElementById('wbTplClient').value : ''
+      client: clientId ? clientLabel : '',
+      clientId: clientId || '',
+      playlistId: plSel ? plSel.value : ''
     };
   }
 
   function wbCollectCustom() {
+    var clientSel = document.getElementById('wbCustClient');
+    var plSel = document.getElementById('wbCustPlaylist');
+    var clientId = clientSel ? clientSel.value : '';
+    var clientLabel = clientSel && clientSel.selectedOptions[0] ? clientSel.selectedOptions[0].textContent : '';
     return {
       type: 'custom',
       name: document.getElementById('wbCustName') ? document.getElementById('wbCustName').value : '',
       description: document.getElementById('wbCustDesc') ? document.getElementById('wbCustDesc').value : '',
       files: _wbUploadedFiles.map(function(f) { return { name: f.name, type: f.type, size: f.size, data: f.data }; }),
-      client: document.getElementById('wbCustClient') ? document.getElementById('wbCustClient').value : ''
+      client: clientId ? clientLabel : '',
+      clientId: clientId || '',
+      playlistId: plSel ? plSel.value : ''
     };
   }
 
@@ -3744,13 +3795,41 @@
     renderWbWorkoutList();
   }
 
-  function wbSaveWorkout(type) {
+  async function wbSaveWorkout(type) {
     var workout = type === 'template' ? wbCollectTemplate() : wbCollectCustom();
     if (!workout.name) { if (typeof showToast === 'function') showToast('Please enter a workout name.'); return; }
-    if (!workout.client) { if (typeof showToast === 'function') showToast('Please assign a client first.'); return; }
+    if (!workout.clientId) { if (typeof showToast === 'function') showToast('Please assign a client first.'); return; }
     workout.status = 'Published';
     wbCoreSave(workout);
-    if (typeof showToast === 'function') showToast('Workout published and sent to ' + workout.client + '!');
+    // Mirror the workout to Supabase so the assigned client actually sees it
+    // on /my-workouts.html. Payload is the full builder object minus the
+    // scalar fields already broken out as columns.
+    try {
+      if (window.shapeDb && window.__wbTrainerId) {
+        var payload = JSON.parse(JSON.stringify(workout));
+        delete payload.client; delete payload.clientId; delete payload.playlistId;
+        delete payload.status; delete payload.id; delete payload.createdAt; delete payload.updatedAt;
+        var res = await window.shapeDb.publishClientWorkout(window.__wbTrainerId, {
+          clientId: workout.clientId,
+          title: workout.name,
+          description: workout.description || '',
+          kind: workout.type === 'custom' ? 'custom' : 'template',
+          payload: payload,
+          playlistId: workout.playlistId || null,
+        });
+        if (res && res.error) {
+          console.warn('[shape] publishClientWorkout', res.error);
+          if (typeof showToast === 'function') showToast('Saved locally but could not deliver to client: ' + (res.error.message || 'unknown'));
+        } else if (typeof showToast === 'function') {
+          showToast('Workout published and sent to ' + (workout.client || 'client') + '!');
+        }
+      } else if (typeof showToast === 'function') {
+        showToast('Workout saved locally (trainer profile not linked yet).');
+      }
+    } catch (err) {
+      console.warn('[shape] publishClientWorkout threw', err);
+      if (typeof showToast === 'function') showToast('Saved locally but delivery failed.');
+    }
     _wbBuilderOpen = false;
     _wbEditId = null;
     var builder = document.getElementById('wbBuilder'); if (builder) builder.classList.remove('active');
