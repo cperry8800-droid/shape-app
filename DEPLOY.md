@@ -28,8 +28,24 @@ values from `.env.example`. Scope each to **Production**, **Preview**, and
 | `STRIPE_WEBHOOK_SECRET` | `whsec_...` | Filled in after step 5 |
 | `NEXT_PUBLIC_SITE_URL` | `https://theshapecommunity.com` | No trailing slash |
 | `NEXT_PUBLIC_HCAPTCHA_SITE_KEY` | `xxxxxxxx-...` | Optional, phone login |
+| `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` | from developer.spotify.com | Optional, Spotify integration |
+| `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` | from strava.com/settings/api | Optional, Strava integration |
+| `WHOOP_CLIENT_ID` / `WHOOP_CLIENT_SECRET` | from developer.whoop.com | Optional, Whoop integration |
+| `GARMIN_CLIENT_ID` / `GARMIN_CLIENT_SECRET` | Garmin Health API v2 | Optional, Garmin integration |
 
 Then click **Deploy**.
+
+### Integration callback URLs
+
+Each third-party OAuth app needs its redirect URI registered. Use:
+
+- Spotify: `https://theshapecommunity.com/api/integrations/spotify/callback`
+- Strava:  `https://theshapecommunity.com/api/integrations/strava/callback`
+- Whoop:   `https://theshapecommunity.com/api/integrations/whoop/callback`
+- Garmin:  `https://theshapecommunity.com/api/integrations/garmin/callback`
+
+Apple Watch does not use web OAuth — data flows in through the native iOS
+app via HealthKit. The Integrations page shows it as "Requires iOS app".
 
 ## 3. Update Supabase auth redirect URLs
 

@@ -40,6 +40,7 @@
     .integration-logo.garmin { background: #007CC3; }
     .integration-logo.apple { background: #000; }
     .integration-logo.whoop { background: #44D62C; }
+    .integration-logo.spotify { background: #1DB954; }
     .integration-card-header h3 {
       font-size: 1.05rem; font-weight: 500; margin-bottom: 2px;
     }
@@ -239,8 +240,34 @@
       </div>
 
       <div class="integrations-grid">
+        <!-- Spotify -->
+        <div class="integration-card" id="spotifyCard" data-provider="spotify">
+          <div class="integration-card-header">
+            <div class="integration-logo spotify">S</div>
+            <div>
+              <h3>Spotify</h3>
+              <p>Workout playlists for your sessions</p>
+            </div>
+          </div>
+          <div class="integration-card-body">
+            <p>Link your Spotify account so coaches can pick playlists from your library and Shape can stream the right music during each session on Shape Radio.</p>
+            <div class="integration-features">
+              <div class="integration-feature"><div class="check">&#10003;</div><span>Browse your saved playlists inside Shape</span></div>
+              <div class="integration-feature"><div class="check">&#10003;</div><span>Attach a playlist to each program or workout</span></div>
+              <div class="integration-feature"><div class="check">&#10003;</div><span>Embed playback in Shape Radio and the workout player</span></div>
+            </div>
+          </div>
+          <div class="integration-status">
+            <div class="status-badge" id="spotifyStatus">
+              <span class="status-dot disconnected"></span>
+              <span style="color:var(--text-muted);">Not Connected</span>
+            </div>
+            <button class="btn-connect" id="spotifyBtn" onclick="toggleIntegration('spotify')">Connect</button>
+          </div>
+        </div>
+
         <!-- Strava -->
-        <div class="integration-card" id="stravaCard">
+        <div class="integration-card" id="stravaCard" data-provider="strava">
           <div class="integration-card-header">
             <div class="integration-logo strava">S</div>
             <div>
@@ -271,15 +298,15 @@
           </div>
           <div class="integration-status">
             <div class="status-badge" id="stravaStatus">
-              <span class="status-dot connected"></span>
-              <span style="color:#22C55E;">Connected</span>
+              <span class="status-dot disconnected"></span>
+              <span style="color:var(--text-muted);">Not Connected</span>
             </div>
-            <button class="btn-disconnect" id="stravaBtn" onclick="toggleIntegration('strava')">Disconnect</button>
+            <button class="btn-connect" id="stravaBtn" onclick="toggleIntegration('strava')">Connect</button>
           </div>
         </div>
 
         <!-- Garmin -->
-        <div class="integration-card" id="garminCard">
+        <div class="integration-card" id="garminCard" data-provider="garmin">
           <div class="integration-card-header">
             <div class="integration-logo garmin">G</div>
             <div>
@@ -310,50 +337,41 @@
           </div>
           <div class="integration-status">
             <div class="status-badge" id="garminStatus">
-              <span class="status-dot connected"></span>
-              <span style="color:#22C55E;">Connected</span>
+              <span class="status-dot disconnected"></span>
+              <span style="color:var(--text-muted);">Not Connected</span>
             </div>
-            <button class="btn-disconnect" id="garminBtn" onclick="toggleIntegration('garmin')">Disconnect</button>
+            <button class="btn-connect" id="garminBtn" onclick="toggleIntegration('garmin')">Connect</button>
           </div>
         </div>
 
-        <!-- Apple Health -->
-        <div class="integration-card" id="appleCard">
+        <!-- Apple Watch -->
+        <div class="integration-card" id="appleCard" data-provider="apple_watch">
           <div class="integration-card-header">
             <div class="integration-logo apple">A</div>
             <div>
-              <h3>Apple Health</h3>
-              <p>iOS health & fitness data</p>
+              <h3>Apple Watch</h3>
+              <p>HealthKit data via the Shape iOS app</p>
             </div>
           </div>
           <div class="integration-card-body">
-            <p>Connect Apple Health to pull in steps, active calories, and workout data from your Apple Watch or iPhone. All your health data in one place.</p>
+            <p>Apple Watch data flows in through the Shape iOS app — Apple Health doesn't expose HealthKit on the web. Install the Shape app on your iPhone to pair your watch.</p>
             <div class="integration-features">
-              <div class="integration-feature">
-                <div class="check">&#10003;</div>
-                <span>Sync Apple Watch workout data to Shape</span>
-              </div>
-              <div class="integration-feature">
-                <div class="check">&#10003;</div>
-                <span>Import steps, calories, and heart rate</span>
-              </div>
-              <div class="integration-feature">
-                <div class="check">&#10003;</div>
-                <span>Write Shape sessions back to Apple Health</span>
-              </div>
+              <div class="integration-feature"><div class="check">&#10003;</div><span>Sync Apple Watch workout data to Shape</span></div>
+              <div class="integration-feature"><div class="check">&#10003;</div><span>Import steps, calories, and heart rate</span></div>
+              <div class="integration-feature"><div class="check">&#10003;</div><span>Write Shape sessions back to Apple Health</span></div>
             </div>
           </div>
           <div class="integration-status">
             <div class="status-badge" id="appleStatus">
               <span class="status-dot disconnected"></span>
-              <span style="color:var(--text-muted);">Not Connected</span>
+              <span style="color:var(--text-muted);">Requires iOS app</span>
             </div>
-            <button class="btn-connect" id="appleBtn" onclick="toggleIntegration('apple')">Connect</button>
+            <button class="btn-disconnect" id="appleBtn" style="opacity:0.55;cursor:default;" disabled>iOS only</button>
           </div>
         </div>
 
         <!-- Whoop -->
-        <div class="integration-card" id="whoopCard">
+        <div class="integration-card" id="whoopCard" data-provider="whoop">
           <div class="integration-card-header">
             <div class="integration-logo whoop">W</div>
             <div>
@@ -535,7 +553,6 @@
           <a href="integrations.html">Integrations</a>
           <a href="nutrition-schedule.html">Nutritionist Dashboard</a>
           <a href="trainer-dashboard.html">Trainer Dashboard</a>
-          <a href="integrations.html">Integrations</a>
         </div>
         <div class="footer-col">
           <h4>Get Started</h4>
@@ -562,23 +579,23 @@
   <div class="toast" id="toast"></div>
 
   <script src="app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
   <script>
-    // Integration state
-    const integrations = {
-      strava: { connected: true, name: 'Strava' },
-      garmin: { connected: true, name: 'Garmin Connect' },
-      apple: { connected: false, name: 'Apple Health' },
-      whoop: { connected: false, name: 'Whoop' }
+    // Providers that actually do web OAuth (Apple Watch is excluded — its
+    // data only comes through the native iOS app).
+    const PROVIDER_LABELS = {
+      spotify: 'Spotify',
+      strava: 'Strava',
+      garmin: 'Garmin Connect',
+      whoop: 'Whoop'
     };
 
-    function toggleIntegration(id) {
-      const int = integrations[id];
-      int.connected = !int.connected;
-
+    function setCardState(id, connected) {
       const statusEl = document.getElementById(id + 'Status');
       const btnEl = document.getElementById(id + 'Btn');
-
-      if (int.connected) {
+      if (!statusEl || !btnEl) return;
+      if (connected) {
         statusEl.innerHTML = '<span class="status-dot connected"></span><span style="color:#22C55E;">Connected</span>';
         btnEl.className = 'btn-disconnect';
         btnEl.textContent = 'Disconnect';
@@ -587,15 +604,85 @@
         btnEl.className = 'btn-connect';
         btnEl.textContent = 'Connect';
       }
-
-      const toast = document.getElementById('toast');
-      toast.textContent = int.connected ? `${int.name} connected` : `${int.name} disconnected`;
-      toast.classList.add('show');
-      setTimeout(() => toast.classList.remove('show'), 3000);
     }
+
+    function toast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2800);
+    }
+
+    async function getBearer() {
+      if (!window.shapeDb || !window.shapeDb.client) return null;
+      try {
+        const { data } = await window.shapeDb.client.auth.getSession();
+        return data && data.session ? data.session.access_token : null;
+      } catch (e) { return null; }
+    }
+
+    // Card connect/disconnect. For "connect" we just redirect the browser
+    // to the OAuth start route — the server sets state cookies and bounces
+    // the user to the provider. For "disconnect" we hit the API with a
+    // bearer token so the session works even from static pages.
+    async function toggleIntegration(id) {
+      if (!PROVIDER_LABELS[id]) return; // apple_watch is not toggleable
+      const btn = document.getElementById(id + 'Btn');
+      const isConnected = btn && btn.className === 'btn-disconnect';
+      if (!isConnected) {
+        window.location.href = '/api/integrations/' + id + '/authorize?return=' + encodeURIComponent('/integrations.html');
+        return;
+      }
+      if (!confirm('Disconnect ' + PROVIDER_LABELS[id] + '?')) return;
+      const bearer = await getBearer();
+      if (!bearer) { toast('Sign in to manage integrations'); return; }
+      const res = await fetch('/api/integrations/' + id + '/disconnect', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + bearer }
+      });
+      if (res.ok) {
+        setCardState(id, false);
+        toast(PROVIDER_LABELS[id] + ' disconnected');
+      } else {
+        toast('Could not disconnect');
+      }
+    }
+    window.toggleIntegration = toggleIntegration;
+
+    async function loadStatus() {
+      const bearer = await getBearer();
+      if (!bearer) return; // leave default disconnected state
+      try {
+        const res = await fetch('/api/integrations/status', { headers: { Authorization: 'Bearer ' + bearer } });
+        if (!res.ok) return;
+        const json = await res.json();
+        const connected = new Set((json.providers || []).filter(p => p.connected).map(p => p.id));
+        Object.keys(PROVIDER_LABELS).forEach(id => setCardState(id, connected.has(id)));
+      } catch (e) { /* stay with default state */ }
+    }
+
+    function showCallbackBanner() {
+      const params = new URLSearchParams(window.location.search);
+      const integration = params.get('integration');
+      const status = params.get('status');
+      if (!integration) return;
+      if (status === 'ok') {
+        toast((PROVIDER_LABELS[integration] || integration) + ' connected');
+      } else {
+        const msg = params.get('message') || 'error';
+        toast('Could not connect ' + (PROVIDER_LABELS[integration] || integration) + ': ' + msg);
+      }
+      const url = new URL(window.location.href);
+      ['integration', 'status', 'message'].forEach(k => url.searchParams.delete(k));
+      window.history.replaceState(null, '', url.toString());
+    }
+
+    showCallbackBanner();
+    (function waitForDb() {
+      if (window.shapeDb) return loadStatus();
+      setTimeout(waitForDb, 120);
+    })();
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase.js"></script>
   <script src="/pwa-install.js" defer></script>
 </body>
 </html>
