@@ -9,6 +9,12 @@ const trainers = [
     introVideo: "/intro/beat-5.mp4",
     location: "Los Angeles, CA",
     languages: ["English"],
+    socials: {
+      instagram: "https://instagram.com/marcusjohnsonlifts",
+      youtube: "https://youtube.com/@marcusjohnsonlifts",
+      tiktok: "https://tiktok.com/@marcusjohnsonlifts",
+      website: "https://marcusjohnsontraining.com"
+    },
     color: "#6C3AED", trainerOfMonth: true,
     totmQuote: "Consistency beats intensity. Show up every day and the results will follow.",
     workouts: [
@@ -1987,11 +1993,21 @@ function openTrainerModal(id) {
           ${t.location ? `<span>${t.location}</span>` : ''}
         </div>
         ${t.tags && t.tags.length ? `
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
-            ${t.tags.map(tag => `<span style="padding:3px 10px;font-size:0.68rem;color:var(--text-muted);border:1px solid var(--border);border-radius:999px;">${tag}</span>`).join('')}
+          <div style="margin-top:14px;">
+            <div style="font-size:0.66rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">Specialties</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              ${t.tags.map(tag => `<span style="padding:6px 14px;font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.04em;color:var(--text);border:1px solid var(--border);background:rgba(255,255,255,0.02);">${tag}</span>`).join('')}
+            </div>
           </div>` : ''}
         ${t.languages && t.languages.length ? `
-          <div style="margin-top:8px;font-size:0.76rem;color:var(--text-muted);"><strong style="color:var(--text);font-weight:500;">Languages</strong> · ${t.languages.join(', ')}</div>` : ''}
+          <div style="margin-top:10px;font-size:0.76rem;color:var(--text-muted);"><strong style="color:var(--text);font-weight:500;">Languages</strong> · ${t.languages.join(', ')}</div>` : ''}
+        ${t.socials && Object.values(t.socials).some(Boolean) ? `
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+            ${t.socials.instagram ? `<a href="${t.socials.instagram}" target="_blank" rel="noopener" style="padding:6px 12px;font-size:0.72rem;color:var(--text);border:1px solid var(--border);text-decoration:none;">Instagram</a>` : ''}
+            ${t.socials.youtube ? `<a href="${t.socials.youtube}" target="_blank" rel="noopener" style="padding:6px 12px;font-size:0.72rem;color:var(--text);border:1px solid var(--border);text-decoration:none;">YouTube</a>` : ''}
+            ${t.socials.tiktok ? `<a href="${t.socials.tiktok}" target="_blank" rel="noopener" style="padding:6px 12px;font-size:0.72rem;color:var(--text);border:1px solid var(--border);text-decoration:none;">TikTok</a>` : ''}
+            ${t.socials.website ? `<a href="${t.socials.website}" target="_blank" rel="noopener" style="padding:6px 12px;font-size:0.72rem;color:var(--text);border:1px solid var(--border);text-decoration:none;">Website</a>` : ''}
+          </div>` : ''}
       </div>
     </div>
     ${t.trainerOfMonth && t.totmQuote ? `
@@ -2083,11 +2099,21 @@ function openNutritionistModal(id) {
           ${n.location ? `<span>${n.location}</span>` : ''}
         </div>
         ${n.tags && n.tags.length ? `
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
-            ${n.tags.map(tag => `<span style="padding:3px 10px;font-size:0.68rem;color:var(--text-muted);border:1px solid var(--border);border-radius:999px;">${tag}</span>`).join('')}
+          <div style="margin-top:14px;">
+            <div style="font-size:0.66rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">Specialties</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              ${n.tags.map(tag => `<span style="padding:6px 14px;font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.04em;color:var(--text);border:1px solid var(--border);background:rgba(255,255,255,0.02);">${tag}</span>`).join('')}
+            </div>
           </div>` : ''}
         ${n.languages && n.languages.length ? `
-          <div style="margin-top:8px;font-size:0.76rem;color:var(--text-muted);"><strong style="color:var(--text);font-weight:500;">Languages</strong> · ${n.languages.join(', ')}</div>` : ''}
+          <div style="margin-top:10px;font-size:0.76rem;color:var(--text-muted);"><strong style="color:var(--text);font-weight:500;">Languages</strong> · ${n.languages.join(', ')}</div>` : ''}
+        ${n.socials && Object.values(n.socials).some(Boolean) ? `
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+            ${n.socials.instagram ? `<a href="${n.socials.instagram}" target="_blank" rel="noopener" style="padding:6px 12px;font-size:0.72rem;color:var(--text);border:1px solid var(--border);text-decoration:none;">Instagram</a>` : ''}
+            ${n.socials.youtube ? `<a href="${n.socials.youtube}" target="_blank" rel="noopener" style="padding:6px 12px;font-size:0.72rem;color:var(--text);border:1px solid var(--border);text-decoration:none;">YouTube</a>` : ''}
+            ${n.socials.tiktok ? `<a href="${n.socials.tiktok}" target="_blank" rel="noopener" style="padding:6px 12px;font-size:0.72rem;color:var(--text);border:1px solid var(--border);text-decoration:none;">TikTok</a>` : ''}
+            ${n.socials.website ? `<a href="${n.socials.website}" target="_blank" rel="noopener" style="padding:6px 12px;font-size:0.72rem;color:var(--text);border:1px solid var(--border);text-decoration:none;">Website</a>` : ''}
+          </div>` : ''}
       </div>
     </div>
     <div class="workout-list">
