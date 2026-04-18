@@ -1277,50 +1277,42 @@
   </script>
 
   <style>
-    #shapeAvailGrid th, #shapeAvailGrid td {
-      border: 1px solid rgba(255,255,255,0.08);
-      padding: 0; text-align: center;
-    }
-    #shapeAvailGrid th {
-      padding: 6px 8px;
-      font-weight: 500;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      color: rgba(255,255,255,0.6);
-      font-size: 0.66rem;
-      background: rgba(255,255,255,0.03);
-    }
-    #shapeAvailGrid td.avail-time-label {
-      padding: 4px 10px;
-      color: rgba(255,255,255,0.56);
-      white-space: nowrap;
-      font-size: 0.7rem;
-    }
-    #shapeAvailGrid td.avail-cell {
-      width: 32px; height: 18px;
-      cursor: pointer;
-      transition: background 0.12s;
-    }
-    #shapeAvailGrid td.avail-cell:hover { background: rgba(45,212,191,0.15); }
-    #shapeAvailGrid td.avail-cell.on { background: #2DD4BF; }
-    #shapeAvailGrid td.avail-cell.on:hover { background: #5eead4; }
     #shapeAvailCard details > summary { list-style: none; cursor: pointer; }
     #shapeAvailCard details > summary::-webkit-details-marker { display: none; }
     #shapeAvailCard details[open] .shape-avail-caret { transform: rotate(180deg); }
     .shape-avail-caret { display:inline-block; transition: transform 0.15s; }
+    .shape-avail-select {
+      padding: 8px 10px; background: #0a0a0a;
+      border: 1px solid rgba(255,255,255,0.12); color: #fff;
+      font-family: inherit; font-size: 0.82rem;
+      color-scheme: dark;
+    }
+    .shape-avail-range-row {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; padding: 8px 12px;
+      background: rgba(255,255,255,0.025);
+      border: 1px solid rgba(255,255,255,0.07);
+      font-size: 0.82rem;
+    }
+    .shape-avail-range-remove {
+      padding: 4px 10px; font-size: 0.72rem;
+      background: none; border: 1px solid rgba(255,255,255,0.12);
+      color: rgba(255,255,255,0.72); cursor: pointer;
+    }
   </style>
   <script>
     (function () {
       var ROLE = 'trainer';
-      var DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-      var START_HOUR = 7; // 7 AM
-      var END_HOUR = 21;  // 9 PM
-      var STEP = 30;      // minutes
+      var DAYS_LONG = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+      var DAYS_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      var START_HOUR = 6;  // earliest selectable time: 6 AM
+      var END_HOUR = 22;   // latest selectable time: 10 PM
+      var STEP = 30;
 
-      var selected = new Set(); // "weekday-startMinute"
+      // ranges: [{day: 0-6, startMin, endMin}]
+      var ranges = [];
       var dirty = false;
 
-      function key(day, minute) { return day + '-' + minute; }
       function fmt(min) {
         var h24 = Math.floor(min / 60);
         var m = min % 60;
@@ -1328,64 +1320,116 @@
         var h = h24 % 12; if (h === 0) h = 12;
         return h + ':' + (m < 10 ? '0' + m : m) + ' ' + mer;
       }
-      function buildGrid() {
-        var table = document.getElementById('shapeAvailGrid');
-        var html = '<thead><tr><th></th>';
-        for (var d = 0; d < 7; d++) html += '<th>' + DAYS[d] + '</th>';
-        html += '</tr></thead><tbody>';
-        for (var h = START_HOUR; h < END_HOUR; h++) {
-          for (var m = 0; m < 60; m += STEP) {
-            var mm = h * 60 + m;
-            html += '<tr><td class="avail-time-label">' + fmt(mm) + '</td>';
-            for (var d2 = 0; d2 < 7; d2++) {
-              var k = key(d2, mm);
-              var on = selected.has(k) ? ' on' : '';
-              html += '<td class="avail-cell' + on + '" data-k="' + k + '"></td>';
-            }
-            html += '</tr>';
-          }
+
+      function buildTimeOptions(sel, minMinute, maxMinute) {
+        sel.innerHTML = '';
+        for (var m = minMinute; m <= maxMinute; m += STEP) {
+          var o = document.createElement('option');
+          o.value = String(m);
+          o.textContent = fmt(m);
+          sel.appendChild(o);
         }
-        html += '</tbody>';
-        table.innerHTML = html;
-        table.querySelectorAll('td.avail-cell').forEach(function (td) {
-          td.addEventListener('click', function () {
-            var k = td.getAttribute('data-k');
-            if (selected.has(k)) { selected.delete(k); td.classList.remove('on'); }
-            else { selected.add(k); td.classList.add('on'); }
-            dirty = true;
-            setStatus('Unsaved changes');
-          });
-        });
       }
+
       function setStatus(s) { document.getElementById('shapeAvailStatus').textContent = s || ''; }
       function setSummary() {
         var el = document.getElementById('shapeAvailSummary');
         if (!el) return;
-        el.textContent = selected.size
-          ? selected.size + ' slot' + (selected.size === 1 ? '' : 's') + ' set · tap to edit'
-          : 'No slots set — tap to add availability.';
+        if (!ranges.length) { el.textContent = 'No availability set — tap to add.'; return; }
+        el.textContent = ranges.length + ' time block' + (ranges.length === 1 ? '' : 's') + ' · tap to edit';
+      }
+
+      function renderList() {
+        var wrap = document.getElementById('shapeAvailList');
+        if (!ranges.length) {
+          wrap.innerHTML = '<div style="font-size:0.78rem;color:var(--text-muted);padding:8px 2px;">No time blocks yet. Pick a day and time range above, then tap Add.</div>';
+          return;
+        }
+        var sorted = ranges.slice().sort(function (a, b) {
+          return a.day - b.day || a.startMin - b.startMin;
+        });
+        wrap.innerHTML = sorted.map(function (r) {
+          var idx = ranges.indexOf(r);
+          return '<div class="shape-avail-range-row">'
+            + '<div><strong style="font-weight:500;">' + DAYS_LONG[r.day] + '</strong>'
+            + '<span style="color:var(--text-muted);margin-left:8px;">' + fmt(r.startMin) + ' – ' + fmt(r.endMin) + '</span></div>'
+            + '<button type="button" class="shape-avail-range-remove" data-rm="' + idx + '">Remove</button>'
+            + '</div>';
+        }).join('');
+        wrap.querySelectorAll('button[data-rm]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var i = parseInt(btn.getAttribute('data-rm'), 10);
+            ranges.splice(i, 1);
+            dirty = true;
+            renderList();
+            setSummary();
+            setStatus('Removed — remember to save.');
+          });
+        });
+      }
+
+      function slotsToRanges(slots) {
+        var byDay = [[],[],[],[],[],[],[]];
+        slots.forEach(function (s) { byDay[s.weekday].push(s.start_minute); });
+        var out = [];
+        byDay.forEach(function (mins, day) {
+          mins.sort(function (a, b) { return a - b; });
+          var start = null, prev = null;
+          mins.forEach(function (m) {
+            if (start === null) { start = m; prev = m; }
+            else if (m === prev + STEP) { prev = m; }
+            else { out.push({ day: day, startMin: start, endMin: prev + STEP }); start = m; prev = m; }
+          });
+          if (start !== null) out.push({ day: day, startMin: start, endMin: prev + STEP });
+        });
+        return out;
+      }
+
+      function rangesToSlots() {
+        var out = [];
+        ranges.forEach(function (r) {
+          for (var m = r.startMin; m < r.endMin; m += STEP) {
+            out.push({ weekday: r.day, start_minute: m });
+          }
+        });
+        return out;
+      }
+
+      function mergeOverlapping() {
+        var byDay = [[],[],[],[],[],[],[]];
+        ranges.forEach(function (r) { byDay[r.day].push({ s: r.startMin, e: r.endMin }); });
+        var merged = [];
+        byDay.forEach(function (arr, day) {
+          arr.sort(function (a, b) { return a.s - b.s; });
+          var cur = null;
+          arr.forEach(function (r) {
+            if (!cur) { cur = { s: r.s, e: r.e }; return; }
+            if (r.s <= cur.e) { cur.e = Math.max(cur.e, r.e); }
+            else { merged.push({ day: day, startMin: cur.s, endMin: cur.e }); cur = { s: r.s, e: r.e }; }
+          });
+          if (cur) merged.push({ day: day, startMin: cur.s, endMin: cur.e });
+        });
+        ranges = merged;
       }
 
       async function load() {
         try {
           var res = await fetch('/api/my-availability?role=' + ROLE);
           var data = await res.json();
-          selected.clear();
-          (data.slots || []).forEach(function (s) { selected.add(key(s.weekday, s.start_minute)); });
-          buildGrid();
+          ranges = slotsToRanges(data.slots || []);
+          renderList();
           dirty = false;
           setSummary();
-          setStatus(selected.size ? '' : 'No slots set. Click cells to add availability.');
+          setStatus('');
         } catch (e) {
           setStatus('Could not load availability.');
         }
       }
+
       async function save() {
-        var slots = [];
-        selected.forEach(function (k) {
-          var parts = k.split('-').map(Number);
-          slots.push({ weekday: parts[0], start_minute: parts[1] });
-        });
+        mergeOverlapping();
+        renderList();
+        var slots = rangesToSlots();
         setStatus('Saving...');
         try {
           var res = await fetch('/api/my-availability', {
@@ -1397,7 +1441,7 @@
           if (!res.ok) { setStatus('Save failed: ' + (data.error || res.status)); return; }
           dirty = false;
           setSummary();
-          setStatus('Saved ' + slots.length + ' slots.');
+          setStatus('Saved ' + ranges.length + ' time block' + (ranges.length === 1 ? '' : 's') + '.');
         } catch (e) {
           setStatus('Save failed: network error.');
         }
@@ -1410,26 +1454,55 @@
           if (window.shapeDb || ++tries > 60) { clearInterval(t); if (window.shapeDb) cb(); }
         }, 100);
       }
+
       ownsProviderReady(async function () {
         var provider = await window.shapeDb.getMyProvider(ROLE);
         if (!provider) return;
         document.getElementById('shapeAvailCard').style.display = 'block';
-        buildGrid();
-        load();
-        document.getElementById('shapeAvailSave').addEventListener('click', save);
-        document.getElementById('shapeAvailClear').addEventListener('click', function () {
-          selected.clear(); buildGrid(); dirty = true; setSummary(); setStatus('Cleared — remember to save.');
-        });
-        document.getElementById('shapeAvailPreset').addEventListener('click', function () {
-          selected.clear();
-          for (var d = 1; d <= 5; d++) {
-            for (var h = 9; h < 17; h++) {
-              selected.add(key(d, h * 60));
-              selected.add(key(d, h * 60 + 30));
-            }
+
+        var startSel = document.getElementById('shapeAvailStart');
+        var endSel = document.getElementById('shapeAvailEnd');
+        buildTimeOptions(startSel, START_HOUR * 60, END_HOUR * 60 - STEP);
+        buildTimeOptions(endSel, START_HOUR * 60 + STEP, END_HOUR * 60);
+        startSel.value = String(9 * 60);
+        endSel.value = String(17 * 60);
+
+        startSel.addEventListener('change', function () {
+          if (parseInt(endSel.value, 10) <= parseInt(startSel.value, 10)) {
+            endSel.value = String(parseInt(startSel.value, 10) + STEP);
           }
-          buildGrid();
+        });
+
+        load();
+
+        document.getElementById('shapeAvailAdd').addEventListener('click', function () {
+          var day = parseInt(document.getElementById('shapeAvailDay').value, 10);
+          var s = parseInt(startSel.value, 10);
+          var e = parseInt(endSel.value, 10);
+          if (!(e > s)) { setStatus('End time must be after start time.'); return; }
+          ranges.push({ day: day, startMin: s, endMin: e });
           dirty = true;
+          renderList();
+          setSummary();
+          setStatus('Added — remember to save.');
+        });
+
+        document.getElementById('shapeAvailSave').addEventListener('click', save);
+
+        document.getElementById('shapeAvailClear').addEventListener('click', function () {
+          if (!ranges.length) return;
+          ranges = [];
+          dirty = true;
+          renderList();
+          setSummary();
+          setStatus('Cleared — remember to save.');
+        });
+
+        document.getElementById('shapeAvailPreset').addEventListener('click', function () {
+          ranges = [];
+          for (var d = 1; d <= 5; d++) ranges.push({ day: d, startMin: 9 * 60, endMin: 17 * 60 });
+          dirty = true;
+          renderList();
           setSummary();
           setStatus('Preset applied — remember to save.');
         });
@@ -2302,12 +2375,12 @@
         </div>
       </div>
 
-      <!-- ===== CLIENT PLAYLISTS SECTION ===== -->
+      <!-- ===== PROGRAM PLAYLISTS SECTION ===== -->
       <div id="shapePlaylistsCard" style="display:none;margin-top:48px;padding-top:32px;border-top:1px solid var(--border);">
         <div class="pb-header">
-          <h2>Client Playlists</h2>
+          <h2>Program Playlists</h2>
         </div>
-        <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 16px;">Send Spotify playlists to your subscribers via <a href="radio.html" style="color:#2DD4BF;">Shape Radio</a>, or attach them to workouts.</p>
+        <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 16px;">Save Spotify playlists to your profile, then attach them to any workout you publish — clients see the embedded player at the top of their <code style="color:#2DD4BF;background:none;padding:0;">/workout.html</code> page. They also show up on <a href="radio.html" style="color:#2DD4BF;">Shape Radio</a> for all your subscribers.</p>
         <div style="background:#141414;border:1px solid rgba(255,255,255,0.09);padding:16px 18px;">
           <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:14px;">
             <input id="shapePlTitle" type="text" placeholder="Playlist title (e.g. Leg day heat)" maxlength="200"
@@ -2649,7 +2722,7 @@
             </div>
           </div>
 
-          <!-- Weekly availability grid — drives the real slots on /consultation.html -->
+          <!-- Weekly availability — day + time range blocks, drives /consultation.html -->
           <div id="shapeAvailCard" style="display:none;margin-bottom:20px;">
             <details style="background:#141414;border:1px solid rgba(255,255,255,0.09);">
               <summary style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
@@ -2660,13 +2733,25 @@
                 <span class="shape-avail-caret" style="font-size:0.7rem;color:rgba(255,255,255,0.5);">▾</span>
               </summary>
               <div style="padding:12px 16px 16px;border-top:1px solid rgba(255,255,255,0.06);">
-                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;margin-bottom:12px;">
+                  <select id="shapeAvailDay" class="shape-avail-select" aria-label="Day">
+                    <option value="1">Monday</option>
+                    <option value="2">Tuesday</option>
+                    <option value="3">Wednesday</option>
+                    <option value="4">Thursday</option>
+                    <option value="5">Friday</option>
+                    <option value="6">Saturday</option>
+                    <option value="0">Sunday</option>
+                  </select>
+                  <select id="shapeAvailStart" class="shape-avail-select" aria-label="Start time"></select>
+                  <select id="shapeAvailEnd" class="shape-avail-select" aria-label="End time"></select>
+                  <button id="shapeAvailAdd" type="button" class="btn btn-primary" style="padding:6px 14px;font-size:0.78rem;">Add</button>
+                </div>
+                <div id="shapeAvailList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;"></div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
                   <button id="shapeAvailPreset" type="button" style="padding:6px 12px;font-size:0.74rem;background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.72);cursor:pointer;">9–5 weekdays</button>
                   <button id="shapeAvailClear" type="button" style="padding:6px 12px;font-size:0.74rem;background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.72);cursor:pointer;">Clear all</button>
                   <button id="shapeAvailSave" type="button" class="btn btn-primary" style="padding:6px 14px;font-size:0.74rem;">Save</button>
-                </div>
-                <div id="shapeAvailGridWrap" style="overflow-x:auto;">
-                  <table id="shapeAvailGrid" style="border-collapse:collapse;font-size:0.72rem;"></table>
                 </div>
                 <div id="shapeAvailStatus" style="margin-top:10px;font-size:0.76rem;color:var(--text-muted);"></div>
               </div>
