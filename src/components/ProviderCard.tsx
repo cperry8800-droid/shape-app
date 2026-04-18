@@ -18,6 +18,7 @@ export type ProviderCardProps = {
   priceSuffix: string; // e.g. "/ month"
   horizontal?: boolean;
   href?: string;
+  atCapacity?: boolean;
 };
 
 export default function ProviderCard({
@@ -32,6 +33,7 @@ export default function ProviderCard({
   priceSuffix,
   horizontal = false,
   href,
+  atCapacity = false,
 }: ProviderCardProps) {
   const accent = color ?? '#2DD4BF';
   const Wrapper = ({ children, className, style }: { children: React.ReactNode; className: string; style: React.CSSProperties }) =>
@@ -60,6 +62,7 @@ export default function ProviderCard({
                 {credential}
               </span>
             )}
+            {atCapacity && <CapacityBadge />}
           </div>
           {subtitle && <div className="text-sm text-neutral-400 truncate">{subtitle}</div>}
         </div>
@@ -82,7 +85,10 @@ export default function ProviderCard({
     >
       <Avatar name={name} color={accent} size="lg" />
       <div className="mt-4 flex-1">
-        <h3 className="font-semibold text-lg">{name}</h3>
+        <div className="flex items-center gap-2 flex-wrap">
+          <h3 className="font-semibold text-lg">{name}</h3>
+          {atCapacity && <CapacityBadge />}
+        </div>
         {subtitle && <div className="text-sm text-neutral-400 mb-3">{subtitle}</div>}
         {bio && <p className="text-sm text-neutral-500 line-clamp-3 mb-4">{bio}</p>}
       </div>
@@ -97,6 +103,14 @@ export default function ProviderCard({
         </div>
       </div>
     </Wrapper>
+  );
+}
+
+function CapacityBadge() {
+  return (
+    <span className="text-[0.6rem] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border border-red-500/40 text-red-300 bg-red-500/10 flex-shrink-0">
+      At capacity
+    </span>
   );
 }
 

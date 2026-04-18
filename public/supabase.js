@@ -307,7 +307,7 @@
       if (!table) return null;
       var res = await client
         .from(table)
-        .select('id, name, stripe_account_id, stripe_account_status')
+        .select('id, name, stripe_account_id, stripe_account_status, at_capacity')
         .eq('owner_id', session.user.id)
         .order('id', { ascending: true })
         .limit(1);
@@ -316,6 +316,20 @@
         return null;
       }
       return (res.data && res.data[0]) || null;
+    },
+
+    // Flip the at_capacity flag on the signed-in provider's row. RLS only
+    // allows updates when owner_id = auth.uid(), so this is safe to call
+    // from the dashboard without an extra ownership check.
+    async setAtCapacity(role, providerId, isAtCapacity) {
+      var table = role === 'trainer' ? 'trainers' : role === 'nutritionist' ? 'nutritionists' : null;
+      if (!table) return { error: { message: 'invalid role' } };
+      return await client
+        .from(table)
+        .update({ at_capacity: !!isAtCapacity })
+        .eq('id', providerId)
+        .select('id, at_capacity')
+        .single();
     },
 
     // Kick off Stripe Connect onboarding for the signed-in provider. Server

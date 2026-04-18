@@ -21,6 +21,7 @@ type Item = {
   members?: number | null;
   location?: string | null;
   price: number | null;
+  at_capacity?: boolean | null;
 };
 
 export type SortKey = 'subscribers' | 'rating' | 'price';
@@ -128,6 +129,7 @@ export default function ProviderFilter({
             priceSuffix="/ month"
             horizontal
             href={`${hrefPrefix}/${it.id}`}
+            atCapacity={!!it.at_capacity}
           />
         ))}
         {filtered.length === 0 && (

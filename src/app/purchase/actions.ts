@@ -55,7 +55,7 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
   const { data: provider, error: providerError } = await admin
     .from(table)
     .select(
-      `id, name, price, ${priceCol}, stripe_account_id, stripe_account_status`
+      `id, name, price, ${priceCol}, stripe_account_id, stripe_account_status, at_capacity`
     )
     .eq('id', providerId)
     .maybeSingle();
@@ -64,6 +64,7 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
     redirect(`${backHref}&error=${encodeURIComponent(`db_${providerError.code ?? 'error'}: ${providerError.message}`)}`);
   }
   if (!provider) redirect(`${backHref}&error=provider_not_found`);
+  if (provider.at_capacity) redirect(`${backHref}&error=provider_at_capacity`);
   if (!provider.stripe_account_id || provider.stripe_account_status !== 'active') {
     redirect(`${backHref}&error=provider_not_onboarded`);
   }

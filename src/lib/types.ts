@@ -20,6 +20,7 @@ export type Trainer = {
   trainer_of_month: boolean;
   totm_quote: string | null;
   featured: boolean;
+  at_capacity: boolean;
   workouts?: TrainerWorkout[];
 };
 
@@ -60,6 +61,7 @@ export type Nutritionist = {
   nutritionist_of_month: boolean;
   notm_quote: string | null;
   featured: boolean;
+  at_capacity: boolean;
   plans?: NutritionistPlan[];
 };
 

@@ -294,15 +294,44 @@
       <a id="tpSubscribeLink" href="#" class="btn btn-primary" style="flex:1;min-width:160px;text-align:center;">Subscribe monthly</a>
       <a id="tpBookLink" href="#" class="btn btn-secondary" style="flex:1;min-width:160px;text-align:center;">Book a session</a>
     </div>
+    <!-- Shown instead of the CTAs when this trainer is at capacity -->
+    <div id="tpAtCapacityNotice" style="display:none;margin:0 0 24px;padding:14px 16px;border:1px solid rgba(239,68,68,0.45);background:rgba(239,68,68,0.08);font-size:0.86rem;color:rgba(255,255,255,0.85);">
+      <strong style="color:#fca5a5;">Currently at capacity.</strong> This trainer isn't accepting new clients right now. Check back soon.
+    </div>
     <script>
       (function () {
         var params = new URLSearchParams(window.location.search);
         var id = params.get('id') || params.get('provider');
-        if (!id) { var c = document.getElementById('tpStripeCtas'); if (c) c.style.display = 'none'; return; }
+        var ctas = document.getElementById('tpStripeCtas');
+        var notice = document.getElementById('tpAtCapacityNotice');
+        if (!id) { if (ctas) ctas.style.display = 'none'; return; }
         var sub = document.getElementById('tpSubscribeLink');
         var book = document.getElementById('tpBookLink');
         if (sub) sub.href = '/subscribe?role=trainer&id=' + encodeURIComponent(id);
         if (book) book.href = '/purchase?role=trainer&kind=booking&id=' + encodeURIComponent(id);
+
+        // Async lookup of at_capacity. We render the buttons optimistically
+        // (they'll briefly flash) and hide them if the trainer is paused.
+        function whenReady(cb) {
+          if (window.shapeDb) return cb();
+          var tries = 0;
+          var t = setInterval(function () {
+            if (window.shapeDb || ++tries > 60) { clearInterval(t); if (window.shapeDb) cb(); }
+          }, 100);
+        }
+        whenReady(async function () {
+          try {
+            var res = await window.shapeDb.client
+              .from('trainers')
+              .select('at_capacity')
+              .eq('id', id)
+              .maybeSingle();
+            if (res && res.data && res.data.at_capacity) {
+              if (ctas) ctas.style.display = 'none';
+              if (notice) notice.style.display = 'block';
+            }
+          } catch (e) { /* leave CTAs visible on error */ }
+        });
       })();
     </script>
 
