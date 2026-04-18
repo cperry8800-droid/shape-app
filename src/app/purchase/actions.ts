@@ -48,10 +48,14 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
 
   const table = providerRole === 'trainer' ? 'trainers' : 'nutritionists';
   const admin = createAdminClient();
+  // Select the per-kind price column that actually exists on this
+  // provider's table — trainers have session_price, nutritionists have
+  // meal_plan_price.
+  const priceCol = providerRole === 'trainer' ? 'session_price' : 'meal_plan_price';
   const { data: provider, error: providerError } = await admin
     .from(table)
     .select(
-      'id, name, price, session_price, meal_plan_price, stripe_account_id, stripe_account_status'
+      `id, name, price, ${priceCol}, stripe_account_id, stripe_account_status`
     )
     .eq('id', providerId)
     .maybeSingle();
@@ -92,11 +96,10 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
     }
   }
 
+  const providerRow = provider as Record<string, number | string | null>;
   const rawPrice =
     itemPrice ??
-    (kind === 'booking'
-      ? provider.session_price ?? provider.price
-      : provider.meal_plan_price ?? provider.price);
+    ((providerRow[priceCol] as number | null) ?? (provider.price as number | null));
   const priceCents = Math.round(Number(rawPrice ?? 0) * 100);
   if (!priceCents || priceCents <= 0) {
     redirect(`${backHref}&error=price_not_set`);
