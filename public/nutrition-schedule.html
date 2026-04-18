@@ -1269,27 +1269,6 @@
     })();
   </script>
 
-  <!-- At-capacity toggle: pause new client sign-ups when overwhelmed -->
-  <div class="container" id="shapeCapacityCard" style="display:none;margin-top:14px;">
-    <div style="background:#141414;border:1px solid rgba(255,255,255,0.09);padding:16px 18px;">
-      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-        <div style="flex:1;min-width:220px;">
-          <div style="font-size:0.78rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.62);margin-bottom:4px;">Booking status</div>
-          <div style="font-size:0.86rem;color:var(--text-muted);" id="shapeCapacityMsg">Accepting new clients. Toggle on if you're at capacity and want to pause new sign-ups.</div>
-        </div>
-        <label style="display:inline-flex;align-items:center;gap:10px;cursor:pointer;user-select:none;white-space:nowrap;">
-          <span style="font-size:0.82rem;font-weight:500;letter-spacing:0.04em;text-transform:uppercase;color:rgba(255,255,255,0.85);">At capacity</span>
-          <input type="checkbox" id="shapeCapacityToggle" style="width:42px;height:24px;appearance:none;-webkit-appearance:none;background:rgba(255,255,255,0.14);border-radius:999px;position:relative;cursor:pointer;outline:none;transition:background 0.2s;" />
-        </label>
-      </div>
-      <div id="shapeCapacityResumeRow" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <label for="shapeCapacityResumeAt" style="font-size:0.82rem;color:rgba(255,255,255,0.72);">Auto-resume on (optional):</label>
-        <input id="shapeCapacityResumeAt" type="date" style="padding:8px 10px;background:#0a0a0a;border:1px solid rgba(255,255,255,0.12);color:#fff;font-family:inherit;color-scheme:dark;" />
-        <button id="shapeCapacityResumeSave" type="button" class="btn btn-secondary" style="padding:8px 14px;font-size:0.78rem;">Save date</button>
-        <button id="shapeCapacityResumeClear" type="button" style="padding:8px 14px;font-size:0.78rem;background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.62);cursor:pointer;">Clear</button>
-      </div>
-    </div>
-  </div>
   <style>
     #shapeCapacityToggle::before {
       content: '';
@@ -1396,26 +1375,6 @@
     })();
   </script>
 
-  <!-- Weekly availability grid — drives the real slots on /consultation.html -->
-  <div class="container" id="shapeAvailCard" style="display:none;margin-top:14px;">
-    <div style="background:#141414;border:1px solid rgba(255,255,255,0.09);padding:16px 18px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
-        <div>
-          <div style="font-size:0.78rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.62);margin-bottom:4px;">Weekly availability</div>
-          <div style="font-size:0.82rem;color:var(--text-muted);">Click slots to toggle. Clients see these on your consultation page.</div>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button id="shapeAvailPreset" type="button" style="padding:8px 14px;font-size:0.78rem;background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.72);cursor:pointer;">9–5 weekdays</button>
-          <button id="shapeAvailClear" type="button" style="padding:8px 14px;font-size:0.78rem;background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.72);cursor:pointer;">Clear all</button>
-          <button id="shapeAvailSave" type="button" class="btn btn-primary" style="padding:8px 16px;font-size:0.78rem;">Save</button>
-        </div>
-      </div>
-      <div id="shapeAvailGridWrap" style="overflow-x:auto;">
-        <table id="shapeAvailGrid" style="border-collapse:collapse;font-size:0.74rem;"></table>
-      </div>
-      <div id="shapeAvailStatus" style="margin-top:10px;font-size:0.78rem;color:var(--text-muted);"></div>
-    </div>
-  </div>
   <style>
     #shapeAvailGrid th, #shapeAvailGrid td {
       border: 1px solid rgba(255,255,255,0.08);
@@ -2213,6 +2172,53 @@
             <div class="nd-profile-stat">
               <div class="nd-profile-stat-value" id="ndProfStatExp">--</div>
               <div class="nd-profile-stat-label">Experience</div>
+            </div>
+          </div>
+
+          <!-- Consultations: booking status + weekly availability -->
+          <div class="nd-profile-section">
+            <div class="nd-profile-section-header"><h3>Consultations</h3></div>
+            <p style="font-size:0.78rem;color:var(--text-muted);font-weight:300;margin:0 0 16px;">Pause sign-ups when you're full, and set the slots clients can book on your consultation page.</p>
+
+            <div id="shapeCapacityCard" style="display:none;margin-bottom:16px;">
+              <div style="background:#141414;border:1px solid rgba(255,255,255,0.09);padding:16px 18px;">
+                <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+                  <div style="flex:1;min-width:220px;">
+                    <div style="font-size:0.78rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.62);margin-bottom:4px;">Booking status</div>
+                    <div style="font-size:0.86rem;color:var(--text-muted);" id="shapeCapacityMsg">Accepting new clients. Toggle on if you're at capacity and want to pause new sign-ups.</div>
+                  </div>
+                  <label style="display:inline-flex;align-items:center;gap:10px;cursor:pointer;user-select:none;white-space:nowrap;">
+                    <span style="font-size:0.82rem;font-weight:500;letter-spacing:0.04em;text-transform:uppercase;color:rgba(255,255,255,0.85);">At capacity</span>
+                    <input type="checkbox" id="shapeCapacityToggle" style="width:42px;height:24px;appearance:none;-webkit-appearance:none;background:rgba(255,255,255,0.14);border-radius:999px;position:relative;cursor:pointer;outline:none;transition:background 0.2s;" />
+                  </label>
+                </div>
+                <div id="shapeCapacityResumeRow" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                  <label for="shapeCapacityResumeAt" style="font-size:0.82rem;color:rgba(255,255,255,0.72);">Auto-resume on (optional):</label>
+                  <input id="shapeCapacityResumeAt" type="date" style="padding:8px 10px;background:#0a0a0a;border:1px solid rgba(255,255,255,0.12);color:#fff;font-family:inherit;color-scheme:dark;" />
+                  <button id="shapeCapacityResumeSave" type="button" class="btn btn-secondary" style="padding:8px 14px;font-size:0.78rem;">Save date</button>
+                  <button id="shapeCapacityResumeClear" type="button" style="padding:8px 14px;font-size:0.78rem;background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.62);cursor:pointer;">Clear</button>
+                </div>
+              </div>
+            </div>
+
+            <div id="shapeAvailCard" style="display:none;">
+              <div style="background:#141414;border:1px solid rgba(255,255,255,0.09);padding:16px 18px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
+                  <div>
+                    <div style="font-size:0.78rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.62);margin-bottom:4px;">Weekly availability</div>
+                    <div style="font-size:0.82rem;color:var(--text-muted);">Click slots to toggle. Clients see these on your consultation page.</div>
+                  </div>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button id="shapeAvailPreset" type="button" style="padding:8px 14px;font-size:0.78rem;background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.72);cursor:pointer;">9–5 weekdays</button>
+                    <button id="shapeAvailClear" type="button" style="padding:8px 14px;font-size:0.78rem;background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.72);cursor:pointer;">Clear all</button>
+                    <button id="shapeAvailSave" type="button" class="btn btn-primary" style="padding:8px 16px;font-size:0.78rem;">Save</button>
+                  </div>
+                </div>
+                <div id="shapeAvailGridWrap" style="overflow-x:auto;">
+                  <table id="shapeAvailGrid" style="border-collapse:collapse;font-size:0.74rem;"></table>
+                </div>
+                <div id="shapeAvailStatus" style="margin-top:10px;font-size:0.78rem;color:var(--text-muted);"></div>
+              </div>
             </div>
           </div>
 

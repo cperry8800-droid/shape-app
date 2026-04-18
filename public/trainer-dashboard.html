@@ -1169,27 +1169,6 @@
     </div>
   </div>
 
-  <!-- At-capacity toggle: pause new client sign-ups when overwhelmed -->
-  <div class="container" id="shapeCapacityCard" style="display:none;margin-top:14px;">
-    <div style="background:#141414;border:1px solid rgba(255,255,255,0.09);padding:16px 18px;">
-      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-        <div style="flex:1;min-width:220px;">
-          <div style="font-size:0.78rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.62);margin-bottom:4px;">Booking status</div>
-          <div style="font-size:0.86rem;color:var(--text-muted);" id="shapeCapacityMsg">Accepting new clients. Toggle on if you're at capacity and want to pause new sign-ups.</div>
-        </div>
-        <label style="display:inline-flex;align-items:center;gap:10px;cursor:pointer;user-select:none;white-space:nowrap;">
-          <span id="shapeCapacityLabel" style="font-size:0.82rem;font-weight:500;letter-spacing:0.04em;text-transform:uppercase;color:rgba(255,255,255,0.85);">At capacity</span>
-          <input type="checkbox" id="shapeCapacityToggle" style="width:42px;height:24px;appearance:none;-webkit-appearance:none;background:rgba(255,255,255,0.14);border-radius:999px;position:relative;cursor:pointer;outline:none;transition:background 0.2s;" />
-        </label>
-      </div>
-      <div id="shapeCapacityResumeRow" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <label for="shapeCapacityResumeAt" style="font-size:0.82rem;color:rgba(255,255,255,0.72);">Auto-resume on (optional):</label>
-        <input id="shapeCapacityResumeAt" type="date" style="padding:8px 10px;background:#0a0a0a;border:1px solid rgba(255,255,255,0.12);color:#fff;font-family:inherit;color-scheme:dark;" />
-        <button id="shapeCapacityResumeSave" type="button" class="btn btn-secondary" style="padding:8px 14px;font-size:0.78rem;">Save date</button>
-        <button id="shapeCapacityResumeClear" type="button" style="padding:8px 14px;font-size:0.78rem;background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.62);cursor:pointer;">Clear</button>
-      </div>
-    </div>
-  </div>
   <style>
     #shapeCapacityToggle::before {
       content: '';
@@ -1297,26 +1276,6 @@
     })();
   </script>
 
-  <!-- Weekly availability grid — drives the real slots on /consultation.html -->
-  <div class="container" id="shapeAvailCard" style="display:none;margin-top:14px;">
-    <div style="background:#141414;border:1px solid rgba(255,255,255,0.09);padding:16px 18px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
-        <div>
-          <div style="font-size:0.78rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.62);margin-bottom:4px;">Weekly availability</div>
-          <div style="font-size:0.82rem;color:var(--text-muted);">Click slots to toggle. Clients see these on your consultation page.</div>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button id="shapeAvailPreset" type="button" style="padding:8px 14px;font-size:0.78rem;background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.72);cursor:pointer;">9–5 weekdays</button>
-          <button id="shapeAvailClear" type="button" style="padding:8px 14px;font-size:0.78rem;background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.72);cursor:pointer;">Clear all</button>
-          <button id="shapeAvailSave" type="button" class="btn btn-primary" style="padding:8px 16px;font-size:0.78rem;">Save</button>
-        </div>
-      </div>
-      <div id="shapeAvailGridWrap" style="overflow-x:auto;">
-        <table id="shapeAvailGrid" style="border-collapse:collapse;font-size:0.74rem;"></table>
-      </div>
-      <div id="shapeAvailStatus" style="margin-top:10px;font-size:0.78rem;color:var(--text-muted);"></div>
-    </div>
-  </div>
   <style>
     #shapeAvailGrid th, #shapeAvailGrid td {
       border: 1px solid rgba(255,255,255,0.08);
@@ -2638,6 +2597,29 @@
           <button class="tp-edit-btn" onclick="toggleSection('sectionConsult')">Edit</button>
         </div>
         <p style="font-size:0.88rem;color:var(--text-muted);font-weight:300;margin-bottom:20px;">Offer free or paid 1-on-1 consultations. Set your availability and let clients book directly from your profile.</p>
+
+        <!-- Booking status (at-capacity toggle) -->
+        <div id="shapeCapacityCard" style="display:none;margin-bottom:16px;">
+          <div style="background:#141414;border:1px solid rgba(255,255,255,0.09);padding:16px 18px;">
+            <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:220px;">
+                <div style="font-size:0.78rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.62);margin-bottom:4px;">Booking status</div>
+                <div style="font-size:0.86rem;color:var(--text-muted);" id="shapeCapacityMsg">Accepting new clients. Toggle on if you're at capacity and want to pause new sign-ups.</div>
+              </div>
+              <label style="display:inline-flex;align-items:center;gap:10px;cursor:pointer;user-select:none;white-space:nowrap;">
+                <span id="shapeCapacityLabel" style="font-size:0.82rem;font-weight:500;letter-spacing:0.04em;text-transform:uppercase;color:rgba(255,255,255,0.85);">At capacity</span>
+                <input type="checkbox" id="shapeCapacityToggle" style="width:42px;height:24px;appearance:none;-webkit-appearance:none;background:rgba(255,255,255,0.14);border-radius:999px;position:relative;cursor:pointer;outline:none;transition:background 0.2s;" />
+              </label>
+            </div>
+            <div id="shapeCapacityResumeRow" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <label for="shapeCapacityResumeAt" style="font-size:0.82rem;color:rgba(255,255,255,0.72);">Auto-resume on (optional):</label>
+              <input id="shapeCapacityResumeAt" type="date" style="padding:8px 10px;background:#0a0a0a;border:1px solid rgba(255,255,255,0.12);color:#fff;font-family:inherit;color-scheme:dark;" />
+              <button id="shapeCapacityResumeSave" type="button" class="btn btn-secondary" style="padding:8px 14px;font-size:0.78rem;">Save date</button>
+              <button id="shapeCapacityResumeClear" type="button" style="padding:8px 14px;font-size:0.78rem;background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.62);cursor:pointer;">Clear</button>
+            </div>
+          </div>
+        </div>
+
         <div id="consultDisplay">
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px;">
             <div style="background:var(--bg-card);border:1px solid var(--border);padding:20px;">
@@ -2653,12 +2635,28 @@
               <div style="font-size:1.1rem;font-weight:600;" id="consultFormatDisplay">Video</div>
             </div>
           </div>
-          <div style="margin-bottom:20px;">
-            <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:10px;">Your Availability</div>
-            <div id="availabilityDisplay" style="display:flex;flex-wrap:wrap;gap:8px;">
-              <span class="tp-tag" style="opacity:0.4;">No availability set</span>
+
+          <!-- Weekly availability grid — drives the real slots on /consultation.html -->
+          <div id="shapeAvailCard" style="display:none;margin-bottom:20px;">
+            <div style="background:#141414;border:1px solid rgba(255,255,255,0.09);padding:16px 18px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
+                <div>
+                  <div style="font-size:0.78rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.62);margin-bottom:4px;">Weekly availability</div>
+                  <div style="font-size:0.82rem;color:var(--text-muted);">Click slots to toggle. Clients see these on your consultation page.</div>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                  <button id="shapeAvailPreset" type="button" style="padding:8px 14px;font-size:0.78rem;background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.72);cursor:pointer;">9–5 weekdays</button>
+                  <button id="shapeAvailClear" type="button" style="padding:8px 14px;font-size:0.78rem;background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.72);cursor:pointer;">Clear all</button>
+                  <button id="shapeAvailSave" type="button" class="btn btn-primary" style="padding:8px 16px;font-size:0.78rem;">Save</button>
+                </div>
+              </div>
+              <div id="shapeAvailGridWrap" style="overflow-x:auto;">
+                <table id="shapeAvailGrid" style="border-collapse:collapse;font-size:0.74rem;"></table>
+              </div>
+              <div id="shapeAvailStatus" style="margin-top:10px;font-size:0.78rem;color:var(--text-muted);"></div>
             </div>
           </div>
+
           <button class="btn btn-primary" onclick="openBookingModal()" style="width:100%;">Book a 1-on-1 Consultation</button>
         </div>
         <div style="display:none;" id="consultEditFields">
@@ -4322,9 +4320,6 @@
       }
       if (c.days && c.days.length) {
         c.days.forEach(function(d) { var cb = document.querySelector('#availDays input[value="' + d + '"]'); if (cb) cb.checked = true; });
-        var availDisp = document.getElementById('availabilityDisplay');
-        availDisp.innerHTML = c.days.map(function(d) { return '<span class="tp-tag">' + d + '</span>'; }).join('') +
-          '<span style="font-size:0.82rem;color:var(--text-muted);margin-left:8px;">' + formatTime(c.timeFrom) + ' - ' + formatTime(c.timeTo) + '</span>';
       }
     }
   }
@@ -4742,13 +4737,6 @@
     document.getElementById('consultDurationDisplay').textContent = dur + ' min';
     document.getElementById('consultPriceDisplay').textContent = priceType === 'free' ? 'Free' : '$' + price;
     document.getElementById('consultFormatDisplay').textContent = format;
-    var availDisp = document.getElementById('availabilityDisplay');
-    if (days.length === 0) {
-      availDisp.innerHTML = '<span class="tp-tag" style="opacity:0.4;">No availability set</span>';
-    } else {
-      availDisp.innerHTML = days.map(function(d) { return '<span class="tp-tag">' + d + '</span>'; }).join('') +
-        '<span style="font-size:0.82rem;color:var(--text-muted);margin-left:8px;">' + formatTime(timeFrom) + ' - ' + formatTime(timeTo) + '</span>';
-    }
     cancelSection('sectionConsult');
     _saveProfileData();
     if (typeof showToast === 'function') showToast('Consultation settings saved!');

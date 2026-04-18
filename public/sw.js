@@ -1,4 +1,4 @@
-const CACHE_NAME = 'shape-v118';
+const CACHE_NAME = 'shape-v119';
 const ASSETS = [
   '/',
   '/index.html',
