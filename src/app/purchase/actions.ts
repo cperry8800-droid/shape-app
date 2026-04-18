@@ -48,7 +48,7 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
 
   const table = providerRole === 'trainer' ? 'trainers' : 'nutritionists';
   const admin = createAdminClient();
-  const { data: provider } = await admin
+  const { data: provider, error: providerError } = await admin
     .from(table)
     .select(
       'id, name, price, session_price, meal_plan_price, stripe_account_id, stripe_account_status'
@@ -56,9 +56,12 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
     .eq('id', providerId)
     .maybeSingle();
 
-  if (!provider) redirect(`${backHref}?error=provider_not_found`);
+  if (providerError) {
+    redirect(`${backHref}&error=${encodeURIComponent(`db_${providerError.code ?? 'error'}: ${providerError.message}`)}`);
+  }
+  if (!provider) redirect(`${backHref}&error=provider_not_found`);
   if (!provider.stripe_account_id || provider.stripe_account_status !== 'active') {
-    redirect(`${backHref}?error=provider_not_onboarded`);
+    redirect(`${backHref}&error=provider_not_onboarded`);
   }
 
   // If a specific workout or plan was targeted, use its price + name so
@@ -96,7 +99,7 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
       : provider.meal_plan_price ?? provider.price);
   const priceCents = Math.round(Number(rawPrice ?? 0) * 100);
   if (!priceCents || priceCents <= 0) {
-    redirect(`${backHref}?error=price_not_set`);
+    redirect(`${backHref}&error=price_not_set`);
   }
 
   const label = kind === 'booking' ? 'Booking' : 'Meal plan';
@@ -144,11 +147,11 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
       },
     },
     success_url: `${origin}/purchase/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${origin}${backHref}?error=purchase_cancelled`,
+    cancel_url: `${origin}${backHref}&error=purchase_cancelled`,
   });
 
   if (!session.url) {
-    redirect(`${backHref}?error=checkout_failed`);
+    redirect(`${backHref}&error=checkout_failed`);
   }
 
   redirect(session.url);

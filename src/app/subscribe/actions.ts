@@ -40,10 +40,11 @@ async function getProviderConnectInfo(
     .eq('id', providerId)
     .maybeSingle();
 
-  if (error || !provider) return { error: 'Provider not found.' };
-  if (!provider.price || provider.price <= 0) return { error: 'Provider has no price set.' };
+  if (error) return { error: `db_${error.code ?? 'error'}: ${error.message}` };
+  if (!provider) return { error: 'provider_not_found' };
+  if (!provider.price || provider.price <= 0) return { error: 'price_not_set' };
   if (!provider.stripe_account_id || provider.stripe_account_status !== 'active') {
-    return { error: 'Provider has not finished Stripe onboarding yet.' };
+    return { error: 'stripe_not_onboarded' };
   }
 
   const priceCents = Math.round(Number(provider.price) * 100);
@@ -114,7 +115,7 @@ export async function startCheckout(formData: FormData): Promise<void> {
 
   const priceResult = await getProviderConnectInfo(providerRole, providerId);
   if ('error' in priceResult) {
-    redirect(`${backHref}?error=${encodeURIComponent(priceResult.error)}`);
+    redirect(`${backHref}&error=${encodeURIComponent(priceResult.error)}`);
   }
 
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
@@ -142,12 +143,12 @@ export async function startCheckout(formData: FormData): Promise<void> {
       },
     },
     success_url: `${origin}/subscribe/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${origin}${backHref}?error=subscribe_cancelled`,
+    cancel_url: `${origin}${backHref}&error=subscribe_cancelled`,
     allow_promotion_codes: true,
   });
 
   if (!session.url) {
-    redirect(`${backHref}?error=checkout_failed`);
+    redirect(`${backHref}&error=checkout_failed`);
   }
 
   redirect(session.url);
