@@ -2,7 +2,14 @@
 // Use these from Server Components to render marketplace pages.
 
 import { createClient } from './supabase/server';
-import type { Trainer, Nutritionist, Gym, Profile, SessionBooking } from './types';
+import type {
+  Trainer,
+  Nutritionist,
+  Gym,
+  Profile,
+  SessionBooking,
+  ProviderAvailability,
+} from './types';
 
 /**
  * Returns the signed-in user and their profile row, or null if not signed in.
@@ -196,6 +203,39 @@ export async function getMySessions(): Promise<SessionBooking[]> {
     return [];
   }
   return (data ?? []) as SessionBooking[];
+}
+
+export async function getProviderAvailability(
+  providerRole: 'trainer' | 'nutritionist',
+  providerId: number
+): Promise<ProviderAvailability[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('provider_availability')
+    .select('*')
+    .eq('provider_role', providerRole)
+    .eq('provider_id', providerId)
+    .order('weekday', { ascending: true })
+    .order('start_minute', { ascending: true });
+  if (error) {
+    console.error('[shape-app] getProviderAvailability error', error);
+    return [];
+  }
+  return (data ?? []) as ProviderAvailability[];
+}
+
+export async function getMyAvailability(): Promise<ProviderAvailability[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('provider_availability')
+    .select('*')
+    .order('weekday', { ascending: true })
+    .order('start_minute', { ascending: true });
+  if (error) {
+    console.error('[shape-app] getMyAvailability error', error);
+    return [];
+  }
+  return (data ?? []) as ProviderAvailability[];
 }
 
 export async function getTrainers(): Promise<Trainer[]> {

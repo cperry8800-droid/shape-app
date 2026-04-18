@@ -1296,6 +1296,174 @@
       });
     })();
   </script>
+
+  <!-- Weekly availability grid — drives the real slots on /consultation.html -->
+  <div class="container" id="shapeAvailCard" style="display:none;margin-top:14px;">
+    <div style="background:#141414;border:1px solid rgba(255,255,255,0.09);padding:16px 18px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
+        <div>
+          <div style="font-size:0.78rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.62);margin-bottom:4px;">Weekly availability</div>
+          <div style="font-size:0.82rem;color:var(--text-muted);">Click slots to toggle. Clients see these on your consultation page.</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button id="shapeAvailPreset" type="button" style="padding:8px 14px;font-size:0.78rem;background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.72);cursor:pointer;">9–5 weekdays</button>
+          <button id="shapeAvailClear" type="button" style="padding:8px 14px;font-size:0.78rem;background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.72);cursor:pointer;">Clear all</button>
+          <button id="shapeAvailSave" type="button" class="btn btn-primary" style="padding:8px 16px;font-size:0.78rem;">Save</button>
+        </div>
+      </div>
+      <div id="shapeAvailGridWrap" style="overflow-x:auto;">
+        <table id="shapeAvailGrid" style="border-collapse:collapse;font-size:0.74rem;"></table>
+      </div>
+      <div id="shapeAvailStatus" style="margin-top:10px;font-size:0.78rem;color:var(--text-muted);"></div>
+    </div>
+  </div>
+  <style>
+    #shapeAvailGrid th, #shapeAvailGrid td {
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 0; text-align: center;
+    }
+    #shapeAvailGrid th {
+      padding: 6px 8px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.6);
+      font-size: 0.66rem;
+      background: rgba(255,255,255,0.03);
+    }
+    #shapeAvailGrid td.avail-time-label {
+      padding: 4px 10px;
+      color: rgba(255,255,255,0.56);
+      white-space: nowrap;
+      font-size: 0.7rem;
+    }
+    #shapeAvailGrid td.avail-cell {
+      width: 40px; height: 24px;
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+    #shapeAvailGrid td.avail-cell:hover { background: rgba(45,212,191,0.15); }
+    #shapeAvailGrid td.avail-cell.on { background: #2DD4BF; }
+    #shapeAvailGrid td.avail-cell.on:hover { background: #5eead4; }
+  </style>
+  <script>
+    (function () {
+      var ROLE = 'trainer';
+      var DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      var START_HOUR = 7; // 7 AM
+      var END_HOUR = 21;  // 9 PM
+      var STEP = 30;      // minutes
+
+      var selected = new Set(); // "weekday-startMinute"
+      var dirty = false;
+
+      function key(day, minute) { return day + '-' + minute; }
+      function fmt(min) {
+        var h24 = Math.floor(min / 60);
+        var m = min % 60;
+        var mer = h24 >= 12 ? 'PM' : 'AM';
+        var h = h24 % 12; if (h === 0) h = 12;
+        return h + ':' + (m < 10 ? '0' + m : m) + ' ' + mer;
+      }
+      function buildGrid() {
+        var table = document.getElementById('shapeAvailGrid');
+        var html = '<thead><tr><th></th>';
+        for (var d = 0; d < 7; d++) html += '<th>' + DAYS[d] + '</th>';
+        html += '</tr></thead><tbody>';
+        for (var h = START_HOUR; h < END_HOUR; h++) {
+          for (var m = 0; m < 60; m += STEP) {
+            var mm = h * 60 + m;
+            html += '<tr><td class="avail-time-label">' + fmt(mm) + '</td>';
+            for (var d2 = 0; d2 < 7; d2++) {
+              var k = key(d2, mm);
+              var on = selected.has(k) ? ' on' : '';
+              html += '<td class="avail-cell' + on + '" data-k="' + k + '"></td>';
+            }
+            html += '</tr>';
+          }
+        }
+        html += '</tbody>';
+        table.innerHTML = html;
+        table.querySelectorAll('td.avail-cell').forEach(function (td) {
+          td.addEventListener('click', function () {
+            var k = td.getAttribute('data-k');
+            if (selected.has(k)) { selected.delete(k); td.classList.remove('on'); }
+            else { selected.add(k); td.classList.add('on'); }
+            dirty = true;
+            setStatus('Unsaved changes');
+          });
+        });
+      }
+      function setStatus(s) { document.getElementById('shapeAvailStatus').textContent = s || ''; }
+
+      async function load() {
+        try {
+          var res = await fetch('/api/my-availability?role=' + ROLE);
+          var data = await res.json();
+          selected.clear();
+          (data.slots || []).forEach(function (s) { selected.add(key(s.weekday, s.start_minute)); });
+          buildGrid();
+          dirty = false;
+          setStatus(selected.size ? '' : 'No slots set. Click cells to add availability.');
+        } catch (e) {
+          setStatus('Could not load availability.');
+        }
+      }
+      async function save() {
+        var slots = [];
+        selected.forEach(function (k) {
+          var parts = k.split('-').map(Number);
+          slots.push({ weekday: parts[0], start_minute: parts[1] });
+        });
+        setStatus('Saving...');
+        try {
+          var res = await fetch('/api/my-availability', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role: ROLE, slots: slots })
+          });
+          var data = await res.json().catch(function () { return {}; });
+          if (!res.ok) { setStatus('Save failed: ' + (data.error || res.status)); return; }
+          dirty = false;
+          setStatus('Saved ' + slots.length + ' slots.');
+        } catch (e) {
+          setStatus('Save failed: network error.');
+        }
+      }
+
+      function ownsProviderReady(cb) {
+        if (window.shapeDb) return cb();
+        var tries = 0;
+        var t = setInterval(function () {
+          if (window.shapeDb || ++tries > 60) { clearInterval(t); if (window.shapeDb) cb(); }
+        }, 100);
+      }
+      ownsProviderReady(async function () {
+        var provider = await window.shapeDb.getMyProvider(ROLE);
+        if (!provider) return;
+        document.getElementById('shapeAvailCard').style.display = 'block';
+        buildGrid();
+        load();
+        document.getElementById('shapeAvailSave').addEventListener('click', save);
+        document.getElementById('shapeAvailClear').addEventListener('click', function () {
+          selected.clear(); buildGrid(); dirty = true; setStatus('Cleared — remember to save.');
+        });
+        document.getElementById('shapeAvailPreset').addEventListener('click', function () {
+          selected.clear();
+          for (var d = 1; d <= 5; d++) {
+            for (var h = 9; h < 17; h++) {
+              selected.add(key(d, h * 60));
+              selected.add(key(d, h * 60 + 30));
+            }
+          }
+          buildGrid();
+          dirty = true;
+          setStatus('Preset applied — remember to save.');
+        });
+      });
+    })();
+  </script>
+
   <script>
     (function () {
       // shapeDb loads from supabase.js near the bottom of the page, so poll

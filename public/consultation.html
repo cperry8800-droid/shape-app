@@ -307,9 +307,15 @@
     const params = new URLSearchParams(window.location.search);
     const proName = params.get('name') || 'Trainer';
     const proType = params.get('type') || 'trainer';
+    const proId = Number(params.get('id') || 0);
 
     let selectedDate = null;
     let selectedTime = null;
+    // Weekly recurring slots, indexed by weekday (0-6) → array of start_minute.
+    let weeklySlots = {};
+    // Already-booked timestamps (ISO strings) that should render as unavailable.
+    let bookedSet = new Set();
+    let availabilityLoaded = false;
 
     // Render professional info
     const proEl = document.getElementById('consultPro');
@@ -358,30 +364,76 @@
       updateConfirmation();
     }
 
-    // Render time slots
+    function minutesToLabel(min) {
+      const h24 = Math.floor(min / 60);
+      const m = min % 60;
+      const mer = h24 >= 12 ? 'PM' : 'AM';
+      let h = h24 % 12;
+      if (h === 0) h = 12;
+      return h + ':' + (m < 10 ? '0' + m : m) + ' ' + mer;
+    }
+
+    function isoForSlot(dateStr, startMinute) {
+      const [y, mo, d] = dateStr.split('-').map((n) => parseInt(n, 10));
+      const h = Math.floor(startMinute / 60);
+      const mi = startMinute % 60;
+      // UTC to match /api/consultation server-side interpretation.
+      return new Date(Date.UTC(y, mo - 1, d, h, mi, 0)).toISOString();
+    }
+
+    // Render time slots from the coach's real weekly availability.
     function renderTimeSlots() {
       const slots = document.getElementById('timeSlots');
-      const times = [
-        '8:00 AM', '8:30 AM', '9:00 AM', '9:30 AM',
-        '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM',
-        '12:00 PM', '12:30 PM', '1:00 PM', '1:30 PM',
-        '2:00 PM', '2:30 PM', '3:00 PM', '3:30 PM',
-        '4:00 PM', '4:30 PM', '5:00 PM', '5:30 PM',
-      ];
-
-      // Randomly mark some as unavailable for realism
-      const unavailable = new Set();
-      const seed = selectedDate ? selectedDate.split('-').reduce((a, b) => a + parseInt(b), 0) : 42;
-      for (let i = 0; i < 5; i++) {
-        unavailable.add(times[(seed * (i + 3)) % times.length]);
+      if (!availabilityLoaded) {
+        slots.innerHTML = '<div style="grid-column:1/-1;color:var(--text-muted);font-size:0.85rem;padding:16px 0;">Loading times...</div>';
+        return;
       }
-
-      slots.innerHTML = times.map(t => {
-        const isUnavail = unavailable.has(t);
-        const isSelected = selectedTime === t;
-        return `<button class="time-slot ${isUnavail ? 'unavailable' : ''} ${isSelected ? 'selected' : ''}"
-          onclick="${isUnavail ? '' : `selectTime('${t}')`}"${isUnavail ? ' disabled' : ''}>${t}</button>`;
+      if (!selectedDate) {
+        slots.innerHTML = '<div style="grid-column:1/-1;color:var(--text-muted);font-size:0.85rem;padding:16px 0;">Pick a date to see open times.</div>';
+        return;
+      }
+      const d = new Date(selectedDate + 'T00:00:00');
+      const weekday = d.getDay();
+      const dayStarts = (weeklySlots[weekday] || []).slice().sort((a, b) => a - b);
+      if (dayStarts.length === 0) {
+        slots.innerHTML = '<div style="grid-column:1/-1;color:var(--text-muted);font-size:0.85rem;padding:16px 0;">No availability on this day. Try another date.</div>';
+        return;
+      }
+      slots.innerHTML = dayStarts.map((mm) => {
+        const label = minutesToLabel(mm);
+        const iso = isoForSlot(selectedDate, mm);
+        const isBooked = bookedSet.has(iso);
+        const isPast = new Date(iso).getTime() < Date.now();
+        const unavail = isBooked || isPast;
+        const isSelected = selectedTime === label;
+        return '<button class="time-slot ' + (unavail ? 'unavailable' : '') + ' ' + (isSelected ? 'selected' : '') + '"'
+          + ' onclick="' + (unavail ? '' : "selectTime('" + label + "')") + '"'
+          + (unavail ? ' disabled' : '') + '>' + label + '</button>';
       }).join('');
+    }
+
+    async function loadAvailability() {
+      if (!proId) {
+        // No id in URL — fallback to empty availability (nothing to pick).
+        availabilityLoaded = true;
+        renderTimeSlots();
+        return;
+      }
+      try {
+        const res = await fetch('/api/availability?role=' + encodeURIComponent(proType) + '&id=' + proId);
+        const data = await res.json();
+        weeklySlots = {};
+        (data.slots || []).forEach((s) => {
+          if (!weeklySlots[s.weekday]) weeklySlots[s.weekday] = [];
+          weeklySlots[s.weekday].push(s.start_minute);
+        });
+        bookedSet = new Set(data.booked || []);
+      } catch (_) {
+        weeklySlots = {};
+        bookedSet = new Set();
+      }
+      availabilityLoaded = true;
+      renderTimeSlots();
     }
 
     function selectTime(time) {
@@ -436,7 +488,7 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            professionalName: proName,
+            providerId: proId,
             professionalType: proType,
             date: selectedDate,
             time: selectedTime,
@@ -483,6 +535,7 @@
     // Init
     renderDates();
     renderTimeSlots();
+    loadAvailability();
   </script>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

@@ -108,8 +108,8 @@ export default async function NutritionistDashboardPage() {
         </h2>
         {requests.length === 0 ? (
           <p className="text-sm text-neutral-500">
-            No pending requests. Clients can book consultations once the marketplace purchase flow
-            ships.
+            No pending requests. Clients see your open slots on your consultation page once you
+            set your weekly availability.
           </p>
         ) : (
           <ul className="flex flex-col gap-2">
@@ -118,8 +118,11 @@ export default async function NutritionistDashboardPage() {
                 key={s.id}
                 className="flex items-center justify-between text-sm border border-neutral-800 rounded-lg px-4 py-3"
               >
-                <span className="capitalize">
-                  {s.type} · {new Date(s.scheduled_at).toLocaleString()}
+                <span className="flex flex-col">
+                  <span className="font-medium">{s.client_name}</span>
+                  <span className="text-xs text-neutral-500 capitalize">
+                    {s.type} · {new Date(s.scheduled_at).toLocaleString()}
+                  </span>
                 </span>
                 <span className="text-xs text-neutral-500">{s.duration_min} min</span>
               </li>
@@ -141,8 +144,11 @@ export default async function NutritionistDashboardPage() {
                 key={s.id}
                 className="flex items-center justify-between text-sm border border-neutral-800 rounded-lg px-4 py-3"
               >
-                <span className="capitalize">
-                  {s.type} · {new Date(s.scheduled_at).toLocaleString()}
+                <span className="flex flex-col">
+                  <span className="font-medium">{s.client_name}</span>
+                  <span className="text-xs text-neutral-500 capitalize">
+                    {s.type} · {new Date(s.scheduled_at).toLocaleString()}
+                  </span>
                 </span>
                 {s.meeting_url && (
                   <a

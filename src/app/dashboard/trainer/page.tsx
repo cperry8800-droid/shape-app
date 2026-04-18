@@ -116,8 +116,11 @@ export default async function TrainerDashboardPage() {
                 key={s.id}
                 className="flex items-center justify-between text-sm border border-neutral-800 rounded-lg px-4 py-3"
               >
-                <span className="capitalize">
-                  {s.type} · {new Date(s.scheduled_at).toLocaleString()}
+                <span className="flex flex-col">
+                  <span className="font-medium">{s.client_name}</span>
+                  <span className="text-xs text-neutral-500 capitalize">
+                    {s.type} · {new Date(s.scheduled_at).toLocaleString()}
+                  </span>
                 </span>
                 <span className="text-xs text-neutral-500">{s.duration_min} min</span>
               </li>
@@ -139,8 +142,11 @@ export default async function TrainerDashboardPage() {
                 key={s.id}
                 className="flex items-center justify-between text-sm border border-neutral-800 rounded-lg px-4 py-3"
               >
-                <span className="capitalize">
-                  {s.type} · {new Date(s.scheduled_at).toLocaleString()}
+                <span className="flex flex-col">
+                  <span className="font-medium">{s.client_name}</span>
+                  <span className="text-xs text-neutral-500 capitalize">
+                    {s.type} · {new Date(s.scheduled_at).toLocaleString()}
+                  </span>
                 </span>
                 {s.meeting_url && (
                   <a

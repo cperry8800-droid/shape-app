@@ -2006,7 +2006,7 @@ function openTrainerModal(id) {
     <div class="consult-section">
       <h3>Not sure yet?</h3>
       <p style="font-size:0.88rem;color:var(--text-muted);font-weight:300;margin-bottom:16px;">Book a free 15-minute 1-on-1 consultation with ${t.name} before subscribing.</p>
-      <button class="btn btn-sm btn-accent" onclick="bookConsultation('${t.name}', 'trainer')">Book Free Consultation</button>
+      <button class="btn btn-sm btn-accent" onclick="bookConsultation('${t.name}', 'trainer', ${t.id})">Book Free Consultation</button>
     </div>
     <div class="subscribe-bar">
       <div>
@@ -2093,7 +2093,7 @@ function openNutritionistModal(id) {
     <div class="consult-section">
       <h3>Not sure yet?</h3>
       <p style="font-size:0.88rem;color:var(--text-muted);font-weight:300;margin-bottom:16px;">Book a free 15-minute 1-on-1 consultation with ${n.name} before subscribing.</p>
-      <button class="btn btn-sm btn-accent" onclick="bookConsultation('${n.name}', 'nutritionist')">Book Free Consultation</button>
+      <button class="btn btn-sm btn-accent" onclick="bookConsultation('${n.name}', 'nutritionist', ${n.id})">Book Free Consultation</button>
     </div>
     <div class="subscribe-bar">
       <div>
@@ -2134,9 +2134,11 @@ function shapeBookOneTime(role, id, kind, itemId, itemName, itemPrice) {
   window.location.href = url;
 }
 
-function bookConsultation(name, type) {
+function bookConsultation(name, type, id) {
   closeAllModals();
-  window.location.href = `consultation.html?name=${encodeURIComponent(name)}&type=${encodeURIComponent(type)}`;
+  var url = `consultation.html?name=${encodeURIComponent(name)}&type=${encodeURIComponent(type)}`;
+  if (id != null) url += `&id=${encodeURIComponent(id)}`;
+  window.location.href = url;
 }
 
 function purchaseWorkout(name, price, event) {

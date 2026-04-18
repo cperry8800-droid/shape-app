@@ -102,8 +102,10 @@ export type Profile = {
 
 export type SessionBooking = {
   id: string;
-  client_id: string;
-  provider_id: string;
+  client_id: string | null;
+  client_name: string;
+  client_email: string;
+  provider_id: number;
   provider_role: 'trainer' | 'nutritionist';
   type: 'video' | 'phone' | 'inperson' | 'message';
   scheduled_at: string;
@@ -111,9 +113,20 @@ export type SessionBooking = {
   status: 'requested' | 'confirmed' | 'declined' | 'completed' | 'cancelled';
   meeting_url: string | null;
   client_phone: string | null;
+  topic: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type ProviderAvailability = {
+  id: string;
+  provider_id: number;
+  provider_role: 'trainer' | 'nutritionist';
+  weekday: number;
+  start_minute: number;
+  duration_min: number;
+  created_at: string;
 };
 
 export type Gym = {
