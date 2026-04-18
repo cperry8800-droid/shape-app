@@ -1214,16 +1214,7 @@
     </div>
   </section>
 
-  <!-- Stripe Connect banner (shown until payouts are active) -->
-  <div class="container" id="shapeStripeBanner" style="display:none;margin-top:14px;">
-    <div style="background:linear-gradient(135deg,rgba(45,212,191,0.12),rgba(45,212,191,0.04));border:1px solid rgba(45,212,191,0.35);padding:16px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-      <div style="flex:1;min-width:220px;">
-        <div style="font-size:0.78rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#2DD4BF;margin-bottom:4px;" id="shapeStripeBannerTitle">Connect payouts</div>
-        <div style="font-size:0.86rem;color:var(--text-muted);" id="shapeStripeBannerMsg">Finish Stripe setup so clients can pay you. Payouts go directly to your Stripe account.</div>
-      </div>
-      <button type="button" id="shapeStripeBannerBtn" class="btn btn-primary" style="white-space:nowrap;">Connect Stripe</button>
-    </div>
-  </div>
+  <!-- Stripe Connect banner — moved into Profile → Payouts & Earnings section -->
   <script>
     (function () {
       function whenReady(cb) {
@@ -2324,6 +2315,15 @@
           <div class="nd-profile-section">
             <div class="nd-profile-section-header"><h3>Payouts &amp; Earnings</h3></div>
             <p style="font-size:0.78rem;color:var(--text-muted);font-weight:300;margin:0 0 16px;">Demo earnings center — in production this would connect to your Stripe Express account.</p>
+            <div id="shapeStripeBanner" style="display:none;margin-bottom:16px;">
+              <div style="background:linear-gradient(135deg,rgba(45,212,191,0.12),rgba(45,212,191,0.04));border:1px solid rgba(45,212,191,0.35);padding:16px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+                <div style="flex:1;min-width:220px;">
+                  <div style="font-size:0.78rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#2DD4BF;margin-bottom:4px;" id="shapeStripeBannerTitle">Connect payouts</div>
+                  <div style="font-size:0.86rem;color:var(--text-muted);" id="shapeStripeBannerMsg">Finish Stripe setup so clients can pay you. Payouts go directly to your Stripe account.</div>
+                </div>
+                <button type="button" id="shapeStripeBannerBtn" class="btn btn-primary" style="white-space:nowrap;">Connect Stripe</button>
+              </div>
+            </div>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px;">
               <div style="border:1px solid var(--border);border-radius:10px;padding:14px 16px;">
                 <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);">Current Balance</div>
