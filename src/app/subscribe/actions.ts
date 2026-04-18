@@ -96,7 +96,13 @@ export async function startCheckout(formData: FormData): Promise<void> {
     redirect(`/login?next=${encodeURIComponent(backHref)}`);
   }
 
-  const priceResult = await getProviderConnectInfo(providerRole, providerId);
+  let priceResult;
+  try {
+    priceResult = await getProviderConnectInfo(providerRole, providerId);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    redirect(`${backHref}&error=${encodeURIComponent(`stripe_setup: ${msg}`.slice(0, 300))}`);
+  }
   if ('error' in priceResult) {
     redirect(`${backHref}&error=${encodeURIComponent(priceResult.error)}`);
   }
@@ -105,30 +111,36 @@ export async function startCheckout(formData: FormData): Promise<void> {
 
   // Shape takes a 15% application fee on every trainer/nutritionist charge;
   // the remaining 85% settles into the provider's connected Stripe account.
-  const session = await stripe.checkout.sessions.create({
-    mode: 'subscription',
-    line_items: [{ price: priceResult.priceId, quantity: 1 }],
-    customer_email: user.email ?? undefined,
-    client_reference_id: user.id,
-    metadata: {
-      client_id: user.id,
-      provider_id: String(providerId),
-      provider_role: providerRole,
-      price_cents: String(priceResult.priceCents),
-    },
-    subscription_data: {
-      application_fee_percent: 15,
-      transfer_data: { destination: priceResult.stripeAccountId },
+  let session;
+  try {
+    session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      line_items: [{ price: priceResult.priceId, quantity: 1 }],
+      customer_email: user.email ?? undefined,
+      client_reference_id: user.id,
       metadata: {
         client_id: user.id,
         provider_id: String(providerId),
         provider_role: providerRole,
+        price_cents: String(priceResult.priceCents),
       },
-    },
-    success_url: `${origin}/subscribe/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${origin}${backHref}&error=subscribe_cancelled`,
-    allow_promotion_codes: true,
-  });
+      subscription_data: {
+        application_fee_percent: 15,
+        transfer_data: { destination: priceResult.stripeAccountId },
+        metadata: {
+          client_id: user.id,
+          provider_id: String(providerId),
+          provider_role: providerRole,
+        },
+      },
+      success_url: `${origin}/subscribe/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}${backHref}&error=subscribe_cancelled`,
+      allow_promotion_codes: true,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    redirect(`${backHref}&error=${encodeURIComponent(`stripe: ${msg}`.slice(0, 300))}`);
+  }
 
   if (!session.url) {
     redirect(`${backHref}&error=checkout_failed`);
