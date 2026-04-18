@@ -6,6 +6,9 @@ const trainers = [
     credential: "CSCS", credentialFull: "Certified Strength & Conditioning Specialist",
     specialtyType: "Strength & Conditioning Coach",
     bio: "CSCS-certified former competitive powerlifter turned coach. Specializes in progressive overload programs for all levels.",
+    introVideo: "/intro/beat-5.mp4",
+    location: "Los Angeles, CA",
+    languages: ["English"],
     color: "#6C3AED", trainerOfMonth: true,
     totmQuote: "Consistency beats intensity. Show up every day and the results will follow.",
     workouts: [
@@ -1954,12 +1957,22 @@ function openTrainerModal(id) {
   const t = trainers.find(tr => tr.id === id);
   if (!t) return;
   const initials = t.name.split(' ').map(n => n[0]).join('');
+  const totalWorkouts = (t.workouts || []).length;
   document.getElementById('trainerModalContent').innerHTML = `
+    ${t.introVideo ? `
+      <div class="trainer-detail-video" style="margin:-48px -48px 24px;">
+        <video src="${t.introVideo}" muted playsinline controls preload="metadata" style="width:100%;height:auto;max-height:360px;object-fit:cover;display:block;background:#000;"></video>
+      </div>` : ''}
     <div class="trainer-detail-header">
       <div class="trainer-detail-avatar" style="background: ${t.color};">${initials}</div>
       <div class="trainer-detail-info">
-        <h2>${t.name}</h2>
-        <div class="card-specialty">${t.specialty}</div>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+          <div>
+            <h2 style="margin:0;">${t.name}</h2>
+            <div class="card-specialty">${t.specialty}</div>
+          </div>
+          <a href="trainer-profile.html?id=${t.id}" class="btn btn-sm btn-outline" style="white-space:nowrap;">View full profile →</a>
+        </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;">
           ${t.credential ? `<span class="cred-tip" data-tip="${t.credentialFull || t.credential}" style="padding:3px 8px;font-size:0.62rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;border:1px solid var(--accent);color:var(--accent-dark);border-radius:3px;">${t.credential}</span>` : ''}
           ${t.credentialFull ? `<span style="padding:3px 8px;font-size:0.62rem;font-weight:500;color:var(--text-muted);border:1px solid var(--border);border-radius:3px;">${t.credentialFull}</span>` : ''}
@@ -1967,12 +1980,25 @@ function openTrainerModal(id) {
         </div>
         <p class="card-desc">${t.bio}</p>
         <div class="trainer-detail-stats">
-          <span>${t.rating} rating</span>
+          ${t.rating ? `<span>${t.rating} rating</span>` : ''}
           <span>${t.subscribers.toLocaleString()} subscribers</span>
           <span>${t.experience} experience</span>
+          <span>${totalWorkouts} workout plan${totalWorkouts === 1 ? '' : 's'}</span>
+          ${t.location ? `<span>${t.location}</span>` : ''}
         </div>
+        ${t.tags && t.tags.length ? `
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
+            ${t.tags.map(tag => `<span style="padding:3px 10px;font-size:0.68rem;color:var(--text-muted);border:1px solid var(--border);border-radius:999px;">${tag}</span>`).join('')}
+          </div>` : ''}
+        ${t.languages && t.languages.length ? `
+          <div style="margin-top:8px;font-size:0.76rem;color:var(--text-muted);"><strong style="color:var(--text);font-weight:500;">Languages</strong> · ${t.languages.join(', ')}</div>` : ''}
       </div>
     </div>
+    ${t.trainerOfMonth && t.totmQuote ? `
+      <div style="margin:20px 0;padding:16px 18px;background:linear-gradient(135deg,rgba(45,212,191,0.08),rgba(45,212,191,0.02));border-left:3px solid var(--accent);">
+        <div style="font-size:0.66rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent-dark);margin-bottom:6px;">Trainer of the month</div>
+        <div style="font-size:0.95rem;font-style:italic;color:var(--text);font-weight:300;line-height:1.5;">&ldquo;${t.totmQuote}&rdquo;</div>
+      </div>` : ''}
     <div class="workout-list">
       <h3>Workout Plans — Buy Individually</h3>
       ${t.workouts.map(w => `
@@ -2027,12 +2053,22 @@ function openNutritionistModal(id) {
   const n = nutritionists.find(nu => nu.id === id);
   if (!n) return;
   const initials = n.name.split(' ').map(w => w[0]).join('');
+  const totalPlans = (n.plans || []).length;
   document.getElementById('trainerModalContent').innerHTML = `
+    ${n.introVideo ? `
+      <div class="trainer-detail-video" style="margin:-48px -48px 24px;">
+        <video src="${n.introVideo}" muted playsinline controls preload="metadata" style="width:100%;height:auto;max-height:360px;object-fit:cover;display:block;background:#000;"></video>
+      </div>` : ''}
     <div class="trainer-detail-header">
       <div class="trainer-detail-avatar" style="background: ${n.color};">${initials}</div>
       <div class="trainer-detail-info">
-        <h2>${n.name}</h2>
-        <div class="card-specialty">${n.specialty}</div>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+          <div>
+            <h2 style="margin:0;">${n.name}</h2>
+            <div class="card-specialty">${n.specialty}</div>
+          </div>
+          <a href="nutritionist-profile.html?id=${n.id}" class="btn btn-sm btn-outline" style="white-space:nowrap;">View full profile →</a>
+        </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;">
           ${n.credential ? `<span class="cred-tip" data-tip="${n.credentialFull || n.credential}" style="padding:3px 10px;font-size:0.68rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;border:1px solid var(--accent);color:var(--accent-dark);border-radius:3px;">${n.credential}</span>` : ''}
           ${n.credentialFull ? `<span style="padding:3px 10px;font-size:0.68rem;font-weight:400;color:var(--text-muted);border:1px solid var(--border);border-radius:3px;">${n.credentialFull}</span>` : ''}
@@ -2040,10 +2076,18 @@ function openNutritionistModal(id) {
         </div>
         <p class="card-desc">${n.bio}</p>
         <div class="trainer-detail-stats">
-          <span>${n.rating} rating</span>
+          ${n.rating ? `<span>${n.rating} rating</span>` : ''}
           <span>${n.subscribers.toLocaleString()} subscribers</span>
           <span>${n.experience} experience</span>
+          <span>${totalPlans} meal plan${totalPlans === 1 ? '' : 's'}</span>
+          ${n.location ? `<span>${n.location}</span>` : ''}
         </div>
+        ${n.tags && n.tags.length ? `
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
+            ${n.tags.map(tag => `<span style="padding:3px 10px;font-size:0.68rem;color:var(--text-muted);border:1px solid var(--border);border-radius:999px;">${tag}</span>`).join('')}
+          </div>` : ''}
+        ${n.languages && n.languages.length ? `
+          <div style="margin-top:8px;font-size:0.76rem;color:var(--text-muted);"><strong style="color:var(--text);font-weight:500;">Languages</strong> · ${n.languages.join(', ')}</div>` : ''}
       </div>
     </div>
     <div class="workout-list">

@@ -442,7 +442,7 @@ img.card-avatar-inline { background: var(--border); }
   scrollbar-width: none; -ms-overflow-style: none;
 }
 .modal::-webkit-scrollbar { display: none; }
-.modal-lg { max-width: 760px; }
+.modal-lg { max-width: 980px; }
 .modal-overlay.active .modal { transform: translateY(0); }
 .modal-close {
   position: absolute; top: 20px; right: 20px; background: none; border: none;
