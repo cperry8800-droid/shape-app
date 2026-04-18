@@ -354,6 +354,35 @@
     <div id="tpAtCapacityNotice" style="display:none;margin:0 0 24px;padding:14px 16px;border:1px solid rgba(239,68,68,0.45);background:rgba(239,68,68,0.08);font-size:0.86rem;color:rgba(255,255,255,0.85);">
       <strong style="color:#fca5a5;">Currently at capacity.</strong> This nutritionist isn't accepting new clients right now. Check back soon.
     </div>
+
+    <!-- Owner-only: at-capacity / out-of-office toggle (hidden for visitors) -->
+    <div id="tpCapacityCard" style="display:none;margin:0 0 24px;background:#141414;border:1px solid rgba(255,255,255,0.09);padding:16px 18px;">
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:220px;">
+          <div style="font-size:0.78rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.62);margin-bottom:4px;">Booking status</div>
+          <div style="font-size:0.86rem;color:var(--text-muted);" id="tpCapacityMsg">Accepting new clients. Toggle on if you're at capacity and want to pause new sign-ups.</div>
+        </div>
+        <label style="display:inline-flex;align-items:center;gap:10px;cursor:pointer;user-select:none;white-space:nowrap;">
+          <span style="font-size:0.82rem;font-weight:500;letter-spacing:0.04em;text-transform:uppercase;color:rgba(255,255,255,0.85);">At capacity</span>
+          <input type="checkbox" id="tpCapacityToggle" style="width:42px;height:24px;appearance:none;-webkit-appearance:none;background:rgba(255,255,255,0.14);border-radius:999px;position:relative;cursor:pointer;outline:none;transition:background 0.2s;" />
+        </label>
+      </div>
+      <div id="tpCapacityResumeRow" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.06);align-items:center;gap:10px;flex-wrap:wrap;">
+        <label for="tpCapacityResumeAt" style="font-size:0.82rem;color:rgba(255,255,255,0.72);">Auto-resume on (optional):</label>
+        <input id="tpCapacityResumeAt" type="date" style="padding:8px 10px;background:#0a0a0a;border:1px solid rgba(255,255,255,0.12);color:#fff;font-family:inherit;color-scheme:dark;" />
+        <button id="tpCapacityResumeSave" type="button" class="btn btn-secondary" style="padding:8px 14px;font-size:0.78rem;">Save date</button>
+        <button id="tpCapacityResumeClear" type="button" style="padding:8px 14px;font-size:0.78rem;background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.62);cursor:pointer;">Clear</button>
+      </div>
+    </div>
+    <style>
+      #tpCapacityToggle::before {
+        content: ''; position: absolute; top: 3px; left: 3px;
+        width: 18px; height: 18px; border-radius: 50%; background: #fff;
+        transition: transform 0.2s;
+      }
+      #tpCapacityToggle:checked { background: #ef4444 !important; }
+      #tpCapacityToggle:checked::before { transform: translateX(18px); }
+    </style>
     <script>
       (function () {
         var params = new URLSearchParams(window.location.search);
@@ -377,25 +406,105 @@
           try {
             var res = await window.shapeDb.client
               .from('nutritionists')
-              .select('at_capacity, capacity_resume_at')
+              .select('at_capacity, capacity_resume_at, owner_id')
               .eq('id', id)
               .maybeSingle();
-            if (res && res.data) {
-              var resume = res.data.capacity_resume_at;
-              var effective = res.data.at_capacity && (!resume || new Date(resume).getTime() > Date.now());
-              if (effective) {
-                if (ctas) ctas.style.display = 'none';
-                if (notice) {
-                  if (resume) {
-                    var nice = new Date(resume).toLocaleDateString();
-                    notice.innerHTML = '<strong style="color:#fca5a5;">Currently at capacity.</strong> This nutritionist is accepting new clients again on ' + nice + '.';
-                  }
-                  notice.style.display = 'block';
+            if (!res || !res.data) return;
+            var row = res.data;
+            var resume = row.capacity_resume_at;
+            var effective = row.at_capacity && (!resume || new Date(resume).getTime() > Date.now());
+            if (effective) {
+              if (ctas) ctas.style.display = 'none';
+              if (notice) {
+                if (resume) {
+                  var nice = new Date(resume).toLocaleDateString();
+                  notice.innerHTML = '<strong style="color:#fca5a5;">Currently at capacity.</strong> This nutritionist is accepting new clients again on ' + nice + '.';
                 }
+                notice.style.display = 'block';
               }
             }
+
+            var session = await window.shapeDb.getSession();
+            if (!session || session.user.id !== row.owner_id) return;
+            if (notice) notice.style.display = 'none';
+            if (ctas) ctas.style.display = 'none';
+            setupOwnerToggle(id, row.at_capacity, resume);
           } catch (e) { /* leave CTAs visible on error */ }
         });
+
+        function setupOwnerToggle(providerId, initialAtCap, initialResume) {
+          var card = document.getElementById('tpCapacityCard');
+          var toggle = document.getElementById('tpCapacityToggle');
+          var msg = document.getElementById('tpCapacityMsg');
+          var resumeRow = document.getElementById('tpCapacityResumeRow');
+          var resumeInput = document.getElementById('tpCapacityResumeAt');
+          var resumeSave = document.getElementById('tpCapacityResumeSave');
+          var resumeClear = document.getElementById('tpCapacityResumeClear');
+          if (!card || !toggle) return;
+          card.style.display = 'block';
+          function isoToDateInput(iso) {
+            if (!iso) return '';
+            var d = new Date(iso);
+            if (isNaN(d.getTime())) return '';
+            var y = d.getFullYear();
+            var m = String(d.getMonth() + 1).padStart(2, '0');
+            var day = String(d.getDate()).padStart(2, '0');
+            return y + '-' + m + '-' + day;
+          }
+          function paint(isAtCap, resumeAt) {
+            toggle.checked = !!isAtCap;
+            if (isAtCap) {
+              if (resumeAt) {
+                var nice = new Date(resumeAt).toLocaleDateString();
+                msg.textContent = "At capacity. Auto-resuming on " + nice + ".";
+              } else {
+                msg.textContent = "You're marked as at capacity. New clients can't subscribe or buy plans until you toggle this off.";
+              }
+              resumeRow.style.display = 'flex';
+              resumeInput.value = isoToDateInput(resumeAt);
+            } else {
+              msg.textContent = "Accepting new clients. Toggle on if you're at capacity and want to pause new sign-ups.";
+              resumeRow.style.display = 'none';
+              resumeInput.value = '';
+            }
+          }
+          var current = { atCap: !!initialAtCap, resume: initialResume };
+          paint(current.atCap, current.resume);
+          toggle.addEventListener('change', async function () {
+            var next = toggle.checked;
+            toggle.disabled = true;
+            var r = await window.shapeDb.setAtCapacity('nutritionist', providerId, next, null);
+            toggle.disabled = false;
+            if (r && r.error) {
+              alert('Could not update: ' + (r.error.message || 'unknown'));
+              paint(current.atCap, current.resume);
+              return;
+            }
+            current.atCap = next; current.resume = null;
+            paint(next, null);
+          });
+          resumeSave.addEventListener('click', async function () {
+            if (!toggle.checked) return;
+            var val = resumeInput.value;
+            if (!val) { alert('Pick a date first, or use Clear.'); return; }
+            var iso = new Date(val + 'T00:00:00').toISOString();
+            resumeSave.disabled = true;
+            var r = await window.shapeDb.setAtCapacity('nutritionist', providerId, true, iso);
+            resumeSave.disabled = false;
+            if (r && r.error) { alert('Could not save: ' + (r.error.message || 'unknown')); return; }
+            current.resume = iso;
+            paint(true, iso);
+          });
+          resumeClear.addEventListener('click', async function () {
+            if (!toggle.checked) return;
+            resumeClear.disabled = true;
+            var r = await window.shapeDb.setAtCapacity('nutritionist', providerId, true, null);
+            resumeClear.disabled = false;
+            if (r && r.error) { alert('Could not clear: ' + (r.error.message || 'unknown')); return; }
+            current.resume = null;
+            paint(true, null);
+          });
+        }
       })();
     </script>
 
