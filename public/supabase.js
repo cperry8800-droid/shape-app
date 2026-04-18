@@ -352,6 +352,79 @@
         .single();
     },
 
+    // Extract a Spotify playlist ID from a URL or spotify: URI. Returns
+    // null if the input isn't a recognizable playlist reference.
+    parseSpotifyPlaylistId(input) {
+      if (!input || typeof input !== 'string') return null;
+      var s = input.trim();
+      var m = s.match(/playlist[/:]([A-Za-z0-9]{10,40})/);
+      return m ? m[1] : null;
+    },
+
+    async listMyPlaylists(trainerId) {
+      return await client
+        .from('trainer_playlists')
+        .select('id, trainer_id, workout_id, title, description, spotify_playlist_id, created_at')
+        .eq('trainer_id', trainerId)
+        .order('created_at', { ascending: false });
+    },
+
+    async createPlaylist(trainerId, fields) {
+      var spotifyId = shapeDb.parseSpotifyPlaylistId(fields.spotifyUrl || '');
+      if (!spotifyId) return { error: { message: 'Please paste a valid Spotify playlist link.' } };
+      var row = {
+        trainer_id: trainerId,
+        title: (fields.title || '').slice(0, 200),
+        description: fields.description ? String(fields.description).slice(0, 1000) : null,
+        spotify_playlist_id: spotifyId,
+        workout_id: fields.workoutId || null,
+      };
+      if (!row.title) return { error: { message: 'Playlist title is required.' } };
+      return await client
+        .from('trainer_playlists')
+        .insert(row)
+        .select()
+        .single();
+    },
+
+    async deletePlaylist(playlistId) {
+      return await client.from('trainer_playlists').delete().eq('id', playlistId);
+    },
+
+    // Fetch playlists from trainers the signed-in user subscribes to.
+    // Returns [{ id, title, description, spotify_playlist_id, trainer_id, trainer_name }].
+    async listPlaylistsForMe() {
+      var session = await shapeDb.getSession();
+      if (!session) return { data: [], error: null };
+      var subs = await client
+        .from('subscriptions')
+        .select('provider_id, provider_role, status')
+        .eq('provider_role', 'trainer')
+        .in('status', ['active', 'trialing']);
+      if (subs.error) return { data: [], error: subs.error };
+      var ids = (subs.data || []).map(function (s) { return s.provider_id; });
+      if (ids.length === 0) return { data: [], error: null };
+      var pls = await client
+        .from('trainer_playlists')
+        .select('id, trainer_id, workout_id, title, description, spotify_playlist_id, created_at, trainers:trainer_id(name)')
+        .in('trainer_id', ids)
+        .order('created_at', { ascending: false });
+      if (pls.error) return { data: [], error: pls.error };
+      var out = (pls.data || []).map(function (p) {
+        return {
+          id: p.id,
+          trainer_id: p.trainer_id,
+          workout_id: p.workout_id,
+          title: p.title,
+          description: p.description,
+          spotify_playlist_id: p.spotify_playlist_id,
+          trainer_name: p.trainers && p.trainers.name ? p.trainers.name : 'Your trainer',
+          created_at: p.created_at,
+        };
+      });
+      return { data: out, error: null };
+    },
+
     // Kick off Stripe Connect onboarding for the signed-in provider. Server
     // creates (or reuses) the Connect account and returns a hosted
     // onboarding URL; we send the user there.

@@ -320,6 +320,12 @@
 
   </div>
 
+  <!-- Trainer-curated playlists — shows for signed-in subscribers -->
+  <section id="trainerPlaylistsSection" class="section" style="display:none;max-width:960px;margin:40px auto 20px;padding:0 24px;">
+    <div style="font-family:'Inter',sans-serif;font-weight:300;letter-spacing:0.28em;text-transform:uppercase;font-size:0.86rem;color:rgba(255,255,255,0.9);margin-bottom:18px;">From Your Trainers</div>
+    <div id="trainerPlaylistsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;"></div>
+  </section>
+
   </div><!-- end radio-content -->
 
   <footer class="radio-footer">
@@ -435,6 +441,32 @@
       } catch (e) {}
     }
 
+    // ===== Trainer playlists =====
+    function escHtml(s) {
+      return String(s).replace(/[&<>"']/g, function (c) {
+        return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+      });
+    }
+    async function loadTrainerPlaylists() {
+      if (!window.shapeDb || !window.shapeDb.listPlaylistsForMe) return;
+      try {
+        var res = await window.shapeDb.listPlaylistsForMe();
+        var list = (res && res.data) || [];
+        if (!list.length) return;
+        var grid = document.getElementById('trainerPlaylistsGrid');
+        grid.innerHTML = list.map(function (p) {
+          var embed = 'https://open.spotify.com/embed/playlist/' + encodeURIComponent(p.spotify_playlist_id) + '?theme=0';
+          return '<div style="background:rgba(10,10,10,0.45);border:1px solid rgba(255,255,255,0.08);padding:14px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);">'
+            + '<div style="font-size:0.76rem;color:rgba(45,212,191,0.9);text-transform:uppercase;letter-spacing:0.12em;margin-bottom:4px;">' + escHtml(p.trainer_name) + '</div>'
+            + '<div style="font-size:1rem;font-weight:500;margin-bottom:4px;color:#fff;">' + escHtml(p.title) + '</div>'
+            + (p.description ? '<div style="font-size:0.82rem;color:rgba(255,255,255,0.6);margin-bottom:12px;">' + escHtml(p.description) + '</div>' : '<div style="height:8px;"></div>')
+            + '<iframe style="border-radius:8px;" src="' + embed + '" width="100%" height="152" frameborder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>'
+            + '</div>';
+        }).join('');
+        document.getElementById('trainerPlaylistsSection').style.display = 'block';
+      } catch (e) { /* ignore */ }
+    }
+
     // ===== Auth gate =====
     function openRadio(autoPlay) {
       document.getElementById('radioGate').style.display = 'none';
@@ -446,6 +478,7 @@
           p.catch(function () { /* autoplay blocked; user will click play */ });
         }
       }
+      loadTrainerPlaylists();
     }
 
     function radioGoLogin() {
