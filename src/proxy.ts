@@ -1,5 +1,7 @@
 // Next 16 proxy (formerly middleware). Refreshes the Supabase session on
 // every non-static request so server components can rely on getUser().
+// Also forwards the request pathname as a header so server components
+// (Nav, Footer) can decide whether to render based on the current route.
 
 import type { NextRequest } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';

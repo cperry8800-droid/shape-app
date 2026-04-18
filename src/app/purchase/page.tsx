@@ -102,7 +102,9 @@ export default async function PurchasePage({ searchParams }: Props) {
   const displayName = itemName ? `${row.name} — ${itemName}` : row.name;
 
   return (
-    <main style={{ maxWidth: 520, margin: '0 auto', padding: '160px 24px 80px', textAlign: 'center' }}>
+    <>
+      <CheckoutTopBar />
+    <main style={{ maxWidth: 520, margin: '0 auto', padding: '120px 24px 80px', textAlign: 'center' }}>
       <div style={{ fontSize: '0.72rem', fontWeight: 500, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.42)', marginBottom: 14 }}>
         {label}
       </div>
@@ -152,6 +154,33 @@ export default async function PurchasePage({ searchParams }: Props) {
         </a>
       </div>
     </main>
+    </>
+  );
+}
+
+function CheckoutTopBar() {
+  return (
+    <header
+      style={{
+        position: 'fixed', top: 0, left: 0, right: 0, height: 60, zIndex: 50,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '0 24px', background: 'rgba(10,10,10,0.88)',
+        backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)',
+      }}
+    >
+      <a href="/trainers" aria-label="Shape" style={{ display: 'flex', alignItems: 'center' }}>
+        <img src="/logo.png" alt="Shape" style={{ height: 26, width: 'auto', display: 'block' }} />
+      </a>
+      <a
+        href="/trainers"
+        style={{
+          fontSize: '0.74rem', fontWeight: 500, letterSpacing: '0.1em',
+          textTransform: 'uppercase', color: 'rgba(255,255,255,0.62)', textDecoration: 'none',
+        }}
+      >
+        Cancel
+      </a>
+    </header>
   );
 }
 

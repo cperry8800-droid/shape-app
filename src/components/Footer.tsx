@@ -2,8 +2,16 @@
 // Visuals match legacy shape-website/styles.css .footer.
 
 import Link from 'next/link';
+import { headers } from 'next/headers';
 
-export default function Footer() {
+const HIDE_FOOTER_PREFIXES = ['/purchase', '/subscribe'];
+
+export default async function Footer() {
+  const pathname = (await headers()).get('x-pathname') ?? '';
+  if (HIDE_FOOTER_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'))) {
+    return null;
+  }
+
   return (
     <>
       <style>{`
