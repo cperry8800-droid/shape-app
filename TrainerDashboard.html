@@ -1,0 +1,104 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Trainer Dashboard · Shape</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; background: #1a1612; }
+  * { box-sizing: border-box; }
+  a { text-decoration: none; color: inherit; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="pageShell.jsx"></script>
+<script type="text/babel" src="trainerDashboard.jsx"></script>
+<script type="text/babel" src="coachNav.jsx"></script>
+<script type="text/babel">
+const TRAINER_CAL_EVENTS = [
+  { date: "2026-04-13", time: "07:00", kind: "SESSION", title: "Priya S. · Lower pull", sub: "Remote · 60 min" },
+  { date: "2026-04-13", time: "09:30", kind: "SESSION", title: "Deandre K. · Upper push", sub: "Brooklyn studio" },
+  { date: "2026-04-13", time: "15:00", kind: "ADMIN",   title: "Program writing", sub: "Block 2 of 2 clients" },
+  { date: "2026-04-14", time: "08:00", kind: "SESSION", title: "Ana P. · Marathon base", sub: "Remote · 45 min" },
+  { date: "2026-04-14", time: "11:00", kind: "REVIEW",  title: "Video form review", sub: "Jonah W." },
+  { date: "2026-04-15", time: "07:00", kind: "SESSION", title: "Marcus L. · Deload", sub: "Studio · 60 min" },
+  { date: "2026-04-15", time: "14:00", kind: "CHECKIN", title: "Weekly w/ Priya", sub: "20 min · video" },
+  { date: "2026-04-16", time: "06:30", kind: "SESSION", title: "Ana P. · Long run", sub: "Tempo 12k" },
+  { date: "2026-04-16", time: "15:00", kind: "ADMIN",   title: "Payout review", sub: "Apr 21 cycle" },
+  { date: "2026-04-17", time: "09:00", kind: "SESSION", title: "Priya S. · Upper pull", sub: "Remote · 45 min" },
+  { date: "2026-04-17", time: "18:00", kind: "CHECKIN", title: "Weekly w/ Marcus", sub: "Video · 20 min" },
+  { date: "2026-04-18", time: "07:00", kind: "SESSION", title: "Priya S. · Lower pull", sub: "Remote" },
+  { date: "2026-04-18", time: "09:30", kind: "SESSION", title: "Deandre K. · Upper push", sub: "Brooklyn" },
+  { date: "2026-04-18", time: "14:00", kind: "CHECKIN", title: "Sam O. · Intake call", sub: "30 min" },
+  { date: "2026-04-18", time: "17:30", kind: "SESSION", title: "Priya S. · Upper push", sub: "Remote" },
+  { date: "2026-04-18", time: "19:00", kind: "REVIEW",  title: "Jaya P. · nutrition review", sub: "20 min" },
+  { date: "2026-04-19", time: "10:00", kind: "ADMIN",   title: "Programming block", sub: "Focus time" },
+  { date: "2026-04-20", time: "07:00", kind: "SESSION", title: "Jonah W. · Foundations", sub: "Studio" },
+  { date: "2026-04-20", time: "18:00", kind: "CHECKIN", title: "Jen K. · Intake", sub: "New client" },
+  { date: "2026-04-21", time: "10:00", kind: "ADMIN",   title: "Payout day", sub: "Apr 21 · $2,847" },
+  { date: "2026-04-22", time: "09:00", kind: "SESSION", title: "Ana P. · Tempo", sub: "Remote" },
+  { date: "2026-04-23", time: "17:00", kind: "REVIEW",  title: "Quarterly client review", sub: "With Rae" },
+  { date: "2026-04-24", time: "08:00", kind: "SESSION", title: "Marcus L. · Squat work", sub: "Studio" },
+  { date: "2026-04-26", time: "10:00", kind: "SESSION", title: "Priya S. · Assessment", sub: "Monthly test" },
+  { date: "2026-04-28", time: "17:30", kind: "CHECKIN", title: "Monthly review · Priya", sub: "With Rae" },
+  { date: "2026-04-30", time: "15:00", kind: "ADMIN",   title: "Month close-out", sub: "Admin" },
+];
+
+function TrainerDashboardPage() {
+  return (
+    <DashShell
+      role="trainer"
+      userName="Maya"
+      date="WEDNESDAY APR 18"
+      greeting="Good morning, Maya."
+      primaryCta={["+ Program"]}
+      secondaryCta={["New session"]}
+      navItems={trainerNavItems("today")}
+      payoutCard={trainerPayoutCard}
+      kpis={[
+        { k: "$2,847.50", l: "Current balance" },
+        { k: "Apr 21", l: "Next payout", sub: "in 3 days" },
+        { k: "$4,192.00", l: "This month" },
+        { k: "$38,420", l: "Lifetime" },
+      ]}
+      scheduleTitle="Today's schedule"
+      calendarEvents={TRAINER_CAL_EVENTS}
+      schedule={[
+        { time: "07:00", who: "Priya S.", sub: "Lower pull · remote", status: "DONE" },
+        { time: "09:30", who: "Deandre K.", sub: "Upper push · Brooklyn", status: "DONE" },
+        { time: "14:00", who: "Sam O.", sub: "Intake call · new", status: "NEXT" },
+        { time: "17:30", who: "Priya S.", sub: "Upper push · remote" },
+        { time: "19:00", who: "Jaya P.", sub: "Nutrition review" },
+      ]}
+      pulseTitle="Client pulse"
+      pulse={[
+        { who: "Maya",   sub: "2 workouts · 4d streak",   trend: [0.2,0.4,0.3,0.5,0.4,0.6,0.5] },
+        { who: "Diego",  sub: "4 workouts · 7d streak",   trend: [0.3,0.5,0.4,0.7,0.6,0.8,0.7] },
+        { who: "Rae",    sub: "6 workouts · 10d streak",  trend: [0.4,0.6,0.5,0.8,0.7,0.9,0.85] },
+        { who: "Jordan", sub: "8 workouts · 13d streak",  trend: [0.5,0.4,0.6,0.5,0.7,0.6,0.65] },
+        { who: "Nadia",  sub: "10 workouts · 16d streak", trend: [0.6,0.7,0.65,0.8,0.75,0.9,0.88] },
+      ]}
+      extraSections={[{
+        title: "Recent payouts",
+        render: () => <RecentPayouts rows={[
+          { date: "Apr 7, 2026",  mid: "32 subscribers", amount: "$2,612.00" },
+          { date: "Mar 31, 2026", mid: "31 subscribers", amount: "$2,530.50" },
+          { date: "Mar 24, 2026", mid: "30 subscribers", amount: "$2,449.00" },
+          { date: "Mar 17, 2026", mid: "30 subscribers", amount: "$2,449.00" },
+        ]} />,
+      }]}
+    />
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<TrainerDashboardPage />);
+</script>
+</body>
+</html>

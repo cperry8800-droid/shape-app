@@ -1,0 +1,128 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Goal · Shape</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>html,body{margin:0;padding:0;background:#1a1612}*{box-sizing:border-box}a{text-decoration:none;color:inherit}</style>
+</head>
+<body><div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="pageShell.jsx"></script>
+<script type="text/babel" src="trainerDashboard.jsx"></script>
+<script type="text/babel" src="coachNav.jsx"></script>
+<script type="text/babel">
+function TrainerGoalPage() {
+  const [rate, setRate] = React.useState(85);
+  const [spw, setSpw] = React.useState(22);
+  const [prog, setProg] = React.useState(400);
+  const weekly = rate*spw + prog;
+  const monthly = weekly * 4.33;
+  const quarterly = monthly * 3;
+  const annual = monthly * 12;
+  const fmt = n => "$" + Math.round(n).toLocaleString();
+  const currentWeekly = 4620; // current pace benchmark
+  const paceDelta = weekly - currentWeekly;
+  const goals = [
+    { t: "50 active clients by July",     cur: 34, tgt: 50, sub: "16 to go · +3/wk pace gets there Jun 29" },
+    { t: "$20k MRR by Q3",                cur: 14820, tgt: 20000, sub: "$5.2k to go · 92% retention holds = Aug 15", money: true },
+    { t: "Publish 2 new programs",        cur: 1, tgt: 2, sub: "Return-to-lifting shipping next week" },
+    { t: "95% avg client adherence",      cur: 92, tgt: 95, sub: "30d rolling · +3 pts needed", pct: true },
+  ];
+  return (
+    <DashPage
+      navItems={trainerNavItems("goal")}
+      payoutCard={trainerPayoutCard}
+      eyebrow="YOUR GOALS · Q2 2026"
+      title="Goal"
+      subtitle="What you're building toward this quarter. Shape tracks progress automatically from your clients, payouts, and programs."
+      actions={<>
+        <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Archive</button>
+        <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ New goal</button>
+      </>}
+    >
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        {goals.map((g, i) => {
+          const pct = Math.min(g.cur / g.tgt, 1);
+          const curF = g.money ? `$${g.cur.toLocaleString()}` : g.pct ? `${g.cur}%` : g.cur;
+          const tgtF = g.money ? `$${g.tgt.toLocaleString()}` : g.pct ? `${g.tgt}%` : g.tgt;
+          return (
+            <Card key={i} style={{ padding: 26 }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>GOAL · {Math.round(pct*100)}%</div>
+              <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.015em", marginBottom: 16 }}>{g.t}</div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "rgba(242,237,228,0.55)", fontFamily: "'JetBrains Mono', monospace", marginBottom: 6 }}>
+                <span>{curF}</span><span>{tgtF}</span>
+              </div>
+              <div style={{ height: 8, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden", marginBottom: 14 }}>
+                <div style={{ height: "100%", width: `${pct*100}%`, background: TEAL }} />
+              </div>
+              <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.6)", lineHeight: 1.5 }}>{g.sub}</div>
+            </Card>
+          );
+        })}
+      </div>
+      <Card style={{ marginTop: 20 }}>
+        <SectionTitle right="SET YOUR TARGET">Revenue calculator</SectionTitle>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 32, padding: "8px 4px 4px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            {[
+              ["Session rate", rate, setRate, 20, 300, 5, v => `$${v}`],
+              ["Sessions / week", spw, setSpw, 0, 60, 1, v => `${v}`],
+              ["Program sales / week", prog, setProg, 0, 5000, 50, v => `$${v}`],
+            ].map(([label, val, set, min, max, step, fmtV], i) => (
+              <div key={i}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                  <span style={{ fontSize: 12.5, color: "rgba(242,237,228,0.7)" }}>{label}</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, color: INK }}>{fmtV(val)}</span>
+                </div>
+                <input type="range" min={min} max={max} step={step} value={val} onChange={e => set(+e.target.value)}
+                  style={{ width: "100%", accentColor: "#1ec0a8", cursor: "pointer" }} />
+              </div>
+            ))}
+            <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", lineHeight: 1.5, marginTop: 4 }}>
+              Based on your rate, weekly sessions, and program sales. Set your own prices — clients pay you directly.
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignSelf: "start" }}>
+            {[
+              ["WEEKLY", fmt(weekly), `vs ${fmt(currentWeekly)} current pace`, paceDelta],
+              ["MONTHLY", fmt(monthly), "4.33 weeks avg", null],
+              ["QUARTERLY", fmt(quarterly), "3 months", null],
+              ["ANNUAL", fmt(annual), "12 months", null],
+            ].map(([lab, val, sub, delta], i) => (
+              <div key={i} style={{ padding: 20, background: i === 0 ? "rgba(30,192,168,0.1)" : "rgba(242,237,228,0.04)", border: `1px solid ${i === 0 ? "rgba(30,192,168,0.25)" : "rgba(242,237,228,0.08)"}`, borderRadius: 10 }}>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: i === 0 ? TEAL_BRIGHT : "rgba(242,237,228,0.55)", marginBottom: 10 }}>{lab}</div>
+                <div style={{ fontFamily: serif, fontSize: 32, letterSpacing: "-0.02em", lineHeight: 1 }}>{val}</div>
+                <div style={{ fontSize: 11, color: "rgba(242,237,228,0.55)", marginTop: 6 }}>
+                  {delta != null ? (
+                    <span style={{ color: delta >= 0 ? TEAL_BRIGHT : "#ff8a6d" }}>{delta >= 0 ? "+" : ""}{fmt(delta)} </span>
+                  ) : null}
+                  {sub}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Card>
+      <Card style={{ marginTop: 20 }}>
+        <SectionTitle right="THIS QUARTER">Momentum</SectionTitle>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 20, padding: "12px 4px" }}>
+          {[["+11","Net new clients","vs +6 last Q"],["+$3.4k","MRR growth","vs +$1.8k last Q"],["2","Programs shipped","vs 1 last Q"],["+4 pts","Adherence","vs +2 pts last Q"]].map((m,i)=>(
+            <div key={i}>
+              <div style={{ fontFamily: serif, fontSize: 36, letterSpacing: "-0.02em", lineHeight: 1 }}>{m[0]}</div>
+              <div style={{ fontSize: 12.5, marginTop: 8 }}>{m[1]}</div>
+              <div style={{ fontSize: 11, color: "rgba(242,237,228,0.5)", marginTop: 2 }}>{m[2]}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </DashPage>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<TrainerGoalPage />);
+</script>
+</body>
+</html>

@@ -1,0 +1,191 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Profile · Shape</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>html,body{margin:0;padding:0;background:#1a1612}*{box-sizing:border-box}a{text-decoration:none;color:inherit}</style>
+</head>
+<body><div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="pageShell.jsx"></script>
+<script type="text/babel" src="trainerDashboard.jsx"></script>
+<script type="text/babel" src="coachNav.jsx"></script>
+<script type="text/babel">
+function Row({ label, value, action }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 12, alignItems: "center", padding: "14px 0", borderTop: "1px solid rgba(242,237,228,0.06)" }}>
+      <div style={{ fontSize: 13.5, color: "rgba(242,237,228,0.6)" }}>{label}</div>
+      <div style={{ fontSize: 13.5 }}>{value}</div>
+      {action && <span style={{ fontSize: 12, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", cursor: "pointer" }}>{action}</span>}
+    </div>
+  );
+}
+function NutritionistProfilePage() {
+  return (
+    <DashPage
+      navItems={nutriNavItems("profile")}
+      payoutCard={nutriPayoutCard}
+      eyebrow="YOUR COACH PROFILE"
+      title="Profile"
+      subtitle="How clients find you in the marketplace. Edits go live after a 1-hour review window."
+      actions={<>
+        <a href="NutritionistPublic.html" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", display: "inline-block" }}>Preview public page</a>
+        <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Edit profile</button>
+      </>}
+    >
+      <ProfileHero
+        eyebrow="NUTRITIONIST · BROOKLYN · ON SHAPE SINCE MAR '24"
+        name="Rae Lindqvist"
+        pills={[
+          { label: "PEAK · 1,940", tone: "teal" },
+          { label: "VERIFIED" },
+          { label: "4.94 ★ · 862" },
+          { label: "28 CLIENTS" },
+        ]}
+        score="1,940"
+        scoreCaption="Top 8% · Q2 '26"
+        stats={[["26 mo","Coaching on Shape"],["94%","Client retention · 12mo"],["$11.2k","MTD revenue"],["89%","Log adherence"]]}
+      />
+
+      <BioCard
+        charLimit={500}
+        body="Performance nutritionist (RD, CISSN) working with endurance athletes, body-comp goals, and plant-forward eaters. I came up fueling marathon runners and gravel cyclists who travel for work — so my plans are built to survive airport layovers, race-morning nerves, and the 9pm restaurant surprise. If your goal involves going long, feeling better on the bike, or losing fat without tanking your workouts, let's talk."
+      />
+
+      <SubscriptionCard
+        caption="Set your own monthly subscription price"
+        includes={["Full meal plan library", "Weekly plan refresh", "Direct messaging", "Progress tracking"]}
+      />
+
+      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 20, marginBottom: 20 }}>
+        <Card>
+          <SectionTitle right="THIS WEEK">Consults delivered</SectionTitle>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 140, padding: "8px 4px 0" }}>
+            {[["M",3],["T",4],["W",3],["T",5],["F",2],["S",0],["S",0]].map(([d,v],i)=>(
+              <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                <div style={{ width: "100%", height: 120, display: "flex", alignItems: "flex-end" }}>
+                  <div style={{ width: "100%", height: `${(v/6)*100}%`, background: v ? TEAL : "rgba(242,237,228,0.08)", borderRadius: 3 }} />
+                </div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(242,237,228,0.5)" }}>{d}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.6)", marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.06)" }}>17 consults this week · 32 active meal plans. Adherence 89%.</div>
+        </Card>
+        <Card style={{ background: "rgba(30,192,168,0.08)", border: "1px solid rgba(30,192,168,0.25)" }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 12 }}>NEW REVIEW · DEANDRE K. · 1D AGO</div>
+          <div style={{ fontFamily: serif, fontSize: 19, fontStyle: "italic", lineHeight: 1.45, letterSpacing: "-0.005em" }}>"Rae rebuilt my race-week fueling from scratch. PR'd at the half by four minutes and didn't bonk once."</div>
+          <div style={{ marginTop: 14, fontSize: 12, color: "rgba(242,237,228,0.55)" }}>★★★★★ · 5.0</div>
+          <div style={{ marginTop: 14, display: "flex", gap: 10 }}>
+            <button style={{ background: TEAL, color: PAPER, border: 0, padding: "8px 14px", borderRadius: 999, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: sans }}>Feature on profile</button>
+            <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.2)", padding: "8px 14px", borderRadius: 999, fontSize: 12, cursor: "pointer", fontFamily: sans }}>Thank Deandre</button>
+          </div>
+        </Card>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+        <Card>
+          <SectionTitle>Public profile</SectionTitle>
+          <Row label="Display name" value="Rae Lindqvist" action="EDIT" />
+          <Row label="Headline" value="Performance nutrition · Brooklyn" action="EDIT" />
+          <Row label="Specialties" value="Endurance · Body comp · Plant-forward" action="EDIT" />
+          <Row label="Certifications" value="RD, CISSN (verified)" action="VIEW" />
+          <Row label="Languages" value="English, Swedish" action="EDIT" />
+        </Card>
+        <Card>
+          <SectionTitle>Pricing &amp; availability</SectionTitle>
+          <Row label="Performance fuel" value="$180 / month" action="EDIT" />
+          <Row label="Protein-led cut" value="$160 / month" action="EDIT" />
+          <Row label="1:1 consult" value="$120 / 45 min" action="EDIT" />
+          <Row label="Intake call" value="Free · 20 min" action="EDIT" />
+          <Row label="Accepting new clients" value="Yes · 4 slots" action="TOGGLE" />
+          <Row label="Availability" value="Mon–Fri · 7am–6pm" action="EDIT" />
+        </Card>
+        <Card>
+          <SectionTitle>Payouts</SectionTitle>
+          <Row label="Payout tier" value="Peak" />
+          <Row label="Next payout" value="Apr 30 · $11,240" />
+          <Row label="Bank account" value="Chase ••• 2014" action="UPDATE" />
+          <Row label="Tax form" value="W-9 on file" action="VIEW" />
+          <Row label="Payout cadence" value="Monthly · 30th" action="CHANGE" />
+        </Card>
+        <Card>
+          <SectionTitle>Account</SectionTitle>
+          <Row label="Email" value="rae@raenutrition.co" action="EDIT" />
+          <Row label="Phone" value="+1 (718) •••• 8820" action="EDIT" />
+          <Row label="2-factor auth" value="On · Authenticator" action="MANAGE" />
+          <Row label="Connected apps" value="Calendly, Gmail" action="MANAGE" />
+          <Row label="Notification preferences" value="Push + email" action="CHANGE" />
+        </Card>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginTop: 20 }}>
+        <Card>
+          <SectionTitle>Nutrition philosophy &amp; method</SectionTitle>
+          <Row label="Approach" value="Evidence-based · food-first · flexible" action="EDIT" />
+          <Row label="Protocol length" value="12-wk fueling blocks · monthly review" action="EDIT" />
+          <Row label="Check-in cadence" value="Weekly async · biweekly video" action="EDIT" />
+          <Row label="Tracking style" value="Protein + carbs focused · no strict counting" action="EDIT" />
+          <Row label="Metrics I track" value="Fueling timing, energy, body comp, labs" action="EDIT" />
+          <Row label="Typical client" value="Endurance athlete · masters · plant-curious" action="EDIT" />
+        </Card>
+        <Card>
+          <SectionTitle>Ideal client &amp; matching</SectionTitle>
+          <Row label="Best for" value="Endurance fueling, body comp, plant-forward" action="EDIT" />
+          <Row label="Not a fit" value="Clinical eating disorders, medical ketogenic" action="EDIT" />
+          <Row label="Intake requirements" value="Bloodwork within 6 mo · food log 7 days" action="EDIT" />
+          <Row label="Minimum commitment" value="8 weeks" action="EDIT" />
+          <Row label="Lab review" value="CMP, lipids, ferritin, vit D" action="EDIT" />
+          <Row label="Response time" value="Under 12h weekdays" action="EDIT" />
+        </Card>
+        <Card>
+          <SectionTitle>Meal plans &amp; resources</SectionTitle>
+          <Row label="Plan templates" value="14 active · 4 drafts" action="MANAGE" />
+          <Row label="Recipe library" value="86 recipes · 12 tagged race-week" action="MANAGE" />
+          <Row label="Grocery lists" value="Auto-generated per plan" action="CONFIGURE" />
+          <Row label="Supplement protocols" value="6 protocols · endurance, cut, recovery" action="MANAGE" />
+          <Row label="Featured case study" value="Deandre K. · half-marathon PR" action="VIEW" />
+          <Row label="Intro video" value="1:18 · uploaded Feb 22" action="REPLACE" />
+        </Card>
+        <Card>
+          <SectionTitle>Credentials &amp; compliance</SectionTitle>
+          <Row label="RD license" value="NY · #D-20418 · valid through Mar '27" action="VIEW" />
+          <Row label="CISSN" value="Issued 2022 · 18/20 CEUs" action="VIEW" />
+          <Row label="Liability insurance" value="Proliability · $2M · through Nov '26" action="VIEW" />
+          <Row label="HIPAA acknowledgement" value="Signed Jan '24" action="VIEW" />
+          <Row label="Business entity" value="Rae Lindqvist Nutrition LLC · NY" action="EDIT" />
+          <Row label="Background check" value="Checkr · cleared Mar '24" action="VIEW" />
+        </Card>
+      </div>
+      <Card style={{ marginTop: 20 }}>
+        <SectionTitle>Social &amp; links</SectionTitle>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 32px" }}>
+          <Row label="Instagram" value="@rae.fuels · 26.8k" action="EDIT" />
+          <Row label="Website" value="raenutrition.co" action="EDIT" />
+          <Row label="Substack" value="Race Week · 3.2k subs" action="EDIT" />
+          <Row label="Podcast" value="Fuel Notes · weekly" action="EDIT" />
+          <Row label="YouTube" value="Not connected" action="CONNECT" />
+          <Row label="TikTok" value="Not connected" action="CONNECT" />
+          <Row label="LinkedIn" value="rae-lindqvist-rd" action="EDIT" />
+          <Row label="Twitter / X" value="Not connected" action="CONNECT" />
+        </div>
+      </Card>
+
+      <Card style={{ marginTop: 20, padding: 22 }}>
+        <SectionTitle>Danger zone</SectionTitle>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+          <button style={{ background: "transparent", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.2)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Export client data</button>
+          <button style={{ background: "transparent", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.2)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Pause coach profile</button>
+          <button style={{ background: "transparent", color: "#e07856", border: "1px solid rgba(224,120,86,0.4)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Close account</button>
+        </div>
+      </Card>
+    </DashPage>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<NutritionistProfilePage />);
+</script>
+</body>
+</html>

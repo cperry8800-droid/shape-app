@@ -1,0 +1,134 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Progress · Shape</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>html,body{margin:0;padding:0;background:#1a1612}*{box-sizing:border-box}a{text-decoration:none;color:inherit}</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="pageShell.jsx"></script>
+<script type="text/babel" src="chatWidget.jsx"></script>
+<script type="text/babel" src="clientChatThreads.jsx"></script>
+<script type="text/babel" src="trainerDashboard.jsx"></script>
+<script type="text/babel" src="clientNav.jsx"></script>
+<script type="text/babel">
+function BigChart({ points, height = 260 }) {
+  const W = 1000, H = height, pad = 28;
+  const max = Math.max(...points);
+  const min = Math.min(...points);
+  const range = max - min || 1;
+  const step = (W - pad * 2) / (points.length - 1);
+  const path = points.map((v, i) => {
+    const x = pad + i * step;
+    const y = H - pad - ((v - min) / range) * (H - pad * 2);
+    return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  const area = path + ` L${pad + (points.length - 1) * step},${H - pad} L${pad},${H - pad} Z`;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+      <defs>
+        <linearGradient id="g" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor={TEAL} stopOpacity="0.25" />
+          <stop offset="100%" stopColor={TEAL} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {[0, 0.25, 0.5, 0.75, 1].map(t => (
+        <line key={t} x1={pad} x2={W - pad} y1={pad + t * (H - pad * 2)} y2={pad + t * (H - pad * 2)} stroke="rgba(242,237,228,0.06)" />
+      ))}
+      <path d={area} fill="url(#g)" />
+      <path d={path} fill="none" stroke={TEAL} strokeWidth="2" />
+    </svg>
+  );
+}
+
+function ClientProgressPage() {
+  const weight = [184,183,184,182,181,181,180,179,178,178,177,177,176,175,176,174,173,173,172,171];
+  const prs = [
+    ["Back squat",   "245 → 265", "+8.2%", "Feb 4 → Apr 16"],
+    ["Bench press",  "185 → 200", "+8.1%", "Feb 11 → Apr 9"],
+    ["Deadlift",     "315 → 345", "+9.5%", "Feb 18 → Apr 14"],
+    ["Pull-ups",     "8 → 13",    "+62%",  "bodyweight, strict"],
+    ["5k time",      "26:14 → 23:41", "−9.8%", "Prospect Park loop"],
+    ["Resting HR",   "64 → 58",   "−9.4%", "7-day avg"],
+  ];
+  return (
+    <DashPage
+      navItems={clientNavItems("progress")}
+      payoutCard={clientPayoutCard}
+      eyebrow="LAST 12 WEEKS"
+      title="Progress"
+      subtitle="Everything your team tracks — strength, body comp, cardio, sleep. Rolls up from workouts, weigh-ins, wearables and logs."
+      actions={<>
+        <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Export CSV</button>
+        <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>New weigh-in</button>
+      </>}
+    >
+      {/* KPI row */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 20 }}>
+        {[
+          { k: "−13 lb", l: "Since Feb 4", sub: "trailing 12w" },
+          { k: "22.1%", l: "Body fat", sub: "from 26.4%" },
+          { k: "58 bpm", l: "Resting HR", sub: "7d avg, −6" },
+          { k: "7.4 h", l: "Sleep", sub: "30d avg" },
+        ].map((k, i) => (
+          <Card key={i} style={{ padding: "22px 22px 20px" }}>
+            <div style={{ fontFamily: serif, fontSize: 42, fontWeight: 400, letterSpacing: "-0.02em", lineHeight: 1 }}>{k.k}</div>
+            <div style={{ fontSize: 13, marginTop: 12 }}>{k.l}</div>
+            <div style={{ fontSize: 11, color: "rgba(242,237,228,0.5)", marginTop: 4 }}>{k.sub}</div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Chart card */}
+      <Card style={{ marginBottom: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 500 }}>Bodyweight</div>
+            <div style={{ fontSize: 12, color: "rgba(242,237,228,0.5)", marginTop: 2 }}>lb · daily · last 12 weeks</div>
+          </div>
+          <div style={{ display: "flex", gap: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em" }}>
+            {["4W","12W","6M","1Y","ALL"].map((t, i) => (
+              <span key={t} style={{ padding: "4px 10px", borderRadius: 4, background: i === 1 ? "rgba(30,192,168,0.16)" : "transparent", color: i === 1 ? TEAL_BRIGHT : "rgba(242,237,228,0.5)" }}>{t}</span>
+            ))}
+          </div>
+        </div>
+        <BigChart points={weight} />
+      </Card>
+
+      {/* Strength PRs */}
+      <Card>
+        <SectionTitle right="APR 16 · AUTOPULLED FROM TRAIN">Personal records</SectionTitle>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 0 }}>
+          {prs.map((p, i) => (
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 70px", gap: 16, alignItems: "center", padding: "16px 4px", borderTop: i < 2 ? "none" : "1px solid rgba(242,237,228,0.06)", borderLeft: i % 2 === 1 ? "1px solid rgba(242,237,228,0.06)" : "none", paddingLeft: i % 2 === 1 ? 24 : 4 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 500 }}>{p[0]}</div>
+                <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginTop: 2 }}>{p[3]}</div>
+              </div>
+              <div style={{ fontFamily: serif, fontSize: 20, letterSpacing: "-0.01em" }}>{p[1]}</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: TEAL_BRIGHT, textAlign: "right" }}>{p[2]}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </DashPage>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.Fragment>
+    <ClientProgressPage />
+    <ChatWidget tabs={clientChatTabs} />
+  </React.Fragment>
+);
+</script>
+</body>
+</html>

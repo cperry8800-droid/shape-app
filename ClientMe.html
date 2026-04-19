@@ -1,0 +1,230 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Me · Shape</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>html,body{margin:0;padding:0;background:#1a1612}*{box-sizing:border-box}a{text-decoration:none;color:inherit}</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="pageShell.jsx"></script>
+<script type="text/babel" src="chatWidget.jsx"></script>
+<script type="text/babel" src="clientChatThreads.jsx"></script>
+<script type="text/babel" src="trainerDashboard.jsx"></script>
+<script type="text/babel" src="clientNav.jsx"></script>
+<script type="text/babel">
+function Row({ label, value, action }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 12, alignItems: "center", padding: "14px 0", borderTop: "1px solid rgba(242,237,228,0.06)" }}>
+      <div style={{ fontSize: 13.5, color: "rgba(242,237,228,0.6)" }}>{label}</div>
+      <div style={{ fontSize: 13.5 }}>{value}</div>
+      {action && <span style={{ fontSize: 12, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", cursor: "pointer" }}>{action}</span>}
+    </div>
+  );
+}
+function ClientMePage() {
+  return (
+    <DashPage
+      navItems={clientNavItems("me")}
+      payoutCard={clientPayoutCard}
+      eyebrow="PROFILE · SETTINGS · BILLING"
+      title="Me"
+      subtitle="Your profile, plan, payments, and how Shape uses your data."
+      actions={<>
+        <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Log out</button>
+        <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Edit profile</button>
+      </>}
+    >
+      {/* Hero identity card + cover + avatar */}
+      <ProfileHero
+        eyebrow="MEMBER · BROOKLYN · SINCE FEB '26"
+        name="Priya Shah"
+        pills={[
+          { label: "TEMPO · 1,284", tone: "teal" },
+          { label: "2 COACHES" },
+          { label: "14-DAY STREAK" },
+        ]}
+        score="1,284"
+        scoreLabel="SHAPE SCORE"
+        scoreCaption="+82 this week"
+        stats={[["14 mo","Training on Shape"],["+22 lb","Squat PR this block"],["4 / 5","Sessions this week"],["168g","Avg protein / day"]]}
+      />
+
+      {/* Bio */}
+      <BioCard
+        charLimit={500}
+        body="Product designer by day, lifter by evening. Working with Maya on strength + hypertrophy and with Rae on protein targets that don't feel like homework. Goals this year: a real 1.5×BW squat, a credible 5K, and finally figuring out how to fuel a long ride without bonking at mile 40."
+      />
+
+      {/* Today + side rail */}
+      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 20, marginBottom: 20 }}>
+        <Card style={{ padding: 28 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
+            <div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>WEDNESDAY, APRIL 18</div>
+              <div style={{ fontFamily: serif, fontSize: 34, letterSpacing: "-0.02em", margin: "6px 0 0", lineHeight: 1 }}>Today.</div>
+            </div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)", letterSpacing: "0.08em" }}>WK 6 / 12</div>
+          </div>
+          {[
+            { when: "17:30", what: "Upper push · 5 exercises", with: "Maya Okafor" },
+            { when: "19:30", what: "Log dinner · protein target 168g", with: null },
+            { when: "21:00", what: "Mobility · 10 min", with: null },
+          ].map((t,i)=>(
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "68px 1fr auto", gap: 16, padding: "18px 0", borderTop: "1px solid rgba(242,237,228,0.08)", alignItems: "center" }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: INK, letterSpacing: "0.04em" }}>{t.when}</div>
+              <div>
+                <div style={{ fontFamily: serif, fontSize: 19, letterSpacing: "-0.01em", color: INK }}>{t.what}</div>
+                {t.with && <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.55)", marginTop: 4 }}>with {t.with}</div>}
+              </div>
+              <button style={{ padding: "8px 14px", borderRadius: 6, border: "1px solid rgba(242,237,228,0.18)", background: "transparent", color: INK, fontFamily: sans, fontSize: 12, cursor: "pointer" }}>Open →</button>
+            </div>
+          ))}
+          <div style={{ marginTop: 20, padding: 20, background: "rgba(30,192,168,0.08)", border: "1px solid rgba(30,192,168,0.22)", borderRadius: 10 }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 8 }}>NOTE FROM MAYA · 2H AGO</div>
+            <div style={{ fontFamily: serif, fontSize: 17, fontStyle: "italic", lineHeight: 1.45, letterSpacing: "-0.005em" }}>"Form check on the incline press last session was clean. Push to 60 lb today if bar speed stays crisp."</div>
+            <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+              <button style={{ background: TEAL, color: PAPER, border: 0, padding: "7px 13px", borderRadius: 999, fontSize: 11.5, fontWeight: 500, cursor: "pointer", fontFamily: sans }}>Reply</button>
+              <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.2)", padding: "7px 13px", borderRadius: 999, fontSize: 11.5, cursor: "pointer", fontFamily: sans }}>Open thread</button>
+            </div>
+          </div>
+        </Card>
+
+        <div style={{ display: "grid", gap: 20, alignContent: "start" }}>
+          <Card>
+            <SectionTitle>This week</SectionTitle>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 110, padding: "4px 0 0" }}>
+              {[["M",68],["T",82],["W",74],["T",91],["F",64],["S",88],["S",0]].map(([d,v],i)=>(
+                <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                  <div style={{ width: "100%", height: 92, display: "flex", alignItems: "flex-end" }}>
+                    <div style={{ width: "100%", height: `${v}%`, background: v ? TEAL : "rgba(242,237,228,0.08)", borderRadius: 2 }} />
+                  </div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(242,237,228,0.5)" }}>{d}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.6)", marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(242,237,228,0.06)" }}>Training load trending up vs last week. Recovery holding.</div>
+          </Card>
+
+          <Card>
+            <SectionTitle>My coaches</SectionTitle>
+            {[
+              ["Maya Okafor","Strength · Hypertrophy","Next: today 17:30"],
+              ["Rae Lindqvist","Sports Nutrition","Weekly review Sunday"],
+            ].map(([n,r,next],i)=>(
+              <div key={i} style={{ display: "grid", gridTemplateColumns: "40px 1fr auto", gap: 12, padding: "14px 0", alignItems: "center", borderTop: i ? "1px solid rgba(242,237,228,0.06)" : "1px solid rgba(242,237,228,0.06)" }}>
+                <div style={{ width: 40, height: 40, borderRadius: 999, background: "#efece6" }} />
+                <div>
+                  <div style={{ fontSize: 13.5, fontWeight: 500, color: INK }}>{n}</div>
+                  <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.55)", marginTop: 2 }}>{r} · {next}</div>
+                </div>
+                <button style={{ padding: "6px 12px", borderRadius: 999, background: "rgba(30,192,168,0.12)", color: TEAL_BRIGHT, border: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, fontWeight: 500, cursor: "pointer", letterSpacing: "0.08em" }}>MESSAGE</button>
+              </div>
+            ))}
+          </Card>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+        <Card>
+          <SectionTitle>Profile</SectionTitle>
+          <Row label="Name" value="Priya Shah" action="EDIT" />
+          <Row label="Email" value="priya.shah@hey.com" action="EDIT" />
+          <Row label="Phone" value="+1 (347) •••• 0412" action="EDIT" />
+          <Row label="Location" value="Brooklyn, NY" action="EDIT" />
+          <Row label="Birthday" value="Oct 4, 1993" />
+          <Row label="Height / weight" value={`5'6" · 171 lb`} action="UPDATE" />
+        </Card>
+
+        <Card>
+          <SectionTitle>Plan &amp; billing</SectionTitle>
+          <Row label="Shape Platform" value="$5 / month" action="MANAGE" />
+          <Row label="Maya — Strength + hybrid" value="$220 / month" action="MANAGE" />
+          <Row label="Rae — Performance fuel" value="$180 / month" action="MANAGE" />
+          <Row label="Total monthly" value="$405" />
+          <Row label="Next charge" value="May 4, 2026" />
+          <Row label="Payment method" value="Visa •••• 4290" action="UPDATE" />
+        </Card>
+
+        <Card>
+          <SectionTitle>Connected apps</SectionTitle>
+          <Row label="Apple Health" value="Connected" action="DISCONNECT" />
+          <Row label="Whoop" value="Connected · syncing" action="DISCONNECT" />
+          <Row label="Strava" value="Not connected" action="CONNECT" />
+          <Row label="MyFitnessPal" value="Not connected" action="CONNECT" />
+          <Row label="Garmin" value="Not connected" action="CONNECT" />
+        </Card>
+
+        <Card>
+          <SectionTitle>Nutrition preferences</SectionTitle>
+          <Row label="Dietary style" value="Omnivore · high protein" action="EDIT" />
+          <Row label="Allergies &amp; intolerances" value="Shellfish, tree nuts" action="EDIT" />
+          <Row label="Dislikes" value="Cilantro, blue cheese" action="EDIT" />
+          <Row label="Protein target" value="168 g / day" action="EDIT" />
+          <Row label="Calorie range" value="Not tracked · by feel" action="CHANGE" />
+          <Row label="Meal cadence" value="3 meals + 1 snack" action="EDIT" />
+          <Row label="Kitchen &amp; cooking" value="Full kitchen · 30 min weekdays" action="EDIT" />
+          <Row label="Supplements" value="Creatine, vitamin D, omega-3" action="EDIT" />
+          <Row label="Alcohol" value="Socially · Fri / Sat" action="EDIT" />
+          <Row label="Hydration target" value="3.0 L / day" action="EDIT" />
+        </Card>
+
+        <Card>
+          <SectionTitle>Training preferences</SectionTitle>
+          <Row label="Primary goal" value="Strength + hypertrophy" action="EDIT" />
+          <Row label="Experience" value="Intermediate · 3 yrs barbell" action="EDIT" />
+          <Row label="Sessions / week" value="4 · 60–75 min" action="EDIT" />
+          <Row label="Equipment access" value="Full gym · home bands + DBs" action="EDIT" />
+          <Row label="Injuries &amp; notes" value="Left shoulder · avoid overhead pressing past 90°" action="EDIT" />
+          <Row label="Preferred training times" value="Evenings · 6–8pm" action="EDIT" />
+        </Card>
+
+        <Card>
+          <SectionTitle>Privacy &amp; notifications</SectionTitle>
+          <Row label="Profile visibility" value="Community only" action="CHANGE" />
+          <Row label="Share data with coaches" value="All metrics" action="CHANGE" />
+          <Row label="Community posts" value="On" action="TOGGLE" />
+          <Row label="Coach messages" value="Push + email" action="CHANGE" />
+          <Row label="Weekly digest" value="Sunday 8am" action="CHANGE" />
+          <Row label="Marketing emails" value="Off" action="TOGGLE" />
+        </Card>
+      </div>
+
+      <Card style={{ marginTop: 20 }}>
+        <SectionTitle>Social &amp; links</SectionTitle>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 32px" }}>
+          <Row label="Instagram" value="@priya.lifts" action="EDIT" />
+          <Row label="TikTok" value="Not connected" action="CONNECT" />
+          <Row label="Strava" value="priya-s · public" action="EDIT" />
+          <Row label="Website" value="Not added" action="ADD" />
+          <Row label="YouTube" value="Not connected" action="CONNECT" />
+          <Row label="Twitter / X" value="@priyas" action="EDIT" />
+        </div>
+      </Card>
+
+      <Card style={{ marginTop: 20, padding: 22 }}>
+        <SectionTitle>Danger zone</SectionTitle>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+          <button style={{ background: "transparent", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.2)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Export all my data</button>
+          <button style={{ background: "transparent", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.2)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Pause membership</button>
+          <button style={{ background: "transparent", color: "#e07856", border: "1px solid rgba(224,120,86,0.4)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Delete account</button>
+        </div>
+      </Card>
+    </DashPage>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.Fragment>
+    <ClientMePage />
+    <ChatWidget tabs={clientChatTabs} />
+  </React.Fragment>
+);
+</script>
+</body>
+</html>

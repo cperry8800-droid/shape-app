@@ -1,0 +1,76 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Plans · Shape</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>html,body{margin:0;padding:0;background:#1a1612}*{box-sizing:border-box}a{text-decoration:none;color:inherit}</style>
+</head>
+<body><div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="pageShell.jsx"></script>
+<script type="text/babel" src="trainerDashboard.jsx"></script>
+<script type="text/babel" src="coachNav.jsx"></script>
+<script type="text/babel">
+function NutritionistPlansPage() {
+  const plans = [
+    { t: "Performance fuel (12w)",   active: 14, sold: 38, price: "$180/mo", tag: "SIGNATURE" },
+    { t: "Protein-led cut (10w)",    active: 7,  sold: 22, price: "$160/mo", tag: "FAT LOSS" },
+    { t: "Plant-forward performance",active: 3,  sold: 14, price: "$160/mo", tag: "PLANT" },
+    { t: "Race-day fueling (8w)",    active: 2,  sold: 11, price: "$140/mo", tag: "ENDURANCE" },
+    { t: "Mass phase (12w)",         active: 2,  sold: 9,  price: "$180/mo", tag: "MASS" },
+  ];
+  return (
+    <DashPage
+      navItems={nutriNavItems("plans")}
+      payoutCard={nutriPayoutCard}
+      eyebrow="5 PUBLISHED · 1 DRAFT"
+      title="Plans"
+      subtitle="Reusable meal-plan templates. Edits cascade to clients on the plan — their logged meals stay intact."
+      actions={<>
+        <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Drafts (1)</button>
+        <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ New plan</button>
+      </>}
+    >
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16, marginBottom: 20 }}>
+        {plans.map((p, i) => (
+          <Card key={i} style={{ padding: 22 }}>
+            <div style={{ height: 140, borderRadius: 6, background: "linear-gradient(135deg, rgba(30,192,168,0.16), rgba(242,237,228,0.04))", marginBottom: 16, display: "flex", alignItems: "flex-end", padding: 14 }}>
+              <Pill>{p.tag}</Pill>
+            </div>
+            <div style={{ fontFamily: serif, fontSize: 20, letterSpacing: "-0.01em", marginBottom: 10 }}>{p.t}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, fontSize: 11.5, color: "rgba(242,237,228,0.55)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em" }}>
+              <div><div style={{ color: INK, fontFamily: "Fraunces", fontSize: 18 }}>{p.active}</div>ACTIVE</div>
+              <div><div style={{ color: INK, fontFamily: "Fraunces", fontSize: 18 }}>{p.sold}</div>SOLD</div>
+              <div><div style={{ color: INK, fontFamily: "Fraunces", fontSize: 18 }}>{p.price.replace("/mo","")}</div>/MO</div>
+            </div>
+          </Card>
+        ))}
+      </div>
+      <Card>
+        <SectionTitle right="LAST 90 DAYS">Plan performance</SectionTitle>
+        {plans.map((p, i) => (
+          <div key={i} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 120px", gap: 14, padding: "14px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)", alignItems: "center" }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 500 }}>{p.t}</div>
+              <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)" }}>{p.tag.toLowerCase()}</div>
+            </div>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>{p.active} active</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>{p.sold} all time</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: TEAL_BRIGHT }}>{p.price}</span>
+            <div style={{ height: 6, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${Math.min(p.sold / 38 * 100, 100)}%`, background: TEAL }} />
+            </div>
+          </div>
+        ))}
+      </Card>
+    </DashPage>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<NutritionistPlansPage />);
+</script>
+</body>
+</html>

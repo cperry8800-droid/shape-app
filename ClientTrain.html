@@ -1,0 +1,113 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Train · Shape</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>html,body{margin:0;padding:0;background:#1a1612}*{box-sizing:border-box}a{text-decoration:none;color:inherit}</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="pageShell.jsx"></script>
+<script type="text/babel" src="chatWidget.jsx"></script>
+<script type="text/babel" src="clientChatThreads.jsx"></script>
+<script type="text/babel" src="trainerDashboard.jsx"></script>
+<script type="text/babel" src="clientNav.jsx"></script>
+<script type="text/babel">
+function ClientTrainPage() {
+  const today = [
+    ["A", "Back squat", "4 × 6 @ 195 lb",   "RPE 8 · 3 min rest",  "NEXT"],
+    ["B1","Romanian DL", "3 × 10 @ 155 lb", "paired with B2",       null],
+    ["B2","Walking lunge","3 × 12 each",    "bodyweight + 20s",     null],
+    ["C", "Hanging leg raise","3 × 12",     "slow eccentric",       null],
+    ["D", "Cooldown · foam roll","8 min",   "quads, adductors, TFL",null],
+  ];
+  const week = [
+    { d: "MON", t: "Upper push",  sub: "Bench + vertical press", status: "DONE" },
+    { d: "TUE", t: "Lower power", sub: "Squat + plyos",           status: "DONE" },
+    { d: "WED", t: "Lower strength", sub: "Today's session",      status: "NEXT" },
+    { d: "THU", t: "Upper pull",  sub: "Row + vertical pull",     status: null },
+    { d: "FRI", t: "Rest",        sub: "Mobility 10 min",         status: null },
+    { d: "SAT", t: "Long run",    sub: "10k Prospect loop",       status: null },
+    { d: "SUN", t: "Rest",        sub: "",                         status: null },
+  ];
+  return (
+    <DashPage
+      navItems={clientNavItems("train")}
+      payoutCard={clientPayoutCard}
+      eyebrow="WEDNESDAY · LOWER STRENGTH · WK 10 / 12"
+      title="Lower strength — Block 3"
+      subtitle="Built by Maya Okafor. Log sets as you go; RPE goes back to Maya for autoregulation."
+      actions={<>
+        <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Ask Maya</button>
+        <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Start session</button>
+      </>}
+    >
+      <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 20 }}>
+        <Card>
+          <SectionTitle right="5 EXERCISES · ~52 MIN">Today</SectionTitle>
+          {today.map((row, i) => (
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "28px 1fr auto", gap: 14, alignItems: "center", padding: "16px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)" }}>{row[0]}</div>
+              <div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+                  <div style={{ fontSize: 14, fontWeight: 500 }}>{row[1]}</div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.65)" }}>{row[2]}</div>
+                </div>
+                <div style={{ fontSize: 12, color: "rgba(242,237,228,0.5)", marginTop: 3 }}>{row[3]}</div>
+              </div>
+              {row[4] && <Pill tone={row[4] === "NEXT" ? "teal" : "done"}>{row[4]}</Pill>}
+            </div>
+          ))}
+        </Card>
+
+        <Card>
+          <SectionTitle right="APR 14 – APR 20">This week</SectionTitle>
+          {week.map((w, i) => (
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "46px 1fr auto", gap: 12, alignItems: "center", padding: "12px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)" }}>{w.d}</div>
+              <div>
+                <div style={{ fontSize: 13.5, fontWeight: w.status === "NEXT" ? 500 : 400 }}>{w.t}</div>
+                {w.sub && <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginTop: 1 }}>{w.sub}</div>}
+              </div>
+              {w.status && <Pill tone={w.status === "NEXT" ? "teal" : "done"}>{w.status}</Pill>}
+            </div>
+          ))}
+        </Card>
+      </div>
+
+      <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20 }}>
+        <Card>
+          <SectionTitle>Volume this block</SectionTitle>
+          <div style={{ fontFamily: serif, fontSize: 40, letterSpacing: "-0.02em", lineHeight: 1 }}>38,450 lb</div>
+          <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>Week 10/12 · +6% vs last block</div>
+        </Card>
+        <Card>
+          <SectionTitle>RPE trend</SectionTitle>
+          <div style={{ fontFamily: serif, fontSize: 40, letterSpacing: "-0.02em", lineHeight: 1 }}>7.6</div>
+          <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>Target 7.5–8.5 · on track</div>
+        </Card>
+        <Card style={{ background: "rgba(30,192,168,0.06)", border: "1px solid rgba(30,192,168,0.25)" }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>FROM MAYA · 9:02</div>
+          <div style={{ fontSize: 14, lineHeight: 1.5, color: "rgba(242,237,228,0.85)" }}>Push 185 today on squat, deload next week. Ice shoulder tonight and log sleep before we talk Friday.</div>
+        </Card>
+      </div>
+    </DashPage>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.Fragment>
+    <ClientTrainPage />
+    <ChatWidget tabs={clientChatTabs} />
+  </React.Fragment>
+);
+</script>
+</body>
+</html>
