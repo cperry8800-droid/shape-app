@@ -20,10 +20,9 @@ function Ph({ label, ratio = "1/1", tone = "dark", style = {} }) {
 }
 
 function Logo({ variant = "black", size = 28 }) {
-  const src = variant === "white" ? "/logo.png" : "/logo-dark.png";
-  const filter = variant === "white" ? "brightness(0) invert(1)" : "none";
+  const src = variant === "white" ? "/logo-full.svg" : "/logo-dark-teal.svg";
   const h = Math.round(size * 1.8);
-  return <img src={src} alt="Shape" style={{ height: h, width: "auto", display: "block", filter }} />;
+  return <img src={src} alt="Shape" style={{ height: h, width: "auto", display: "block" }} />;
 }
 
 function NavDropdown({ label, items, active, activeMatch }) {

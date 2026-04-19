@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120" width="200" height="120">
   <!-- Bottom-left triangle (teal, pointing right) -->
-  <polygon points="72,38 72,82 105,60" fill="#3BBAB4"/>
+  <polygon points="72,38 72,82 105,60" fill="#1ec0a8"/>
   <!-- Top-right triangle (light, pointing left) -->
   <polygon points="128,18 128,62 95,40" fill="#E8E8EC"/>
   <!-- SHAPE text -->
