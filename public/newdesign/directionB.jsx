@@ -11,16 +11,19 @@ const DirB = (() => {
 
   function NavTab({ label, items, href }) {
     const [open, setOpen] = React.useState(false);
+    const closeTimer = React.useRef(null);
     const hasMenu = !!items;
     const primaryHref = href || (hasMenu && items[0] && items[0][1]) || "#";
     const tabStyle = { fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.72)", fontFamily: sans, fontWeight: 400, cursor: "pointer", paddingBottom: 6, display: "inline-flex", alignItems: "center", gap: 5 };
+    const enter = () => { if (closeTimer.current) clearTimeout(closeTimer.current); setOpen(true); };
+    const leave = () => { closeTimer.current = setTimeout(() => setOpen(false), 160); };
     return (
-      <div style={{ position: "relative" }} onMouseEnter={() => hasMenu && setOpen(true)} onMouseLeave={() => hasMenu && setOpen(false)}>
+      <div style={{ position: "relative", paddingBottom: 14 }} onMouseEnter={() => hasMenu && enter()} onMouseLeave={() => hasMenu && leave()}>
         <a href={primaryHref} style={tabStyle}>
           {label}{hasMenu && <span style={{ fontSize: 8, opacity: 0.6 }}>▾</span>}
         </a>
         {hasMenu && open && (
-          <div style={{ position: "absolute", top: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)", background: "rgba(26,22,18,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: 8, minWidth: 180, boxShadow: "0 20px 50px rgba(0,0,0,0.5)", zIndex: 60 }}>
+          <div style={{ position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)", background: "rgba(26,22,18,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: 8, minWidth: 180, boxShadow: "0 20px 50px rgba(0,0,0,0.5)", zIndex: 60 }}>
             {items.map(([n, h]) => (
               <a key={n} href={h} style={{ display: "block", padding: "10px 14px", fontSize: 13, color: "rgba(242,237,228,0.85)", fontFamily: sans, borderRadius: 4, whiteSpace: "nowrap" }}
                 onMouseEnter={e => { e.currentTarget.style.background = "rgba(30,192,168,0.12)"; e.currentTarget.style.color = INK; }}

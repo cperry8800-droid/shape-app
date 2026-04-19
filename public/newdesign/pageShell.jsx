@@ -28,14 +28,17 @@ function Logo({ variant = "black", size = 28 }) {
 
 function NavDropdown({ label, items, active, activeMatch }) {
   const [open, setOpen] = React.useState(false);
+  const closeTimer = React.useRef(null);
   const isActive = activeMatch.includes(active);
+  const enter = () => { if (closeTimer.current) clearTimeout(closeTimer.current); setOpen(true); };
+  const leave = () => { closeTimer.current = setTimeout(() => setOpen(false), 160); };
   return (
-    <div style={{ position: "relative" }} onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+    <div style={{ position: "relative", paddingBottom: 14 }} onMouseEnter={enter} onMouseLeave={leave}>
       <a href={items && items[0] && items[0][1] || "#"} style={{ fontSize: 10.5, letterSpacing: "0.11em", textTransform: "uppercase", color: isActive ? INK : "rgba(242,237,228,0.7)", fontFamily: sans, fontWeight: isActive ? 500 : 400, borderBottom: isActive ? `1.5px solid ${TEAL}` : "1.5px solid transparent", paddingBottom: 5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
         {label}<span style={{ fontSize: 7, opacity: 0.6 }}>▾</span>
       </a>
       {open && (
-        <div style={{ position: "absolute", top: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)", background: "rgba(26,22,18,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: 10, minWidth: 220, boxShadow: "0 20px 50px rgba(0,0,0,0.5)" }}>
+        <div style={{ position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)", background: "rgba(26,22,18,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: 10, minWidth: 220, boxShadow: "0 20px 50px rgba(0,0,0,0.5)" }}>
           {items.map(([n, href]) => (
             <a key={n} href={href} style={{ display: "block", padding: "10px 14px", fontSize: 13, color: "rgba(242,237,228,0.85)", fontFamily: sans, borderRadius: 4, whiteSpace: "nowrap" }}
               onMouseEnter={e => { e.currentTarget.style.background = "rgba(30,192,168,0.12)"; e.currentTarget.style.color = INK; }}
