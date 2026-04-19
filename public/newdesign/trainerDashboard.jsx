@@ -3,7 +3,7 @@
 
 // Reusable sidebar. Renders a dashboard home href + nav items with active states.
 // navItems items: { label, count, active, href }
-function DashSidebar({ navItems, payoutCard, homeHref = "Shape Redesign.html" }) {
+function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
   return (
     <aside style={{ borderRight: "1px solid rgba(242,237,228,0.08)", padding: "32px 20px", display: "flex", flexDirection: "column", gap: 4, position: "sticky", top: 0, height: "100vh" }}>
       <div style={{ padding: "4px 10px 40px" }}>

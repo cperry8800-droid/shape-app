@@ -48,7 +48,7 @@ function MinimalHeader() {
   return (
     <header style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, padding: "24px 40px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <a href="Shape Redesign.html" aria-label="Shape home"><Logo variant="white" size={40} /></a>
+        <a href="index.html" aria-label="Shape home"><Logo variant="white" size={40} /></a>
         <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
           <span style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.55)" }}>Already have an account?</span>
           <a href="Login.html" style={{ fontFamily: sans, fontSize: 13, color: INK, fontWeight: 500, borderBottom: `1.5px solid ${TEAL}`, paddingBottom: 3 }}>Log in</a>
@@ -173,7 +173,7 @@ function LandingFooter() {
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" }}>
         <span>© 2026 Shape · All rights reserved</span>
         <div style={{ display: "flex", gap: 24 }}>
-          <a href="Shape Redesign.html" style={{ color: "rgba(242,237,228,0.7)" }}>Explore the platform</a>
+          <a href="index.html" style={{ color: "rgba(242,237,228,0.7)" }}>Explore the platform</a>
           <a href="#" style={{ color: "rgba(242,237,228,0.5)" }}>Privacy</a>
           <a href="#" style={{ color: "rgba(242,237,228,0.5)" }}>Terms</a>
         </div>

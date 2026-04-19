@@ -49,7 +49,7 @@ const DirB = (() => {
           </nav>
           <div style={{ display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
             <a href="Login.html" style={{ fontSize: 13, color: "rgba(242,237,228,0.7)", fontFamily: sans, cursor: "pointer" }}>Log in</a>
-            <a href="Landing.html" style={{ background: INK, color: PAPER, border: 0, padding: "10px 18px", borderRadius: 6, fontWeight: 500, fontSize: 13, fontFamily: sans, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Get started</a>
+            <a href="get-started.html" style={{ background: INK, color: PAPER, border: 0, padding: "10px 18px", borderRadius: 6, fontWeight: 500, fontSize: 13, fontFamily: sans, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Get started</a>
           </div>
         </div>
       </header>
@@ -772,7 +772,7 @@ const DirB = (() => {
             Join the<br/><em style={{ fontStyle: "italic", color: TEAL }}>community</em>.
           </h2>
           <div style={{ display: "flex", gap: 12, marginBottom: 100 }}>
-            <a href="Landing.html" style={{ background: INK, color: PAPER, border: 0, padding: "18px 32px", borderRadius: 6, fontFamily: sans, fontWeight: 500, fontSize: 15, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Get Started →</a>
+            <a href="get-started.html" style={{ background: INK, color: PAPER, border: 0, padding: "18px 32px", borderRadius: 6, fontFamily: sans, fontWeight: 500, fontSize: 15, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Get Started →</a>
           </div>
           <div style={{ borderTop: "1px solid rgba(242,237,228,0.12)", paddingTop: 40, display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 40 }}>
             <div>

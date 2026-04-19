@@ -9,7 +9,7 @@ const LOGIN_DESTS = {
 
 function LoginMark() {
   return (
-    <a href="Landing.html" aria-label="Shape home" style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+    <a href="get-started.html" aria-label="Shape home" style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
       <Logo variant="white" size={40} />
     </a>
   );
@@ -201,7 +201,7 @@ function LoginCard() {
 
       <div style={{ marginTop: 26, paddingTop: 22, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)" }}>
         <span>New to Shape?</span>
-        <a href="Landing.html" style={{ color: INK, fontWeight: 500, borderBottom: `1.5px solid ${TEAL}`, paddingBottom: 2 }}>Create an account →</a>
+        <a href="get-started.html" style={{ color: INK, fontWeight: 500, borderBottom: `1.5px solid ${TEAL}`, paddingBottom: 2 }}>Create an account →</a>
       </div>
     </div>
   );
@@ -242,7 +242,7 @@ function LoginPage() {
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <LoginMark />
           <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
-            <a href="Landing.html" style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.7)" }}>← Back to home</a>
+            <a href="get-started.html" style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.7)" }}>← Back to home</a>
           </div>
         </div>
       </header>

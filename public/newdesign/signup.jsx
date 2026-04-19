@@ -34,7 +34,7 @@ const ROLE_CONFIG = {
     submitLabel: "Submit application",
     doneTitle: "Application submitted.",
     doneBody: "Our team will review your credentials and reach out within 2–3 business days.",
-    doneCta: { label: "Back to home", href: "Landing.html" },
+    doneCta: { label: "Back to home", href: "get-started.html" },
   },
   nutritionist: {
     kicker: "Build a nutrition practice",
@@ -51,7 +51,7 @@ const ROLE_CONFIG = {
     submitLabel: "Submit application",
     doneTitle: "Application submitted.",
     doneBody: "Our team will review your credentials and reach out within 2–3 business days.",
-    doneCta: { label: "Back to home", href: "Landing.html" },
+    doneCta: { label: "Back to home", href: "get-started.html" },
   },
   radio: {
     kicker: "Shape Radio",
@@ -401,7 +401,7 @@ function SignupForm({ role }) {
         <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.7)", margin: "0 0 32px", lineHeight: 1.55, maxWidth: 500 }}>{cfg.doneBody}</p>
         <div style={{ display: "flex", gap: 10 }}>
           <a href={cfg.doneCta.href} style={{ padding: "14px 24px", borderRadius: 8, background: INK, color: PAPER, border: 0, fontFamily: sans, fontSize: 14, fontWeight: 500, textDecoration: "none", display: "inline-block" }}>{cfg.doneCta.label}</a>
-          <a href="Landing.html" style={{ padding: "14px 24px", borderRadius: 8, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.2)", fontFamily: sans, fontSize: 14, textDecoration: "none", display: "inline-block" }}>Back to landing</a>
+          <a href="get-started.html" style={{ padding: "14px 24px", borderRadius: 8, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.2)", fontFamily: sans, fontSize: 14, textDecoration: "none", display: "inline-block" }}>Back to landing</a>
         </div>
       </div>
     );
@@ -452,7 +452,7 @@ function SignupPage({ role }) {
       {/* Minimal header */}
       <header style={{ padding: "24px 40px", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <a href="Landing.html" aria-label="Shape"><Logo variant="white" size={40} /></a>
+          <a href="get-started.html" aria-label="Shape"><Logo variant="white" size={40} /></a>
           <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
             <span style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.55)" }}>Already have an account?</span>
             <a href="Login.html" style={{ fontFamily: sans, fontSize: 13, color: INK, fontWeight: 500, borderBottom: `1.5px solid ${TEAL}`, paddingBottom: 3 }}>Log in</a>
@@ -474,7 +474,7 @@ function SignupPage({ role }) {
               ))}
             </ul>
             <div style={{ marginTop: 40, fontFamily: sans, fontSize: 12, color: "rgba(242,237,228,0.45)" }}>
-              <a href="Landing.html" style={{ color: "rgba(242,237,228,0.55)" }}>← Back to profile selection</a>
+              <a href="get-started.html" style={{ color: "rgba(242,237,228,0.55)" }}>← Back to profile selection</a>
             </div>
           </aside>
 

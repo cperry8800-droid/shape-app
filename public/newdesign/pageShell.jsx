@@ -58,7 +58,7 @@ function Header({ active }) {
   return (
     <header style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(26,22,18,0.92)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 32px", gap: 24 }}>
-        <a href="Shape Redesign.html"><Logo variant="white" size={40} /></a>
+        <a href="index.html"><Logo variant="white" size={40} /></a>
         <nav style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap" }}>
           <NavDropdown label="Clients" active={active} activeMatch={["Clients", "My Profile", "Overview", "Dashboard", "Client Overview", "Client Dashboard"]} items={[["Overview", "Client.html"], ["Dashboard", "ClientDashboard.html"]]} />
           <NavDropdown label="Trainers" active={active} activeMatch={["Trainers", "Trainer Profile", "Trainer Overview", "Trainer Dashboard"]} items={[["Overview", "Coach.html"], ["Dashboard", "TrainerDashboard.html"]]} />
@@ -73,7 +73,7 @@ function Header({ active }) {
             <span style={{ width: 14, height: 14, borderRadius: 999, background: TEAL, display: "inline-block" }} />Radio
           </a>
           <a href="Login.html" style={{ fontSize: 13, color: "rgba(242,237,228,0.7)", fontFamily: sans, whiteSpace: "nowrap" }}>Log in</a>
-          <a href="Landing.html" style={{ background: INK, color: PAPER, border: 0, padding: "11px 20px", borderRadius: 6, fontWeight: 500, fontSize: 13, fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-block" }}>Get started</a>
+          <a href="get-started.html" style={{ background: INK, color: PAPER, border: 0, padding: "11px 20px", borderRadius: 6, fontWeight: 500, fontSize: 13, fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-block" }}>Get started</a>
         </div>
       </div>
     </header>
