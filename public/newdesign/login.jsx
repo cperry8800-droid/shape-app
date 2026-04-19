@@ -9,8 +9,8 @@ const LOGIN_DESTS = {
 
 function LoginMark() {
   return (
-    <a href="get-started.html" aria-label="Shape home" style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
-      <Logo variant="white" size={40} />
+    <a href="Landing.html" aria-label="Shape home" style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+      <Logo variant="white" size={36} />
     </a>
   );
 }
@@ -94,7 +94,7 @@ function LoginCard() {
     <div style={{
       width: "100%",
       maxWidth: 440,
-      background: "rgba(18,14,12,0.42)",
+      background: "rgba(18,14,12,0.78)",
       backdropFilter: "blur(20px) saturate(1.2)",
       WebkitBackdropFilter: "blur(20px) saturate(1.2)",
       border: "1px solid rgba(242,237,228,0.1)",
@@ -201,7 +201,7 @@ function LoginCard() {
 
       <div style={{ marginTop: 26, paddingTop: 22, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)" }}>
         <span>New to Shape?</span>
-        <a href="get-started.html" style={{ color: INK, fontWeight: 500, borderBottom: `1.5px solid ${TEAL}`, paddingBottom: 2 }}>Create an account →</a>
+        <a href="Landing.html" style={{ color: INK, fontWeight: 500, borderBottom: `1.5px solid ${TEAL}`, paddingBottom: 2 }}>Create an account →</a>
       </div>
     </div>
   );
@@ -214,7 +214,7 @@ function LoginPage() {
       <div aria-hidden style={{
         position: "fixed",
         inset: 0,
-        backgroundImage: "url('/login%20page%201.png')",
+        backgroundImage: "url('assets/login-bg.png')",
         backgroundSize: "cover",
         backgroundPosition: "center",
         zIndex: 0,
@@ -242,7 +242,7 @@ function LoginPage() {
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <LoginMark />
           <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
-            <a href="get-started.html" style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.7)" }}>← Back to home</a>
+            <a href="Landing.html" style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.7)" }}>← Back to home</a>
           </div>
         </div>
       </header>

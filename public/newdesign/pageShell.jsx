@@ -20,25 +20,25 @@ function Ph({ label, ratio = "1/1", tone = "dark", style = {} }) {
 }
 
 function Logo({ variant = "black", size = 28 }) {
-  const src = variant === "white" ? "/logo.png" : "/logo-dark.png";
-  const filter = variant === "white" ? "brightness(0) invert(1)" : "none";
+  const src = variant === "white" ? "assets/shape-logo-new-white.png?v=3"
+    : variant === "black" ? "assets/shape-logo-new-black.png?v=3"
+    : "assets/shape-logo-new-white.png?v=3";
+  // New logo has the play-icon stacked above the SHAPE wordmark (aspect ~1.87:1), not inline like the old one.
+  // Scale so the overall mark reads at a comparable visual weight to the previous inline logo.
   const h = Math.round(size * 1.8);
-  return <img src={src} alt="Shape" style={{ height: h, width: "auto", display: "block", filter }} />;
+  return <img src={src} alt="Shape" style={{ height: h, width: "auto", display: "block" }} />;
 }
 
 function NavDropdown({ label, items, active, activeMatch }) {
   const [open, setOpen] = React.useState(false);
-  const closeTimer = React.useRef(null);
   const isActive = activeMatch.includes(active);
-  const enter = () => { if (closeTimer.current) clearTimeout(closeTimer.current); setOpen(true); };
-  const leave = () => { closeTimer.current = setTimeout(() => setOpen(false), 160); };
   return (
-    <div style={{ position: "relative", paddingBottom: 14 }} onMouseEnter={enter} onMouseLeave={leave}>
-      <a href={items && items[0] && items[0][1] || "#"} style={{ fontSize: 10.5, letterSpacing: "0.11em", textTransform: "uppercase", color: isActive ? INK : "rgba(242,237,228,0.7)", fontFamily: sans, fontWeight: isActive ? 500 : 400, borderBottom: isActive ? `1.5px solid ${TEAL}` : "1.5px solid transparent", paddingBottom: 5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
+    <div style={{ position: "relative" }} onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+      <a style={{ fontSize: 10.5, letterSpacing: "0.11em", textTransform: "uppercase", color: isActive ? INK : "rgba(242,237,228,0.7)", fontFamily: sans, fontWeight: isActive ? 500 : 400, borderBottom: isActive ? `1.5px solid ${TEAL}` : "1.5px solid transparent", paddingBottom: 5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
         {label}<span style={{ fontSize: 7, opacity: 0.6 }}>▾</span>
       </a>
       {open && (
-        <div style={{ position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)", background: "rgba(26,22,18,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: 10, minWidth: 220, boxShadow: "0 20px 50px rgba(0,0,0,0.5)" }}>
+        <div style={{ position: "absolute", top: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)", background: "rgba(26,22,18,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: 10, minWidth: 220, boxShadow: "0 20px 50px rgba(0,0,0,0.5)" }}>
           {items.map(([n, href]) => (
             <a key={n} href={href} style={{ display: "block", padding: "10px 14px", fontSize: 13, color: "rgba(242,237,228,0.85)", fontFamily: sans, borderRadius: 4, whiteSpace: "nowrap" }}
               onMouseEnter={e => { e.currentTarget.style.background = "rgba(30,192,168,0.12)"; e.currentTarget.style.color = INK; }}
@@ -58,7 +58,7 @@ function Header({ active }) {
   return (
     <header style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(26,22,18,0.92)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 32px", gap: 24 }}>
-        <a href="index.html"><Logo variant="white" size={40} /></a>
+        <a href="Shape Redesign.html" style={{ flex: "none", display: "inline-flex" }}><Logo variant="white" size={36} /></a>
         <nav style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap" }}>
           <NavDropdown label="Clients" active={active} activeMatch={["Clients", "My Profile", "Overview", "Dashboard", "Client Overview", "Client Dashboard"]} items={[["Overview", "Client.html"], ["Dashboard", "ClientDashboard.html"]]} />
           <NavDropdown label="Trainers" active={active} activeMatch={["Trainers", "Trainer Profile", "Trainer Overview", "Trainer Dashboard"]} items={[["Overview", "Coach.html"], ["Dashboard", "TrainerDashboard.html"]]} />
@@ -73,7 +73,7 @@ function Header({ active }) {
             <span style={{ width: 14, height: 14, borderRadius: 999, background: TEAL, display: "inline-block" }} />Radio
           </a>
           <a href="Login.html" style={{ fontSize: 13, color: "rgba(242,237,228,0.7)", fontFamily: sans, whiteSpace: "nowrap" }}>Log in</a>
-          <a href="get-started.html" style={{ background: INK, color: PAPER, border: 0, padding: "11px 20px", borderRadius: 6, fontWeight: 500, fontSize: 13, fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-block" }}>Get started</a>
+          <a href="Landing.html" style={{ background: INK, color: PAPER, border: 0, padding: "11px 20px", borderRadius: 6, fontWeight: 500, fontSize: 13, fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-block" }}>Get started</a>
         </div>
       </div>
     </header>
@@ -83,7 +83,7 @@ function Header({ active }) {
 function HeroBg() {
   return (
     <>
-      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Home%20page%202.png')", backgroundSize: "cover", backgroundPosition: "center 40%", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('assets/landing-bg.png')", backgroundSize: "cover", backgroundPosition: "center 40%", pointerEvents: "none" }} />
       {/* Lighter gradient — let the road image breathe */}
       <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.55) 0%, rgba(26,22,18,0.1) 35%, rgba(26,22,18,0.1) 55%, rgba(26,22,18,0.85) 92%, rgba(26,22,18,1) 100%)", pointerEvents: "none" }} />
     </>
@@ -96,7 +96,7 @@ function Footer() {
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 40, paddingTop: 40, borderTop: "1px solid rgba(26,22,18,0.12)" }}>
           <div>
-            <Logo variant="white" size={40} />
+            <Logo variant="white" size={36} />
             <p style={{ fontFamily: sans, fontSize: 13, color: "rgba(26,22,18,0.55)", marginTop: 16, maxWidth: 280 }}>Real coaches. One marketplace. One platform.</p>
           </div>
           {[["Product", ["Marketplace", "Shape Score", "Radio", "Dashboard"]], ["For trainers", ["Apply", "Payouts", "Programs"]], ["Company", ["About", "Press", "Careers"]], ["Support", ["Help", "Contact", "Privacy"]]].map(([h, items]) => (

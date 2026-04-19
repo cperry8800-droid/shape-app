@@ -6,11 +6,19 @@ const DARK = "#06080a";
 const LIGHT = "#e9efed";
 
 // ---------- Hero ----------
-function ClientOvHeroBg() { return null; }
+function ClientOvHeroBg() {
+  return (
+    <>
+      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('assets/client-hero-mountain.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(6,8,10,0.55) 0%, rgba(6,8,10,0.72) 55%, #06080a 100%)", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(900px 500px at 80% 20%, rgba(30,192,168,0.10), transparent 60%)", pointerEvents: "none" }} />
+    </>
+  );
+}
 
 function ClientOvHero() {
   return (
-    <section style={{ padding: "120px 40px 100px", position: "relative", overflow: "hidden", minHeight: "88vh", display: "flex", alignItems: "center", background: "transparent", color: LIGHT }}>
+    <section style={{ padding: "120px 40px 100px", position: "relative", overflow: "hidden", minHeight: "88vh", display: "flex", alignItems: "center", background: DARK, color: LIGHT }}>
       <ClientOvHeroBg />
       <div style={{ maxWidth: 1320, margin: "0 auto", width: "100%", position: "relative", display: "grid", gridTemplateColumns: "1.25fr 1fr", gap: 80, alignItems: "center" }}>
         <div>
@@ -81,7 +89,7 @@ function ClientOvStats() {
     { k: "Yours", v: "Your data, your plan, your coach. Leave anytime." },
   ];
   return (
-    <section style={{ padding: "80px 40px", background: "rgba(6,8,10,0.55)", borderTop: "1px solid rgba(233,239,237,0.08)", borderBottom: "1px solid rgba(233,239,237,0.08)" }}>
+    <section style={{ padding: "80px 40px", background: DARK, borderTop: "1px solid rgba(233,239,237,0.08)", borderBottom: "1px solid rgba(233,239,237,0.08)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}>
         {items.map((it, i) => (
           <div key={i} style={{ padding: "12px 32px", borderLeft: i ? "1px solid rgba(233,239,237,0.1)" : "none" }}>
@@ -143,7 +151,7 @@ function ClientOvHow() {
     { n: "04", t: "Adjust as you go", b: "Every 4–6 weeks your coach reviews progress and re-writes. Swap coaches anytime, add a nutritionist, scale up or down — your call.", time: "Ongoing" },
   ];
   return (
-    <section style={{ padding: "140px 40px", background: "rgba(6,8,10,0.55)", color: LIGHT }}>
+    <section style={{ padding: "140px 40px", background: DARK, color: LIGHT }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: 80, marginBottom: 80, alignItems: "end" }}>
           <div>
@@ -257,13 +265,13 @@ function ClientOvTools() {
     { t: "Community & events", b: "Local runs, lift nights, cohorts, and challenges. Train alone; stay accountable with people in your city." },
   ];
   return (
-    <section style={{ padding: "140px 40px", background: "rgba(6,8,10,0.55)", color: LIGHT }}>
+    <section style={{ padding: "140px 40px", background: DARK, color: LIGHT }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>What you get</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 72px", lineHeight: 1 }}>Everything you actually <em style={{ fontStyle: "italic", color: TEAL }}>use.</em></h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1, background: "rgba(233,239,237,0.08)", border: "1px solid rgba(233,239,237,0.08)" }}>
           {tools.map((tool, i) => (
-            <div key={i} style={{ padding: 36, background: "rgba(6,8,10,0.85)" }}>
+            <div key={i} style={{ padding: 36, background: DARK }}>
               <div style={{ fontFamily: serif, fontSize: 24, fontWeight: 400, letterSpacing: "-0.015em", color: LIGHT, marginBottom: 14, lineHeight: 1.15 }}>{tool.t}</div>
               <p style={{ fontFamily: sans, fontSize: 13.5, lineHeight: 1.6, color: "rgba(233,239,237,0.65)", margin: 0 }}>{tool.b}</p>
             </div>
@@ -309,7 +317,7 @@ function ClientOvFAQ() {
 // ---------- Final CTA ----------
 function ClientOvCTA() {
   return (
-    <section style={{ padding: "140px 40px", background: "rgba(6,8,10,0.55)", color: LIGHT, position: "relative", overflow: "hidden" }}>
+    <section style={{ padding: "140px 40px", background: DARK, color: LIGHT, position: "relative", overflow: "hidden" }}>
       <div style={{ position: "absolute", inset: 0, background: "radial-gradient(800px 500px at 50% 100%, rgba(30,192,168,0.14), transparent 70%)" }} />
       <div style={{ maxWidth: 1100, margin: "0 auto", position: "relative", textAlign: "center" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 28 }}>Find your coach</div>
@@ -331,21 +339,17 @@ function ClientOvCTA() {
 // ---------- Page ----------
 function ClientOverviewPage() {
   return (
-    <div style={{ background: DARK, color: LIGHT, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
-      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/Home%20page%202.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
-      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "linear-gradient(180deg, rgba(6,8,10,0.55) 0%, rgba(6,8,10,0.72) 100%)", pointerEvents: "none" }} />
-      <div style={{ position: "relative", zIndex: 1 }}>
-        <Header active="Client Overview" />
-        <ClientOvHero />
-        <ClientOvStats />
-        <ClientOvWhy />
-        <ClientOvHow />
-        <ClientOvPaths />
-        <ClientOvTools />
-        <ClientOvFAQ />
-        <ClientOvCTA />
-        <Footer />
-      </div>
+    <div style={{ background: DARK, color: LIGHT, fontFamily: sans, minHeight: "100vh" }}>
+      <Header active="Client Overview" />
+      <ClientOvHero />
+      <ClientOvStats />
+      <ClientOvWhy />
+      <ClientOvHow />
+      <ClientOvPaths />
+      <ClientOvTools />
+      <ClientOvFAQ />
+      <ClientOvCTA />
+      <Footer />
     </div>
   );
 }

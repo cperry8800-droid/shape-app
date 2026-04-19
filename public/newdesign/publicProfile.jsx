@@ -4,8 +4,6 @@ const PROFILE = {
     name: "Maya Okafor",
     portrait: "Maya · portrait",
     cover: "Gym · training floor",
-    bgImage: "/Training%202.png",
-    bgOverlay: 0.6,
     socials: [["IG", "@mayalifts", "#"], ["TikTok", "@mayalifts", "#"], ["YouTube", "Maya Okafor Strength", "#"], ["Web", "mayaokafor.co", "#"]],
     eyebrow: "Trainer · Brooklyn, NY · NASM-CPT",
     city: "Brooklyn, NY",
@@ -107,8 +105,6 @@ const PROFILE = {
     name: "Rae Lindqvist",
     portrait: "Rae · portrait",
     cover: "Kitchen · fresh produce",
-    bgImage: "/Nutrition%203.png",
-    bgOverlay: 0.6,
     socials: [["IG", "@raeats.rd", "#"], ["Substack", "fuel-notes.rae", "#"], ["Podcast", "The Fuel Notes", "#"], ["Web", "raelindqvist.co", "#"]],
     eyebrow: "Nutritionist · Brooklyn, NY · RD, CSSD",
     city: "Brooklyn, NY",
@@ -239,9 +235,9 @@ function PublicHero({ p, kind }) {
               <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: 999, background: TEAL_BRIGHT, boxShadow: `0 0 10px ${TEAL_BRIGHT}` }} /> Available this week
             </div>
           </div>
-          <div style={{ paddingTop: 120, minWidth: 0 }}>
+          <div style={{ paddingTop: 120 }}>
             <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 14 }}>{p.eyebrow}</div>
-            <h1 style={{ fontFamily: serif, fontSize: "clamp(48px, 6.2vw, 88px)", letterSpacing: "-0.035em", fontWeight: 400, margin: 0, lineHeight: 0.95, overflowWrap: "break-word", wordBreak: "break-word" }}>{p.name}</h1>
+            <h1 style={{ fontFamily: serif, fontSize: 96, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, lineHeight: 0.92 }}>{p.name}</h1>
             <p style={{ fontFamily: serif, fontSize: 22, color: "rgba(242,237,228,0.75)", margin: "20px 0 0", fontStyle: "italic", maxWidth: 640, lineHeight: 1.4 }}>{p.tagline}.</p>
             <div style={{ display: "flex", gap: 8, marginTop: 28, flexWrap: "wrap" }}>
               {p.specialties.slice(0, 5).map(s => <Pill key={s}>{s}</Pill>)}
@@ -677,49 +673,398 @@ function Row({ k, v }) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════
+// Theme customization — lets coaches brand their public page.
+// Persisted to localStorage; live-previewed; exposed via Tweaks.
+// ═══════════════════════════════════════════════════════════════
+
+const COVER_PRESETS = {
+  "gym-floor":    { label: "Gym floor",      url: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=1920&q=70" },
+  "kitchen":      { label: "Bright kitchen", url: "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=1920&q=70" },
+  "barbell":      { label: "Barbell",        url: "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=1920&q=70" },
+  "track":        { label: "Running track",  url: "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=1920&q=70" },
+  "yoga":         { label: "Soft light",     url: "https://images.unsplash.com/photo-1518611012118-696072aa579a?w=1920&q=70" },
+  "produce":      { label: "Market produce", url: "https://images.unsplash.com/photo-1542838132-92c53300491e?w=1920&q=70" },
+};
+
+const ACCENT_PRESETS = [
+  { label: "Shape teal",   value: "#1ec0a8" },
+  { label: "Ember",        value: "#e86b3a" },
+  { label: "Electric",     value: "#7ab8ff" },
+  { label: "Bloom",        value: "#e06bb0" },
+  { label: "Sun",          value: "#f2b84e" },
+  { label: "Forest",       value: "#5a9a6a" },
+  { label: "Violet",       value: "#9a7adf" },
+  { label: "Paper",        value: "#f2ede4" },
+];
+
+const FONT_PAIRS = {
+  "fraunces-space":   { label: "Fraunces · Space Grotesk",  serif: "'Fraunces', serif",            sans: "'Space Grotesk', sans-serif" },
+  "playfair-inter":   { label: "Playfair · Inter",           serif: "'Playfair Display', serif",    sans: "'Inter', sans-serif" },
+  "dm-dm":            { label: "DM Serif · DM Sans",         serif: "'DM Serif Display', serif",    sans: "'DM Sans', sans-serif" },
+  "cormorant-mono":   { label: "Cormorant · JetBrains",      serif: "'Cormorant Garamond', serif",  sans: "'JetBrains Mono', monospace" },
+  "ibm-ibm":          { label: "IBM Plex Serif · Sans",      serif: "'IBM Plex Serif', serif",      sans: "'IBM Plex Sans', sans-serif" },
+  "rozha-manrope":    { label: "Rozha · Manrope",            serif: "'Rozha One', serif",           sans: "'Manrope', sans-serif" },
+};
+
+const THEME_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "coverKey": "gym-floor",
+  "coverUrl": "",
+  "accent": "#1ec0a8",
+  "mode": "dark",
+  "paperShade": 12,
+  "widgetOpacity": 4,
+  "fontPair": "fraunces-space",
+  "fontScale": 100,
+  "brandName": "",
+  "brandTagline": "",
+  "bgScope": "cover"
+}/*EDITMODE-END*/;
+
+function readStoredTheme(kind) {
+  try {
+    const raw = localStorage.getItem(`shape.profileTheme.${kind}`);
+    if (!raw) return {};
+    return JSON.parse(raw);
+  } catch { return {}; }
+}
+
+function useProfileTheme(kind) {
+  const [theme, setTheme] = React.useState(() => ({ ...THEME_DEFAULTS, ...readStoredTheme(kind) }));
+  React.useEffect(() => {
+    try { localStorage.setItem(`shape.profileTheme.${kind}`, JSON.stringify(theme)); } catch {}
+  }, [theme, kind]);
+  const patch = (changes) => setTheme(t => ({ ...t, ...changes }));
+  return [theme, patch];
+}
+
+function ThemedShell({ theme, children }) {
+  const pair = FONT_PAIRS[theme.fontPair] || FONT_PAIRS["fraunces-space"];
+  const dark = theme.mode === "dark";
+  const paperBg = dark
+    ? `hsl(30, 20%, ${Math.max(3, 16 - theme.paperShade)}%)`
+    : `hsl(36, 30%, ${Math.min(99, 92 + (20 - theme.paperShade) / 3)}%)`;
+  const paperInk = dark ? "#f2ede4" : "#1a1612";
+  const widgetBg = dark
+    ? `rgba(242,237,228,${theme.widgetOpacity / 100})`
+    : `rgba(26,22,18,${theme.widgetOpacity / 100})`;
+  const widgetBorder = dark
+    ? `rgba(242,237,228,${Math.min(1, theme.widgetOpacity / 100 + 0.06)})`
+    : `rgba(26,22,18,${Math.min(1, theme.widgetOpacity / 100 + 0.06)})`;
+  const accent = theme.accent;
+
+  const fullBleed = theme.bgScope === "full";
+  const cover = theme.coverUrl || (COVER_PRESETS[theme.coverKey] && COVER_PRESETS[theme.coverKey].url);
+  const fullBleedStyle = fullBleed && cover ? {
+    backgroundImage: `linear-gradient(180deg, ${dark ? "rgba(10,8,6,0.55)" : "rgba(255,253,248,0.45)"} 0%, ${dark ? "rgba(10,8,6,0.85)" : "rgba(255,253,248,0.82)"} 100%), url(${cover})`,
+    backgroundSize: "cover",
+    backgroundAttachment: "fixed",
+    backgroundPosition: "center",
+  } : { background: paperBg };
+
+  return (
+    <div style={{
+      "--p-paper": paperBg,
+      "--p-ink": paperInk,
+      "--p-accent": accent,
+      "--p-accent-soft": accent + "1a",
+      "--p-widget-bg": widgetBg,
+      "--p-widget-border": widgetBorder,
+      "--p-serif": pair.serif,
+      "--p-sans": pair.sans,
+      "--p-scale": theme.fontScale / 100,
+      color: paperInk,
+      fontFamily: pair.sans,
+      minHeight: "100vh",
+      fontSize: `${16 * (theme.fontScale / 100)}px`,
+      ...fullBleedStyle,
+    }}>
+      <style>{`
+        [data-themed] { font-family: var(--p-sans); }
+        [data-themed] h1, [data-themed] h2, [data-themed] h3, [data-themed] .themed-serif { font-family: var(--p-serif) !important; }
+      `}</style>
+      {children}
+    </div>
+  );
+}
+
+function BrandOverlay({ theme, fallback }) {
+  if (!theme.brandName && !theme.brandTagline) return null;
+  return (
+    <div style={{
+      position: "absolute", top: 20, right: 40, zIndex: 3,
+      padding: "10px 16px",
+      background: "rgba(26,22,18,0.6)",
+      backdropFilter: "blur(10px)",
+      border: "1px solid rgba(242,237,228,0.18)",
+      borderRadius: 6,
+      maxWidth: 280,
+    }}>
+      {theme.brandName && <div style={{ fontFamily: "var(--p-serif)", fontSize: 20, letterSpacing: "-0.01em", color: "#f2ede4", lineHeight: 1.1 }}>{theme.brandName}</div>}
+      {theme.brandTagline && <div style={{ fontFamily: "var(--p-sans)", fontSize: 11, color: theme.accent, letterSpacing: "0.1em", textTransform: "uppercase", marginTop: 4 }}>{theme.brandTagline}</div>}
+    </div>
+  );
+}
+
+function ThemedHero({ p, kind, theme, onUploadCover }) {
+  const cover = theme.coverUrl || (COVER_PRESETS[theme.coverKey] && COVER_PRESETS[theme.coverKey].url);
+  const fullBleed = theme.bgScope === "full";
+  const bannerHeight = fullBleed ? 180 : 380;
+  return (
+    <section style={{ position: "relative", borderBottom: "1px solid rgba(127,127,127,0.15)" }}>
+      <div style={{ position: "relative", height: bannerHeight, overflow: "hidden" }}>
+        {!fullBleed && (cover
+          ? <img src={cover} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}/>
+          : <Ph label={p.cover} ratio="" tone="dark" style={{ position: "absolute", inset: 0, aspectRatio: "auto", borderRadius: 0, width: "100%", height: "100%" }} />
+        )}
+        {!fullBleed && <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.55) 65%, var(--p-paper) 100%)` }}/>}
+        <div style={{ position: "absolute", top: 20, left: 0, right: 0 }}>
+          <div style={{ maxWidth: 1320, margin: "0 auto", padding: "0 40px" }}>
+            <a href="Marketplace.html" style={{ fontFamily: "var(--p-sans)", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "#f2ede4", display: "inline-block", padding: "8px 14px", background: "rgba(26,22,18,0.6)", backdropFilter: "blur(8px)", borderRadius: 999, border: "1px solid rgba(242,237,228,0.15)" }}>← Back to marketplace</a>
+          </div>
+        </div>
+        <BrandOverlay theme={theme} />
+      </div>
+
+      <div style={{ padding: "0 40px 56px", position: "relative" }}>
+        <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "220px 1fr 320px", gap: 48, alignItems: "start", marginTop: -110 }}>
+            <div>
+              <div style={{ borderRadius: 999, padding: 6, background: "var(--p-paper)", boxShadow: "0 20px 50px rgba(0,0,0,0.4)" }}>
+                <Ph label={p.portrait} ratio="1/1" tone="light" style={{ borderRadius: 999 }} />
+              </div>
+              <div style={{ marginTop: 18, display: "flex", alignItems: "center", gap: 8, fontFamily: "var(--p-sans)", fontSize: 12, color: "color-mix(in srgb, var(--p-ink) 55%, transparent)" }}>
+                <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: 999, background: "var(--p-accent)", boxShadow: `0 0 10px var(--p-accent)` }}/> Available this week
+              </div>
+            </div>
+            <div style={{ paddingTop: 120 }}>
+              <div style={{ fontFamily: "var(--p-sans)", fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--p-accent)", marginBottom: 14 }}>{p.eyebrow}</div>
+              <h1 className="themed-serif" style={{ fontSize: 96, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, lineHeight: 0.92, color: "var(--p-ink)" }}>{p.name}</h1>
+              <p className="themed-serif" style={{ fontSize: 22, color: "color-mix(in srgb, var(--p-ink) 75%, transparent)", margin: "20px 0 0", fontStyle: "italic", maxWidth: 640, lineHeight: 1.4 }}>{p.tagline}.</p>
+              <div style={{ display: "flex", gap: 8, marginTop: 28, flexWrap: "wrap" }}>
+                {p.specialties.slice(0, 5).map(s => (
+                  <span key={s} style={{ fontFamily: "var(--p-sans)", fontSize: 11.5, padding: "5px 11px", borderRadius: 999, background: "var(--p-accent-soft)", color: "var(--p-accent)" }}>{s}</span>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 20, flexWrap: "wrap" }}>
+                {p.socials.map(([platform, handle, href]) => (
+                  <a key={platform} href={href} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "7px 12px", borderRadius: 6, background: "var(--p-widget-bg)", border: "1px solid var(--p-widget-border)", fontFamily: "var(--p-sans)", fontSize: 12, color: "color-mix(in srgb, var(--p-ink) 85%, transparent)", textDecoration: "none" }}>
+                    <span style={{ fontFamily: "var(--p-sans)", fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--p-accent)" }}>{platform}</span>
+                    <span style={{ color: "color-mix(in srgb, var(--p-ink) 60%, transparent)" }}>{handle}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+            <div style={{ background: "var(--p-widget-bg)", border: "1px solid var(--p-widget-border)", borderRadius: 12, padding: 24, marginTop: 120, backdropFilter: "blur(8px)" }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+                <div className="themed-serif" style={{ fontSize: 56, color: "var(--p-ink)", letterSpacing: "-0.03em", lineHeight: 1 }}>{p.rating}</div>
+                <div style={{ fontFamily: "var(--p-sans)", fontSize: 13, color: "color-mix(in srgb, var(--p-ink) 55%, transparent)" }}>★ {p.reviews} reviews</div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 20, paddingTop: 20, borderTop: "1px solid var(--p-widget-border)" }}>
+                <div>
+                  <div className="themed-serif" style={{ fontSize: 28, color: "var(--p-ink)", letterSpacing: "-0.02em" }}>{p.sessions.toLocaleString()}</div>
+                  <div style={{ fontFamily: "var(--p-sans)", fontSize: 11, color: "color-mix(in srgb, var(--p-ink) 50%, transparent)", marginTop: 2 }}>Sessions delivered</div>
+                </div>
+                <div>
+                  <div className="themed-serif" style={{ fontSize: 28, color: "var(--p-ink)", letterSpacing: "-0.02em" }}>{p.years} y</div>
+                  <div style={{ fontFamily: "var(--p-sans)", fontSize: 11, color: "color-mix(in srgb, var(--p-ink) 50%, transparent)", marginTop: 2 }}>Coaching experience</div>
+                </div>
+              </div>
+              <button onClick={() => window.__openBookIntro && window.__openBookIntro()} style={{ marginTop: 24, width: "100%", padding: "14px 20px", borderRadius: 8, background: "var(--p-accent)", color: "#1a1612", border: 0, fontFamily: "var(--p-sans)", fontSize: 14, fontWeight: 500, cursor: "pointer" }}>Book intro — $0</button>
+              <a href={kind === "trainer" ? "TrainerMessages.html" : "NutritionistMessages.html"} style={{ marginTop: 8, width: "100%", padding: "12px 20px", borderRadius: 8, background: "transparent", color: "var(--p-ink)", border: "1px solid var(--p-widget-border)", fontFamily: "var(--p-sans)", fontSize: 13, cursor: "pointer", textAlign: "center", textDecoration: "none", display: "block", boxSizing: "border-box" }}>Message {p.name.split(" ")[0]}</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// Tweaks panel — the live theme customizer
+function ThemeTweaksPanel({ theme, onChange, onUploadCover, onReset, hostVisible }) {
+  const [collapsed, setCollapsed] = React.useState(false);
+  if (!hostVisible) return null;
+  const setKey = (k, v) => {
+    onChange({ [k]: v });
+    try { window.parent.postMessage({ type: "__edit_mode_set_keys", edits: { [k]: v } }, "*"); } catch {}
+  };
+  const fileRef = React.useRef(null);
+
+  if (collapsed) {
+    return (
+      <button onClick={() => setCollapsed(false)} style={{
+        position: "fixed", bottom: 24, right: 24, zIndex: 50,
+        display: "flex", alignItems: "center", gap: 10,
+        padding: "12px 18px", borderRadius: 999,
+        background: "#1a1612", color: "#f2ede4",
+        border: "1px solid rgba(242,237,228,0.15)",
+        boxShadow: "0 20px 50px rgba(0,0,0,0.4)",
+        fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, cursor: "pointer",
+      }}>
+        <span style={{ width: 12, height: 12, borderRadius: 999, background: theme.accent }}/>
+        Customize page
+      </button>
+    );
+  }
+
+  return (
+    <div style={{
+      position: "fixed", bottom: 24, right: 24, zIndex: 50,
+      width: 340, maxHeight: "calc(100vh - 48px)", overflowY: "auto",
+      background: "#1a1612", color: "#f2ede4",
+      border: "1px solid rgba(242,237,228,0.12)", borderRadius: 14,
+      padding: "18px 18px 16px",
+      fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
+      boxShadow: "0 30px 70px rgba(0,0,0,0.5)",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: theme.accent, textTransform: "uppercase" }}>Customize</div>
+          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, letterSpacing: "-0.01em" }}>Brand your page</div>
+        </div>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button onClick={onReset} style={{ fontSize: 11, background: "transparent", color: "rgba(242,237,228,0.5)", border: "1px solid rgba(242,237,228,0.15)", borderRadius: 6, padding: "5px 9px", cursor: "pointer" }}>Reset</button>
+          <button onClick={() => setCollapsed(true)} title="Collapse" style={{ fontSize: 14, width: 28, background: "transparent", color: "rgba(242,237,228,0.5)", border: "1px solid rgba(242,237,228,0.15)", borderRadius: 6, padding: "4px 0", cursor: "pointer", lineHeight: 1 }}>−</button>
+        </div>
+      </div>
+
+      <TweakGroup label="Cover photo">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+          {Object.entries(COVER_PRESETS).map(([key, p]) => (
+            <button key={key} onClick={() => { setKey("coverKey", key); setKey("coverUrl", ""); }} style={{
+              position: "relative", aspectRatio: "1/1", borderRadius: 6, overflow: "hidden", padding: 0,
+              border: theme.coverKey === key && !theme.coverUrl ? `2px solid ${theme.accent}` : "1px solid rgba(242,237,228,0.15)",
+              cursor: "pointer", background: "#2a2520",
+            }}>
+              <img src={p.url} alt={p.label} style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.9 }}/>
+              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, fontSize: 9, padding: "3px 4px", background: "rgba(0,0,0,0.6)", textAlign: "center" }}>{p.label}</div>
+            </button>
+          ))}
+        </div>
+        <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => {
+          const f = e.target.files && e.target.files[0]; if (!f) return;
+          const r = new FileReader(); r.onload = () => setKey("coverUrl", r.result); r.readAsDataURL(f);
+        }}/>
+        <button onClick={() => fileRef.current && fileRef.current.click()} style={{ marginTop: 8, width: "100%", padding: "9px 12px", borderRadius: 6, background: "rgba(242,237,228,0.05)", color: "#f2ede4", border: "1px dashed rgba(242,237,228,0.25)", cursor: "pointer", fontSize: 12 }}>
+          {theme.coverUrl ? "Replace uploaded photo" : "+ Upload your own"}
+        </button>
+        {theme.coverUrl && <button onClick={() => setKey("coverUrl", "")} style={{ marginTop: 4, width: "100%", padding: "6px 12px", background: "transparent", color: "rgba(242,237,228,0.5)", border: 0, cursor: "pointer", fontSize: 11 }}>Remove upload</button>}
+      </TweakGroup>
+
+      <TweakGroup label="Background scope">
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, background: "rgba(242,237,228,0.05)", borderRadius: 8, padding: 3 }}>
+          {[
+            ["cover", "Cover only", "Photo sits at top of page"],
+            ["full",  "Full page",  "Photo takes over everything"],
+          ].map(([v, label, hint]) => (
+            <button key={v} onClick={() => setKey("bgScope", v)} title={hint} style={{
+              padding: "9px 8px", borderRadius: 6,
+              background: theme.bgScope === v ? theme.accent : "transparent",
+              color: theme.bgScope === v ? "#1a1612" : "#f2ede4",
+              border: 0, cursor: "pointer", fontSize: 12,
+              fontWeight: theme.bgScope === v ? 500 : 400,
+            }}>{label}</button>
+          ))}
+        </div>
+        <div style={{ fontSize: 10, color: "rgba(242,237,228,0.45)", marginTop: 6, lineHeight: 1.4 }}>
+          {theme.bgScope === "full" ? "Photo scrolls with the page. Widgets dim for contrast." : "Photo appears in the hero banner only."}
+        </div>
+      </TweakGroup>
+
+      <TweakGroup label="Accent color">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 4 }}>
+          {ACCENT_PRESETS.map(a => (
+            <button key={a.value} onClick={() => setKey("accent", a.value)} title={a.label} style={{
+              width: "100%", aspectRatio: "1/1", borderRadius: 999, background: a.value,
+              border: theme.accent === a.value ? `2px solid #f2ede4` : "1px solid rgba(242,237,228,0.15)",
+              cursor: "pointer", padding: 0,
+            }}/>
+          ))}
+        </div>
+        <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
+          <input type="color" value={theme.accent} onChange={(e) => setKey("accent", e.target.value)} style={{ width: 40, height: 30, border: 0, background: "transparent", padding: 0, cursor: "pointer" }}/>
+          <input type="text" value={theme.accent} onChange={(e) => setKey("accent", e.target.value)} style={{ flex: 1, background: "rgba(242,237,228,0.05)", color: "#f2ede4", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 4, padding: "6px 8px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}/>
+        </div>
+      </TweakGroup>
+
+      <TweakGroup label="Mode">
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, background: "rgba(242,237,228,0.05)", borderRadius: 999, padding: 3 }}>
+          {["dark", "light"].map(m => (
+            <button key={m} onClick={() => setKey("mode", m)} style={{ padding: "7px 10px", borderRadius: 999, background: theme.mode === m ? theme.accent : "transparent", color: theme.mode === m ? "#1a1612" : "#f2ede4", border: 0, cursor: "pointer", fontSize: 12, textTransform: "capitalize", fontWeight: theme.mode === m ? 500 : 400 }}>{m}</button>
+          ))}
+        </div>
+      </TweakGroup>
+
+      <TweakSlider label="Background darkness" value={theme.paperShade} min={0} max={20} onChange={(v) => setKey("paperShade", v)} suffix=""/>
+      <TweakSlider label="Widget opacity" value={theme.widgetOpacity} min={0} max={30} onChange={(v) => setKey("widgetOpacity", v)} suffix="%"/>
+      <TweakSlider label="Font scale" value={theme.fontScale} min={85} max={120} onChange={(v) => setKey("fontScale", v)} suffix="%"/>
+
+      <TweakGroup label="Typography">
+        <select value={theme.fontPair} onChange={(e) => setKey("fontPair", e.target.value)} style={{ width: "100%", padding: "9px 10px", background: "rgba(242,237,228,0.05)", color: "#f2ede4", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, fontSize: 12, fontFamily: "'Space Grotesk', sans-serif" }}>
+          {Object.entries(FONT_PAIRS).map(([k, p]) => <option key={k} value={k} style={{ background: "#1a1612" }}>{p.label}</option>)}
+        </select>
+      </TweakGroup>
+
+      <TweakGroup label="Brand / business name">
+        <input type="text" value={theme.brandName} onChange={(e) => setKey("brandName", e.target.value)} placeholder="e.g. Okafor Strength Co." style={{ width: "100%", boxSizing: "border-box", padding: "9px 10px", background: "rgba(242,237,228,0.05)", color: "#f2ede4", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, fontSize: 12, fontFamily: "'Space Grotesk', sans-serif" }}/>
+        <input type="text" value={theme.brandTagline} onChange={(e) => setKey("brandTagline", e.target.value)} placeholder="Short tagline (optional)" style={{ marginTop: 6, width: "100%", boxSizing: "border-box", padding: "9px 10px", background: "rgba(242,237,228,0.05)", color: "#f2ede4", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, fontSize: 12, fontFamily: "'Space Grotesk', sans-serif" }}/>
+      </TweakGroup>
+
+      <div style={{ fontSize: 10, color: "rgba(242,237,228,0.4)", marginTop: 12, lineHeight: 1.4 }}>Changes save automatically to this browser. Your clients see the final look.</div>
+    </div>
+  );
+}
+
+function TweakGroup({ label, children }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase", marginBottom: 8 }}>{label}</div>
+      {children}
+    </div>
+  );
+}
+function TweakSlider({ label, value, min, max, onChange, suffix }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase", marginBottom: 6 }}>
+        <span>{label}</span><span>{value}{suffix}</span>
+      </div>
+      <input type="range" min={min} max={max} value={value} onChange={(e) => onChange(+e.target.value)} style={{ width: "100%", accentColor: "#1ec0a8" }}/>
+    </div>
+  );
+}
+
 function PublicProfilePage({ kind }) {
   const p = PROFILE[kind];
   const [bookOpen, setBookOpen] = React.useState(false);
-  const storageKey = `shape.profileBg.${kind}`;
-  const [bg, setBg] = React.useState(() => {
-    if (typeof window === "undefined") return { image: p.bgImage, overlay: p.bgOverlay };
-    try {
-      const raw = window.localStorage.getItem(storageKey);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        return {
-          image: parsed.image || p.bgImage,
-          overlay: typeof parsed.overlay === "number" ? parsed.overlay : p.bgOverlay,
-        };
-      }
-    } catch (e) {}
-    return { image: p.bgImage, overlay: p.bgOverlay };
-  });
+  const [theme, patchTheme] = useProfileTheme(kind);
+  const [tweaksVisible, setTweaksVisible] = React.useState(true);
+
   React.useEffect(() => {
     window.__openBookIntro = () => setBookOpen(true);
-    const onStorage = (e) => {
-      if (e.key === storageKey) {
-        try {
-          const parsed = e.newValue ? JSON.parse(e.newValue) : null;
-          setBg({
-            image: (parsed && parsed.image) || p.bgImage,
-            overlay: parsed && typeof parsed.overlay === "number" ? parsed.overlay : p.bgOverlay,
-          });
-        } catch (_) {}
-      }
+    return () => { delete window.__openBookIntro; };
+  }, []);
+
+  // Tweaks host integration
+  React.useEffect(() => {
+    const handler = (e) => {
+      if (!e || !e.data) return;
+      if (e.data.type === "__activate_edit_mode") setTweaksVisible(true);
+      if (e.data.type === "__deactivate_edit_mode") setTweaksVisible(false);
     };
-    window.addEventListener("storage", onStorage);
-    return () => { delete window.__openBookIntro; window.removeEventListener("storage", onStorage); };
-  }, [storageKey, p.bgImage, p.bgOverlay]);
-  const bgCss = bg.image && bg.image.startsWith("data:") ? `url("${bg.image}")` : `url('${bg.image}')`;
+    window.addEventListener("message", handler);
+    try { window.parent.postMessage({ type: "__edit_mode_available" }, "*"); } catch {}
+    return () => window.removeEventListener("message", handler);
+  }, []);
+
+  const resetTheme = () => patchTheme(THEME_DEFAULTS);
+
   return (
-    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
-      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: bgCss, backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
-      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: `rgba(26,22,18,${bg.overlay})`, pointerEvents: "none" }} />
-      <div style={{ position: "relative", zIndex: 1 }}>
+    <ThemedShell theme={theme}>
+      <div data-themed>
         {bookOpen && <BookIntroModal p={p} kind={kind} onClose={() => setBookOpen(false)} />}
         <Header active="Marketplace" />
-        <PublicHero p={p} kind={kind} />
+        <ThemedHero p={p} kind={kind} theme={theme} />
         <AboutSection p={p} />
         <SpecialtiesSection p={p} />
         <PackagesSection p={p} kind={kind} />
@@ -729,7 +1074,8 @@ function PublicProfilePage({ kind }) {
         <FAQSection p={p} />
         <FinalCTA p={p} kind={kind} />
         <Footer />
+        <ThemeTweaksPanel theme={theme} onChange={patchTheme} onReset={resetTheme} hostVisible={tweaksVisible}/>
       </div>
-    </div>
+    </ThemedShell>
   );
 }

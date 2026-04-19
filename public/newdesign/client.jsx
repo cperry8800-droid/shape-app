@@ -2,9 +2,9 @@
 const { useState: useSClient } = React;
 
 const TODAY = [
-  { when: "17:30", what: "Upper push · 5 exercises", with: "Maya Okafor", kind: "workout" },
+  { when: "17:30", what: "Upper push · 5 exercises", with: "Maya Okafor", kind: "workout", playlist: { name: "Upper Push — Peak", provider: "spotify", bpm: "95–130", tracks: 31, accent: "#6a8cff", cover: "linear-gradient(135deg, #2a3a6a 0%, #1a1612 70%)", note: "Builds across the session. Peaks at the top sets.", author: "Maya" } },
   { when: "19:30", what: "Log dinner · protein target 168g", with: null, kind: "nutrition" },
-  { when: "21:00", what: "Mobility · 10 min", with: null, kind: "recovery" },
+  { when: "21:00", what: "Mobility · 10 min", with: null, kind: "recovery", playlist: { name: "Mobility + Warmup", provider: "apple", bpm: "60–90", tracks: 18, accent: "#f2a94e", cover: "linear-gradient(135deg, #6a4a1c 0%, #1a1612 70%)", note: "Low key. Don't rush.", author: "Maya" } },
 ];
 
 const WEEK = [
@@ -118,16 +118,7 @@ function ClientDashboard() {
             </div>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)" }}>WK 6 / 12</div>
           </div>
-          {TODAY.map((t, i) => (
-            <div key={i} style={{ display: "grid", gridTemplateColumns: "80px 1fr auto", gap: 20, padding: "20px 0", borderTop: "1px solid rgba(242,237,228,0.08)", alignItems: "center" }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: INK }}>{t.when}</div>
-              <div>
-                <div style={{ fontFamily: serif, fontSize: 20, letterSpacing: "-0.01em", color: INK }}>{t.what}</div>
-                {t.with && <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.55)", marginTop: 4 }}>with {t.with}</div>}
-              </div>
-              <button style={{ padding: "8px 14px", borderRadius: 6, border: "1px solid rgba(242,237,228,0.2)", background: "transparent", color: INK, fontFamily: sans, fontSize: 12, cursor: "pointer" }}>Open →</button>
-            </div>
-          ))}
+          {TODAY.map((t, i) => <TodayRow key={i} t={t} />)}
 
           <div style={{ marginTop: 32, padding: 24, background: "rgba(30,192,168,0.06)", borderRadius: 10 }}>
             <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 8 }}>Note from Maya · 2h ago</div>
@@ -167,6 +158,66 @@ function ClientDashboard() {
         </div>
       </div>
     </section>
+  );
+}
+
+function TodayRow({ t }) {
+  const [open, setOpen] = React.useState(false);
+  const p = t.playlist;
+  const spotMark = (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="10" fill="#1ED760"/>
+      <path d="M7.2 10.4c3.2-.9 7.4-.7 10.3 1.1.4.2.5.8.2 1.2-.2.4-.8.5-1.2.2-2.5-1.5-6.2-1.7-9-.9-.5.2-1-.2-1.1-.6-.1-.5.2-.9.8-1zM7.5 13c2.7-.8 6.3-.5 8.6 1 .3.2.4.7.2 1-.2.3-.7.4-1 .2-2-1.2-5.1-1.5-7.4-.8-.4.1-.8-.2-.9-.5 0-.4.2-.8.5-.9zM7.8 15.4c2.2-.6 4.9-.5 6.9.7.3.2.3.5.2.8-.2.3-.5.3-.8.2-1.7-1-4-1.1-5.9-.6-.3.1-.6-.1-.7-.4-.1-.3.1-.6.4-.7z" fill="#000"/>
+    </svg>
+  );
+  const appleMark = (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="#fc3c44">
+      <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm3 13.3c0 1.4-1.1 2.5-2.5 2.5s-2.5-1.1-2.5-2.5 1.1-2.5 2.5-2.5c.4 0 .7.1 1 .2V7l4-1v9.3z"/>
+    </svg>
+  );
+  return (
+    <div style={{ borderTop: "1px solid rgba(242,237,228,0.08)", padding: "20px 0" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "80px 1fr auto auto", gap: 20, alignItems: "center" }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: INK }}>{t.when}</div>
+        <div>
+          <div style={{ fontFamily: serif, fontSize: 20, letterSpacing: "-0.01em", color: INK }}>{t.what}</div>
+          {t.with && <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.55)", marginTop: 4 }}>with {t.with}</div>}
+        </div>
+        {p && (
+          <button onClick={() => setOpen(!open)}
+            title={`${p.author}'s playlist: ${p.name}`}
+            style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "7px 12px 7px 7px", borderRadius: 999, border: `1px solid ${p.accent}44`, background: `${p.accent}18`, color: INK, fontFamily: sans, fontSize: 12, cursor: "pointer" }}>
+            <span style={{ width: 22, height: 22, borderRadius: 999, background: p.accent, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+              <svg width="10" height="10" viewBox="0 0 16 16" fill="#1a1612"><path d="M4 2.5v11l10-5.5z"/></svg>
+            </span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>{p.provider === "apple" ? appleMark : spotMark} <span style={{ opacity: 0.9 }}>Coach's mix</span></span>
+          </button>
+        )}
+        <button style={{ padding: "8px 14px", borderRadius: 6, border: "1px solid rgba(242,237,228,0.2)", background: "transparent", color: INK, fontFamily: sans, fontSize: 12, cursor: "pointer" }}>Open →</button>
+      </div>
+      {open && p && (
+        <div style={{ marginTop: 16, marginLeft: 100, borderRadius: 12, overflow: "hidden", border: "1px solid rgba(242,237,228,0.08)" }}>
+          <div style={{ padding: "16px 20px", background: p.cover, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(0,0,0,0.4)", padding: "4px 10px", borderRadius: 999, fontSize: 10, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.1em", marginBottom: 8 }}>
+                {p.provider === "apple" ? appleMark : spotMark}
+                {p.provider === "apple" ? "APPLE MUSIC" : "SPOTIFY"} · {p.author.toUpperCase()}'S PICK
+              </div>
+              <div style={{ fontFamily: serif, fontSize: 22, fontWeight: 400, letterSpacing: "-0.01em" }}>{p.name}</div>
+              <div style={{ fontSize: 11.5, fontFamily: "'JetBrains Mono', monospace", color: "rgba(242,237,228,0.75)", letterSpacing: "0.06em", marginTop: 4 }}>
+                {p.bpm} BPM · {p.tracks} tracks · optional
+              </div>
+            </div>
+            <button style={{ background: p.accent, color: "#1a1612", border: 0, padding: "10px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>▶ Play</button>
+          </div>
+          <div style={{ padding: "14px 20px", background: "rgba(242,237,228,0.03)", display: "flex", alignItems: "center", gap: 10 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={TEAL_BRIGHT} strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            <span style={{ fontSize: 12.5, color: "rgba(242,237,228,0.75)", fontStyle: "italic", flex: 1 }}>"{p.note}" — {p.author}</span>
+            <button style={{ background: "transparent", color: "rgba(242,237,228,0.55)", border: 0, fontSize: 11, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.1em", cursor: "pointer" }}>SKIP</button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

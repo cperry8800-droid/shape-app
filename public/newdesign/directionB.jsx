@@ -11,19 +11,15 @@ const DirB = (() => {
 
   function NavTab({ label, items, href }) {
     const [open, setOpen] = React.useState(false);
-    const closeTimer = React.useRef(null);
     const hasMenu = !!items;
-    const primaryHref = href || (hasMenu && items[0] && items[0][1]) || "#";
-    const tabStyle = { fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(255,255,255,0.92)", fontFamily: sans, fontWeight: 400, cursor: "pointer", paddingBottom: 6, display: "inline-flex", alignItems: "center", gap: 5 };
-    const enter = () => { if (closeTimer.current) clearTimeout(closeTimer.current); setOpen(true); };
-    const leave = () => { closeTimer.current = setTimeout(() => setOpen(false), 160); };
+    const tabStyle = { fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.72)", fontFamily: sans, fontWeight: 400, cursor: "pointer", paddingBottom: 6, display: "inline-flex", alignItems: "center", gap: 5 };
     return (
-      <div style={{ position: "relative", paddingBottom: 14 }} onMouseEnter={() => hasMenu && enter()} onMouseLeave={() => hasMenu && leave()}>
-        <a href={primaryHref} style={tabStyle}>
+      <div style={{ position: "relative" }} onMouseEnter={() => hasMenu && setOpen(true)} onMouseLeave={() => hasMenu && setOpen(false)}>
+        <a href={href || "#"} style={tabStyle}>
           {label}{hasMenu && <span style={{ fontSize: 8, opacity: 0.6 }}>▾</span>}
         </a>
         {hasMenu && open && (
-          <div style={{ position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)", background: "rgba(26,22,18,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: 8, minWidth: 180, boxShadow: "0 20px 50px rgba(0,0,0,0.5)", zIndex: 60 }}>
+          <div style={{ position: "absolute", top: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)", background: "rgba(26,22,18,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: 8, minWidth: 180, boxShadow: "0 20px 50px rgba(0,0,0,0.5)", zIndex: 60 }}>
             {items.map(([n, h]) => (
               <a key={n} href={h} style={{ display: "block", padding: "10px 14px", fontSize: 13, color: "rgba(242,237,228,0.85)", fontFamily: sans, borderRadius: 4, whiteSpace: "nowrap" }}
                 onMouseEnter={e => { e.currentTarget.style.background = "rgba(30,192,168,0.12)"; e.currentTarget.style.color = INK; }}
@@ -52,8 +48,8 @@ const DirB = (() => {
             <NavTab label="Pricing" href="Pricing.html" />
           </nav>
           <div style={{ display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
-            <a href="Login.html" style={{ fontSize: 13, color: "rgba(255,255,255,0.92)", fontFamily: sans, cursor: "pointer" }}>Log in</a>
-            <a href="get-started.html" style={{ background: INK, color: PAPER, border: 0, padding: "10px 18px", borderRadius: 6, fontWeight: 500, fontSize: 13, fontFamily: sans, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Get started</a>
+            <a href="Login.html" style={{ fontSize: 13, color: "rgba(242,237,228,0.7)", fontFamily: sans, cursor: "pointer" }}>Log in</a>
+            <a href="Landing.html" style={{ background: INK, color: PAPER, border: 0, padding: "10px 18px", borderRadius: 6, fontWeight: 500, fontSize: 13, fontFamily: sans, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Get started</a>
           </div>
         </div>
       </header>
@@ -63,22 +59,26 @@ const DirB = (() => {
   function Hero() {
     return (
       <section style={{ padding: "100px 40px 80px", position: "relative", overflow: "hidden" }}>
+        <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('assets/home-hero.png')", backgroundSize: "cover", backgroundPosition: "center 30%", pointerEvents: "none" }} />
+        <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.78) 0%, rgba(26,22,18,0.88) 55%, rgba(26,22,18,1) 100%)", pointerEvents: "none" }} />
         <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 60, alignItems: "end", marginBottom: 80 }}>
             <div>
+              <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 32 }}>
+                One Platform · One Marketplace
+              </div>
               <h1 style={{ fontFamily: serif, fontSize: 128, lineHeight: 0.88, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, color: INK }}>
                 Real coaches.<br />
-                <span style={{ whiteSpace: "nowrap" }}>One <em style={{ fontStyle: "italic", color: TEAL, fontWeight: 400 }}>marketplace</em>.</span><br />
-                <span style={{ whiteSpace: "nowrap" }}>One <em style={{ fontStyle: "italic", color: INK, fontWeight: 400 }}>platform</em>.</span>
+                One <em style={{ fontStyle: "italic", color: TEAL, fontWeight: 400 }}>marketplace</em>.
               </h1>
             </div>
             <div style={{ paddingBottom: 12 }}>
-              <p style={{ fontFamily: sans, fontSize: 20, lineHeight: 1.45, color: "rgba(255,255,255,0.92)", margin: 0, maxWidth: 480, fontWeight: 400 }}>
+              <p style={{ fontFamily: sans, fontSize: 20, lineHeight: 1.45, color: "rgba(242,237,228,0.7)", margin: 0, maxWidth: 480, fontWeight: 400 }}>
                 Browse certified personal trainers and nutritionists — subscribe on your terms with custom sessions, meal plans, and direct access to the people coaching you on one platform.
               </p>
               <div style={{ display: "flex", gap: 12, marginTop: 36 }}>
-                <a href="Marketplace.html" style={{ background: INK, color: PAPER, border: 0, padding: "16px 26px", borderRadius: 6, fontWeight: 500, fontSize: 14.5, fontFamily: sans, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Find your coach →</a>
-                <a href="Coach.html" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.2)", padding: "16px 26px", borderRadius: 6, fontWeight: 500, fontSize: 14.5, fontFamily: sans, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>I'm a trainer</a>
+                <button style={{ background: INK, color: PAPER, border: 0, padding: "16px 26px", borderRadius: 6, fontWeight: 500, fontSize: 14.5, fontFamily: sans, cursor: "pointer" }}>Find your coach →</button>
+                <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.2)", padding: "16px 26px", borderRadius: 6, fontWeight: 500, fontSize: 14.5, fontFamily: sans, cursor: "pointer" }}>I'm a trainer</button>
               </div>
             </div>
           </div>
@@ -233,7 +233,7 @@ const DirB = (() => {
                 <a style={{ fontFamily: sans, fontSize: 14, fontWeight: 500, color: INK, marginTop: 32, display: "inline-block", borderBottom: `1px solid ${TEAL}`, paddingBottom: 2 }}>{r.cta}</a>
               </div>
               <div>
-                <p style={{ fontFamily: sans, fontSize: 16, lineHeight: 1.55, color: "rgba(255,255,255,0.92)", margin: 0 }}>{r.body}</p>
+                <p style={{ fontFamily: sans, fontSize: 16, lineHeight: 1.55, color: "rgba(242,237,228,0.7)", margin: 0 }}>{r.body}</p>
                 <div style={{ marginTop: 20 }}>
                   {r.bullets.map(b => (
                     <div key={b} style={{ display: "flex", gap: 10, padding: "8px 0", fontFamily: sans, fontSize: 13.5, color: INK }}>
@@ -253,7 +253,7 @@ const DirB = (() => {
   // Marketplace — editorial coach grid
   function Marketplace() {
     return (
-      <section style={{ padding: "120px 40px", background: "rgba(26,22,18,0.55)", color: INK, borderTop: "1px solid rgba(242,237,228,0.08)" }}>
+      <section style={{ padding: "120px 40px", background: PAPER, color: INK, borderTop: "1px solid rgba(242,237,228,0.08)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 60, alignItems: "end", marginBottom: 56 }}>
             <div>
@@ -262,7 +262,7 @@ const DirB = (() => {
                 Real <em style={{ fontStyle: "italic", color: TEAL }}>coaches</em>.<br/>One community.
               </h2>
             </div>
-            <p style={{ fontFamily: sans, fontSize: 16, lineHeight: 1.55, color: "rgba(255,255,255,0.92)", margin: 0, maxWidth: 440 }}>
+            <p style={{ fontFamily: sans, fontSize: 16, lineHeight: 1.55, color: "rgba(242,237,228,0.65)", margin: 0, maxWidth: 440 }}>
               3,100 certified coaches across 40 countries. Filtered by specialty, goal, schedule, and fit — not by who paid for placement.
             </p>
           </div>
@@ -273,7 +273,7 @@ const DirB = (() => {
                 <Placeholder label={`${c.name.split(' ')[0]} · portrait`} ratio="3/4" style={{ marginBottom: 20 }} />
                 <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: TEAL }}>{c.tag} · {c.city}</div>
                 <h3 style={{ fontFamily: serif, fontSize: 28, letterSpacing: "-0.02em", fontWeight: 400, margin: "10px 0 6px" }}>{c.name}</h3>
-                <p style={{ fontFamily: sans, fontSize: 14, color: "rgba(255,255,255,0.92)", margin: 0 }}>{c.role}</p>
+                <p style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.65)", margin: 0 }}>{c.role}</p>
                 <div style={{ display: "flex", justifyContent: "space-between", marginTop: 20, paddingTop: 16, borderTop: "1px solid rgba(242,237,228,0.08)", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)" }}>
                   <span>★ {c.rating.toFixed(2)} · {c.sessions}</span>
                   <span>${c.rate}/session</span>
@@ -282,7 +282,7 @@ const DirB = (() => {
             ))}
           </div>
           <div style={{ textAlign: "center", marginTop: 48 }}>
-            <a href="Marketplace.html" style={{ background: INK, color: PAPER, border: 0, padding: "16px 28px", borderRadius: 6, fontFamily: sans, fontWeight: 500, fontSize: 14.5, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Browse all 3,100 coaches →</a>
+            <button style={{ background: INK, color: PAPER, border: 0, padding: "16px 28px", borderRadius: 6, fontFamily: sans, fontWeight: 500, fontSize: 14.5, cursor: "pointer" }}>Browse all 3,100 coaches →</button>
           </div>
         </div>
       </section>
@@ -297,14 +297,14 @@ const DirB = (() => {
       { n: 4, name: "Triceps pushdown", set: "3 × 12" },
     ];
     return (
-      <section style={{ padding: "120px 40px", background: "rgba(26,22,18,0.55)", borderTop: "1px solid rgba(242,237,228,0.1)" }}>
+      <section style={{ padding: "120px 40px", background: PAPER, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 380px", gap: 100, alignItems: "center" }}>
           <div>
             <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>In your pocket</div>
             <h2 style={{ fontFamily: serif, fontSize: 84, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, lineHeight: 0.92, color: INK }}>
               Today, <em style={{ fontStyle: "italic", color: TEAL }}>on&nbsp;the&nbsp;floor</em>.
             </h2>
-            <p style={{ fontFamily: sans, fontSize: 18, lineHeight: 1.55, color: "rgba(255,255,255,0.92)", maxWidth: 480, marginTop: 28 }}>
+            <p style={{ fontFamily: sans, fontSize: 18, lineHeight: 1.55, color: "rgba(242,237,228,0.65)", maxWidth: 480, marginTop: 28 }}>
               Your block, your coach, your sets — one screen that knows what you're doing next. Notes land in-session. Weights auto-fill from last week. Log a set, move on.
             </p>
             <div style={{ marginTop: 36, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, maxWidth: 520 }}>
@@ -393,7 +393,7 @@ const DirB = (() => {
       { item: "Jasmine rice · 2 lb", aisle: "Pantry" },
     ];
     return (
-      <section style={{ padding: "120px 40px 140px", background: "rgba(26,22,18,0.55)", borderTop: "1px solid rgba(242,237,228,0.1)" }}>
+      <section style={{ padding: "120px 40px 140px", background: PAPER, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "380px 1fr", gap: 100, alignItems: "center" }}>
           {/* Phone - left side this time for rhythm */}
           <div style={{ position: "relative", width: 380, margin: "0 auto" }}>
@@ -469,7 +469,7 @@ const DirB = (() => {
             <h2 style={{ fontFamily: serif, fontSize: 84, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, lineHeight: 0.92, color: INK }}>
               Eat the plan, <em style={{ fontStyle: "italic", color: TEAL }}>not&nbsp;the&nbsp;app</em>.
             </h2>
-            <p style={{ fontFamily: sans, fontSize: 18, lineHeight: 1.55, color: "rgba(255,255,255,0.92)", maxWidth: 480, marginTop: 28 }}>
+            <p style={{ fontFamily: sans, fontSize: 18, lineHeight: 1.55, color: "rgba(242,237,228,0.65)", maxWidth: 480, marginTop: 28 }}>
               Your nutritionist's meal plan, built around your training week. Macros auto-tally as you log. One tap turns the week into a grocery list — sorted by aisle, not guesswork.
             </p>
             <div style={{ marginTop: 36, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, maxWidth: 520 }}>
@@ -503,14 +503,14 @@ const DirB = (() => {
 
   function Score() {
     return (
-      <section style={{ padding: "120px 40px", background: "rgba(26,22,18,0.55)" }}>
+      <section style={{ padding: "120px 40px", background: PAPER }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.1fr", gap: 80, alignItems: "center" }}>
           <div>
             <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL }}>Shape Score</div>
             <h2 style={{ fontFamily: serif, fontSize: 72, letterSpacing: "-0.03em", fontWeight: 400, margin: "20px 0 20px", lineHeight: 0.95, color: INK }}>
               Rewards for <em style={{ fontStyle: "italic", color: TEAL }}>showing&nbsp;up</em>.
             </h2>
-            <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.55, color: "rgba(255,255,255,0.92)", maxWidth: 460 }}>
+            <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.55, color: "rgba(242,237,228,0.65)", maxWidth: 460 }}>
               Earn Shape Score for every workout logged, meal tracked, and session kept. Redeem in the Shape Store or as session credit — a reward for the boring stuff that actually moves the needle.
             </p>
             <div style={{ marginTop: 32 }}>
@@ -616,7 +616,7 @@ const DirB = (() => {
             {[["5", "Sessions today", "$750"], ["34", "Active clients", "+3 this wk"], ["96%", "Completion", "30d"], ["4.97", "Rating", "1,284 reviews"]].map(([v, l, s], i) => (
               <div key={i} style={{ background: PAPER, borderRadius: 12, padding: 16, border: "1px solid rgba(242,237,228,0.05)" }}>
                 <div style={{ fontFamily: serif, fontSize: 30, fontWeight: 400, letterSpacing: "-0.02em", lineHeight: 1 }}>{v}</div>
-                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.92)", marginTop: 8 }}>{l}</div>
+                <div style={{ fontSize: 12, color: "rgba(242,237,228,0.65)", marginTop: 8 }}>{l}</div>
                 <div style={{ fontSize: 11, color: "rgba(242,237,228,0.45)", marginTop: 2 }}>{s}</div>
               </div>
             ))}
@@ -666,7 +666,7 @@ const DirB = (() => {
   function Radio() {
     return (
       <section style={{ padding: "120px 40px", position: "relative", overflow: "hidden", color: INK }}>
-        <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Make_the_lines_202604170430%20(1).png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+        <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('assets/radio-bg.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
         <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(6,10,9,0.85) 0%, rgba(6,10,9,0.65) 45%, rgba(6,10,9,0.3) 100%)", pointerEvents: "none" }} />
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: 80, alignItems: "center", position: "relative" }}>
           <div>
@@ -674,7 +674,7 @@ const DirB = (() => {
             <h2 style={{ fontFamily: serif, fontSize: 84, letterSpacing: "-0.035em", fontWeight: 400, margin: "20px 0 20px", lineHeight: 0.9 }}>
               Music built<br/>for <em style={{ fontStyle: "italic", color: TEAL }}>training</em>.
             </h2>
-            <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.55, color: "#ffffff", maxWidth: 460 }}>
+            <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.55, color: "rgba(26,22,18,0.78)", maxWidth: 460 }}>
               Ad-free workout mixes, curated playlists, live sets, and beats designed to keep you moving. Included with every Shape membership.
             </p>
           </div>
@@ -691,15 +691,15 @@ const DirB = (() => {
       <div style={{ background: "rgba(26,22,18,0.55)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 4, padding: 32 }}>
         <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.12em", color: TEAL_BRIGHT, textTransform: "uppercase" }}>◉ Live · 1,284 listening</div>
         <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", marginTop: 14, lineHeight: 1 }}>Heavy Day · 132 BPM</div>
-        <div style={{ fontFamily: sans, fontSize: 13.5, color: "rgba(255,255,255,0.92)", marginTop: 8 }}>DJ Kaya Mars — Lift Series vol. 04</div>
+        <div style={{ fontFamily: sans, fontSize: 13.5, color: "rgba(242,237,228,0.7)", marginTop: 8 }}>DJ Kaya Mars — Lift Series vol. 04</div>
         <div style={{ display: "flex", alignItems: "center", gap: 3, height: 56, marginTop: 28 }}>
           {bars.map((h, i) => (
             <div key={i} style={{ flex: 1, height: `${20 + h*80}%`, background: i < 16 ? TEAL_BRIGHT : "rgba(242,237,228,0.2)", borderRadius: 1, transition: "height .2s" }} />
           ))}
         </div>
         <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
-          <a href="Radio.html" style={{ background: TEAL_BRIGHT, color: PAPER, border: 0, padding: "12px 22px", borderRadius: 6, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>▶ Play mix</a>
-          <a href="Radio.html" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "12px 22px", borderRadius: 6, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Browse stations</a>
+          <button style={{ background: TEAL_BRIGHT, color: PAPER, border: 0, padding: "12px 22px", borderRadius: 6, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>▶ Play mix</button>
+          <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "12px 22px", borderRadius: 6, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Browse stations</button>
         </div>
       </div>
     );
@@ -739,7 +739,7 @@ const DirB = (() => {
   function Faq() {
     const [open, setOpen] = useState(0);
     return (
-      <section style={{ padding: "120px 40px", background: "rgba(26,22,18,0.55)" }}>
+      <section style={{ padding: "120px 40px", background: PAPER }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: 80 }}>
           <div>
             <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL }}>FAQ</div>
@@ -755,7 +755,7 @@ const DirB = (() => {
                   <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.01em", color: INK }}>{f.q}</div>
                   <div style={{ fontFamily: "'JetBrains Mono', monospace", color: TEAL, fontSize: 18 }}>{open === i ? "−" : "+"}</div>
                 </div>
-                {open === i && <div style={{ marginTop: 16, fontFamily: sans, fontSize: 15, lineHeight: 1.6, color: "rgba(255,255,255,0.92)", maxWidth: 640 }}>{f.a}</div>}
+                {open === i && <div style={{ marginTop: 16, fontFamily: sans, fontSize: 15, lineHeight: 1.6, color: "rgba(242,237,228,0.7)", maxWidth: 640 }}>{f.a}</div>}
               </div>
             ))}
           </div>
@@ -766,18 +766,18 @@ const DirB = (() => {
 
   function Footer() {
     return (
-      <section style={{ padding: "100px 40px 40px", background: INK, color: PAPER, borderTop: "1px solid rgba(26,22,18,0.12)" }}>
+      <section style={{ padding: "100px 40px 40px", background: PAPER, color: INK, borderTop: "1px solid rgba(242,237,228,0.08)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
-          <h2 style={{ fontFamily: serif, fontSize: 160, letterSpacing: "-0.04em", fontWeight: 400, lineHeight: 0.88, margin: "0 0 60px", color: PAPER }}>
+          <h2 style={{ fontFamily: serif, fontSize: 160, letterSpacing: "-0.04em", fontWeight: 400, lineHeight: 0.88, margin: "0 0 60px" }}>
             Join the<br/><em style={{ fontStyle: "italic", color: TEAL }}>community</em>.
           </h2>
           <div style={{ display: "flex", gap: 12, marginBottom: 100 }}>
-            <a href="get-started.html" style={{ background: PAPER, color: INK, border: 0, padding: "18px 32px", borderRadius: 6, fontFamily: sans, fontWeight: 500, fontSize: 15, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Get Started →</a>
+            <a href="Landing.html" style={{ background: INK, color: PAPER, border: 0, padding: "18px 32px", borderRadius: 6, fontFamily: sans, fontWeight: 500, fontSize: 15, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Get Started →</a>
           </div>
-          <div style={{ borderTop: "1px solid rgba(26,22,18,0.15)", paddingTop: 40, display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 40 }}>
+          <div style={{ borderTop: "1px solid rgba(242,237,228,0.12)", paddingTop: 40, display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 40 }}>
             <div>
-              <ShapeWord variant="black" size={30} />
-              <p style={{ fontFamily: sans, fontSize: 13, color: "rgba(26,22,18,0.8)", marginTop: 16, maxWidth: 280 }}>A marketplace for certified trainers and nutritionists. Real coaches. One platform.</p>
+              <ShapeWord variant="white" size={30} />
+              <p style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)", marginTop: 16, maxWidth: 280 }}>A marketplace for certified trainers and nutritionists. Real coaches. One platform.</p>
             </div>
             {[
               ["Platform", ["Marketplace", "Clients", "Trainers", "Nutritionists"]],
@@ -786,12 +786,12 @@ const DirB = (() => {
               ["Help", ["Center", "Contact", "Privacy", "Terms"]],
             ].map(([h, links]) => (
               <div key={h}>
-                <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.14em", color: "rgba(26,22,18,0.7)", textTransform: "uppercase", marginBottom: 16 }}>{h}</div>
-                {links.map(l => <div key={l} style={{ fontFamily: sans, fontSize: 13, color: PAPER, padding: "6px 0" }}>{l}</div>)}
+                <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.14em", color: "rgba(242,237,228,0.55)", textTransform: "uppercase", marginBottom: 16 }}>{h}</div>
+                {links.map(l => <div key={l} style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.8)", padding: "6px 0" }}>{l}</div>)}
               </div>
             ))}
           </div>
-          <div style={{ marginTop: 60, paddingTop: 24, borderTop: "1px solid rgba(26,22,18,0.12)", display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(26,22,18,0.6)" }}>
+          <div style={{ marginTop: 60, paddingTop: 24, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.45)" }}>
             <span>© 2026 SHAPE</span>
             <span>BROOKLYN · LISBON · MELBOURNE</span>
           </div>
@@ -802,22 +802,18 @@ const DirB = (() => {
 
   function Root() {
     return (
-      <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
-        <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/Home%20page%202.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
-        <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.55) 0%, rgba(26,22,18,0.7) 100%)", pointerEvents: "none" }} />
-        <div style={{ position: "relative", zIndex: 1 }}>
-          <Nav />
-          <Hero />
-          <Audiences />
-          <PhoneToday />
-          <PhoneNutrition />
-          <Marketplace />
-          <Score />
-          <TrainerDash />
-          <Radio />
-          <Faq />
-          <Footer />
-        </div>
+      <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh" }}>
+        <Nav />
+        <Hero />
+        <Audiences />
+        <PhoneToday />
+        <PhoneNutrition />
+        <Marketplace />
+        <Score />
+        <TrainerDash />
+        <Radio />
+        <Faq />
+        <Footer />
       </div>
     );
   }

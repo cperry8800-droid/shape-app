@@ -25,7 +25,14 @@ const PRICING_FAQ = [
 { q: "Is Shape Radio really included?", a: "Yes — ad-free workout mixes, BPM-curated stations, live DJ sets from residents. Part of the $5/mo. Offline downloads included. No upsell." }];
 
 
-function PricingHeroBg() { return null; }
+function PricingHeroBg() {
+  return (
+    <>
+      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('assets/pricing-bg.png')", backgroundSize: "cover", backgroundPosition: "center 60%", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.55) 0%, rgba(26,22,18,0.12) 30%, rgba(26,22,18,0.15) 55%, rgba(26,22,18,0.85) 92%, rgba(26,22,18,1) 100%)", pointerEvents: "none" }} />
+    </>
+  );
+}
 
 function PricingHero() {
   return (
@@ -162,18 +169,14 @@ function PricingCTA() {
 
 function PricingPage() {
   return (
-    <div style={{ background: PAPER, color: INK, minHeight: "100vh", position: "relative" }}>
-      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/Pricing.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
-      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.55) 0%, rgba(26,22,18,0.7) 100%)", pointerEvents: "none" }} />
-      <div style={{ position: "relative", zIndex: 1 }}>
-        <Header active="Pricing" />
-        <PricingHero />
-        <PricingCard />
-        <PricingCoaches />
-        <PricingFAQ />
-        <PricingCTA />
-        <Footer />
-      </div>
+    <div style={{ background: PAPER, color: INK, minHeight: "100vh" }}>
+      <Header active="Pricing" />
+      <PricingHero />
+      <PricingCard />
+      <PricingCoaches />
+      <PricingFAQ />
+      <PricingCTA />
+      <Footer />
     </div>);
 
 }
