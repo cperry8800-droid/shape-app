@@ -32,7 +32,7 @@ function RadioHero() {
           <h1 style={{ fontFamily: serif, fontSize: 140, letterSpacing: "-0.04em", fontWeight: 400, margin: 0, lineHeight: 0.88 }}>
             Music<br/>built for<br/><em style={{ fontStyle: "italic", color: TEAL }}>training.</em>
           </h1>
-          <p style={{ fontFamily: sans, fontSize: 18, color: "rgba(242,237,228,0.7)", margin: "28px 0 0", maxWidth: 520, lineHeight: 1.5 }}>Ad-free workout mixes, curated stations by BPM, live DJ sets from residents who lift. Included with every Shape membership.</p>
+          <p style={{ fontFamily: sans, fontSize: 18, color: "#ffffff", margin: "28px 0 0", maxWidth: 520, lineHeight: 1.5 }}>Ad-free workout mixes, curated stations by BPM, live DJ sets from residents who lift. Included with every Shape membership.</p>
           <div style={{ display: "flex", gap: 10, marginTop: 36 }}>
             <button style={{ background: TEAL, color: PAPER, border: 0, padding: "16px 28px", borderRadius: 6, fontWeight: 500, fontSize: 14.5, fontFamily: sans, cursor: "pointer" }}>▶ Play Heavy Day</button>
             <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "16px 28px", borderRadius: 6, fontWeight: 500, fontSize: 14.5, fontFamily: sans, cursor: "pointer" }}>Browse stations</button>
