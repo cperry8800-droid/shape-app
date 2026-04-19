@@ -4,7 +4,7 @@
 const clientChatTabs = [
   {
     id: "circle",
-    label: "Your circle",
+    label: "Circle",
     eyebrow: "DIRECT CHAT",
     title: "Your coaches",
     threads: [
@@ -60,7 +60,7 @@ const clientChatTabs = [
   },
   {
     id: "nutritionists",
-    label: "Nutritionists",
+    label: "Nutri",
     eyebrow: "OTHER NUTRITIONISTS",
     title: "Nutritionists on Shape",
     threads: [
@@ -74,11 +74,50 @@ const clientChatTabs = [
     ],
   },
   {
+    id: "friends",
+    label: "Friends",
+    eyebrow: "DIRECT MESSAGES",
+    title: "Your friends",
+    canAddFriend: true,
+    threads: [
+      { who: "Jade Liu", role: "Active now · Brooklyn", last: "that sunrise run pic was unreal 👀", time: "just now", unread: 2, online: true, messages: [
+        { who: "Jade", t: "ok we HAVE to do Prospect Park saturday", time: "8:42 AM", me: false },
+        { who: "You", t: "down. bringing Priya too?", time: "8:45 AM", me: true },
+        { who: "Jade", t: "yes yes — 6am corral", time: "8:46 AM", me: false },
+        { who: "Jade", t: "that sunrise run pic was unreal 👀", time: "just now", me: false },
+      ]},
+      { who: "Kenji Mori", role: "Active 12m ago · Queens", last: "thx for the squat cue!! pr tmrw 🙏", time: "12m", unread: 0, messages: [
+        { who: "You", t: "breathe in at the top, brace HARD before the descent.", time: "Yesterday 5:18 PM", me: true },
+        { who: "Kenji", t: "trying it tmrw at 6am", time: "Yesterday 5:22 PM", me: false },
+        { who: "Kenji", t: "thx for the squat cue!! pr tmrw 🙏", time: "12m", me: false },
+      ]},
+      { who: "Sofia Reyes", role: "Active 40m ago · Lisbon", last: "bro the nutri plan is CLEAN", time: "40m", unread: 1, messages: [
+        { who: "Sofia", t: "have you seen Rae's new recovery bowl?", time: "Tue 9:40 AM", me: false },
+        { who: "You", t: "made it last night. 10/10.", time: "Tue 10:02 AM", me: true },
+        { who: "Sofia", t: "bro the nutri plan is CLEAN", time: "40m", me: false },
+      ]},
+      { who: "Devon W.", role: "Active 3h ago · Austin", last: "rest day hike? my dog insists.", time: "3h", unread: 0, messages: [
+        { who: "Devon", t: "rest day hike? my dog insists.", time: "3h", me: false },
+      ]},
+      { who: "Ana F.", role: "Offline · last seen yesterday", last: "thanks for the hype on my 10k 🙏🏽", time: "1d", unread: 0, messages: [
+        { who: "Ana", t: "thanks for the hype on my 10k 🙏🏽", time: "Yesterday 7:14 PM", me: false },
+      ]},
+    ],
+  },
+  {
     id: "community",
     label: "Community",
     eyebrow: "SHAPE COMMUNITY",
     title: "Channels",
+    canCreate: true,
     threads: [
+      { who: "# shape-community", role: "41,208 members · 2,104 online · Everyone on Shape", last: "Nina O: welcome everyone — drop your goal for the month 👇", time: "4m", unread: 12, group: true, pinned: true, messages: [
+        { who: "Nina O.", t: "welcome everyone — drop your goal for the month 👇", time: "4m", me: false },
+        { who: "Marcus J.", t: "225 bench by end of month. locked in.", time: "3m", me: false },
+        { who: "Priya S.", t: "first sub-2hr half marathon 🏃‍♀️", time: "3m", me: false },
+        { who: "Rae Lindqvist", t: "consistency > intensity this month. pick one thing and nail it daily.", time: "2m", me: false, coach: true },
+        { who: "Devon W.", t: "morning mobility routine, 10 min, every day.", time: "1m", me: false },
+      ]},
       { who: "# strength-block-3", role: "412 members · 34 online", last: "Marcus J: First time hitting 225 on bench after 8 months.", time: "18m", unread: 3, group: true, messages: [
         { who: "Marcus J.", t: "First time hitting 225 on bench after 8 months. Maya's programming is unreal.", time: "18m", me: false },
         { who: "Priya S.", t: "HUGE. Anyone else in block 3 right now?", time: "16m", me: false },
@@ -91,12 +130,16 @@ const clientChatTabs = [
         { who: "Jin-ho P.", t: "Pace?", time: "28m", me: false },
         { who: "Ava K.", t: "8:30ish, easy conversation pace.", time: "27m", me: false },
       ]},
+      { who: "# wins", role: "3,418 members · 127 online", last: "Devon W: Down 4lbs and energy through the roof.", time: "42m", unread: 0, group: true, messages: [
+        { who: "Devon W.", t: "Down 4lbs and energy through the roof after 3 weeks on Rae's template.", time: "42m", me: false },
+        { who: "Ava K.", t: "first 10k under 50 min this morning 🎉", time: "38m", me: false },
+      ]},
       { who: "# nutrition-wins", role: "892 members · 41 online", last: "Rae: New macro calculator is live.", time: "1h", unread: 0, group: true, messages: [
         { who: "Rae Lindqvist", t: "New macro calculator is live — pinned in resources.", time: "1h", me: false, coach: true },
         { who: "Devon W.", t: "Been using the template for 3 weeks. Down 4lbs and energy through the roof.", time: "42m", me: false },
       ]},
-      { who: "# general", role: "8,117 members · 312 online", last: "Maya: Free live Q&A Thursday 7pm EST.", time: "2h", unread: 0, group: true, messages: [
-        { who: "Maya Okafor", t: "Free live Q&A Thursday 7pm EST — submit questions in #ask-a-coach.", time: "2h", me: false, coach: true },
+      { who: "# ask-a-coach", role: "5,214 members · 198 online", last: "Maya: Free live Q&A Thursday 7pm EST.", time: "2h", unread: 0, group: true, messages: [
+        { who: "Maya Okafor", t: "Free live Q&A Thursday 7pm EST — drop your questions below.", time: "2h", me: false, coach: true },
       ]},
     ],
   },
