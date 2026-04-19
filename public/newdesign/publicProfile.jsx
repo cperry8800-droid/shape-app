@@ -235,9 +235,9 @@ function PublicHero({ p, kind }) {
               <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: 999, background: TEAL_BRIGHT, boxShadow: `0 0 10px ${TEAL_BRIGHT}` }} /> Available this week
             </div>
           </div>
-          <div style={{ paddingTop: 120 }}>
+          <div style={{ paddingTop: 120, minWidth: 0 }}>
             <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 14 }}>{p.eyebrow}</div>
-            <h1 style={{ fontFamily: serif, fontSize: 96, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, lineHeight: 0.92 }}>{p.name}</h1>
+            <h1 style={{ fontFamily: serif, fontSize: "clamp(48px, 6.2vw, 88px)", letterSpacing: "-0.035em", fontWeight: 400, margin: 0, lineHeight: 0.95, overflowWrap: "break-word", wordBreak: "break-word" }}>{p.name}</h1>
             <p style={{ fontFamily: serif, fontSize: 22, color: "rgba(242,237,228,0.75)", margin: "20px 0 0", fontStyle: "italic", maxWidth: 640, lineHeight: 1.4 }}>{p.tagline}.</p>
             <div style={{ display: "flex", gap: 8, marginTop: 28, flexWrap: "wrap" }}>
               {p.specialties.slice(0, 5).map(s => <Pill key={s}>{s}</Pill>)}
