@@ -7,13 +7,16 @@ ReactDOM.createRoot(document.getElementById("dir-B")).render(<DirB />);
 ReactDOM.createRoot(document.getElementById("dir-C")).render(<DirC />);
 
 // ---- Switcher ----
+// Direction B (Editorial) is the live design; A and C stay mounted
+// for internal Tweaks-panel previewing but the public switcher bar
+// is gone.
 const dirs = ["A", "B", "C"];
-const restored = localStorage.getItem("shape.dir") || "A";
-setActive(restored);
+setActive("B");
 
 function setActive(d) {
   dirs.forEach(x => {
-    document.getElementById("dir-" + x).hidden = x !== d;
+    const el = document.getElementById("dir-" + x);
+    if (el) el.hidden = x !== d;
   });
   document.querySelectorAll("#switcher button").forEach(b => {
     b.classList.toggle("on", b.dataset.dir === d);
@@ -22,9 +25,12 @@ function setActive(d) {
   window.scrollTo({ top: 0, behavior: "auto" });
 }
 
-document.getElementById("switcher").addEventListener("click", (e) => {
-  if (e.target.dataset.dir) setActive(e.target.dataset.dir);
-});
+const switcherEl = document.getElementById("switcher");
+if (switcherEl) {
+  switcherEl.addEventListener("click", (e) => {
+    if (e.target.dataset.dir) setActive(e.target.dataset.dir);
+  });
+}
 
 // ---- Tweaks ----
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
