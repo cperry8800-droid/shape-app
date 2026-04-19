@@ -452,7 +452,7 @@ function SignupPage({ role }) {
       {/* Minimal header */}
       <header style={{ padding: "24px 40px", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <a href="Landing.html" aria-label="Shape" style={{ flex: "none", display: "inline-flex" }}><Logo variant="white" size={36} /></a>
+          <a href="Landing.html" aria-label="Shape" style={{ flex: "none", display: "inline-flex" }}><Logo variant="white" size={50} /></a>
           <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
             <span style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.55)" }}>Already have an account?</span>
             <a href="Login.html" style={{ fontFamily: sans, fontSize: 13, color: INK, fontWeight: 500, borderBottom: `1.5px solid ${TEAL}`, paddingBottom: 3 }}>Log in</a>
