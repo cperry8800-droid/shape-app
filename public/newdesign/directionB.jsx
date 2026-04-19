@@ -778,7 +778,7 @@ const DirB = (() => {
           </div>
           <div style={{ borderTop: "1px solid rgba(255,255,255,0.15)", paddingTop: 40, display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 40 }}>
             <div>
-              <ShapeWord variant="white" size={30} />
+              <ShapeWord variant="black" size={30} />
               <p style={{ fontFamily: sans, fontSize: 13, color: "rgba(255,255,255,0.8)", marginTop: 16, maxWidth: 280 }}>A marketplace for certified trainers and nutritionists. Real coaches. One platform.</p>
             </div>
             {[

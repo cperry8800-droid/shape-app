@@ -81,7 +81,7 @@ function ShapeWord({ color, weight = 500, size = 18, letter = "0.01em", variant 
     }
   }
   const src = v === "white" ? "/logo.png" : "/logo-dark.png";
-  const filter = v === "white" ? "brightness(0) invert(1)" : "none";
+  const filter = v === "white" ? "brightness(0) invert(1)" : v === "black" ? "brightness(0)" : "none";
   const h = Math.round(size * 1.8);
   return (
     <img src={src} alt="Shape" style={{ height: h, width: "auto", display: "inline-block", verticalAlign: "middle", filter }} />
