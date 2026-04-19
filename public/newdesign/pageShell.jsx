@@ -68,12 +68,10 @@ function Header({ active }) {
           {link("Marketplace", "Marketplace.html")}
           {link("Community", "Community.html")}
           <NavDropdown label="Rewards" active={active} activeMatch={["Rewards", "Shape Score", "Store"]} items={[["Shape Score", "Score.html"], ["Shape Store", "Store.html"]]} />
+          {link("Radio", "Radio.html")}
           {link("Pricing", "Pricing.html")}
         </nav>
         <div style={{ display: "flex", alignItems: "center", gap: 18, flexShrink: 0 }}>
-          <a href="#" style={{ fontSize: 13, color: "rgba(242,237,228,0.7)", fontFamily: sans, display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
-            <span style={{ width: 14, height: 14, borderRadius: 999, background: TEAL, display: "inline-block" }} />Radio
-          </a>
           <a href="Login.html" style={{ fontSize: 13, color: "rgba(242,237,228,0.7)", fontFamily: sans, whiteSpace: "nowrap" }}>Log in</a>
           <a href="Landing.html" style={{ background: INK, color: PAPER, border: 0, padding: "11px 20px", borderRadius: 6, fontWeight: 500, fontSize: 13, fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-block" }}>Get started</a>
         </div>
