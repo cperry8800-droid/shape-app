@@ -40,7 +40,7 @@ const DirA = (() => {
     return (
       <section style={{ padding: "80px 40px 60px", position: "relative", overflow: "hidden" }}>
         {/* mountain photo background */}
-        <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('assets/home-hero.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+        <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Home%20page%201.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
         {/* dark overlay to keep text legible */}
         <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(6,8,10,0.62) 0%, rgba(6,8,10,0.78) 60%, #06080a 100%)", pointerEvents: "none" }} />
         {/* ambient teal glow */}

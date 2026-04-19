@@ -4,7 +4,7 @@
 function NutHeroBg() {
   return (
     <>
-      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('assets/nutritionist-overview-bg.png')", backgroundSize: "cover", backgroundPosition: "center 40%", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Nutrition%201.png')", backgroundSize: "cover", backgroundPosition: "center 40%", pointerEvents: "none" }} />
       <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.82) 0%, rgba(26,22,18,0.6) 35%, rgba(26,22,18,0.7) 65%, rgba(26,22,18,0.95) 92%, rgba(26,22,18,1) 100%)", pointerEvents: "none" }} />
       <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(26,22,18,0.65) 0%, rgba(26,22,18,0.25) 45%, rgba(26,22,18,0) 75%)", pointerEvents: "none" }} />
     </>

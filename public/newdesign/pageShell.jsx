@@ -20,9 +20,9 @@ function Ph({ label, ratio = "1/1", tone = "dark", style = {} }) {
 }
 
 function Logo({ variant = "black", size = 28 }) {
-  const src = variant === "white" ? "assets/shape-logo-new-white.png?v=3"
-    : variant === "black" ? "assets/shape-logo-new-black.png?v=3"
-    : "assets/shape-logo-new-white.png?v=3";
+  const src = variant === "white" ? "/shape-logo-new-white.png?v=3"
+    : variant === "black" ? "/shape-logo-new-black.png?v=3"
+    : "/shape-logo-new-white.png?v=3";
   // New logo has the play-icon stacked above the SHAPE wordmark (aspect ~1.87:1), not inline like the old one.
   // Scale so the overall mark reads at a comparable visual weight to the previous inline logo.
   const h = Math.round(size * 1.8);
@@ -38,13 +38,15 @@ function NavDropdown({ label, items, active, activeMatch }) {
         {label}<span style={{ fontSize: 7, opacity: 0.6 }}>▾</span>
       </a>
       {open && (
-        <div style={{ position: "absolute", top: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)", background: "rgba(26,22,18,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: 10, minWidth: 220, boxShadow: "0 20px 50px rgba(0,0,0,0.5)" }}>
+        <div style={{ position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)", paddingTop: 8, minWidth: 220 }}>
+          <div style={{ background: "rgba(26,22,18,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: 10, boxShadow: "0 20px 50px rgba(0,0,0,0.5)" }}>
           {items.map(([n, href]) => (
             <a key={n} href={href} style={{ display: "block", padding: "10px 14px", fontSize: 13, color: "rgba(242,237,228,0.85)", fontFamily: sans, borderRadius: 4, whiteSpace: "nowrap" }}
               onMouseEnter={e => { e.currentTarget.style.background = "rgba(30,192,168,0.12)"; e.currentTarget.style.color = INK; }}
               onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(242,237,228,0.85)"; }}
             >{n}</a>
           ))}
+          </div>
         </div>
       )}
     </div>
@@ -83,7 +85,7 @@ function Header({ active }) {
 function HeroBg() {
   return (
     <>
-      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('assets/landing-bg.png')", backgroundSize: "cover", backgroundPosition: "center 40%", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/get%20started.png')", backgroundSize: "cover", backgroundPosition: "center 40%", pointerEvents: "none" }} />
       {/* Lighter gradient — let the road image breathe */}
       <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.55) 0%, rgba(26,22,18,0.1) 35%, rgba(26,22,18,0.1) 55%, rgba(26,22,18,0.85) 92%, rgba(26,22,18,1) 100%)", pointerEvents: "none" }} />
     </>

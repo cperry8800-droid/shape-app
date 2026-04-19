@@ -5,7 +5,7 @@
 function TrainerHeroBg() {
   return (
     <>
-      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('assets/marketplace-bg.png')", backgroundSize: "cover", backgroundPosition: "center 40%", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Home%20page%202.png')", backgroundSize: "cover", backgroundPosition: "center 40%", pointerEvents: "none" }} />
       <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.78) 0%, rgba(26,22,18,0.55) 35%, rgba(26,22,18,0.65) 65%, rgba(26,22,18,0.95) 92%, rgba(26,22,18,1) 100%)", pointerEvents: "none" }} />
       <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(26,22,18,0.6) 0%, rgba(26,22,18,0.2) 45%, rgba(26,22,18,0) 75%)", pointerEvents: "none" }} />
     </>
