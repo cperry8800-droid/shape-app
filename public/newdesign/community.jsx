@@ -24,15 +24,7 @@ const STORIES = [
   { who: "Yuki A.", line: "The community runs kept me honest for six months straight.", metric: "First marathon · 3:54", city: "Austin" },
 ];
 
-function CommunityHeroBg() {
-  return (
-    <>
-      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Home%20page%203.png')", backgroundSize: "cover", backgroundPosition: "center 55%", pointerEvents: "none" }} />
-      {/* Light overlay — the sunset already has gorgeous tonal range, don't crush it */}
-      <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.55) 0%, rgba(26,22,18,0.15) 35%, rgba(26,22,18,0.25) 65%, rgba(26,22,18,0.85) 95%, rgba(26,22,18,1) 100%)", pointerEvents: "none" }} />
-    </>
-  );
-}
+function CommunityHeroBg() { return null; }
 
 function HeroC() {
   return (
@@ -156,7 +148,7 @@ function Stories() {
 
 function CTA() {
   return (
-    <section style={{ padding: "120px 40px", background: PAPER }}>
+    <section style={{ padding: "120px 40px", background: "rgba(26,22,18,0.55)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", textAlign: "center" }}>
         <h2 style={{ fontFamily: serif, fontSize: 120, letterSpacing: "-0.04em", fontWeight: 400, lineHeight: 0.9, margin: "0 0 40px" }}>
           Join the <em style={{ fontStyle: "italic", color: TEAL }}>community</em>.
@@ -266,7 +258,7 @@ function Chat() {
   };
   const r = ROOMS[tab];
   return (
-    <section style={{ padding: "100px 40px", background: PAPER, color: INK }}>
+    <section style={{ padding: "100px 40px", background: "rgba(26,22,18,0.55)", color: INK }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ marginBottom: 40 }}>
           <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>Rooms · live</div>
@@ -346,14 +338,18 @@ function Chat() {
 
 function Community() {
   return (
-    <div style={{ background: PAPER, color: INK, fontFamily: sans }}>
-      <Header active="Community" />
-      <HeroC />
-      <Events />
-      <Chat />
-      <Challenges />
-      <CTA />
-      <Footer />
+    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/Home%20page%203.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.55) 0%, rgba(26,22,18,0.7) 100%)", pointerEvents: "none" }} />
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <Header active="Community" />
+        <HeroC />
+        <Events />
+        <Chat />
+        <Challenges />
+        <CTA />
+        <Footer />
+      </div>
     </div>
   );
 }

@@ -2,15 +2,7 @@
 // Pitches Shape to coaches: why join, how it works, earnings, tools, featured trainers, testimonials, FAQ, apply CTA.
 
 // ---------- Hero ----------
-function TrainerHeroBg() {
-  return (
-    <>
-      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Training%201.png')", backgroundSize: "cover", backgroundPosition: "center 40%", pointerEvents: "none" }} />
-      <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.78) 0%, rgba(26,22,18,0.55) 35%, rgba(26,22,18,0.65) 65%, rgba(26,22,18,0.95) 92%, rgba(26,22,18,1) 100%)", pointerEvents: "none" }} />
-      <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(26,22,18,0.6) 0%, rgba(26,22,18,0.2) 45%, rgba(26,22,18,0) 75%)", pointerEvents: "none" }} />
-    </>
-  );
-}
+function TrainerHeroBg() { return null; }
 
 function TrainerHero() {
   return (
@@ -50,7 +42,7 @@ function TrainerStats() {
     { k: "Yours", v: "Your brand, your pricing, your clients. No lock-in." },
   ];
   return (
-    <section style={{ padding: "80px 40px", background: PAPER, borderTop: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+    <section style={{ padding: "80px 40px", background: "rgba(26,22,18,0.55)", borderTop: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0 }}>
         {items.map((it, i) => (
           <div key={i} style={{ padding: "12px 32px", borderLeft: i ? "1px solid rgba(242,237,228,0.1)" : "none" }}>
@@ -83,7 +75,7 @@ function TrainerWhy() {
     },
   ];
   return (
-    <section style={{ padding: "140px 40px", background: PAPER }}>
+    <section style={{ padding: "140px 40px", background: "rgba(26,22,18,0.55)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Why Shape</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 80px", lineHeight: 1, color: INK, maxWidth: 1100 }}>
@@ -145,7 +137,7 @@ function TrainerEarnings() {
   const monthly = clients * price * 4;
   const yearly = monthly * 12;
   return (
-    <section style={{ padding: "140px 40px", background: PAPER }}>
+    <section style={{ padding: "140px 40px", background: "rgba(26,22,18,0.55)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.1fr", gap: 80, alignItems: "center" }}>
         <div>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Earnings</div>
@@ -210,7 +202,7 @@ function TrainerTools() {
     { t: "Payouts", b: "Weekly direct deposit, or instant for 1%. Clean monthly statements. Tax docs when January comes." },
   ];
   return (
-    <section style={{ padding: "140px 40px", background: PAPER }}>
+    <section style={{ padding: "140px 40px", background: "rgba(26,22,18,0.55)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>The toolkit</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 72px", lineHeight: 1, color: INK, maxWidth: 1000 }}>Everything you need. <em style={{ fontStyle: "italic", color: TEAL }}>Nothing you don't.</em></h2>
@@ -278,7 +270,7 @@ function TrainerFAQ() {
   ];
   const [open, setOpen] = React.useState(0);
   return (
-    <section style={{ padding: "140px 40px", background: PAPER }}>
+    <section style={{ padding: "140px 40px", background: "rgba(26,22,18,0.55)" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Questions</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 64px", lineHeight: 1, color: INK }}>Everything <em style={{ fontStyle: "italic", color: TEAL }}>trainers ask.</em></h2>
@@ -324,17 +316,21 @@ function TrainerCTA() {
 // ---------- Page ----------
 function TrainerOverviewPage() {
   return (
-    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh" }}>
-      <Header active="Trainer Overview" />
-      <TrainerHero />
-      <TrainerStats />
-      <TrainerWhy />
-      <TrainerHow />
-      <TrainerEarnings />
-      <TrainerTools />
-      <TrainerFAQ />
-      <TrainerCTA />
-      <Footer />
+    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/Training%203.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.55) 0%, rgba(26,22,18,0.7) 100%)", pointerEvents: "none" }} />
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <Header active="Trainer Overview" />
+        <TrainerHero />
+        <TrainerStats />
+        <TrainerWhy />
+        <TrainerHow />
+        <TrainerEarnings />
+        <TrainerTools />
+        <TrainerFAQ />
+        <TrainerCTA />
+        <Footer />
+      </div>
     </div>
   );
 }

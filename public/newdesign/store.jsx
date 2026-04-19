@@ -42,14 +42,7 @@ const UNLOCKED = [
   { code: "RADIO-3MO-BB7A", name: "Shape Radio · Studio · 3 mo", expires: "Jul 15", cost: 750, redeemed: "Mar 28" },
 ];
 
-function StoreHeroBg() {
-  return (
-    <>
-      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Rewards.png')", backgroundSize: "cover", backgroundPosition: "center center", pointerEvents: "none" }} />
-      <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.7) 0%, rgba(26,22,18,0.5) 40%, rgba(26,22,18,0.65) 70%, rgba(26,22,18,1) 100%)", pointerEvents: "none" }} />
-    </>
-  );
-}
+function StoreHeroBg() { return null; }
 
 function StoreHero() {
   return (
@@ -301,14 +294,18 @@ function StoreFAQ() {
 
 function StorePage() {
   return (
-    <div style={{ background: PAPER, color: INK, fontFamily: sans }}>
-      <Header active="Store" />
-      <StoreHero />
-      <StoreGrid />
-      <UnlockedCoupons />
-      <StoreFeatured />
-      <StoreFAQ />
-      <Footer />
+    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/Rewards.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.55) 0%, rgba(26,22,18,0.7) 100%)", pointerEvents: "none" }} />
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <Header active="Store" />
+        <StoreHero />
+        <StoreGrid />
+        <UnlockedCoupons />
+        <StoreFeatured />
+        <StoreFAQ />
+        <Footer />
+      </div>
     </div>
   );
 }

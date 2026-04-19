@@ -63,8 +63,6 @@ const DirB = (() => {
   function Hero() {
     return (
       <section style={{ padding: "100px 40px 80px", position: "relative", overflow: "hidden" }}>
-        <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Home%20page%202.png')", backgroundSize: "cover", backgroundPosition: "center 30%", pointerEvents: "none" }} />
-        <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.78) 0%, rgba(26,22,18,0.88) 55%, rgba(26,22,18,1) 100%)", pointerEvents: "none" }} />
         <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 60, alignItems: "end", marginBottom: 80 }}>
             <div>
@@ -257,7 +255,7 @@ const DirB = (() => {
   // Marketplace — editorial coach grid
   function Marketplace() {
     return (
-      <section style={{ padding: "120px 40px", background: PAPER, color: INK, borderTop: "1px solid rgba(242,237,228,0.08)" }}>
+      <section style={{ padding: "120px 40px", background: "rgba(26,22,18,0.55)", color: INK, borderTop: "1px solid rgba(242,237,228,0.08)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 60, alignItems: "end", marginBottom: 56 }}>
             <div>
@@ -301,7 +299,7 @@ const DirB = (() => {
       { n: 4, name: "Triceps pushdown", set: "3 × 12" },
     ];
     return (
-      <section style={{ padding: "120px 40px", background: PAPER, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
+      <section style={{ padding: "120px 40px", background: "rgba(26,22,18,0.55)", borderTop: "1px solid rgba(242,237,228,0.1)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 380px", gap: 100, alignItems: "center" }}>
           <div>
             <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>In your pocket</div>
@@ -397,7 +395,7 @@ const DirB = (() => {
       { item: "Jasmine rice · 2 lb", aisle: "Pantry" },
     ];
     return (
-      <section style={{ padding: "120px 40px 140px", background: PAPER, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
+      <section style={{ padding: "120px 40px 140px", background: "rgba(26,22,18,0.55)", borderTop: "1px solid rgba(242,237,228,0.1)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "380px 1fr", gap: 100, alignItems: "center" }}>
           {/* Phone - left side this time for rhythm */}
           <div style={{ position: "relative", width: 380, margin: "0 auto" }}>
@@ -507,7 +505,7 @@ const DirB = (() => {
 
   function Score() {
     return (
-      <section style={{ padding: "120px 40px", background: PAPER }}>
+      <section style={{ padding: "120px 40px", background: "rgba(26,22,18,0.55)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.1fr", gap: 80, alignItems: "center" }}>
           <div>
             <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL }}>Shape Score</div>
@@ -743,7 +741,7 @@ const DirB = (() => {
   function Faq() {
     const [open, setOpen] = useState(0);
     return (
-      <section style={{ padding: "120px 40px", background: PAPER }}>
+      <section style={{ padding: "120px 40px", background: "rgba(26,22,18,0.55)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: 80 }}>
           <div>
             <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL }}>FAQ</div>
@@ -770,7 +768,7 @@ const DirB = (() => {
 
   function Footer() {
     return (
-      <section style={{ padding: "100px 40px 40px", background: PAPER, color: INK, borderTop: "1px solid rgba(242,237,228,0.08)" }}>
+      <section style={{ padding: "100px 40px 40px", background: "rgba(26,22,18,0.7)", color: INK, borderTop: "1px solid rgba(242,237,228,0.08)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
           <h2 style={{ fontFamily: serif, fontSize: 160, letterSpacing: "-0.04em", fontWeight: 400, lineHeight: 0.88, margin: "0 0 60px" }}>
             Join the<br/><em style={{ fontStyle: "italic", color: TEAL }}>community</em>.
@@ -806,18 +804,22 @@ const DirB = (() => {
 
   function Root() {
     return (
-      <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh" }}>
-        <Nav />
-        <Hero />
-        <Audiences />
-        <PhoneToday />
-        <PhoneNutrition />
-        <Marketplace />
-        <Score />
-        <TrainerDash />
-        <Radio />
-        <Faq />
-        <Footer />
+      <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
+        <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/Home%20page%202.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+        <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.55) 0%, rgba(26,22,18,0.7) 100%)", pointerEvents: "none" }} />
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <Nav />
+          <Hero />
+          <Audiences />
+          <PhoneToday />
+          <PhoneNutrition />
+          <Marketplace />
+          <Score />
+          <TrainerDash />
+          <Radio />
+          <Faq />
+          <Footer />
+        </div>
       </div>
     );
   }

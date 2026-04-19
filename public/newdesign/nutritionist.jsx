@@ -1,15 +1,7 @@
 // Nutritionist overview — marketing page for prospective nutritionists/dietitians.
 
 // ---------- Hero ----------
-function NutHeroBg() {
-  return (
-    <>
-      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Nutrition%202.png')", backgroundSize: "cover", backgroundPosition: "center 40%", pointerEvents: "none" }} />
-      <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.82) 0%, rgba(26,22,18,0.6) 35%, rgba(26,22,18,0.7) 65%, rgba(26,22,18,0.95) 92%, rgba(26,22,18,1) 100%)", pointerEvents: "none" }} />
-      <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(26,22,18,0.65) 0%, rgba(26,22,18,0.25) 45%, rgba(26,22,18,0) 75%)", pointerEvents: "none" }} />
-    </>
-  );
-}
+function NutHeroBg() { return null; }
 
 function NutHero() {
   return (
@@ -49,7 +41,7 @@ function NutStats() {
     { k: "Yours", v: "Your practice, your pricing, your clients. No lock-in." },
   ];
   return (
-    <section style={{ padding: "80px 40px", background: PAPER, borderTop: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+    <section style={{ padding: "80px 40px", background: "rgba(26,22,18,0.55)", borderTop: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}>
         {items.map((it, i) => (
           <div key={i} style={{ padding: "12px 32px", borderLeft: i ? "1px solid rgba(242,237,228,0.1)" : "none" }}>
@@ -70,7 +62,7 @@ function NutWhy() {
     { n: "03", title: "Demand that fits your practice", body: "Members search by specialty — endurance fueling, gut health, plant-forward, clinical. You set scope, Shape sends you the right people." },
   ];
   return (
-    <section style={{ padding: "140px 40px", background: PAPER }}>
+    <section style={{ padding: "140px 40px", background: "rgba(26,22,18,0.55)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Why Shape</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 80px", lineHeight: 1, color: INK, maxWidth: 1100 }}>
@@ -132,7 +124,7 @@ function NutEarnings() {
   const monthly = clients * price * 2;
   const yearly = monthly * 12;
   return (
-    <section style={{ padding: "140px 40px", background: PAPER }}>
+    <section style={{ padding: "140px 40px", background: "rgba(26,22,18,0.55)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.1fr", gap: 80, alignItems: "center" }}>
         <div>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Earnings</div>
@@ -194,7 +186,7 @@ function NutTools() {
     { t: "Payouts & docs", b: "Weekly direct deposit, or instant for 1%. Clean monthly statements. Tax docs when January comes." },
   ];
   return (
-    <section style={{ padding: "140px 40px", background: PAPER }}>
+    <section style={{ padding: "140px 40px", background: "rgba(26,22,18,0.55)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>The toolkit</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 72px", lineHeight: 1, color: INK, maxWidth: 1000 }}>Built for <em style={{ fontStyle: "italic", color: TEAL }}>real practice.</em></h2>
@@ -262,7 +254,7 @@ function NutFAQ() {
   ];
   const [open, setOpen] = React.useState(0);
   return (
-    <section style={{ padding: "140px 40px", background: PAPER }}>
+    <section style={{ padding: "140px 40px", background: "rgba(26,22,18,0.55)" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Questions</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 64px", lineHeight: 1, color: INK }}>Everything <em style={{ fontStyle: "italic", color: TEAL }}>nutritionists ask.</em></h2>
@@ -308,17 +300,21 @@ function NutCTA() {
 // ---------- Page ----------
 function NutritionistOverviewPage() {
   return (
-    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh" }}>
-      <Header active="Nutritionist Overview" />
-      <NutHero />
-      <NutStats />
-      <NutWhy />
-      <NutHow />
-      <NutEarnings />
-      <NutTools />
-      <NutFAQ />
-      <NutCTA />
-      <Footer />
+    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/Nutrition%203.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.55) 0%, rgba(26,22,18,0.7) 100%)", pointerEvents: "none" }} />
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <Header active="Nutritionist Overview" />
+        <NutHero />
+        <NutStats />
+        <NutWhy />
+        <NutHow />
+        <NutEarnings />
+        <NutTools />
+        <NutFAQ />
+        <NutCTA />
+        <Footer />
+      </div>
     </div>
   );
 }
