@@ -299,7 +299,7 @@ function ChatWidget(props) {
               <span style={{ color: "rgba(242,237,228,0.35)", display: "inline-flex", alignItems: "center" }}><DragDots /></span>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.18em", color: TEAL_BRIGHT, marginBottom: 2 }}>SHAPE</div>
-                <div style={{ fontFamily: serif, fontSize: 26, lineHeight: 1.05, letterSpacing: "-0.02em", color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Your community</div>
+                <div style={{ fontFamily: serif, fontSize: 26, lineHeight: 1.05, letterSpacing: "-0.02em", color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Shape chat</div>
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 2, flex: "none" }}>
