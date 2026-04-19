@@ -58,7 +58,7 @@ function Header({ active }) {
   return (
     <header style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(26,22,18,0.92)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 32px", gap: 24 }}>
-        <a href="Shape Redesign.html" style={{ flex: "none", display: "inline-flex" }}><Logo variant="white" size={36} /></a>
+        <a href="index.html" style={{ flex: "none", display: "inline-flex" }}><Logo variant="white" size={36} /></a>
         <nav style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap" }}>
           <NavDropdown label="Clients" active={active} activeMatch={["Clients", "My Profile", "Overview", "Dashboard", "Client Overview", "Client Dashboard"]} items={[["Overview", "Client.html"], ["Dashboard", "ClientDashboard.html"]]} />
           <NavDropdown label="Trainers" active={active} activeMatch={["Trainers", "Trainer Profile", "Trainer Overview", "Trainer Dashboard"]} items={[["Overview", "Coach.html"], ["Dashboard", "TrainerDashboard.html"]]} />
