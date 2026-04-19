@@ -676,7 +676,7 @@ const DirB = (() => {
             <h2 style={{ fontFamily: serif, fontSize: 84, letterSpacing: "-0.035em", fontWeight: 400, margin: "20px 0 20px", lineHeight: 0.9 }}>
               Music built<br/>for <em style={{ fontStyle: "italic", color: TEAL }}>training</em>.
             </h2>
-            <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.55, color: "rgba(26,22,18,0.78)", maxWidth: 460 }}>
+            <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.55, color: "#ffffff", maxWidth: 460 }}>
               Ad-free workout mixes, curated playlists, live sets, and beats designed to keep you moving. Included with every Shape membership.
             </p>
           </div>
