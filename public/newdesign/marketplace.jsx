@@ -192,17 +192,6 @@ function MarketplaceHero({ tab, setTab }) {
           })}
         </div>
 
-        <div style={{ marginTop: 32, display: "flex", gap: 56, fontFamily: sans }}>
-          {(tab === "Trainer"
-            ? [["2,100", "Certified trainers"], ["42", "Specialties"], ["4.93", "Avg. rating"], ["< 24 h", "Match time"]]
-            : [["1,000+", "Certified nutritionists"], ["11", "Specialties"], ["4.95", "Avg. rating"], ["< 24 h", "Match time"]]
-          ).map(([k, v]) =>
-          <div key={v}>
-              <div style={{ fontFamily: serif, fontSize: 36, letterSpacing: "-0.03em", fontWeight: 400, color: INK, lineHeight: 1 }}>{k}</div>
-              <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.55)", marginTop: 6, letterSpacing: "0.04em" }}>{v}</div>
-            </div>
-          )}
-        </div>
       </div>
     </section>);
 }
