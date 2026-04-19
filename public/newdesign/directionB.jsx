@@ -71,7 +71,7 @@ const DirB = (() => {
               </div>
               <h1 style={{ fontFamily: serif, fontSize: 128, lineHeight: 0.88, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, color: INK }}>
                 Real coaches.<br />
-                One <em style={{ fontStyle: "italic", color: TEAL, fontWeight: 400 }}>marketplace</em>.
+                <span style={{ whiteSpace: "nowrap" }}>One <em style={{ fontStyle: "italic", color: TEAL, fontWeight: 400 }}>marketplace</em>.</span>
               </h1>
             </div>
             <div style={{ paddingBottom: 12 }}>
