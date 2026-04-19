@@ -8,9 +8,7 @@ ReactDOM.createRoot(document.getElementById("dir-C")).render(<DirC />);
 
 // ---- Switcher ----
 const dirs = ["A", "B", "C"];
-// Default to Editorial (B). Allow ?dir=A|B|C override for previewing others.
-const urlDir = new URLSearchParams(location.search).get("dir");
-const restored = (urlDir && ["A","B","C"].includes(urlDir.toUpperCase())) ? urlDir.toUpperCase() : "B";
+const restored = localStorage.getItem("shape.dir") || "A";
 setActive(restored);
 
 function setActive(d) {

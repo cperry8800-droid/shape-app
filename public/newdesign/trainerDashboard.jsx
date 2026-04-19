@@ -3,11 +3,11 @@
 
 // Reusable sidebar. Renders a dashboard home href + nav items with active states.
 // navItems items: { label, count, active, href }
-function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
+function DashSidebar({ navItems, payoutCard, homeHref = "Shape Redesign.html" }) {
   return (
     <aside style={{ borderRight: "1px solid rgba(242,237,228,0.08)", padding: "32px 20px", display: "flex", flexDirection: "column", gap: 4, position: "sticky", top: 0, height: "100vh" }}>
       <div style={{ padding: "4px 10px 40px" }}>
-        <a href={homeHref}><Logo variant="white" size={22} /></a>
+        <a href={homeHref} style={{ flex: "none", display: "inline-flex" }}><Logo variant="white" size={36} /></a>
       </div>
       {navItems.map((n, i) => (
         <a key={i} href={n.href || "#"} style={{
@@ -75,6 +75,78 @@ function Pill({ children, tone = "mute" }) {
   const col = tone === "teal" ? PAPER : "rgba(242,237,228,0.7)";
   const bd = tone === "teal" ? "none" : "1px solid rgba(242,237,228,0.12)";
   return <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", padding: "4px 8px", borderRadius: 4, background: bg, color: col, border: bd }}>{children}</span>;
+}
+
+// Row renderer for DashShell.todayItems. Supports t.playlist = { name, provider, bpm, accent, cover, note, author, tracks }
+function DashTodayItemRow({ t }) {
+  const [open, setOpen] = React.useState(false);
+  const p = t.playlist;
+  const spotMark = (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" style={{ flex: "none" }}>
+      <circle cx="12" cy="12" r="10" fill="#1ED760"/>
+      <path d="M7.2 10.4c3.2-.9 7.4-.7 10.3 1.1.4.2.5.8.2 1.2-.2.4-.8.5-1.2.2-2.5-1.5-6.2-1.7-9-.9-.5.2-1-.2-1.1-.6-.1-.5.2-.9.8-1zM7.5 13c2.7-.8 6.3-.5 8.6 1 .3.2.4.7.2 1-.2.3-.7.4-1 .2-2-1.2-5.1-1.5-7.4-.8-.4.1-.8-.2-.9-.5 0-.4.2-.8.5-.9zM7.8 15.4c2.2-.6 4.9-.5 6.9.7.3.2.3.5.2.8-.2.3-.5.3-.8.2-1.7-1-4-1.1-5.9-.6-.3.1-.6-.1-.7-.4-.1-.3.1-.6.4-.7z" fill="#000"/>
+    </svg>
+  );
+  const appleMark = (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="#fc3c44" style={{ flex: "none" }}>
+      <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm3 13.3c0 1.4-1.1 2.5-2.5 2.5s-2.5-1.1-2.5-2.5 1.1-2.5 2.5-2.5c.4 0 .7.1 1 .2V7l4-1v9.3z"/>
+    </svg>
+  );
+  return (
+    <div style={{ borderTop: "1px solid rgba(242,237,228,0.06)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "80px 1fr auto auto", gap: 16, alignItems: "center", padding: "18px 4px" }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: "rgba(242,237,228,0.55)", letterSpacing: "0.04em" }}>{t.time}</div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 6 }}>{t.kind}</div>
+          <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 4 }}>{t.title}</div>
+          {t.sub && <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.55)" }}>{t.sub}</div>}
+        </div>
+        {p ? (
+          <button onClick={() => setOpen(!open)}
+            title={`${p.author || "Coach"}'s playlist: ${p.name}`}
+            style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 12px 6px 6px", borderRadius: 999, border: `1px solid ${p.accent}55`, background: `${p.accent}1a`, color: PAPER, fontFamily: sans, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>
+            <span style={{ width: 22, height: 22, borderRadius: 999, background: p.accent, display: "inline-flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
+              <svg width="9" height="9" viewBox="0 0 16 16" fill="#1a1612"><path d="M4 2.5v11l10-5.5z"/></svg>
+            </span>
+            {p.provider === "apple" ? appleMark : spotMark}
+            <span style={{ opacity: 0.9 }}>Coach's mix</span>
+            <svg width="10" height="10" viewBox="0 0 10 10" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s", opacity: 0.6 }}><path d="M2 3.5l3 3 3-3" stroke="currentColor" fill="none" strokeWidth="1.5"/></svg>
+          </button>
+        ) : <div />}
+        {t.cta ? (
+          t.cta.primary ? (
+            <button style={{ background: TEAL, color: PAPER, border: 0, padding: "10px 18px", borderRadius: 4, fontFamily: sans, fontSize: 12, fontWeight: 500, letterSpacing: "0.04em", cursor: "pointer", whiteSpace: "nowrap" }}>{t.cta.label} <span style={{ marginLeft: 4 }}>→</span></button>
+          ) : (
+            <button style={{ background: "transparent", color: TEAL_BRIGHT, border: `1px solid ${TEAL}`, padding: "9px 18px", borderRadius: 4, fontFamily: sans, fontSize: 12, fontWeight: 500, letterSpacing: "0.04em", cursor: "pointer", whiteSpace: "nowrap" }}>{t.cta.label}</button>
+          )
+        ) : <div />}
+      </div>
+
+      {open && p && (
+        <div style={{ marginBottom: 14, marginLeft: 96, marginRight: 4, borderRadius: 10, overflow: "hidden", border: "1px solid rgba(242,237,228,0.08)" }}>
+          <div style={{ padding: "14px 18px", background: p.cover, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(0,0,0,0.4)", padding: "4px 10px", borderRadius: 999, fontSize: 9.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.1em", marginBottom: 7, color: PAPER }}>
+                {p.provider === "apple" ? appleMark : spotMark}
+                {p.provider === "apple" ? "APPLE MUSIC" : "SPOTIFY"} · {(p.author || "COACH").toUpperCase()}'S PICK
+              </div>
+              <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, fontWeight: 400, letterSpacing: "-0.01em", color: PAPER }}>{p.name}</div>
+              <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: "rgba(242,237,228,0.75)", letterSpacing: "0.06em", marginTop: 4 }}>
+                {p.bpm} BPM · {p.tracks || "—"} tracks · optional, always skippable
+              </div>
+            </div>
+            <button style={{ background: p.accent, color: "#1a1612", border: 0, padding: "9px 16px", borderRadius: 999, fontFamily: sans, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>▶ Play</button>
+          </div>
+          {p.note && (
+            <div style={{ padding: "12px 18px", background: "rgba(242,237,228,0.04)", display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 12, color: "rgba(242,237,228,0.75)", fontStyle: "italic", flex: 1 }}>"{p.note}" — {p.author || "Coach"}</span>
+              <button style={{ background: "transparent", color: "rgba(242,237,228,0.5)", border: 0, fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.1em", cursor: "pointer" }}>HIDE PLAYLIST</button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function DashShell({
@@ -149,21 +221,7 @@ function DashShell({
               )}
             </div>
             {todayItems.map((t, i) => (
-              <div key={i} style={{ display: "grid", gridTemplateColumns: "80px 1fr auto", gap: 20, alignItems: "center", padding: "18px 4px", borderTop: "1px solid rgba(242,237,228,0.06)" }}>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: "rgba(242,237,228,0.55)", letterSpacing: "0.04em" }}>{t.time}</div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 6 }}>{t.kind}</div>
-                  <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 4 }}>{t.title}</div>
-                  {t.sub && <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.55)" }}>{t.sub}</div>}
-                </div>
-                {t.cta && (
-                  t.cta.primary ? (
-                    <button style={{ background: TEAL, color: PAPER, border: 0, padding: "10px 18px", borderRadius: 4, fontFamily: sans, fontSize: 12, fontWeight: 500, letterSpacing: "0.04em", cursor: "pointer", whiteSpace: "nowrap" }}>{t.cta.label} <span style={{ marginLeft: 4 }}>→</span></button>
-                  ) : (
-                    <button style={{ background: "transparent", color: TEAL_BRIGHT, border: `1px solid ${TEAL}`, padding: "9px 18px", borderRadius: 4, fontFamily: sans, fontSize: 12, fontWeight: 500, letterSpacing: "0.04em", cursor: "pointer", whiteSpace: "nowrap" }}>{t.cta.label}</button>
-                  )
-                )}
-              </div>
+              <DashTodayItemRow key={i} t={t} />
             ))}
           </div>
         )}
