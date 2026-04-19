@@ -28,7 +28,7 @@ const PRICING_FAQ = [
 function PricingHeroBg() {
   return (
     <>
-      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('assets/pricing-bg.png')", backgroundSize: "cover", backgroundPosition: "center 60%", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Pricing.png')", backgroundSize: "cover", backgroundPosition: "center 60%", pointerEvents: "none" }} />
       <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.55) 0%, rgba(26,22,18,0.12) 30%, rgba(26,22,18,0.15) 55%, rgba(26,22,18,0.85) 92%, rgba(26,22,18,1) 100%)", pointerEvents: "none" }} />
     </>
   );

@@ -59,7 +59,7 @@ const DirB = (() => {
   function Hero() {
     return (
       <section style={{ padding: "100px 40px 80px", position: "relative", overflow: "hidden" }}>
-        <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('assets/home-hero.png')", backgroundSize: "cover", backgroundPosition: "center 30%", pointerEvents: "none" }} />
+        <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Home%20page%202.png')", backgroundSize: "cover", backgroundPosition: "center 30%", pointerEvents: "none" }} />
         <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.78) 0%, rgba(26,22,18,0.88) 55%, rgba(26,22,18,1) 100%)", pointerEvents: "none" }} />
         <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 60, alignItems: "end", marginBottom: 80 }}>
@@ -666,7 +666,7 @@ const DirB = (() => {
   function Radio() {
     return (
       <section style={{ padding: "120px 40px", position: "relative", overflow: "hidden", color: INK }}>
-        <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('assets/radio-bg.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+        <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Shape%20radio%204.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
         <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(6,10,9,0.85) 0%, rgba(6,10,9,0.65) 45%, rgba(6,10,9,0.3) 100%)", pointerEvents: "none" }} />
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: 80, alignItems: "center", position: "relative" }}>
           <div>

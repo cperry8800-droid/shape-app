@@ -21,7 +21,7 @@ function RadioHero() {
   const bars = Array.from({ length: 48 }, () => Math.random());
   return (
     <section style={{ padding: "100px 40px 80px", position: "relative", overflow: "hidden", minHeight: 700 }}>
-      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('assets/radio-bg.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Shape%20radio%204.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
       <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.55) 0%, rgba(26,22,18,0.92) 85%, rgba(26,22,18,1) 100%)", pointerEvents: "none" }} />
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative", display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 80, alignItems: "center" }}>
         <div>

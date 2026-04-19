@@ -20,13 +20,10 @@ function Ph({ label, ratio = "1/1", tone = "dark", style = {} }) {
 }
 
 function Logo({ variant = "black", size = 28 }) {
-  const src = variant === "white" ? "assets/shape-logo-new-white.png?v=3"
-    : variant === "black" ? "assets/shape-logo-new-black.png?v=3"
-    : "assets/shape-logo-new-white.png?v=3";
-  // New logo has the play-icon stacked above the SHAPE wordmark (aspect ~1.87:1), not inline like the old one.
-  // Scale so the overall mark reads at a comparable visual weight to the previous inline logo.
+  const src = variant === "white" ? "/logo.png" : "/logo-dark.png";
+  const filter = variant === "white" ? "brightness(0) invert(1)" : "none";
   const h = Math.round(size * 1.8);
-  return <img src={src} alt="Shape" style={{ height: h, width: "auto", display: "block" }} />;
+  return <img src={src} alt="Shape" style={{ height: h, width: "auto", display: "block", filter }} />;
 }
 
 function NavDropdown({ label, items, active, activeMatch }) {
@@ -83,7 +80,7 @@ function Header({ active }) {
 function HeroBg() {
   return (
     <>
-      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('assets/landing-bg.png')", backgroundSize: "cover", backgroundPosition: "center 40%", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Home%20page%202.png')", backgroundSize: "cover", backgroundPosition: "center 40%", pointerEvents: "none" }} />
       {/* Lighter gradient — let the road image breathe */}
       <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.55) 0%, rgba(26,22,18,0.1) 35%, rgba(26,22,18,0.1) 55%, rgba(26,22,18,0.85) 92%, rgba(26,22,18,1) 100%)", pointerEvents: "none" }} />
     </>

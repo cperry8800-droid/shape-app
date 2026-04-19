@@ -45,7 +45,7 @@ const TIERS = [
 function RewardsHeroBg() {
   return (
     <>
-      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('assets/rewards-bg.png')", backgroundSize: "cover", backgroundPosition: "center center", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Rewards.png')", backgroundSize: "cover", backgroundPosition: "center center", pointerEvents: "none" }} />
       <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.5) 0%, rgba(26,22,18,0.2) 35%, rgba(26,22,18,0.3) 65%, rgba(26,22,18,0.88) 95%, rgba(26,22,18,1) 100%)", pointerEvents: "none" }} />
       <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(26,22,18,0.35) 0%, rgba(26,22,18,0.1) 35%, rgba(26,22,18,0) 60%)", pointerEvents: "none" }} />
     </>
