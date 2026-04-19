@@ -94,7 +94,7 @@ function LoginCard() {
     <div style={{
       width: "100%",
       maxWidth: 440,
-      background: "rgba(18,14,12,0.78)",
+      background: "rgba(18,14,12,0.42)",
       backdropFilter: "blur(20px) saturate(1.2)",
       WebkitBackdropFilter: "blur(20px) saturate(1.2)",
       border: "1px solid rgba(242,237,228,0.1)",
