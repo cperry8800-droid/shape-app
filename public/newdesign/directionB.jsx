@@ -14,7 +14,7 @@ const DirB = (() => {
     const closeTimer = React.useRef(null);
     const hasMenu = !!items;
     const primaryHref = href || (hasMenu && items[0] && items[0][1]) || "#";
-    const tabStyle = { fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.72)", fontFamily: sans, fontWeight: 400, cursor: "pointer", paddingBottom: 6, display: "inline-flex", alignItems: "center", gap: 5 };
+    const tabStyle = { fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(255,255,255,0.92)", fontFamily: sans, fontWeight: 400, cursor: "pointer", paddingBottom: 6, display: "inline-flex", alignItems: "center", gap: 5 };
     const enter = () => { if (closeTimer.current) clearTimeout(closeTimer.current); setOpen(true); };
     const leave = () => { closeTimer.current = setTimeout(() => setOpen(false), 160); };
     return (
@@ -52,7 +52,7 @@ const DirB = (() => {
             <NavTab label="Pricing" href="Pricing.html" />
           </nav>
           <div style={{ display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
-            <a href="Login.html" style={{ fontSize: 13, color: "rgba(242,237,228,0.7)", fontFamily: sans, cursor: "pointer" }}>Log in</a>
+            <a href="Login.html" style={{ fontSize: 13, color: "rgba(255,255,255,0.92)", fontFamily: sans, cursor: "pointer" }}>Log in</a>
             <a href="get-started.html" style={{ background: INK, color: PAPER, border: 0, padding: "10px 18px", borderRadius: 6, fontWeight: 500, fontSize: 13, fontFamily: sans, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Get started</a>
           </div>
         </div>
@@ -75,7 +75,7 @@ const DirB = (() => {
               </h1>
             </div>
             <div style={{ paddingBottom: 12 }}>
-              <p style={{ fontFamily: sans, fontSize: 20, lineHeight: 1.45, color: "rgba(242,237,228,0.7)", margin: 0, maxWidth: 480, fontWeight: 400 }}>
+              <p style={{ fontFamily: sans, fontSize: 20, lineHeight: 1.45, color: "rgba(255,255,255,0.92)", margin: 0, maxWidth: 480, fontWeight: 400 }}>
                 Browse certified personal trainers and nutritionists — subscribe on your terms with custom sessions, meal plans, and direct access to the people coaching you on one platform.
               </p>
               <div style={{ display: "flex", gap: 12, marginTop: 36 }}>
@@ -235,7 +235,7 @@ const DirB = (() => {
                 <a style={{ fontFamily: sans, fontSize: 14, fontWeight: 500, color: INK, marginTop: 32, display: "inline-block", borderBottom: `1px solid ${TEAL}`, paddingBottom: 2 }}>{r.cta}</a>
               </div>
               <div>
-                <p style={{ fontFamily: sans, fontSize: 16, lineHeight: 1.55, color: "rgba(242,237,228,0.7)", margin: 0 }}>{r.body}</p>
+                <p style={{ fontFamily: sans, fontSize: 16, lineHeight: 1.55, color: "rgba(255,255,255,0.92)", margin: 0 }}>{r.body}</p>
                 <div style={{ marginTop: 20 }}>
                   {r.bullets.map(b => (
                     <div key={b} style={{ display: "flex", gap: 10, padding: "8px 0", fontFamily: sans, fontSize: 13.5, color: INK }}>
@@ -264,7 +264,7 @@ const DirB = (() => {
                 Real <em style={{ fontStyle: "italic", color: TEAL }}>coaches</em>.<br/>One community.
               </h2>
             </div>
-            <p style={{ fontFamily: sans, fontSize: 16, lineHeight: 1.55, color: "rgba(242,237,228,0.65)", margin: 0, maxWidth: 440 }}>
+            <p style={{ fontFamily: sans, fontSize: 16, lineHeight: 1.55, color: "rgba(255,255,255,0.92)", margin: 0, maxWidth: 440 }}>
               3,100 certified coaches across 40 countries. Filtered by specialty, goal, schedule, and fit — not by who paid for placement.
             </p>
           </div>
@@ -275,7 +275,7 @@ const DirB = (() => {
                 <Placeholder label={`${c.name.split(' ')[0]} · portrait`} ratio="3/4" style={{ marginBottom: 20 }} />
                 <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: TEAL }}>{c.tag} · {c.city}</div>
                 <h3 style={{ fontFamily: serif, fontSize: 28, letterSpacing: "-0.02em", fontWeight: 400, margin: "10px 0 6px" }}>{c.name}</h3>
-                <p style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.65)", margin: 0 }}>{c.role}</p>
+                <p style={{ fontFamily: sans, fontSize: 14, color: "rgba(255,255,255,0.92)", margin: 0 }}>{c.role}</p>
                 <div style={{ display: "flex", justifyContent: "space-between", marginTop: 20, paddingTop: 16, borderTop: "1px solid rgba(242,237,228,0.08)", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)" }}>
                   <span>★ {c.rating.toFixed(2)} · {c.sessions}</span>
                   <span>${c.rate}/session</span>
@@ -306,7 +306,7 @@ const DirB = (() => {
             <h2 style={{ fontFamily: serif, fontSize: 84, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, lineHeight: 0.92, color: INK }}>
               Today, <em style={{ fontStyle: "italic", color: TEAL }}>on&nbsp;the&nbsp;floor</em>.
             </h2>
-            <p style={{ fontFamily: sans, fontSize: 18, lineHeight: 1.55, color: "rgba(242,237,228,0.65)", maxWidth: 480, marginTop: 28 }}>
+            <p style={{ fontFamily: sans, fontSize: 18, lineHeight: 1.55, color: "rgba(255,255,255,0.92)", maxWidth: 480, marginTop: 28 }}>
               Your block, your coach, your sets — one screen that knows what you're doing next. Notes land in-session. Weights auto-fill from last week. Log a set, move on.
             </p>
             <div style={{ marginTop: 36, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, maxWidth: 520 }}>
@@ -471,7 +471,7 @@ const DirB = (() => {
             <h2 style={{ fontFamily: serif, fontSize: 84, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, lineHeight: 0.92, color: INK }}>
               Eat the plan, <em style={{ fontStyle: "italic", color: TEAL }}>not&nbsp;the&nbsp;app</em>.
             </h2>
-            <p style={{ fontFamily: sans, fontSize: 18, lineHeight: 1.55, color: "rgba(242,237,228,0.65)", maxWidth: 480, marginTop: 28 }}>
+            <p style={{ fontFamily: sans, fontSize: 18, lineHeight: 1.55, color: "rgba(255,255,255,0.92)", maxWidth: 480, marginTop: 28 }}>
               Your nutritionist's meal plan, built around your training week. Macros auto-tally as you log. One tap turns the week into a grocery list — sorted by aisle, not guesswork.
             </p>
             <div style={{ marginTop: 36, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, maxWidth: 520 }}>
@@ -512,7 +512,7 @@ const DirB = (() => {
             <h2 style={{ fontFamily: serif, fontSize: 72, letterSpacing: "-0.03em", fontWeight: 400, margin: "20px 0 20px", lineHeight: 0.95, color: INK }}>
               Rewards for <em style={{ fontStyle: "italic", color: TEAL }}>showing&nbsp;up</em>.
             </h2>
-            <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.55, color: "rgba(242,237,228,0.65)", maxWidth: 460 }}>
+            <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.55, color: "rgba(255,255,255,0.92)", maxWidth: 460 }}>
               Earn Shape Score for every workout logged, meal tracked, and session kept. Redeem in the Shape Store or as session credit — a reward for the boring stuff that actually moves the needle.
             </p>
             <div style={{ marginTop: 32 }}>
@@ -618,7 +618,7 @@ const DirB = (() => {
             {[["5", "Sessions today", "$750"], ["34", "Active clients", "+3 this wk"], ["96%", "Completion", "30d"], ["4.97", "Rating", "1,284 reviews"]].map(([v, l, s], i) => (
               <div key={i} style={{ background: PAPER, borderRadius: 12, padding: 16, border: "1px solid rgba(242,237,228,0.05)" }}>
                 <div style={{ fontFamily: serif, fontSize: 30, fontWeight: 400, letterSpacing: "-0.02em", lineHeight: 1 }}>{v}</div>
-                <div style={{ fontSize: 12, color: "rgba(242,237,228,0.65)", marginTop: 8 }}>{l}</div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.92)", marginTop: 8 }}>{l}</div>
                 <div style={{ fontSize: 11, color: "rgba(242,237,228,0.45)", marginTop: 2 }}>{s}</div>
               </div>
             ))}
@@ -693,7 +693,7 @@ const DirB = (() => {
       <div style={{ background: "rgba(26,22,18,0.55)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 4, padding: 32 }}>
         <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.12em", color: TEAL_BRIGHT, textTransform: "uppercase" }}>◉ Live · 1,284 listening</div>
         <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", marginTop: 14, lineHeight: 1 }}>Heavy Day · 132 BPM</div>
-        <div style={{ fontFamily: sans, fontSize: 13.5, color: "rgba(242,237,228,0.7)", marginTop: 8 }}>DJ Kaya Mars — Lift Series vol. 04</div>
+        <div style={{ fontFamily: sans, fontSize: 13.5, color: "rgba(255,255,255,0.92)", marginTop: 8 }}>DJ Kaya Mars — Lift Series vol. 04</div>
         <div style={{ display: "flex", alignItems: "center", gap: 3, height: 56, marginTop: 28 }}>
           {bars.map((h, i) => (
             <div key={i} style={{ flex: 1, height: `${20 + h*80}%`, background: i < 16 ? TEAL_BRIGHT : "rgba(242,237,228,0.2)", borderRadius: 1, transition: "height .2s" }} />
@@ -757,7 +757,7 @@ const DirB = (() => {
                   <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.01em", color: INK }}>{f.q}</div>
                   <div style={{ fontFamily: "'JetBrains Mono', monospace", color: TEAL, fontSize: 18 }}>{open === i ? "−" : "+"}</div>
                 </div>
-                {open === i && <div style={{ marginTop: 16, fontFamily: sans, fontSize: 15, lineHeight: 1.6, color: "rgba(242,237,228,0.7)", maxWidth: 640 }}>{f.a}</div>}
+                {open === i && <div style={{ marginTop: 16, fontFamily: sans, fontSize: 15, lineHeight: 1.6, color: "rgba(255,255,255,0.92)", maxWidth: 640 }}>{f.a}</div>}
               </div>
             ))}
           </div>
@@ -768,18 +768,18 @@ const DirB = (() => {
 
   function Footer() {
     return (
-      <section style={{ padding: "100px 40px 40px", background: "rgba(26,22,18,0.7)", color: INK, borderTop: "1px solid rgba(242,237,228,0.08)" }}>
+      <section style={{ padding: "100px 40px 40px", background: "rgba(26,22,18,0.7)", color: "#ffffff", borderTop: "1px solid rgba(255,255,255,0.12)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
-          <h2 style={{ fontFamily: serif, fontSize: 160, letterSpacing: "-0.04em", fontWeight: 400, lineHeight: 0.88, margin: "0 0 60px" }}>
+          <h2 style={{ fontFamily: serif, fontSize: 160, letterSpacing: "-0.04em", fontWeight: 400, lineHeight: 0.88, margin: "0 0 60px", color: "#ffffff" }}>
             Join the<br/><em style={{ fontStyle: "italic", color: TEAL }}>community</em>.
           </h2>
           <div style={{ display: "flex", gap: 12, marginBottom: 100 }}>
-            <a href="get-started.html" style={{ background: INK, color: PAPER, border: 0, padding: "18px 32px", borderRadius: 6, fontFamily: sans, fontWeight: 500, fontSize: 15, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Get Started →</a>
+            <a href="get-started.html" style={{ background: "#ffffff", color: PAPER, border: 0, padding: "18px 32px", borderRadius: 6, fontFamily: sans, fontWeight: 500, fontSize: 15, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Get Started →</a>
           </div>
-          <div style={{ borderTop: "1px solid rgba(242,237,228,0.12)", paddingTop: 40, display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 40 }}>
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.15)", paddingTop: 40, display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 40 }}>
             <div>
               <ShapeWord variant="white" size={30} />
-              <p style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)", marginTop: 16, maxWidth: 280 }}>A marketplace for certified trainers and nutritionists. Real coaches. One platform.</p>
+              <p style={{ fontFamily: sans, fontSize: 13, color: "rgba(255,255,255,0.8)", marginTop: 16, maxWidth: 280 }}>A marketplace for certified trainers and nutritionists. Real coaches. One platform.</p>
             </div>
             {[
               ["Platform", ["Marketplace", "Clients", "Trainers", "Nutritionists"]],
@@ -788,12 +788,12 @@ const DirB = (() => {
               ["Help", ["Center", "Contact", "Privacy", "Terms"]],
             ].map(([h, links]) => (
               <div key={h}>
-                <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.14em", color: "rgba(242,237,228,0.55)", textTransform: "uppercase", marginBottom: 16 }}>{h}</div>
-                {links.map(l => <div key={l} style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.8)", padding: "6px 0" }}>{l}</div>)}
+                <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.14em", color: "rgba(255,255,255,0.7)", textTransform: "uppercase", marginBottom: 16 }}>{h}</div>
+                {links.map(l => <div key={l} style={{ fontFamily: sans, fontSize: 13, color: "#ffffff", padding: "6px 0" }}>{l}</div>)}
               </div>
             ))}
           </div>
-          <div style={{ marginTop: 60, paddingTop: 24, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.45)" }}>
+          <div style={{ marginTop: 60, paddingTop: 24, borderTop: "1px solid rgba(255,255,255,0.12)", display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(255,255,255,0.6)" }}>
             <span>© 2026 SHAPE</span>
             <span>BROOKLYN · LISBON · MELBOURNE</span>
           </div>
