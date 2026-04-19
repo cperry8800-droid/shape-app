@@ -766,18 +766,18 @@ const DirB = (() => {
 
   function Footer() {
     return (
-      <section style={{ padding: "100px 40px 40px", background: PAPER, color: INK, borderTop: "1px solid rgba(242,237,228,0.08)" }}>
+      <section style={{ padding: "100px 40px 40px", background: INK, color: PAPER, borderTop: "1px solid rgba(26,22,18,0.08)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
           <h2 style={{ fontFamily: serif, fontSize: 160, letterSpacing: "-0.04em", fontWeight: 400, lineHeight: 0.88, margin: "0 0 60px" }}>
             Join the<br/><em style={{ fontStyle: "italic", color: TEAL }}>community</em>.
           </h2>
           <div style={{ display: "flex", gap: 12, marginBottom: 100 }}>
-            <a href="Landing.html" style={{ background: INK, color: PAPER, border: 0, padding: "18px 32px", borderRadius: 6, fontFamily: sans, fontWeight: 500, fontSize: 15, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Get Started →</a>
+            <a href="Landing.html" style={{ background: PAPER, color: INK, border: 0, padding: "18px 32px", borderRadius: 6, fontFamily: sans, fontWeight: 500, fontSize: 15, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Get Started →</a>
           </div>
-          <div style={{ borderTop: "1px solid rgba(242,237,228,0.12)", paddingTop: 40, display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 40 }}>
+          <div style={{ borderTop: "1px solid rgba(26,22,18,0.12)", paddingTop: 40, display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 40 }}>
             <div>
-              <ShapeWord variant="white" size={30} />
-              <p style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)", marginTop: 16, maxWidth: 280 }}>A marketplace for certified trainers and nutritionists. Real coaches. One platform.</p>
+              <ShapeWord variant="black" size={30} />
+              <p style={{ fontFamily: sans, fontSize: 13, color: "rgba(26,22,18,0.6)", marginTop: 16, maxWidth: 280 }}>A marketplace for certified trainers and nutritionists. Real coaches. One platform.</p>
             </div>
             {[
               ["Platform", ["Marketplace", "Clients", "Trainers", "Nutritionists"]],
@@ -786,12 +786,12 @@ const DirB = (() => {
               ["Help", ["Center", "Contact", "Privacy", "Terms"]],
             ].map(([h, links]) => (
               <div key={h}>
-                <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.14em", color: "rgba(242,237,228,0.55)", textTransform: "uppercase", marginBottom: 16 }}>{h}</div>
-                {links.map(l => <div key={l} style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.8)", padding: "6px 0" }}>{l}</div>)}
+                <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.14em", color: "rgba(26,22,18,0.55)", textTransform: "uppercase", marginBottom: 16 }}>{h}</div>
+                {links.map(l => <div key={l} style={{ fontFamily: sans, fontSize: 13, color: "rgba(26,22,18,0.8)", padding: "6px 0" }}>{l}</div>)}
               </div>
             ))}
           </div>
-          <div style={{ marginTop: 60, paddingTop: 24, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.45)" }}>
+          <div style={{ marginTop: 60, paddingTop: 24, borderTop: "1px solid rgba(26,22,18,0.12)", display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(26,22,18,0.5)" }}>
             <span>© 2026 SHAPE</span>
             <span>BROOKLYN · LISBON · MELBOURNE</span>
           </div>
