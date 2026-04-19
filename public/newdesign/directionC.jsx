@@ -628,12 +628,12 @@ const DirC = (() => {
             </div>
           </div>
         </section>
-        <section style={{ padding: "60px 40px 40px", background: INK, color: "rgba(255,255,255,0.75)" }}>
+        <section style={{ padding: "60px 40px 40px", background: "#0a0d0c", color: "#ffffff" }}>
           <div style={{ maxWidth: 1320, margin: "0 auto" }}>
             <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 40 }}>
               <div>
                 <ShapeWord color="#fff" />
-                <p style={{ fontFamily: sans, fontSize: 13, color: "rgba(255,255,255,0.55)", marginTop: 16, maxWidth: 280 }}>The coaching platform for people who want results. Real coaches. One marketplace.</p>
+                <p style={{ fontFamily: sans, fontSize: 13, color: "rgba(255,255,255,0.85)", marginTop: 16, maxWidth: 280 }}>The coaching platform for people who want results. Real coaches. One marketplace.</p>
               </div>
               {[
                 ["Product", ["Marketplace", "Clients", "Trainers", "Nutritionists", "Radio"]],
@@ -642,12 +642,12 @@ const DirC = (() => {
                 ["Help", ["Center", "Contact", "Privacy", "Terms"]],
               ].map(([h, links]) => (
                 <div key={h}>
-                  <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.14em", color: "rgba(255,255,255,0.5)", textTransform: "uppercase", marginBottom: 16 }}>{h}</div>
-                  {links.map(l => <div key={l} style={{ fontFamily: sans, fontSize: 13, color: "rgba(255,255,255,0.75)", padding: "6px 0" }}>{l}</div>)}
+                  <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.14em", color: "rgba(255,255,255,0.75)", textTransform: "uppercase", marginBottom: 16 }}>{h}</div>
+                  {links.map(l => <div key={l} style={{ fontFamily: sans, fontSize: 13, color: "#ffffff", padding: "6px 0" }}>{l}</div>)}
                 </div>
               ))}
             </div>
-            <div style={{ marginTop: 48, paddingTop: 24, borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", fontFamily: mono, fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
+            <div style={{ marginTop: 48, paddingTop: 24, borderTop: "1px solid rgba(255,255,255,0.15)", display: "flex", justifyContent: "space-between", fontFamily: mono, fontSize: 11, color: "rgba(255,255,255,0.7)" }}>
               <span>© 2026 SHAPE COMMUNITY</span>
               <span>STATUS · ALL SYSTEMS OPERATIONAL</span>
             </div>

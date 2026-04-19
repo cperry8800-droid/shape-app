@@ -637,10 +637,10 @@ const DirA = (() => {
               <button style={{ background: "transparent", color: "#fff", border: "1px solid rgba(255,255,255,0.2)", padding: "18px 32px", borderRadius: 999, fontWeight: 500, fontSize: 16, cursor: "pointer", fontFamily: "inherit" }}>Apply as coach</button>
             </div>
           </div>
-          <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 40, display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 40 }}>
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.15)", paddingTop: 40, display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 40 }}>
             <div>
               <ShapeWord color="#fff" />
-              <p style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", marginTop: 16, maxWidth: 280 }}>Real coaches. One marketplace. One community. One platform.</p>
+              <p style={{ fontSize: 13, color: "rgba(255,255,255,0.85)", marginTop: 16, maxWidth: 280 }}>Real coaches. One marketplace. One community. One platform.</p>
             </div>
             {[
               ["Platform", ["Marketplace", "Clients", "Trainers", "Nutritionists", "Integrations"]],
@@ -649,12 +649,12 @@ const DirA = (() => {
               ["Support", ["Help center", "Contact", "Privacy", "Terms"]],
             ].map(([h, links]) => (
               <div key={h}>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", color: "rgba(255,255,255,0.5)", textTransform: "uppercase", marginBottom: 16 }}>{h}</div>
-                {links.map(l => <div key={l} style={{ fontSize: 13, color: "rgba(255,255,255,0.7)", padding: "6px 0" }}>{l}</div>)}
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", color: "rgba(255,255,255,0.75)", textTransform: "uppercase", marginBottom: 16 }}>{h}</div>
+                {links.map(l => <div key={l} style={{ fontSize: 13, color: "#ffffff", padding: "6px 0" }}>{l}</div>)}
               </div>
             ))}
           </div>
-          <div style={{ marginTop: 48, paddingTop: 24, borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
+          <div style={{ marginTop: 48, paddingTop: 24, borderTop: "1px solid rgba(255,255,255,0.12)", display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(255,255,255,0.7)" }}>
             <span>© 2026 SHAPE COMMUNITY INC.</span>
             <span>MADE FOR THE WORK ·  v3.0.1</span>
           </div>
