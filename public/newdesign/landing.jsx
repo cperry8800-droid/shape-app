@@ -61,7 +61,6 @@ function MinimalHeader() {
 function LandingHero() {
   return (
     <section style={{ padding: "160px 40px 60px", position: "relative", overflow: "hidden" }}>
-      <HeroBg />
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative", display: "grid", gridTemplateColumns: "1fr auto", gap: 40, alignItems: "end" }}>
         <div>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: "0.2em", textTransform: "uppercase", color: TEAL, marginBottom: 22 }}>Welcome to Shape</div>
@@ -184,12 +183,16 @@ function LandingFooter() {
 
 function LandingPage() {
   return (
-    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh" }}>
-      <MinimalHeader />
-      <LandingHero />
-      <RoleGrid />
-      <LandingReassurance />
-      <LandingFooter />
+    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/get%20started.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.55) 0%, rgba(26,22,18,0.7) 100%)", pointerEvents: "none" }} />
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <MinimalHeader />
+        <LandingHero />
+        <RoleGrid />
+        <LandingReassurance />
+        <LandingFooter />
+      </div>
     </div>
   );
 }
