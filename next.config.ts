@@ -31,6 +31,9 @@ const nextConfig: NextConfig = {
         source: `/${p}`,
         destination: `/${p}.html`,
       })),
+      // Preview of the Claude Design redesign at /newdesign/
+      { source: '/newdesign', destination: '/newdesign/index.html' },
+      { source: '/newdesign/', destination: '/newdesign/index.html' },
     ];
   },
 };
