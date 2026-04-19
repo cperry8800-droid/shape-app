@@ -80,10 +80,11 @@ function ShapeWord({ color, weight = 500, size = 18, letter = "0.01em", variant 
       v = isLight ? "white" : "color";
     }
   }
-  const src = v === "white" ? "/logo-full.svg" : "/logo-dark-teal.svg";
+  const src = v === "white" ? "/logo.png" : "/logo-dark.png";
+  const filter = v === "white" ? "brightness(0) invert(1)" : "none";
   const h = Math.round(size * 1.8);
   return (
-    <img src={src} alt="Shape" style={{ height: h, width: "auto", display: "inline-block", verticalAlign: "middle" }} />
+    <img src={src} alt="Shape" style={{ height: h, width: "auto", display: "inline-block", verticalAlign: "middle", filter }} />
   );
 }
 
