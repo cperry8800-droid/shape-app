@@ -36,7 +36,7 @@ const DirB = (() => {
     return (
       <header style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(26,22,18,0.9)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
         <div style={{ maxWidth: 1400, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 40px", gap: 32 }}>
-          <ShapeWord variant="white" size={38} />
+          <ShapeWord variant="white" size={50} />
           <nav style={{ display: "flex", gap: 22, alignItems: "center" }}>
             <NavTab label="Clients" items={[["Overview", "Client.html"], ["Dashboard", "ClientDashboard.html"]]} />
             <NavTab label="Trainers" items={[["Overview", "Coach.html"], ["Dashboard", "TrainerDashboard.html"]]} />
