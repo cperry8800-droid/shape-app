@@ -14,6 +14,7 @@
 <script type="text/babel" src="pageShell.jsx"></script>
 <script type="text/babel" src="trainerDashboard.jsx"></script>
 <script type="text/babel" src="coachNav.jsx"></script>
+<script type="text/babel" src="bgEditor.jsx"></script>
 <script type="text/babel">
 function Row({ label, value, action }) {
   return (
@@ -174,6 +175,13 @@ function TrainerProfilePage() {
           <Row label="Twitter / X" value="@mayalifts" action="EDIT" />
         </div>
       </Card>
+
+      <BgEditor kind="trainer" defaultImage="/Training%202.png" defaultOverlay={0.6} presets={[
+        { label: "Training 2", url: "/Training%202.png" },
+        { label: "Training 1", url: "/Training%201.png" },
+        { label: "Training 3", url: "/Training%203.png" },
+        { label: "Trainer BG", url: "/intro/Trainer%20Background.png" },
+      ]} />
 
       <Card style={{ marginTop: 20, padding: 22 }}>
         <SectionTitle>Danger zone</SectionTitle>

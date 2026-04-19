@@ -14,6 +14,7 @@
 <script type="text/babel" src="pageShell.jsx"></script>
 <script type="text/babel" src="trainerDashboard.jsx"></script>
 <script type="text/babel" src="coachNav.jsx"></script>
+<script type="text/babel" src="bgEditor.jsx"></script>
 <script type="text/babel">
 function Row({ label, value, action }) {
   return (
@@ -173,6 +174,13 @@ function NutritionistProfilePage() {
           <Row label="Twitter / X" value="Not connected" action="CONNECT" />
         </div>
       </Card>
+
+      <BgEditor kind="nutritionist" defaultImage="/Nutrition%203.png" defaultOverlay={0.6} presets={[
+        { label: "Nutrition 3", url: "/Nutrition%203.png" },
+        { label: "Nutrition 2", url: "/Nutrition%202.png" },
+        { label: "Nutrition 1", url: "/Nutrition%201.png" },
+        { label: "Nutrition BG", url: "/intro/Nutrition%20Background.png" },
+      ]} />
 
       <Card style={{ marginTop: 20, padding: 22 }}>
         <SectionTitle>Danger zone</SectionTitle>

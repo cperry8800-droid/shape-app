@@ -4,6 +4,8 @@ const PROFILE = {
     name: "Maya Okafor",
     portrait: "Maya · portrait",
     cover: "Gym · training floor",
+    bgImage: "/Training%202.png",
+    bgOverlay: 0.6,
     socials: [["IG", "@mayalifts", "#"], ["TikTok", "@mayalifts", "#"], ["YouTube", "Maya Okafor Strength", "#"], ["Web", "mayaokafor.co", "#"]],
     eyebrow: "Trainer · Brooklyn, NY · NASM-CPT",
     city: "Brooklyn, NY",
@@ -105,6 +107,8 @@ const PROFILE = {
     name: "Rae Lindqvist",
     portrait: "Rae · portrait",
     cover: "Kitchen · fresh produce",
+    bgImage: "/Nutrition%203.png",
+    bgOverlay: 0.6,
     socials: [["IG", "@raeats.rd", "#"], ["Substack", "fuel-notes.rae", "#"], ["Podcast", "The Fuel Notes", "#"], ["Web", "raelindqvist.co", "#"]],
     eyebrow: "Nutritionist · Brooklyn, NY · RD, CSSD",
     city: "Brooklyn, NY",
@@ -676,25 +680,56 @@ function Row({ k, v }) {
 function PublicProfilePage({ kind }) {
   const p = PROFILE[kind];
   const [bookOpen, setBookOpen] = React.useState(false);
-  // Expose a global opener so deep-nested buttons can trigger the modal without prop drilling
+  const storageKey = `shape.profileBg.${kind}`;
+  const [bg, setBg] = React.useState(() => {
+    if (typeof window === "undefined") return { image: p.bgImage, overlay: p.bgOverlay };
+    try {
+      const raw = window.localStorage.getItem(storageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return {
+          image: parsed.image || p.bgImage,
+          overlay: typeof parsed.overlay === "number" ? parsed.overlay : p.bgOverlay,
+        };
+      }
+    } catch (e) {}
+    return { image: p.bgImage, overlay: p.bgOverlay };
+  });
   React.useEffect(() => {
     window.__openBookIntro = () => setBookOpen(true);
-    return () => { delete window.__openBookIntro; };
-  }, []);
+    const onStorage = (e) => {
+      if (e.key === storageKey) {
+        try {
+          const parsed = e.newValue ? JSON.parse(e.newValue) : null;
+          setBg({
+            image: (parsed && parsed.image) || p.bgImage,
+            overlay: parsed && typeof parsed.overlay === "number" ? parsed.overlay : p.bgOverlay,
+          });
+        } catch (_) {}
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => { delete window.__openBookIntro; window.removeEventListener("storage", onStorage); };
+  }, [storageKey, p.bgImage, p.bgOverlay]);
+  const bgCss = bg.image && bg.image.startsWith("data:") ? `url("${bg.image}")` : `url('${bg.image}')`;
   return (
-    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh" }}>
-      {bookOpen && <BookIntroModal p={p} kind={kind} onClose={() => setBookOpen(false)} />}
-      <Header active="Marketplace" />
-      <PublicHero p={p} kind={kind} />
-      <AboutSection p={p} />
-      <SpecialtiesSection p={p} />
-      <PackagesSection p={p} kind={kind} />
-      <SamplesSection p={p} kind={kind} />
-      <AvailabilitySection p={p} />
-      <ReviewsSection p={p} />
-      <FAQSection p={p} />
-      <FinalCTA p={p} kind={kind} />
-      <Footer />
+    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: bgCss, backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: `rgba(26,22,18,${bg.overlay})`, pointerEvents: "none" }} />
+      <div style={{ position: "relative", zIndex: 1 }}>
+        {bookOpen && <BookIntroModal p={p} kind={kind} onClose={() => setBookOpen(false)} />}
+        <Header active="Marketplace" />
+        <PublicHero p={p} kind={kind} />
+        <AboutSection p={p} />
+        <SpecialtiesSection p={p} />
+        <PackagesSection p={p} kind={kind} />
+        <SamplesSection p={p} kind={kind} />
+        <AvailabilitySection p={p} />
+        <ReviewsSection p={p} />
+        <FAQSection p={p} />
+        <FinalCTA p={p} kind={kind} />
+        <Footer />
+      </div>
     </div>
   );
 }
