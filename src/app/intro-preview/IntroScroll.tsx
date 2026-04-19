@@ -377,7 +377,7 @@ export default function IntroScroll() {
         }}
       >
         <a
-          href="/newdesign/Landing.html"
+          href="/newdesign/index.html"
           className="group inline-flex items-center justify-center gap-2 border border-white bg-black/35 px-6 py-2.5 text-[0.62rem] font-light uppercase tracking-[0.12em] text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] backdrop-blur-sm transition-all hover:bg-white hover:text-neutral-950 md:px-7 md:py-2.5 md:text-[0.72rem] md:font-medium"
         >
           <span>Step Inside</span>
