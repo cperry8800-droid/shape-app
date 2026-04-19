@@ -21,8 +21,6 @@ function RadioHero() {
   const bars = Array.from({ length: 48 }, () => Math.random());
   return (
     <section style={{ padding: "100px 40px 80px", position: "relative", overflow: "hidden", minHeight: 700 }}>
-      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Make_the_lines_202604170430%20(1).png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
-      <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.55) 0%, rgba(26,22,18,0.72) 55%, #1a1612 100%)", pointerEvents: "none" }} />
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative", display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 80, alignItems: "center" }}>
         <div>
           <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL_BRIGHT, marginBottom: 20, display: "flex", alignItems: "center", gap: 10 }}>
@@ -153,13 +151,17 @@ function RadioPitch() {
 
 function RadioPage() {
   return (
-    <div style={{ background: PAPER, color: INK, minHeight: "100vh" }}>
-      <Header active="Radio" />
-      <RadioHero />
-      <RadioStations />
-      <RadioShows />
-      <RadioPitch />
-      <Footer />
+    <div style={{ background: PAPER, color: INK, minHeight: "100vh", position: "relative" }}>
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/Make_the_lines_202604170430%20(1).png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.55) 0%, rgba(26,22,18,0.7) 100%)", pointerEvents: "none" }} />
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <Header active="Radio" />
+        <RadioHero />
+        <RadioStations />
+        <RadioShows />
+        <RadioPitch />
+        <Footer />
+      </div>
     </div>
   );
 }
