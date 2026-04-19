@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=1440, initial-scale=1" />
+<title>Shape — Redesign Explorations · Print</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&family=Inter+Tight:wght@300;400;500;600;700&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<style>
+  :root {
+    --teal: #0ac5a8;
+    --teal-deep: #087a68;
+    --teal-soft: #c7f5ec;
+    --ink: #0a0d0c;
+    --paper: #fafaf7;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #0a0d0c; color: #fff; font-family: 'Inter Tight', sans-serif; -webkit-font-smoothing: antialiased; }
+  img { display: block; max-width: 100%; }
+  a { color: inherit; text-decoration: none; }
+
+  /* Force show all directions stacked */
+  .direction { min-height: auto; }
+  .direction[hidden] { display: block !important; }
+
+  /* Cover page between directions */
+  .cover {
+    height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;
+    background: #0a0d0c; color: #fff; text-align: center; padding: 60px;
+    break-before: page; break-after: page;
+  }
+  .cover .eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 14px; letter-spacing: 0.16em; color: #0ac5a8; text-transform: uppercase; margin-bottom: 24px; }
+  .cover h1 { font-family: 'Inter Tight', sans-serif; font-size: 120px; letter-spacing: -0.04em; font-weight: 500; margin: 0 0 20px; line-height: 0.95; }
+  .cover p { font-size: 20px; color: rgba(255,255,255,0.6); max-width: 640px; line-height: 1.5; }
+  .cover .sub { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: rgba(255,255,255,0.45); letter-spacing: 0.12em; text-transform: uppercase; margin-top: 40px; }
+
+  .direction { break-after: page; }
+
+  @page { size: 1440px 2200px; margin: 0; }
+
+  @media print {
+    html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .cover { break-before: page; }
+    .direction { break-after: page; page-break-after: always; }
+  }
+
+  ::selection { background: var(--teal); color: #0a0d0c; }
+</style>
+</head>
+<body>
+
+<!-- Intro cover -->
+<div class="cover">
+  <div class="eyebrow">Shape · Redesign Explorations</div>
+  <h1>Three<br/>directions.</h1>
+  <p>A · Performance — dark, athletic, data-forward.<br/>B · Editorial — warm paper, serif display, tight grids.<br/>C · Platform — airy, gradient-lit, floating UI.</p>
+  <div class="sub">April 18, 2026</div>
+</div>
+
+<!-- Direction A cover -->
+<div class="cover">
+  <div class="eyebrow">Direction A</div>
+  <h1>Performance.</h1>
+  <p>Dark, athletic, data-forward. Mono accents, bold numerals, a Whoop-adjacent sensibility for people who train to metrics.</p>
+</div>
+
+<main>
+  <section class="direction" id="dir-A" data-screen-label="A Performance"></section>
+</main>
+
+<!-- Direction B cover -->
+<div class="cover" style="background: #f4f1ea; color: #0a0f0d;">
+  <div class="eyebrow" style="color: #0a7463;">Direction B</div>
+  <h1 style="font-family: 'Fraunces', serif; font-weight: 400;">Editorial.</h1>
+  <p style="color: rgba(10,15,13,0.6);">Warm off-white, serif display + grotesk body, confident editorial grids. Ramp-adjacent discipline.</p>
+</div>
+
+<main>
+  <section class="direction" id="dir-B" data-screen-label="B Editorial"></section>
+</main>
+
+<!-- Direction C cover -->
+<div class="cover" style="background: #fbfbfa; color: #0a1f1b;">
+  <div class="eyebrow" style="color: #068a75;">Direction C</div>
+  <h1>Platform.</h1>
+  <p style="color: rgba(10,31,27,0.6);">Airy, gradient-lit, floating product UI. Stripe-adjacent polish for a consumer coaching platform.</p>
+</div>
+
+<main>
+  <section class="direction" id="dir-C" data-screen-label="C Platform"></section>
+</main>
+
+<!-- Tweaks panel mount (kept but hidden for print) -->
+<div id="tweaks-root" style="display:none"></div>
+
+<script type="text/babel" data-presets="react" src="shared.jsx"></script>
+<script type="text/babel" data-presets="react" src="directionA.jsx"></script>
+<script type="text/babel" data-presets="react" src="directionB.jsx"></script>
+<script type="text/babel" data-presets="react" src="directionC.jsx"></script>
+
+<!-- Print-specific bootstrap (replaces app.jsx) -->
+<script type="text/babel" data-presets="react">
+  ReactDOM.createRoot(document.getElementById("dir-A")).render(<DirA />);
+  ReactDOM.createRoot(document.getElementById("dir-B")).render(<DirB />);
+  ReactDOM.createRoot(document.getElementById("dir-C")).render(<DirC />);
+
+  // Auto-print once fonts + layout are ready
+  (async () => {
+    try { await document.fonts.ready; } catch (_) {}
+    // Give React + animations time to settle
+    await new Promise(r => setTimeout(r, 1200));
+    window.print();
+  })();
+</script>
+
+</body>
+</html>

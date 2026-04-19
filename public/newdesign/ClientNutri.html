@@ -10,9 +10,9 @@
 </head>
 <body>
 <div id="root"></div>
-<script src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>
-<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>
-<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 <script type="text/babel" src="pageShell.jsx"></script>
 <script type="text/babel" src="chatWidget.jsx"></script>
 <script type="text/babel" src="clientChatThreads.jsx"></script>
@@ -92,6 +92,24 @@ function ClientNutriPage() {
         </Card>
       </div>
 
+      {/* Coach-attached playlist — kitchen cook-along */}
+      <Card style={{ marginTop: 20, padding: 0, overflow: "hidden", background: "linear-gradient(100deg, #3a2820 0%, #1a1612 70%)", border: "1px solid rgba(224,120,86,0.22)" }}>
+        <div style={{ padding: "18px 22px", display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 20, alignItems: "center" }}>
+          <div style={{ width: 68, height: 68, borderRadius: 10, background: "linear-gradient(135deg, #f4b860, #e07856 60%, #8b3a28)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: serif, fontSize: 34, color: "#1a1612", fontStyle: "italic" }}>R</div>
+          <div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: "rgba(255,255,255,0.65)", marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ width: 6, height: 6, borderRadius: 999, background: "#1DB954" }}/> SPOTIFY · FROM RAE · COOK-ALONG FOR TONIGHT'S DINNER
+            </div>
+            <div style={{ fontFamily: serif, fontSize: 20, letterSpacing: "-0.01em", color: "#fff", marginBottom: 4 }}>Salmon &amp; sweet potato, 35 min</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(255,255,255,0.6)", letterSpacing: "0.05em" }}>KITCHEN SLOW · 18 TRACKS · 62 MIN · MELLOW JAZZ &amp; LO-FI</div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", width: 38, height: 38, borderRadius: 999, cursor: "pointer", fontSize: 14 }} title="Save">♡</button>
+            <button style={{ background: "#fff", border: 0, color: INK, padding: "0 20px", height: 38, borderRadius: 999, cursor: "pointer", fontFamily: sans, fontSize: 13, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>▶ Play</button>
+          </div>
+        </div>
+      </Card>
+
       <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
         <Card>
           <SectionTitle>7-day adherence</SectionTitle>
@@ -124,6 +142,5 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   </React.Fragment>
 );
 </script>
-<script type="text/babel" data-presets="react" src="supportBubble.jsx"></script>
 </body>
 </html>

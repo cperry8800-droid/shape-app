@@ -11,9 +11,9 @@
 <body>
 <div id="root"></div>
 
-<script src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>
-<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>
-<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 
 <script type="text/babel" src="pageShell.jsx"></script>
 <script type="text/babel" src="chatWidget.jsx"></script>
@@ -64,7 +64,8 @@ function ClientDashboardPage() {
       ]}
       scheduleTitle="This week"
       todayItems={[
-        { time: "9:00 AM",  kind: "WORKOUT",  title: "Upper Body Pull",      sub: "45 min · 6 exercises · programmed by Marcus", cta: { label: "START", primary: true } },
+        { time: "9:00 AM",  kind: "WORKOUT",  title: "Upper Body Pull",      sub: "45 min · 6 exercises · programmed by Marcus", cta: { label: "START", primary: true },
+          playlist: { name: "Upper Pull — Peak", provider: "spotify", bpm: "95–130", tracks: 31, accent: "#6a8cff", cover: "linear-gradient(135deg, #2a3a6a 0%, #1a1612 70%)", note: "Builds across the session. Peaks at top sets.", author: "Marcus" } },
         { time: "12:30 PM", kind: "MEAL",     title: "Grilled chicken bowl", sub: "620 cal · 52g P · 68g C · 18g F",              cta: { label: "LOG MEAL" } },
         { time: "6:30 PM",  kind: "CHECK-IN", title: "Weekly with Marcus",   sub: "20 min · video call",                          cta: { label: "JOIN" } },
       ]}
@@ -109,6 +110,5 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   </React.Fragment>
 );
 </script>
-<script type="text/babel" data-presets="react" src="supportBubble.jsx"></script>
 </body>
 </html>
