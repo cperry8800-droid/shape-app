@@ -31,7 +31,7 @@ function NavDropdown({ label, items, active, activeMatch }) {
   const isActive = activeMatch.includes(active);
   return (
     <div style={{ position: "relative" }} onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
-      <a style={{ fontSize: 10.5, letterSpacing: "0.11em", textTransform: "uppercase", color: isActive ? INK : "rgba(242,237,228,0.7)", fontFamily: sans, fontWeight: isActive ? 500 : 400, borderBottom: isActive ? `1.5px solid ${TEAL}` : "1.5px solid transparent", paddingBottom: 5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
+      <a href={items && items[0] && items[0][1] || "#"} style={{ fontSize: 10.5, letterSpacing: "0.11em", textTransform: "uppercase", color: isActive ? INK : "rgba(242,237,228,0.7)", fontFamily: sans, fontWeight: isActive ? 500 : 400, borderBottom: isActive ? `1.5px solid ${TEAL}` : "1.5px solid transparent", paddingBottom: 5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
         {label}<span style={{ fontSize: 7, opacity: 0.6 }}>▾</span>
       </a>
       {open && (

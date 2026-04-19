@@ -12,10 +12,11 @@ const DirB = (() => {
   function NavTab({ label, items, href }) {
     const [open, setOpen] = React.useState(false);
     const hasMenu = !!items;
+    const primaryHref = href || (hasMenu && items[0] && items[0][1]) || "#";
     const tabStyle = { fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.72)", fontFamily: sans, fontWeight: 400, cursor: "pointer", paddingBottom: 6, display: "inline-flex", alignItems: "center", gap: 5 };
     return (
       <div style={{ position: "relative" }} onMouseEnter={() => hasMenu && setOpen(true)} onMouseLeave={() => hasMenu && setOpen(false)}>
-        <a href={href || "#"} style={tabStyle}>
+        <a href={primaryHref} style={tabStyle}>
           {label}{hasMenu && <span style={{ fontSize: 8, opacity: 0.6 }}>▾</span>}
         </a>
         {hasMenu && open && (
