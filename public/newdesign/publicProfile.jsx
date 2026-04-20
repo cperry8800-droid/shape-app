@@ -433,7 +433,7 @@ function PackageCard({ pk, kind }) {
           </div>
         ))}
       </div>
-      <button style={{
+      <a href="Marketplace.html" style={{
         marginTop: 24,
         padding: "12px 20px",
         borderRadius: 8,
@@ -441,7 +441,8 @@ function PackageCard({ pk, kind }) {
         color: pk.featured ? INK : INK,
         border: pk.featured ? 0 : "1px solid rgba(242,237,228,0.25)",
         fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer",
-      }}>{pk.kind === "subscription" ? "Subscribe" : "Buy now"}</button>
+        textAlign: "center", textDecoration: "none", display: "inline-block",
+      }}>{pk.kind === "subscription" ? "Subscribe" : "Buy now"}</a>
     </div>
   );
 }

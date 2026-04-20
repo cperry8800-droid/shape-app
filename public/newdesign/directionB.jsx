@@ -202,13 +202,13 @@ const DirB = (() => {
   function Audiences() {
     const rows = [
       {
-        num: "01", tag: "I want to train · I want nutrition", title: "Find your coach.", body: "Browse certified trainers and nutritionists. Subscribe on your terms — custom sessions, meal plans, and direct access to the people coaching you.", bullets: ["Certified: NASM / ACE / RD verified", "Free 15-min intro before you commit", "Switch coaches any time"], cta: "Find your coach →",
+        num: "01", tag: "I want to train · I want nutrition", title: "Find your coach.", body: "Browse certified trainers and nutritionists. Subscribe on your terms — custom sessions, meal plans, and direct access to the people coaching you.", bullets: ["Certified: NASM / ACE / RD verified", "Free 15-min intro before you commit", "Switch coaches any time"], cta: "Find your coach →", href: "Marketplace.html",
       },
       {
-        num: "02", tag: "I'm a trainer", title: "Launch your business.", body: "Put your practice in front of Shape members looking for custom programs at no cost. Build your profile, sell your sessions, and let us handle the software, payments, and marketing.", bullets: ["Thousands of members looking", "Programming exports to floor iPads", "$14,800 average monthly payout"], cta: "Apply now →",
+        num: "02", tag: "I'm a trainer", title: "Launch your business.", body: "Put your practice in front of Shape members looking for custom programs at no cost. Build your profile, sell your sessions, and let us handle the software, payments, and marketing.", bullets: ["Thousands of members looking", "Programming exports to floor iPads", "$14,800 average monthly payout"], cta: "Apply now →", href: "SignupTrainer.html",
       },
       {
-        num: "03", tag: "I'm a nutritionist", title: "Grow your practice.", body: "Reach clients who need real nutrition guidance. Create meal plans, sell consultations, and build your client base — Shape handles intake, messaging, and billing.", bullets: ["RD / RDN verified on application", "Meal plan builder with USDA database", "PDF + app-native delivery"], cta: "Apply now →",
+        num: "03", tag: "I'm a nutritionist", title: "Grow your practice.", body: "Reach clients who need real nutrition guidance. Create meal plans, sell consultations, and build your client base — Shape handles intake, messaging, and billing.", bullets: ["RD / RDN verified on application", "Meal plan builder with USDA database", "PDF + app-native delivery"], cta: "Apply now →", href: "SignupNutritionist.html",
       },
     ];
     return (
@@ -226,7 +226,7 @@ const DirB = (() => {
               <div>
                 <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>{r.tag}</div>
                 <h3 style={{ fontFamily: serif, fontSize: 36, letterSpacing: "-0.02em", fontWeight: 400, margin: 0, lineHeight: 1.05, color: INK }}>{r.title}</h3>
-                <a style={{ fontFamily: sans, fontSize: 14, fontWeight: 500, color: INK, marginTop: 32, display: "inline-block", borderBottom: `1px solid ${TEAL}`, paddingBottom: 2 }}>{r.cta}</a>
+                <a href={r.href} style={{ fontFamily: sans, fontSize: 14, fontWeight: 500, color: INK, marginTop: 32, display: "inline-block", borderBottom: `1px solid ${TEAL}`, paddingBottom: 2, textDecoration: "none" }}>{r.cta}</a>
               </div>
               <div>
                 <p style={{ fontFamily: sans, fontSize: 16, lineHeight: 1.55, color: "rgba(242,237,228,0.7)", margin: 0 }}>{r.body}</p>
