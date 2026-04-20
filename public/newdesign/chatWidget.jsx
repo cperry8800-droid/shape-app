@@ -243,9 +243,14 @@ function ChatWidget(props) {
         .chw-row:hover { background: rgba(242,237,228,0.03); }
         [data-chat-panel] *::-webkit-scrollbar { width: 0; height: 0; background: transparent; }
         [data-chat-panel] * { scrollbar-width: none; }
+        @media (max-width: 640px) {
+          .chw-bubble { padding: 14px 20px 14px 16px !important; font-size: 14px !important; gap: 10px !important; right: 16px !important; bottom: 16px !important; }
+          .chw-bubble svg { width: 18px !important; height: 18px !important; }
+        }
       `}</style>
       {!open && (
         <button
+          className="chw-bubble"
           onMouseDown={startBubbleDrag}
           onClick={() => { if (bubbleDragRef.current && bubbleDragRef.current.moved) return; setOpen(true); }}
           style={{

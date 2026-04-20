@@ -53,15 +53,65 @@ function NavDropdown({ label, items, active, activeMatch }) {
   );
 }
 
+const SHAPE_NAV_GROUPS = [
+  { kind: "drop", label: "Clients", match: ["Clients", "My Profile", "Overview", "Dashboard", "Client Overview", "Client Dashboard"], items: [["Overview", "Client.html"], ["Dashboard", "ClientDashboard.html"]] },
+  { kind: "drop", label: "Trainers", match: ["Trainers", "Trainer Profile", "Trainer Overview", "Trainer Dashboard"], items: [["Overview", "Coach.html"], ["Dashboard", "TrainerDashboard.html"]] },
+  { kind: "drop", label: "Nutritionists", match: ["Nutritionists", "Nutritionist Profile", "Nutritionist Overview", "Nutritionist Dashboard"], items: [["Overview", "Nutritionist.html"], ["Dashboard", "NutritionistDashboard.html"]] },
+  { kind: "link", label: "Marketplace", href: "Marketplace.html" },
+  { kind: "link", label: "Community", href: "Community.html" },
+  { kind: "drop", label: "Rewards", match: ["Rewards", "Shape Score", "Store"], items: [["Shape Score", "Score.html"], ["Shape Store", "Store.html"]] },
+  { kind: "link", label: "Radio", href: "Radio.html" },
+  { kind: "link", label: "Pricing", href: "Pricing.html" },
+];
+
+function MobileDrawer({ open, onClose, active }) {
+  React.useEffect(() => {
+    document.body.style.overflow = open ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [open]);
+  if (!open) return null;
+  const linkBase = { display: "block", padding: "18px 0", fontFamily: sans, fontSize: 22, letterSpacing: "0.02em", borderBottom: "1px solid rgba(242,237,228,0.08)", textDecoration: "none" };
+  return (
+    <div role="dialog" aria-modal="true"
+      style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(26,22,18,0.98)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", display: "flex", flexDirection: "column", padding: "20px 24px 32px", overflowY: "auto" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+        <a href="index.html" style={{ display: "inline-flex", alignItems: "center" }}><Logo variant="white" size={30} /></a>
+        <button onClick={onClose} aria-label="Close menu"
+          style={{ background: "transparent", color: INK, border: 0, fontSize: 30, lineHeight: 1, padding: 8, cursor: "pointer", fontFamily: sans }}>×</button>
+      </div>
+      <nav style={{ flex: 1 }}>
+        {SHAPE_NAV_GROUPS.map(g => g.kind === "drop" ? (
+          <div key={g.label}>
+            <div style={{ ...linkBase, color: g.match.includes(active) ? TEAL : INK, fontWeight: 500, borderBottom: "1px solid rgba(242,237,228,0.12)", paddingBottom: 10 }}>{g.label}</div>
+            <div style={{ paddingLeft: 14, paddingBottom: 14, borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+              {g.items.map(([n, h]) => (
+                <a key={n} href={h} style={{ display: "block", padding: "10px 0", fontFamily: sans, fontSize: 15, color: "rgba(242,237,228,0.72)", textDecoration: "none" }}>{n}</a>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <a key={g.label} href={g.href} style={{ ...linkBase, color: active === g.label ? TEAL : INK, fontWeight: active === g.label ? 500 : 400 }}>{g.label}</a>
+        ))}
+      </nav>
+      <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
+        <a href="Login.html" style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, border: "1px solid rgba(242,237,228,0.2)", color: INK, fontFamily: sans, fontSize: 14, letterSpacing: "0.08em", textTransform: "uppercase", textDecoration: "none" }}>Log in</a>
+        <a href="Landing.html" style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, background: INK, color: PAPER, fontFamily: sans, fontSize: 14, fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase", textDecoration: "none" }}>Get started</a>
+      </div>
+    </div>
+  );
+}
+
 function Header({ active }) {
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
   const link = (name, href) => (
-    <a href={href} style={{ fontSize: 13, letterSpacing: "0.13em", textTransform: "uppercase", color: active === name ? INK : "rgba(242,237,228,0.72)", fontFamily: sans, fontWeight: active === name ? 500 : 400, borderBottom: active === name ? `1.5px solid ${TEAL}` : "1.5px solid transparent", paddingBottom: 3, whiteSpace: "nowrap", lineHeight: 1, display: "inline-flex", alignItems: "center" }}>{name}</a>
+    <a href={href} className="shape-nav-link" style={{ fontSize: 13, letterSpacing: "0.13em", textTransform: "uppercase", color: active === name ? INK : "rgba(242,237,228,0.72)", fontFamily: sans, fontWeight: active === name ? 500 : 400, borderBottom: active === name ? `1.5px solid ${TEAL}` : "1.5px solid transparent", paddingBottom: 3, whiteSpace: "nowrap", lineHeight: 1, display: "inline-flex", alignItems: "center" }}>{name}</a>
   );
   return (
-    <header style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(26,22,18,0.92)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
-      <div style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "16px 48px", gap: 40 }}>
+    <header className="shape-header" style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(26,22,18,0.92)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+      <ShapeMobileStyles />
+      <div className="shape-header-inner" style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "16px 48px", gap: 40 }}>
         <a href="index.html" style={{ flex: "none", display: "inline-flex", alignItems: "center" }}><Logo variant="white" size={34} /></a>
-        <nav style={{ display: "flex", gap: 30, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center" }}>
+        <nav className="shape-nav-tabs" style={{ display: "flex", gap: 30, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center" }}>
           <NavDropdown label="Clients" active={active} activeMatch={["Clients", "My Profile", "Overview", "Dashboard", "Client Overview", "Client Dashboard"]} items={[["Overview", "Client.html"], ["Dashboard", "ClientDashboard.html"]]} />
           <NavDropdown label="Trainers" active={active} activeMatch={["Trainers", "Trainer Profile", "Trainer Overview", "Trainer Dashboard"]} items={[["Overview", "Coach.html"], ["Dashboard", "TrainerDashboard.html"]]} />
           <NavDropdown label="Nutritionists" active={active} activeMatch={["Nutritionists", "Nutritionist Profile", "Nutritionist Overview", "Nutritionist Dashboard"]} items={[["Overview", "Nutritionist.html"], ["Dashboard", "NutritionistDashboard.html"]]} />
@@ -71,11 +121,16 @@ function Header({ active }) {
           {link("Radio", "Radio.html")}
           {link("Pricing", "Pricing.html")}
         </nav>
-        <div style={{ display: "flex", alignItems: "center", gap: 18, flexShrink: 0 }}>
+        <div className="shape-nav-auth" style={{ display: "flex", alignItems: "center", gap: 18, flexShrink: 0 }}>
           <a href="Login.html" style={{ fontSize: 13, letterSpacing: "0.13em", textTransform: "uppercase", color: "rgba(242,237,228,0.72)", fontFamily: sans, whiteSpace: "nowrap", lineHeight: 1 }}>Log in</a>
           <a href="Landing.html" style={{ background: INK, color: PAPER, border: 0, padding: "10px 18px", borderRadius: 6, fontWeight: 500, fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1 }}>Get started</a>
         </div>
+        <button className="shape-nav-burger" aria-label="Open menu" onClick={() => setDrawerOpen(true)}
+          style={{ display: "none", background: "transparent", border: 0, color: INK, width: 40, height: 40, padding: 0, cursor: "pointer", alignItems: "center", justifyContent: "center" }}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
+        </button>
       </div>
+      <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} active={active} />
     </header>
   );
 }
@@ -92,9 +147,9 @@ function HeroBg() {
 
 function Footer() {
   return (
-    <footer style={{ padding: "100px 40px 60px", background: INK, color: PAPER }}>
+    <footer className="shape-footer" style={{ padding: "100px 40px 60px", background: INK, color: PAPER }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 40, paddingTop: 40, borderTop: "1px solid rgba(26,22,18,0.12)" }}>
+        <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 40, paddingTop: 40, borderTop: "1px solid rgba(26,22,18,0.12)" }}>
           <div>
             <Logo variant="black" size={64} />
             <p style={{ fontFamily: sans, fontSize: 13, color: "rgba(26,22,18,0.55)", marginTop: 16, maxWidth: 280 }}>Real coaches. One marketplace. One platform.</p>
@@ -106,12 +161,37 @@ function Footer() {
             </div>
           ))}
         </div>
-        <div style={{ marginTop: 60, paddingTop: 24, borderTop: "1px solid rgba(26,22,18,0.08)", display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", color: "rgba(26,22,18,0.5)" }}>
+        <div className="shape-footer-base" style={{ marginTop: 60, paddingTop: 24, borderTop: "1px solid rgba(26,22,18,0.08)", display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", color: "rgba(26,22,18,0.5)" }}>
           <span>© 2026 SHAPE</span>
           <span>BROOKLYN · LISBON · MELBOURNE</span>
         </div>
       </div>
     </footer>
+  );
+}
+
+function ShapeMobileStyles() {
+  return (
+    <style>{`
+      @media (max-width: 900px) {
+        .shape-header-inner { padding: 12px 18px !important; gap: 12px !important; }
+        .shape-nav-tabs { display: none !important; }
+        .shape-nav-auth { display: none !important; }
+        .shape-nav-burger { display: inline-flex !important; }
+        .shape-footer { padding: 60px 22px 40px !important; }
+        .shape-footer-grid { grid-template-columns: 1fr 1fr !important; gap: 28px !important; padding-top: 28px !important; }
+        .shape-footer-grid > div:first-child { grid-column: 1 / -1; }
+        .shape-footer-base { flex-direction: column; gap: 10px; align-items: flex-start !important; }
+        /* Marketing page hero/section scaling */
+        [data-mobile="scale"] h1 { font-size: clamp(40px, 11vw, 68px) !important; line-height: 0.95 !important; }
+        [data-mobile="scale"] h2 { font-size: clamp(30px, 8vw, 52px) !important; line-height: 1 !important; }
+        [data-mobile="stack"] { grid-template-columns: 1fr !important; gap: 20px !important; }
+        [data-mobile="stack-2"] { grid-template-columns: 1fr 1fr !important; gap: 16px !important; }
+      }
+      @media (max-width: 520px) {
+        .shape-footer-grid { grid-template-columns: 1fr !important; }
+      }
+    `}</style>
   );
 }
 
