@@ -107,7 +107,7 @@ function Header({ active }) {
     <a href={href} className="shape-nav-link" style={{ fontSize: 13, letterSpacing: "0.13em", textTransform: "uppercase", color: active === name ? INK : "rgba(242,237,228,0.72)", fontFamily: sans, fontWeight: active === name ? 500 : 400, borderBottom: active === name ? `1.5px solid ${TEAL}` : "1.5px solid transparent", paddingBottom: 3, whiteSpace: "nowrap", lineHeight: 1, display: "inline-flex", alignItems: "center" }}>{name}</a>
   );
   return (
-    <header className="shape-header" style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(26,22,18,0.92)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+    <header className="shape-header" style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(26,22,18,0.45)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
       <ShapeMobileStyles />
       <div className="shape-header-inner" style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "16px 48px", gap: 40 }}>
         <a href="index.html" style={{ flex: "none", display: "inline-flex", alignItems: "center" }}><Logo variant="white" size={52} /></a>
