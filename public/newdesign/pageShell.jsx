@@ -173,23 +173,57 @@ function Footer() {
 function ShapeMobileStyles() {
   return (
     <style>{`
+      html, body { overflow-x: hidden; }
       @media (max-width: 900px) {
+        /* Header */
         .shape-header-inner { padding: 12px 18px !important; gap: 12px !important; }
         .shape-nav-tabs { display: none !important; }
         .shape-nav-auth { display: none !important; }
         .shape-nav-burger { display: inline-flex !important; }
+
+        /* Footer */
         .shape-footer { padding: 60px 22px 40px !important; }
         .shape-footer-grid { grid-template-columns: 1fr 1fr !important; gap: 28px !important; padding-top: 28px !important; }
         .shape-footer-grid > div:first-child { grid-column: 1 / -1; }
         .shape-footer-base { flex-direction: column; gap: 10px; align-items: flex-start !important; }
-        /* Marketing page hero/section scaling */
-        [data-mobile="scale"] h1 { font-size: clamp(40px, 11vw, 68px) !important; line-height: 0.95 !important; }
-        [data-mobile="scale"] h2 { font-size: clamp(30px, 8vw, 52px) !important; line-height: 1 !important; }
-        [data-mobile="stack"] { grid-template-columns: 1fr !important; gap: 20px !important; }
+
+        /* Typography — scale down the huge serif headlines used across the marketing pages.
+           Inline font-size on h1/h2/h3 is overridden by these !important rules. */
+        h1 { font-size: clamp(40px, 10.5vw, 72px) !important; line-height: 0.96 !important; letter-spacing: -0.03em !important; }
+        h2 { font-size: clamp(30px, 8vw, 52px) !important; line-height: 1 !important; letter-spacing: -0.025em !important; }
+        h3 { font-size: clamp(22px, 5.2vw, 34px) !important; line-height: 1.1 !important; }
+
+        /* Section padding — every marketing section uses inline "padding: Ypx 40px" (or similar).
+           Force horizontal padding down on mobile so content doesn't hug the edge or overflow. */
+        section { padding-left: 22px !important; padding-right: 22px !important; }
+        footer { padding-left: 22px !important; padding-right: 22px !important; }
+
+        /* Collapse multi-column grids. Attribute selectors match the inline style
+           that React serializes (e.g. "grid-template-columns: repeat(4, 1fr)"). */
+        [style*="grid-template-columns: 1fr 1fr"],
+        [style*="grid-template-columns:1fr 1fr"],
+        [style*="grid-template-columns: 1.4fr 1fr"],
+        [style*="grid-template-columns: 1.3fr 1fr"],
+        [style*="grid-template-columns: 2fr 1fr"],
+        [style*="grid-template-columns: repeat(2"],
+        [style*="grid-template-columns: repeat(3"],
+        [style*="grid-template-columns: repeat(4"],
+        [style*="grid-template-columns: repeat(5"] {
+          grid-template-columns: 1fr !important;
+          gap: 20px !important;
+        }
+        /* Footer grid is special-cased above (keeps 2 cols) */
+        .shape-footer-grid[style*="grid-template-columns"] { grid-template-columns: 1fr 1fr !important; }
+
+        /* Explicit opt-in hooks for pages that want different behaviors */
+        [data-mobile="scale"] h1 { font-size: clamp(40px, 11vw, 68px) !important; }
+        [data-mobile="scale"] h2 { font-size: clamp(30px, 8vw, 52px) !important; }
         [data-mobile="stack-2"] { grid-template-columns: 1fr 1fr !important; gap: 16px !important; }
       }
       @media (max-width: 520px) {
         .shape-footer-grid { grid-template-columns: 1fr !important; }
+        h1 { font-size: clamp(36px, 11vw, 56px) !important; }
+        section { padding-left: 18px !important; padding-right: 18px !important; }
       }
     `}</style>
   );
