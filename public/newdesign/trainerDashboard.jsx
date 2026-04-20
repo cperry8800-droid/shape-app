@@ -317,10 +317,10 @@ function ProfileHero({ eyebrow, name, headline, pills, score, scoreLabel = "COAC
         </button>
       </div>
 
-      {/* Identity row — avatar overlaps cover by 56px */}
+      {/* Identity row — avatar overlaps cover; name/pills/score sit fully below */}
       <div style={{ padding: "0 32px 32px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "160px 1fr auto", gap: 28, alignItems: "flex-end", marginTop: -80 }}>
-          <div style={{ position: "relative" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "160px 1fr auto", gap: 28, alignItems: "flex-start" }}>
+          <div style={{ position: "relative", marginTop: -80 }}>
             <div style={{ width: 160, height: 160, borderRadius: 999, background: avatarBg, border: "4px solid #1a1612", boxShadow: "0 12px 40px -8px rgba(0,0,0,0.5)" }} />
             <button style={{
               position: "absolute", bottom: 4, right: 4,
@@ -331,9 +331,9 @@ function ProfileHero({ eyebrow, name, headline, pills, score, scoreLabel = "COAC
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 10.5V11a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-.5M7 9V2M7 2 4.5 4.5M7 2l2.5 2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
             </button>
           </div>
-          <div style={{ paddingBottom: 8 }}>
+          <div style={{ paddingTop: 20, minWidth: 0 }}>
             {eyebrow && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>{eyebrow}</div>}
-            <div style={{ fontFamily: serif, fontSize: 56, letterSpacing: "-0.03em", lineHeight: 0.95, fontWeight: 400 }}>{name}</div>
+            <div style={{ fontFamily: serif, fontSize: 48, letterSpacing: "-0.03em", lineHeight: 1.1, fontWeight: 400, color: INK, wordBreak: "break-word" }}>{name}</div>
             {pills && pills.length > 0 && (
               <div style={{ marginTop: 14, display: "flex", gap: 8, fontSize: 11, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", flexWrap: "wrap" }}>
                 {pills.map((p, i) => <Pill key={i} tone={p.tone}>{p.label}</Pill>)}
@@ -341,9 +341,9 @@ function ProfileHero({ eyebrow, name, headline, pills, score, scoreLabel = "COAC
             )}
           </div>
           {score != null && (
-            <div style={{ textAlign: "right", paddingBottom: 8 }}>
+            <div style={{ textAlign: "right", paddingTop: 20 }}>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(242,237,228,0.5)", letterSpacing: "0.14em" }}>{scoreLabel}</div>
-              <div style={{ fontFamily: serif, fontSize: 64, color: TEAL_BRIGHT, letterSpacing: "-0.03em", lineHeight: 1 }}>{score}</div>
+              <div style={{ fontFamily: serif, fontSize: 56, color: TEAL_BRIGHT, letterSpacing: "-0.03em", lineHeight: 1.05 }}>{score}</div>
               {scoreCaption && <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 4 }}>{scoreCaption}</div>}
             </div>
           )}

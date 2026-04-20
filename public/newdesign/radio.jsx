@@ -190,7 +190,7 @@ function RadioCoachPlaylists() {
                 </div>
               </div>
 
-              <div style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(10px)", padding: "16px 20px", borderTop: "1px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ background: "rgba(0,0,0,0.15)", backdropFilter: "blur(10px)", padding: "16px 20px", borderTop: "1px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: serif, fontSize: 18, color: "#fff", letterSpacing: "-0.01em", marginBottom: 2 }}>{e.title}</div>
                   <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(255,255,255,0.65)", letterSpacing: "0.06em" }}>{e.meta}</div>

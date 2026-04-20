@@ -215,6 +215,35 @@
       return { ok: true };
     },
 
+    // Load the user's goal page state for a given dashboard kind
+    // ('trainer' | 'nutritionist'). Returns {} if nothing saved yet.
+    async getUserGoals(kind) {
+      var u = await shapeDb.getUser();
+      if (!u) return null;
+      var res = await client.from('user_goals').select('data').eq('user_id', u.id).eq('kind', kind).maybeSingle();
+      if (res.error) {
+        console.warn('[shape] getUserGoals error', res.error);
+        return null;
+      }
+      return (res.data && res.data.data) || {};
+    },
+
+    // Upsert the user's goal page state. Requires a logged-in session.
+    async saveUserGoals(kind, data) {
+      var u = await shapeDb.getUser();
+      if (!u) return { error: { message: 'Not logged in' } };
+      var res = await client.from('user_goals').upsert({
+        user_id: u.id,
+        kind: kind,
+        data: data || {}
+      }, { onConflict: 'user_id,kind' });
+      if (res.error) {
+        console.warn('[shape] saveUserGoals error', res.error);
+        return { error: res.error };
+      }
+      return { ok: true };
+    },
+
     // Guard a dashboard page.
     // - No session → return { demo: true } so the page can render a sample view.
     // - Logged in with wrong role → bounce to their own dashboard.
