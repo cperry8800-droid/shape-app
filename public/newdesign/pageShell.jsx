@@ -161,7 +161,7 @@ function Footer() {
             ["Product",      [["Marketplace", "Marketplace.html"], ["Shape Score", "Score.html"], ["Radio", "Radio.html"], ["Dashboard", "ClientDashboard.html"]]],
             ["For trainers", [["Apply", "SignupTrainer.html"], ["Payouts", "TrainerDashboard.html"], ["Programs", "TrainerPrograms.html"]]],
             ["Company",      [["About", "Team.html"], ["Press", "Team.html#press"], ["Careers", "Team.html#careers"]]],
-            ["Support",      [["Help", "mailto:help@shape.app"], ["Contact", "mailto:hello@shape.app"], ["Privacy", "Team.html#privacy"]]],
+            ["Support",      [["Help", "/help.html"], ["Contact", "/contact.html"], ["Privacy", "Team.html#privacy"]]],
           ].map(([h, items]) => (
             <div key={h}>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(26,22,18,0.5)", marginBottom: 16 }}>{h}</div>
