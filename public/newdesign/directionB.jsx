@@ -778,7 +778,7 @@ const DirB = (() => {
             {[
               ["Platform", [["Marketplace", "Marketplace.html"], ["Clients", "Client.html"], ["Trainers", "Coach.html"], ["Nutritionists", "Nutritionist.html"]]],
               ["Start", [["Sign up", "Landing.html"], ["Apply", "SignupTrainer.html"], ["Pricing", "Pricing.html"]]],
-              ["Company", [["About", "Team.html"], ["Press", "Team.html#press"]]],
+              ["Company", [["About", "index.html"], ["Press", "Team.html#press"]]],
               ["Help", [["Center", "/help.html"], ["Contact", "/contact.html"], ["Privacy", "Team.html#privacy"], ["Terms", "/terms.html"]]],
             ].map(([h, links]) => (
               <div key={h}>
