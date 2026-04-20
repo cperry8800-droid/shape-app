@@ -39,7 +39,7 @@ function TrainerStats() {
     { k: "Yours", v: "Your brand, your pricing, your clients. No lock-in." },
   ];
   return (
-    <section style={{ padding: "80px 40px", background: PAPER, borderTop: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+    <section style={{ padding: "80px 40px", borderTop: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0 }}>
         {items.map((it, i) => (
           <div key={i} style={{ padding: "12px 32px", borderLeft: i ? "1px solid rgba(242,237,228,0.1)" : "none" }}>
@@ -72,7 +72,7 @@ function TrainerWhy() {
     },
   ];
   return (
-    <section style={{ padding: "140px 40px", background: PAPER }}>
+    <section style={{ padding: "140px 40px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Why Shape</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 80px", lineHeight: 1, color: INK, maxWidth: 1100 }}>
@@ -134,7 +134,7 @@ function TrainerEarnings() {
   const monthly = clients * price * 4;
   const yearly = monthly * 12;
   return (
-    <section style={{ padding: "140px 40px", background: PAPER }}>
+    <section style={{ padding: "140px 40px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.1fr", gap: 80, alignItems: "center" }}>
         <div>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Earnings</div>
@@ -199,7 +199,7 @@ function TrainerTools() {
     { t: "Payouts", b: "Weekly direct deposit, or instant for 1%. Clean monthly statements. Tax docs when January comes." },
   ];
   return (
-    <section style={{ padding: "140px 40px", background: PAPER }}>
+    <section style={{ padding: "140px 40px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>The toolkit</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 72px", lineHeight: 1, color: INK, maxWidth: 1000 }}>Everything you need. <em style={{ fontStyle: "italic", color: TEAL }}>Nothing you don't.</em></h2>
@@ -267,7 +267,7 @@ function TrainerFAQ() {
   ];
   const [open, setOpen] = React.useState(0);
   return (
-    <section style={{ padding: "140px 40px", background: PAPER }}>
+    <section style={{ padding: "140px 40px" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Questions</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 64px", lineHeight: 1, color: INK }}>Everything <em style={{ fontStyle: "italic", color: TEAL }}>trainers ask.</em></h2>
