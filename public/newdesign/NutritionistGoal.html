@@ -11,48 +11,211 @@
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/supabase.js"></script>
 <script type="text/babel" src="pageShell.jsx"></script>
 <script type="text/babel" src="trainerDashboard.jsx"></script>
 <script type="text/babel" src="coachNav.jsx"></script>
 <script type="text/babel">
+const DEFAULT_GOALS_STATE = {
+  goals: [
+    { t: "40 active clients by July",    cur: 28, tgt: 40, sub: "12 to go · +2/wk pace gets there Jul 4" },
+    { t: "$15k MRR by Q3",               cur: 11240, tgt: 15000, sub: "$3.8k to go · 94% retention holds = Aug 22", money: true },
+    { t: "Publish 2 new plans",          cur: 0, tgt: 2, sub: "Plant-forward v2 in draft" },
+    { t: "92% avg log adherence",        cur: 89, tgt: 92, sub: "30d rolling · +3 pts needed", pct: true },
+  ],
+  calc: { consult: 120, cpw: 14, subs: 32, subPrice: 49, currentWeekly: 2595 },
+  momentum: [
+    ["+7","Net new clients","vs +4 last Q"],
+    ["+$2.1k","MRR growth","vs +$1.2k last Q"],
+    ["1","Plan shipped","vs 1 last Q"],
+    ["+6 pts","Adherence","vs +3 pts last Q"]
+  ]
+};
+
+function Chip({ children, onClick, danger }) {
+  const [hover, setHover] = React.useState(false);
+  const color = danger ? "#ff8a6d" : TEAL_BRIGHT;
+  return (
+    <button onClick={onClick}
+      onMouseOver={()=>setHover(true)} onMouseOut={()=>setHover(false)}
+      style={{ background: hover ? "rgba(46,224,196,0.08)" : "transparent", border: 0, padding: "4px 8px", borderRadius: 6, color, fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", cursor: "pointer" }}>
+      {children}
+    </button>
+  );
+}
+
+function ModalShell({ title, eyebrow, onClose, children, footer }) {
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,8,6,0.7)", backdropFilter: "blur(6px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: PAPER, border: "1px solid rgba(242,237,228,0.1)", borderRadius: 14, padding: 28, width: "100%", maxWidth: 560, maxHeight: "90vh", overflowY: "auto" }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>{eyebrow}</div>
+        <div style={{ fontFamily: serif, fontSize: 28, letterSpacing: "-0.02em", margin: "6px 0 20px", color: INK }}>{title}</div>
+        {children}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>{footer}</div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, value, onChange, type }) {
+  return (
+    <label style={{ display: "grid", gap: 4, marginBottom: 12 }}>
+      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "rgba(242,237,228,0.55)" }}>{label}</span>
+      <input type={type || "text"} value={value == null ? "" : value} onChange={e => onChange(type === "number" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value)}
+        style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.14)", color: INK, padding: "10px 12px", borderRadius: 6, fontFamily: "'Space Grotesk', sans-serif", fontSize: 13.5 }}
+      />
+    </label>
+  );
+}
+
+function GoalEditModal({ goal, onClose, onSave, onDelete }) {
+  const [g, setG] = React.useState(goal || { t: "", cur: 0, tgt: 100, sub: "", money: false, pct: false });
+  return (
+    <ModalShell
+      eyebrow={goal ? "EDIT · GOAL" : "NEW · GOAL"}
+      title={goal ? "Edit goal." : "New goal."}
+      onClose={onClose}
+      footer={<>
+        {onDelete && <button onClick={onDelete} style={{ background: "transparent", color: "#ff8a6d", border: "1px solid rgba(255,138,109,0.35)", padding: "10px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", marginRight: "auto" }}>Delete</button>}
+        <button onClick={onClose} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+        <button onClick={() => onSave(g)} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Save</button>
+      </>}
+    >
+      <Field label="TITLE" value={g.t} onChange={v => setG({ ...g, t: v })} />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <Field label="CURRENT" type="number" value={g.cur} onChange={v => setG({ ...g, cur: v })} />
+        <Field label="TARGET" type="number" value={g.tgt} onChange={v => setG({ ...g, tgt: v })} />
+      </div>
+      <Field label="SUBTEXT" value={g.sub} onChange={v => setG({ ...g, sub: v })} />
+      <div style={{ display: "flex", gap: 18, marginTop: 4, color: INK, fontSize: 13 }}>
+        <label style={{ display: "flex", gap: 8, cursor: "pointer" }}><input type="checkbox" checked={!!g.money} onChange={e => setG({ ...g, money: e.target.checked, pct: e.target.checked ? false : g.pct })} /> Money ($)</label>
+        <label style={{ display: "flex", gap: 8, cursor: "pointer" }}><input type="checkbox" checked={!!g.pct} onChange={e => setG({ ...g, pct: e.target.checked, money: e.target.checked ? false : g.money })} /> Percent (%)</label>
+      </div>
+    </ModalShell>
+  );
+}
+
+function CalcEditModal({ calc, labels, onClose, onSave }) {
+  const [c, setC] = React.useState({ ...calc });
+  return (
+    <ModalShell
+      eyebrow="EDIT · REVENUE CALCULATOR"
+      title="Calculator inputs."
+      onClose={onClose}
+      footer={<>
+        <button onClick={onClose} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+        <button onClick={() => onSave(c)} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Save</button>
+      </>}
+    >
+      {labels.map(([key, label]) => (
+        <Field key={key} label={label} type="number" value={c[key]} onChange={v => setC({ ...c, [key]: v === "" ? 0 : v })} />
+      ))}
+    </ModalShell>
+  );
+}
+
+function MomentumEditModal({ momentum, onClose, onSave }) {
+  const [m, setM] = React.useState(momentum.map(row => [...row]));
+  return (
+    <ModalShell
+      eyebrow="EDIT · MOMENTUM"
+      title="This quarter."
+      onClose={onClose}
+      footer={<>
+        <button onClick={onClose} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+        <button onClick={() => onSave(m)} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Save</button>
+      </>}
+    >
+      {m.map((row, i) => (
+        <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr 1.5fr", gap: 10, marginBottom: 10 }}>
+          <Field label="VALUE" value={row[0]} onChange={v => { const next = m.map(r => [...r]); next[i][0] = v; setM(next); }} />
+          <Field label="LABEL" value={row[1]} onChange={v => { const next = m.map(r => [...r]); next[i][1] = v; setM(next); }} />
+          <Field label="COMPARE" value={row[2]} onChange={v => { const next = m.map(r => [...r]); next[i][2] = v; setM(next); }} />
+        </div>
+      ))}
+    </ModalShell>
+  );
+}
+
 function NutritionistGoalPage() {
-  const [consult, setConsult] = React.useState(120);
-  const [cpw, setCpw] = React.useState(14);
-  const [subs, setSubs] = React.useState(32);
-  const [subPrice, setSubPrice] = React.useState(49);
+  const [state, setState] = React.useState(DEFAULT_GOALS_STATE);
+  const [signedIn, setSignedIn] = React.useState(false);
+  const [toast, setToast] = React.useState(null);
+  const [editGoalIdx, setEditGoalIdx] = React.useState(null);
+  const [editCalc, setEditCalc] = React.useState(false);
+  const [editMomentum, setEditMomentum] = React.useState(false);
+
+  React.useEffect(() => {
+    (async () => {
+      if (!window.shapeDb) return;
+      const user = await window.shapeDb.getUser();
+      if (!user) return;
+      setSignedIn(true);
+      const remote = await window.shapeDb.getUserGoals("nutritionist");
+      if (remote && Object.keys(remote).length > 0) {
+        setState(s => ({ ...s, ...remote, calc: { ...s.calc, ...(remote.calc || {}) } }));
+      }
+    })();
+  }, []);
+
+  function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 2500); }
+
+  async function persist(next) {
+    setState(next);
+    if (window.shapeDb && window.shapeDb.saveUserGoals) {
+      const res = await window.shapeDb.saveUserGoals("nutritionist", next);
+      showToast(res && res.error ? (res.error.message || "Save failed") : (signedIn ? "Saved." : "Sample view — sign in to save."));
+    } else {
+      showToast("Sample view — sign in to save.");
+    }
+  }
+
+  function saveGoal(g) {
+    const goals = [...state.goals];
+    if (editGoalIdx === "new") goals.push(g);
+    else goals[editGoalIdx] = g;
+    setEditGoalIdx(null);
+    persist({ ...state, goals });
+  }
+  function deleteGoal() {
+    const goals = state.goals.filter((_, i) => i !== editGoalIdx);
+    setEditGoalIdx(null);
+    persist({ ...state, goals });
+  }
+
+  const { goals, calc, momentum } = state;
+  const { consult, cpw, subs, subPrice, currentWeekly } = calc;
   const weekly = consult*cpw + (subs*subPrice)/4.33;
   const monthly = weekly * 4.33;
   const quarterly = monthly * 3;
   const annual = monthly * 12;
   const fmt = n => "$" + Math.round(n).toLocaleString();
-  const currentWeekly = 2595;
   const paceDelta = weekly - currentWeekly;
-  const goals = [
-    { t: "40 active clients by July",    cur: 28, tgt: 40, sub: "12 to go · +2/wk pace gets there Jul 4" },
-    { t: "$15k MRR by Q3",               cur: 11240, tgt: 15000, sub: "$3.8k to go · 94% retention holds = Aug 22", money: true },
-    { t: "Publish 2 new plans",          cur: 0, tgt: 2, sub: "Plant-forward v2 in draft" },
-    { t: "92% avg log adherence",        cur: 89, tgt: 92, sub: "30d rolling · +3 pts needed", pct: true },
-  ];
+
   return (
     <DashPage
       navItems={nutriNavItems("goal")}
       payoutCard={nutriPayoutCard}
       eyebrow="YOUR GOALS · Q2 2026"
       title="Goal"
-      subtitle="What you're building toward this quarter. Shape tracks progress automatically from your clients, payouts, and plans."
+      subtitle={signedIn ? "What you're building toward this quarter." : "Sample view — sign in to save your own goals."}
       actions={<>
-        <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Archive</button>
-        <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ New goal</button>
+        <button onClick={() => persist({ ...state, goals: [] })} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Archive</button>
+        <button onClick={() => setEditGoalIdx("new")} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ New goal</button>
       </>}
     >
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
         {goals.map((g, i) => {
-          const pct = Math.min(g.cur / g.tgt, 1);
-          const curF = g.money ? `$${g.cur.toLocaleString()}` : g.pct ? `${g.cur}%` : g.cur;
-          const tgtF = g.money ? `$${g.tgt.toLocaleString()}` : g.pct ? `${g.tgt}%` : g.tgt;
+          const pct = Math.min((Number(g.cur)||0) / (Number(g.tgt)||1), 1);
+          const curF = g.money ? `$${Number(g.cur).toLocaleString()}` : g.pct ? `${g.cur}%` : g.cur;
+          const tgtF = g.money ? `$${Number(g.tgt).toLocaleString()}` : g.pct ? `${g.tgt}%` : g.tgt;
           return (
-            <Card key={i} style={{ padding: 26 }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>GOAL · {Math.round(pct*100)}%</div>
+            <Card key={i} style={{ padding: 26, position: "relative" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>GOAL · {Math.round(pct*100)}%</div>
+                <Chip onClick={() => setEditGoalIdx(i)}>EDIT</Chip>
+              </div>
               <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.015em", marginBottom: 16 }}>{g.t}</div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "rgba(242,237,228,0.55)", fontFamily: "'JetBrains Mono', monospace", marginBottom: 6 }}>
                 <span>{curF}</span><span>{tgtF}</span>
@@ -65,22 +228,29 @@ function NutritionistGoalPage() {
           );
         })}
       </div>
+
       <Card style={{ marginTop: 20 }}>
-        <SectionTitle right="SET YOUR TARGET">Revenue calculator</SectionTitle>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <SectionTitle right="SET YOUR TARGET">Revenue calculator</SectionTitle>
+          <Chip onClick={() => setEditCalc(true)}>EDIT</Chip>
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 32, padding: "8px 4px 4px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
             {[
-              ["Consult rate", consult, setConsult, 40, 400, 5, v => `$${v}`],
-              ["Consults / week", cpw, setCpw, 0, 40, 1, v => `${v}`],
-              ["Meal plan subscribers", subs, setSubs, 0, 500, 1, v => `${v}`],
-              ["Subscription price / mo", subPrice, setSubPrice, 9, 199, 5, v => `$${v}`],
-            ].map(([label, val, set, min, max, step, fmtV], i) => (
+              ["Consult rate", "consult", consult, 40, 400, 5, v => `$${v}`],
+              ["Consults / week", "cpw", cpw, 0, 40, 1, v => `${v}`],
+              ["Meal plan subscribers", "subs", subs, 0, 500, 1, v => `${v}`],
+              ["Subscription price / mo", "subPrice", subPrice, 9, 199, 5, v => `$${v}`],
+            ].map(([label, key, val, min, max, step, fmtV], i) => (
               <div key={i}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                   <span style={{ fontSize: 12.5, color: "rgba(242,237,228,0.7)" }}>{label}</span>
                   <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, color: INK }}>{fmtV(val)}</span>
                 </div>
-                <input type="range" min={min} max={max} step={step} value={val} onChange={e => set(+e.target.value)}
+                <input type="range" min={min} max={max} step={step} value={val}
+                  onChange={e => setState({ ...state, calc: { ...calc, [key]: +e.target.value } })}
+                  onMouseUp={e => persist({ ...state, calc: { ...calc, [key]: +e.target.value } })}
+                  onTouchEnd={e => persist({ ...state, calc: { ...calc, [key]: +e.target.value } })}
                   style={{ width: "100%", accentColor: "#1ec0a8", cursor: "pointer" }} />
               </div>
             ))}
@@ -109,10 +279,14 @@ function NutritionistGoalPage() {
           </div>
         </div>
       </Card>
+
       <Card style={{ marginTop: 20 }}>
-        <SectionTitle right="THIS QUARTER">Momentum</SectionTitle>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <SectionTitle right="THIS QUARTER">Momentum</SectionTitle>
+          <Chip onClick={() => setEditMomentum(true)}>EDIT</Chip>
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 20, padding: "12px 4px" }}>
-          {[["+7","Net new clients","vs +4 last Q"],["+$2.1k","MRR growth","vs +$1.2k last Q"],["1","Plan shipped","vs 1 last Q"],["+6 pts","Adherence","vs +3 pts last Q"]].map((m,i)=>(
+          {momentum.map((m,i)=>(
             <div key={i}>
               <div style={{ fontFamily: serif, fontSize: 36, letterSpacing: "-0.02em", lineHeight: 1 }}>{m[0]}</div>
               <div style={{ fontSize: 12.5, marginTop: 8 }}>{m[1]}</div>
@@ -121,6 +295,33 @@ function NutritionistGoalPage() {
           ))}
         </div>
       </Card>
+
+      {editGoalIdx != null && (
+        <GoalEditModal
+          goal={editGoalIdx === "new" ? null : goals[editGoalIdx]}
+          onClose={() => setEditGoalIdx(null)}
+          onSave={saveGoal}
+          onDelete={editGoalIdx === "new" ? null : deleteGoal}
+        />
+      )}
+      {editCalc && (
+        <CalcEditModal
+          calc={calc}
+          labels={[["consult","Consult rate ($)"],["cpw","Consults / week"],["subs","Meal plan subscribers"],["subPrice","Subscription price ($)"],["currentWeekly","Current weekly pace ($)"]]}
+          onClose={() => setEditCalc(false)}
+          onSave={c => { setEditCalc(false); persist({ ...state, calc: c }); }}
+        />
+      )}
+      {editMomentum && (
+        <MomentumEditModal
+          momentum={momentum}
+          onClose={() => setEditMomentum(false)}
+          onSave={m => { setEditMomentum(false); persist({ ...state, momentum: m }); }}
+        />
+      )}
+      {toast && (
+        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: INK, color: PAPER, padding: "12px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, zIndex: 10000, boxShadow: "0 10px 40px rgba(0,0,0,0.5)" }}>{toast}</div>
+      )}
     </DashPage>
   );
 }
