@@ -1,0 +1,341 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Goal · Shape</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>html,body{margin:0;padding:0;background:#1a1612}*{box-sizing:border-box}a{text-decoration:none;color:inherit}</style>
+</head>
+<body><div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/supabase.js"></script>
+<script type="text/babel" src="pageShell.jsx"></script>
+<script type="text/babel" src="chatWidget.jsx"></script>
+<script type="text/babel" src="clientChatThreads.jsx"></script>
+<script type="text/babel" src="trainerDashboard.jsx"></script>
+<script type="text/babel" src="clientNav.jsx"></script>
+<script type="text/babel">
+const DEFAULT_GOALS_STATE = {
+  goals: [
+    { t: "Reach Peak tier by Q1 2027",   cur: 1284, tgt: 5000, sub: "3,716 points to go · holding +100/wk lands you at Peak in ~37 weeks" },
+    { t: "Squat 1.5× bodyweight",        cur: 135,  tgt: 175,  sub: "40 lb to go · +5 lb every 3 weeks gets there by Aug 15" },
+    { t: "4 workouts / week average",    cur: 3.2,  tgt: 4,    sub: "30d rolling · +0.8 sessions/wk closes the gap" },
+    { t: "85% protein adherence",        cur: 82,   tgt: 85,   sub: "30d rolling · hit target 6 of 7 days", pct: true },
+  ],
+  calc: { workouts: 4, sessions: 2, proteinDays: 6, sleepNights: 5, programsOwned: 1, mealPlansOwned: 1, currentWeekly: 36 },
+  momentum: [
+    ["+36","Points this week","vs 32 last"],
+    ["14d","Current streak","personal best 22d"],
+    ["+2","PRs this quarter","vs 1 last Q"],
+    ["+4 pts","Adherence","82% · vs 78% last Q"]
+  ]
+};
+
+function Chip({ children, onClick, danger }) {
+  const [hover, setHover] = React.useState(false);
+  const color = danger ? "#ff8a6d" : TEAL_BRIGHT;
+  return (
+    <button onClick={onClick}
+      onMouseOver={()=>setHover(true)} onMouseOut={()=>setHover(false)}
+      style={{ background: hover ? "rgba(46,224,196,0.08)" : "transparent", border: 0, padding: "4px 8px", borderRadius: 6, color, fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", cursor: "pointer" }}>
+      {children}
+    </button>
+  );
+}
+
+function ModalShell({ title, eyebrow, onClose, children, footer }) {
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,8,6,0.7)", backdropFilter: "blur(6px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: PAPER, border: "1px solid rgba(242,237,228,0.1)", borderRadius: 14, padding: 28, width: "100%", maxWidth: 560, maxHeight: "90vh", overflowY: "auto" }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>{eyebrow}</div>
+        <div style={{ fontFamily: serif, fontSize: 28, letterSpacing: "-0.02em", margin: "6px 0 20px", color: INK }}>{title}</div>
+        {children}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>{footer}</div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, value, onChange, type }) {
+  return (
+    <label style={{ display: "grid", gap: 4, marginBottom: 12 }}>
+      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "rgba(242,237,228,0.55)" }}>{label}</span>
+      <input type={type || "text"} value={value == null ? "" : value} onChange={e => onChange(type === "number" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value)}
+        style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.14)", color: INK, padding: "10px 12px", borderRadius: 6, fontFamily: "'Space Grotesk', sans-serif", fontSize: 13.5 }}
+      />
+    </label>
+  );
+}
+
+function GoalEditModal({ goal, onClose, onSave, onDelete }) {
+  const [g, setG] = React.useState(goal || { t: "", cur: 0, tgt: 100, sub: "", pct: false });
+  return (
+    <ModalShell
+      eyebrow={goal ? "EDIT · GOAL" : "NEW · GOAL"}
+      title={goal ? "Edit goal." : "New goal."}
+      onClose={onClose}
+      footer={<>
+        {onDelete && <button onClick={onDelete} style={{ background: "transparent", color: "#ff8a6d", border: "1px solid rgba(255,138,109,0.35)", padding: "10px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", marginRight: "auto" }}>Delete</button>}
+        <button onClick={onClose} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+        <button onClick={() => onSave(g)} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Save</button>
+      </>}
+    >
+      <Field label="TITLE" value={g.t} onChange={v => setG({ ...g, t: v })} />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <Field label="CURRENT" type="number" value={g.cur} onChange={v => setG({ ...g, cur: v })} />
+        <Field label="TARGET" type="number" value={g.tgt} onChange={v => setG({ ...g, tgt: v })} />
+      </div>
+      <Field label="SUBTEXT" value={g.sub} onChange={v => setG({ ...g, sub: v })} />
+      <div style={{ display: "flex", gap: 18, marginTop: 4, color: INK, fontSize: 13 }}>
+        <label style={{ display: "flex", gap: 8, cursor: "pointer" }}><input type="checkbox" checked={!!g.pct} onChange={e => setG({ ...g, pct: e.target.checked })} /> Percent (%)</label>
+      </div>
+    </ModalShell>
+  );
+}
+
+function CalcEditModal({ calc, labels, onClose, onSave }) {
+  const [c, setC] = React.useState({ ...calc });
+  return (
+    <ModalShell
+      eyebrow="EDIT · SCORE CALCULATOR"
+      title="Calculator inputs."
+      onClose={onClose}
+      footer={<>
+        <button onClick={onClose} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+        <button onClick={() => onSave(c)} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Save</button>
+      </>}
+    >
+      {labels.map(([key, label]) => (
+        <Field key={key} label={label} type="number" value={c[key]} onChange={v => setC({ ...c, [key]: v === "" ? 0 : v })} />
+      ))}
+    </ModalShell>
+  );
+}
+
+function MomentumEditModal({ momentum, onClose, onSave }) {
+  const [m, setM] = React.useState(momentum.map(row => [...row]));
+  return (
+    <ModalShell
+      eyebrow="EDIT · MOMENTUM"
+      title="This quarter."
+      onClose={onClose}
+      footer={<>
+        <button onClick={onClose} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+        <button onClick={() => onSave(m)} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Save</button>
+      </>}
+    >
+      {m.map((row, i) => (
+        <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr 1.5fr", gap: 10, marginBottom: 10 }}>
+          <Field label="VALUE" value={row[0]} onChange={v => { const next = m.map(r => [...r]); next[i][0] = v; setM(next); }} />
+          <Field label="LABEL" value={row[1]} onChange={v => { const next = m.map(r => [...r]); next[i][1] = v; setM(next); }} />
+          <Field label="COMPARE" value={row[2]} onChange={v => { const next = m.map(r => [...r]); next[i][2] = v; setM(next); }} />
+        </div>
+      ))}
+    </ModalShell>
+  );
+}
+
+function ClientGoalPage() {
+  const [state, setState] = React.useState(DEFAULT_GOALS_STATE);
+  const [signedIn, setSignedIn] = React.useState(false);
+  const [toast, setToast] = React.useState(null);
+  const [editGoalIdx, setEditGoalIdx] = React.useState(null);
+  const [editCalc, setEditCalc] = React.useState(false);
+  const [editMomentum, setEditMomentum] = React.useState(false);
+
+  React.useEffect(() => {
+    (async () => {
+      if (!window.shapeDb) return;
+      const user = await window.shapeDb.getUser();
+      if (!user) return;
+      setSignedIn(true);
+      const remote = await window.shapeDb.getUserGoals("client");
+      if (remote && Object.keys(remote).length > 0) {
+        setState(s => ({ ...s, ...remote, calc: { ...s.calc, ...(remote.calc || {}) } }));
+      }
+    })();
+  }, []);
+
+  function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 2500); }
+
+  async function persist(next) {
+    setState(next);
+    if (window.shapeDb && window.shapeDb.saveUserGoals) {
+      const res = await window.shapeDb.saveUserGoals("client", next);
+      showToast(res && res.error ? (res.error.message || "Save failed") : (signedIn ? "Saved." : "Sample view — sign in to save."));
+    } else {
+      showToast("Sample view — sign in to save.");
+    }
+  }
+
+  function saveGoal(g) {
+    const goals = [...state.goals];
+    if (editGoalIdx === "new") goals.push(g);
+    else goals[editGoalIdx] = g;
+    setEditGoalIdx(null);
+    persist({ ...state, goals });
+  }
+  function deleteGoal() {
+    const goals = state.goals.filter((_, i) => i !== editGoalIdx);
+    setEditGoalIdx(null);
+    persist({ ...state, goals });
+  }
+
+  const { goals, calc, momentum } = state;
+  const { workouts, sessions, proteinDays, sleepNights, programsOwned = 0, mealPlansOwned = 0, currentWeekly } = calc;
+  // Shape Score points per action (matches score.jsx tuned rates)
+  const PTS = { workout: 8, session: 15, protein: 5, sleep: 3, review: 15, programBoost: 6, mealPlanBoost: 4 };
+  const weekly = workouts*PTS.workout + sessions*PTS.session + proteinDays*PTS.protein + sleepNights*PTS.sleep + PTS.review + programsOwned*PTS.programBoost + mealPlansOwned*PTS.mealPlanBoost;
+  const monthly = weekly * 4.33;
+  const quarterly = monthly * 3;
+  const annual = monthly * 12;
+  const fmt = n => Math.round(n).toLocaleString();
+  const paceDelta = weekly - currentWeekly;
+
+  return (
+    <DashPage
+      navItems={clientNavItems("goal")}
+      payoutCard={clientPayoutCard}
+      eyebrow="YOUR GOALS · Q2 2026"
+      title="Goal"
+      subtitle={signedIn ? "What you're training toward this quarter." : "Sample view — sign in to save your own goals."}
+      actions={<>
+        <button onClick={() => persist({ ...state, goals: [] })} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Archive</button>
+        <button onClick={() => setEditGoalIdx("new")} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ New goal</button>
+      </>}
+    >
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        {goals.map((g, i) => {
+          const pct = Math.min((Number(g.cur)||0) / (Number(g.tgt)||1), 1);
+          const curF = g.pct ? `${g.cur}%` : Number(g.cur).toLocaleString();
+          const tgtF = g.pct ? `${g.tgt}%` : Number(g.tgt).toLocaleString();
+          return (
+            <Card key={i} style={{ padding: 26, position: "relative" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>GOAL · {Math.round(pct*100)}%</div>
+                <Chip onClick={() => setEditGoalIdx(i)}>EDIT</Chip>
+              </div>
+              <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.015em", marginBottom: 16 }}>{g.t}</div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "rgba(242,237,228,0.55)", fontFamily: "'JetBrains Mono', monospace", marginBottom: 6 }}>
+                <span>{curF}</span><span>{tgtF}</span>
+              </div>
+              <div style={{ height: 8, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden", marginBottom: 14 }}>
+                <div style={{ height: "100%", width: `${pct*100}%`, background: TEAL }} />
+              </div>
+              <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.6)", lineHeight: 1.5 }}>{g.sub}</div>
+            </Card>
+          );
+        })}
+      </div>
+
+      <Card style={{ marginTop: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <SectionTitle right="SET YOUR PACE">Score calculator</SectionTitle>
+          <Chip onClick={() => setEditCalc(true)}>EDIT</Chip>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 32, padding: "8px 4px 4px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            {[
+              ["Workouts / week", "workouts", workouts, 0, 10, 1, v => `${v}`],
+              ["Sessions with coach / week", "sessions", sessions, 0, 7, 1, v => `${v}`],
+              ["Protein target days / week", "proteinDays", proteinDays, 0, 7, 1, v => `${v}`],
+              ["Sleep ≥ 7h / week", "sleepNights", sleepNights, 0, 7, 1, v => `${v}`],
+              ["Programs purchased (active)", "programsOwned", programsOwned, 0, 10, 1, v => `${v}`],
+              ["Meal plans purchased (active)", "mealPlansOwned", mealPlansOwned, 0, 10, 1, v => `${v}`],
+            ].map(([label, key, val, min, max, step, fmtV]) => (
+              <div key={key}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                  <span style={{ fontSize: 12.5, color: "rgba(242,237,228,0.7)" }}>{label}</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, color: INK }}>{fmtV(val)}</span>
+                </div>
+                <input type="range" min={min} max={max} step={step} value={val}
+                  onChange={e => setState({ ...state, calc: { ...calc, [key]: +e.target.value } })}
+                  onMouseUp={e => persist({ ...state, calc: { ...calc, [key]: +e.target.value } })}
+                  onTouchEnd={e => persist({ ...state, calc: { ...calc, [key]: +e.target.value } })}
+                  style={{ width: "100%", accentColor: "#1ec0a8", cursor: "pointer" }} />
+              </div>
+            ))}
+            <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", lineHeight: 1.5, marginTop: 4 }}>
+              Projected points based on your weekly activity. Each purchased program (+{PTS.programBoost}/wk) and meal plan (+{PTS.mealPlanBoost}/wk) unlocks bonus logging streams. Weekly review auto-adds {PTS.review} when submitted.
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignSelf: "start" }}>
+            {[
+              ["WEEKLY POINTS", fmt(weekly), `vs ${fmt(currentWeekly)} current pace`, paceDelta],
+              ["MONTHLY POINTS", fmt(monthly), "4.33 weeks avg", null],
+              ["QUARTERLY POINTS", fmt(quarterly), "3 months at this pace", null],
+              ["ANNUAL POINTS", fmt(annual), "12 months at this pace", null],
+            ].map(([lab, val, sub, delta], i) => (
+              <div key={i} style={{ padding: 20, background: i === 0 ? "rgba(30,192,168,0.1)" : "rgba(242,237,228,0.04)", border: `1px solid ${i === 0 ? "rgba(30,192,168,0.25)" : "rgba(242,237,228,0.08)"}`, borderRadius: 10 }}>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: i === 0 ? TEAL_BRIGHT : "rgba(242,237,228,0.55)", marginBottom: 10 }}>{lab}</div>
+                <div style={{ fontFamily: serif, fontSize: 32, letterSpacing: "-0.02em", lineHeight: 1 }}>{val}</div>
+                <div style={{ fontSize: 11, color: "rgba(242,237,228,0.55)", marginTop: 6 }}>
+                  {delta != null ? (
+                    <span style={{ color: delta >= 0 ? TEAL_BRIGHT : "#ff8a6d" }}>{delta >= 0 ? "+" : ""}{fmt(delta)} </span>
+                  ) : null}
+                  {sub}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      <Card style={{ marginTop: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <SectionTitle right="THIS QUARTER">Momentum</SectionTitle>
+          <Chip onClick={() => setEditMomentum(true)}>EDIT</Chip>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 20, padding: "12px 4px" }}>
+          {momentum.map((m,i)=>(
+            <div key={i}>
+              <div style={{ fontFamily: serif, fontSize: 36, letterSpacing: "-0.02em", lineHeight: 1 }}>{m[0]}</div>
+              <div style={{ fontSize: 12.5, marginTop: 8 }}>{m[1]}</div>
+              <div style={{ fontSize: 11, color: "rgba(242,237,228,0.5)", marginTop: 2 }}>{m[2]}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {editGoalIdx != null && (
+        <GoalEditModal
+          goal={editGoalIdx === "new" ? null : goals[editGoalIdx]}
+          onClose={() => setEditGoalIdx(null)}
+          onSave={saveGoal}
+          onDelete={editGoalIdx === "new" ? null : deleteGoal}
+        />
+      )}
+      {editCalc && (
+        <CalcEditModal
+          calc={calc}
+          labels={[["workouts","Workouts / week"],["sessions","Sessions with coach / week"],["proteinDays","Protein target days / week"],["sleepNights","Sleep ≥7h nights / week"],["programsOwned","Programs purchased (active)"],["mealPlansOwned","Meal plans purchased (active)"],["currentWeekly","Current weekly points"]]}
+          onClose={() => setEditCalc(false)}
+          onSave={c => { setEditCalc(false); persist({ ...state, calc: c }); }}
+        />
+      )}
+      {editMomentum && (
+        <MomentumEditModal
+          momentum={momentum}
+          onClose={() => setEditMomentum(false)}
+          onSave={m => { setEditMomentum(false); persist({ ...state, momentum: m }); }}
+        />
+      )}
+      {toast && (
+        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: INK, color: PAPER, padding: "12px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, zIndex: 10000, boxShadow: "0 10px 40px rgba(0,0,0,0.5)" }}>{toast}</div>
+      )}
+    </DashPage>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.Fragment>
+    <ClientGoalPage />
+    <ChatWidget tabs={clientChatTabs} />
+  </React.Fragment>
+);
+</script>
+</body>
+</html>
