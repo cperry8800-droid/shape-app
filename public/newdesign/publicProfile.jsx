@@ -774,6 +774,13 @@ const FONT_PAIRS = {
   "rozha-manrope":    { label: "Rozha · Manrope",            serif: "'Rozha One', serif",           sans: "'Manrope', sans-serif" },
 };
 
+const MUSIC_PRESETS = {
+  "lift":    { label: "Lift",    url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", hint: "Heavy, driving" },
+  "run":     { label: "Run",     url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3", hint: "Steady cadence" },
+  "recover": { label: "Recover", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-11.mp3", hint: "Low and slow" },
+  "calm":    { label: "Calm",    url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3", hint: "Ambient warm-up" },
+};
+
 const THEME_DEFAULTS = /*EDITMODE-BEGIN*/{
   "coverKey": "gym-floor",
   "coverUrl": "",
@@ -785,7 +792,11 @@ const THEME_DEFAULTS = /*EDITMODE-BEGIN*/{
   "fontScale": 100,
   "brandName": "",
   "brandTagline": "",
-  "bgScope": "cover"
+  "bgScope": "cover",
+  "bgMusicEnabled": false,
+  "bgMusicKey": "",
+  "bgMusicUrl": "",
+  "bgMusicLabel": ""
 }/*EDITMODE-END*/;
 
 function readStoredTheme(kind) {
@@ -1077,6 +1088,33 @@ function ThemeTweaksPanel({ theme, onChange, onUploadCover, onReset, hostVisible
         <input type="text" value={theme.brandTagline} onChange={(e) => setKey("brandTagline", e.target.value)} placeholder="Short tagline (optional)" style={{ marginTop: 6, width: "100%", boxSizing: "border-box", padding: "9px 10px", background: "rgba(242,237,228,0.05)", color: "#f2ede4", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, fontSize: 12, fontFamily: "'Space Grotesk', sans-serif" }}/>
       </TweakGroup>
 
+      <TweakGroup label="Background music">
+        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginBottom: 10 }}>
+          <input type="checkbox" checked={!!theme.bgMusicEnabled} onChange={(e) => setKey("bgMusicEnabled", e.target.checked)} style={{ accentColor: theme.accent }}/>
+          <span style={{ fontSize: 12 }}>Play a track while visitors browse</span>
+        </label>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6, marginBottom: 8 }}>
+          {Object.entries(MUSIC_PRESETS).map(([key, m]) => {
+            const active = theme.bgMusicKey === key && !theme.bgMusicUrl;
+            return (
+              <button key={key} onClick={() => onChange({ bgMusicKey: key, bgMusicUrl: "", bgMusicLabel: m.label, bgMusicEnabled: true })} style={{
+                textAlign: "left", padding: "8px 10px", borderRadius: 6,
+                background: active ? "rgba(30,192,168,0.14)" : "rgba(242,237,228,0.04)",
+                color: "#f2ede4",
+                border: active ? `1px solid ${theme.accent}` : "1px solid rgba(242,237,228,0.1)",
+                fontSize: 11.5, fontFamily: "'Space Grotesk', sans-serif", cursor: "pointer", lineHeight: 1.25,
+              }}>
+                <div style={{ fontWeight: 500 }}>{m.label}</div>
+                <div style={{ fontSize: 10, color: "rgba(242,237,228,0.5)" }}>{m.hint}</div>
+              </button>
+            );
+          })}
+        </div>
+        <input type="text" value={theme.bgMusicUrl} onChange={(e) => onChange({ bgMusicUrl: e.target.value, bgMusicKey: e.target.value ? "" : theme.bgMusicKey })} placeholder="Custom track URL (mp3)" style={{ width: "100%", boxSizing: "border-box", padding: "9px 10px", background: "rgba(242,237,228,0.05)", color: "#f2ede4", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, fontSize: 12, fontFamily: "'Space Grotesk', sans-serif" }}/>
+        <input type="text" value={theme.bgMusicLabel} onChange={(e) => setKey("bgMusicLabel", e.target.value)} placeholder="Track name (shown on player)" style={{ marginTop: 6, width: "100%", boxSizing: "border-box", padding: "9px 10px", background: "rgba(242,237,228,0.05)", color: "#f2ede4", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, fontSize: 12, fontFamily: "'Space Grotesk', sans-serif" }}/>
+        <div style={{ fontSize: 10, color: "rgba(242,237,228,0.4)", marginTop: 6, lineHeight: 1.4 }}>Visitors tap play in the corner — browsers block auto-starting audio.</div>
+      </TweakGroup>
+
       <div style={{ fontSize: 10, color: "rgba(242,237,228,0.4)", marginTop: 12, lineHeight: 1.4 }}>Changes save automatically to this browser. Your clients see the final look.</div>
     </div>
   );
@@ -1097,6 +1135,56 @@ function TweakSlider({ label, value, min, max, onChange, suffix }) {
         <span>{label}</span><span>{value}{suffix}</span>
       </div>
       <input type="range" min={min} max={max} value={value} onChange={(e) => onChange(+e.target.value)} style={{ width: "100%", accentColor: "#1ec0a8" }}/>
+    </div>
+  );
+}
+
+function BackgroundMusicPlayer({ theme }) {
+  const src = theme.bgMusicUrl || (theme.bgMusicKey && MUSIC_PRESETS[theme.bgMusicKey]?.url) || "";
+  const label = theme.bgMusicLabel || (theme.bgMusicKey && MUSIC_PRESETS[theme.bgMusicKey]?.label) || "Background track";
+  const audioRef = React.useRef(null);
+  const [playing, setPlaying] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!audioRef.current) return;
+    audioRef.current.pause();
+    setPlaying(false);
+  }, [src]);
+
+  if (!theme.bgMusicEnabled || !src) return null;
+
+  const toggle = () => {
+    const el = audioRef.current;
+    if (!el) return;
+    if (el.paused) { el.play().then(() => setPlaying(true)).catch(() => setPlaying(false)); }
+    else { el.pause(); setPlaying(false); }
+  };
+
+  return (
+    <div style={{
+      position: "fixed", bottom: 24, left: 24, zIndex: 49,
+      display: "flex", alignItems: "center", gap: 10,
+      padding: "10px 14px 10px 10px", borderRadius: 999,
+      background: "#1a1612", color: "#f2ede4",
+      border: "1px solid rgba(242,237,228,0.15)",
+      boxShadow: "0 20px 50px rgba(0,0,0,0.4)",
+      fontFamily: "'Space Grotesk', sans-serif", fontSize: 12,
+    }}>
+      <button onClick={toggle} aria-label={playing ? "Pause" : "Play"} style={{
+        width: 34, height: 34, borderRadius: 999,
+        background: theme.accent, color: "#1a1612",
+        border: 0, cursor: "pointer",
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+      }}>
+        {playing
+          ? <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+          : <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>}
+      </button>
+      <div style={{ lineHeight: 1.2 }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.16em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>{playing ? "Now playing" : "Press play"}</div>
+        <div style={{ fontSize: 12.5 }}>{label}</div>
+      </div>
+      <audio ref={audioRef} src={src} loop preload="none" />
     </div>
   );
 }
@@ -1141,6 +1229,7 @@ function PublicProfilePage({ kind }) {
         <FAQSection p={p} />
         <FinalCTA p={p} kind={kind} />
         <Footer />
+        <BackgroundMusicPlayer theme={theme} />
         <ThemeTweaksPanel theme={theme} onChange={patchTheme} onReset={resetTheme} hostVisible={tweaksVisible}/>
       </div>
     </ThemedShell>
