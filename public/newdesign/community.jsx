@@ -27,7 +27,7 @@ const STORIES = [
 function CommunityHeroBg() {
   return (
     <>
-      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Home%20page%203.png')", backgroundSize: "cover", backgroundPosition: "center 55%", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/intro/community%203.png')", backgroundSize: "cover", backgroundPosition: "center 55%", pointerEvents: "none" }} />
       {/* Light overlay — the sunset already has gorgeous tonal range, don't crush it */}
       <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.55) 0%, rgba(26,22,18,0.15) 35%, rgba(26,22,18,0.25) 65%, rgba(26,22,18,0.85) 95%, rgba(26,22,18,1) 100%)", pointerEvents: "none" }} />
     </>
