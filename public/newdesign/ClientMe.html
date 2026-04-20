@@ -21,12 +21,15 @@
 <script type="text/babel" src="trainerDashboard.jsx"></script>
 <script type="text/babel" src="clientNav.jsx"></script>
 <script type="text/babel">
-function Row({ label, value, action }) {
+function Row({ label, value, action, onAction }) {
+  const chipStyle = { fontSize: 12, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", cursor: "pointer", background: "transparent", border: 0, padding: "4px 8px", margin: "-4px -8px", borderRadius: 6 };
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 12, alignItems: "center", padding: "14px 0", borderTop: "1px solid rgba(242,237,228,0.06)" }}>
       <div style={{ fontSize: 13.5, color: "rgba(242,237,228,0.6)" }}>{label}</div>
       <div style={{ fontSize: 13.5 }}>{value}</div>
-      {action && <span style={{ fontSize: 12, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", cursor: "pointer" }}>{action}</span>}
+      {action && (onAction
+        ? <button onClick={onAction} onMouseOver={e => e.currentTarget.style.background = "rgba(46,224,196,0.08)"} onMouseOut={e => e.currentTarget.style.background = "transparent"} style={chipStyle}>{action}</button>
+        : <span style={{ ...chipStyle, cursor: "default", opacity: 0.5 }}>{action}</span>)}
     </div>
   );
 }
@@ -58,8 +61,49 @@ const SAMPLE_PROFILE = {
   strava: "priya-s · public",
   website: "",
   youtube: "",
-  twitter: "@priyas"
+  twitter: "@priyas",
+  profileVisibility: "Community only",
+  shareDataWithCoaches: "All metrics",
+  communityPosts: true,
+  coachMessages: "Push + email",
+  weeklyDigest: "Sunday 8am",
+  marketingEmails: false,
+  appleHealth: true,
+  whoop: true,
+  stravaConnected: false,
+  myFitnessPal: false,
+  garmin: false
 };
+
+function SingleFieldModal({ label, fieldKey, initialValue, onClose, onSaved }) {
+  const [val, setVal] = React.useState(initialValue == null ? "" : String(initialValue));
+  const [saving, setSaving] = React.useState(false);
+  const [err, setErr] = React.useState(null);
+  async function save() {
+    setSaving(true); setErr(null);
+    onSaved(fieldKey, val, (errMsg) => { setSaving(false); if (errMsg) setErr(errMsg); else onClose(); });
+  }
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,8,6,0.7)", backdropFilter: "blur(6px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: PAPER, border: "1px solid rgba(242,237,228,0.1)", borderRadius: 14, padding: 28, width: "100%", maxWidth: 480 }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>EDIT · {label.toUpperCase()}</div>
+        <div style={{ fontFamily: serif, fontSize: 28, letterSpacing: "-0.02em", margin: "6px 0 20px", color: INK }}>{label}.</div>
+        <input
+          autoFocus
+          value={val}
+          onChange={e => setVal(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter") save(); }}
+          style={{ width: "100%", background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.14)", color: INK, padding: "12px 14px", borderRadius: 6, fontFamily: "'Space Grotesk', sans-serif", fontSize: 14 }}
+        />
+        {err && <div style={{ color: "#e07856", fontSize: 13, marginTop: 14 }}>{err}</div>}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>
+          <button onClick={onClose} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+          <button disabled={saving} onClick={save} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: saving ? "wait" : "pointer", opacity: saving ? 0.6 : 1 }}>{saving ? "Saving…" : "Save"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function EditProfileModal({ initial, onClose, onSaved }) {
   const [form, setForm] = React.useState(initial || {});
@@ -121,7 +165,38 @@ function ClientMePage() {
   const [loaded, setLoaded] = React.useState(false);
   const [signedIn, setSignedIn] = React.useState(false);
   const [editOpen, setEditOpen] = React.useState(false);
+  const [fieldEdit, setFieldEdit] = React.useState(null); // { key, label }
   const [toast, setToast] = React.useState(null);
+
+  function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 2500); }
+
+  async function persist(next) {
+    if (window.shapeDb && window.shapeDb.saveClientProfile) {
+      const res = await window.shapeDb.saveClientProfile(next);
+      if (res && res.error) return res.error.message || "Save failed";
+    }
+    return null;
+  }
+
+  async function saveField(key, value, done) {
+    const next = { ...profile, [key]: value };
+    const err = await persist(next);
+    if (err) { done(err); return; }
+    setProfile(next);
+    showToast(signedIn ? "Saved." : "Sample view — sign in to save.");
+    done(null);
+  }
+
+  async function toggleField(key) {
+    const next = { ...profile, [key]: !profile[key] };
+    setProfile(next);
+    const err = await persist(next);
+    showToast(err ? err : (signedIn ? "Saved." : "Sample view — sign in to save."));
+  }
+
+  function openField(key, label) {
+    setFieldEdit({ key, label });
+  }
 
   React.useEffect(() => {
     (async () => {
@@ -248,77 +323,77 @@ function ClientMePage() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
         <Card>
           <SectionTitle>Profile</SectionTitle>
-          <Row label="Name" value={p.displayName || "—"} action="EDIT" />
-          <Row label="Email" value={p.email || "—"} action="EDIT" />
-          <Row label="Phone" value={p.phone || "—"} action="EDIT" />
-          <Row label="Location" value={p.location || "—"} action="EDIT" />
-          <Row label="Birthday" value={p.birthday || "—"} />
-          <Row label="Height / weight" value={p.heightWeight || "—"} action="UPDATE" />
+          <Row label="Name" value={p.displayName || "—"} action="EDIT" onAction={() => openField("displayName", "Name")} />
+          <Row label="Email" value={p.email || "—"} action="EDIT" onAction={() => openField("email", "Email")} />
+          <Row label="Phone" value={p.phone || "—"} action="EDIT" onAction={() => openField("phone", "Phone")} />
+          <Row label="Location" value={p.location || "—"} action="EDIT" onAction={() => openField("location", "Location")} />
+          <Row label="Birthday" value={p.birthday || "—"} action="EDIT" onAction={() => openField("birthday", "Birthday")} />
+          <Row label="Height / weight" value={p.heightWeight || "—"} action="UPDATE" onAction={() => openField("heightWeight", "Height / weight")} />
         </Card>
 
         <Card>
           <SectionTitle>Plan &amp; billing</SectionTitle>
-          <Row label="Shape Platform" value="$5 / month" action="MANAGE" />
-          <Row label="Maya — Strength + hybrid" value="$220 / month" action="MANAGE" />
-          <Row label="Rae — Performance fuel" value="$180 / month" action="MANAGE" />
+          <Row label="Shape Platform" value="$5 / month" action="MANAGE" onAction={() => window.location.href = "/pricing"} />
+          <Row label="Maya — Strength + hybrid" value="$220 / month" action="MANAGE" onAction={() => window.location.href = "/pricing"} />
+          <Row label="Rae — Performance fuel" value="$180 / month" action="MANAGE" onAction={() => window.location.href = "/pricing"} />
           <Row label="Total monthly" value="$405" />
           <Row label="Next charge" value="May 4, 2026" />
-          <Row label="Payment method" value="Visa •••• 4290" action="UPDATE" />
+          <Row label="Payment method" value="Visa •••• 4290" action="UPDATE" onAction={() => window.location.href = "/pricing"} />
         </Card>
 
         <Card>
           <SectionTitle>Connected apps</SectionTitle>
-          <Row label="Apple Health" value="Connected" action="DISCONNECT" />
-          <Row label="Whoop" value="Connected · syncing" action="DISCONNECT" />
-          <Row label="Strava" value="Not connected" action="CONNECT" />
-          <Row label="MyFitnessPal" value="Not connected" action="CONNECT" />
-          <Row label="Garmin" value="Not connected" action="CONNECT" />
+          <Row label="Apple Health" value={p.appleHealth ? "Connected" : "Not connected"} action={p.appleHealth ? "DISCONNECT" : "CONNECT"} onAction={() => toggleField("appleHealth")} />
+          <Row label="Whoop" value={p.whoop ? "Connected · syncing" : "Not connected"} action={p.whoop ? "DISCONNECT" : "CONNECT"} onAction={() => toggleField("whoop")} />
+          <Row label="Strava" value={p.stravaConnected ? "Connected" : "Not connected"} action={p.stravaConnected ? "DISCONNECT" : "CONNECT"} onAction={() => toggleField("stravaConnected")} />
+          <Row label="MyFitnessPal" value={p.myFitnessPal ? "Connected" : "Not connected"} action={p.myFitnessPal ? "DISCONNECT" : "CONNECT"} onAction={() => toggleField("myFitnessPal")} />
+          <Row label="Garmin" value={p.garmin ? "Connected" : "Not connected"} action={p.garmin ? "DISCONNECT" : "CONNECT"} onAction={() => toggleField("garmin")} />
         </Card>
 
         <Card>
           <SectionTitle>Nutrition preferences</SectionTitle>
-          <Row label="Dietary style" value={p.dietaryStyle || "—"} action="EDIT" />
-          <Row label="Allergies &amp; intolerances" value={p.allergies || "—"} action="EDIT" />
-          <Row label="Dislikes" value={p.dislikes || "—"} action="EDIT" />
-          <Row label="Protein target" value={p.proteinTarget || "—"} action="EDIT" />
-          <Row label="Calorie range" value={p.calorieRange || "—"} action="CHANGE" />
-          <Row label="Meal cadence" value={p.mealCadence || "—"} action="EDIT" />
-          <Row label="Kitchen &amp; cooking" value={p.kitchen || "—"} action="EDIT" />
-          <Row label="Supplements" value={p.supplements || "—"} action="EDIT" />
-          <Row label="Alcohol" value={p.alcohol || "—"} action="EDIT" />
-          <Row label="Hydration target" value={p.hydrationTarget || "—"} action="EDIT" />
+          <Row label="Dietary style" value={p.dietaryStyle || "—"} action="EDIT" onAction={() => openField("dietaryStyle", "Dietary style")} />
+          <Row label="Allergies &amp; intolerances" value={p.allergies || "—"} action="EDIT" onAction={() => openField("allergies", "Allergies & intolerances")} />
+          <Row label="Dislikes" value={p.dislikes || "—"} action="EDIT" onAction={() => openField("dislikes", "Dislikes")} />
+          <Row label="Protein target" value={p.proteinTarget || "—"} action="EDIT" onAction={() => openField("proteinTarget", "Protein target")} />
+          <Row label="Calorie range" value={p.calorieRange || "—"} action="CHANGE" onAction={() => openField("calorieRange", "Calorie range")} />
+          <Row label="Meal cadence" value={p.mealCadence || "—"} action="EDIT" onAction={() => openField("mealCadence", "Meal cadence")} />
+          <Row label="Kitchen &amp; cooking" value={p.kitchen || "—"} action="EDIT" onAction={() => openField("kitchen", "Kitchen & cooking")} />
+          <Row label="Supplements" value={p.supplements || "—"} action="EDIT" onAction={() => openField("supplements", "Supplements")} />
+          <Row label="Alcohol" value={p.alcohol || "—"} action="EDIT" onAction={() => openField("alcohol", "Alcohol")} />
+          <Row label="Hydration target" value={p.hydrationTarget || "—"} action="EDIT" onAction={() => openField("hydrationTarget", "Hydration target")} />
         </Card>
 
         <Card>
           <SectionTitle>Training preferences</SectionTitle>
-          <Row label="Primary goal" value={p.primaryGoal || "—"} action="EDIT" />
-          <Row label="Experience" value={p.experience || "—"} action="EDIT" />
-          <Row label="Sessions / week" value={p.sessionsPerWeek || "—"} action="EDIT" />
-          <Row label="Equipment access" value={p.equipmentAccess || "—"} action="EDIT" />
-          <Row label="Injuries &amp; notes" value={p.injuries || "—"} action="EDIT" />
-          <Row label="Preferred training times" value={p.preferredTimes || "—"} action="EDIT" />
+          <Row label="Primary goal" value={p.primaryGoal || "—"} action="EDIT" onAction={() => openField("primaryGoal", "Primary goal")} />
+          <Row label="Experience" value={p.experience || "—"} action="EDIT" onAction={() => openField("experience", "Experience")} />
+          <Row label="Sessions / week" value={p.sessionsPerWeek || "—"} action="EDIT" onAction={() => openField("sessionsPerWeek", "Sessions / week")} />
+          <Row label="Equipment access" value={p.equipmentAccess || "—"} action="EDIT" onAction={() => openField("equipmentAccess", "Equipment access")} />
+          <Row label="Injuries &amp; notes" value={p.injuries || "—"} action="EDIT" onAction={() => openField("injuries", "Injuries & notes")} />
+          <Row label="Preferred training times" value={p.preferredTimes || "—"} action="EDIT" onAction={() => openField("preferredTimes", "Preferred training times")} />
         </Card>
 
         <Card>
           <SectionTitle>Privacy &amp; notifications</SectionTitle>
-          <Row label="Profile visibility" value="Community only" action="CHANGE" />
-          <Row label="Share data with coaches" value="All metrics" action="CHANGE" />
-          <Row label="Community posts" value="On" action="TOGGLE" />
-          <Row label="Coach messages" value="Push + email" action="CHANGE" />
-          <Row label="Weekly digest" value="Sunday 8am" action="CHANGE" />
-          <Row label="Marketing emails" value="Off" action="TOGGLE" />
+          <Row label="Profile visibility" value={p.profileVisibility || "—"} action="CHANGE" onAction={() => openField("profileVisibility", "Profile visibility")} />
+          <Row label="Share data with coaches" value={p.shareDataWithCoaches || "—"} action="CHANGE" onAction={() => openField("shareDataWithCoaches", "Share data with coaches")} />
+          <Row label="Community posts" value={p.communityPosts ? "On" : "Off"} action="TOGGLE" onAction={() => toggleField("communityPosts")} />
+          <Row label="Coach messages" value={p.coachMessages || "—"} action="CHANGE" onAction={() => openField("coachMessages", "Coach messages")} />
+          <Row label="Weekly digest" value={p.weeklyDigest || "—"} action="CHANGE" onAction={() => openField("weeklyDigest", "Weekly digest")} />
+          <Row label="Marketing emails" value={p.marketingEmails ? "On" : "Off"} action="TOGGLE" onAction={() => toggleField("marketingEmails")} />
         </Card>
       </div>
 
       <Card style={{ marginTop: 20 }}>
         <SectionTitle>Social &amp; links</SectionTitle>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 32px" }}>
-          <Row label="Instagram" value={p.instagram || "Not connected"} action="EDIT" />
-          <Row label="TikTok" value={p.tiktok || "Not connected"} action="CONNECT" />
-          <Row label="Strava" value={p.strava || "Not connected"} action="EDIT" />
-          <Row label="Website" value={p.website || "Not added"} action="ADD" />
-          <Row label="YouTube" value={p.youtube || "Not connected"} action="CONNECT" />
-          <Row label="Twitter / X" value={p.twitter || "Not connected"} action="EDIT" />
+          <Row label="Instagram" value={p.instagram || "Not connected"} action="EDIT" onAction={() => openField("instagram", "Instagram")} />
+          <Row label="TikTok" value={p.tiktok || "Not connected"} action={p.tiktok ? "EDIT" : "CONNECT"} onAction={() => openField("tiktok", "TikTok")} />
+          <Row label="Strava" value={p.strava || "Not connected"} action="EDIT" onAction={() => openField("strava", "Strava")} />
+          <Row label="Website" value={p.website || "Not added"} action={p.website ? "EDIT" : "ADD"} onAction={() => openField("website", "Website")} />
+          <Row label="YouTube" value={p.youtube || "Not connected"} action={p.youtube ? "EDIT" : "CONNECT"} onAction={() => openField("youtube", "YouTube")} />
+          <Row label="Twitter / X" value={p.twitter || "Not connected"} action="EDIT" onAction={() => openField("twitter", "Twitter / X")} />
         </div>
       </Card>
 
@@ -335,10 +410,18 @@ function ClientMePage() {
           initial={profile}
           onClose={() => setEditOpen(false)}
           onSaved={(next) => {
-            setProfile(p => ({ ...p, ...next }));
-            setToast(signedIn ? "Profile saved." : "Sign in to save changes.");
-            setTimeout(() => setToast(null), 2500);
+            setProfile(prev => ({ ...prev, ...next }));
+            showToast(signedIn ? "Profile saved." : "Sign in to save changes.");
           }}
+        />
+      )}
+      {fieldEdit && (
+        <SingleFieldModal
+          label={fieldEdit.label}
+          fieldKey={fieldEdit.key}
+          initialValue={profile[fieldEdit.key]}
+          onClose={() => setFieldEdit(null)}
+          onSaved={saveField}
         />
       )}
       {toast && (
