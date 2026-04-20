@@ -24,7 +24,7 @@ const DEFAULT_GOALS_STATE = {
     { t: "Publish 2 new programs",        cur: 1, tgt: 2, sub: "Return-to-lifting shipping next week" },
     { t: "95% avg client adherence",      cur: 92, tgt: 95, sub: "30d rolling · +3 pts needed", pct: true },
   ],
-  calc: { rate: 85, spw: 22, prog: 400, currentWeekly: 4620 },
+  calc: { rate: 85, spw: 22, prog: 400, workoutSales: 300, currentWeekly: 4620 },
   momentum: [
     ["+11","Net new clients","vs +6 last Q"],
     ["+$3.4k","MRR growth","vs +$1.8k last Q"],
@@ -185,9 +185,9 @@ function TrainerGoalPage() {
   }
 
   const { goals, calc, momentum } = state;
-  const { rate, spw, prog, currentWeekly } = calc;
+  const { rate, spw, prog, workoutSales = 0, currentWeekly } = calc;
   const SHAPE_FEE = 0.15;
-  const grossWeekly = rate*spw + prog;
+  const grossWeekly = rate*spw + prog + workoutSales;
   const weekly = grossWeekly * (1 - SHAPE_FEE);
   const monthly = weekly * 4.33;
   const quarterly = monthly * 3;
@@ -240,23 +240,25 @@ function TrainerGoalPage() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 32, padding: "8px 4px 4px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
             {[
-              ["Session rate", rate, v => persist({ ...state, calc: { ...calc, rate: v } }), 20, 300, 5, v => `$${v}`],
-              ["Sessions / week", spw, v => persist({ ...state, calc: { ...calc, spw: v } }), 0, 60, 1, v => `${v}`],
-              ["Program sales / week", prog, v => persist({ ...state, calc: { ...calc, prog: v } }), 0, 5000, 50, v => `$${v}`],
-            ].map(([label, val, set, min, max, step, fmtV], i) => (
-              <div key={i}>
+              ["Session rate", "rate", rate, 20, 300, 5, v => `$${v}`],
+              ["Sessions / week", "spw", spw, 0, 60, 1, v => `${v}`],
+              ["Program subscriptions / week", "prog", prog, 0, 5000, 50, v => `$${v}`],
+              ["One-time workout sales / week", "workoutSales", workoutSales, 0, 5000, 25, v => `$${v}`],
+            ].map(([label, key, val, min, max, step, fmtV]) => (
+              <div key={key}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                   <span style={{ fontSize: 12.5, color: "rgba(242,237,228,0.7)" }}>{label}</span>
                   <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, color: INK }}>{fmtV(val)}</span>
                 </div>
                 <input type="range" min={min} max={max} step={step} value={val}
-                  onChange={e => setState({ ...state, calc: { ...calc, [i === 0 ? "rate" : i === 1 ? "spw" : "prog"]: +e.target.value } })}
-                  onMouseUp={e => set(+e.target.value)} onTouchEnd={e => set(+e.target.value)}
+                  onChange={e => setState({ ...state, calc: { ...calc, [key]: +e.target.value } })}
+                  onMouseUp={e => persist({ ...state, calc: { ...calc, [key]: +e.target.value } })}
+                  onTouchEnd={e => persist({ ...state, calc: { ...calc, [key]: +e.target.value } })}
                   style={{ width: "100%", accentColor: "#1ec0a8", cursor: "pointer" }} />
               </div>
             ))}
             <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", lineHeight: 1.5, marginTop: 4 }}>
-              Based on your rate, weekly sessions, and program sales. Numbers shown are <strong style={{ color: INK }}>take-home</strong> after Shape's 15% platform fee. Gross this week: <span style={{ color: INK }}>{fmt(grossWeekly)}</span>.
+              Based on session earnings, program subscriptions, and one-time workout sales. Numbers shown are <strong style={{ color: INK }}>take-home</strong> after Shape's 15% platform fee. Gross this week: <span style={{ color: INK }}>{fmt(grossWeekly)}</span>.
             </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignSelf: "start" }}>
@@ -308,7 +310,7 @@ function TrainerGoalPage() {
       {editCalc && (
         <CalcEditModal
           calc={calc}
-          labels={[["rate","Session rate ($)"],["spw","Sessions / week"],["prog","Program sales / week ($)"],["currentWeekly","Current weekly pace ($)"]]}
+          labels={[["rate","Session rate ($)"],["spw","Sessions / week"],["prog","Program subscriptions / week ($)"],["workoutSales","One-time workout sales / week ($)"],["currentWeekly","Current weekly pace ($)"]]}
           onClose={() => setEditCalc(false)}
           onSave={c => { setEditCalc(false); persist({ ...state, calc: c }); }}
         />

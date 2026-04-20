@@ -10,10 +10,11 @@ function clientNavItems(active) {
     { label: "Team",      href: "ClientTeam.html", count: 2 },
     { label: "Community", href: "ClientCommunity.html" },
     { label: "Score",     href: "ClientScore.html" },
+    { label: "Goal",      href: "ClientGoal.html" },
     { label: "Me",        href: "ClientMe.html" },
   ];
   return items.map(n => ({ ...n, active: n.label.toLowerCase() === active.toLowerCase() }));
 }
-const clientPayoutCard = { label: "SHAPE SCORE", amount: "1,284", sub: "Tempo · 216 to Peak" };
+const clientPayoutCard = { label: "SHAPE SCORE", amount: "1,284", sub: "Tempo · 3,716 to Peak" };
 
 Object.assign(window, { clientNavItems, clientPayoutCard });

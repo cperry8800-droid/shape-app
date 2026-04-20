@@ -24,7 +24,7 @@ const DEFAULT_GOALS_STATE = {
     { t: "Publish 2 new plans",          cur: 0, tgt: 2, sub: "Plant-forward v2 in draft" },
     { t: "92% avg log adherence",        cur: 89, tgt: 92, sub: "30d rolling · +3 pts needed", pct: true },
   ],
-  calc: { consult: 120, cpw: 14, subs: 32, subPrice: 49, currentWeekly: 2595 },
+  calc: { consult: 120, cpw: 14, subs: 32, subPrice: 49, mealPlans: 200, currentWeekly: 2595 },
   momentum: [
     ["+7","Net new clients","vs +4 last Q"],
     ["+$2.1k","MRR growth","vs +$1.2k last Q"],
@@ -185,9 +185,9 @@ function NutritionistGoalPage() {
   }
 
   const { goals, calc, momentum } = state;
-  const { consult, cpw, subs, subPrice, currentWeekly } = calc;
+  const { consult, cpw, subs, subPrice, mealPlans = 0, currentWeekly } = calc;
   const SHAPE_FEE = 0.15;
-  const grossWeekly = consult*cpw + (subs*subPrice)/4.33;
+  const grossWeekly = consult*cpw + (subs*subPrice)/4.33 + mealPlans;
   const weekly = grossWeekly * (1 - SHAPE_FEE);
   const monthly = weekly * 4.33;
   const quarterly = monthly * 3;
@@ -244,6 +244,7 @@ function NutritionistGoalPage() {
               ["Consults / week", "cpw", cpw, 0, 40, 1, v => `${v}`],
               ["Meal plan subscribers", "subs", subs, 0, 500, 1, v => `${v}`],
               ["Subscription price / mo", "subPrice", subPrice, 9, 199, 5, v => `$${v}`],
+              ["One-time meal plan sales / week", "mealPlans", mealPlans, 0, 3000, 25, v => `$${v}`],
             ].map(([label, key, val, min, max, step, fmtV], i) => (
               <div key={i}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
@@ -258,7 +259,7 @@ function NutritionistGoalPage() {
               </div>
             ))}
             <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", lineHeight: 1.5, marginTop: 4 }}>
-              Based on your consult rate, weekly bookings, and meal plan subscribers. Numbers shown are <strong style={{ color: INK }}>take-home</strong> after Shape's 15% platform fee. Gross this week: <span style={{ color: INK }}>{fmt(grossWeekly)}</span>.
+              Based on consult bookings, meal plan subscriptions, and one-time plan sales. Numbers shown are <strong style={{ color: INK }}>take-home</strong> after Shape's 15% platform fee. Gross this week: <span style={{ color: INK }}>{fmt(grossWeekly)}</span>.
             </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignSelf: "start" }}>
@@ -310,7 +311,7 @@ function NutritionistGoalPage() {
       {editCalc && (
         <CalcEditModal
           calc={calc}
-          labels={[["consult","Consult rate ($)"],["cpw","Consults / week"],["subs","Meal plan subscribers"],["subPrice","Subscription price ($)"],["currentWeekly","Current weekly pace ($)"]]}
+          labels={[["consult","Consult rate ($)"],["cpw","Consults / week"],["subs","Meal plan subscribers"],["subPrice","Subscription price ($)"],["mealPlans","One-time meal plan sales / week ($)"],["currentWeekly","Current weekly pace ($)"]]}
           onClose={() => setEditCalc(false)}
           onSave={c => { setEditCalc(false); persist({ ...state, calc: c }); }}
         />
