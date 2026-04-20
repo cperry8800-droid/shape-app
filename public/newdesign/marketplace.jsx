@@ -138,7 +138,7 @@ function Spotlight({ tab }) {
 }
 
 function MarketplaceHeroBg({ tab }) {
-  const src = tab === "Trainer" ? "/Training%201.png" : "/Nutrition%202.png";
+  const src = tab === "Trainer" ? "/Training%202.png" : "/Nutrition%202.png";
   // Trainer image has strong sunset highlights — needs heavier darkening than the nutrition shot.
   const overlay = tab === "Trainer"
     ? "linear-gradient(180deg, rgba(26,22,18,0.7) 0%, rgba(26,22,18,0.35) 35%, rgba(26,22,18,0.5) 65%, rgba(26,22,18,0.92) 92%, rgba(26,22,18,1) 100%)"
