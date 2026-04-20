@@ -388,8 +388,9 @@ function SamplesSection({ p, kind }) {
   );
 }
 
-function PackageCard({ pk, kind }) {
+function PackageCard({ pk, kind, samples }) {
   const [inPerson, setInPerson] = React.useState(false);
+  const [previewOpen, setPreviewOpen] = React.useState(false);
   const hasAlt = pk.altPrice && pk.altLabel;
   const displayPrice = inPerson && hasAlt ? pk.altPrice : pk.price;
   const role = kind === "trainer" ? "trainer" : "nutritionist";
@@ -397,6 +398,7 @@ function PackageCard({ pk, kind }) {
   const buyHref = pk.kind === "subscription"
     ? `/subscribe?role=${role}&id=${encodeURIComponent(providerId)}`
     : `/purchase?role=${role}&kind=booking&id=${encodeURIComponent(providerId)}`;
+  const canPreview = pk.kind === "one-time" && Array.isArray(samples) && samples.length > 0;
   return (
     <div style={{
       background: pk.featured ? INK : "rgba(242,237,228,0.04)",
@@ -448,6 +450,65 @@ function PackageCard({ pk, kind }) {
         fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer",
         textAlign: "center", textDecoration: "none", display: "inline-block",
       }}>{pk.kind === "subscription" ? "Subscribe" : "Buy now"}</a>
+      {canPreview && (
+        <button onClick={() => setPreviewOpen(true)} style={{
+          marginTop: 10,
+          padding: "10px 16px",
+          borderRadius: 8,
+          background: "transparent",
+          color: pk.featured ? "rgba(26,22,18,0.75)" : "rgba(242,237,228,0.75)",
+          border: 0,
+          fontFamily: sans, fontSize: 12.5, fontWeight: 500, cursor: "pointer",
+          textAlign: "center",
+          textDecoration: "underline",
+          textUnderlineOffset: 3,
+        }}>Preview a sample →</button>
+      )}
+      {previewOpen && canPreview && (
+        <SamplePreviewModal samples={samples} kind={kind} pkName={pk.name} onClose={() => setPreviewOpen(false)} />
+      )}
+    </div>
+  );
+}
+
+function SamplePreviewModal({ samples, kind, pkName, onClose }) {
+  const [tab, setTab] = React.useState(0);
+  const s = samples[tab];
+  const heading = kind === "trainer" ? "Sample workout" : "Sample meal plan";
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,8,6,0.78)", backdropFilter: "blur(8px)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#14110e", color: INK, borderRadius: 14, maxWidth: 780, width: "100%", maxHeight: "88vh", overflow: "auto", border: "1px solid rgba(242,237,228,0.1)", boxShadow: "0 40px 80px rgba(0,0,0,0.6)" }}>
+        <div style={{ padding: "26px 30px 20px", borderBottom: "1px solid rgba(242,237,228,0.08)", display: "flex", justifyContent: "space-between", alignItems: "start", gap: 20, position: "sticky", top: 0, background: "#14110e", zIndex: 1 }}>
+          <div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 8 }}>{heading} · {pkName}</div>
+            <div style={{ fontFamily: serif, fontSize: 28, letterSpacing: "-0.02em", color: INK, lineHeight: 1.1 }}>{s.title}</div>
+            <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)", marginTop: 6 }}>{s.meta}</div>
+          </div>
+          <button onClick={onClose} aria-label="Close preview" style={{ flex: "none", background: "transparent", border: 0, color: "rgba(242,237,228,0.6)", fontSize: 24, cursor: "pointer", padding: 4, lineHeight: 1 }}>×</button>
+        </div>
+        {samples.length > 1 && (
+          <div style={{ padding: "14px 30px 0", display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {samples.map((x, i) => (
+              <button key={i} onClick={() => setTab(i)} style={{ padding: "7px 14px", borderRadius: 999, background: tab === i ? INK : "rgba(242,237,228,0.04)", color: tab === i ? PAPER : "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.08)", fontFamily: sans, fontSize: 12, cursor: "pointer", fontWeight: tab === i ? 500 : 400 }}>{x.title.split(" — ")[0]}</button>
+            ))}
+          </div>
+        )}
+        <div style={{ padding: "10px 0 18px" }}>
+          <span style={{ display: "inline-block", margin: "6px 30px 16px", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, padding: "5px 10px", background: "rgba(30,192,168,0.1)", color: TEAL, borderRadius: 4, letterSpacing: "0.06em", textTransform: "uppercase" }}>{s.tag}</span>
+          {s.blocks.map((b, i) => (
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "72px 1fr 1.2fr 1.4fr", gap: 16, padding: "14px 30px", borderTop: "1px solid rgba(242,237,228,0.06)", alignItems: "center" }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: TEAL, letterSpacing: "0.06em" }}>{b.label}</div>
+              <div style={{ fontFamily: sans, fontSize: 14.5, color: INK, fontWeight: 500 }}>{b.name}</div>
+              <div style={{ fontFamily: sans, fontSize: 13.5, color: "rgba(242,237,228,0.82)" }}>{b.detail}</div>
+              <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.55)", fontStyle: "italic" }}>{b.note}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ padding: "16px 30px 24px", borderTop: "1px solid rgba(242,237,228,0.08)", background: "rgba(242,237,228,0.02)", fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.6)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+          <span>This is a sample — your purchase gets a full, written {kind === "trainer" ? "workout" : "plan"} delivered to your library.</span>
+          <button onClick={onClose} style={{ padding: "10px 18px", borderRadius: 8, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.2)", fontFamily: sans, fontSize: 12.5, fontWeight: 500, cursor: "pointer" }}>Close</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -468,7 +529,7 @@ function PackagesSection({ p, kind }) {
               <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.55)" }}>Buy once, keep access forever.</div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${oneTime.length}, 1fr)`, gap: 16, marginBottom: 48 }}>
-              {oneTime.map((pk, i) => <PackageCard key={i} pk={pk} kind={kind} />)}
+              {oneTime.map((pk, i) => <PackageCard key={i} pk={pk} kind={kind} samples={p.samples} />)}
             </div>
           </>
         )}
@@ -481,7 +542,7 @@ function PackagesSection({ p, kind }) {
               <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.55)" }}>Custom-built for you each month.</div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${subs.length}, minmax(280px, 420px))`, gap: 16, justifyContent: "start" }}>
-              {subs.map((pk, i) => <PackageCard key={i} pk={pk} kind={kind} />)}
+              {subs.map((pk, i) => <PackageCard key={i} pk={pk} kind={kind} samples={p.samples} />)}
             </div>
           </>
         )}
