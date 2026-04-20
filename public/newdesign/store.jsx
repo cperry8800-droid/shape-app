@@ -45,7 +45,7 @@ const UNLOCKED = [
 function StoreHeroBg() {
   return (
     <>
-      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Rewards.png')", backgroundSize: "cover", backgroundPosition: "center center", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/intro/Shape%20store.png')", backgroundSize: "cover", backgroundPosition: "center center", pointerEvents: "none" }} />
       <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.7) 0%, rgba(26,22,18,0.5) 40%, rgba(26,22,18,0.65) 70%, rgba(26,22,18,1) 100%)", pointerEvents: "none" }} />
     </>
   );
