@@ -21,10 +21,10 @@
 <script type="text/babel">
 function ClientScorePage() {
   const tiers = [
-    ["Raw",    "0 – 500",     "Starting out",           false],
-    ["Tempo",  "500 – 1,500", "Building rhythm",         true],
-    ["Peak",   "1,500 – 3,000","Consistent performer",  false],
-    ["Legend", "3,000+",      "Top 1%",                 false],
+    ["Raw",    "0 – 1,000",      "Starting out",           false],
+    ["Tempo",  "1,000 – 5,000",  "Building rhythm",         true],
+    ["Peak",   "5,000 – 15,000", "Consistent performer",   false],
+    ["Legend", "15,000+",        "Top 1%",                 false],
   ];
   const breakdown = [
     ["Workouts logged",   420, "14d streak · +8 this week"],
@@ -42,7 +42,7 @@ function ClientScorePage() {
       payoutCard={clientPayoutCard}
       eyebrow="SHAPE SCORE · UPDATED NIGHTLY"
       title="1,284"
-      subtitle="You're in Tempo. 216 points to Peak — that's about 4 weeks at your current pace."
+      subtitle="You're in Tempo. 3,716 points to Peak — that's about 16 weeks at your current pace."
       actions={<>
         <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>How it works</button>
         <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Leaderboard</button>
@@ -61,10 +61,10 @@ function ClientScorePage() {
           ))}
         </div>
         <div style={{ marginTop: 22, display: "flex", justifyContent: "space-between", fontSize: 11, color: "rgba(242,237,228,0.55)", fontFamily: "'JetBrains Mono', monospace" }}>
-          <span>1,284</span><span>PEAK AT 1,500</span>
+          <span>1,284</span><span>PEAK AT 5,000</span>
         </div>
         <div style={{ height: 6, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden", marginTop: 6 }}>
-          <div style={{ height: "100%", width: "85%", background: TEAL, borderRadius: 999 }} />
+          <div style={{ height: "100%", width: "25.7%", background: TEAL, borderRadius: 999 }} />
         </div>
       </Card>
 
@@ -91,17 +91,17 @@ function ClientScorePage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <Card>
             <SectionTitle>This week's gains</SectionTitle>
-            <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", lineHeight: 1 }}>+84</div>
-            <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>vs 62 last week</div>
+            <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", lineHeight: 1 }}>+36</div>
+            <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>vs 28 last week</div>
             <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.08)", display: "grid", gap: 8, fontSize: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "rgba(242,237,228,0.55)" }}>4 workouts logged</span><span>+32</span></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "rgba(242,237,228,0.55)" }}>Squat PR</span><span>+40</span></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "rgba(242,237,228,0.55)" }}>Community kudos</span><span>+12</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "rgba(242,237,228,0.55)" }}>Squat PR</span><span>+12</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "rgba(242,237,228,0.55)" }}>Community kudos</span><span>+4</span></div>
             </div>
           </Card>
           <Card style={{ background: "rgba(30,192,168,0.06)", border: "1px solid rgba(30,192,168,0.25)" }}>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>SHORTEST PATH TO PEAK</div>
-            <div style={{ fontSize: 14, lineHeight: 1.55, color: "rgba(242,237,228,0.85)" }}>3 more workouts + 1 PR this week gets you to 1,412. Keep adherence above 90% and you hit Peak in ~4 weeks.</div>
+            <div style={{ fontSize: 14, lineHeight: 1.55, color: "rgba(242,237,228,0.85)" }}>3 more workouts + 1 PR this week gets you to 1,332. Hold adherence above 90% and Peak arrives in ~16 weeks.</div>
           </Card>
         </div>
       </div>

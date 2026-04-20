@@ -16,23 +16,23 @@
 <script type="text/babel" src="coachNav.jsx"></script>
 <script type="text/babel">
 function TrainerScorePage() {
-  const tiers = [["Raw","0–500","Just getting started",false],["Tempo","500–1,500","Consistent coach",false],["Peak","1,500–3,000","Top performer",true],["Legend","3,000+","Top 1% of coaches",false]];
+  const tiers = [["Raw","0–1,000","Just getting started",false],["Tempo","1,000–5,000","Consistent coach",false],["Peak","5,000–15,000","Top performer",true],["Legend","15,000+","Top 1% of coaches",false]];
   const breakdown = [
-    ["Active clients",        620, "34 clients · +11 this Q"],
-    ["Client adherence",      420, "92% 30d avg"],
-    ["Session completion",    380, "96% 30d avg"],
-    ["Client PRs attributed", 280, "42 in last 90d"],
-    ["Programs published",    140, "5 live · 1 trending"],
-    ["Reviews",               220, "4.97 · 1,284 reviews"],
-    ["Radio hosted",           80, "3 rooms last month"],
-    ["Community endorsements",120, "38 coach co-signs"],
+    ["Active clients",        1760, "34 clients · +11 this Q"],
+    ["Client adherence",      1200, "92% 30d avg"],
+    ["Session completion",    1080, "96% 30d avg"],
+    ["Client PRs attributed",  800, "42 in last 90d"],
+    ["Programs published",     400, "5 live · 1 trending"],
+    ["Reviews",                620, "4.97 · 1,284 reviews"],
+    ["Radio hosted",           220, "3 rooms last month"],
+    ["Community endorsements", 340, "38 coach co-signs"],
   ];
   return (
     <DashPage
       navItems={trainerNavItems("score")}
       payoutCard={trainerPayoutCard}
       eyebrow="COACH SCORE · PEAK"
-      title="2,260"
+      title="6,420"
       subtitle="Top 4% of trainers on Shape. Scores drive marketplace ranking, verified badge, and payout tier."
       actions={<>
         <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>How it works</button>
@@ -53,7 +53,7 @@ function TrainerScorePage() {
       </Card>
       <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 20 }}>
         <Card>
-          <SectionTitle right="TOTAL 2,260">Score breakdown</SectionTitle>
+          <SectionTitle right="TOTAL 6,420">Score breakdown</SectionTitle>
           {breakdown.map(([l,v,sub],i)=>{
             const w = (v / Math.max(...breakdown.map(b=>b[1]))) * 100;
             return (
@@ -83,7 +83,7 @@ function TrainerScorePage() {
           </Card>
           <Card style={{ background: "rgba(30,192,168,0.06)", border: "1px solid rgba(30,192,168,0.25)" }}>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>PATH TO LEGEND</div>
-            <div style={{ fontSize: 14, lineHeight: 1.55, color: "rgba(242,237,228,0.85)" }}>740 more points. Top levers: add 8 clients (+160), hit 95% adherence (+80), publish 2 programs (+160).</div>
+            <div style={{ fontSize: 14, lineHeight: 1.55, color: "rgba(242,237,228,0.85)" }}>8,580 more points. Top levers: add 10 clients (+450), hit 95% adherence (+220), publish 2 programs (+450).</div>
           </Card>
         </div>
       </div>

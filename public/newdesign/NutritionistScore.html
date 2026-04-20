@@ -16,23 +16,23 @@
 <script type="text/babel" src="coachNav.jsx"></script>
 <script type="text/babel">
 function NutritionistScorePage() {
-  const tiers = [["Raw","0–500","Just getting started",false],["Tempo","500–1,500","Consistent nutritionist",false],["Peak","1,500–3,000","Top performer",true],["Legend","3,000+","Top 1%",false]];
+  const tiers = [["Raw","0–1,000","Just getting started",false],["Tempo","1,000–5,000","Consistent nutritionist",false],["Peak","5,000–15,000","Top performer",true],["Legend","15,000+","Top 1%",false]];
   const breakdown = [
-    ["Active clients",        480, "28 clients · +7 this Q"],
-    ["Log adherence",         360, "89% 30d avg"],
-    ["Client body-comp wins", 320, "18 clients hit targets"],
-    ["Plans published",       140, "5 live · 1 trending"],
-    ["Reviews",               200, "4.94 · 612 reviews"],
-    ["Radio hosted",          100, "2 rooms last month"],
-    ["Coach collaborations",  140, "24 trainer co-signs"],
-    ["Referrals in",          200, "14 clients from trainers"],
+    ["Active clients",        1320, "28 clients · +7 this Q"],
+    ["Log adherence",          990, "89% 30d avg"],
+    ["Client body-comp wins",  880, "18 clients hit targets"],
+    ["Plans published",        390, "5 live · 1 trending"],
+    ["Reviews",                550, "4.94 · 612 reviews"],
+    ["Radio hosted",           280, "2 rooms last month"],
+    ["Coach collaborations",   390, "24 trainer co-signs"],
+    ["Referrals in",           540, "14 clients from trainers"],
   ];
   return (
     <DashPage
       navItems={nutriNavItems("score")}
       payoutCard={nutriPayoutCard}
       eyebrow="COACH SCORE · PEAK"
-      title="1,940"
+      title="5,340"
       subtitle="Top 7% of nutritionists on Shape. Score drives marketplace ranking, verified badge, and payout tier."
       actions={<>
         <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>How it works</button>
@@ -53,7 +53,7 @@ function NutritionistScorePage() {
       </Card>
       <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 20 }}>
         <Card>
-          <SectionTitle right="TOTAL 1,940">Score breakdown</SectionTitle>
+          <SectionTitle right="TOTAL 5,340">Score breakdown</SectionTitle>
           {breakdown.map(([l,v,sub],i)=>{
             const w = (v / Math.max(...breakdown.map(b=>b[1]))) * 100;
             return (
@@ -83,7 +83,7 @@ function NutritionistScorePage() {
           </Card>
           <Card style={{ background: "rgba(30,192,168,0.06)", border: "1px solid rgba(30,192,168,0.25)" }}>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>PATH TO LEGEND</div>
-            <div style={{ fontSize: 14, lineHeight: 1.55, color: "rgba(242,237,228,0.85)" }}>1,060 more points. Top levers: add 10 clients (+180), hit 95% log adherence (+120), publish 2 plans (+140).</div>
+            <div style={{ fontSize: 14, lineHeight: 1.55, color: "rgba(242,237,228,0.85)" }}>9,660 more points. Top levers: add 10 clients (+500), hit 95% log adherence (+330), publish 2 plans (+390).</div>
           </Card>
         </div>
       </div>

@@ -2,22 +2,22 @@
 const { useState: useSScore } = React;
 
 const SCORE_TOTAL = 1284;
-const SCORE_GOAL = 1500;
+const SCORE_GOAL = 5000;
 const STREAK = 14;
 const TIER = "Tempo";
 const NEXT_TIER = "Peak";
-const POINTS_TO_NEXT = 216;
+const POINTS_TO_NEXT = 3716;
 
 const LEDGER = [
-  { d: "Apr 18", t: "Session kept · Maya Okafor", p: 32, k: "session" },
-  { d: "Apr 18", t: "Morning mobility logged", p: 6, k: "habit" },
-  { d: "Apr 17", t: "Protein target hit · 3rd day", p: 14, k: "nutrition" },
-  { d: "Apr 17", t: "Session kept · Rae Lindqvist", p: 28, k: "session" },
-  { d: "Apr 16", t: "Sleep ≥ 7h", p: 8, k: "recovery" },
-  { d: "Apr 16", t: "Upper pull logged", p: 22, k: "workout" },
-  { d: "Apr 15", t: "Weekly review submitted", p: 40, k: "milestone" },
-  { d: "Apr 15", t: "Steps ≥ 8,000", p: 6, k: "habit" },
-  { d: "Apr 14", t: "Session kept · Maya Okafor", p: 32, k: "session" },
+  { d: "Apr 18", t: "Session kept · Maya Okafor", p: 14, k: "session" },
+  { d: "Apr 18", t: "Morning mobility logged", p: 3, k: "habit" },
+  { d: "Apr 17", t: "Protein target hit · 3rd day", p: 5, k: "nutrition" },
+  { d: "Apr 17", t: "Session kept · Rae Lindqvist", p: 13, k: "session" },
+  { d: "Apr 16", t: "Sleep ≥ 7h", p: 3, k: "recovery" },
+  { d: "Apr 16", t: "Upper pull logged", p: 9, k: "workout" },
+  { d: "Apr 15", t: "Weekly review submitted", p: 15, k: "milestone" },
+  { d: "Apr 15", t: "Steps ≥ 8,000", p: 2, k: "habit" },
+  { d: "Apr 14", t: "Session kept · Maya Okafor", p: 14, k: "session" },
 ];
 
 const REWARDS = [
@@ -38,8 +38,8 @@ const HEATMAP = Array.from({ length: 84 }, (_, i) => {
 const TIERS = [
   { name: "Raw", min: 0, color: "rgba(242,237,228,0.35)" },
   { name: "Tempo", min: 1000, color: "rgba(242,237,228,0.85)", current: true },
-  { name: "Peak", min: 1500, color: "#0a7463" },
-  { name: "Legend", min: 3000, color: "#0ac5a8" },
+  { name: "Peak", min: 5000, color: "#0a7463" },
+  { name: "Legend", min: 15000, color: "#0ac5a8" },
 ];
 
 function ScoreHero() {
@@ -89,9 +89,9 @@ function ScoreHero() {
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0, marginTop: 56, borderTop: "1px solid rgba(242,237,228,0.15)", borderBottom: "1px solid rgba(242,237,228,0.15)" }}>
           {[
-            ["+82", "Points this week", "vs 71 last"],
+            ["+36", "Points this week", "vs 32 last"],
             [`${STREAK}d`, "Current streak", "personal best 22d"],
-            [TIER, "Tier", `${POINTS_TO_NEXT} to ${NEXT_TIER}`],
+            [TIER, "Tier", `${POINTS_TO_NEXT.toLocaleString()} to ${NEXT_TIER}`],
             ["940", "Available to spend", "344 reserved"],
           ].map(([k, l, s], i) => (
             <div key={i} style={{ padding: "28px 24px", borderLeft: i ? "1px solid rgba(242,237,228,0.08)" : "none" }}>
@@ -112,11 +112,11 @@ function ScoreTiers() {
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>Tiers</div>
         <h2 style={{ fontFamily: serif, fontSize: 56, letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 40px", lineHeight: 1 }}>
-          You're <em style={{ fontStyle: "italic", color: TEAL }}>Tempo</em>. 216 to Peak.
+          You're <em style={{ fontStyle: "italic", color: TEAL }}>Tempo</em>. 3,716 to Peak.
         </h2>
         <div style={{ position: "relative", padding: "40px 0" }}>
           <div style={{ position: "absolute", left: 0, right: 0, top: "50%", height: 2, background: "rgba(242,237,228,0.12)", transform: "translateY(-50%)" }} />
-          <div style={{ position: "absolute", left: 0, top: "50%", height: 2, background: TEAL, transform: "translateY(-50%)", width: `${(SCORE_TOTAL / 3000) * 100}%` }} />
+          <div style={{ position: "absolute", left: 0, top: "50%", height: 2, background: TEAL, transform: "translateY(-50%)", width: `${(SCORE_TOTAL / 15000) * 100}%` }} />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", position: "relative" }}>
             {TIERS.map((t, i) => {
               const reached = SCORE_TOTAL >= t.min;
@@ -185,13 +185,13 @@ function ScoreActivity() {
           <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>How you earn</div>
           <h3 style={{ fontFamily: serif, fontSize: 32, letterSpacing: "-0.02em", fontWeight: 400, margin: "8px 0 24px", color: PAPER }}>Points, by action.</h3>
           {[
-            ["Session kept", "with a coach", "25–40"],
-            ["Workout logged", "solo or programmed", "15–25"],
-            ["Protein target hit", "daily goal", "12"],
-            ["Sleep ≥ 7 hours", "wearable-verified", "8"],
-            ["Habit streak", "any logged habit", "5–10"],
-            ["Weekly review", "submitted on time", "40"],
-            ["New PR logged", "any lift or run", "30"],
+            ["Session kept", "with a coach", "12–18"],
+            ["Workout logged", "solo or programmed", "6–10"],
+            ["Protein target hit", "daily goal", "5"],
+            ["Sleep ≥ 7 hours", "wearable-verified", "3"],
+            ["Habit streak", "any logged habit", "2–4"],
+            ["Weekly review", "submitted on time", "15"],
+            ["New PR logged", "any lift or run", "12"],
           ].map(([k, sub, p], i) => (
             <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 16, padding: "12px 0", borderTop: i ? "1px solid rgba(26,22,18,0.1)" : "none", alignItems: "baseline" }}>
               <div>
