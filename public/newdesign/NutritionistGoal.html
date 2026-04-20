@@ -186,14 +186,14 @@ function NutritionistGoalPage() {
 
   const { goals, calc, momentum } = state;
   const { consult, cpw, subs, subPrice, mealPlans = 0, currentWeekly } = calc;
-  const SHAPE_FEE = 0.20;
+  const PLATFORM_FEE_MONTHLY = 20;
   const grossWeekly = consult*cpw + (subs*subPrice)/4.33 + mealPlans;
-  const weekly = grossWeekly * (1 - SHAPE_FEE);
-  const monthly = weekly * 4.33;
+  const monthly = grossWeekly * 4.33 - PLATFORM_FEE_MONTHLY;
+  const weekly = monthly / 4.33;
   const quarterly = monthly * 3;
   const annual = monthly * 12;
   const fmt = n => "$" + Math.round(n).toLocaleString();
-  const currentNet = currentWeekly * (1 - SHAPE_FEE);
+  const currentNet = currentWeekly - (PLATFORM_FEE_MONTHLY / 4.33);
   const paceDelta = weekly - currentNet;
 
   return (
@@ -259,7 +259,7 @@ function NutritionistGoalPage() {
               </div>
             ))}
             <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", lineHeight: 1.5, marginTop: 4 }}>
-              Based on consult bookings, meal plan subscriptions, and one-time plan sales. Numbers shown are <strong style={{ color: INK }}>take-home</strong> after Shape's 20% platform fee. Gross this week: <span style={{ color: INK }}>{fmt(grossWeekly)}</span>.
+              Based on consult bookings, meal plan subscriptions, and one-time plan sales. Numbers shown are <strong style={{ color: INK }}>take-home</strong> after Shape's flat $20/month platform fee (first 60 days free). Gross this week: <span style={{ color: INK }}>{fmt(grossWeekly)}</span>.
             </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignSelf: "start" }}>
