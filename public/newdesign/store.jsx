@@ -215,42 +215,6 @@ function UnlockedCoupons() {
   );
 }
 
-function StoreFeatured() {
-  return (
-    <section style={{ padding: "100px 40px", background: INK, color: PAPER }}>
-      <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.2fr", gap: 80, alignItems: "center" }}>
-        <div>
-          <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Members-only drop</div>
-          <h2 style={{ fontFamily: serif, fontSize: 76, letterSpacing: "-0.035em", fontWeight: 400, margin: "0 0 20px", lineHeight: 0.95, color: PAPER }}>
-            Shape × <em style={{ fontStyle: "italic", color: TEAL }}>Away</em><br/>training duffel.
-          </h2>
-          <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.55, color: "rgba(26,22,18,0.7)", maxWidth: 460 }}>
-            Gold-tier exclusive. Water-resistant canvas, separated shoe compartment, laptop sleeve. Keep earning — 280 points to unlock.
-          </p>
-          <div style={{ display: "flex", gap: 28, marginTop: 32, paddingTop: 24, borderTop: "1px solid rgba(26,22,18,0.12)", fontFamily: sans }}>
-            <div>
-              <div style={{ fontFamily: serif, fontSize: 40, letterSpacing: "-0.02em", color: PAPER, lineHeight: 1 }}>1,640 pts</div>
-              <div style={{ fontSize: 12, color: "rgba(26,22,18,0.55)", marginTop: 6 }}>Or $195 retail</div>
-            </div>
-            <div>
-              <div style={{ fontFamily: serif, fontSize: 40, letterSpacing: "-0.02em", color: PAPER, lineHeight: 1 }}>84 left</div>
-              <div style={{ fontSize: 12, color: "rgba(26,22,18,0.55)", marginTop: 6 }}>Of 250 produced</div>
-            </div>
-          </div>
-          <button style={{ marginTop: 28, padding: "14px 24px", borderRadius: 6, background: TEAL, color: PAPER, border: 0, fontFamily: sans, fontSize: 14, fontWeight: 500, cursor: "pointer" }}>See full collection →</button>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, aspectRatio: "5/4" }}>
-          <Ph label="Duffel · hero" ratio="auto" tone="dark" style={{ borderRadius: 6, height: "100%" }} />
-          <div style={{ display: "grid", gridTemplateRows: "1fr 1fr", gap: 12 }}>
-            <Ph label="Detail · 01" ratio="auto" tone="dark" style={{ borderRadius: 6 }} />
-            <Ph label="Detail · 02" ratio="auto" tone="dark" style={{ borderRadius: 6 }} />
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function StoreFAQ() {
   const faqs = [
     ["Do points expire?", "No. Points earned in Shape Score never expire. Redemption codes, once unlocked, carry the expiry you see on the coupon."],
@@ -299,7 +263,6 @@ function StorePage() {
         <StoreHero />
         <StoreGrid />
         <UnlockedCoupons />
-        <StoreFeatured />
         <StoreFAQ />
         <Footer />
       </div>
