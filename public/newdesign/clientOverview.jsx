@@ -9,7 +9,7 @@ const LIGHT = "#e9efed";
 function ClientOvHeroBg() {
   return (
     <>
-      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/client%20dash.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Home%20page%202.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
       <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(6,8,10,0.55) 0%, rgba(6,8,10,0.72) 55%, #06080a 100%)", pointerEvents: "none" }} />
       <div aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(900px 500px at 80% 20%, rgba(30,192,168,0.10), transparent 60%)", pointerEvents: "none" }} />
     </>
