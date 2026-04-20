@@ -186,6 +186,35 @@
       return res.data;
     },
 
+    // Load the client's long-form profile JSON (basic info, goals, metrics,
+    // nutrition, social, privacy, visibility, messaging, macro split, tags).
+    // Returns `{}` if there's no row yet, or `null` if not signed in.
+    async getClientProfile() {
+      var u = await shapeDb.getUser();
+      if (!u) return null;
+      var res = await client.from('client_profiles').select('data').eq('user_id', u.id).maybeSingle();
+      if (res.error) {
+        console.warn('[shape] getClientProfile error', res.error);
+        return null;
+      }
+      return (res.data && res.data.data) || {};
+    },
+
+    // Upsert the client's profile JSON. Requires a logged-in session.
+    async saveClientProfile(data) {
+      var u = await shapeDb.getUser();
+      if (!u) return { error: { message: 'Not logged in' } };
+      var res = await client.from('client_profiles').upsert({
+        user_id: u.id,
+        data: data || {}
+      }, { onConflict: 'user_id' });
+      if (res.error) {
+        console.warn('[shape] saveClientProfile error', res.error);
+        return { error: res.error };
+      }
+      return { ok: true };
+    },
+
     // Guard a dashboard page.
     // - No session → return { demo: true } so the page can render a sample view.
     // - Logged in with wrong role → bounce to their own dashboard.
