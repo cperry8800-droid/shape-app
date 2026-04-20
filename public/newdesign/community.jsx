@@ -47,7 +47,7 @@ function Events() {
   const cities = ["All cities", ...new Set(EVENTS.map(e => e.city))];
   const list = city === "All cities" ? EVENTS : EVENTS.filter(e => e.city === city);
   return (
-    <section style={{ padding: "80px 40px", borderTop: "1px solid rgba(242,237,228,0.12)" }}>
+    <section id="events" style={{ padding: "80px 40px", borderTop: "1px solid rgba(242,237,228,0.12)", scrollMarginTop: 100 }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", marginBottom: 40 }}>
           <div>
@@ -151,8 +151,8 @@ function CTA() {
           Join the <em style={{ fontStyle: "italic", color: TEAL }}>community</em>.
         </h2>
         <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-          <button style={{ background: INK, color: PAPER, border: 0, padding: "16px 28px", borderRadius: 6, fontFamily: sans, fontWeight: 500, fontSize: 15, cursor: "pointer" }}>Find your coach →</button>
-          <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "16px 28px", borderRadius: 6, fontFamily: sans, fontWeight: 500, fontSize: 15, cursor: "pointer" }}>Browse events</button>
+          <a href="Marketplace.html" style={{ background: INK, color: PAPER, border: 0, padding: "16px 28px", borderRadius: 6, fontFamily: sans, fontWeight: 500, fontSize: 15, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Find your coach →</a>
+          <a href="#events" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "16px 28px", borderRadius: 6, fontFamily: sans, fontWeight: 500, fontSize: 15, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Browse events</a>
         </div>
       </div>
     </section>
