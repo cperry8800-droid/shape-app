@@ -131,21 +131,28 @@ function TrainerHow() {
 function TrainerEarnings() {
   const [clients, setClients] = React.useState(20);
   const [price, setPrice] = React.useState(120);
-  const SHAPE_FEE = 0.15;
+  const SHAPE_FEE = 0.20;
   const grossMonthly = clients * price * 4;
-  const monthly = Math.round(grossMonthly * (1 - SHAPE_FEE));
+  const feeMonthly = Math.round(grossMonthly * SHAPE_FEE);
+  const monthly = grossMonthly - feeMonthly;
   const yearly = monthly * 12;
   return (
     <section style={{ padding: "140px 40px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.1fr", gap: 80, alignItems: "center" }}>
         <div>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Earnings</div>
-          <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5vw, 76px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 28px", lineHeight: 0.98, color: INK }}>Set your <em style={{ fontStyle: "italic", color: TEAL }}>price.</em></h2>
-          <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.7)", lineHeight: 1.6, margin: "0 0 36px", maxWidth: 500 }}>
-            You price every session, program, and one-time workout sale. Shape takes a flat <strong style={{ color: INK }}>15%</strong> of what you earn — no per-booking surprises, no tiered fees. The rest lands in your account on payout day.
+          <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5vw, 76px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 28px", lineHeight: 0.98, color: INK }}>Set your price. <em style={{ fontStyle: "italic", color: TEAL }}>Get paid weekly.</em></h2>
+          <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.7)", lineHeight: 1.6, margin: "0 0 28px", maxWidth: 500 }}>
+            Shape takes a flat <strong style={{ color: INK }}>20% platform fee</strong> on everything you earn through the app — sessions, program sales, tips, subscriptions. That's it. No tiered commissions, no per-booking add-ons, no surprise deductions.
           </p>
+          <div style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 10, padding: "22px 24px", marginBottom: 28, maxWidth: 500 }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 10 }}>What the 20% covers</div>
+            <div style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.75)", lineHeight: 1.55 }}>
+              Payment processing, client acquisition through the Shape marketplace, in-app messaging and video, program hosting, and liability coverage. One flat rate, no surprise add-ons.
+            </div>
+          </div>
           <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 14 }}>
-            {["Flat 15% platform fee — no hidden per-booking deductions", "Weekly payouts to your bank, or instant for 1%", "Tips, program sales, and subscription revenue all included", "1099 tax docs auto-generated every January"].map(t => (
+            {["Link your existing Stripe account, or set one up in 5 minutes", "Weekly payouts direct to your bank", "One flat rate across sessions, program sales, and subscriptions"].map(t => (
               <li key={t} style={{ fontFamily: sans, fontSize: 14.5, color: "rgba(242,237,228,0.78)", display: "flex", gap: 12, alignItems: "baseline" }}>
                 <span style={{ color: TEAL }}>→</span>{t}
               </li>
@@ -153,7 +160,7 @@ function TrainerEarnings() {
           </ul>
         </div>
         <div style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 14, padding: 44 }}>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL, marginBottom: 32 }}>Estimate your earnings</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL, marginBottom: 32 }}>Estimate your take-home</div>
 
           <div style={{ marginBottom: 32 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
@@ -171,22 +178,26 @@ function TrainerEarnings() {
             <input type="range" min="40" max="300" step="5" value={price} onChange={e => setPrice(+e.target.value)} style={{ width: "100%", accentColor: TEAL }} />
           </div>
 
-          <div style={{ padding: "28px 0 0", borderTop: "1px solid rgba(242,237,228,0.1)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
-              <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)" }}>Monthly take-home</div>
+          <div style={{ padding: "22px 0 0", borderTop: "1px solid rgba(242,237,228,0.1)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+              <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)" }}>Gross monthly</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, color: "rgba(242,237,228,0.75)" }}>${grossMonthly.toLocaleString()}</div>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingBottom: 18, borderBottom: "1px dashed rgba(242,237,228,0.12)" }}>
+              <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)" }}>Shape fee (20%)</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, color: "rgba(242,237,228,0.55)" }}>-${feeMonthly.toLocaleString()}</div>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 18 }}>
+              <div style={{ fontFamily: sans, fontSize: 13, color: INK }}>Your take-home</div>
               <div style={{ fontFamily: serif, fontSize: 56, color: INK, letterSpacing: "-0.035em", lineHeight: 1 }}>${monthly.toLocaleString()}</div>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 10 }}>
               <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.45)" }}>Annualized</div>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, color: TEAL }}>${yearly.toLocaleString()}/yr</div>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.45)" }}>Gross before Shape fee</div>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, color: "rgba(242,237,228,0.55)" }}>${grossMonthly.toLocaleString()}/mo</div>
-            </div>
           </div>
           <div style={{ marginTop: 28, fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.4)", lineHeight: 1.5 }}>
-            Estimate assumes 4 sessions per client per month, net of Shape's 15% platform fee. Actual earnings vary by specialty, location, and hours worked.
+            Estimate assumes 4 sessions per client per month. Actual earnings vary by specialty, location, and hours worked.
           </div>
         </div>
       </div>
