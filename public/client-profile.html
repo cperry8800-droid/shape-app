@@ -1053,8 +1053,6 @@
   <div class="toast" id="toast"></div>
 
   <script src="app.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase.js"></script>
   <script>
     // ===== Edit Mode Toggle =====
     function toggleEdit(sectionId) {
@@ -1246,72 +1244,6 @@
       data.fatSlider = document.getElementById('fatSlider').value;
 
       localStorage.setItem('shapeClientProfile', JSON.stringify(data));
-      if (window.shapeDb && window.shapeDb.saveClientProfile) {
-        window.shapeDb.saveClientProfile(data).catch(function(e){ console.warn('[shape] remote save failed', e); });
-      }
-    }
-
-    function applyProfileData(data) {
-      if (!data) return;
-      Object.keys(data).forEach(key => {
-        if (['workoutTypes','allergyTags','privacy','visibility','messaging','proteinSlider','carbsSlider','fatSlider'].includes(key)) return;
-        const el = document.querySelector('[data-key="' + key + '"]');
-        if (el) {
-          el.value = data[key];
-          const display = el.closest('.cp-field') && el.closest('.cp-field').querySelector('.cp-field-value');
-          if (display) {
-            let val = data[key];
-            if (key === 'calorieTarget') val = Number(val).toLocaleString() + ' kcal';
-            else if (key === 'waterGoal') val = val + ' glasses/day';
-            else if (['weight','currentWeight','goalWeight'].includes(key)) val = val + ' lbs';
-            else if (['chest','waist','hips','arms','thighs'].includes(key)) val = val + ' in';
-            else if (el.tagName === 'SELECT') val = el.options[el.selectedIndex].text;
-            display.textContent = val;
-          }
-          if (key === 'displayName') {
-            const h1 = document.querySelector('.cp-id-name-row h1') || document.querySelector('.cp-name-block h1');
-            const initialsEl = document.querySelector('.cp-avatar-initials');
-            if (h1) h1.textContent = data[key];
-            if (initialsEl && data[key]) { initialsEl.textContent = data[key].split(' ').map(w => w[0]).join(''); }
-          }
-          if (key === 'username') {
-            const handle = document.querySelector('.cp-id-handle') || document.querySelector('.cp-handle');
-            if (handle) handle.textContent = '@' + data[key];
-          }
-        }
-      });
-      if (data.workoutTypes) {
-        document.querySelectorAll('#workoutTypes .cp-tag').forEach(t => {
-          t.classList.toggle('selected', data.workoutTypes.includes(t.dataset.val));
-        });
-      }
-      if (data.allergyTags) {
-        document.querySelectorAll('#allergyTags .cp-tag').forEach(t => {
-          t.classList.toggle('selected', data.allergyTags.includes(t.dataset.val));
-        });
-      }
-      if (data.privacy) {
-        Object.keys(data.privacy).forEach(key => {
-          const el = document.querySelector('[data-privacy="' + key + '"]');
-          if (el) el.checked = data.privacy[key];
-        });
-      }
-      if (data.visibility) {
-        document.querySelectorAll('#visibilitySelect .cp-visibility-option').forEach(o => {
-          o.classList.toggle('active', o.dataset.vis === data.visibility);
-        });
-      }
-      if (data.messaging) {
-        document.querySelectorAll('#messagingSelect .cp-visibility-option').forEach(o => {
-          o.classList.toggle('active', o.dataset.msg === data.messaging);
-        });
-        localStorage.setItem('shapeMessagingSetting', data.messaging);
-      }
-      if (data.proteinSlider) document.getElementById('proteinSlider').value = data.proteinSlider;
-      if (data.carbsSlider) document.getElementById('carbsSlider').value = data.carbsSlider;
-      if (data.fatSlider) document.getElementById('fatSlider').value = data.fatSlider;
-      updateMacros();
-      _cpSyncAllHeroSocials();
     }
 
     function loadFromLocalStorage() {
@@ -1517,25 +1449,14 @@
     }
 
     // Init
-    (async function initProfile() {
-      let loadedRemote = false;
-      if (window.shapeDb && window.shapeDb.getClientProfile) {
-        try {
-          const remote = await window.shapeDb.getClientProfile();
-          if (remote && Object.keys(remote).length > 0) {
-            applyProfileData(remote);
-            localStorage.setItem('shapeClientProfile', JSON.stringify(remote));
-            loadedRemote = true;
-          }
-        } catch(e) { console.warn('[shape] remote load failed', e); }
-      }
-      if (!loadedRemote) loadFromLocalStorage();
-      calcCompletion();
-      calcBMI();
-      updateMacros();
-      renderAssignedPlans();
-    })();
+    loadFromLocalStorage();
+    calcCompletion();
+    calcBMI();
+    updateMacros();
+    renderAssignedPlans();
   </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
   <script src="/pwa-install.js" defer></script>
 </body>
 </html>

@@ -13,6 +13,8 @@
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/supabase.js"></script>
 <script type="text/babel" src="pageShell.jsx"></script>
 <script type="text/babel" src="chatWidget.jsx"></script>
 <script type="text/babel" src="clientChatThreads.jsx"></script>
@@ -28,23 +30,135 @@ function Row({ label, value, action }) {
     </div>
   );
 }
+const SAMPLE_PROFILE = {
+  displayName: "Priya Shah",
+  email: "priya.shah@hey.com",
+  phone: "+1 (347) •••• 0412",
+  location: "Brooklyn, NY",
+  birthday: "Oct 4, 1993",
+  heightWeight: "5'6\" · 171 lb",
+  dietaryStyle: "Omnivore · high protein",
+  allergies: "Shellfish, tree nuts",
+  dislikes: "Cilantro, blue cheese",
+  proteinTarget: "168 g / day",
+  calorieRange: "Not tracked · by feel",
+  mealCadence: "3 meals + 1 snack",
+  kitchen: "Full kitchen · 30 min weekdays",
+  supplements: "Creatine, vitamin D, omega-3",
+  alcohol: "Socially · Fri / Sat",
+  hydrationTarget: "3.0 L / day",
+  primaryGoal: "Strength + hypertrophy",
+  experience: "Intermediate · 3 yrs barbell",
+  sessionsPerWeek: "4 · 60–75 min",
+  equipmentAccess: "Full gym · home bands + DBs",
+  injuries: "Left shoulder · avoid overhead pressing past 90°",
+  preferredTimes: "Evenings · 6–8pm",
+  instagram: "@priya.lifts",
+  tiktok: "",
+  strava: "priya-s · public",
+  website: "",
+  youtube: "",
+  twitter: "@priyas"
+};
+
+function EditProfileModal({ initial, onClose, onSaved }) {
+  const [form, setForm] = React.useState(initial || {});
+  const [saving, setSaving] = React.useState(false);
+  const [err, setErr] = React.useState(null);
+  const field = (key, label) => (
+    <label style={{ display: "grid", gap: 4 }}>
+      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "rgba(242,237,228,0.55)" }}>{label}</span>
+      <input
+        value={form[key] || ""}
+        onChange={e => setForm({ ...form, [key]: e.target.value })}
+        style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.14)", color: INK, padding: "10px 12px", borderRadius: 6, fontFamily: sans, fontSize: 13.5 }}
+      />
+    </label>
+  );
+  async function save() {
+    setSaving(true); setErr(null);
+    if (!window.shapeDb || !window.shapeDb.saveClientProfile) {
+      setErr("Supabase client not loaded."); setSaving(false); return;
+    }
+    const res = await window.shapeDb.saveClientProfile(form);
+    setSaving(false);
+    if (res && res.error) { setErr(res.error.message || "Save failed"); return; }
+    onSaved(form); onClose();
+  }
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,8,6,0.7)", backdropFilter: "blur(6px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: PAPER, border: "1px solid rgba(242,237,228,0.1)", borderRadius: 14, padding: 28, width: "100%", maxWidth: 720, maxHeight: "90vh", overflowY: "auto" }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>EDIT · PROFILE</div>
+        <div style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", margin: "6px 0 20px", color: INK }}>Your profile.</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, color: INK }}>
+          {field("displayName", "NAME")}
+          {field("email", "EMAIL")}
+          {field("phone", "PHONE")}
+          {field("location", "LOCATION")}
+          {field("birthday", "BIRTHDAY")}
+          {field("heightWeight", "HEIGHT / WEIGHT")}
+          {field("primaryGoal", "PRIMARY GOAL")}
+          {field("experience", "EXPERIENCE")}
+          {field("dietaryStyle", "DIETARY STYLE")}
+          {field("allergies", "ALLERGIES")}
+          {field("proteinTarget", "PROTEIN TARGET")}
+          {field("hydrationTarget", "HYDRATION TARGET")}
+          {field("instagram", "INSTAGRAM")}
+          {field("strava", "STRAVA")}
+        </div>
+        {err && <div style={{ color: "#e07856", fontSize: 13, marginTop: 14 }}>{err}</div>}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>
+          <button onClick={onClose} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+          <button disabled={saving} onClick={save} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: saving ? "wait" : "pointer", opacity: saving ? 0.6 : 1 }}>{saving ? "Saving…" : "Save changes"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ClientMePage() {
+  const [profile, setProfile] = React.useState(SAMPLE_PROFILE);
+  const [loaded, setLoaded] = React.useState(false);
+  const [signedIn, setSignedIn] = React.useState(false);
+  const [editOpen, setEditOpen] = React.useState(false);
+  const [toast, setToast] = React.useState(null);
+
+  React.useEffect(() => {
+    (async () => {
+      if (!window.shapeDb) { setLoaded(true); return; }
+      const user = await window.shapeDb.getUser();
+      if (!user) { setLoaded(true); return; }
+      setSignedIn(true);
+      const remote = await window.shapeDb.getClientProfile();
+      if (remote && Object.keys(remote).length > 0) {
+        setProfile(p => ({ ...p, ...remote }));
+      }
+      setLoaded(true);
+    })();
+  }, []);
+
+  async function handleLogout() {
+    if (window.shapeDb) await window.shapeDb.signOut();
+    window.location.href = "/login";
+  }
+
+  const p = profile;
   return (
     <DashPage
       navItems={clientNavItems("me")}
       payoutCard={clientPayoutCard}
       eyebrow="PROFILE · SETTINGS · BILLING"
       title="Me"
-      subtitle="Your profile, plan, payments, and how Shape uses your data."
+      subtitle={signedIn ? "Your profile, plan, payments, and how Shape uses your data." : "Sample view — sign in to load your real profile."}
       actions={<>
-        <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Log out</button>
-        <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Edit profile</button>
+        <button onClick={handleLogout} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Log out</button>
+        <button onClick={() => setEditOpen(true)} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Edit profile</button>
       </>}
     >
       {/* Hero identity card + cover + avatar */}
       <ProfileHero
-        eyebrow="MEMBER · BROOKLYN · SINCE FEB '26"
-        name="Priya Shah"
+        eyebrow={`MEMBER · ${(p.location || "—").toUpperCase()} · SINCE FEB '26`}
+        name={p.displayName || "—"}
         pills={[
           { label: "TEMPO · 1,284", tone: "teal" },
           { label: "2 COACHES" },
@@ -134,12 +248,12 @@ function ClientMePage() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
         <Card>
           <SectionTitle>Profile</SectionTitle>
-          <Row label="Name" value="Priya Shah" action="EDIT" />
-          <Row label="Email" value="priya.shah@hey.com" action="EDIT" />
-          <Row label="Phone" value="+1 (347) •••• 0412" action="EDIT" />
-          <Row label="Location" value="Brooklyn, NY" action="EDIT" />
-          <Row label="Birthday" value="Oct 4, 1993" />
-          <Row label="Height / weight" value={`5'6" · 171 lb`} action="UPDATE" />
+          <Row label="Name" value={p.displayName || "—"} action="EDIT" />
+          <Row label="Email" value={p.email || "—"} action="EDIT" />
+          <Row label="Phone" value={p.phone || "—"} action="EDIT" />
+          <Row label="Location" value={p.location || "—"} action="EDIT" />
+          <Row label="Birthday" value={p.birthday || "—"} />
+          <Row label="Height / weight" value={p.heightWeight || "—"} action="UPDATE" />
         </Card>
 
         <Card>
@@ -163,26 +277,26 @@ function ClientMePage() {
 
         <Card>
           <SectionTitle>Nutrition preferences</SectionTitle>
-          <Row label="Dietary style" value="Omnivore · high protein" action="EDIT" />
-          <Row label="Allergies &amp; intolerances" value="Shellfish, tree nuts" action="EDIT" />
-          <Row label="Dislikes" value="Cilantro, blue cheese" action="EDIT" />
-          <Row label="Protein target" value="168 g / day" action="EDIT" />
-          <Row label="Calorie range" value="Not tracked · by feel" action="CHANGE" />
-          <Row label="Meal cadence" value="3 meals + 1 snack" action="EDIT" />
-          <Row label="Kitchen &amp; cooking" value="Full kitchen · 30 min weekdays" action="EDIT" />
-          <Row label="Supplements" value="Creatine, vitamin D, omega-3" action="EDIT" />
-          <Row label="Alcohol" value="Socially · Fri / Sat" action="EDIT" />
-          <Row label="Hydration target" value="3.0 L / day" action="EDIT" />
+          <Row label="Dietary style" value={p.dietaryStyle || "—"} action="EDIT" />
+          <Row label="Allergies &amp; intolerances" value={p.allergies || "—"} action="EDIT" />
+          <Row label="Dislikes" value={p.dislikes || "—"} action="EDIT" />
+          <Row label="Protein target" value={p.proteinTarget || "—"} action="EDIT" />
+          <Row label="Calorie range" value={p.calorieRange || "—"} action="CHANGE" />
+          <Row label="Meal cadence" value={p.mealCadence || "—"} action="EDIT" />
+          <Row label="Kitchen &amp; cooking" value={p.kitchen || "—"} action="EDIT" />
+          <Row label="Supplements" value={p.supplements || "—"} action="EDIT" />
+          <Row label="Alcohol" value={p.alcohol || "—"} action="EDIT" />
+          <Row label="Hydration target" value={p.hydrationTarget || "—"} action="EDIT" />
         </Card>
 
         <Card>
           <SectionTitle>Training preferences</SectionTitle>
-          <Row label="Primary goal" value="Strength + hypertrophy" action="EDIT" />
-          <Row label="Experience" value="Intermediate · 3 yrs barbell" action="EDIT" />
-          <Row label="Sessions / week" value="4 · 60–75 min" action="EDIT" />
-          <Row label="Equipment access" value="Full gym · home bands + DBs" action="EDIT" />
-          <Row label="Injuries &amp; notes" value="Left shoulder · avoid overhead pressing past 90°" action="EDIT" />
-          <Row label="Preferred training times" value="Evenings · 6–8pm" action="EDIT" />
+          <Row label="Primary goal" value={p.primaryGoal || "—"} action="EDIT" />
+          <Row label="Experience" value={p.experience || "—"} action="EDIT" />
+          <Row label="Sessions / week" value={p.sessionsPerWeek || "—"} action="EDIT" />
+          <Row label="Equipment access" value={p.equipmentAccess || "—"} action="EDIT" />
+          <Row label="Injuries &amp; notes" value={p.injuries || "—"} action="EDIT" />
+          <Row label="Preferred training times" value={p.preferredTimes || "—"} action="EDIT" />
         </Card>
 
         <Card>
@@ -199,12 +313,12 @@ function ClientMePage() {
       <Card style={{ marginTop: 20 }}>
         <SectionTitle>Social &amp; links</SectionTitle>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 32px" }}>
-          <Row label="Instagram" value="@priya.lifts" action="EDIT" />
-          <Row label="TikTok" value="Not connected" action="CONNECT" />
-          <Row label="Strava" value="priya-s · public" action="EDIT" />
-          <Row label="Website" value="Not added" action="ADD" />
-          <Row label="YouTube" value="Not connected" action="CONNECT" />
-          <Row label="Twitter / X" value="@priyas" action="EDIT" />
+          <Row label="Instagram" value={p.instagram || "Not connected"} action="EDIT" />
+          <Row label="TikTok" value={p.tiktok || "Not connected"} action="CONNECT" />
+          <Row label="Strava" value={p.strava || "Not connected"} action="EDIT" />
+          <Row label="Website" value={p.website || "Not added"} action="ADD" />
+          <Row label="YouTube" value={p.youtube || "Not connected"} action="CONNECT" />
+          <Row label="Twitter / X" value={p.twitter || "Not connected"} action="EDIT" />
         </div>
       </Card>
 
@@ -216,6 +330,20 @@ function ClientMePage() {
           <button style={{ background: "transparent", color: "#e07856", border: "1px solid rgba(224,120,86,0.4)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Delete account</button>
         </div>
       </Card>
+      {editOpen && (
+        <EditProfileModal
+          initial={profile}
+          onClose={() => setEditOpen(false)}
+          onSaved={(next) => {
+            setProfile(p => ({ ...p, ...next }));
+            setToast(signedIn ? "Profile saved." : "Sign in to save changes.");
+            setTimeout(() => setToast(null), 2500);
+          }}
+        />
+      )}
+      {toast && (
+        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: INK, color: PAPER, padding: "12px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, zIndex: 10000, boxShadow: "0 10px 40px rgba(0,0,0,0.5)" }}>{toast}</div>
+      )}
     </DashPage>
   );
 }
