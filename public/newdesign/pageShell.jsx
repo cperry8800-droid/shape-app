@@ -33,9 +33,9 @@ function NavDropdown({ label, items, active, activeMatch }) {
   const [open, setOpen] = React.useState(false);
   const isActive = activeMatch.includes(active);
   return (
-    <div style={{ position: "relative" }} onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
-      <a style={{ fontSize: 13, letterSpacing: "0.13em", textTransform: "uppercase", color: isActive ? INK : "rgba(242,237,228,0.72)", fontFamily: sans, fontWeight: isActive ? 500 : 400, borderBottom: isActive ? `1.5px solid ${TEAL}` : "1.5px solid transparent", paddingBottom: 6, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}>
-        {label}<span style={{ fontSize: 9, opacity: 0.6 }}>▾</span>
+    <div style={{ position: "relative", display: "inline-flex", alignItems: "center", height: "100%" }} onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+      <a style={{ fontSize: 13, letterSpacing: "0.13em", textTransform: "uppercase", color: isActive ? INK : "rgba(242,237,228,0.72)", fontFamily: sans, fontWeight: isActive ? 500 : 400, borderBottom: isActive ? `1.5px solid ${TEAL}` : "1.5px solid transparent", paddingBottom: 3, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, lineHeight: 1 }}>
+        {label}<span style={{ fontSize: 9, opacity: 0.6, lineHeight: 1 }}>▾</span>
       </a>
       {open && (
         <div style={{ position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)", paddingTop: 10, minWidth: 220 }}>
@@ -55,12 +55,12 @@ function NavDropdown({ label, items, active, activeMatch }) {
 
 function Header({ active }) {
   const link = (name, href) => (
-    <a href={href} style={{ fontSize: 13, letterSpacing: "0.13em", textTransform: "uppercase", color: active === name ? INK : "rgba(242,237,228,0.72)", fontFamily: sans, fontWeight: active === name ? 500 : 400, borderBottom: active === name ? `1.5px solid ${TEAL}` : "1.5px solid transparent", paddingBottom: 6, whiteSpace: "nowrap" }}>{name}</a>
+    <a href={href} style={{ fontSize: 13, letterSpacing: "0.13em", textTransform: "uppercase", color: active === name ? INK : "rgba(242,237,228,0.72)", fontFamily: sans, fontWeight: active === name ? 500 : 400, borderBottom: active === name ? `1.5px solid ${TEAL}` : "1.5px solid transparent", paddingBottom: 3, whiteSpace: "nowrap", lineHeight: 1, display: "inline-flex", alignItems: "center" }}>{name}</a>
   );
   return (
     <header style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(26,22,18,0.92)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
-      <div style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "20px 48px", gap: 40 }}>
-        <a href="index.html" style={{ flex: "none", display: "inline-flex" }}><Logo variant="white" size={52} /></a>
+      <div style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "16px 48px", gap: 40 }}>
+        <a href="index.html" style={{ flex: "none", display: "inline-flex", alignItems: "center" }}><Logo variant="white" size={34} /></a>
         <nav style={{ display: "flex", gap: 30, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center" }}>
           <NavDropdown label="Clients" active={active} activeMatch={["Clients", "My Profile", "Overview", "Dashboard", "Client Overview", "Client Dashboard"]} items={[["Overview", "Client.html"], ["Dashboard", "ClientDashboard.html"]]} />
           <NavDropdown label="Trainers" active={active} activeMatch={["Trainers", "Trainer Profile", "Trainer Overview", "Trainer Dashboard"]} items={[["Overview", "Coach.html"], ["Dashboard", "TrainerDashboard.html"]]} />
@@ -72,8 +72,8 @@ function Header({ active }) {
           {link("Pricing", "Pricing.html")}
         </nav>
         <div style={{ display: "flex", alignItems: "center", gap: 18, flexShrink: 0 }}>
-          <a href="Login.html" style={{ fontSize: 14, color: "rgba(242,237,228,0.75)", fontFamily: sans, whiteSpace: "nowrap" }}>Log in</a>
-          <a href="Landing.html" style={{ background: INK, color: PAPER, border: 0, padding: "11px 20px", borderRadius: 6, fontWeight: 500, fontSize: 14, fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-block" }}>Get started</a>
+          <a href="Login.html" style={{ fontSize: 13, letterSpacing: "0.13em", textTransform: "uppercase", color: "rgba(242,237,228,0.72)", fontFamily: sans, whiteSpace: "nowrap", lineHeight: 1 }}>Log in</a>
+          <a href="Landing.html" style={{ background: INK, color: PAPER, border: 0, padding: "10px 18px", borderRadius: 6, fontWeight: 500, fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1 }}>Get started</a>
         </div>
       </div>
     </header>
