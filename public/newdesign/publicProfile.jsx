@@ -401,8 +401,8 @@ function PackageCard({ pk, kind, samples }) {
   const canPreview = pk.kind === "one-time" && Array.isArray(samples) && samples.length > 0;
   return (
     <div style={{
-      background: pk.featured ? INK : "rgba(242,237,228,0.04)",
-      color: pk.featured ? PAPER : INK,
+      background: pk.featured ? "rgba(30,192,168,0.08)" : "rgba(242,237,228,0.04)",
+      color: INK,
       border: pk.featured ? `1px solid ${TEAL}` : "1px solid rgba(242,237,228,0.1)",
       borderRadius: 12,
       padding: "32px 28px 28px",
@@ -410,33 +410,33 @@ function PackageCard({ pk, kind, samples }) {
       flexDirection: "column",
       position: "relative",
     }}>
-      {pk.featured && <span style={{ position: "absolute", top: -12, left: 28, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: INK, background: TEAL, padding: "5px 10px", borderRadius: 4, fontWeight: 600 }}>Most popular</span>}
+      {pk.featured && <span style={{ position: "absolute", top: -12, left: 28, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: PAPER, background: TEAL, padding: "5px 10px", borderRadius: 4, fontWeight: 600 }}>Most popular</span>}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.12em", textTransform: "uppercase", color: pk.featured ? "#0a7d6b" : TEAL }}>{pk.name}</div>
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", padding: "3px 7px", borderRadius: 3, background: pk.kind === "subscription" ? (pk.featured ? "rgba(30,192,168,0.18)" : "rgba(30,192,168,0.12)") : (pk.featured ? "rgba(26,22,18,0.08)" : "rgba(242,237,228,0.06)"), color: pk.kind === "subscription" ? (pk.featured ? "#0a7d6b" : TEAL) : (pk.featured ? "rgba(26,22,18,0.6)" : "rgba(242,237,228,0.55)") }}>
+        <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.12em", textTransform: "uppercase", color: TEAL }}>{pk.name}</div>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", padding: "3px 7px", borderRadius: 3, background: pk.kind === "subscription" ? "rgba(30,192,168,0.12)" : "rgba(242,237,228,0.06)", color: pk.kind === "subscription" ? TEAL : "rgba(242,237,228,0.55)" }}>
           {pk.kind === "subscription" ? "Subscription" : "One-time"}
         </span>
       </div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
         <div style={{ fontFamily: serif, fontSize: 56, letterSpacing: "-0.03em", fontWeight: 400, lineHeight: 1 }}>{displayPrice}</div>
-        <div style={{ fontFamily: sans, fontSize: 14, color: pk.featured ? "rgba(26,22,18,0.55)" : "rgba(242,237,228,0.55)" }}>{pk.unit}</div>
+        <div style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.55)" }}>{pk.unit}</div>
       </div>
-      <div style={{ fontFamily: sans, fontSize: 13, color: pk.featured ? "rgba(26,22,18,0.65)" : "rgba(242,237,228,0.6)", marginTop: 8 }}>{pk.sub}</div>
+      <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)", marginTop: 8 }}>{pk.sub}</div>
 
       {hasAlt && (
-        <div style={{ marginTop: 16, display: "inline-flex", background: pk.featured ? "rgba(26,22,18,0.06)" : "rgba(242,237,228,0.06)", border: pk.featured ? "1px solid rgba(26,22,18,0.1)" : "1px solid rgba(242,237,228,0.1)", borderRadius: 999, padding: 3, width: "fit-content" }}>
+        <div style={{ marginTop: 16, display: "inline-flex", background: "rgba(242,237,228,0.06)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 999, padding: 3, width: "fit-content" }}>
           {[[false, pk.priceLabel], [true, pk.altLabel]].map(([val, label]) => (
-            <button key={label} onClick={() => setInPerson(val)} style={{ padding: "6px 12px", borderRadius: 999, background: inPerson === val ? (pk.featured ? PAPER : INK) : "transparent", color: inPerson === val ? INK : (pk.featured ? "rgba(26,22,18,0.65)" : "rgba(242,237,228,0.6)"), border: 0, fontFamily: sans, fontSize: 11.5, cursor: "pointer", fontWeight: inPerson === val ? 500 : 400 }}>{label}</button>
+            <button key={label} onClick={() => setInPerson(val)} style={{ padding: "6px 12px", borderRadius: 999, background: inPerson === val ? "rgba(242,237,228,0.12)" : "transparent", color: inPerson === val ? INK : "rgba(242,237,228,0.6)", border: 0, fontFamily: sans, fontSize: 11.5, cursor: "pointer", fontWeight: inPerson === val ? 500 : 400 }}>{label}</button>
           ))}
         </div>
       )}
 
-      <div style={{ margin: "22px 0", height: 1, background: pk.featured ? "rgba(26,22,18,0.12)" : "rgba(242,237,228,0.08)" }} />
+      <div style={{ margin: "22px 0", height: 1, background: "rgba(242,237,228,0.08)" }} />
       <div style={{ display: "flex", flexDirection: "column", gap: 12, flex: 1 }}>
         {pk.perks.map((perk, j) => (
           <div key={j} style={{ display: "flex", gap: 10, alignItems: "start" }}>
-            <span style={{ color: pk.featured ? "#0a7d6b" : TEAL, fontFamily: sans, fontSize: 14, lineHeight: 1.5 }}>→</span>
-            <span style={{ fontFamily: sans, fontSize: 14, color: pk.featured ? "rgba(26,22,18,0.85)" : "rgba(242,237,228,0.8)", lineHeight: 1.5 }}>{perk}</span>
+            <span style={{ color: TEAL, fontFamily: sans, fontSize: 14, lineHeight: 1.5 }}>→</span>
+            <span style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.8)", lineHeight: 1.5 }}>{perk}</span>
           </div>
         ))}
       </div>
@@ -445,7 +445,7 @@ function PackageCard({ pk, kind, samples }) {
         padding: "12px 20px",
         borderRadius: 8,
         background: pk.featured ? TEAL : "transparent",
-        color: pk.featured ? INK : INK,
+        color: pk.featured ? PAPER : INK,
         border: pk.featured ? 0 : "1px solid rgba(242,237,228,0.25)",
         fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer",
         textAlign: "center", textDecoration: "none", display: "inline-block",
@@ -456,7 +456,7 @@ function PackageCard({ pk, kind, samples }) {
           padding: "10px 16px",
           borderRadius: 8,
           background: "transparent",
-          color: pk.featured ? "rgba(26,22,18,0.75)" : "rgba(242,237,228,0.75)",
+          color: "rgba(242,237,228,0.75)",
           border: 0,
           fontFamily: sans, fontSize: 12.5, fontWeight: 500, cursor: "pointer",
           textAlign: "center",
@@ -651,16 +651,16 @@ function FAQSection({ p }) {
 
 function FinalCTA({ p, kind }) {
   return (
-    <section style={{ padding: "100px 40px", background: INK, color: PAPER }}>
+    <section style={{ padding: "100px 40px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 60, alignItems: "center" }}>
         <div>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 18 }}>Ready when you are</div>
-          <h2 style={{ fontFamily: serif, fontSize: 72, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, lineHeight: 0.95, color: PAPER }}>Start with a free intro.</h2>
+          <h2 style={{ fontFamily: serif, fontSize: 72, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, lineHeight: 0.95 }}>Start with a free intro.</h2>
           <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.7)", marginTop: 20, maxWidth: 520, lineHeight: 1.6 }}>30 minutes. Zero pressure. We talk through your history, goals, and whether we're the right fit. If not, {p.name.split(" ")[0]}'ll point you to someone who is.</p>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <button onClick={() => window.__openBookIntro && window.__openBookIntro()} style={{ padding: "18px 28px", borderRadius: 8, background: TEAL, color: PAPER, border: 0, fontFamily: sans, fontSize: 15, fontWeight: 500, cursor: "pointer" }}>Book intro — $0</button>
-          <a href={kind === "trainer" ? "TrainerMessages.html" : "NutritionistMessages.html"} style={{ padding: "16px 28px", borderRadius: 8, background: "transparent", color: PAPER, border: "1px solid rgba(242,237,228,0.2)", fontFamily: sans, fontSize: 14, cursor: "pointer", textAlign: "center", textDecoration: "none", display: "block", boxSizing: "border-box" }}>Message {p.name.split(" ")[0]}</a>
+          <a href={kind === "trainer" ? "TrainerMessages.html" : "NutritionistMessages.html"} style={{ padding: "16px 28px", borderRadius: 8, background: "rgba(242,237,228,0.04)", color: INK, border: "1px solid rgba(242,237,228,0.15)", fontFamily: sans, fontSize: 14, cursor: "pointer", textAlign: "center", textDecoration: "none", display: "block", boxSizing: "border-box" }}>Message {p.name.split(" ")[0]}</a>
           <a href="Marketplace.html" style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.55)", marginTop: 12, textAlign: "center", textDecoration: "underline", textUnderlineOffset: 3 }}>or browse other {kind === "trainer" ? "trainers" : "nutritionists"}</a>
         </div>
       </div>
@@ -792,7 +792,7 @@ const THEME_DEFAULTS = /*EDITMODE-BEGIN*/{
   "fontScale": 100,
   "brandName": "",
   "brandTagline": "",
-  "bgScope": "cover",
+  "bgScope": "full",
   "bgMusicEnabled": false,
   "bgMusicKey": "",
   "bgMusicUrl": "",
@@ -808,7 +808,11 @@ function readStoredTheme(kind) {
 }
 
 function useProfileTheme(kind) {
-  const [theme, setTheme] = React.useState(() => ({ ...THEME_DEFAULTS, ...readStoredTheme(kind) }));
+  const [theme, setTheme] = React.useState(() => {
+    const stored = readStoredTheme(kind);
+    if (stored && stored.bgScope === "cover") stored.bgScope = "full";
+    return { ...THEME_DEFAULTS, ...stored };
+  });
   React.useEffect(() => {
     try { localStorage.setItem(`shape.profileTheme.${kind}`, JSON.stringify(theme)); } catch {}
   }, [theme, kind]);
@@ -831,10 +835,10 @@ function ThemedShell({ theme, children }) {
     : `rgba(26,22,18,${Math.min(1, theme.widgetOpacity / 100 + 0.06)})`;
   const accent = theme.accent;
 
-  const fullBleed = theme.bgScope === "full";
   const cover = theme.coverUrl || (COVER_PRESETS[theme.coverKey] && COVER_PRESETS[theme.coverKey].url);
-  const fullBleedStyle = fullBleed && cover ? {
-    backgroundImage: `linear-gradient(180deg, ${dark ? "rgba(10,8,6,0.55)" : "rgba(255,253,248,0.45)"} 0%, ${dark ? "rgba(10,8,6,0.85)" : "rgba(255,253,248,0.82)"} 100%), url(${cover})`,
+  const fullBleed = !!cover;
+  const fullBleedStyle = fullBleed ? {
+    backgroundImage: `linear-gradient(180deg, ${dark ? "rgba(10,8,6,0.55)" : "rgba(255,253,248,0.45)"} 0%, ${dark ? "rgba(10,8,6,0.7)" : "rgba(255,253,248,0.7)"} 100%), url(${cover})`,
     backgroundSize: "cover",
     backgroundAttachment: "fixed",
     backgroundPosition: "center",
@@ -886,7 +890,7 @@ function BrandOverlay({ theme, fallback }) {
 
 function ThemedHero({ p, kind, theme, onUploadCover }) {
   const cover = theme.coverUrl || (COVER_PRESETS[theme.coverKey] && COVER_PRESETS[theme.coverKey].url);
-  const fullBleed = theme.bgScope === "full";
+  const fullBleed = !!cover;
   const bannerHeight = fullBleed ? 180 : 380;
   return (
     <section style={{ position: "relative", borderBottom: "1px solid rgba(127,127,127,0.15)" }}>
@@ -1027,26 +1031,6 @@ function ThemeTweaksPanel({ theme, onChange, onUploadCover, onReset, hostVisible
           {theme.coverUrl ? "Replace uploaded photo" : "+ Upload your own"}
         </button>
         {theme.coverUrl && <button onClick={() => setKey("coverUrl", "")} style={{ marginTop: 4, width: "100%", padding: "6px 12px", background: "transparent", color: "rgba(242,237,228,0.5)", border: 0, cursor: "pointer", fontSize: 11 }}>Remove upload</button>}
-      </TweakGroup>
-
-      <TweakGroup label="Background scope">
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, background: "rgba(242,237,228,0.05)", borderRadius: 8, padding: 3 }}>
-          {[
-            ["cover", "Cover only", "Photo sits at top of page"],
-            ["full",  "Full page",  "Photo takes over everything"],
-          ].map(([v, label, hint]) => (
-            <button key={v} onClick={() => setKey("bgScope", v)} title={hint} style={{
-              padding: "9px 8px", borderRadius: 6,
-              background: theme.bgScope === v ? theme.accent : "transparent",
-              color: theme.bgScope === v ? "#1a1612" : "#f2ede4",
-              border: 0, cursor: "pointer", fontSize: 12,
-              fontWeight: theme.bgScope === v ? 500 : 400,
-            }}>{label}</button>
-          ))}
-        </div>
-        <div style={{ fontSize: 10, color: "rgba(242,237,228,0.45)", marginTop: 6, lineHeight: 1.4 }}>
-          {theme.bgScope === "full" ? "Photo scrolls with the page. Widgets dim for contrast." : "Photo appears in the hero banner only."}
-        </div>
       </TweakGroup>
 
       <TweakGroup label="Accent color">
