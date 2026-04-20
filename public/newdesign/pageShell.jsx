@@ -96,7 +96,7 @@ function Footer() {
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 40, paddingTop: 40, borderTop: "1px solid rgba(26,22,18,0.12)" }}>
           <div>
-            <Logo variant="black" size={36} />
+            <Logo variant="black" size={64} />
             <p style={{ fontFamily: sans, fontSize: 13, color: "rgba(26,22,18,0.55)", marginTop: 16, maxWidth: 280 }}>Real coaches. One marketplace. One platform.</p>
           </div>
           {[["Product", ["Marketplace", "Shape Score", "Radio", "Dashboard"]], ["For trainers", ["Apply", "Payouts", "Programs"]], ["Company", ["About", "Press", "Careers"]], ["Support", ["Help", "Contact", "Privacy"]]].map(([h, items]) => (
