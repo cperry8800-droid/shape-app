@@ -776,14 +776,14 @@ const DirB = (() => {
               <p style={{ fontFamily: sans, fontSize: 13, color: "rgba(26,22,18,0.6)", marginTop: 16, maxWidth: 280 }}>A marketplace for certified trainers and nutritionists. Real coaches. One platform.</p>
             </div>
             {[
-              ["Platform", ["Marketplace", "Clients", "Trainers", "Nutritionists"]],
-              ["Start", ["Sign up", "Apply", "Pricing"]],
-              ["Company", ["About", "Careers", "Press"]],
-              ["Help", ["Center", "Contact", "Privacy", "Terms"]],
+              ["Platform", [["Marketplace", "Marketplace.html"], ["Clients", "Client.html"], ["Trainers", "Coach.html"], ["Nutritionists", "Nutritionist.html"]]],
+              ["Start", [["Sign up", "Landing.html"], ["Apply", "SignupTrainer.html"], ["Pricing", "Pricing.html"]]],
+              ["Company", [["About", "Team.html"], ["Press", "Team.html#press"]]],
+              ["Help", [["Center", "/help.html"], ["Contact", "/contact.html"], ["Privacy", "Team.html#privacy"], ["Terms", "/terms.html"]]],
             ].map(([h, links]) => (
               <div key={h}>
                 <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.14em", color: "rgba(26,22,18,0.55)", textTransform: "uppercase", marginBottom: 16 }}>{h}</div>
-                {links.map(l => <div key={l} style={{ fontFamily: sans, fontSize: 13, color: "rgba(26,22,18,0.8)", padding: "6px 0" }}>{l}</div>)}
+                {links.map(([label, href]) => <div key={label} style={{ padding: "6px 0" }}><a href={href} style={{ fontFamily: sans, fontSize: 13, color: "rgba(26,22,18,0.8)", textDecoration: "none" }}>{label}</a></div>)}
               </div>
             ))}
           </div>
