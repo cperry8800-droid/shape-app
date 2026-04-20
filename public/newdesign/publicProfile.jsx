@@ -392,6 +392,11 @@ function PackageCard({ pk, kind }) {
   const [inPerson, setInPerson] = React.useState(false);
   const hasAlt = pk.altPrice && pk.altLabel;
   const displayPrice = inPerson && hasAlt ? pk.altPrice : pk.price;
+  const role = kind === "trainer" ? "trainer" : "nutritionist";
+  const providerId = (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("id")) || "1";
+  const buyHref = pk.kind === "subscription"
+    ? `/subscribe?role=${role}&id=${encodeURIComponent(providerId)}`
+    : `/purchase?role=${role}&kind=booking&id=${encodeURIComponent(providerId)}`;
   return (
     <div style={{
       background: pk.featured ? INK : "rgba(242,237,228,0.04)",
@@ -433,7 +438,7 @@ function PackageCard({ pk, kind }) {
           </div>
         ))}
       </div>
-      <a href="Marketplace.html" style={{
+      <a href={buyHref} style={{
         marginTop: 24,
         padding: "12px 20px",
         borderRadius: 8,
