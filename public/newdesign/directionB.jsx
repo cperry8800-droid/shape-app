@@ -64,12 +64,10 @@ const DirB = (() => {
         <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 60, alignItems: "end", marginBottom: 80 }}>
             <div>
-              <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 32 }}>
-                One Platform · One Marketplace
-              </div>
               <h1 style={{ fontFamily: serif, fontSize: 128, lineHeight: 0.88, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, color: INK }}>
                 Real coaches.<br />
-                One <em style={{ fontStyle: "italic", color: TEAL, fontWeight: 400 }}>marketplace</em>.
+                <span style={{ whiteSpace: "nowrap" }}>One <em style={{ fontStyle: "italic", color: TEAL, fontWeight: 400 }}>marketplace</em>.</span><br />
+                <span style={{ whiteSpace: "nowrap" }}>One <em style={{ fontStyle: "italic", color: INK, fontWeight: 400 }}>platform</em>.</span>
               </h1>
             </div>
             <div style={{ paddingBottom: 12 }}>
