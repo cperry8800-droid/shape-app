@@ -664,7 +664,7 @@ const DirB = (() => {
   function Radio() {
     return (
       <section style={{ padding: "120px 40px", position: "relative", overflow: "hidden", color: INK }}>
-        <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Shape%20radio%204.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+        <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Make_the_lines_202604170430%20%281%29.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
         <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(6,10,9,0.85) 0%, rgba(6,10,9,0.65) 45%, rgba(6,10,9,0.3) 100%)", pointerEvents: "none" }} />
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: 80, alignItems: "center", position: "relative" }}>
           <div>
