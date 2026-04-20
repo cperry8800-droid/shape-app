@@ -1,5 +1,16 @@
 // Trainer — Create a new workout. Single-session exercise builder.
 
+const WORKOUT_CLIENTS = [
+  { id: 1, name: "Priya Shah",    avatar: "PS", meta: "Strength · 14w" },
+  { id: 2, name: "Jonah Wright",  avatar: "JW", meta: "Foundations · 8mo" },
+  { id: 3, name: "Ana Perez",     avatar: "AP", meta: "Hypertrophy · 1yr" },
+  { id: 4, name: "Marcus Lee",    avatar: "ML", meta: "Powerlifting · 2yr" },
+  { id: 5, name: "Sofia Martinez",avatar: "SM", meta: "Return-to-lifting · 4w" },
+  { id: 6, name: "Diego Romero",  avatar: "DR", meta: "Hybrid cut · 6w" },
+  { id: 7, name: "Amira Khan",    avatar: "AK", meta: "Marathon base · 10w" },
+  { id: 8, name: "Tom Becker",    avatar: "TB", meta: "Beginner barbell · new" },
+];
+
 function NewWorkoutPage() {
   const [title, setTitle] = React.useState("");
   const [tag, setTag] = React.useState("Strength");
@@ -13,6 +24,8 @@ function NewWorkoutPage() {
     { label: "A", name: "Back squat", detail: "4 × 5 @ 70%", note: "RPE 7" },
     { label: "B1", name: "", detail: "", note: "" },
   ]);
+  const [assignedIds, setAssignedIds] = React.useState([]);
+  const [pickerOpen, setPickerOpen] = React.useState(false);
 
   const addBlock = () => {
     const letters = "ABCDEFGHIJ";
@@ -21,6 +34,15 @@ function NewWorkoutPage() {
   };
   const setBlock = (i, patch) => setBlocks(blocks.map((b, j) => j === i ? { ...b, ...patch } : b));
   const removeBlock = (i) => setBlocks(blocks.filter((_, j) => j !== i));
+
+  const toggleClient = (id) => setAssignedIds(assignedIds.includes(id) ? assignedIds.filter(x => x !== id) : [...assignedIds, id]);
+  const removeClient = (id) => setAssignedIds(assignedIds.filter(x => x !== id));
+  const sendToClients = () => {
+    if (!assignedIds.length) return alert("Add at least one client first.");
+    const names = WORKOUT_CLIENTS.filter(c => assignedIds.includes(c.id)).map(c => c.name.split(" ")[0]).join(", ");
+    alert(`Sent to ${assignedIds.length} client${assignedIds.length === 1 ? "" : "s"}: ${names}`);
+    window.location.href = "TrainerPrograms.html";
+  };
 
   const tags = ["Strength", "Hypertrophy", "Cardio", "Mobility", "HIIT", "Skill", "Recovery"];
 
@@ -33,7 +55,8 @@ function NewWorkoutPage() {
       subtitle="Build a single session. Save to your library, attach to a program, or sell stand-alone."
       actions={<>
         <a href="TrainerPrograms.html" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</a>
-        <button onClick={() => alert("Saved to library.")} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Save to library</button>
+        <button onClick={() => alert("Saved to your library.")} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Save to library</button>
+        <button onClick={sendToClients} style={{ background: "transparent", color: TEAL_BRIGHT, border: `1px solid ${TEAL}`, padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Send to client{assignedIds.length > 1 ? "s" : ""}{assignedIds.length ? ` (${assignedIds.length})` : ""} →</button>
         <button onClick={() => { alert("Workout published."); window.location.href = "TrainerPrograms.html"; }} style={{ background: TEAL, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Publish →</button>
       </>}
     >
@@ -117,6 +140,29 @@ function NewWorkoutPage() {
           </Card>
 
           <Card>
+            <SectionTitle right={assignedIds.length ? `${assignedIds.length} ASSIGNED` : null}>Assigned clients</SectionTitle>
+            {assignedIds.length === 0 ? (
+              <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.55)", lineHeight: 1.5, marginBottom: 14 }}>
+                Pick clients to push this workout to directly. It lands in their next-up list the moment you hit send.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+                {WORKOUT_CLIENTS.filter(c => assignedIds.includes(c.id)).map(c => (
+                  <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 8 }}>
+                    <Avatar initials={c.avatar} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, color: INK, fontWeight: 500 }}>{c.name}</div>
+                      <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.55)" }}>{c.meta}</div>
+                    </div>
+                    <button onClick={() => removeClient(c.id)} aria-label="Remove" style={{ background: "transparent", border: 0, color: "rgba(242,237,228,0.5)", fontSize: 16, cursor: "pointer" }}>×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button onClick={() => setPickerOpen(true)} style={{ width: "100%", background: "transparent", color: TEAL_BRIGHT, border: "1px dashed rgba(30,192,168,0.35)", padding: "10px 14px", borderRadius: 8, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>+ Add client</button>
+          </Card>
+
+          <Card>
             <SectionTitle>Preview</SectionTitle>
             <div style={{ background: "rgba(242,237,228,0.02)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: 18 }}>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, padding: "5px 10px", background: "rgba(30,192,168,0.1)", color: TEAL, borderRadius: 4, letterSpacing: "0.06em", textTransform: "uppercase", display: "inline-block" }}>
@@ -140,7 +186,54 @@ function NewWorkoutPage() {
           </Card>
         </div>
       </div>
+      {pickerOpen && (
+        <ClientPicker clients={WORKOUT_CLIENTS} selectedIds={assignedIds} onToggle={toggleClient} onClose={() => setPickerOpen(false)} />
+      )}
     </DashPage>
+  );
+}
+
+function Avatar({ initials }) {
+  return (
+    <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(30,192,168,0.15)", color: TEAL_BRIGHT, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 500, flex: "none" }}>
+      {initials}
+    </div>
+  );
+}
+
+function ClientPicker({ clients, selectedIds, onToggle, onClose }) {
+  const [query, setQuery] = React.useState("");
+  const filtered = clients.filter(c => c.name.toLowerCase().includes(query.toLowerCase()));
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,8,6,0.78)", backdropFilter: "blur(8px)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#14110e", color: INK, borderRadius: 14, maxWidth: 520, width: "100%", maxHeight: "80vh", overflow: "hidden", border: "1px solid rgba(242,237,228,0.1)", boxShadow: "0 40px 80px rgba(0,0,0,0.6)", display: "flex", flexDirection: "column" }}>
+        <div style={{ padding: "22px 24px 16px", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 8 }}>Assign clients</div>
+          <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.015em" }}>Pick who gets this</div>
+          <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search clients..." style={{ width: "100%", marginTop: 14, background: "rgba(242,237,228,0.04)", color: INK, border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: "10px 12px", fontSize: 13.5, outline: "none" }} />
+        </div>
+        <div style={{ flex: 1, overflow: "auto", padding: "8px 0" }}>
+          {filtered.length === 0 && <div style={{ padding: "20px 24px", color: "rgba(242,237,228,0.5)", fontSize: 13 }}>No clients match "{query}".</div>}
+          {filtered.map(c => {
+            const checked = selectedIds.includes(c.id);
+            return (
+              <label key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 24px", cursor: "pointer", background: checked ? "rgba(30,192,168,0.06)" : "transparent" }}>
+                <input type="checkbox" checked={checked} onChange={() => onToggle(c.id)} style={{ accentColor: TEAL, width: 16, height: 16 }} />
+                <Avatar initials={c.avatar} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13.5, color: INK, fontWeight: 500 }}>{c.name}</div>
+                  <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.55)" }}>{c.meta}</div>
+                </div>
+              </label>
+            );
+          })}
+        </div>
+        <div style={{ padding: "14px 24px", borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14 }}>
+          <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)" }}>{selectedIds.length} selected</div>
+          <button onClick={onClose} style={{ background: TEAL, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Done</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
