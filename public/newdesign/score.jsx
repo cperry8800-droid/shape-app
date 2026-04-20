@@ -42,23 +42,12 @@ const TIERS = [
   { name: "Legend", min: 3000, color: "#0ac5a8" },
 ];
 
-function RewardsHeroBg() {
-  return (
-    <>
-      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Rewards.png')", backgroundSize: "cover", backgroundPosition: "center center", pointerEvents: "none" }} />
-      <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.5) 0%, rgba(26,22,18,0.2) 35%, rgba(26,22,18,0.3) 65%, rgba(26,22,18,0.88) 95%, rgba(26,22,18,1) 100%)", pointerEvents: "none" }} />
-      <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(26,22,18,0.35) 0%, rgba(26,22,18,0.1) 35%, rgba(26,22,18,0) 60%)", pointerEvents: "none" }} />
-    </>
-  );
-}
-
 function ScoreHero() {
   const pct = SCORE_TOTAL / SCORE_GOAL;
   const R = 118;
   const C = 2 * Math.PI * R;
   return (
     <section style={{ padding: "80px 40px 60px", position: "relative", overflow: "hidden" }}>
-      <RewardsHeroBg />
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 80, alignItems: "center" }}>
           <div>
@@ -292,14 +281,18 @@ function ScoreRewards() {
 
 function ScorePage() {
   return (
-    <div style={{ background: PAPER, color: INK, fontFamily: sans }}>
-      <Header active="Shape Score" />
-      <ScoreHero />
-      <ScoreTiers />
-      <ScoreActivity />
-      <ScoreLedger />
-      <ScoreRewards />
-      <Footer />
+    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/Rewards.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "rgba(26,22,18,0.6)", pointerEvents: "none" }} />
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <Header active="Shape Score" />
+        <ScoreHero />
+        <ScoreTiers />
+        <ScoreActivity />
+        <ScoreLedger />
+        <ScoreRewards />
+        <Footer />
+      </div>
     </div>
   );
 }

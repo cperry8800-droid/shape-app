@@ -25,19 +25,9 @@ const PRICING_FAQ = [
 { q: "Is Shape Radio really included?", a: "Yes — ad-free workout mixes, BPM-curated stations, live DJ sets from residents. Part of the $5/mo. Offline downloads included. No upsell." }];
 
 
-function PricingHeroBg() {
-  return (
-    <>
-      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Pricing.png')", backgroundSize: "cover", backgroundPosition: "center 60%", pointerEvents: "none" }} />
-      <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.55) 0%, rgba(26,22,18,0.12) 30%, rgba(26,22,18,0.15) 55%, rgba(26,22,18,0.85) 92%, rgba(26,22,18,1) 100%)", pointerEvents: "none" }} />
-    </>
-  );
-}
-
 function PricingHero() {
   return (
     <section style={{ padding: "100px 40px 40px", position: "relative", overflow: "hidden" }}>
-      <PricingHeroBg />
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
         <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Pricing</div>
         <h1 style={{ fontFamily: serif, fontSize: 128, letterSpacing: "-0.04em", fontWeight: 400, margin: 0, lineHeight: 0.9 }}>
@@ -169,14 +159,18 @@ function PricingCTA() {
 
 function PricingPage() {
   return (
-    <div style={{ background: PAPER, color: INK, minHeight: "100vh" }}>
-      <Header active="Pricing" />
-      <PricingHero />
-      <PricingCard />
-      <PricingCoaches />
-      <PricingFAQ />
-      <PricingCTA />
-      <Footer />
+    <div style={{ background: PAPER, color: INK, minHeight: "100vh", position: "relative" }}>
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/Pricing.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "rgba(26,22,18,0.6)", pointerEvents: "none" }} />
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <Header active="Pricing" />
+        <PricingHero />
+        <PricingCard />
+        <PricingCoaches />
+        <PricingFAQ />
+        <PricingCTA />
+        <Footer />
+      </div>
     </div>);
 
 }

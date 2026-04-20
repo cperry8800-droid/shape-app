@@ -42,19 +42,9 @@ const UNLOCKED = [
   { code: "RADIO-3MO-BB7A", name: "Shape Radio · Studio · 3 mo", expires: "Jul 15", cost: 750, redeemed: "Mar 28" },
 ];
 
-function StoreHeroBg() {
-  return (
-    <>
-      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/intro/Shape%20store.png')", backgroundSize: "cover", backgroundPosition: "center center", pointerEvents: "none" }} />
-      <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.7) 0%, rgba(26,22,18,0.5) 40%, rgba(26,22,18,0.65) 70%, rgba(26,22,18,1) 100%)", pointerEvents: "none" }} />
-    </>
-  );
-}
-
 function StoreHero() {
   return (
     <section style={{ padding: "80px 40px 60px", position: "relative", overflow: "hidden" }}>
-      <StoreHeroBg />
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
         <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 24 }}>Shape Store</div>
         <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 80, alignItems: "end" }}>
@@ -301,14 +291,18 @@ function StoreFAQ() {
 
 function StorePage() {
   return (
-    <div style={{ background: PAPER, color: INK, fontFamily: sans }}>
-      <Header active="Store" />
-      <StoreHero />
-      <StoreGrid />
-      <UnlockedCoupons />
-      <StoreFeatured />
-      <StoreFAQ />
-      <Footer />
+    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/intro/Shape%20store.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "rgba(26,22,18,0.6)", pointerEvents: "none" }} />
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <Header active="Store" />
+        <StoreHero />
+        <StoreGrid />
+        <UnlockedCoupons />
+        <StoreFeatured />
+        <StoreFAQ />
+        <Footer />
+      </div>
     </div>
   );
 }

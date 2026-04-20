@@ -137,28 +137,9 @@ function Spotlight({ tab }) {
     </section>);
 }
 
-function MarketplaceHeroBg({ tab }) {
-  const src = tab === "Trainer" ? "/Training%202.png" : "/Nutrition%203.png";
-  // Trainer image has strong sunset highlights — needs heavier darkening than the nutrition shot.
-  const overlay = tab === "Trainer"
-    ? "linear-gradient(180deg, rgba(26,22,18,0.7) 0%, rgba(26,22,18,0.35) 35%, rgba(26,22,18,0.5) 65%, rgba(26,22,18,0.92) 92%, rgba(26,22,18,1) 100%)"
-    : "linear-gradient(180deg, rgba(26,22,18,0.6) 0%, rgba(26,22,18,0.25) 35%, rgba(26,22,18,0.4) 65%, rgba(26,22,18,0.9) 92%, rgba(26,22,18,1) 100%)";
-  const leftFade = tab === "Trainer"
-    ? "linear-gradient(90deg, rgba(26,22,18,0.55) 0%, rgba(26,22,18,0.25) 40%, rgba(26,22,18,0.1) 70%, rgba(26,22,18,0) 100%)"
-    : "linear-gradient(90deg, rgba(26,22,18,0.45) 0%, rgba(26,22,18,0.2) 40%, rgba(26,22,18,0.05) 70%, rgba(26,22,18,0) 100%)";
-  return (
-    <>
-      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: `url('${src}')`, backgroundSize: "cover", backgroundPosition: "center 45%", pointerEvents: "none" }} />
-      <div aria-hidden style={{ position: "absolute", inset: 0, background: overlay, pointerEvents: "none" }} />
-      <div aria-hidden style={{ position: "absolute", inset: 0, background: leftFade, pointerEvents: "none" }} />
-    </>
-  );
-}
-
 function MarketplaceHero({ tab, setTab }) {
   return (
-    <section style={{ padding: "100px 40px 60px", position: "relative", overflow: "hidden" }}>
-      <MarketplaceHeroBg tab={tab} />
+    <section style={{ padding: "100px 40px 60px", position: "relative" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
         <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 24 }}>The marketplace</div>
         <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 80, alignItems: "end" }}>
@@ -358,14 +339,19 @@ function FeaturedCity() {
 
 function Marketplace() {
   const [tab, setTab] = useS("Trainer");
+  const bgSrc = tab === "Trainer" ? "/Training%202.png" : "/Nutrition%203.png";
   return (
-    <div style={{ background: PAPER, color: INK, fontFamily: sans }}>
-      <Header active="Marketplace" />
-      <MarketplaceHero tab={tab} setTab={setTab} />
-      <Spotlight tab={tab} />
-      <Grid tab={tab} />
-      <FeaturedCity />
-      <Footer />
+    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: `url('${bgSrc}')`, backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none", transition: "background-image 0.4s ease" }} />
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "rgba(26,22,18,0.6)", pointerEvents: "none" }} />
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <Header active="Marketplace" />
+        <MarketplaceHero tab={tab} setTab={setTab} />
+        <Spotlight tab={tab} />
+        <Grid tab={tab} />
+        <FeaturedCity />
+        <Footer />
+      </div>
     </div>);
 }
 

@@ -24,20 +24,9 @@ const STORIES = [
   { who: "Yuki A.", line: "The community runs kept me honest for six months straight.", metric: "First marathon · 3:54", city: "Austin" },
 ];
 
-function CommunityHeroBg() {
-  return (
-    <>
-      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/intro/community%203.png')", backgroundSize: "cover", backgroundPosition: "center 55%", pointerEvents: "none" }} />
-      {/* Light overlay — the sunset already has gorgeous tonal range, don't crush it */}
-      <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.55) 0%, rgba(26,22,18,0.15) 35%, rgba(26,22,18,0.25) 65%, rgba(26,22,18,0.85) 95%, rgba(26,22,18,1) 100%)", pointerEvents: "none" }} />
-    </>
-  );
-}
-
 function HeroC() {
   return (
     <section style={{ padding: "120px 40px 80px", position: "relative", overflow: "hidden" }}>
-      <CommunityHeroBg />
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
         <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 28 }}>The community</div>
         <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 80, alignItems: "end" }}>
@@ -346,14 +335,18 @@ function Chat() {
 
 function Community() {
   return (
-    <div style={{ background: PAPER, color: INK, fontFamily: sans }}>
-      <Header active="Community" />
-      <HeroC />
-      <Events />
-      <Chat />
-      <Challenges />
-      <CTA />
-      <Footer />
+    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/intro/community%203.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "rgba(26,22,18,0.6)", pointerEvents: "none" }} />
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <Header active="Community" />
+        <HeroC />
+        <Events />
+        <Chat />
+        <Challenges />
+        <CTA />
+        <Footer />
+      </div>
     </div>
   );
 }

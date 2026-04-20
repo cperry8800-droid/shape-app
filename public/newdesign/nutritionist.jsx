@@ -1,20 +1,9 @@
 // Nutritionist overview — marketing page for prospective nutritionists/dietitians.
 
 // ---------- Hero ----------
-function NutHeroBg() {
-  return (
-    <>
-      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Nutrition%202.png')", backgroundSize: "cover", backgroundPosition: "center 40%", pointerEvents: "none" }} />
-      <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.82) 0%, rgba(26,22,18,0.6) 35%, rgba(26,22,18,0.7) 65%, rgba(26,22,18,0.95) 92%, rgba(26,22,18,1) 100%)", pointerEvents: "none" }} />
-      <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(26,22,18,0.65) 0%, rgba(26,22,18,0.25) 45%, rgba(26,22,18,0) 75%)", pointerEvents: "none" }} />
-    </>
-  );
-}
-
 function NutHero() {
   return (
     <section style={{ padding: "120px 40px 100px", position: "relative", overflow: "hidden", minHeight: "88vh", display: "flex", alignItems: "center" }}>
-      <NutHeroBg />
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative", width: "100%" }}>
         <div style={{ maxWidth: 900 }}>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL_BRIGHT, marginBottom: 28 }}>For nutritionists</div>
@@ -308,17 +297,21 @@ function NutCTA() {
 // ---------- Page ----------
 function NutritionistOverviewPage() {
   return (
-    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh" }}>
-      <Header active="Nutritionist Overview" />
-      <NutHero />
-      <NutStats />
-      <NutWhy />
-      <NutHow />
-      <NutEarnings />
-      <NutTools />
-      <NutFAQ />
-      <NutCTA />
-      <Footer />
+    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/Nutrition%202.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "rgba(26,22,18,0.6)", pointerEvents: "none" }} />
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <Header active="Nutritionist Overview" />
+        <NutHero />
+        <NutStats />
+        <NutWhy />
+        <NutHow />
+        <NutEarnings />
+        <NutTools />
+        <NutFAQ />
+        <NutCTA />
+        <Footer />
+      </div>
     </div>
   );
 }

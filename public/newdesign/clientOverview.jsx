@@ -6,20 +6,9 @@ const DARK = "#06080a";
 const LIGHT = "#e9efed";
 
 // ---------- Hero ----------
-function ClientOvHeroBg() {
-  return (
-    <>
-      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Home%20page%202.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
-      <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(6,8,10,0.55) 0%, rgba(6,8,10,0.72) 55%, #06080a 100%)", pointerEvents: "none" }} />
-      <div aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(900px 500px at 80% 20%, rgba(30,192,168,0.10), transparent 60%)", pointerEvents: "none" }} />
-    </>
-  );
-}
-
 function ClientOvHero() {
   return (
-    <section style={{ padding: "120px 40px 100px", position: "relative", overflow: "hidden", minHeight: "88vh", display: "flex", alignItems: "center", background: DARK, color: LIGHT }}>
-      <ClientOvHeroBg />
+    <section style={{ padding: "120px 40px 100px", position: "relative", overflow: "hidden", minHeight: "88vh", display: "flex", alignItems: "center", color: LIGHT }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", width: "100%", position: "relative", display: "grid", gridTemplateColumns: "1.25fr 1fr", gap: 80, alignItems: "center" }}>
         <div>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "7px 14px", borderRadius: 999, background: "rgba(30,192,168,0.12)", border: "1px solid rgba(30,192,168,0.35)", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 40 }}>
@@ -339,17 +328,21 @@ function ClientOvCTA() {
 // ---------- Page ----------
 function ClientOverviewPage() {
   return (
-    <div style={{ background: DARK, color: LIGHT, fontFamily: sans, minHeight: "100vh" }}>
-      <Header active="Client Overview" />
-      <ClientOvHero />
-      <ClientOvStats />
-      <ClientOvWhy />
-      <ClientOvHow />
-      <ClientOvPaths />
-      <ClientOvTools />
-      <ClientOvFAQ />
-      <ClientOvCTA />
-      <Footer />
+    <div style={{ background: DARK, color: LIGHT, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/Home%20page%202.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "rgba(6,8,10,0.6)", pointerEvents: "none" }} />
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <Header active="Client Overview" />
+        <ClientOvHero />
+        <ClientOvStats />
+        <ClientOvWhy />
+        <ClientOvHow />
+        <ClientOvPaths />
+        <ClientOvTools />
+        <ClientOvFAQ />
+        <ClientOvCTA />
+        <Footer />
+      </div>
     </div>
   );
 }

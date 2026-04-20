@@ -2,20 +2,9 @@
 // Pitches Shape to coaches: why join, how it works, earnings, tools, featured trainers, testimonials, FAQ, apply CTA.
 
 // ---------- Hero ----------
-function TrainerHeroBg() {
-  return (
-    <>
-      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Training%203.png')", backgroundSize: "cover", backgroundPosition: "center 40%", pointerEvents: "none" }} />
-      <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.78) 0%, rgba(26,22,18,0.55) 35%, rgba(26,22,18,0.65) 65%, rgba(26,22,18,0.95) 92%, rgba(26,22,18,1) 100%)", pointerEvents: "none" }} />
-      <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(26,22,18,0.6) 0%, rgba(26,22,18,0.2) 45%, rgba(26,22,18,0) 75%)", pointerEvents: "none" }} />
-    </>
-  );
-}
-
 function TrainerHero() {
   return (
     <section style={{ padding: "120px 40px 100px", position: "relative", overflow: "hidden", minHeight: "88vh", display: "flex", alignItems: "center" }}>
-      <TrainerHeroBg />
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative", width: "100%" }}>
         <div style={{ maxWidth: 900 }}>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL_BRIGHT, marginBottom: 28 }}>For trainers</div>
@@ -324,17 +313,21 @@ function TrainerCTA() {
 // ---------- Page ----------
 function TrainerOverviewPage() {
   return (
-    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh" }}>
-      <Header active="Trainer Overview" />
-      <TrainerHero />
-      <TrainerStats />
-      <TrainerWhy />
-      <TrainerHow />
-      <TrainerEarnings />
-      <TrainerTools />
-      <TrainerFAQ />
-      <TrainerCTA />
-      <Footer />
+    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/Training%203.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "rgba(26,22,18,0.6)", pointerEvents: "none" }} />
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <Header active="Trainer Overview" />
+        <TrainerHero />
+        <TrainerStats />
+        <TrainerWhy />
+        <TrainerHow />
+        <TrainerEarnings />
+        <TrainerTools />
+        <TrainerFAQ />
+        <TrainerCTA />
+        <Footer />
+      </div>
     </div>
   );
 }

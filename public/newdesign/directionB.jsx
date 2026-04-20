@@ -59,8 +59,6 @@ const DirB = (() => {
   function Hero() {
     return (
       <section style={{ padding: "100px 40px 80px", position: "relative", overflow: "hidden" }}>
-        <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Home%20page%202.png')", backgroundSize: "cover", backgroundPosition: "center 30%", pointerEvents: "none" }} />
-        <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.78) 0%, rgba(26,22,18,0.88) 55%, rgba(26,22,18,1) 100%)", pointerEvents: "none" }} />
         <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 60, alignItems: "end", marginBottom: 80 }}>
             <div>
@@ -800,18 +798,22 @@ const DirB = (() => {
 
   function Root() {
     return (
-      <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh" }}>
-        <Nav />
-        <Hero />
-        <Audiences />
-        <PhoneToday />
-        <PhoneNutrition />
-        <Marketplace />
-        <Score />
-        <TrainerDash />
-        <Radio />
-        <Faq />
-        <Footer />
+      <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
+        <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/Home%20page%202.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+        <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "rgba(26,22,18,0.6)", pointerEvents: "none" }} />
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <Nav />
+          <Hero />
+          <Audiences />
+          <PhoneToday />
+          <PhoneNutrition />
+          <Marketplace />
+          <Score />
+          <TrainerDash />
+          <Radio />
+          <Faq />
+          <Footer />
+        </div>
       </div>
     );
   }

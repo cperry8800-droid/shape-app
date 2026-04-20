@@ -64,7 +64,6 @@ const MESSAGES = [
 function TeamHero() {
   return (
     <section style={{ padding: "80px 40px 40px", position: "relative", overflow: "hidden" }}>
-      <HeroBg />
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
         <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>Your team · Priya Shankar</div>
         <h1 style={{ fontFamily: serif, fontSize: 104, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, lineHeight: 0.9 }}>
@@ -235,13 +234,17 @@ function TeamCollab() {
 
 function TeamPage() {
   return (
-    <div style={{ background: PAPER, color: INK, fontFamily: sans }}>
-      <Header active="My Team" />
-      <TeamHero />
-      <TeamRoster />
-      <TeamSchedule />
-      <TeamCollab />
-      <Footer />
+    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/get%20started.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "rgba(26,22,18,0.6)", pointerEvents: "none" }} />
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <Header active="My Team" />
+        <TeamHero />
+        <TeamRoster />
+        <TeamSchedule />
+        <TeamCollab />
+        <Footer />
+      </div>
     </div>
   );
 }
