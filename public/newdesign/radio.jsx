@@ -23,10 +23,6 @@ function RadioHero() {
     <section style={{ padding: "100px 40px 80px", position: "relative", overflow: "hidden", minHeight: 700 }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative", display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 80, alignItems: "center" }}>
         <div>
-          <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL_BRIGHT, marginBottom: 20, display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ width: 8, height: 8, borderRadius: 999, background: TEAL_BRIGHT, animation: "pulse 1.4s ease-in-out infinite" }} />
-            Shape Radio · 3,472 listening
-          </div>
           <h1 style={{ fontFamily: serif, fontSize: 140, letterSpacing: "-0.04em", fontWeight: 400, margin: 0, lineHeight: 0.88 }}>
             Music<br/>built for<br/><em style={{ fontStyle: "italic", color: TEAL }}>training.</em>
           </h1>
