@@ -157,10 +157,15 @@ function Footer() {
             <Logo variant="black" size={64} />
             <p style={{ fontFamily: sans, fontSize: 13, color: "rgba(26,22,18,0.55)", marginTop: 16, maxWidth: 280 }}>Real coaches. One marketplace. One platform.</p>
           </div>
-          {[["Product", ["Marketplace", "Shape Score", "Radio", "Dashboard"]], ["For trainers", ["Apply", "Payouts", "Programs"]], ["Company", ["About", "Press", "Careers"]], ["Support", ["Help", "Contact", "Privacy"]]].map(([h, items]) => (
+          {[
+            ["Product",      [["Marketplace", "Marketplace.html"], ["Shape Score", "Score.html"], ["Radio", "Radio.html"], ["Dashboard", "ClientDashboard.html"]]],
+            ["For trainers", [["Apply", "SignupTrainer.html"], ["Payouts", "TrainerDashboard.html"], ["Programs", "TrainerPrograms.html"]]],
+            ["Company",      [["About", "Team.html"], ["Press", "Team.html#press"], ["Careers", "Team.html#careers"]]],
+            ["Support",      [["Help", "mailto:help@shape.app"], ["Contact", "mailto:hello@shape.app"], ["Privacy", "Team.html#privacy"]]],
+          ].map(([h, items]) => (
             <div key={h}>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(26,22,18,0.5)", marginBottom: 16 }}>{h}</div>
-              {items.map(x => <div key={x} style={{ fontFamily: sans, fontSize: 13, marginBottom: 8, color: "rgba(26,22,18,0.8)" }}>{x}</div>)}
+              {items.map(([label, href]) => <div key={label} style={{ marginBottom: 8 }}><a href={href} style={{ fontFamily: sans, fontSize: 13, color: "rgba(26,22,18,0.8)", textDecoration: "none" }}>{label}</a></div>)}
             </div>
           ))}
         </div>
