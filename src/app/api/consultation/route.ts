@@ -14,6 +14,8 @@ import { buildIcs, sendEmail } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
+const ADMIN_EMAIL = process.env.APPLICATIONS_EMAIL ?? 'chris.perry@shapecommunity.onmicrosoft.com';
+
 function clean(v: unknown, max = 500): string {
   if (typeof v !== 'string') return '';
   return v.trim().slice(0, max);
@@ -201,6 +203,17 @@ export async function POST(req: NextRequest) {
       <p><a href="https://theshapecommunity.com/dashboard/${providerRole}">Open your dashboard →</a></p>
     </div>`.trim();
 
+  const adminHtml = `
+    <div style="font-family:system-ui,sans-serif;max-width:560px;">
+      <h2 style="margin:0 0 16px;">New consultation booking</h2>
+      <p><strong>Coach:</strong> ${provider.name} (${providerRole})<br/>
+      <strong>Client:</strong> ${clientName} &lt;${clientEmail}&gt;<br/>
+      <strong>When:</strong> ${niceDate} UTC<br/>
+      <strong>Duration:</strong> 15 min video</p>
+      ${topic ? `<p><em>Topic:</em> ${topic}</p>` : ''}
+      <p style="color:#666;font-size:12px;">Session ID: ${inserted.id}</p>
+    </div>`.trim();
+
   await Promise.all([
     sendEmail({
       to: clientEmail,
@@ -220,6 +233,12 @@ export async function POST(req: NextRequest) {
           icsFilename: 'shape-consultation.ics',
         })
       : Promise.resolve({ ok: false }),
+    sendEmail({
+      to: ADMIN_EMAIL,
+      subject: `Booking: ${clientName} → ${provider.name} (${niceDate} UTC)`,
+      html: adminHtml,
+      text: `New booking. Coach: ${provider.name} (${providerRole}). Client: ${clientName} <${clientEmail}>. When: ${niceDate} UTC. Session ID: ${inserted.id}.${topic ? ' Topic: ' + topic : ''}`,
+    }).catch((e) => { console.error('[consultation] admin notify failed', e); return { ok: false as const }; }),
   ]);
 
   return NextResponse.json({ ok: true, session_id: inserted.id });
