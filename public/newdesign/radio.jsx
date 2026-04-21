@@ -147,9 +147,9 @@ function RadioPitch() {
 
 function RadioCoachPlaylists() {
   const examples = [
-    { from: "Maya Okafor", role: "Trainer", ctx: "UPPER PULL · TODAY", title: "Upper Pull — Peak", meta: "95–130 BPM · 31 tracks · 1h 48m", note: "Builds across the session. Peaks at your top sets — don't pussyfoot that row.", accent: "#6a8cff", cover: "linear-gradient(135deg, #2a3a6a 0%, #1a1612 70%)", provider: "Spotify" },
-    { from: "Rae Lindqvist", role: "Nutritionist", ctx: "SUNDAY PREP · 2 PM", title: "Sunday Meal Prep", meta: "95–120 BPM · 32 tracks · 2h 18m", note: "2 hours. Enough to batch-cook without burning out — ends right as you're plating.", accent: "#f2a94e", cover: "linear-gradient(135deg, #6a4a1c 0%, #1a1612 70%)", provider: "Spotify" },
-    { from: "Diego Alvarez", role: "Run coach", ctx: "LONG RUN · SATURDAY", title: "90-Minute Zone 2", meta: "168–172 BPM · 22 tracks · 1h 32m", note: "Locked cadence. Don't let the tempo drop after the 45-min mark — this'll carry you.", accent: "#78d8a4", cover: "linear-gradient(135deg, #1f4a34 0%, #1a1612 70%)", provider: "Apple Music" },
+    { from: "Maya Okafor", role: "Trainer", ctx: "UPPER PULL · TODAY", title: "Upper Pull — Peak", meta: "95–130 BPM · 31 tracks · 1h 48m", note: "Builds across the session. Peaks at your top sets — don't pussyfoot that row.", accent: "#6a8cff", cover: "linear-gradient(135deg, rgba(42,58,106,0.55) 0%, transparent 70%)", provider: "Spotify" },
+    { from: "Rae Lindqvist", role: "Nutritionist", ctx: "SUNDAY PREP · 2 PM", title: "Sunday Meal Prep", meta: "95–120 BPM · 32 tracks · 2h 18m", note: "2 hours. Enough to batch-cook without burning out — ends right as you're plating.", accent: "#f2a94e", cover: "linear-gradient(135deg, rgba(106,74,28,0.55) 0%, transparent 70%)", provider: "Spotify" },
+    { from: "Diego Alvarez", role: "Run coach", ctx: "LONG RUN · SATURDAY", title: "90-Minute Zone 2", meta: "168–172 BPM · 22 tracks · 1h 32m", note: "Locked cadence. Don't let the tempo drop after the 45-min mark — this'll carry you.", accent: "#78d8a4", cover: "linear-gradient(135deg, rgba(31,74,52,0.55) 0%, transparent 70%)", provider: "Apple Music" },
   ];
   return (
     <section style={{ padding: "120px 40px", background: "linear-gradient(180deg, rgba(26,22,18,1) 0%, rgba(20,16,13,1) 100%)" }}>
