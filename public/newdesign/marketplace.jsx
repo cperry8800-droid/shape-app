@@ -30,6 +30,14 @@ const COACHES_FULL = [
   { name: "Amara Johnson", role: "At-home Full Body", city: "Denver", rate: 85, rating: 4.94, sessions: 840, tag: "Trainer", specialties: ["At-home", "Prenatal"], cert: "NASM · PPES", years: 10, format: "Remote", category: "At Home" },
   { name: "Rhea Kapoor", role: "Minimal-Equipment Strength", city: "Mumbai", rate: 70, rating: 4.88, sessions: 910, tag: "Trainer", specialties: ["At-home", "Bands"], cert: "NASM-CPT", years: 5, format: "Remote", category: "At Home" },
 
+  { name: "Nora Kessler", role: "Women's Strength & Cycle-Synced", city: "Berlin", rate: 115, rating: 4.94, sessions: 720, tag: "Trainer", specialties: ["Women-only", "Hormonal"], cert: "NSCA-CSCS · PN-2", years: 10, format: "Hybrid", category: "Just for Women" },
+  { name: "Amelia Finch", role: "Postpartum & Core Rebuild", city: "Portland, OR", rate: 105, rating: 4.96, sessions: 540, tag: "Trainer", specialties: ["Postpartum", "Pelvic floor"], cert: "NASM · PCES", years: 8, format: "In-person", category: "Just for Women" },
+  { name: "Sana Khoury", role: "Women-only Strength Studio", city: "Toronto", rate: 95, rating: 4.90, sessions: 880, tag: "Trainer", specialties: ["Strength", "Beginner-friendly"], cert: "NASM-CPT", years: 6, format: "In-person", category: "Just for Women" },
+
+  { name: "Cal Redmond", role: "5K to Marathon Coaching", city: "Boulder, CO", rate: 90, rating: 4.96, sessions: 1040, tag: "Trainer", specialties: ["Marathon", "Tempo"], cert: "RRCA · UESCA", years: 11, format: "Remote", category: "Pure Running" },
+  { name: "Fiona Walsh", role: "Trail & Ultra Running", city: "Chamonix", rate: 120, rating: 4.93, sessions: 410, tag: "Trainer", specialties: ["Trail", "Ultra"], cert: "UESCA-UEC", years: 9, format: "Hybrid", category: "Pure Running" },
+  { name: "Jamal Brooks", role: "Track & Speed Work", city: "Eugene, OR", rate: 105, rating: 4.91, sessions: 620, tag: "Trainer", specialties: ["Track", "Speed"], cert: "USATF-L2", years: 12, format: "In-person", category: "Pure Running" },
+
   // Nutritionists
   { name: "Rae Lindqvist", role: "Sports Performance & Hydration", city: "Stockholm", rate: 140, rating: 5.00, sessions: 640, tag: "Nutritionist", specialties: ["Hydration", "Metabolic"], cert: "RD · RDN", years: 11, format: "Remote", category: "Sports Performance & Hydration" },
   { name: "Claire Donovan", role: "Performance Nutrition", city: "London", rate: 130, rating: 4.93, sessions: 520, tag: "Nutritionist", specialties: ["Athlete fueling"], cert: "AfN-RNutr", years: 9, format: "Remote", category: "Performance Nutrition" },
@@ -45,14 +53,14 @@ const COACHES_FULL = [
 ];
 
 const CATEGORIES = {
-  Trainer: ["All Categories", "Strength & Resistance", "Cardio & Endurance", "Mobility, Recovery & Rehab", "Functional & Hybrid", "Bodybuilding", "HIIT", "Fat Burn", "At Home"],
+  Trainer: ["All Categories", "Strength & Resistance", "Cardio & Endurance", "Pure Running", "Mobility, Recovery & Rehab", "Functional & Hybrid", "Bodybuilding", "HIIT", "Fat Burn", "At Home", "Just for Women"],
   Nutritionist: ["All Categories", "Sports Performance & Hydration", "Performance Nutrition", "Medical & Condition-Specific", "Muscle Gain / Bulking", "Gut Health & Functional Nutrition", "Longevity & Healthspan", "Weight Mgmt", "Plant-Based", "Prenatal", "Meal Prep"],
 };
 
 const SORT_OPTS = ["Most Popular", "Highest Rated", "Lowest Price", "Most Experience"];
 
 const LOCATIONS = {
-  Trainer: ["Anywhere", "Remote-friendly", "Brooklyn, NY", "Los Angeles", "Austin, TX", "Miami", "Chicago", "Denver", "San Francisco", "Las Vegas", "Atlanta", "London", "Berlin", "Lisbon", "Madrid", "Tokyo", "Mumbai", "Dubai", "Girona"],
+  Trainer: ["Anywhere", "Remote-friendly", "Brooklyn, NY", "Los Angeles", "Austin, TX", "Miami", "Chicago", "Denver", "San Francisco", "Las Vegas", "Atlanta", "Portland, OR", "Boulder, CO", "Eugene, OR", "Toronto", "London", "Berlin", "Lisbon", "Madrid", "Tokyo", "Mumbai", "Dubai", "Girona", "Chamonix"],
   Nutritionist: ["Anywhere", "Remote only", "London", "Toronto", "Stockholm", "Copenhagen", "Madrid", "Milan", "Sydney", "Osaka", "Lagos"],
 };
 
