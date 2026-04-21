@@ -181,11 +181,11 @@ function ClientOvPaths() {
       featured: false,
     },
     {
-      tag: "Full stack",
-      title: "Just a trainer or just a nutritionist",
-      body: "One specialist, dialed in. Custom programming or custom nutrition — your goals, your calendar, your review cycle. The setup most members choose.",
+      tag: "Nutrition",
+      title: "Just a nutritionist",
+      body: "One specialist, dialed in. Custom meal plans, macro targets, and check-ins — your goals, your calendar, your review cycle.",
       price: "from $280/mo",
-      cta: ["Match with one", "SignupClient.html"],
+      cta: ["Browse nutritionists", "Marketplace.html"],
       featured: true,
     },
     {
