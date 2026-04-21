@@ -23,23 +23,17 @@ const legacyPages = [
 
 const nextConfig: NextConfig = {
   async rewrites() {
-    return {
-      // beforeFiles runs before static files and app router pages — lets
-      // us serve the redesign at `/` while keeping `public/index.html`
-      // and the app-router tree untouched.
-      beforeFiles: [
-        { source: '/', destination: '/newdesign/Landing.html' },
-      ],
-      afterFiles: [
-        ...legacyPages.map((p) => ({
-          source: `/${p}`,
-          destination: `/${p}.html`,
-        })),
-        { source: '/newdesign', destination: '/newdesign/index.html' },
-        { source: '/newdesign/', destination: '/newdesign/index.html' },
-      ],
-      fallback: [],
-    };
+    // Root renders the cinematic intro via src/app/page.tsx. The CTA
+    // inside the intro links to /newdesign/Landing.html for the real
+    // marketing site.
+    return [
+      ...legacyPages.map((p) => ({
+        source: `/${p}`,
+        destination: `/${p}.html`,
+      })),
+      { source: '/newdesign', destination: '/newdesign/index.html' },
+      { source: '/newdesign/', destination: '/newdesign/index.html' },
+    ];
   },
 };
 
