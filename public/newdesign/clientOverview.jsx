@@ -217,9 +217,6 @@ function ClientOvPaths() {
               position: "relative",
               minHeight: 380,
             }}>
-              {p.featured && (
-                <div style={{ position: "absolute", top: 20, right: 20, padding: "5px 10px", borderRadius: 4, background: TEAL, color: LIGHT, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600 }}>Most common</div>
-              )}
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: p.featured ? TEAL : "rgba(6,8,10,0.5)", marginBottom: 16 }}>{p.tag}</div>
               <div style={{ fontFamily: serif, fontSize: 34, fontWeight: 400, letterSpacing: "-0.02em", lineHeight: 1.05, marginBottom: 18 }}>{p.title}</div>
               <p style={{ fontFamily: sans, fontSize: 14, lineHeight: 1.6, color: p.featured ? "rgba(233,239,237,0.72)" : "rgba(6,8,10,0.7)", margin: "0 0 24px", flex: 1 }}>{p.body}</p>
