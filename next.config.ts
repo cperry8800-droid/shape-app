@@ -4,7 +4,7 @@ import type { NextConfig } from "next";
 // them automatically at their .html paths. Rewrites map the clean URLs
 // (/, /home, /trainers, etc.) to the right .html file.
 
-// Pages now served by Next.js app router: /, /trainers, /nutritionists,
+// Pages now served by Next.js app router: /trainers, /nutritionists,
 // /pricing, /signup, /forgot-password, /reset-password — removed from
 // this list. Everything else still falls through to the legacy .html.
 const legacyPages = [
@@ -23,18 +23,23 @@ const legacyPages = [
 
 const nextConfig: NextConfig = {
   async rewrites() {
-    // Root now renders the cinematic intro via src/app/page.tsx.
-    // The legacy static index.html is still in public/ but no longer
-    // mapped to `/` — other legacy pages keep their rewrites.
-    return [
-      ...legacyPages.map((p) => ({
-        source: `/${p}`,
-        destination: `/${p}.html`,
-      })),
-      // Preview of the Claude Design redesign at /newdesign/
-      { source: '/newdesign', destination: '/newdesign/index.html' },
-      { source: '/newdesign/', destination: '/newdesign/index.html' },
-    ];
+    return {
+      // beforeFiles runs before static files and app router pages — lets
+      // us serve the redesign at `/` while keeping `public/index.html`
+      // and the app-router tree untouched.
+      beforeFiles: [
+        { source: '/', destination: '/newdesign/index.html' },
+      ],
+      afterFiles: [
+        ...legacyPages.map((p) => ({
+          source: `/${p}`,
+          destination: `/${p}.html`,
+        })),
+        { source: '/newdesign', destination: '/newdesign/index.html' },
+        { source: '/newdesign/', destination: '/newdesign/index.html' },
+      ],
+      fallback: [],
+    };
   },
 };
 
