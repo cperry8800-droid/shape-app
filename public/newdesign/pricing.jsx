@@ -53,7 +53,8 @@ function PricingCard() {
             <div style={{ fontFamily: serif, fontSize: 120, fontWeight: 400, letterSpacing: "-0.04em", lineHeight: 0.9 }}>$5</div>
             <div style={{ fontSize: 16, color: "rgba(26,22,18,0.55)" }}>/month</div>
           </div>
-          <div style={{ fontFamily: serif, fontSize: 24, letterSpacing: "-0.015em", fontWeight: 400, marginTop: 28, lineHeight: 1.3, maxWidth: 360 }}>Everything you need. No bundles. No upsell. No seat math.</div>
+          <div style={{ fontFamily: sans, fontSize: 13.5, color: "rgba(26,22,18,0.65)", marginTop: 14, lineHeight: 1.5, maxWidth: 360 }}>What every Shape client pays to use the platform. Your coach's rate is separate and paid directly to them.</div>
+          <div style={{ fontFamily: serif, fontSize: 24, letterSpacing: "-0.015em", fontWeight: 400, marginTop: 24, lineHeight: 1.3, maxWidth: 360 }}>Everything you need. No bundles. No upsell. No seat math.</div>
           <a href="/pricing" style={{ marginTop: 36, padding: "16px 28px", borderRadius: 8, background: TEAL, color: PAPER, border: 0, fontFamily: sans, fontSize: 14, fontWeight: 500, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Get started →</a>
           <div style={{ fontFamily: sans, fontSize: 12, color: "rgba(26,22,18,0.5)", marginTop: 16 }}>Cancel any time. No commitments.</div>
         </div>
