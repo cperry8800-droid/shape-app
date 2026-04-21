@@ -10,7 +10,7 @@ import { sendEmail } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
-const ADMIN_EMAIL = process.env.APPLICATIONS_EMAIL ?? 'info@theshapecommunity.com';
+const ADMIN_EMAIL = process.env.APPLICATIONS_EMAIL ?? 'chris.perry@shapecommunity.onmicrosoft.com';
 
 const MAX_TEXT = 500;
 const MAX_LONG = 10000;
