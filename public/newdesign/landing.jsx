@@ -173,8 +173,8 @@ function LandingFooter() {
         <span>© 2026 Shape · All rights reserved</span>
         <div style={{ display: "flex", gap: 24 }}>
           <a href="index.html" style={{ color: "rgba(242,237,228,0.7)" }}>Explore the platform</a>
-          <a href="#" style={{ color: "rgba(242,237,228,0.5)" }}>Privacy</a>
-          <a href="#" style={{ color: "rgba(242,237,228,0.5)" }}>Terms</a>
+          <a href="/privacy" style={{ color: "rgba(242,237,228,0.5)" }}>Privacy</a>
+          <a href="/terms" style={{ color: "rgba(242,237,228,0.5)" }}>Terms</a>
         </div>
       </div>
     </footer>

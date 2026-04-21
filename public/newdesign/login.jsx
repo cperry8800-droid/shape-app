@@ -135,7 +135,7 @@ function LoginCard() {
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
             <label style={labelStyle} htmlFor="password">Password</label>
-            <a href="#" style={{ fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.6)", marginBottom: 9 }}>Forgot?</a>
+            <a href="/forgot-password" style={{ fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.6)", marginBottom: 9 }}>Forgot?</a>
           </div>
           <div style={fieldWrap}>
             <input id="password" type={showPass ? "text" : "password"} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" style={{ ...inputStyle, paddingRight: 52 }}
@@ -257,7 +257,7 @@ function LoginPage() {
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
           <span>© 2026 Shape</span>
           <div style={{ display: "flex", gap: 24 }}>
-            <a href="#">Privacy</a><a href="#">Terms</a><a href="#">Help</a>
+            <a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/help">Help</a>
           </div>
         </div>
       </footer>

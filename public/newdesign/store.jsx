@@ -196,7 +196,7 @@ function UnlockedCoupons() {
             <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL }}>Your locker</div>
             <h2 style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.03em", fontWeight: 400, margin: "10px 0 0", lineHeight: 1 }}>Unlocked coupons.</h2>
           </div>
-          <a href="#" style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.7)", borderBottom: "1px solid rgba(242,237,228,0.3)", paddingBottom: 2 }}>Redemption history →</a>
+          <a href="shape-store.html" style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.7)", borderBottom: "1px solid rgba(242,237,228,0.3)", paddingBottom: 2 }}>Redemption history →</a>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
           {UNLOCKED.map((u, i) => (

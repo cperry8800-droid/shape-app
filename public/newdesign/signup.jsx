@@ -188,7 +188,7 @@ function ClientPrefs({ v, set }) {
       <Field label="Budget per month (optional)">
         <Select value={v.budget || "Optional"} onChange={e => set({ budget: e.target.value })} options={["Optional", "Under $25/mo", "$25 – $50/mo", "$50 – $100/mo", "$100+/mo"]} />
       </Field>
-      <Check on={v.tos} onClick={() => set({ tos: !v.tos })}>I agree to the <a href="#" style={{ color: TEAL, textDecoration: "underline", textUnderlineOffset: 2 }}>Terms of Service</a> and <a href="#" style={{ color: TEAL, textDecoration: "underline", textUnderlineOffset: 2 }}>Privacy Policy</a>.</Check>
+      <Check on={v.tos} onClick={() => set({ tos: !v.tos })}>I agree to the <a href="/terms" style={{ color: TEAL, textDecoration: "underline", textUnderlineOffset: 2 }}>Terms of Service</a> and <a href="/privacy" style={{ color: TEAL, textDecoration: "underline", textUnderlineOffset: 2 }}>Privacy Policy</a>.</Check>
     </div>
   );
 }
@@ -313,8 +313,8 @@ function ProAvailability({ v, set, kind }) {
 
       <div style={{ paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", flexDirection: "column", gap: 8 }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)", marginBottom: 4 }}>Agreements</div>
-        <Check on={v.tos} onClick={() => set({ tos: !v.tos })}>I agree to the <a href="#" style={{ color: TEAL }}>{kind === "trainer" ? "Trainer" : "Nutritionist"} Agreement</a> and <a href="#" style={{ color: TEAL }}>Terms of Service</a>.</Check>
-        <Check on={v.conduct} onClick={() => set({ conduct: !v.conduct })}>I agree to Shape's <a href="#" style={{ color: TEAL }}>code of conduct</a>.</Check>
+        <Check on={v.tos} onClick={() => set({ tos: !v.tos })}>I agree to the <a href="/terms" style={{ color: TEAL }}>{kind === "trainer" ? "Trainer" : "Nutritionist"} Agreement</a> and <a href="/terms" style={{ color: TEAL }}>Terms of Service</a>.</Check>
+        <Check on={v.conduct} onClick={() => set({ conduct: !v.conduct })}>I agree to Shape's <a href="/community" style={{ color: TEAL }}>code of conduct</a>.</Check>
         <Check on={v.bgcheck} onClick={() => set({ bgcheck: !v.bgcheck })}>I consent to an optional background check (builds trust with clients).</Check>
       </div>
     </div>
@@ -345,7 +345,7 @@ function RadioVibe({ v, set }) {
           {vibes.map(x => <Chip key={x} on={(v.vibes || []).includes(x)} onClick={() => toggle(x)}>{x}</Chip>)}
         </div>
       </Field>
-      <Check on={v.tos} onClick={() => set({ tos: !v.tos })}>I agree to the <a href="#" style={{ color: TEAL }}>Terms of Service</a> and <a href="#" style={{ color: TEAL }}>Privacy Policy</a>.</Check>
+      <Check on={v.tos} onClick={() => set({ tos: !v.tos })}>I agree to the <a href="/terms" style={{ color: TEAL }}>Terms of Service</a> and <a href="/privacy" style={{ color: TEAL }}>Privacy Policy</a>.</Check>
       <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)", lineHeight: 1.55 }}>
         Radio is free with a <span style={{ color: INK, fontWeight: 500 }}>Shape membership ($5/mo)</span>. You can upgrade anytime from settings.
       </div>
@@ -487,7 +487,7 @@ function SignupPage({ role }) {
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
           <span>© 2026 Shape</span>
           <div style={{ display: "flex", gap: 24 }}>
-            <a href="#">Privacy</a><a href="#">Terms</a>
+            <a href="/privacy">Privacy</a><a href="/terms">Terms</a>
           </div>
         </div>
       </footer>
