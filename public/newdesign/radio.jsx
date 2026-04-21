@@ -171,7 +171,7 @@ function RadioCoachPlaylists() {
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20 }}>
           {examples.map((e, i) => (
-            <div key={i} style={{ position: "relative", borderRadius: 12, overflow: "hidden", background: "transparent", border: "1px solid rgba(242,237,228,0.08)", minHeight: 440, display: "flex", flexDirection: "column" }}>
+            <div key={i} style={{ position: "relative", borderRadius: 12, overflow: "hidden", background: "transparent", minHeight: 440, display: "flex", flexDirection: "column" }}>
               <div style={{ padding: "20px 20px 0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)", padding: "5px 11px", borderRadius: 999, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(255,255,255,0.9)" }}>
                   <span style={{ width: 6, height: 6, borderRadius: 999, background: e.provider === "Apple Music" ? "#fa233b" : "#1DB954" }}/> {e.provider.toUpperCase()}
@@ -190,7 +190,7 @@ function RadioCoachPlaylists() {
                 </div>
               </div>
 
-              <div style={{ background: "transparent", padding: "16px 20px", borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ background: "transparent", padding: "16px 20px", display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: serif, fontSize: 18, color: "#fff", letterSpacing: "-0.01em", marginBottom: 2 }}>{e.title}</div>
                   <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(255,255,255,0.65)", letterSpacing: "0.06em" }}>{e.meta}</div>
