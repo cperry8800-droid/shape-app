@@ -147,12 +147,12 @@ function RadioPitch() {
 
 function RadioCoachPlaylists() {
   const examples = [
-    { from: "Maya Okafor", role: "Trainer", ctx: "UPPER PULL · TODAY", title: "Upper Pull — Peak", meta: "95–130 BPM · 31 tracks · 1h 48m", note: "Builds across the session. Peaks at your top sets — don't pussyfoot that row.", accent: "#6a8cff", cover: "linear-gradient(135deg, rgba(42,58,106,0.55) 0%, transparent 70%)", provider: "Spotify" },
-    { from: "Rae Lindqvist", role: "Nutritionist", ctx: "SUNDAY PREP · 2 PM", title: "Sunday Meal Prep", meta: "95–120 BPM · 32 tracks · 2h 18m", note: "2 hours. Enough to batch-cook without burning out — ends right as you're plating.", accent: "#f2a94e", cover: "linear-gradient(135deg, rgba(106,74,28,0.55) 0%, transparent 70%)", provider: "Spotify" },
-    { from: "Diego Alvarez", role: "Run coach", ctx: "LONG RUN · SATURDAY", title: "90-Minute Zone 2", meta: "168–172 BPM · 22 tracks · 1h 32m", note: "Locked cadence. Don't let the tempo drop after the 45-min mark — this'll carry you.", accent: "#78d8a4", cover: "linear-gradient(135deg, rgba(31,74,52,0.55) 0%, transparent 70%)", provider: "Apple Music" },
+    { from: "Maya Okafor", role: "Trainer", ctx: "UPPER PULL · TODAY", title: "Upper Pull — Peak", meta: "95–130 BPM · 31 tracks · 1h 48m", note: "Builds across the session. Peaks at your top sets — don't pussyfoot that row.", accent: "#6a8cff", cover: "linear-gradient(135deg, #2a3a6a 0%, #1a1612 70%)", provider: "Spotify" },
+    { from: "Rae Lindqvist", role: "Nutritionist", ctx: "SUNDAY PREP · 2 PM", title: "Sunday Meal Prep", meta: "95–120 BPM · 32 tracks · 2h 18m", note: "2 hours. Enough to batch-cook without burning out — ends right as you're plating.", accent: "#f2a94e", cover: "linear-gradient(135deg, #6a4a1c 0%, #1a1612 70%)", provider: "Spotify" },
+    { from: "Diego Alvarez", role: "Run coach", ctx: "LONG RUN · SATURDAY", title: "90-Minute Zone 2", meta: "168–172 BPM · 22 tracks · 1h 32m", note: "Locked cadence. Don't let the tempo drop after the 45-min mark — this'll carry you.", accent: "#78d8a4", cover: "linear-gradient(135deg, #1f4a34 0%, #1a1612 70%)", provider: "Apple Music" },
   ];
   return (
-    <section style={{ padding: "120px 40px", background: "linear-gradient(180deg, rgba(26,22,18,1) 0%, rgba(20,16,13,1) 100%)" }}>
+    <section style={{ padding: "120px 40px", background: "transparent" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "end", marginBottom: 56 }}>
           <div>
@@ -171,7 +171,7 @@ function RadioCoachPlaylists() {
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20 }}>
           {examples.map((e, i) => (
-            <div key={i} style={{ position: "relative", borderRadius: 12, overflow: "hidden", background: "transparent", minHeight: 440, display: "flex", flexDirection: "column" }}>
+            <div key={i} style={{ position: "relative", borderRadius: 12, overflow: "hidden", background: e.cover, minHeight: 440, display: "flex", flexDirection: "column" }}>
               <div style={{ padding: "20px 20px 0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)", padding: "5px 11px", borderRadius: 999, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(255,255,255,0.9)" }}>
                   <span style={{ width: 6, height: 6, borderRadius: 999, background: e.provider === "Apple Music" ? "#fa233b" : "#1DB954" }}/> {e.provider.toUpperCase()}
@@ -190,7 +190,7 @@ function RadioCoachPlaylists() {
                 </div>
               </div>
 
-              <div style={{ background: "transparent", padding: "16px 20px", display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ background: "rgba(0,0,0,0.15)", backdropFilter: "blur(10px)", padding: "16px 20px", borderTop: "1px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: serif, fontSize: 18, color: "#fff", letterSpacing: "-0.01em", marginBottom: 2 }}>{e.title}</div>
                   <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(255,255,255,0.65)", letterSpacing: "0.06em" }}>{e.meta}</div>
