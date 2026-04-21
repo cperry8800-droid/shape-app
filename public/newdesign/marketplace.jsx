@@ -38,6 +38,10 @@ const COACHES_FULL = [
   { name: "Fiona Walsh", role: "Trail & Ultra Running", city: "Chamonix", rate: 120, rating: 4.93, sessions: 410, tag: "Trainer", specialties: ["Trail", "Ultra"], cert: "UESCA-UEC", years: 9, format: "Hybrid", category: "Pure Running" },
   { name: "Jamal Brooks", role: "Track & Speed Work", city: "Eugene, OR", rate: 105, rating: 4.91, sessions: 620, tag: "Trainer", specialties: ["Track", "Speed"], cert: "USATF-L2", years: 12, format: "In-person", category: "Pure Running" },
 
+  { name: "Dax Whitaker", role: "Hyrox Elite & Mixed Ergs", city: "London", rate: 125, rating: 4.94, sessions: 680, tag: "Trainer", specialties: ["Hyrox", "SkiErg"], cert: "NSCA-CSCS · Hyrox-CT", years: 9, format: "Hybrid", category: "Hyrox" },
+  { name: "Greta Lindqvist", role: "Hyrox Pro Doubles", city: "Stockholm", rate: 115, rating: 4.92, sessions: 520, tag: "Trainer", specialties: ["Hyrox", "Doubles"], cert: "Hyrox-CT · NASM", years: 7, format: "In-person", category: "Hyrox" },
+  { name: "Rafa Moreno", role: "Hyrox Strength & Run Carry-over", city: "Madrid", rate: 105, rating: 4.89, sessions: 440, tag: "Trainer", specialties: ["Hyrox", "Conditioning"], cert: "Hyrox-CT", years: 6, format: "In-person", category: "Hyrox" },
+
   // Nutritionists
   { name: "Rae Lindqvist", role: "Sports Performance & Hydration", city: "Stockholm", rate: 140, rating: 5.00, sessions: 640, tag: "Nutritionist", specialties: ["Hydration", "Metabolic"], cert: "RD · RDN", years: 11, format: "Remote", category: "Sports Performance & Hydration" },
   { name: "Claire Donovan", role: "Performance Nutrition", city: "London", rate: 130, rating: 4.93, sessions: 520, tag: "Nutritionist", specialties: ["Athlete fueling"], cert: "AfN-RNutr", years: 9, format: "Remote", category: "Performance Nutrition" },
@@ -53,14 +57,14 @@ const COACHES_FULL = [
 ];
 
 const CATEGORIES = {
-  Trainer: ["All Categories", "Strength & Resistance", "Cardio & Endurance", "Pure Running", "Mobility, Recovery & Rehab", "Functional & Hybrid", "Bodybuilding", "HIIT", "Fat Burn", "At Home", "Just for Women"],
+  Trainer: ["All Categories", "Strength & Resistance", "Cardio & Endurance", "Pure Running", "Hyrox", "Mobility, Recovery & Rehab", "Functional & Hybrid", "Bodybuilding", "HIIT", "Fat Burn", "At Home", "Just for Women"],
   Nutritionist: ["All Categories", "Sports Performance & Hydration", "Performance Nutrition", "Medical & Condition-Specific", "Muscle Gain / Bulking", "Gut Health & Functional Nutrition", "Longevity & Healthspan", "Weight Mgmt", "Plant-Based", "Prenatal", "Meal Prep"],
 };
 
 const SORT_OPTS = ["Most Popular", "Highest Rated", "Lowest Price", "Most Experience"];
 
 const LOCATIONS = {
-  Trainer: ["Anywhere", "Remote-friendly", "Brooklyn, NY", "Los Angeles", "Austin, TX", "Miami", "Chicago", "Denver", "San Francisco", "Las Vegas", "Atlanta", "Portland, OR", "Boulder, CO", "Eugene, OR", "Toronto", "London", "Berlin", "Lisbon", "Madrid", "Tokyo", "Mumbai", "Dubai", "Girona", "Chamonix"],
+  Trainer: ["Anywhere", "Remote-friendly", "Brooklyn, NY", "Los Angeles", "Austin, TX", "Miami", "Chicago", "Denver", "San Francisco", "Las Vegas", "Atlanta", "Portland, OR", "Boulder, CO", "Eugene, OR", "Toronto", "London", "Berlin", "Lisbon", "Madrid", "Stockholm", "Tokyo", "Mumbai", "Dubai", "Girona", "Chamonix"],
   Nutritionist: ["Anywhere", "Remote only", "London", "Toronto", "Stockholm", "Copenhagen", "Madrid", "Milan", "Sydney", "Osaka", "Lagos"],
 };
 
