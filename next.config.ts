@@ -28,7 +28,7 @@ const nextConfig: NextConfig = {
       // us serve the redesign at `/` while keeping `public/index.html`
       // and the app-router tree untouched.
       beforeFiles: [
-        { source: '/', destination: '/newdesign/index.html' },
+        { source: '/', destination: '/newdesign/Landing.html' },
       ],
       afterFiles: [
         ...legacyPages.map((p) => ({
