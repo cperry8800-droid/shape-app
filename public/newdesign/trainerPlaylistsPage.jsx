@@ -322,6 +322,7 @@ function BuilderDrawer({ query, setQuery, items }) {
 
 function BuilderDetailPane({ p }) {
   const ctx = React.useContext(PlaylistCtx);
+  const targets = ctx.attachTargets;
   return (
     <Card style={{ padding: 0, overflow: "hidden" }}>
       <div style={{ height: 120, background: p.cover, padding: 20, display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
