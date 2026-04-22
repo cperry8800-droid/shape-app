@@ -131,27 +131,28 @@ function TrainerHow() {
 function TrainerEarnings() {
   const [clients, setClients] = React.useState(20);
   const [price, setPrice] = React.useState(120);
-  const PLATFORM_FEE = 20;
+  const PLATFORM_FEE_RATE = 0.15;
   const grossMonthly = clients * price * 4;
-  const monthly = grossMonthly - PLATFORM_FEE;
+  const feeMonthly = grossMonthly * PLATFORM_FEE_RATE;
+  const monthly = grossMonthly - feeMonthly;
   const yearly = monthly * 12;
   return (
     <section style={{ padding: "140px 40px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.1fr", gap: 80, alignItems: "center" }}>
         <div>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Earnings</div>
-          <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5vw, 76px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 28px", lineHeight: 0.98, color: INK }}>Set your price. <em style={{ fontStyle: "italic", color: TEAL }}>Keep what you earn.</em></h2>
+          <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5vw, 76px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 28px", lineHeight: 0.98, color: INK }}>Set your price. <em style={{ fontStyle: "italic", color: TEAL }}>Keep 85% of it.</em></h2>
           <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.7)", lineHeight: 1.6, margin: "0 0 28px", maxWidth: 500 }}>
-            Free for your first <strong style={{ color: INK }}>60 days</strong>. After that, a flat <strong style={{ color: INK }}>$20/month</strong> platform fee — regardless of how many clients you take on or how much you earn. No commissions. No per-booking cuts. No surprise deductions.
+            Shape takes a <strong style={{ color: INK }}>15% platform fee</strong> on everything clients pay you. No monthly dues, no setup fees, no per-booking cuts — you only pay when you earn. Cancel any time.
           </p>
           <div style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 10, padding: "22px 24px", marginBottom: 28, maxWidth: 500 }}>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 10 }}>What the $20 covers</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 10 }}>What the 15% covers</div>
             <div style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.75)", lineHeight: 1.55 }}>
-              Client acquisition through the Shape marketplace, in-app messaging and video, program hosting, scheduling, and liability coverage. One flat rate — you keep 100% of what clients pay you (less standard card processing).
+              Client acquisition through the Shape marketplace, in-app messaging and video, program hosting, scheduling, and liability coverage. Standard card processing is separate.
             </div>
           </div>
           <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 14 }}>
-            {["First 60 days free — no card required to start", "Link your existing Stripe account, or set one up in 5 minutes", "Weekly payouts direct to your bank"].map(t => (
+            {["No monthly fee — you only pay Shape when you earn", "Link your existing Stripe account, or set one up in 5 minutes", "Weekly payouts direct to your bank"].map(t => (
               <li key={t} style={{ fontFamily: sans, fontSize: 14.5, color: "rgba(242,237,228,0.78)", display: "flex", gap: 12, alignItems: "baseline" }}>
                 <span style={{ color: TEAL }}>→</span>{t}
               </li>
@@ -183,8 +184,8 @@ function TrainerEarnings() {
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, color: "rgba(242,237,228,0.75)" }}>${grossMonthly.toLocaleString()}</div>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingBottom: 18, borderBottom: "1px dashed rgba(242,237,228,0.12)" }}>
-              <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)" }}>Platform fee</div>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, color: "rgba(242,237,228,0.55)" }}>-$20 flat</div>
+              <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)" }}>Platform fee (15%)</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, color: "rgba(242,237,228,0.55)" }}>-${Math.round(feeMonthly).toLocaleString()}</div>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 18 }}>
               <div style={{ fontFamily: sans, fontSize: 13, color: INK }}>Your take-home</div>
@@ -196,7 +197,7 @@ function TrainerEarnings() {
             </div>
           </div>
           <div style={{ marginTop: 28, fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.4)", lineHeight: 1.5 }}>
-            Estimate assumes 4 sessions per client per month. First 60 days are free — after that, $20/month flat. Actual earnings vary by specialty, location, and hours worked.
+            Estimate assumes 4 sessions per client per month, less Shape's 15% platform fee. Actual earnings vary by specialty, location, and hours worked.
           </div>
         </div>
       </div>
