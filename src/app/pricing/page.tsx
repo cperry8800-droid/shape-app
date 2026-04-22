@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { startPlatformCheckout } from './actions';
+import { logout } from '@/app/login/actions';
 import PricingFaq from './PricingFaq';
 
 export const metadata = { title: 'Pricing — Shape' };
@@ -108,7 +109,7 @@ export default async function PricingPage() {
           }}
         />
         <div style={{ position: 'relative', zIndex: 1 }}>
-          <PricingNav />
+          <PricingNav user={user} />
           <PricingHero />
           <PricingCard user={user} />
           <PricingCoaches />
@@ -121,7 +122,33 @@ export default async function PricingPage() {
   );
 }
 
-function PricingNav() {
+function PricingNav({ user }: { user: { id: string; email?: string | null } | null }) {
+  const linkStyle = { color: 'rgba(242,237,228,0.8)', textDecoration: 'none' } as const;
+  const activeLinkStyle = { color: INK, textDecoration: 'none' } as const;
+  const primaryBtn = {
+    padding: '10px 20px',
+    borderRadius: 6,
+    background: TEAL,
+    color: PAPER,
+    textDecoration: 'none',
+    fontWeight: 500,
+    border: 0,
+    cursor: 'pointer',
+    fontFamily: sans,
+    fontSize: 13,
+  } as const;
+  const ghostBtn = {
+    padding: '10px 20px',
+    borderRadius: 6,
+    background: 'transparent',
+    color: INK,
+    textDecoration: 'none',
+    fontWeight: 500,
+    border: '1px solid rgba(242,237,228,0.25)',
+    cursor: 'pointer',
+    fontFamily: sans,
+    fontSize: 13,
+  } as const;
   return (
     <nav
       style={{
@@ -147,34 +174,27 @@ function PricingNav() {
           fontFamily: sans,
           fontSize: 13,
           fontWeight: 500,
-          color: 'rgba(242,237,228,0.8)',
         }}
       >
-        <Link href="/trainers" style={{ color: 'inherit', textDecoration: 'none' }}>
-          Trainers
-        </Link>
-        <Link href="/nutritionists" style={{ color: 'inherit', textDecoration: 'none' }}>
-          Nutritionists
-        </Link>
-        <Link href="/pricing" style={{ color: INK, textDecoration: 'none' }}>
-          Pricing
-        </Link>
-        <Link href="/login" style={{ color: 'inherit', textDecoration: 'none' }}>
-          Log in
-        </Link>
-        <Link
-          href="/signup"
-          style={{
-            padding: '10px 20px',
-            borderRadius: 6,
-            background: TEAL,
-            color: PAPER,
-            textDecoration: 'none',
-            fontWeight: 500,
-          }}
-        >
-          Get started
-        </Link>
+        <Link href="/trainers" style={linkStyle}>Trainers</Link>
+        <Link href="/nutritionists" style={linkStyle}>Nutritionists</Link>
+        <Link href="/pricing" style={activeLinkStyle}>Pricing</Link>
+        {user ? (
+          <>
+            {user.email && (
+              <span style={{ color: 'rgba(242,237,228,0.55)', fontSize: 12 }}>{user.email}</span>
+            )}
+            <Link href="/dashboard" style={ghostBtn}>Dashboard</Link>
+            <form action={logout}>
+              <button type="submit" style={primaryBtn}>Sign out</button>
+            </form>
+          </>
+        ) : (
+          <>
+            <Link href="/login" style={linkStyle}>Log in</Link>
+            <Link href="/signup" style={primaryBtn}>Get started</Link>
+          </>
+        )}
       </div>
     </nav>
   );
