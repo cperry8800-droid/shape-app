@@ -9,7 +9,7 @@ export async function login(formData: FormData): Promise<{ error: string } | voi
   const password = String(formData.get('password') ?? '');
   const rawNext = String(formData.get('next') ?? '');
   // Only allow internal paths to avoid open-redirect.
-  const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/dashboard/client';
+  const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/newdesign/ClientDashboard.html';
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -45,7 +45,7 @@ export async function signup(
 
   if (!needsConfirm) {
     revalidatePath('/', 'layout');
-    redirect('/dashboard/client');
+    redirect('/newdesign/ClientDashboard.html');
   }
 
   return { ok: true, needsConfirm: true };

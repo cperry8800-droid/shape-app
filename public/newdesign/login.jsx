@@ -101,13 +101,12 @@ function LoginCard() {
           refresh_token: data.session.refresh_token,
         }),
       }).catch(() => {});
-      // Use the Next.js dashboard which is auth-aware (the static legacy
-      // dashboards won't read the fresh session immediately).
+      // Keep the user in the newdesign layout after login.
       const nextDashboard = role === 'trainer'
-        ? '/dashboard/trainer'
+        ? '/newdesign/TrainerDashboard.html'
         : role === 'nutritionist'
-          ? '/dashboard/nutritionist'
-          : '/dashboard/client';
+          ? '/newdesign/NutritionistDashboard.html'
+          : '/newdesign/ClientDashboard.html';
       window.location.href = nextDashboard;
     } catch (err) {
       console.error('[login] unexpected', err);
