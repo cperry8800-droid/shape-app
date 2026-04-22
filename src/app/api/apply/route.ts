@@ -193,7 +193,7 @@ async function sendApplicationEmails(ctx: EmailContext): Promise<void> {
         <li>If it's a fit, we'll email you to verify your credentials and schedule a short intro call.</li>
         <li>Once approved, we'll set up your dashboard and help you launch your profile.</li>
       </ol>
-      <p style="margin:0 0 16px;line-height:1.55;">Remember: <strong>your first 60 days on Shape are free</strong>. After that, it's a flat $20/month platform fee — no matter how many clients you take on or how much you earn.</p>
+      <p style="margin:0 0 16px;line-height:1.55;">Reminder on pricing: there's no monthly fee to be on Shape. We take a <strong>15% platform fee</strong> on everything your clients pay you — so you only pay Shape when you earn.</p>
       <p style="margin:0 0 16px;line-height:1.55;">Questions in the meantime? Just reply to this email.</p>
       <p style="margin:24px 0 0;color:#666;font-size:13px;">— The Shape team<br/><a href="https://theshapecommunity.com" style="color:#0ac5a8;">theshapecommunity.com</a></p>
     </div>
@@ -208,7 +208,7 @@ async function sendApplicationEmails(ctx: EmailContext): Promise<void> {
     "  2. If it's a fit, we'll email you to verify your credentials and schedule a short intro call.",
     "  3. Once approved, we'll set up your dashboard and help you launch your profile.",
     '',
-    'Your first 60 days on Shape are free. After that, a flat $20/month platform fee — no matter how many clients you take on or how much you earn.',
+    "No monthly fee on Shape. We take a 15% platform fee on everything your clients pay you — so you only pay Shape when you earn.",
     '',
     'Questions? Just reply to this email.',
     '',
