@@ -104,6 +104,7 @@ function MobileDrawer({ open, onClose, active }) {
 function Header({ active }) {
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [authUser, setAuthUser] = React.useState(null);
+  const [roleMenuOpen, setRoleMenuOpen] = React.useState(false);
   React.useEffect(() => {
     let cancelled = false;
     fetch('/api/me', { credentials: 'same-origin' })
@@ -119,6 +120,32 @@ function Header({ active }) {
     } catch {}
     window.location.href = '/';
   }
+  async function switchRole(nextRole) {
+    setRoleMenuOpen(false);
+    if (!authUser || nextRole === authUser.role) return;
+    try {
+      const res = await fetch('/api/me/role', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ role: nextRole }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.dashboard) {
+        window.location.href = data.dashboard;
+      } else {
+        alert(data.error || 'Could not switch role.');
+      }
+    } catch (err) {
+      console.error('[header] switchRole failed', err);
+    }
+  }
+  const roleLabel = (r) => r === 'trainer' ? 'Trainer' : r === 'nutritionist' ? 'Nutritionist' : 'Client';
+  const dashboardHref = (r) => r === 'trainer'
+    ? '/newdesign/TrainerDashboard.html'
+    : r === 'nutritionist'
+      ? '/newdesign/NutritionistDashboard.html'
+      : '/newdesign/ClientDashboard.html';
   const link = (name, href) => (
     <a href={href} className="shape-nav-link" style={{ fontSize: 11.5, letterSpacing: "0.13em", textTransform: "uppercase", color: active === name ? INK : "rgba(242,237,228,0.72)", fontFamily: sans, fontWeight: active === name ? 500 : 400, borderBottom: active === name ? `1.5px solid ${TEAL}` : "1.5px solid transparent", paddingBottom: 3, whiteSpace: "nowrap", lineHeight: 1, display: "inline-flex", alignItems: "center" }}>{name}</a>
   );
@@ -142,7 +169,30 @@ function Header({ active }) {
           {authUser ? (
             <>
               <span style={{ fontSize: 13, color: INK, fontFamily: sans, fontWeight: 500, whiteSpace: "nowrap", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", letterSpacing: "-0.005em" }}>Hi, {authUser.firstName || authUser.email}</span>
-              <a href="/newdesign/ClientDashboard.html" style={{ fontSize: 11.5, letterSpacing: "0.13em", textTransform: "uppercase", color: "rgba(242,237,228,0.72)", fontFamily: sans, whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none" }}>Dashboard</a>
+              {authUser.roles && authUser.roles.length > 1 ? (
+                <div style={{ position: "relative" }} onMouseEnter={() => setRoleMenuOpen(true)} onMouseLeave={() => setRoleMenuOpen(false)}>
+                  <button onClick={() => setRoleMenuOpen(v => !v)} style={{ background: "rgba(30,192,168,0.1)", border: `1px solid ${TEAL}`, color: TEAL, fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", fontFamily: "'JetBrains Mono', monospace", padding: "6px 12px", borderRadius: 999, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, lineHeight: 1, whiteSpace: "nowrap" }}>
+                    {roleLabel(authUser.role)} <span style={{ fontSize: 8, opacity: 0.7 }}>▾</span>
+                  </button>
+                  {roleMenuOpen && (
+                    <div style={{ position: "absolute", top: "100%", right: 0, paddingTop: 8, minWidth: 180, zIndex: 60 }}>
+                      <div style={{ background: "rgba(26,22,18,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: 6, boxShadow: "0 20px 50px rgba(0,0,0,0.5)" }}>
+                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)", padding: "8px 12px 4px" }}>Switch profile</div>
+                        {authUser.roles.map(r => (
+                          <button key={r} onClick={() => switchRole(r)} disabled={r === authUser.role} style={{ width: "100%", textAlign: "left", background: r === authUser.role ? "rgba(30,192,168,0.12)" : "transparent", border: 0, padding: "9px 12px", fontFamily: sans, fontSize: 13, color: r === authUser.role ? TEAL : "rgba(242,237,228,0.85)", cursor: r === authUser.role ? "default" : "pointer", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "space-between", lineHeight: 1 }}
+                            onMouseEnter={e => { if (r !== authUser.role) { e.currentTarget.style.background = "rgba(30,192,168,0.08)"; e.currentTarget.style.color = INK; } }}
+                            onMouseLeave={e => { if (r !== authUser.role) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(242,237,228,0.85)"; } }}
+                          >
+                            <span>{roleLabel(r)}</span>
+                            {r === authUser.role && <span style={{ fontSize: 10, color: TEAL }}>● active</span>}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : null}
+              <a href={dashboardHref(authUser.role)} style={{ fontSize: 11.5, letterSpacing: "0.13em", textTransform: "uppercase", color: "rgba(242,237,228,0.72)", fontFamily: sans, whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none" }}>Dashboard</a>
               <a href="#" onClick={handleLogout} style={{ background: INK, color: PAPER, border: 0, padding: "9px 16px", borderRadius: 6, fontWeight: 500, fontSize: 11.5, letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1 }}>Sign out</a>
             </>
           ) : (

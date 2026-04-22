@@ -30,9 +30,13 @@ export async function GET() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('full_name, avatar_url, role')
+    .select('full_name, avatar_url, role, roles')
     .eq('id', user.id)
     .maybeSingle();
+
+  const roles = Array.isArray(profile?.roles) && profile.roles.length
+    ? profile.roles
+    : (profile?.role ? [profile.role] : ['client']);
 
   return NextResponse.json({
     user: {
@@ -42,6 +46,7 @@ export async function GET() {
       firstName: firstName(profile?.full_name, user.email),
       avatarUrl: profile?.avatar_url ?? null,
       role: profile?.role ?? 'client',
+      roles,
     },
   });
 }
