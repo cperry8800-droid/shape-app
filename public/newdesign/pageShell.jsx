@@ -34,7 +34,7 @@ function NavDropdown({ label, items, active, activeMatch }) {
   const isActive = activeMatch.includes(active);
   return (
     <div style={{ position: "relative", display: "inline-flex", alignItems: "center", height: "100%" }} onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
-      <a style={{ fontSize: 13, letterSpacing: "0.13em", textTransform: "uppercase", color: isActive ? INK : "rgba(242,237,228,0.72)", fontFamily: sans, fontWeight: isActive ? 500 : 400, borderBottom: isActive ? `1.5px solid ${TEAL}` : "1.5px solid transparent", paddingBottom: 3, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, lineHeight: 1 }}>
+      <a style={{ fontSize: 11.5, letterSpacing: "0.13em", textTransform: "uppercase", color: isActive ? INK : "rgba(242,237,228,0.72)", fontFamily: sans, fontWeight: isActive ? 500 : 400, borderBottom: isActive ? `1.5px solid ${TEAL}` : "1.5px solid transparent", paddingBottom: 3, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, lineHeight: 1 }}>
         {label}<span style={{ fontSize: 9, opacity: 0.6, lineHeight: 1 }}>▾</span>
       </a>
       {open && (
@@ -120,15 +120,15 @@ function Header({ active }) {
     window.location.href = '/';
   }
   const link = (name, href) => (
-    <a href={href} className="shape-nav-link" style={{ fontSize: 13, letterSpacing: "0.13em", textTransform: "uppercase", color: active === name ? INK : "rgba(242,237,228,0.72)", fontFamily: sans, fontWeight: active === name ? 500 : 400, borderBottom: active === name ? `1.5px solid ${TEAL}` : "1.5px solid transparent", paddingBottom: 3, whiteSpace: "nowrap", lineHeight: 1, display: "inline-flex", alignItems: "center" }}>{name}</a>
+    <a href={href} className="shape-nav-link" style={{ fontSize: 11.5, letterSpacing: "0.13em", textTransform: "uppercase", color: active === name ? INK : "rgba(242,237,228,0.72)", fontFamily: sans, fontWeight: active === name ? 500 : 400, borderBottom: active === name ? `1.5px solid ${TEAL}` : "1.5px solid transparent", paddingBottom: 3, whiteSpace: "nowrap", lineHeight: 1, display: "inline-flex", alignItems: "center" }}>{name}</a>
   );
   return (
     <>
     <header className="shape-header" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 50, background: "rgba(26,22,18,0.45)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
       <ShapeMobileStyles />
-      <div className="shape-header-inner" style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "16px 48px", gap: 40 }}>
-        <a href="index.html" style={{ flex: "none", display: "inline-flex", alignItems: "center" }}><Logo variant="white" size={52} /></a>
-        <nav className="shape-nav-tabs" style={{ display: "flex", gap: 30, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center" }}>
+      <div className="shape-header-inner" style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "14px 40px", gap: 32 }}>
+        <a href="index.html" style={{ flex: "none", display: "inline-flex", alignItems: "center" }}><Logo variant="white" size={42} /></a>
+        <nav className="shape-nav-tabs" style={{ display: "flex", gap: 22, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center" }}>
           <NavDropdown label="Clients" active={active} activeMatch={["Clients", "My Profile", "Overview", "Dashboard", "Client Overview", "Client Dashboard"]} items={[["Overview", "Client.html"], ["Dashboard", "ClientDashboard.html"]]} />
           <NavDropdown label="Trainers" active={active} activeMatch={["Trainers", "Trainer Profile", "Trainer Overview", "Trainer Dashboard"]} items={[["Overview", "Coach.html"], ["Dashboard", "TrainerDashboard.html"]]} />
           <NavDropdown label="Nutritionists" active={active} activeMatch={["Nutritionists", "Nutritionist Profile", "Nutritionist Overview", "Nutritionist Dashboard"]} items={[["Overview", "Nutritionist.html"], ["Dashboard", "NutritionistDashboard.html"]]} />
@@ -138,17 +138,17 @@ function Header({ active }) {
           {link("Radio", "Radio.html")}
           {link("Pricing", "Pricing.html")}
         </nav>
-        <div className="shape-nav-auth" style={{ display: "flex", alignItems: "center", gap: 18, flexShrink: 0 }}>
+        <div className="shape-nav-auth" style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>
           {authUser ? (
             <>
               <span style={{ fontSize: 13, color: INK, fontFamily: sans, fontWeight: 500, whiteSpace: "nowrap", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", letterSpacing: "-0.005em" }}>Hi, {authUser.firstName || authUser.email}</span>
-              <a href="/newdesign/ClientDashboard.html" style={{ fontSize: 13, letterSpacing: "0.13em", textTransform: "uppercase", color: "rgba(242,237,228,0.72)", fontFamily: sans, whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none" }}>Dashboard</a>
-              <a href="#" onClick={handleLogout} style={{ background: INK, color: PAPER, border: 0, padding: "10px 18px", borderRadius: 6, fontWeight: 500, fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1 }}>Sign out</a>
+              <a href="/newdesign/ClientDashboard.html" style={{ fontSize: 11.5, letterSpacing: "0.13em", textTransform: "uppercase", color: "rgba(242,237,228,0.72)", fontFamily: sans, whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none" }}>Dashboard</a>
+              <a href="#" onClick={handleLogout} style={{ background: INK, color: PAPER, border: 0, padding: "9px 16px", borderRadius: 6, fontWeight: 500, fontSize: 11.5, letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1 }}>Sign out</a>
             </>
           ) : (
             <>
-              <a href="/newdesign/Login.html" style={{ fontSize: 13, letterSpacing: "0.13em", textTransform: "uppercase", color: "rgba(242,237,228,0.72)", fontFamily: sans, whiteSpace: "nowrap", lineHeight: 1 }}>Log in</a>
-              <a href="/newdesign/Landing.html" style={{ background: INK, color: PAPER, border: 0, padding: "10px 18px", borderRadius: 6, fontWeight: 500, fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1 }}>Get started</a>
+              <a href="/newdesign/Login.html" style={{ fontSize: 11.5, letterSpacing: "0.13em", textTransform: "uppercase", color: "rgba(242,237,228,0.72)", fontFamily: sans, whiteSpace: "nowrap", lineHeight: 1 }}>Log in</a>
+              <a href="/newdesign/Landing.html" style={{ background: INK, color: PAPER, border: 0, padding: "9px 16px", borderRadius: 6, fontWeight: 500, fontSize: 11.5, letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1 }}>Get started</a>
             </>
           )}
         </div>
