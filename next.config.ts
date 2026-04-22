@@ -4,9 +4,9 @@ import type { NextConfig } from "next";
 // them automatically at their .html paths. Rewrites map the clean URLs
 // (/, /home, /trainers, etc.) to the right .html file.
 
-// Pages now served by Next.js app router: /trainers, /nutritionists,
-// /pricing, /signup, /forgot-password, /reset-password — removed from
-// this list. Everything else still falls through to the legacy .html.
+// /pricing is served from /newdesign/Pricing.html — the static redesign.
+// Its Get Started button POSTs to /api/stripe/platform-checkout for the
+// $5/mo membership checkout (handles both cookie and bearer auth).
 const legacyPages = [
   'home', 'landing',
   'gyms',
@@ -27,6 +27,7 @@ const nextConfig: NextConfig = {
     // inside the intro links to /newdesign/Landing.html for the real
     // marketing site.
     return [
+      { source: '/pricing', destination: '/newdesign/Pricing.html' },
       ...legacyPages.map((p) => ({
         source: `/${p}`,
         destination: `/${p}.html`,
