@@ -208,6 +208,13 @@ function ShapeMobileStyles() {
   return (
     <style>{`
       html, body { overflow-x: hidden; }
+      /* Global scale-down for the newdesign pages — makes the whole UI feel
+         less heavy without touching every typographic value individually.
+         Applied only above 900px so the mobile media query below isn't
+         double-scaled. */
+      @media (min-width: 901px) {
+        body { zoom: 0.92; }
+      }
       @media (max-width: 900px) {
         /* Header */
         .shape-header-inner { padding: 12px 18px !important; gap: 12px !important; }
