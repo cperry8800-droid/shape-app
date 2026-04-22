@@ -103,6 +103,22 @@ function MobileDrawer({ open, onClose, active }) {
 
 function Header({ active }) {
   const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const [authUser, setAuthUser] = React.useState(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/me', { credentials: 'same-origin' })
+      .then(r => r.ok ? r.json() : { user: null })
+      .then(d => { if (!cancelled) setAuthUser(d && d.user ? d.user : null); })
+      .catch(() => { if (!cancelled) setAuthUser(null); });
+    return () => { cancelled = true; };
+  }, []);
+  async function handleLogout(e) {
+    e.preventDefault();
+    try {
+      await fetch('/api/auth/signout', { method: 'POST', credentials: 'same-origin' });
+    } catch {}
+    window.location.href = '/';
+  }
   const link = (name, href) => (
     <a href={href} className="shape-nav-link" style={{ fontSize: 13, letterSpacing: "0.13em", textTransform: "uppercase", color: active === name ? INK : "rgba(242,237,228,0.72)", fontFamily: sans, fontWeight: active === name ? 500 : 400, borderBottom: active === name ? `1.5px solid ${TEAL}` : "1.5px solid transparent", paddingBottom: 3, whiteSpace: "nowrap", lineHeight: 1, display: "inline-flex", alignItems: "center" }}>{name}</a>
   );
@@ -123,8 +139,18 @@ function Header({ active }) {
           {link("Pricing", "Pricing.html")}
         </nav>
         <div className="shape-nav-auth" style={{ display: "flex", alignItems: "center", gap: 18, flexShrink: 0 }}>
-          <a href="Login.html" style={{ fontSize: 13, letterSpacing: "0.13em", textTransform: "uppercase", color: "rgba(242,237,228,0.72)", fontFamily: sans, whiteSpace: "nowrap", lineHeight: 1 }}>Log in</a>
-          <a href="Landing.html" style={{ background: INK, color: PAPER, border: 0, padding: "10px 18px", borderRadius: 6, fontWeight: 500, fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1 }}>Get started</a>
+          {authUser ? (
+            <>
+              <span style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", fontFamily: sans, whiteSpace: "nowrap", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" }}>{authUser.email}</span>
+              <a href="/dashboard/client" style={{ fontSize: 13, letterSpacing: "0.13em", textTransform: "uppercase", color: "rgba(242,237,228,0.72)", fontFamily: sans, whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none" }}>Dashboard</a>
+              <a href="#" onClick={handleLogout} style={{ background: INK, color: PAPER, border: 0, padding: "10px 18px", borderRadius: 6, fontWeight: 500, fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1 }}>Sign out</a>
+            </>
+          ) : (
+            <>
+              <a href="/login" style={{ fontSize: 13, letterSpacing: "0.13em", textTransform: "uppercase", color: "rgba(242,237,228,0.72)", fontFamily: sans, whiteSpace: "nowrap", lineHeight: 1 }}>Log in</a>
+              <a href="/signup" style={{ background: INK, color: PAPER, border: 0, padding: "10px 18px", borderRadius: 6, fontWeight: 500, fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1 }}>Get started</a>
+            </>
+          )}
         </div>
         <button className="shape-nav-burger" aria-label="Open menu" onClick={() => setDrawerOpen(true)}
           style={{ display: "none", background: "transparent", border: 0, color: INK, width: 40, height: 40, padding: 0, cursor: "pointer", alignItems: "center", justifyContent: "center" }}>
