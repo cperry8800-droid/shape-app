@@ -19,7 +19,7 @@ const ROLES = [
     blurb: "Build your brand, publish programs, manage clients, grow a recurring subscriber base.",
     cta: "Apply now",
     href: "SignupTrainer.html",
-    meta: "No listing fees",
+    meta: "15% platform fee",
     perks: ["Your storefront, your pricing", "Programs + sessions + subs", "Weekly payouts"],
   },
   {
@@ -29,7 +29,7 @@ const ROLES = [
     blurb: "Create meal plans, coach clients on nutrition, earn recurring revenue on your terms.",
     cta: "Apply now",
     href: "SignupNutritionist.html",
-    meta: "No listing fees",
+    meta: "15% platform fee",
     perks: ["Plans + consults + subs", "Built-in macro tracking", "Weekly payouts"],
   },
   {

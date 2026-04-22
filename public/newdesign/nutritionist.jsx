@@ -32,7 +32,7 @@ function NutHero() {
 // ---------- Value strip ----------
 function NutStats() {
   const items = [
-    { k: "$0", v: "To join. No listing fees, no commissions on consults." },
+    { k: "15%", v: "Platform fee on what clients pay you. No monthly dues, no listing fees." },
     { k: "Weekly", v: "Payouts direct to your bank, or instant any day." },
     { k: "Verified", v: "Every RD, RDN, CNS, and license checked on intake." },
     { k: "Yours", v: "Your practice, your pricing, your clients. No lock-in." },
@@ -260,7 +260,7 @@ function NutFeatured() {
 function NutFAQ() {
   const faqs = [
     { q: "What credentials do I need?", a: "RD, RDN, CNS, CDN, or state-licensed dietitian. CSSD (sports) or IFMCP (functional) help but aren't required. Non-licensed health/nutrition coaches accepted under a distinct scope-of-practice tier." },
-    { q: "What does Shape cost?", a: "Nothing to join. No listing fees, no per-consult commissions. Shape is funded by member subscriptions — not by taking a cut of your practice." },
+    { q: "What does Shape cost?", a: "No monthly dues, no listing fees. Shape takes a 15% platform fee on what your clients pay you — so you only pay when you earn. Standard card processing is separate." },
     { q: "How does Shape handle HIPAA and scope of practice?", a: "Client records are encrypted at rest and in transit. Scope-of-practice tiers are enforced by credential — non-RDs can't access medical nutrition therapy flows. BAAs available for practices that need them." },
     { q: "Can I bring my existing clients?", a: "Yes. Most nutritionists migrate within the first month. We help with transition emails, pricing continuity, and importing plan templates." },
     { q: "Payouts?", a: "Weekly, direct to your bank. Instant payouts available for 1% any day. 1099s auto-generated every January." },
