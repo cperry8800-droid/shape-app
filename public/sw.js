@@ -1,4 +1,4 @@
-const CACHE_NAME = 'shape-v130';
+const CACHE_NAME = 'shape-v131';
 const ASSETS = [
   '/',
   '/index.html',
@@ -54,9 +54,12 @@ self.addEventListener('fetch', e => {
   // server actions / API calls we never want to cache anyway.
   if (e.request.method !== 'GET') return;
 
-  // Always go network-first, never serve stale HTML pages from cache
+  // Always go network-first, never serve stale HTML pages from cache.
+  // "HTML" here means both legacy .html files AND app-router routes
+  // (which have no file extension — e.g. /pricing, /login, /dashboard).
   const url = new URL(e.request.url);
-  const isHTML = url.pathname.endsWith('.html') || url.pathname === '/';
+  const hasExtension = /\.[a-z0-9]{1,6}$/i.test(url.pathname);
+  const isHTML = !hasExtension || url.pathname.endsWith('.html') || url.pathname === '/';
 
   if (isHTML) {
     // HTML pages: network only, no cache fallback
