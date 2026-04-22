@@ -173,7 +173,7 @@ function ClientHealth({ v, set }) {
 }
 
 function ClientPrefs({ v, set }) {
-  const interests = ["Personal training", "Nutrition coaching", "AI workout generator", "Group classes"];
+  const interests = ["Personal training", "Nutrition coaching", "Both"];
   const toggleInterest = (x) => {
     const cur = v.interests || [];
     set({ interests: cur.includes(x) ? cur.filter(y => y !== x) : [...cur, x] });
