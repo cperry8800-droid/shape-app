@@ -17,7 +17,7 @@ async function startPlatformCheckout(e) {
       return;
     }
     if (res.status === 401) {
-      window.location.href = '/signup?next=/pricing';
+      window.location.href = '/newdesign/Landing.html';
       return;
     }
     alert((data && data.error) || 'Could not start checkout. Please try again.');

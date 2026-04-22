@@ -70,10 +70,50 @@ function LoginCard() {
   const [role, setRole] = React.useState("client");
   const [remember, setRemember] = React.useState(true);
   const [showPass, setShowPass] = React.useState(false);
+  const [submitting, setSubmitting] = React.useState(false);
+  const [errMsg, setErrMsg] = React.useState("");
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault();
-    window.location.href = LOGIN_DESTS[role] || LOGIN_DESTS.client;
+    if (submitting) return;
+    setErrMsg("");
+    setSubmitting(true);
+    try {
+      const sb = window.shapeDb && window.shapeDb.client;
+      if (!sb) {
+        setErrMsg("Auth is still loading. Try again in a second.");
+        setSubmitting(false);
+        return;
+      }
+      const { data, error } = await sb.auth.signInWithPassword({ email, password });
+      if (error || !data.session) {
+        setErrMsg(error ? error.message : "Could not sign in.");
+        setSubmitting(false);
+        return;
+      }
+      // Bridge the session into Next.js HTTP cookies so server routes see it.
+      await fetch('/api/auth/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        }),
+      }).catch(() => {});
+      // Use the Next.js dashboard which is auth-aware (the static legacy
+      // dashboards won't read the fresh session immediately).
+      const nextDashboard = role === 'trainer'
+        ? '/dashboard/trainer'
+        : role === 'nutritionist'
+          ? '/dashboard/nutritionist'
+          : '/dashboard/client';
+      window.location.href = nextDashboard;
+    } catch (err) {
+      console.error('[login] unexpected', err);
+      setErrMsg("Something went wrong. Please try again.");
+      setSubmitting(false);
+    }
   };
 
   const fieldWrap = { position: "relative" };
@@ -179,7 +219,11 @@ function LoginCard() {
           <span style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.75)" }}>Remember me for 30 days</span>
         </label>
 
-        <button type="submit" style={{
+        {errMsg ? (
+          <div style={{ marginTop: 4, padding: "10px 14px", borderRadius: 6, background: "rgba(220,80,80,0.1)", border: "1px solid rgba(220,80,80,0.3)", color: "#e27a7a", fontFamily: sans, fontSize: 13 }}>{errMsg}</div>
+        ) : null}
+
+        <button type="submit" disabled={submitting} style={{
           marginTop: 8,
           padding: "15px 20px",
           borderRadius: 8,
@@ -189,14 +233,15 @@ function LoginCard() {
           fontFamily: sans,
           fontSize: 14.5,
           fontWeight: 500,
-          cursor: "pointer",
+          cursor: submitting ? "wait" : "pointer",
           letterSpacing: "0.01em",
+          opacity: submitting ? 0.7 : 1,
           transition: "transform 0.15s ease",
         }}
           onMouseDown={(e) => e.currentTarget.style.transform = "scale(0.99)"}
           onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
           onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
-        >Log in →</button>
+        >{submitting ? "Signing in…" : "Log in →"}</button>
       </form>
 
       <div style={{ marginTop: 26, paddingTop: 22, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)" }}>
