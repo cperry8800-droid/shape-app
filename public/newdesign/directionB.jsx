@@ -45,7 +45,7 @@ const DirB = (() => {
             <NavTab label="Community" href="Community.html" />
             <NavTab label="Rewards" href="Score.html" />
             <NavTab label="Radio" href="Radio.html" />
-            <NavTab label="Pricing" href="/pricing" />
+            <NavTab label="Pricing" href="/newdesign/Pricing.html" />
           </nav>
           <div style={{ display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
             <a href="Login.html" style={{ fontSize: 13, color: "rgba(242,237,228,0.7)", fontFamily: sans, cursor: "pointer" }}>Log in</a>

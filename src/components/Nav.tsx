@@ -186,7 +186,7 @@ export default async function Nav() {
                 <Link href="/gyms">Gym directory</Link>
               </div>
             </div>
-            <Link href="/pricing">Pricing</Link>
+            <Link href="/newdesign/Pricing.html">Pricing</Link>
             <Link href="/contact">Contact</Link>
           </div>
 

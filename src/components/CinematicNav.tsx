@@ -30,7 +30,7 @@ export default function CinematicNav() {
       <div className="flex items-center gap-6 text-[0.72rem] font-medium uppercase tracking-[0.16em] text-white/80 md:gap-8 md:text-[0.76rem]">
         <Link href="/trainers" className="hidden hover:text-white md:inline">Coaches</Link>
         <Link href="/nutritionists" className="hidden hover:text-white md:inline">Nutritionists</Link>
-        <Link href="/pricing" className="hidden hover:text-white md:inline">Pricing</Link>
+        <Link href="/newdesign/Pricing.html" className="hidden hover:text-white md:inline">Pricing</Link>
         <Link href="/login" className="hover:text-white">Log in</Link>
         <Link
           href="/signup"

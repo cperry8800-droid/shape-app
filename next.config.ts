@@ -22,6 +22,13 @@ const legacyPages = [
 ];
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    // /pricing (old Next.js route) permanently lives at /newdesign/Pricing.html
+    return [
+      { source: '/pricing', destination: '/newdesign/Pricing.html', permanent: true },
+      { source: '/pricing.html', destination: '/newdesign/Pricing.html', permanent: true },
+    ];
+  },
   async rewrites() {
     // Root renders the cinematic intro via src/app/page.tsx. The CTA
     // inside the intro links to /newdesign/Landing.html for the real

@@ -92,7 +92,7 @@ export default async function Footer() {
               <Link href="/trainers">Trainers</Link>
               <Link href="/nutritionists">Nutritionists</Link>
               <Link href="/gyms">Gyms</Link>
-              <Link href="/pricing">Pricing</Link>
+              <Link href="/newdesign/Pricing.html">Pricing</Link>
             </div>
             <div className="footer-col">
               <h4>For pros</h4>
