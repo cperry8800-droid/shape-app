@@ -304,7 +304,7 @@ function NutCTA() {
         </p>
         <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
           <a href="SignupNutritionist.html" style={{ padding: "18px 32px", borderRadius: 6, background: TEAL, color: PAPER, fontFamily: sans, fontSize: 15, fontWeight: 500 }}>Start your application →</a>
-          <a href="Pricing.html" style={{ padding: "18px 32px", borderRadius: 6, background: "transparent", color: PAPER, border: "1px solid rgba(26,22,18,0.2)", fontFamily: sans, fontSize: 15, fontWeight: 500 }}>See pricing details</a>
+          <a href="/pricing" style={{ padding: "18px 32px", borderRadius: 6, background: "transparent", color: PAPER, border: "1px solid rgba(26,22,18,0.2)", fontFamily: sans, fontSize: 15, fontWeight: 500 }}>See pricing details</a>
         </div>
       </div>
     </section>

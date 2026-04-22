@@ -45,7 +45,7 @@ const DirB = (() => {
             <NavTab label="Community" href="Community.html" />
             <NavTab label="Rewards" href="Score.html" />
             <NavTab label="Radio" href="Radio.html" />
-            <NavTab label="Pricing" href="Pricing.html" />
+            <NavTab label="Pricing" href="/pricing" />
           </nav>
           <div style={{ display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
             <a href="Login.html" style={{ fontSize: 13, color: "rgba(242,237,228,0.7)", fontFamily: sans, cursor: "pointer" }}>Log in</a>
@@ -777,7 +777,7 @@ const DirB = (() => {
             </div>
             {[
               ["Platform", [["Marketplace", "Marketplace.html"], ["Clients", "Client.html"], ["Trainers", "Coach.html"], ["Nutritionists", "Nutritionist.html"]]],
-              ["Start", [["Sign up", "Landing.html"], ["Apply", "SignupTrainer.html"], ["Pricing", "Pricing.html"]]],
+              ["Start", [["Sign up", "Landing.html"], ["Apply", "SignupTrainer.html"], ["Pricing", "/pricing"]]],
               ["Company", [["About", "index.html"], ["Press", "Team.html#press"]]],
               ["Help", [["Center", "/help.html"], ["Contact", "/contact.html"], ["Privacy", "/privacy.html"], ["Terms", "/terms.html"]]],
             ].map(([h, links]) => (

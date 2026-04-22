@@ -55,7 +55,7 @@ function PricingCard() {
           </div>
           <div style={{ fontFamily: sans, fontSize: 13.5, color: "rgba(26,22,18,0.65)", marginTop: 14, lineHeight: 1.5, maxWidth: 360 }}>What every Shape client pays to use the platform. Your coach's rate is separate and paid directly to them.</div>
           <div style={{ fontFamily: serif, fontSize: 24, letterSpacing: "-0.015em", fontWeight: 400, marginTop: 24, lineHeight: 1.3, maxWidth: 360 }}>Everything you need. No bundles. No upsell. No seat math.</div>
-          <a href="/pricing" style={{ marginTop: 36, padding: "16px 28px", borderRadius: 8, background: TEAL, color: PAPER, border: 0, fontFamily: sans, fontSize: 14, fontWeight: 500, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Get started →</a>
+          <a href="/signup?next=/pricing" style={{ marginTop: 36, padding: "16px 28px", borderRadius: 8, background: TEAL, color: PAPER, border: 0, fontFamily: sans, fontSize: 14, fontWeight: 500, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Get started →</a>
           <div style={{ fontFamily: sans, fontSize: 12, color: "rgba(26,22,18,0.5)", marginTop: 16 }}>Cancel any time. No commitments.</div>
         </div>
 
@@ -150,7 +150,7 @@ function PricingCTA() {
           <h2 style={{ fontFamily: serif, fontSize: 56, letterSpacing: "-0.03em", fontWeight: 400, margin: 0, lineHeight: 0.95 }}>$5 a month. <em style={{ fontStyle: "italic", color: TEAL }}>Cancel any time.</em></h2>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <a href="/pricing" style={{ padding: "16px 26px", borderRadius: 8, background: INK, color: PAPER, border: 0, fontFamily: sans, fontSize: 14, fontWeight: 500, cursor: "pointer", textDecoration: "none", textAlign: "center" }}>Get started →</a>
+          <a href="/signup?next=/pricing" style={{ padding: "16px 26px", borderRadius: 8, background: INK, color: PAPER, border: 0, fontFamily: sans, fontSize: 14, fontWeight: 500, cursor: "pointer", textDecoration: "none", textAlign: "center" }}>Get started →</a>
           <a href="Marketplace.html" style={{ padding: "16px 26px", borderRadius: 8, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", fontFamily: sans, fontSize: 14, fontWeight: 500, textAlign: "center", textDecoration: "none" }}>Browse the marketplace</a>
         </div>
       </div>

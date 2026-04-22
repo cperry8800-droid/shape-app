@@ -61,7 +61,7 @@ const SHAPE_NAV_GROUPS = [
   { kind: "link", label: "Community", href: "Community.html" },
   { kind: "drop", label: "Rewards", match: ["Rewards", "Shape Score", "Store"], items: [["Shape Score", "Score.html"], ["Shape Store", "Store.html"]] },
   { kind: "link", label: "Radio", href: "Radio.html" },
-  { kind: "link", label: "Pricing", href: "Pricing.html" },
+  { kind: "link", label: "Pricing", href: "/pricing" },
 ];
 
 function MobileDrawer({ open, onClose, active }) {
@@ -120,7 +120,7 @@ function Header({ active }) {
           {link("Community", "Community.html")}
           <NavDropdown label="Rewards" active={active} activeMatch={["Rewards", "Shape Score", "Store"]} items={[["Shape Score", "Score.html"], ["Shape Store", "Store.html"]]} />
           {link("Radio", "Radio.html")}
-          {link("Pricing", "Pricing.html")}
+          {link("Pricing", "/pricing")}
         </nav>
         <div className="shape-nav-auth" style={{ display: "flex", alignItems: "center", gap: 18, flexShrink: 0 }}>
           <a href="Login.html" style={{ fontSize: 13, letterSpacing: "0.13em", textTransform: "uppercase", color: "rgba(242,237,228,0.72)", fontFamily: sans, whiteSpace: "nowrap", lineHeight: 1 }}>Log in</a>
