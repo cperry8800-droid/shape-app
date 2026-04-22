@@ -46,7 +46,7 @@ const ROLES = [
 
 function MinimalHeader() {
   return (
-    <header style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, padding: "24px 40px" }}>
+    <header style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, padding: "24px 72px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <a href="index.html" aria-label="Shape home" style={{ flex: "none", display: "inline-flex" }}><Logo variant="white" size={50} /></a>
         <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
@@ -60,7 +60,7 @@ function MinimalHeader() {
 
 function LandingHero() {
   return (
-    <section style={{ padding: "160px 40px 60px", position: "relative", overflow: "hidden" }}>
+    <section style={{ padding: "160px 72px 60px", position: "relative", overflow: "hidden" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative", display: "grid", gridTemplateColumns: "1fr auto", gap: 40, alignItems: "end" }}>
         <div>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: "0.2em", textTransform: "uppercase", color: TEAL, marginBottom: 22 }}>Welcome to Shape</div>
@@ -133,7 +133,7 @@ function RoleCard({ role, index, total }) {
 
 function RoleGrid() {
   return (
-    <section style={{ padding: "20px 40px 100px", position: "relative" }}>
+    <section style={{ padding: "20px 72px 100px", position: "relative" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
           {ROLES.map((r, i) => <RoleCard key={r.key} role={r} index={i} total={ROLES.length} />)}
@@ -151,7 +151,7 @@ function LandingReassurance() {
     { k: "No lock-in", v: "Cancel any time, take your clients with you" },
   ];
   return (
-    <section style={{ padding: "40px 40px 120px" }}>
+    <section style={{ padding: "40px 72px 120px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", borderTop: "1px solid rgba(242,237,228,0.1)", paddingTop: 48 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 40 }}>
           {items.map(it => (
@@ -168,7 +168,7 @@ function LandingReassurance() {
 
 function LandingFooter() {
   return (
-    <footer style={{ padding: "40px 40px 40px", borderTop: "1px solid rgba(242,237,228,0.08)" }}>
+    <footer style={{ padding: "40px 72px 40px", borderTop: "1px solid rgba(242,237,228,0.08)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" }}>
         <span>© 2026 Shape · All rights reserved</span>
         <div style={{ display: "flex", gap: 24 }}>

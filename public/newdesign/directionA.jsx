@@ -14,7 +14,7 @@ const DirA = (() => {
     const link = { fontSize: 13, color: "rgba(255,255,255,0.7)", padding: "8px 0", fontWeight: 400 };
     return (
       <header style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(6,8,10,0.72)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-        <div style={{ maxWidth: 1440, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 40px" }}>
+        <div style={{ maxWidth: 1440, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 72px" }}>
           <ShapeWord color="#fff" />
           <nav style={{ display: "flex", gap: 28 }}>
             <a style={link}>Marketplace</a>
@@ -38,7 +38,7 @@ const DirA = (() => {
     const [pulse, setPulse] = useState(0);
     useEffect(() => { const id = setInterval(() => setPulse(p => p + 1), 1800); return () => clearInterval(id); }, []);
     return (
-      <section style={{ padding: "80px 40px 60px", position: "relative", overflow: "hidden" }}>
+      <section style={{ padding: "80px 72px 60px", position: "relative", overflow: "hidden" }}>
         {/* mountain photo background */}
         <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Home%20page%201.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
         {/* dark overlay to keep text legible */}
@@ -161,7 +161,7 @@ const DirA = (() => {
       },
     ];
     return (
-      <section style={{ padding: "120px 40px 80px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      <section style={{ padding: "120px 72px 80px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
         <div style={{ maxWidth: 1440, margin: "0 auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", marginBottom: 48 }}>
             <div>
@@ -196,7 +196,7 @@ const DirA = (() => {
     const tabs = ["All", "Trainer", "Nutritionist"];
     const filtered = filter === "All" ? COACHES : COACHES.filter(c => c.tag === filter);
     return (
-      <section style={{ padding: "120px 40px 80px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      <section style={{ padding: "120px 72px 80px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
         <div style={{ maxWidth: 1440, margin: "0 auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", marginBottom: 40 }}>
             <div>
@@ -241,7 +241,7 @@ const DirA = (() => {
   // ---------- Shape Score ----------
   function Score() {
     return (
-      <section style={{ padding: "120px 40px", borderTop: "1px solid rgba(255,255,255,0.06)", background: "linear-gradient(180deg, #06080a 0%, #081210 100%)" }}>
+      <section style={{ padding: "120px 72px", borderTop: "1px solid rgba(255,255,255,0.06)", background: "linear-gradient(180deg, #06080a 0%, #081210 100%)" }}>
         <div style={{ maxWidth: 1440, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.2fr", gap: 80, alignItems: "center" }}>
           <div>
             <Eyebrow color="#0ac5a8" n="004 /">Shape score</Eyebrow>
@@ -310,7 +310,7 @@ const DirA = (() => {
   // ---------- Trainer Dashboard ----------
   function TrainerDash() {
     return (
-      <section style={{ padding: "120px 40px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      <section style={{ padding: "120px 72px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
         <div style={{ maxWidth: 1440, margin: "0 auto" }}>
           <div style={{ textAlign: "center", marginBottom: 64 }}>
             <Eyebrow color="#0ac5a8" n="005 /">Trainer dashboard</Eyebrow>
@@ -418,7 +418,7 @@ const DirA = (() => {
   // ---------- Client dashboard screenshot ----------
   function ClientDash() {
     return (
-      <section style={{ padding: "80px 40px 120px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      <section style={{ padding: "80px 72px 120px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
         <div style={{ maxWidth: 1440, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.1fr", gap: 80, alignItems: "center" }}>
           <div style={{ order: 2 }}>
             <Eyebrow color="#0ac5a8" n="006 /">Client dashboard</Eyebrow>
@@ -517,7 +517,7 @@ const DirA = (() => {
   // ---------- Radio strip ----------
   function Radio() {
     return (
-      <section style={{ padding: "80px 40px", borderTop: "1px solid rgba(255,255,255,0.06)", background: "#0a0d0c" }}>
+      <section style={{ padding: "80px 72px", borderTop: "1px solid rgba(255,255,255,0.06)", background: "#0a0d0c" }}>
         <div style={{ maxWidth: 1440, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 60, alignItems: "center" }}>
           <div>
             <Eyebrow color="#0ac5a8" n="007 /">Shape radio</Eyebrow>
@@ -570,7 +570,7 @@ const DirA = (() => {
   // ---------- Testimonials ----------
   function Testimonials() {
     return (
-      <section style={{ padding: "120px 40px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      <section style={{ padding: "120px 72px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
         <div style={{ maxWidth: 1440, margin: "0 auto" }}>
           <Eyebrow color="#0ac5a8" n="008 /">What members say</Eyebrow>
           <h2 style={{ fontSize: 64, letterSpacing: "-0.03em", fontWeight: 500, margin: "16px 0 48px", lineHeight: 1 }}>The people<br/>doing the work.</h2>
@@ -598,7 +598,7 @@ const DirA = (() => {
   function Faq() {
     const [open, setOpen] = useState(0);
     return (
-      <section style={{ padding: "120px 40px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      <section style={{ padding: "120px 72px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
         <div style={{ maxWidth: 1440, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: 80 }}>
           <div>
             <Eyebrow color="#0ac5a8" n="009 /">FAQ</Eyebrow>
@@ -624,7 +624,7 @@ const DirA = (() => {
   // ---------- Footer CTA ----------
   function Footer() {
     return (
-      <section style={{ padding: "120px 40px 60px", borderTop: "1px solid rgba(255,255,255,0.06)", background: "linear-gradient(180deg, #06080a 0%, #081a16 100%)", position: "relative", overflow: "hidden" }}>
+      <section style={{ padding: "120px 72px 60px", borderTop: "1px solid rgba(255,255,255,0.06)", background: "linear-gradient(180deg, #06080a 0%, #081a16 100%)", position: "relative", overflow: "hidden" }}>
         <div aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(700px 400px at 50% 100%, rgba(10,197,168,0.22), transparent 60%)" }} />
         <div style={{ maxWidth: 1440, margin: "0 auto", position: "relative" }}>
           <div style={{ textAlign: "center", paddingBottom: 80 }}>

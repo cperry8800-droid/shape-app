@@ -126,7 +126,7 @@ function Header({ active }) {
     <>
     <header className="shape-header" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 50, background: "rgba(26,22,18,0.45)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
       <ShapeMobileStyles />
-      <div className="shape-header-inner" style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "14px 40px", gap: 32 }}>
+      <div className="shape-header-inner" style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "14px 72px", gap: 32 }}>
         <a href="index.html" style={{ flex: "none", display: "inline-flex", alignItems: "center" }}><Logo variant="white" size={42} /></a>
         <nav className="shape-nav-tabs" style={{ display: "flex", gap: 22, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center" }}>
           <NavDropdown label="Clients" active={active} activeMatch={["Clients", "My Profile", "Overview", "Dashboard", "Client Overview", "Client Dashboard"]} items={[["Overview", "Client.html"], ["Dashboard", "ClientDashboard.html"]]} />
@@ -176,7 +176,7 @@ function HeroBg() {
 
 function Footer() {
   return (
-    <footer className="shape-footer" style={{ padding: "100px 40px 60px", background: INK, color: PAPER }}>
+    <footer className="shape-footer" style={{ padding: "100px 72px 60px", background: INK, color: PAPER }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 40, paddingTop: 40, borderTop: "1px solid rgba(26,22,18,0.12)" }}>
           <div>
@@ -217,7 +217,7 @@ function ShapeMobileStyles() {
         .shape-nav-burger { display: inline-flex !important; }
 
         /* Footer */
-        .shape-footer { padding: 60px 22px 40px !important; }
+        .shape-footer { padding: 60px 22px 72px !important; }
         .shape-footer-grid { grid-template-columns: 1fr 1fr !important; gap: 28px !important; padding-top: 28px !important; }
         .shape-footer-grid > div:first-child { grid-column: 1 / -1; }
         .shape-footer-base { flex-direction: column; gap: 10px; align-items: flex-start !important; }
@@ -228,7 +228,7 @@ function ShapeMobileStyles() {
         h2 { font-size: clamp(30px, 8vw, 52px) !important; line-height: 1 !important; letter-spacing: -0.025em !important; }
         h3 { font-size: clamp(22px, 5.2vw, 34px) !important; line-height: 1.1 !important; }
 
-        /* Section padding — every marketing section uses inline "padding: Ypx 40px" (or similar).
+        /* Section padding — every marketing section uses inline "padding: Ypx 72px" (or similar).
            Force horizontal padding down on mobile so content doesn't hug the edge or overflow. */
         section { padding-left: 22px !important; padding-right: 22px !important; }
         footer { padding-left: 22px !important; padding-right: 22px !important; }

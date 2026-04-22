@@ -293,7 +293,7 @@ function SectionHead({ label, title, right }) {
 
 function AboutSection({ p }) {
   return (
-    <section style={{ padding: "80px 40px", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+    <section style={{ padding: "80px 72px", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.3fr", gap: 80 }}>
         <div>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 14 }}>About</div>
@@ -313,7 +313,7 @@ function AboutSection({ p }) {
 
 function SpecialtiesSection({ p }) {
   return (
-    <section style={{ padding: "80px 40px", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+    <section style={{ padding: "80px 72px", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <SectionHead label="Specialties & credentials" title="What I work on." />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 64 }}>
@@ -348,7 +348,7 @@ function SamplesSection({ p, kind }) {
   const label = kind === "trainer" ? "Sample workouts" : "Sample meal plans";
   const title = kind === "trainer" ? "A week in the block." : "A day on the plan.";
   return (
-    <section style={{ padding: "80px 40px", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+    <section style={{ padding: "80px 72px", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <SectionHead
           label={label}
@@ -517,7 +517,7 @@ function PackagesSection({ p, kind }) {
   const oneTime = p.packages.filter(pk => pk.kind === "one-time");
   const subs = p.packages.filter(pk => pk.kind === "subscription");
   return (
-    <section style={{ padding: "80px 40px", borderBottom: "1px solid rgba(242,237,228,0.08)", background: "rgba(242,237,228,0.015)" }}>
+    <section style={{ padding: "80px 72px", borderBottom: "1px solid rgba(242,237,228,0.08)", background: "rgba(242,237,228,0.015)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <SectionHead label="Packages & pricing" title="Pick what fits." />
 
@@ -553,7 +553,7 @@ function PackagesSection({ p, kind }) {
 
 function AvailabilitySection({ p }) {
   return (
-    <section style={{ padding: "80px 40px", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+    <section style={{ padding: "80px 72px", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <SectionHead
           label="Availability"
@@ -583,7 +583,7 @@ function AvailabilitySection({ p }) {
 
 function ReviewsSection({ p }) {
   return (
-    <section style={{ padding: "80px 40px", borderBottom: "1px solid rgba(242,237,228,0.08)", background: "rgba(242,237,228,0.015)" }}>
+    <section style={{ padding: "80px 72px", borderBottom: "1px solid rgba(242,237,228,0.08)", background: "rgba(242,237,228,0.015)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <SectionHead
           label="Reviews"
@@ -618,7 +618,7 @@ function ReviewsSection({ p }) {
 function FAQSection({ p }) {
   const [open, setOpen] = React.useState(0);
   return (
-    <section style={{ padding: "80px 40px", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+    <section style={{ padding: "80px 72px", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: 80 }}>
         <div>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 14 }}>FAQ</div>
@@ -651,7 +651,7 @@ function FAQSection({ p }) {
 
 function FinalCTA({ p, kind }) {
   return (
-    <section style={{ padding: "100px 40px" }}>
+    <section style={{ padding: "100px 72px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 60, alignItems: "center" }}>
         <div>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 18 }}>Ready when you are</div>

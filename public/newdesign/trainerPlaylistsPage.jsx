@@ -454,7 +454,7 @@ function SearchBar({ query, setQuery, placeholder, compact }) {
         <path d="m21 21-4.3-4.3" />
       </svg>
       <input value={query} onChange={e => setQuery(e.target.value)} placeholder={placeholder}
-        style={{ width: "100%", boxSizing: "border-box", background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 10, padding: "12px 14px 12px 40px", fontFamily: sans, fontSize: 13.5, color: INK, outline: "none" }} />
+        style={{ width: "100%", boxSizing: "border-box", background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 10, padding: "12px 14px 12px 72px", fontFamily: sans, fontSize: 13.5, color: INK, outline: "none" }} />
     </div>
   );
 }

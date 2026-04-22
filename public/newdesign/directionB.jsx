@@ -35,7 +35,7 @@ const DirB = (() => {
   function Nav() {
     return (
       <header style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(26,22,18,0.9)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
-        <div style={{ maxWidth: 1400, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 40px", gap: 32 }}>
+        <div style={{ maxWidth: 1400, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 72px", gap: 32 }}>
           <ShapeWord variant="white" size={50} />
           <nav style={{ display: "flex", gap: 22, alignItems: "center" }}>
             <NavTab label="Clients" items={[["Overview", "Client.html"], ["Dashboard", "ClientDashboard.html"]]} />
@@ -58,18 +58,18 @@ const DirB = (() => {
 
   function Hero() {
     return (
-      <section style={{ padding: "100px 40px 80px", position: "relative", overflow: "hidden" }}>
-        <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 60, alignItems: "end", marginBottom: 80 }}>
+      <section style={{ padding: "84px 72px 64px", position: "relative", overflow: "hidden" }}>
+        <div style={{ maxWidth: 1280, margin: "0 auto", position: "relative" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 56, alignItems: "end", marginBottom: 64 }}>
             <div>
-              <h1 style={{ fontFamily: serif, fontSize: 128, lineHeight: 0.88, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, color: INK }}>
+              <h1 style={{ fontFamily: serif, fontSize: "clamp(56px, 7.2vw, 104px)", lineHeight: 0.9, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, color: INK }}>
                 Real coaches.<br />
                 <span style={{ whiteSpace: "nowrap" }}>One <em style={{ fontStyle: "italic", color: TEAL, fontWeight: 400 }}>marketplace</em>.</span><br />
                 <span style={{ whiteSpace: "nowrap" }}>One <em style={{ fontStyle: "italic", color: INK, fontWeight: 400 }}>platform</em>.</span>
               </h1>
             </div>
             <div style={{ paddingBottom: 12 }}>
-              <p style={{ fontFamily: sans, fontSize: 20, lineHeight: 1.45, color: "rgba(242,237,228,0.7)", margin: 0, maxWidth: 480, fontWeight: 400 }}>
+              <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.5, color: "rgba(242,237,228,0.7)", margin: 0, maxWidth: 440, fontWeight: 400 }}>
                 Browse certified personal trainers and nutritionists — subscribe on your terms with custom sessions, meal plans, and direct access to the people coaching you on one platform.
               </p>
               <div style={{ display: "flex", gap: 12, marginTop: 36 }}>
@@ -185,7 +185,7 @@ const DirB = (() => {
   // Stats band under hero
   function Proof() {
     return (
-      <section style={{ padding: "64px 40px", borderTop: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.08)", background: INK, color: PAPER }}>
+      <section style={{ padding: "64px 72px", borderTop: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.08)", background: INK, color: PAPER }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 40, alignItems: "center" }}>
           {STATS.map((s, i) => (
             <div key={i}>
@@ -212,7 +212,7 @@ const DirB = (() => {
       },
     ];
     return (
-      <section style={{ padding: "120px 40px" }}>
+      <section style={{ padding: "120px 72px" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
           <div style={{ marginBottom: 64 }}>
             <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL }}>One marketplace. One community. One platform.</div>
@@ -249,7 +249,7 @@ const DirB = (() => {
   // Marketplace — editorial coach grid
   function Marketplace() {
     return (
-      <section style={{ padding: "120px 40px", background: PAPER, color: INK, borderTop: "1px solid rgba(242,237,228,0.08)" }}>
+      <section style={{ padding: "120px 72px", background: PAPER, color: INK, borderTop: "1px solid rgba(242,237,228,0.08)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 60, alignItems: "end", marginBottom: 56 }}>
             <div>
@@ -293,7 +293,7 @@ const DirB = (() => {
       { n: 4, name: "Triceps pushdown", set: "3 × 12" },
     ];
     return (
-      <section style={{ padding: "120px 40px", background: PAPER, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
+      <section style={{ padding: "120px 72px", background: PAPER, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 380px", gap: 100, alignItems: "center" }}>
           <div>
             <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>In your pocket</div>
@@ -389,7 +389,7 @@ const DirB = (() => {
       { item: "Jasmine rice · 2 lb", aisle: "Pantry" },
     ];
     return (
-      <section style={{ padding: "120px 40px 140px", background: PAPER, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
+      <section style={{ padding: "120px 72px 140px", background: PAPER, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "380px 1fr", gap: 100, alignItems: "center" }}>
           {/* Phone - left side this time for rhythm */}
           <div style={{ position: "relative", width: 380, margin: "0 auto" }}>
@@ -499,7 +499,7 @@ const DirB = (() => {
 
   function Score() {
     return (
-      <section style={{ padding: "120px 40px", background: PAPER }}>
+      <section style={{ padding: "120px 72px", background: PAPER }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.1fr", gap: 80, alignItems: "center" }}>
           <div>
             <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL }}>Shape Score</div>
@@ -555,7 +555,7 @@ const DirB = (() => {
   // Trainer dashboard screenshot
   function TrainerDash() {
     return (
-      <section style={{ padding: "120px 40px" }}>
+      <section style={{ padding: "120px 72px" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", textAlign: "center", marginBottom: 48 }}>
           <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL }}>Trainer dashboard</div>
           <h2 style={{ fontFamily: serif, fontSize: 80, letterSpacing: "-0.035em", fontWeight: 400, margin: "20px 0 20px", lineHeight: 0.95, color: INK, maxWidth: 900, margin: "20px auto 20px" }}>
@@ -661,7 +661,7 @@ const DirB = (() => {
   // Radio
   function Radio() {
     return (
-      <section style={{ padding: "120px 40px", position: "relative", overflow: "hidden", color: INK }}>
+      <section style={{ padding: "120px 72px", position: "relative", overflow: "hidden", color: INK }}>
         <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/Make_the_lines_202604170430%20%281%29.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
         <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(6,10,9,0.85) 0%, rgba(6,10,9,0.65) 45%, rgba(6,10,9,0.3) 100%)", pointerEvents: "none" }} />
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: 80, alignItems: "center", position: "relative" }}>
@@ -704,7 +704,7 @@ const DirB = (() => {
   // Testimonials
   function Testimonials() {
     return (
-      <section style={{ padding: "120px 40px" }}>
+      <section style={{ padding: "120px 72px" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
           <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL }}>Members</div>
           <h2 style={{ fontFamily: serif, fontSize: 72, letterSpacing: "-0.03em", fontWeight: 400, margin: "20px 0 56px", lineHeight: 0.95, color: INK }}>
@@ -735,7 +735,7 @@ const DirB = (() => {
   function Faq() {
     const [open, setOpen] = useState(0);
     return (
-      <section style={{ padding: "120px 40px", background: PAPER }}>
+      <section style={{ padding: "120px 72px", background: PAPER }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: 80 }}>
           <div>
             <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL }}>FAQ</div>
@@ -762,7 +762,7 @@ const DirB = (() => {
 
   function Footer() {
     return (
-      <section style={{ padding: "100px 40px 40px", background: INK, color: PAPER, borderTop: "1px solid rgba(26,22,18,0.08)" }}>
+      <section style={{ padding: "100px 72px 40px", background: INK, color: PAPER, borderTop: "1px solid rgba(26,22,18,0.08)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
           <h2 style={{ fontFamily: serif, fontSize: 160, letterSpacing: "-0.04em", fontWeight: 400, lineHeight: 0.88, margin: "0 0 60px" }}>
             Join the<br/><em style={{ fontStyle: "italic", color: TEAL }}>community</em>.

@@ -41,7 +41,7 @@ const DirC = (() => {
     const link = { fontSize: 13.5, color: "rgba(10,31,27,0.72)", fontWeight: 500, fontFamily: sans };
     return (
       <header style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(251,251,250,0.82)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)" }}>
-        <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 40px" }}>
+        <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 72px" }}>
           <ShapeWord color={INK} />
           <nav style={{ display: "flex", gap: 28 }}>
             {["Marketplace", "Trainers", "Nutritionists", "Shape Score", "Radio", "Pricing"].map(l => <a key={l} style={link}>{l}</a>)}
@@ -58,7 +58,7 @@ const DirC = (() => {
   // ---- Hero ----
   function Hero() {
     return (
-      <section style={{ position: "relative", padding: "80px 40px 100px", overflow: "hidden" }}>
+      <section style={{ position: "relative", padding: "80px 72px 100px", overflow: "hidden" }}>
         <Aurora />
         <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative", textAlign: "center" }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 12px 6px 6px", background: "rgba(255,255,255,0.7)", border: "1px solid rgba(10,31,27,0.08)", borderRadius: 999, fontFamily: sans, fontSize: 12.5, color: "rgba(10,31,27,0.75)", marginBottom: 32 }}>
@@ -158,7 +158,7 @@ const DirC = (() => {
   function Logos() {
     const logos = ["RUNLAB", "PELOTON", "BARRY'S", "EQUINOX", "LIFETIME", "MIRROR"];
     return (
-      <section style={{ padding: "40px 40px 80px", textAlign: "center" }}>
+      <section style={{ padding: "40px 72px 80px", textAlign: "center" }}>
         <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(10,31,27,0.5)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 28 }}>Trusted by coaches at</div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", maxWidth: 1000, margin: "0 auto", gap: 40, flexWrap: "wrap" }}>
           {logos.map(l => (
@@ -191,7 +191,7 @@ const DirC = (() => {
     ];
     const t = tabs[tab];
     return (
-      <section style={{ padding: "100px 40px", background: "#fff", borderTop: "1px solid rgba(10,31,27,0.06)", borderBottom: "1px solid rgba(10,31,27,0.06)" }}>
+      <section style={{ padding: "100px 72px", background: "#fff", borderTop: "1px solid rgba(10,31,27,0.06)", borderBottom: "1px solid rgba(10,31,27,0.06)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
           <div style={{ textAlign: "center", marginBottom: 48 }}>
             <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.14em", color: TEAL_DEEP, textTransform: "uppercase" }}>ONE PLATFORM · THREE SIDES</div>
@@ -322,7 +322,7 @@ const DirC = (() => {
   // ---- Marketplace spotlight ----
   function Marketplace() {
     return (
-      <section style={{ padding: "100px 40px", position: "relative", overflow: "hidden" }}>
+      <section style={{ padding: "100px 72px", position: "relative", overflow: "hidden" }}>
         <div aria-hidden style={{ position: "absolute", top: "-100px", right: "-200px", width: 600, height: 600, background: "radial-gradient(circle, rgba(10,197,168,0.15), transparent 60%)", filter: "blur(40px)" }} />
         <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
           <div style={{ textAlign: "center", marginBottom: 56 }}>
@@ -359,7 +359,7 @@ const DirC = (() => {
   // ---- Shape Score ----
   function Score() {
     return (
-      <section style={{ padding: "100px 40px", background: "#fff", borderTop: "1px solid rgba(10,31,27,0.06)" }}>
+      <section style={{ padding: "100px 72px", background: "#fff", borderTop: "1px solid rgba(10,31,27,0.06)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.1fr", gap: 80, alignItems: "center" }}>
           <div>
             <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.14em", color: TEAL_DEEP, textTransform: "uppercase" }}>Shape Score</div>
@@ -419,7 +419,7 @@ const DirC = (() => {
   // ---- Trainer Dash full ----
   function TrainerDash() {
     return (
-      <section style={{ padding: "100px 40px", background: BG }}>
+      <section style={{ padding: "100px 72px", background: BG }}>
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
           <div style={{ textAlign: "center", marginBottom: 48 }}>
             <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.14em", color: TEAL_DEEP, textTransform: "uppercase" }}>For coaches</div>
@@ -526,7 +526,7 @@ const DirC = (() => {
     const [bars, setBars] = useState(Array.from({length: 40}, () => Math.random()));
     useEffect(() => { const id = setInterval(() => setBars(Array.from({length: 40}, () => Math.random())), 220); return () => clearInterval(id); }, []);
     return (
-      <section style={{ padding: "100px 40px", background: INK, color: "#fff", position: "relative", overflow: "hidden" }}>
+      <section style={{ padding: "100px 72px", background: INK, color: "#fff", position: "relative", overflow: "hidden" }}>
         <div aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(800px 400px at 30% 20%, rgba(10,197,168,0.25), transparent 60%)" }} />
         <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "center" }}>
           <div>
@@ -563,7 +563,7 @@ const DirC = (() => {
   // ---- Testimonials ----
   function Testimonials() {
     return (
-      <section style={{ padding: "100px 40px", background: "#fff", borderTop: "1px solid rgba(10,31,27,0.06)", borderBottom: "1px solid rgba(10,31,27,0.06)" }}>
+      <section style={{ padding: "100px 72px", background: "#fff", borderTop: "1px solid rgba(10,31,27,0.06)", borderBottom: "1px solid rgba(10,31,27,0.06)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
           <div style={{ textAlign: "center", marginBottom: 56 }}>
             <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.14em", color: TEAL_DEEP, textTransform: "uppercase" }}>Members & Coaches</div>
@@ -593,7 +593,7 @@ const DirC = (() => {
   function Faq() {
     const [open, setOpen] = useState(0);
     return (
-      <section style={{ padding: "100px 40px" }}>
+      <section style={{ padding: "100px 72px" }}>
         <div style={{ maxWidth: 1000, margin: "0 auto" }}>
           <div style={{ textAlign: "center", marginBottom: 48 }}>
             <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.14em", color: TEAL_DEEP, textTransform: "uppercase" }}>FAQ</div>
@@ -617,7 +617,7 @@ const DirC = (() => {
   function Footer() {
     return (
       <section style={{ position: "relative", overflow: "hidden" }}>
-        <section style={{ padding: "100px 40px", background: "linear-gradient(135deg, #0a1f1b 0%, #083d34 50%, #0a7463 100%)", color: "#fff", position: "relative", overflow: "hidden" }}>
+        <section style={{ padding: "100px 72px", background: "linear-gradient(135deg, #0a1f1b 0%, #083d34 50%, #0a7463 100%)", color: "#fff", position: "relative", overflow: "hidden" }}>
           <div aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(600px 400px at 80% 50%, rgba(10,197,168,0.4), transparent 60%)" }} />
           <div style={{ maxWidth: 1000, margin: "0 auto", textAlign: "center", position: "relative" }}>
             <h2 style={{ fontFamily: sans, fontSize: 96, letterSpacing: "-0.035em", fontWeight: 500, lineHeight: 1, margin: "0 0 24px" }}>Start with a human.</h2>
@@ -628,7 +628,7 @@ const DirC = (() => {
             </div>
           </div>
         </section>
-        <section style={{ padding: "60px 40px 40px", background: INK, color: "rgba(255,255,255,0.75)" }}>
+        <section style={{ padding: "60px 72px 40px", background: INK, color: "rgba(255,255,255,0.75)" }}>
           <div style={{ maxWidth: 1320, margin: "0 auto" }}>
             <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 40 }}>
               <div>

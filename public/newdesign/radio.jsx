@@ -20,7 +20,7 @@ const SHOWS = [
 function RadioHero() {
   const bars = Array.from({ length: 48 }, () => Math.random());
   return (
-    <section style={{ padding: "100px 40px 80px", position: "relative", overflow: "hidden", minHeight: 700 }}>
+    <section style={{ padding: "100px 72px 80px", position: "relative", overflow: "hidden", minHeight: 700 }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative", display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 80, alignItems: "center" }}>
         <div>
           <h1 style={{ fontFamily: serif, fontSize: 140, letterSpacing: "-0.04em", fontWeight: 400, margin: 0, lineHeight: 0.88 }}>
@@ -60,7 +60,7 @@ function RadioHero() {
 
 function RadioStations() {
   return (
-    <section style={{ padding: "60px 40px" }}>
+    <section style={{ padding: "60px 72px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>Stations · by BPM</div>
         <h2 style={{ fontFamily: serif, fontSize: 72, letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 48px", lineHeight: 0.95 }}>Pick the <em style={{ fontStyle: "italic", color: TEAL }}>pace</em>. We'll pick the <em style={{ fontStyle: "italic", color: TEAL }}>music</em>.</h2>
@@ -86,7 +86,7 @@ function RadioStations() {
 
 function RadioShows() {
   return (
-    <section style={{ padding: "100px 40px", background: INK, color: PAPER }}>
+    <section style={{ padding: "100px 72px", background: INK, color: PAPER }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>Shows & residents</div>
         <h2 style={{ fontFamily: serif, fontSize: 72, letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 48px", lineHeight: 0.95 }}>Residents <em style={{ fontStyle: "italic", color: TEAL }}>who train</em>. Sets <em style={{ fontStyle: "italic", color: TEAL }}>that land</em>.</h2>
@@ -121,7 +121,7 @@ function RadioShows() {
 
 function RadioPitch() {
   return (
-    <section style={{ padding: "120px 40px" }}>
+    <section style={{ padding: "120px 72px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80 }}>
         <div>
           <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>Why it's different</div>
@@ -152,7 +152,7 @@ function RadioCoachPlaylists() {
     { from: "Diego Alvarez", role: "Run coach", ctx: "LONG RUN · SATURDAY", title: "90-Minute Zone 2", meta: "168–172 BPM · 22 tracks · 1h 32m", note: "Locked cadence. Don't let the tempo drop after the 45-min mark — this'll carry you.", accent: "#78d8a4", cover: "linear-gradient(135deg, #1f4a34 0%, #1a1612 70%)", provider: "Apple Music" },
   ];
   return (
-    <section style={{ padding: "120px 40px", background: "transparent" }}>
+    <section style={{ padding: "120px 72px", background: "transparent" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "end", marginBottom: 56 }}>
           <div>
@@ -258,7 +258,7 @@ function RadioInClientApp() {
     )},
   ];
   return (
-    <section style={{ padding: "120px 40px 80px", background: "linear-gradient(180deg, rgba(20,16,13,1) 0%, rgba(13,10,8,1) 100%)" }}>
+    <section style={{ padding: "120px 72px 80px", background: "linear-gradient(180deg, rgba(20,16,13,1) 0%, rgba(13,10,8,1) 100%)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "end", marginBottom: 64 }}>
           <div>

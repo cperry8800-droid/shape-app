@@ -63,7 +63,7 @@ const MESSAGES = [
 
 function TeamHero() {
   return (
-    <section style={{ padding: "80px 40px 40px", position: "relative", overflow: "hidden" }}>
+    <section style={{ padding: "80px 72px 40px", position: "relative", overflow: "hidden" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
         <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>Your team · Priya Shankar</div>
         <h1 style={{ fontFamily: serif, fontSize: 104, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, lineHeight: 0.9 }}>
@@ -89,7 +89,7 @@ function TeamHero() {
 
 function TeamRoster() {
   return (
-    <section style={{ padding: "40px 40px 60px" }}>
+    <section style={{ padding: "40px 72px 60px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 32 }}>
           <h2 style={{ fontFamily: serif, fontSize: 48, letterSpacing: "-0.03em", fontWeight: 400, margin: 0 }}>Your roster.</h2>
@@ -138,7 +138,7 @@ function TeamRoster() {
 
 function TeamSchedule() {
   return (
-    <section style={{ padding: "60px 40px" }}>
+    <section style={{ padding: "60px 72px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 40 }}>
         <div style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 12, padding: 32 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 24 }}>
@@ -194,7 +194,7 @@ function TeamSchedule() {
 
 function TeamCollab() {
   return (
-    <section style={{ padding: "60px 40px 120px" }}>
+    <section style={{ padding: "60px 72px 120px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>Team brief</div>
         <h2 style={{ fontFamily: serif, fontSize: 56, letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 8px", lineHeight: 1 }}>

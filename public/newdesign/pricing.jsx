@@ -55,10 +55,10 @@ const PRICING_FAQ = [
 
 function PricingHero() {
   return (
-    <section style={{ padding: "100px 40px 40px", position: "relative", overflow: "hidden" }}>
+    <section style={{ padding: "100px 72px 40px", position: "relative", overflow: "hidden" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
         <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Pricing</div>
-        <h1 style={{ fontFamily: serif, fontSize: 128, letterSpacing: "-0.04em", fontWeight: 400, margin: 0, lineHeight: 0.9 }}>
+        <h1 style={{ fontFamily: serif, fontSize: "clamp(56px, 8vw, 112px)", letterSpacing: "-0.04em", fontWeight: 400, margin: 0, lineHeight: 0.9 }}>
           Five dollars <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>a&nbsp;month</em>.<br />Pay your coach directly.
         </h1>
         <p style={{ fontFamily: sans, fontSize: 18, color: "rgba(242,237,228,0.7)", margin: "28px 0 0", maxWidth: 720, lineHeight: 1.55 }}>One flat platform fee. Browse every trainer and nutritionist before paying anything, message your pros, track progress, log meals, listen to Shape Radio. Trainers and nutritionists set their own rates — you pay them directly, cancel any time.
@@ -71,10 +71,10 @@ function PricingHero() {
 
 function PricingCard() {
   return (
-    <section style={{ padding: "40px 40px 60px" }}>
+    <section style={{ padding: "40px 72px 60px" }}>
       <div style={{ maxWidth: 1000, margin: "0 auto", display: "grid", gridTemplateColumns: "1.05fr 1fr", gap: 0, border: "1px solid rgba(242,237,228,0.12)", borderRadius: 16, overflow: "hidden" }}>
         {/* Left — the $5 card (featured) */}
-        <div style={{ background: INK, color: PAPER, padding: "48px 44px 40px", position: "relative" }}>
+        <div style={{ background: INK, color: PAPER, padding: "48px 44px 72px", position: "relative" }}>
           <div style={{ position: "absolute", top: 28, right: 32, background: TEAL, color: PAPER, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", padding: "5px 12px", borderRadius: 4 }}>INCLUDES SHAPE RADIO</div>
           <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(26,22,18,0.55)", marginBottom: 14 }}>Shape Platform</div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
@@ -88,7 +88,7 @@ function PricingCard() {
         </div>
 
         {/* Right — features */}
-        <div style={{ background: "rgba(242,237,228,0.03)", padding: "48px 44px 40px" }}>
+        <div style={{ background: "rgba(242,237,228,0.03)", padding: "48px 44px 72px" }}>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: TEAL, marginBottom: 20 }}>WHAT'S INCLUDED</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {PLATFORM_FEATURES.map((f, i) =>
@@ -106,7 +106,7 @@ function PricingCard() {
 
 function PricingCoaches() {
   return (
-    <section style={{ padding: "80px 40px", background: INK, color: PAPER }}>
+    <section style={{ padding: "80px 72px", background: INK, color: PAPER }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "end", marginBottom: 48 }}>
           <div>
@@ -149,7 +149,7 @@ function PricingCoaches() {
 function PricingFAQ() {
   const [open, setOpen] = React.useState(0);
   return (
-    <section style={{ padding: "100px 40px" }}>
+    <section style={{ padding: "100px 72px" }}>
       <div style={{ maxWidth: 900, margin: "0 auto" }}>
         <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>FAQ</div>
         <h2 style={{ fontFamily: serif, fontSize: 56, letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 40px", lineHeight: 1 }}>Things people <em style={{ fontStyle: "italic", color: TEAL }}>actually ask.</em></h2>
@@ -171,7 +171,7 @@ function PricingFAQ() {
 
 function PricingCTA() {
   return (
-    <section style={{ padding: "60px 40px 100px" }}>
+    <section style={{ padding: "60px 72px 100px" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "56px 56px", background: "rgba(30,192,168,0.08)", border: "1px solid rgba(30,192,168,0.25)", borderRadius: 14, display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 40, alignItems: "center" }}>
         <div>
           <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL_BRIGHT, marginBottom: 14 }}>One platform fee. One marketplace.</div>

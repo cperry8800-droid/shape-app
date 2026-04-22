@@ -44,11 +44,11 @@ const UNLOCKED = [
 
 function StoreHero() {
   return (
-    <section style={{ padding: "80px 40px 60px", position: "relative", overflow: "hidden" }}>
+    <section style={{ padding: "80px 72px 60px", position: "relative", overflow: "hidden" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
         <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 24 }}>Shape Store</div>
         <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 80, alignItems: "end" }}>
-          <h1 style={{ fontFamily: serif, fontSize: 120, lineHeight: 0.88, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, color: INK }}>
+          <h1 style={{ fontFamily: serif, fontSize: "clamp(56px, 7.5vw, 108px)", lineHeight: 0.9, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, color: INK }}>
             Spend<br />the <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>points</em> you earned.
           </h1>
           <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.55, color: "rgba(242,237,228,0.65)", margin: 0, maxWidth: 420 }}>
@@ -87,7 +87,7 @@ function StoreHero() {
 function StoreFilters({ cat, setCat, sort, setSort, query, setQuery, affordable, setAffordable }) {
   const pill = (on) => ({ padding: "9px 16px", borderRadius: 999, border: on ? `1px solid ${INK}` : "1px solid rgba(242,237,228,0.18)", background: on ? INK : "transparent", color: on ? PAPER : INK, fontFamily: sans, fontSize: 13, cursor: "pointer", fontWeight: on ? 500 : 400 });
   return (
-    <section style={{ padding: "28px 40px", borderTop: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.08)", background: "rgba(242,237,228,0.02)", position: "sticky", top: 76, zIndex: 40, backdropFilter: "blur(12px)" }}>
+    <section style={{ padding: "28px 72px", borderTop: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.08)", background: "rgba(242,237,228,0.02)", position: "sticky", top: 76, zIndex: 40, backdropFilter: "blur(12px)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr auto", gap: 32, alignItems: "center" }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           {CATEGORIES.map((c) => <button key={c} style={pill(cat === c)} onClick={() => setCat(c)}>{c}</button>)}
@@ -161,7 +161,7 @@ function StoreGrid() {
   return (
     <>
       <StoreFilters {...{ cat, setCat, sort, setSort, query, setQuery, affordable, setAffordable }} />
-      <section style={{ padding: "48px 40px 40px" }}>
+      <section style={{ padding: "48px 72px 40px" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 28 }}>
             <div style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.65)" }}>
@@ -189,7 +189,7 @@ function StoreGrid() {
 
 function UnlockedCoupons() {
   return (
-    <section style={{ padding: "60px 40px", background: "rgba(242,237,228,0.02)", borderTop: "1px solid rgba(242,237,228,0.06)", borderBottom: "1px solid rgba(242,237,228,0.06)" }}>
+    <section style={{ padding: "60px 72px", background: "rgba(242,237,228,0.02)", borderTop: "1px solid rgba(242,237,228,0.06)", borderBottom: "1px solid rgba(242,237,228,0.06)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 24 }}>
           <div>
@@ -223,7 +223,7 @@ function StoreFAQ() {
     ["What if I don't love it?", "30-day returns, points refunded in full. Perishables (nutrition) and digital codes are final sale."],
   ];
   return (
-    <section style={{ padding: "80px 40px 100px" }}>
+    <section style={{ padding: "80px 72px 100px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 80 }}>
         <div>
           <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>How the store works</div>

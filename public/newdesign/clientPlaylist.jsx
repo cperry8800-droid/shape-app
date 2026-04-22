@@ -147,7 +147,7 @@ function NowPlayingDock({ playlist, progress = 0.34, onToggle, playing }) {
       background: "rgba(26,22,18,0.92)", backdropFilter: "blur(18px)",
       border: "1px solid rgba(242,237,228,0.1)", borderRadius: 16,
       padding: "10px 12px", display: "flex", alignItems: "center", gap: 12,
-      boxShadow: "0 12px 40px rgba(0,0,0,0.4)"
+      boxShadow: "0 12px 72px rgba(0,0,0,0.4)"
     }}>
       <div style={{ width: 40, height: 40, borderRadius: 8, background: playlist.cover, flexShrink: 0 }}/>
       <div style={{ flex: 1, minWidth: 0 }}>

@@ -6,7 +6,7 @@
 function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
   return (
     <aside style={{ borderRight: "1px solid rgba(242,237,228,0.08)", padding: "32px 20px", display: "flex", flexDirection: "column", gap: 4, position: "sticky", top: 0, height: "100vh" }}>
-      <div style={{ padding: "4px 10px 40px" }}>
+      <div style={{ padding: "4px 10px 72px" }}>
         <a href={homeHref} style={{ flex: "none", display: "inline-flex" }}><Logo variant="white" size={50} /></a>
       </div>
       {navItems.map((n, i) => (
@@ -321,7 +321,7 @@ function ProfileHero({ eyebrow, name, headline, pills, score, scoreLabel = "COAC
       <div style={{ padding: "0 32px 32px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "160px 1fr auto", gap: 28, alignItems: "flex-start" }}>
           <div style={{ position: "relative", marginTop: -80 }}>
-            <div style={{ width: 160, height: 160, borderRadius: 999, background: avatarBg, border: "4px solid #1a1612", boxShadow: "0 12px 40px -8px rgba(0,0,0,0.5)" }} />
+            <div style={{ width: 160, height: 160, borderRadius: 999, background: avatarBg, border: "4px solid #1a1612", boxShadow: "0 12px 72px -8px rgba(0,0,0,0.5)" }} />
             <button style={{
               position: "absolute", bottom: 4, right: 4,
               width: 36, height: 36, borderRadius: 999,

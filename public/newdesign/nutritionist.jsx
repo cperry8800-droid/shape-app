@@ -3,7 +3,7 @@
 // ---------- Hero ----------
 function NutHero() {
   return (
-    <section style={{ padding: "120px 40px 100px", position: "relative", overflow: "hidden", minHeight: "88vh", display: "flex", alignItems: "center" }}>
+    <section style={{ padding: "120px 72px 100px", position: "relative", overflow: "hidden", minHeight: "88vh", display: "flex", alignItems: "center" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative", width: "100%" }}>
         <div style={{ maxWidth: 900 }}>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL_BRIGHT, marginBottom: 28 }}>For nutritionists</div>
@@ -38,7 +38,7 @@ function NutStats() {
     { k: "Yours", v: "Your practice, your pricing, your clients. No lock-in." },
   ];
   return (
-    <section style={{ padding: "80px 40px", borderTop: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+    <section style={{ padding: "80px 72px", borderTop: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}>
         {items.map((it, i) => (
           <div key={i} style={{ padding: "12px 32px", borderLeft: i ? "1px solid rgba(242,237,228,0.1)" : "none" }}>
@@ -59,7 +59,7 @@ function NutWhy() {
     { n: "03", title: "Demand that fits your practice", body: "Members search by specialty — endurance fueling, gut health, plant-forward, clinical. You set scope, Shape sends you the right people." },
   ];
   return (
-    <section style={{ padding: "140px 40px" }}>
+    <section style={{ padding: "140px 72px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Why Shape</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 80px", lineHeight: 1, color: INK, maxWidth: 1100 }}>
@@ -88,7 +88,7 @@ function NutHow() {
     { n: "04", t: "Start getting matched", b: "Members searching by specialty find your profile. First consults usually book within the first two weeks.", time: "Ongoing" },
   ];
   return (
-    <section style={{ padding: "140px 40px", background: INK, color: PAPER }}>
+    <section style={{ padding: "140px 72px", background: INK, color: PAPER }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", marginBottom: 80, gap: 40, flexWrap: "wrap" }}>
           <div style={{ maxWidth: 680 }}>
@@ -99,7 +99,7 @@ function NutHow() {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", borderTop: "1px solid rgba(26,22,18,0.12)" }}>
           {steps.map((s, i) => (
-            <div key={i} style={{ padding: "40px 32px 40px 0", borderLeft: i ? "1px solid rgba(26,22,18,0.12)" : "none", paddingLeft: i ? 32 : 0 }}>
+            <div key={i} style={{ padding: "40px 32px 72px 0", borderLeft: i ? "1px solid rgba(26,22,18,0.12)" : "none", paddingLeft: i ? 32 : 0 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 28 }}>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: TEAL, letterSpacing: "0.14em" }}>{s.n}</div>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(26,22,18,0.45)", letterSpacing: "0.08em" }}>{s.time}</div>
@@ -124,7 +124,7 @@ function NutEarnings() {
   const monthly = grossMonthly - feeMonthly;
   const yearly = monthly * 12;
   return (
-    <section style={{ padding: "140px 40px" }}>
+    <section style={{ padding: "140px 72px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.1fr", gap: 80, alignItems: "center" }}>
         <div>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Earnings</div>
@@ -200,7 +200,7 @@ function NutTools() {
     { t: "Payouts & docs", b: "Weekly direct deposit, or instant for 1%. Clean monthly statements. Tax docs when January comes." },
   ];
   return (
-    <section style={{ padding: "140px 40px" }}>
+    <section style={{ padding: "140px 72px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>The toolkit</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 72px", lineHeight: 1, color: INK, maxWidth: 1000 }}>Built for <em style={{ fontStyle: "italic", color: TEAL }}>real practice.</em></h2>
@@ -228,7 +228,7 @@ function NutFeatured() {
     { name: "Chen Wu", loc: "Remote", cred: "CNS · 6 yrs", spec: "Body recomp · Hormonal · Perimenopause", quote: "Shape brings me the right clients. Specialty search actually works — I barely need to market anymore.", clients: "31 active" },
   ];
   return (
-    <section style={{ padding: "140px 40px", background: INK, color: PAPER }}>
+    <section style={{ padding: "140px 72px", background: INK, color: PAPER }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Nutritionists on Shape</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 72px", lineHeight: 1 }}>In good <em style={{ fontStyle: "italic", color: TEAL }}>company.</em></h2>
@@ -268,7 +268,7 @@ function NutFAQ() {
   ];
   const [open, setOpen] = React.useState(0);
   return (
-    <section style={{ padding: "140px 40px" }}>
+    <section style={{ padding: "140px 72px" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Questions</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 64px", lineHeight: 1, color: INK }}>Everything <em style={{ fontStyle: "italic", color: TEAL }}>nutritionists ask.</em></h2>
@@ -293,7 +293,7 @@ function NutFAQ() {
 // ---------- Final CTA ----------
 function NutCTA() {
   return (
-    <section style={{ padding: "140px 40px", background: INK, color: PAPER }}>
+    <section style={{ padding: "140px 72px", background: INK, color: PAPER }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", textAlign: "center" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL, marginBottom: 28 }}>Ready?</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(56px, 8vw, 128px)", letterSpacing: "-0.04em", fontWeight: 400, margin: "0 0 40px", lineHeight: 0.95 }}>

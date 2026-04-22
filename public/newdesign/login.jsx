@@ -282,7 +282,7 @@ function LoginPage() {
       }} />
 
       {/* Top bar */}
-      <header style={{ position: "relative", zIndex: 10, padding: "26px 40px" }}>
+      <header style={{ position: "relative", zIndex: 10, padding: "26px 72px" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <LoginMark />
           <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
@@ -297,7 +297,7 @@ function LoginPage() {
       </main>
 
       {/* Footer */}
-      <footer style={{ position: "relative", zIndex: 10, padding: "20px 40px 30px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" }}>
+      <footer style={{ position: "relative", zIndex: 10, padding: "20px 72px 30px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
           <span>© 2026 Shape</span>
           <div style={{ display: "flex", gap: 24 }}>

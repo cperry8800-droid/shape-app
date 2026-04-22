@@ -41,7 +41,7 @@ const CLIENT_EVENTS = [
 function ClientProfile() {
   const cal = useCalendarOverlay();
   return (
-    <section style={{ padding: "80px 40px 60px", position: "relative", overflow: "hidden" }}>
+    <section style={{ padding: "80px 72px 60px", position: "relative", overflow: "hidden" }}>
       <HeroBg />
       <CalendarOverlay {...cal.props} role="client" events={CLIENT_EVENTS} />
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
@@ -108,7 +108,7 @@ function TodayAgenda({ onOpenCalendar }) {
 
 function ClientDashboard() {
   return (
-    <section style={{ padding: "40px 40px 100px" }}>
+    <section style={{ padding: "40px 72px 100px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 32 }}>
         <div style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 12, padding: 32 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 20 }}>

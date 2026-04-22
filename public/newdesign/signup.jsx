@@ -450,7 +450,7 @@ function SignupPage({ role }) {
   return (
     <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh" }}>
       {/* Minimal header */}
-      <header style={{ padding: "24px 40px", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+      <header style={{ padding: "24px 72px", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <a href="Landing.html" aria-label="Shape" style={{ flex: "none", display: "inline-flex" }}><Logo variant="white" size={50} /></a>
           <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
@@ -460,7 +460,7 @@ function SignupPage({ role }) {
         </div>
       </header>
 
-      <main style={{ padding: "60px 40px 80px" }}>
+      <main style={{ padding: "60px 72px 80px" }}>
         <div style={{ maxWidth: 1220, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.15fr", gap: 64, alignItems: "start" }}>
           {/* Left — pitch */}
           <aside style={{ position: "sticky", top: 100 }}>
@@ -483,7 +483,7 @@ function SignupPage({ role }) {
         </div>
       </main>
 
-      <footer style={{ padding: "30px 40px", borderTop: "1px solid rgba(242,237,228,0.08)", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>
+      <footer style={{ padding: "30px 72px", borderTop: "1px solid rgba(242,237,228,0.08)", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
           <span>© 2026 Shape</span>
           <div style={{ display: "flex", gap: 24 }}>

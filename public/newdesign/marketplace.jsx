@@ -92,7 +92,7 @@ const SPOTLIGHT = {
 function Spotlight({ tab }) {
   const s = SPOTLIGHT[tab];
   return (
-    <section style={{ padding: "72px 40px 24px" }}>
+    <section style={{ padding: "72px 72px 24px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 28 }}>
           <div>
@@ -151,7 +151,7 @@ function Spotlight({ tab }) {
 
 function MarketplaceHero({ tab, setTab }) {
   return (
-    <section style={{ padding: "100px 40px 60px", position: "relative" }}>
+    <section style={{ padding: "100px 72px 60px", position: "relative" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
         <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 24 }}>The marketplace</div>
         <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 80, alignItems: "end" }}>
@@ -195,7 +195,7 @@ function Filters({ tab, cat, setCat, sort, setSort, format, setFormat, loc, setL
   const formats = ["All formats", "In-person", "Remote", "Hybrid"];
   const locations = LOCATIONS[tab];
   return (
-    <section style={{ padding: "24px 40px", borderTop: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.08)", background: "rgba(242,237,228,0.02)", position: "sticky", top: 76, zIndex: 40, backdropFilter: "blur(12px)" }}>
+    <section style={{ padding: "24px 72px", borderTop: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.08)", background: "rgba(242,237,228,0.02)", position: "sticky", top: 76, zIndex: 40, backdropFilter: "blur(12px)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
           {cats.map((c) => <button key={c} style={pill(cat === c)} onClick={() => setCat(c)}>{c}</button>)}
@@ -286,7 +286,7 @@ function Grid({ tab }) {
   return (
     <>
       <Filters {...{ tab, cat, setCat, sort, setSort, format, setFormat, loc, setLoc, query, setQuery }} />
-      <section style={{ padding: "48px 40px" }}>
+      <section style={{ padding: "48px 72px" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 28 }}>
             <div style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.65)" }}>
@@ -316,7 +316,7 @@ function Grid({ tab }) {
 
 function FeaturedCity() {
   return (
-    <section style={{ padding: "100px 40px", background: INK, color: PAPER }}>
+    <section style={{ padding: "100px 72px", background: INK, color: PAPER }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 60, alignItems: "center" }}>
         <div>
           <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>This week</div>

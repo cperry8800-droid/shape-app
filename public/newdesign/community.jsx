@@ -26,7 +26,7 @@ const STORIES = [
 
 function HeroC() {
   return (
-    <section style={{ padding: "120px 40px 80px", position: "relative", overflow: "hidden" }}>
+    <section style={{ padding: "120px 72px 80px", position: "relative", overflow: "hidden" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
         <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 28 }}>The community</div>
         <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 80, alignItems: "end" }}>
@@ -47,7 +47,7 @@ function Events() {
   const cities = ["All cities", ...new Set(EVENTS.map(e => e.city))];
   const list = city === "All cities" ? EVENTS : EVENTS.filter(e => e.city === city);
   return (
-    <section id="events" style={{ padding: "80px 40px", borderTop: "1px solid rgba(242,237,228,0.12)", scrollMarginTop: 100 }}>
+    <section id="events" style={{ padding: "80px 72px", borderTop: "1px solid rgba(242,237,228,0.12)", scrollMarginTop: 100 }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", marginBottom: 40 }}>
           <div>
@@ -88,7 +88,7 @@ function Events() {
 
 function Challenges() {
   return (
-    <section style={{ padding: "100px 40px", background: INK, color: PAPER }}>
+    <section style={{ padding: "100px 72px", background: INK, color: PAPER }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ marginBottom: 48 }}>
           <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>Challenges · live</div>
@@ -118,7 +118,7 @@ function Challenges() {
 
 function Stories() {
   return (
-    <section style={{ padding: "100px 40px" }}>
+    <section style={{ padding: "100px 72px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>Stories</div>
         <h2 style={{ fontFamily: serif, fontSize: 72, letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 56px", lineHeight: 0.95 }}>
@@ -145,7 +145,7 @@ function Stories() {
 
 function CTA() {
   return (
-    <section style={{ padding: "120px 40px", background: PAPER }}>
+    <section style={{ padding: "120px 72px", background: PAPER }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", textAlign: "center" }}>
         <h2 style={{ fontFamily: serif, fontSize: 120, letterSpacing: "-0.04em", fontWeight: 400, lineHeight: 0.9, margin: "0 0 40px" }}>
           Join the <em style={{ fontStyle: "italic", color: TEAL }}>community</em>.
@@ -255,7 +255,7 @@ function Chat() {
   };
   const r = ROOMS[tab];
   return (
-    <section style={{ padding: "100px 40px", background: PAPER, color: INK }}>
+    <section style={{ padding: "100px 72px", background: PAPER, color: INK }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ marginBottom: 40 }}>
           <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>Rooms · live</div>

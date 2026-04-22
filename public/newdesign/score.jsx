@@ -47,7 +47,7 @@ function ScoreHero() {
   const R = 118;
   const C = 2 * Math.PI * R;
   return (
-    <section style={{ padding: "80px 40px 60px", position: "relative", overflow: "hidden" }}>
+    <section style={{ padding: "80px 72px 60px", position: "relative", overflow: "hidden" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 80, alignItems: "center" }}>
           <div>
@@ -108,7 +108,7 @@ function ScoreHero() {
 
 function ScoreTiers() {
   return (
-    <section style={{ padding: "60px 40px" }}>
+    <section style={{ padding: "60px 72px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>Tiers</div>
         <h2 style={{ fontFamily: serif, fontSize: 56, letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 40px", lineHeight: 1 }}>
@@ -154,7 +154,7 @@ function ScoreActivity() {
     return TEAL;
   };
   return (
-    <section style={{ padding: "60px 40px" }}>
+    <section style={{ padding: "60px 72px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 40 }}>
         <div style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 12, padding: 32 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 24 }}>
@@ -209,7 +209,7 @@ function ScoreActivity() {
 
 function ScoreLedger() {
   return (
-    <section style={{ padding: "60px 40px" }}>
+    <section style={{ padding: "60px 72px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 24 }}>
           <div>
@@ -239,7 +239,7 @@ function ScoreLedger() {
 
 function ScoreRewards() {
   return (
-    <section style={{ padding: "80px 40px 120px" }}>
+    <section style={{ padding: "80px 72px 120px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 32 }}>
           <div>
