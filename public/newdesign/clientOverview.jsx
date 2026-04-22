@@ -271,7 +271,7 @@ function ClientOvTools() {
 // ---------- FAQ ----------
 function ClientOvFAQ() {
   const faqs = [
-    { q: "What does it cost?", a: "Joining Shape is free. You pay your coach directly — their rates range roughly from $140/session (remote) to $900+/month for full-service programming. No platform markup: what your coach lists is what you pay." },
+    { q: "What does it cost?", a: "Shape is $5/month for clients and includes Shape Radio and full platform access. Coach rates are set by each coach — typically $140/session (remote) to $900+/month for full-service programming — and you pay them through the platform on top of the $5 membership." },
     { q: "Can I try a coach before committing?", a: "Yes. Every listed trainer and nutritionist offers a free 20-minute intro call. Book up to three at once, decide after." },
     { q: "Can I have a trainer and a nutritionist?", a: "That's the most common setup. They see the same calendar and your goals. You message each separately, but they coordinate." },
     { q: "What if it's not working?", a: "Switch coaches whenever. You keep your history, logs, and calendar; your next coach picks up with full context. No fees, no drama." },
