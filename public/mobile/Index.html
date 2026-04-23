@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Shape — Page index</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:#1a1612;color:#f2ede4;font-family:'Space Grotesk',sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:1200px;margin:0 auto;padding:60px 40px 80px}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#1ec0a8;margin-bottom:14px}
+  h1{font-family:'Fraunces',serif;font-size:72px;letter-spacing:-.035em;font-weight:400;margin:0 0 12px;line-height:.95}
+  .sub{color:rgba(242,237,228,.6);font-size:15px;max-width:520px;line-height:1.55;margin:0 0 50px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+  .cat{grid-column:1/-1;display:flex;align-items:center;gap:14px;margin:32px 0 10px}
+  .cat-label{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(242,237,228,.55)}
+  .cat-line{flex:1;height:1px;background:rgba(242,237,228,.08)}
+  .cat-count{font-family:'JetBrains Mono',monospace;font-size:11px;color:rgba(242,237,228,.35)}
+  .card{padding:18px 20px;background:rgba(242,237,228,.04);border:1px solid rgba(242,237,228,.08);border-radius:10px;display:flex;flex-direction:column;gap:6px;transition:all .15s}
+  .card:hover{background:rgba(30,192,168,.08);border-color:rgba(30,192,168,.35);transform:translateY(-1px)}
+  .card-file{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.06em;color:rgba(242,237,228,.4);text-transform:uppercase}
+  .card-title{font-family:'Fraunces',serif;font-size:22px;letter-spacing:-.015em;color:#f2ede4;line-height:1.15}
+  .card-note{font-size:12.5px;color:rgba(242,237,228,.55);line-height:1.5}
+  .search{width:100%;padding:14px 18px;background:rgba(242,237,228,.04);border:1px solid rgba(242,237,228,.1);border-radius:10px;color:#f2ede4;font-family:inherit;font-size:15px;margin-bottom:30px}
+  .search:focus{outline:0;border-color:#1ec0a8}
+  .counts{display:flex;gap:28px;margin-bottom:40px;padding:22px 24px;background:rgba(242,237,228,.03);border:1px solid rgba(242,237,228,.08);border-radius:12px}
+  .count-item .n{font-family:'Fraunces',serif;font-size:32px;letter-spacing:-.02em;color:#f2ede4}
+  .count-item .l{font-size:11px;color:rgba(242,237,228,.5);text-transform:uppercase;letter-spacing:.1em}
+  ::selection{background:#1ec0a8;color:#1a1612}
+
+  /* Mobile — ≤480px */
+  @media (max-width: 480px) {
+    .wrap { padding: 28px 18px 64px !important; }
+    h1 { font-size: 44px !important; line-height: 0.98 !important; letter-spacing: -0.03em !important; }
+    .sub { font-size: 14px !important; margin-bottom: 28px !important; }
+    .search { padding: 12px 14px !important; font-size: 14px !important; margin-bottom: 18px !important; }
+    .counts { padding: 14px 16px !important; gap: 20px !important; margin-bottom: 26px !important; }
+    .count-item .n { font-size: 26px !important; }
+    .count-item .l { font-size: 10px !important; }
+    .grid { grid-template-columns: 1fr !important; gap: 10px !important; }
+    .cat { margin: 22px 0 6px !important; }
+    .card { padding: 14px 16px !important; }
+    .card-title { font-size: 18px !important; }
+    .card-note { font-size: 12px !important; }
+  }
+  /* Mirror for desktop mobile-preview wrapper */
+  html.mobile-preview-active .wrap { padding: 28px 18px 64px !important; }
+  html.mobile-preview-active h1 { font-size: 44px !important; line-height: 0.98 !important; letter-spacing: -0.03em !important; }
+  html.mobile-preview-active .sub { font-size: 14px !important; margin-bottom: 28px !important; }
+  html.mobile-preview-active .search { padding: 12px 14px !important; font-size: 14px !important; margin-bottom: 18px !important; }
+  html.mobile-preview-active .counts { padding: 14px 16px !important; gap: 20px !important; margin-bottom: 26px !important; }
+  html.mobile-preview-active .count-item .n { font-size: 26px !important; }
+  html.mobile-preview-active .count-item .l { font-size: 10px !important; }
+  html.mobile-preview-active .grid { grid-template-columns: 1fr !important; gap: 10px !important; }
+  html.mobile-preview-active .cat { margin: 22px 0 6px !important; }
+  html.mobile-preview-active .card { padding: 14px 16px !important; }
+  html.mobile-preview-active .card-title { font-size: 18px !important; }
+  html.mobile-preview-active .card-note { font-size: 12px !important; }
+</style>
+<link rel="stylesheet" href="mobilePreview.css" />
+</head><body>
+<div class="wrap">
+  <div class="eyebrow">Shape · Page index</div>
+  <h1>Everything in <em style="font-style:italic;color:#1ec0a8">one place</em>.</h1>
+  <p class="sub">Every page in the project, grouped by area. Click any card to jump in. Use the search to filter.</p>
+
+  <input class="search" id="search" type="text" placeholder="Filter by name, file, or note…" autocomplete="off"/>
+
+  <div class="counts">
+    <div class="count-item"><div class="n" id="total">—</div><div class="l">Total pages</div></div>
+    <div class="count-item"><div class="n" id="visible">—</div><div class="l">Matching</div></div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+</div>
+
+<script>
+const SECTIONS = [
+  { label: "Marketing", pages: [
+    ["Landing.html",            "Landing",                  "Top-of-funnel home page"],
+    ["Pricing.html",            "Pricing",                  "Subscription tiers"],
+    ["Marketplace.html",        "Marketplace",              "Browse coaches & nutritionists"],
+    ["Radio.html",              "Shape Radio",              "Music product page"],
+    ["Store.html",              "Store",                    "Gear & merch"],
+    ["Team.html",               "Team",                     "About the company"],
+    ["Community.html",          "Community",                "Public community page"],
+    ["Score.html",              "Shape Score",              "Score explainer"],
+  ]},
+  { label: "Authentication & signup", pages: [
+    ["Login.html",              "Log in",                   "Sign-in screen"],
+    ["SignupClient.html",       "Sign up — Client",         "Client onboarding"],
+    ["SignupTrainer.html",      "Sign up — Trainer",        "Trainer onboarding"],
+    ["SignupNutritionist.html", "Sign up — Nutritionist",   "Nutritionist onboarding"],
+    ["SignupRadio.html",        "Sign up — Radio host",     "Radio host onboarding"],
+  ]},
+  { label: "Public profiles (customizable)", pages: [
+    ["TrainerPublic.html",      "Maya · Trainer",           "Fully themable public profile"],
+    ["NutritionistPublic.html", "Rae · Nutritionist",       "Fully themable public profile"],
+  ]},
+  { label: "Client app", pages: [
+    ["Client.html",             "Client home",              "Client landing / hub"],
+    ["ClientDashboard.html",    "Dashboard",                "Overview + weekly snapshot"],
+    ["ClientTrain.html",        "Train",                    "Workouts, playlists, radio"],
+    ["ClientNutri.html",        "Nutrition",                "Meals & adherence"],
+    ["ClientProgress.html",     "Progress",                 "Metrics over time"],
+    ["ClientScore.html",        "My score",                 "Personal Shape Score"],
+    ["ClientLibrary.html",      "Library",                  "Saved content"],
+    ["ClientCommunity.html",    "Community",                "Channels + search"],
+    ["ClientTeam.html",         "My team",                  "Coaches + nutritionists"],
+    ["ClientPlaylists.html",    "Playlists · variants",     "3 iOS mocks for playlist drops"],
+    ["ClientMe.html",           "Me",                       "Client profile settings"],
+  ]},
+  { label: "Trainer app", pages: [
+    ["Coach.html",              "Coach home",               "Trainer landing"],
+    ["TrainerDashboard.html",   "Dashboard",                "Business + clients overview"],
+    ["TrainerClients.html",     "Clients",                  "Client list + detail"],
+    ["TrainerPrograms.html",    "Programs",                 "Program library"],
+    ["TrainerPlaylists.html",   "Playlists",                "Coach-curated playlists"],
+    ["TrainerMessages.html",    "Messages",                 "Client DMs"],
+    ["TrainerCommunity.html",   "Community",                "Trainer community"],
+    ["TrainerGoal.html",        "Goals",                    "Goal setup tool"],
+    ["TrainerScore.html",       "Trainer score",            "Coaching metrics"],
+    ["TrainerProfile.html",     "Profile settings",         "Edit public profile"],
+  ]},
+  { label: "Nutritionist app", pages: [
+    ["Nutritionist.html",            "Nutri home",            "Nutritionist landing"],
+    ["NutritionistDashboard.html",   "Dashboard",             "Business + clients overview"],
+    ["NutritionistClients.html",     "Clients",               "Client list + detail"],
+    ["NutritionistPlans.html",       "Plans",                 "Meal plan library"],
+    ["NutritionistPlaylists.html",   "Playlists",             "Cook-along mixes"],
+    ["NutritionistMessages.html",    "Messages",              "Client DMs"],
+    ["NutritionistCommunity.html",   "Community",             "Nutritionist community"],
+    ["NutritionistGoal.html",        "Goals",                 "Goal setup tool"],
+    ["NutritionistScore.html",       "Nutri score",           "Coaching metrics"],
+    ["NutritionistProfile.html",     "Profile settings",      "Edit public profile"],
+  ]},
+  { label: "Exports & specialty", pages: [
+    ["Shape Redesign.html",          "Shape Redesign · deck",      "Pitch deck (interactive)"],
+    ["Shape Redesign-print.html",    "Shape Redesign · print",     "Print-optimized version"],
+    ["ClientDashboard-print.html",   "Client dashboard · print",   "Print-optimized version"],
+  ]},
+];
+
+const grid = document.getElementById("grid");
+const search = document.getElementById("search");
+const totalEl = document.getElementById("total");
+const visibleEl = document.getElementById("visible");
+
+function render(q = "") {
+  grid.innerHTML = "";
+  const qLower = q.toLowerCase().trim();
+  let total = 0, visible = 0;
+  for (const sec of SECTIONS) {
+    const matching = sec.pages.filter(([file, title, note]) =>
+      !qLower || file.toLowerCase().includes(qLower) || title.toLowerCase().includes(qLower) || note.toLowerCase().includes(qLower)
+    );
+    total += sec.pages.length;
+    if (matching.length === 0) continue;
+    visible += matching.length;
+    const cat = document.createElement("div");
+    cat.className = "cat";
+    cat.innerHTML = `<span class="cat-label">${sec.label}</span><span class="cat-line"></span><span class="cat-count">${matching.length} page${matching.length === 1 ? "" : "s"}</span>`;
+    grid.appendChild(cat);
+    for (const [file, title, note] of matching) {
+      const a = document.createElement("a");
+      a.href = file;
+      a.className = "card";
+      a.innerHTML = `
+        <div class="card-file">${file}</div>
+        <div class="card-title">${title}</div>
+        <div class="card-note">${note}</div>
+      `;
+      grid.appendChild(a);
+    }
+  }
+  totalEl.textContent = total;
+  visibleEl.textContent = visible;
+}
+
+search.addEventListener("input", (e) => render(e.target.value));
+render();
+</script>
+<script src="mobilePreview.js"></script>
+</body></html>

@@ -1,0 +1,682 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Shape — Mobile</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  :root {
+    --ink: #f2ede4;
+    --paper: #1a1612;
+    --paper-2: #221c16;
+    --teal: #1ec0a8;
+    --teal-bright: #2ee0c4;
+    --muted: rgba(242,237,228,0.6);
+    --muted-2: rgba(242,237,228,0.4);
+    --border: rgba(242,237,228,0.1);
+    --border-strong: rgba(242,237,228,0.18);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--paper); color: var(--ink);
+    font-family: 'Space Grotesk', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  body { padding-bottom: 80px; /* sticky CTA clearance */ }
+  img { display: block; max-width: 100%; }
+  a { color: inherit; text-decoration: none; }
+  button { font-family: inherit; }
+  ::selection { background: var(--teal); color: var(--paper); }
+
+  /* Scope everything to a phone-width canvas centered on larger viewports */
+  .phone {
+    max-width: 430px;
+    margin: 0 auto;
+    position: relative;
+    min-height: 100vh;
+  }
+  @media (min-width: 760px) {
+    body { background: #0a0806; }
+    .phone {
+      box-shadow: 0 40px 120px rgba(0,0,0,0.6), 0 0 0 1px rgba(242,237,228,0.06);
+      background: var(--paper);
+    }
+    .phone::before {
+      content: "Preview — mobile home (≤430px)";
+      position: fixed;
+      top: 20px; left: 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+      color: rgba(242,237,228,0.35);
+      z-index: 999;
+    }
+  }
+
+  /* ---------- Utilities ---------- */
+  .serif { font-family: 'Fraunces', 'Instrument Serif', serif; font-weight: 400; letter-spacing: -0.03em; }
+  .mono { font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.16em; font-size: 10.5px; }
+  .kick { color: var(--teal); }
+  .rule { height: 1px; background: var(--border); width: 100%; }
+  em.t { font-style: italic; color: var(--teal); font-weight: 500; }
+
+  /* ---------- Header ---------- */
+  header.m {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 18px;
+    background: rgba(26,22,18,0.9);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid rgba(242,237,228,0.06);
+  }
+  header.m .logo img { height: 40px; width: auto; }
+  header.m button.burger {
+    width: 42px; height: 42px; border: 1px solid var(--border); border-radius: 10px;
+    background: transparent; color: inherit; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  header.m button.burger svg { width: 20px; height: 20px; }
+
+  /* ---------- Drawer ---------- */
+  .drawer {
+    position: fixed; inset: 0; z-index: 100;
+    background: var(--paper);
+    display: flex; flex-direction: column;
+    padding: 68px 24px 32px;
+    transform: translateY(-100%);
+    transition: transform .35s cubic-bezier(.2,.8,.2,1);
+  }
+  .drawer.open { transform: translateY(0); }
+  .drawer .close {
+    position: absolute; top: 14px; right: 14px;
+    width: 42px; height: 42px; border: 1px solid var(--border);
+    border-radius: 10px; background: transparent; color: inherit; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .drawer .close svg { width: 18px; height: 18px; }
+  .drawer a.link {
+    display: block;
+    font-family: 'Fraunces', serif;
+    font-weight: 400;
+    font-size: 34px;
+    letter-spacing: -0.02em;
+    padding: 14px 0;
+    border-bottom: 1px solid rgba(242,237,228,0.08);
+  }
+  .drawer a.cta {
+    margin-top: 22px;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 16px 20px;
+    background: var(--teal); color: var(--paper);
+    font-weight: 600; font-size: 15px;
+    border-radius: 999px;
+  }
+  .drawer .meta {
+    margin-top: auto;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--muted-2);
+  }
+
+  /* ---------- Hero ---------- */
+  .hero {
+    position: relative;
+    padding: 28px 20px 36px;
+    overflow: hidden;
+  }
+  .hero .kicker { margin-bottom: 20px; }
+  .hero h1 {
+    margin: 0 0 22px;
+    font-family: 'Fraunces', serif;
+    font-weight: 400;
+    letter-spacing: -0.035em;
+    font-size: 56px;
+    line-height: 0.94;
+  }
+  .hero p.sub {
+    margin: 0 0 26px;
+    font-size: 15.5px; line-height: 1.55;
+    color: var(--muted);
+    max-width: 320px;
+  }
+  .hero .cta-row {
+    display: flex; gap: 10px; flex-wrap: wrap;
+    margin-bottom: 28px;
+  }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 14px 20px;
+    border-radius: 999px;
+    font-size: 14.5px; font-weight: 600;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: transform .15s, background .2s, border-color .2s;
+  }
+  .btn-primary { background: var(--teal); color: var(--paper); }
+  .btn-primary:active { transform: scale(0.98); background: var(--teal-bright); }
+  .btn-ghost { background: transparent; color: var(--ink); border-color: var(--border-strong); }
+  .btn-ghost:active { transform: scale(0.98); border-color: var(--teal); }
+
+  .hero-image {
+    position: relative;
+    aspect-ratio: 4/5;
+    border-radius: 14px;
+    overflow: hidden;
+    background: #0f1513;
+    background-image: url('assets/home-hero.png');
+    background-size: cover;
+    background-position: center;
+  }
+  .hero-image .overlay {
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(26,22,18,0.65) 100%);
+  }
+  .hero-image .stamp {
+    position: absolute; bottom: 14px; left: 14px; right: 14px;
+    display: flex; justify-content: space-between; align-items: flex-end;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: rgba(255,255,255,0.8);
+  }
+  .hero-image .stamp .big {
+    font-family: 'Fraunces', serif;
+    font-weight: 400; letter-spacing: -0.02em;
+    font-size: 22px;
+    text-transform: none;
+    color: #fff;
+  }
+
+  /* ---------- Section: Pillars ---------- */
+  section.pillars {
+    padding: 56px 20px 24px;
+  }
+  .section-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 22px;
+  }
+  .section-head .num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--muted-2);
+  }
+  .section-title {
+    font-family: 'Fraunces', serif;
+    font-size: 40px; line-height: 0.98;
+    letter-spacing: -0.03em; font-weight: 400;
+    margin: 0 0 28px;
+  }
+  .pillar {
+    display: grid;
+    grid-template-columns: 70px 1fr;
+    gap: 16px;
+    padding: 22px 0;
+    border-top: 1px solid var(--border);
+    align-items: start;
+  }
+  .pillar:last-of-type { border-bottom: 1px solid var(--border); }
+  .pillar .tile {
+    aspect-ratio: 1/1;
+    border-radius: 8px;
+    background: var(--paper-2);
+    background-image: repeating-linear-gradient(135deg, rgba(255,255,255,0.04) 0 1px, transparent 1px 8px);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Fraunces', serif;
+    font-size: 28px; color: var(--teal);
+  }
+  .pillar h3 {
+    margin: 0 0 6px;
+    font-family: 'Fraunces', serif;
+    font-weight: 400;
+    font-size: 23px;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+  .pillar p {
+    margin: 0 0 10px;
+    font-size: 13.5px; line-height: 1.5;
+    color: var(--muted);
+  }
+  .pillar .arrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--teal);
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+
+  /* ---------- Section: Radio ---------- */
+  section.radio {
+    margin: 44px 14px 0;
+    padding: 32px 22px 34px;
+    background: linear-gradient(165deg, #0a2e28 0%, #0c1e1a 100%);
+    border: 1px solid rgba(30,192,168,0.25);
+    border-radius: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  section.radio::before {
+    content: "";
+    position: absolute;
+    top: -40px; right: -40px;
+    width: 180px; height: 180px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(46,224,196,0.25), transparent 70%);
+    pointer-events: none;
+  }
+  section.radio .eyebrow {
+    color: var(--teal-bright); font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  section.radio h2 {
+    margin: 0 0 14px;
+    font-family: 'Fraunces', serif; font-weight: 400;
+    font-size: 38px; line-height: 1;
+    letter-spacing: -0.03em;
+  }
+  section.radio p {
+    margin: 0 0 20px;
+    font-size: 14.5px; line-height: 1.55;
+    color: rgba(242,237,228,0.78);
+  }
+  .track {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px;
+    background: rgba(242,237,228,0.05);
+    border: 1px solid rgba(242,237,228,0.08);
+    border-radius: 12px;
+    margin-bottom: 8px;
+  }
+  .track .play {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--teal); color: var(--paper);
+    display: inline-flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .track .play svg { width: 12px; height: 12px; }
+  .track .t1 {
+    font-family: 'Fraunces', serif; font-size: 15px; letter-spacing: -0.015em;
+    line-height: 1.15;
+  }
+  .track .t2 {
+    font-family: 'JetBrains Mono', monospace; font-size: 9.5px;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--muted); margin-top: 2px;
+  }
+  .track .bpm {
+    margin-left: auto;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    color: var(--teal-bright); letter-spacing: 0.1em;
+  }
+  section.radio .cta-link {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-top: 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--teal-bright);
+  }
+
+  /* ---------- Section: Proof ---------- */
+  section.proof {
+    padding: 56px 20px 40px;
+  }
+  .stat-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 18px 14px;
+    margin-top: 22px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+  .stat .n {
+    font-family: 'Fraunces', serif;
+    font-weight: 400;
+    font-size: 40px; line-height: 1;
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+  }
+  .stat .l {
+    font-size: 12px; color: var(--muted); line-height: 1.4;
+  }
+  .quote {
+    margin-top: 32px; padding: 26px 22px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: rgba(242,237,228,0.02);
+  }
+  .quote p {
+    font-family: 'Fraunces', serif;
+    font-weight: 400;
+    font-style: italic;
+    font-size: 22px; line-height: 1.25;
+    letter-spacing: -0.015em;
+    margin: 0 0 16px;
+  }
+  .quote .by {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .quote .avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: linear-gradient(135deg, #3a5f55, #1a3e35);
+    flex-shrink: 0;
+  }
+  .quote .meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .quote .meta .name { color: var(--ink); }
+
+  /* ---------- Final CTA ---------- */
+  section.cta {
+    padding: 48px 20px 36px;
+    text-align: left;
+  }
+  section.cta h2 {
+    margin: 0 0 18px;
+    font-family: 'Fraunces', serif; font-weight: 400;
+    font-size: 48px; line-height: 0.98;
+    letter-spacing: -0.035em;
+  }
+  section.cta p {
+    margin: 0 0 24px;
+    font-size: 15px; color: var(--muted); line-height: 1.55;
+  }
+
+  /* ---------- Footer ---------- */
+  footer.m {
+    padding: 32px 20px 28px;
+    border-top: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--muted-2);
+  }
+  footer.m .row {
+    display: flex; flex-wrap: wrap; gap: 16px 20px;
+    margin-bottom: 18px;
+  }
+  footer.m .row a { color: var(--muted); }
+
+  /* ---------- Sticky CTA ---------- */
+  .sticky-cta {
+    position: fixed;
+    bottom: 14px; left: 50%; transform: translateX(-50%);
+    z-index: 40;
+    width: calc(100% - 28px); max-width: 402px;
+    padding: 12px 14px 12px 18px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px;
+    background: rgba(20,16,12,0.92);
+    border: 1px solid rgba(30,192,168,0.3);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border-radius: 999px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(30,192,168,0.15);
+  }
+  .sticky-cta .copy {
+    display: flex; flex-direction: column; line-height: 1.1;
+  }
+  .sticky-cta .copy .t1 {
+    font-family: 'Fraunces', serif; font-size: 16px;
+    letter-spacing: -0.01em;
+  }
+  .sticky-cta .copy .t2 {
+    font-family: 'JetBrains Mono', monospace; font-size: 9.5px;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--muted); margin-top: 3px;
+  }
+  .sticky-cta .go {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 18px; background: var(--teal); color: var(--paper);
+    font-weight: 600; font-size: 13.5px; border-radius: 999px;
+    flex-shrink: 0;
+  }
+</style>
+</head><body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const ROLES = [
+  {
+    key: 'client',
+    badge: 'M',
+    title: 'Members',
+    blurb: 'Find your people. Subscribe to trainers + nutritionists, get personalized programs, track progress.',
+    href: 'SignupClient.html',
+  },
+  {
+    key: 'coach',
+    badge: 'C',
+    title: 'Coaches',
+    blurb: 'Your brand, your pricing, your clients. Programs, sessions, weekly payouts — one platform.',
+    href: 'SignupTrainer.html',
+  },
+  {
+    key: 'radio',
+    badge: 'R',
+    title: 'Radio',
+    blurb: 'BPM-tagged workout mixes and prep playlists. Included free with membership.',
+    href: 'Radio.html',
+  },
+];
+
+const TRACKS = [
+  { title: 'Heavy Pull · Day 2', sub: 'Maya · Trainer mix', bpm: '92 BPM' },
+  { title: 'Prep · 20 min Bowls', sub: 'Rae · Cook-along', bpm: '110 BPM' },
+  { title: 'Long Run · Sunday', sub: 'Shape Staff Pick', bpm: '168 BPM' },
+];
+
+const STATS = [
+  { n: '4,200+', l: 'Verified coaches and nutritionists' },
+  { n: '$5/mo', l: 'Flat platform fee for members' },
+  { n: 'Weekly', l: 'Payouts — or instant on request' },
+  { n: '0%', l: 'Lock-in. Cancel any time.' },
+];
+
+function Logo() {
+  return <img src="assets/shape-logo-new-white.png?v=3" alt="Shape" />
+}
+
+function Burger({ onClick }) {
+  return (
+    <button className="burger" onClick={onClick} aria-label="Open menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+        <path d="M4 7h16M4 12h16M4 17h16"/>
+      </svg>
+    </button>
+  );
+}
+
+function Drawer({ open, onClose }) {
+  return (
+    <div className={'drawer' + (open ? ' open' : '')} aria-hidden={!open}>
+      <button className="close" onClick={onClose} aria-label="Close menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+          <path d="M6 6l12 12M18 6l-12 12"/>
+        </svg>
+      </button>
+      <a className="link" href="Landing.html">Get <em className="t">started</em></a>
+      <a className="link" href="Marketplace.html">Find a coach</a>
+      <a className="link" href="Radio.html">Shape Radio</a>
+      <a className="link" href="Pricing.html">Pricing</a>
+      <a className="link" href="Team.html">About</a>
+      <a className="cta" href="Login.html">Log in</a>
+      <div className="meta">© Shape · 2026</div>
+    </div>
+  );
+}
+
+function Header({ onOpen }) {
+  return (
+    <header className="m">
+      <a className="logo" href="#top" aria-label="Shape home"><Logo /></a>
+      <Burger onClick={onOpen} />
+    </header>
+  );
+}
+
+function Hero() {
+  return (
+    <section className="hero" id="top">
+      <div className="mono kicker kick">Shape — 2026</div>
+      <h1>How will you <em className="t">Shape</em><br/>your next move?</h1>
+      <p className="sub">Workouts, meals, music, and the coach that gets you — all in one app.</p>
+      <div className="cta-row">
+        <a className="btn btn-primary" href="Landing.html">Get started →</a>
+        <a className="btn btn-ghost" href="Marketplace.html">Find a coach</a>
+      </div>
+      <div className="hero-image">
+        <div className="overlay" />
+        <div className="stamp">
+          <div>
+            <div style={{opacity:0.7}}>Issue 01</div>
+            <div className="big">One app, four doors.</div>
+          </div>
+          <div style={{opacity:0.7,textAlign:'right'}}>Apr 2026</div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Pillars() {
+  return (
+    <section className="pillars">
+      <div className="section-head">
+        <span className="mono kick">01 — How it works</span>
+        <span className="num">03</span>
+      </div>
+      <h2 className="section-title">Four audiences.<br/><em className="t">One</em> platform.</h2>
+      {ROLES.map(r => (
+        <a className="pillar" href={r.href} key={r.key}>
+          <div className="tile">{r.badge}</div>
+          <div>
+            <h3>{r.title}</h3>
+            <p>{r.blurb}</p>
+            <span className="arrow">Explore →</span>
+          </div>
+        </a>
+      ))}
+    </section>
+  );
+}
+
+function Radio() {
+  return (
+    <section className="radio">
+      <div className="eyebrow">Shape · Radio</div>
+      <h2>Coaches drop <em className="t">sound</em> with every rep.</h2>
+      <p>Workouts arrive with the mix. Meal preps come with a cook-along. BPM-tagged, ad-free, offline.</p>
+      {TRACKS.map(t => (
+        <div className="track" key={t.title}>
+          <div className="play">
+            <svg viewBox="0 0 12 12" fill="currentColor"><path d="M3 1l8 5-8 5V1z"/></svg>
+          </div>
+          <div>
+            <div className="t1">{t.title}</div>
+            <div className="t2">{t.sub}</div>
+          </div>
+          <div className="bpm">{t.bpm}</div>
+        </div>
+      ))}
+      <a className="cta-link" href="Radio.html">Open Radio →</a>
+    </section>
+  );
+}
+
+function Proof() {
+  return (
+    <section className="proof">
+      <div className="section-head">
+        <span className="mono kick">02 — Why Shape</span>
+        <span className="num">4 facts</span>
+      </div>
+      <h2 className="section-title">Pricing that <em className="t">respects</em> the work.</h2>
+      <div className="stat-grid">
+        {STATS.map(s => (
+          <div className="stat" key={s.n}>
+            <div className="n">{s.n}</div>
+            <div className="l">{s.l}</div>
+          </div>
+        ))}
+      </div>
+      <div className="quote">
+        <p>“I went from juggling three apps to one place my clients actually open.”</p>
+        <div className="by">
+          <div className="avatar"/>
+          <div className="meta">
+            <span className="name">Maya · Trainer</span> &middot; 2 yrs on Shape
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FinalCta() {
+  return (
+    <section className="cta">
+      <div className="mono kick" style={{marginBottom:16}}>03 — Ready?</div>
+      <h2>Pick your path.<br/><em className="t">Start</em> today.</h2>
+      <p>Four doors — Member, Trainer, Nutritionist, Radio. Pick yours, it's on us for the first week.</p>
+      <div className="cta-row">
+        <a className="btn btn-primary" href="Landing.html">Get started →</a>
+        <a className="btn btn-ghost" href="Login.html">I have an account</a>
+      </div>
+    </section>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="m">
+      <div className="row">
+        <a href="Marketplace.html">Marketplace</a>
+        <a href="Pricing.html">Pricing</a>
+        <a href="Team.html">Team</a>
+        <a href="Radio.html">Radio</a>
+        <a href="Community.html">Community</a>
+        <a href="Index.html">All pages</a>
+      </div>
+      <div>© 2026 Shape · All rights reserved</div>
+    </footer>
+  );
+}
+
+function StickyCta() {
+  return (
+    <a className="sticky-cta" href="Landing.html">
+      <div className="copy">
+        <span className="t1">Start your <em style={{color:'var(--teal)',fontStyle:'italic',fontWeight:500}}>Shape</em></span>
+        <span className="t2">Free for 7 days · Cancel anytime</span>
+      </div>
+      <span className="go">Start →</span>
+    </a>
+  );
+}
+
+function App() {
+  const [open, setOpen] = React.useState(false);
+  React.useEffect(() => {
+    document.body.style.overflow = open ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [open]);
+  return (
+    <div className="phone">
+      <Header onOpen={() => setOpen(true)} />
+      <Drawer open={open} onClose={() => setOpen(false)} />
+      <Hero />
+      <Pillars />
+      <Radio />
+      <Proof />
+      <FinalCta />
+      <Footer />
+      <StickyCta />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body></html>

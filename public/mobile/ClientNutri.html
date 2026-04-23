@@ -1,0 +1,148 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Nutri · Shape</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>html,body{margin:0;padding:0;background:#1a1612}*{box-sizing:border-box}a{text-decoration:none;color:inherit}</style>
+<link rel="stylesheet" href="mobilePreview.css" />
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="pageShell.jsx"></script>
+<script type="text/babel" src="chatWidget.jsx"></script>
+<script type="text/babel" src="clientChatThreads.jsx"></script>
+<script type="text/babel" src="trainerDashboard.jsx"></script>
+<script type="text/babel" src="clientNav.jsx"></script>
+<script type="text/babel">
+function MacroRing({ value, target, label, color }) {
+  const pct = Math.min(value / target, 1);
+  const r = 34, c = 2 * Math.PI * r;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <svg width={88} height={88} viewBox="0 0 88 88">
+        <circle cx="44" cy="44" r={r} fill="none" stroke="rgba(242,237,228,0.08)" strokeWidth="6" />
+        <circle cx="44" cy="44" r={r} fill="none" stroke={color} strokeWidth="6" strokeLinecap="round"
+          strokeDasharray={`${pct * c} ${c}`} transform="rotate(-90 44 44)" />
+      </svg>
+      <div style={{ fontFamily: serif, fontSize: 20, letterSpacing: "-0.01em", marginTop: -58, lineHeight: 1 }}>{value}</div>
+      <div style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", color: "rgba(242,237,228,0.5)", marginTop: 34, letterSpacing: "0.08em" }}>{label}</div>
+      <div style={{ fontSize: 11, color: "rgba(242,237,228,0.5)", marginTop: 2 }}>of {target}g</div>
+    </div>
+  );
+}
+function ClientNutriPage() {
+  const meals = [
+    ["07:10","Breakfast","Oats · whey · berries · PB","520 kcal · 42p 58c 16f", "DONE"],
+    ["10:30","Snack","Greek yogurt + honey","210 kcal · 18p 22c 4f", "DONE"],
+    ["13:15","Lunch","Chicken rice bowl + tahini","680 kcal · 48p 75c 20f", "NEXT"],
+    ["16:30","Pre-workout","Banana + coffee","120 kcal · 2p 28c 0f", null],
+    ["19:45","Dinner","Salmon, sweet potato, greens","620 kcal · 44p 58c 22f", null],
+  ];
+  return (
+    <DashPage
+      navItems={clientNavItems("nutri")}
+      payoutCard={clientPayoutCard}
+      eyebrow="WEDNESDAY · DAY 14 / 30"
+      title="Performance fuel — block 3"
+      subtitle="Plan by Rae Lindqvist. Logged meals auto-flow back; Rae adjusts weekly based on training load and body comp."
+      actions={<>
+        <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Swap a meal</button>
+        <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Log meal</button>
+      </>}
+    >
+      <div style={{ display: "grid", gridTemplateColumns: "1.1fr 1.9fr", gap: 20 }}>
+        <Card>
+          <SectionTitle right="TODAY">Macros</SectionTitle>
+          <div style={{ display: "flex", justifyContent: "space-around", margin: "8px 0 20px" }}>
+            <MacroRing value={112} target={160} label="PROTEIN" color="#1ec0a8" />
+            <MacroRing value={158} target={240} label="CARBS"   color="#f4b860" />
+            <MacroRing value={42}  target={70}  label="FAT"     color="#e07856" />
+          </div>
+          <div style={{ borderTop: "1px solid rgba(242,237,228,0.08)", paddingTop: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "rgba(242,237,228,0.55)", marginBottom: 6 }}><span>Calories</span><span>1,530 / 2,350</span></div>
+            <div style={{ height: 6, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: "65%", background: TEAL, borderRadius: 999 }} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "rgba(242,237,228,0.5)", marginTop: 14 }}><span>Water</span><span>1.8 / 3.0 L</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "rgba(242,237,228,0.5)", marginTop: 6 }}><span>Fiber</span><span>22 / 35 g</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "rgba(242,237,228,0.5)", marginTop: 6 }}><span>Caffeine cutoff</span><span>13:00</span></div>
+          </div>
+        </Card>
+
+        <Card>
+          <SectionTitle right="5 MEALS · 2,350 KCAL">Today's plan</SectionTitle>
+          {meals.map((m, i) => (
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "54px 1fr auto", gap: 14, alignItems: "center", padding: "16px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)" }}>{m[0]}</div>
+              <div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+                  <div style={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: "rgba(242,237,228,0.55)", letterSpacing: "0.08em" }}>{m[1].toUpperCase()}</div>
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 500, marginTop: 2 }}>{m[2]}</div>
+                <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>{m[3]}</div>
+              </div>
+              {m[4] && <Pill tone={m[4] === "NEXT" ? "teal" : "done"}>{m[4]}</Pill>}
+            </div>
+          ))}
+        </Card>
+      </div>
+
+      {/* Coach-attached playlist — kitchen cook-along */}
+      <Card style={{ marginTop: 20, padding: 0, overflow: "hidden", background: "linear-gradient(100deg, #3a2820 0%, #1a1612 70%)", border: "1px solid rgba(224,120,86,0.22)" }}>
+        <div style={{ padding: "18px 22px", display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 20, alignItems: "center" }}>
+          <div style={{ width: 68, height: 68, borderRadius: 10, background: "linear-gradient(135deg, #f4b860, #e07856 60%, #8b3a28)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: serif, fontSize: 34, color: "#1a1612", fontStyle: "italic" }}>R</div>
+          <div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: "rgba(255,255,255,0.65)", marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ width: 6, height: 6, borderRadius: 999, background: "#1DB954" }}/> SPOTIFY · FROM RAE · COOK-ALONG FOR TONIGHT'S DINNER
+            </div>
+            <div style={{ fontFamily: serif, fontSize: 20, letterSpacing: "-0.01em", color: "#fff", marginBottom: 4 }}>Salmon &amp; sweet potato, 35 min</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(255,255,255,0.6)", letterSpacing: "0.05em" }}>KITCHEN SLOW · 18 TRACKS · 62 MIN · MELLOW JAZZ &amp; LO-FI</div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", width: 38, height: 38, borderRadius: 999, cursor: "pointer", fontSize: 14 }} title="Save">♡</button>
+            <button style={{ background: "#fff", border: 0, color: INK, padding: "0 20px", height: 38, borderRadius: 999, cursor: "pointer", fontFamily: sans, fontSize: 13, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>▶ Play</button>
+          </div>
+        </div>
+      </Card>
+
+      <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+        <Card>
+          <SectionTitle>7-day adherence</SectionTitle>
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-end", height: 90 }}>
+            {[82, 94, 88, 100, 76, 92, 89].map((v, i) => (
+              <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                <div style={{ width: "100%", background: v > 85 ? TEAL : "rgba(242,237,228,0.2)", height: `${v}%`, borderRadius: 3 }} />
+                <div style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", color: "rgba(242,237,228,0.5)" }}>{["T","W","T","F","S","S","M"][i]}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 16 }}>89% avg · up from 74% last block</div>
+        </Card>
+        <Card style={{ background: "rgba(30,192,168,0.06)", border: "1px solid rgba(30,192,168,0.25)" }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>FROM RAE · TUE</div>
+          <div style={{ fontSize: 14, lineHeight: 1.55, color: "rgba(242,237,228,0.85)" }}>Post-run fueling: 30g whey + 60g carbs within 45 min. I've pre-built 3 shakes in your library — tap Log meal → Templates.</div>
+          <div style={{ marginTop: 16, display: "flex", gap: 10 }}>
+            <button style={{ background: "transparent", color: PAPER, border: "1px solid rgba(242,237,228,0.3)", padding: "7px 14px", borderRadius: 999, fontFamily: sans, fontSize: 12, cursor: "pointer" }}>Reply</button>
+            <button style={{ background: PAPER, color: INK, border: 0, padding: "7px 14px", borderRadius: 999, fontFamily: sans, fontSize: 12, fontWeight: 500, cursor: "pointer" }}>Open templates</button>
+          </div>
+        </Card>
+      </div>
+    </DashPage>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.Fragment>
+    <ClientNutriPage />
+    <ChatWidget tabs={clientChatTabs} />
+  </React.Fragment>
+);
+</script>
+<script src="mobilePreview.js"></script>
+</body>
+</html>

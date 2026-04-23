@@ -1,0 +1,845 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Shape — Hat Studio</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:#efece6;color:#1a1a1c;font-family:'Space Grotesk',ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  button{font-family:inherit;cursor:pointer}
+</style>
+</head><body>
+<template id="__bundler_thumbnail">
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <rect width="200" height="200" fill="#0a8f80"/>
+  <g transform="translate(100 110)">
+    <ellipse cx="0" cy="28" rx="72" ry="4" fill="rgba(0,0,0,0.25)"/>
+    <path d="M -60 22 Q 0 52 60 22 Q 60 32 55 34 Q 0 58 -55 34 Q -60 32 -60 22 Z" fill="#111214"/>
+    <path d="M -48 22 Q -56 -30 -16 -48 Q 0 -56 16 -48 Q 56 -30 48 22 Q 0 36 -48 22 Z" fill="#1a1a1c"/>
+    <path d="M -2 -20 L 10 -2 L -14 -2 Z" fill="#0fb8a5"/>
+    <path d="M 14 -24 L 24 -8 L 4 -8 Z" fill="#efece6"/>
+  </g>
+</svg>
+</template>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useMemo } = React;
+
+// ─── tokens ─────────────────────────────────────────────
+const SERIF = "'Fraunces', ui-serif, Georgia, serif";
+const SANS  = "'Space Grotesk', ui-sans-serif, system-ui, sans-serif";
+const MONO  = "'JetBrains Mono', ui-monospace, monospace";
+const PAPER = '#efece6';
+const PAPER2 = '#e6e2d8';
+const INK = '#1a1a1c';
+const INK60 = 'rgba(26,26,28,0.6)';
+const INK35 = 'rgba(26,26,28,0.35)';
+const HAIR = 'rgba(26,26,28,0.14)';
+const TEAL = '#0fb8a5';
+const TEAL_DEEP = '#0a8f80';
+
+// ─── palettes ───────────────────────────────────────────
+const CROWN_COLORS = [
+  { id: 'black',   name: 'Carbon',      hex: '#111214', ink: '#fff' },
+  { id: 'cream',   name: 'Chalk',       hex: '#e8e3d5', ink: '#1a1a1c' },
+  { id: 'teal',    name: 'Teal',        hex: '#0a8f80', ink: '#fff' },
+  { id: 'sand',    name: 'Sand',        hex: '#c9b58b', ink: '#1a1a1c' },
+  { id: 'navy',    name: 'Ink',         hex: '#1c2a44', ink: '#fff' },
+  { id: 'olive',   name: 'Olive',       hex: '#5b6440', ink: '#fff' },
+  { id: 'rust',    name: 'Rust',        hex: '#b04a2a', ink: '#fff' },
+  { id: 'plum',    name: 'Plum',        hex: '#3b2440', ink: '#fff' },
+];
+
+// Logo treatments. 'tone' = 'color' keeps teal triangle; 'mono' forces single color.
+const LOGO_TREATMENTS = [
+  { id: 'color-white', name: 'White + Teal', src: 'assets/shape-logo-new-white.png',   tone: 'color' },
+  { id: 'color-black', name: 'Black + Teal', src: 'assets/shape-logo-new-black.png',   tone: 'color' },
+  { id: 'mono-white',  name: 'All white',    src: 'assets/shape-logo-new-white.png',   tone: 'mono',  mono: '#ffffff' },
+  { id: 'mono-black',  name: 'All black',    src: 'assets/shape-logo-new-black.png',   tone: 'mono',  mono: '#111214' },
+  { id: 'teal',        name: 'All teal',     src: 'assets/shape-logo-teal-deep.png',   tone: 'mono',  mono: '#0a8f80' },
+  { id: 'glow',        name: 'Bright teal',  src: 'assets/shape-logo-teal-bright.png', tone: 'mono',  mono: '#0fb8a5' },
+];
+
+const MARK_VARIANTS = [
+  { id: 'full',       name: 'Full mark',    sub: 'Triangles + wordmark' },
+  { id: 'wordmark',   name: 'Wordmark',     sub: 'SHAPE only' },
+  { id: 'triangles',  name: 'Triangles',    sub: 'Icon only' },
+];
+
+const SILHOUETTES = [
+  { id: 'runner',  name: 'Runner',   sub: 'Lightweight · low-profile training cap' },
+  { id: 'dad',     name: 'Dad cap',  sub: 'Curved brim · 6-panel unstructured' },
+  { id: 'snap',    name: 'Snapback', sub: 'Flat brim · structured front' },
+  { id: 'trucker', name: 'Trucker',  sub: 'Foam front · mesh back' },
+  { id: 'beanie',  name: 'Beanie',   sub: 'Cuffed knit · cold sessions' },
+];
+
+const FABRICS = [
+  { id: 'twill',   name: 'Cotton twill',    sub: 'Classic · broken in' },
+  { id: 'ripstop', name: 'Nylon ripstop',   sub: 'Light · packable' },
+  { id: 'stretch', name: '4-way stretch',   sub: 'Sweat-wicking knit' },
+  { id: 'perf',    name: 'Laser-perf',      sub: 'Max ventilation' },
+];
+
+const EMBROIDERY = [
+  { id: 'flat',   name: 'Flat stitch', sub: 'Low profile, wide visible' },
+  { id: 'puff',   name: '3D puff',     sub: 'Raised foam, blocky' },
+  { id: 'patch',  name: 'Woven patch', sub: 'Merrow edge, vintage' },
+];
+
+// ─── hat SVGs ───────────────────────────────────────────
+// Single coordinate system: 600 × 420 viewBox.
+// All silhouettes render the logo in the same "panel window" at ~cx 300, cy 210.
+
+// Runner — lightweight 5-panel training cap, visible sweatband, laser-perf front
+function Runner({ crown, brim, stitch, features = {}, fabric, children }) {
+  const bandColor = shade(crown, -0.18);
+  const showPerf = features.vent || fabric === 'perf';
+  return (
+    <svg viewBox="0 0 600 420" width="100%" height="100%" style={{ display: 'block' }}>
+      <defs>
+        <linearGradient id="rn-crown" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor={shade(crown, 0.1)} />
+          <stop offset="100%" stopColor={crown} />
+        </linearGradient>
+        <linearGradient id="rn-brim" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor={brim} />
+          <stop offset="100%" stopColor={shade(brim, -0.18)} />
+        </linearGradient>
+      </defs>
+      <ellipse cx="300" cy="365" rx="235" ry="11" fill="rgba(0,0,0,0.18)" />
+      {/* low-profile brim */}
+      <path d="M 95 328 Q 300 372 505 328 Q 505 345 495 348 Q 300 390 105 348 Q 95 345 95 328 Z" fill="url(#rn-brim)" />
+      <path d="M 105 344 Q 300 385 495 344" stroke={stitch} strokeWidth="0.8" fill="none" strokeDasharray="2 2" opacity="0.55" />
+      {/* crown — shallow, 5-panel */}
+      <path d="M 125 328 Q 108 215 175 160 Q 300 108 425 160 Q 492 215 475 328 Q 300 352 125 328 Z" fill="url(#rn-crown)" />
+      {/* 5-panel seams */}
+      <g stroke={stitch} strokeWidth="0.9" fill="none" opacity="0.55" strokeDasharray="2 3">
+        <path d="M 300 120 L 300 340" />
+        <path d="M 235 128 Q 245 230 252 340" />
+        <path d="M 365 128 Q 355 230 348 340" />
+      </g>
+      {/* sweatband (just visible under brim) */}
+      {features.sweatband && (
+        <>
+          <path d="M 128 328 Q 300 351 472 328 L 470 340 Q 300 364 130 340 Z" fill={bandColor} opacity="0.9" />
+          <path d="M 128 328 Q 300 351 472 328" stroke={shade(bandColor, -0.2)} strokeWidth="0.8" fill="none" opacity="0.6" />
+        </>
+      )}
+      {/* top button — tiny for athletic look */}
+      <circle cx="300" cy="135" r="3.5" fill={shade(crown, -0.3)} />
+      {/* laser-perf front — 4x6 grid */}
+      {showPerf && (
+        <g fill={shade(crown, -0.28)} opacity="0.75">
+          {Array.from({ length: 5 }).map((_, row) =>
+            Array.from({ length: 9 }).map((_, col) => {
+              const cx = 225 + col * 18;
+              const cy = 245 + row * 14;
+              // skip center rows where logo sits
+              if (row >= 1 && row <= 3 && col >= 2 && col <= 6) return null;
+              return <circle key={`${row}-${col}`} cx={cx} cy={cy} r="1.5" />;
+            })
+          )}
+        </g>
+      )}
+      {/* reflective hit on back corner */}
+      {features.reflect && (
+        <g>
+          <rect x="420" y="328" width="50" height="3" fill="#e9f2ff" opacity="0.95" />
+          <text x="445" y="320" textAnchor="middle" fontFamily={MONO} fontSize="6.5" fill="#e9f2ff" letterSpacing="0.15em" opacity="0.9">REFLECT</text>
+        </g>
+      )}
+      {/* side speed vent */}
+      {features.vent && (
+        <path d="M 155 250 Q 160 258 155 270 Q 150 280 148 288" stroke={shade(crown, -0.3)} strokeWidth="1.2" fill="none" opacity="0.6" />
+      )}
+      {/* adjustable strap back hint */}
+      {features.strap && (
+        <rect x="485" y="290" width="14" height="28" rx="2" fill={shade(crown, -0.2)} opacity="0.7" />
+      )}
+      {/* logo slot */}
+      <foreignObject x="180" y="210" width="240" height="96">
+        <div xmlns="http://www.w3.org/1999/xhtml" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {children}
+        </div>
+      </foreignObject>
+    </svg>
+  );
+}
+
+function DadCap({ crown, brim, stitch, features = {}, children }) {
+  return (
+    <svg viewBox="0 0 600 420" width="100%" height="100%" style={{ display: 'block' }}>
+      <defs>
+        <radialGradient id="dc-sheen" cx="40%" cy="30%" r="70%">
+          <stop offset="0%" stopColor="#fff" stopOpacity="0.18" />
+          <stop offset="60%" stopColor="#fff" stopOpacity="0" />
+        </radialGradient>
+        <linearGradient id="dc-brim" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor={brim} />
+          <stop offset="100%" stopColor={shade(brim, -0.15)} />
+        </linearGradient>
+      </defs>
+      {/* shadow */}
+      <ellipse cx="300" cy="360" rx="240" ry="14" fill="rgba(0,0,0,0.18)" />
+      {/* brim */}
+      <path d="M 90 330 Q 300 390 510 330 Q 510 348 500 352 Q 300 408 100 352 Q 90 348 90 330 Z" fill="url(#dc-brim)" />
+      <path d="M 90 330 Q 300 390 510 330" stroke={shade(brim, -0.3)} strokeWidth="1.2" fill="none" opacity="0.55" />
+      {/* crown — curved 6-panel */}
+      <path d="M 120 330 Q 100 200 190 130 Q 300 70 410 130 Q 500 200 480 330 Q 300 360 120 330 Z" fill={crown} />
+      {/* panel seams */}
+      <g stroke={stitch} strokeWidth="1" fill="none" opacity="0.6" strokeDasharray="2 3">
+        <path d="M 300 90 Q 300 210 300 340" />
+        <path d="M 230 100 Q 250 220 260 345" />
+        <path d="M 370 100 Q 350 220 340 345" />
+      </g>
+      {/* top button */}
+      <circle cx="300" cy="92" r="6" fill={shade(crown, -0.25)} />
+      <circle cx="300" cy="92" r="6" fill="none" stroke={stitch} strokeWidth="0.8" strokeDasharray="1.5 1.5" opacity="0.6" />
+      {/* sheen */}
+      <path d="M 120 330 Q 100 200 190 130 Q 300 70 410 130 Q 500 200 480 330 Q 300 360 120 330 Z" fill="url(#dc-sheen)" />
+      {/* eyelets / ventilation */}
+      <g fill={shade(crown, -0.3)}>
+        <circle cx="195" cy="210" r="3" />
+        <circle cx="405" cy="210" r="3" />
+        {features.vent && <>
+          <circle cx="225" cy="210" r="2.5" />
+          <circle cx="255" cy="215" r="2.5" />
+          <circle cx="345" cy="215" r="2.5" />
+          <circle cx="375" cy="210" r="2.5" />
+        </>}
+      </g>
+      {/* reflective hit on back of brim */}
+      {features.reflect && <path d="M 430 340 L 470 336" stroke="#e9f2ff" strokeWidth="2" strokeLinecap="round" opacity="0.9" />}
+      {/* stitch on brim edge */}
+      <path d="M 100 345 Q 300 400 500 345" stroke={stitch} strokeWidth="0.9" fill="none" strokeDasharray="2.5 2.5" opacity="0.5" />
+      {/* logo slot */}
+      <foreignObject x="180" y="160" width="240" height="100">
+        <div xmlns="http://www.w3.org/1999/xhtml" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {children}
+        </div>
+      </foreignObject>
+    </svg>
+  );
+}
+
+function Snapback({ crown, brim, stitch, features = {}, children }) {
+  return (
+    <svg viewBox="0 0 600 420" width="100%" height="100%" style={{ display: 'block' }}>
+      <defs>
+        <linearGradient id="sn-crown" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor={shade(crown, 0.08)} />
+          <stop offset="100%" stopColor={crown} />
+        </linearGradient>
+      </defs>
+      <ellipse cx="300" cy="365" rx="240" ry="12" fill="rgba(0,0,0,0.18)" />
+      {/* flat brim */}
+      <rect x="80" y="315" width="440" height="42" rx="6" fill={brim} />
+      <rect x="80" y="315" width="440" height="42" rx="6" fill="none" stroke={shade(brim, -0.3)} strokeWidth="1" opacity="0.5" />
+      <path d="M 88 352 L 512 352" stroke={stitch} strokeWidth="0.9" strokeDasharray="2.5 2.5" opacity="0.6" fill="none" />
+      {/* crown — structured boxy */}
+      <path d="M 110 315 L 115 155 Q 120 105 180 100 L 420 100 Q 480 105 485 155 L 490 315 Z" fill="url(#sn-crown)" />
+      {/* panel seams — 6 panel structured */}
+      <g stroke={stitch} strokeWidth="1" fill="none" opacity="0.5" strokeDasharray="2 3">
+        <path d="M 300 100 L 300 315" />
+        <path d="M 220 102 L 228 315" />
+        <path d="M 380 102 L 372 315" />
+      </g>
+      {/* front panel shadow hint */}
+      <path d="M 220 102 L 228 315 L 372 315 L 380 102 Z" fill="rgba(0,0,0,0.04)" />
+      {/* top seam button */}
+      <circle cx="300" cy="105" r="5" fill={shade(crown, -0.25)} />
+      {/* eyelets / vent */}
+      <g fill={shade(crown, -0.3)}>
+        <circle cx="225" cy="200" r="3" />
+        <circle cx="375" cy="200" r="3" />
+        {features.vent && <>
+          <circle cx="250" cy="195" r="2.5" />
+          <circle cx="275" cy="195" r="2.5" />
+          <circle cx="325" cy="195" r="2.5" />
+          <circle cx="350" cy="195" r="2.5" />
+        </>}
+      </g>
+      {features.reflect && <rect x="110" y="330" width="60" height="3" fill="#e9f2ff" opacity="0.9" />}
+      {/* sticker on brim — reinforces "new snapback" feel */}
+      <rect x="395" y="322" width="70" height="24" rx="2" fill="#fff" opacity="0.9" />
+      <text x="430" y="338" textAnchor="middle" fontFamily={MONO} fontSize="9" fill="#111" letterSpacing="0.1em">SHAPE · ONE SIZE</text>
+      {/* logo slot */}
+      <foreignObject x="180" y="155" width="240" height="120">
+        <div xmlns="http://www.w3.org/1999/xhtml" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {children}
+        </div>
+      </foreignObject>
+    </svg>
+  );
+}
+
+function Trucker({ crown, brim, stitch, features = {}, children }) {
+  // foam front + mesh back
+  const mesh = shade(crown, 0.55);
+  return (
+    <svg viewBox="0 0 600 420" width="100%" height="100%" style={{ display: 'block' }}>
+      <defs>
+        <pattern id="mesh-p" width="8" height="8" patternUnits="userSpaceOnUse">
+          <path d="M 0 4 L 8 4 M 4 0 L 4 8" stroke={shade(crown, -0.1)} strokeWidth="0.4" opacity="0.6" />
+          <circle cx="4" cy="4" r="1.3" fill="none" stroke={shade(crown, -0.15)} strokeWidth="0.3" opacity="0.5" />
+        </pattern>
+        <linearGradient id="tr-brim" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor={brim} />
+          <stop offset="100%" stopColor={shade(brim, -0.15)} />
+        </linearGradient>
+      </defs>
+      <ellipse cx="300" cy="362" rx="240" ry="13" fill="rgba(0,0,0,0.18)" />
+      {/* brim (pre-curved) */}
+      <path d="M 85 325 Q 300 375 515 325 Q 515 346 505 350 Q 300 396 95 350 Q 85 346 85 325 Z" fill="url(#tr-brim)" />
+      <path d="M 95 345 Q 300 392 505 345" stroke={stitch} strokeWidth="0.9" fill="none" strokeDasharray="2.5 2.5" opacity="0.55" />
+      {/* mesh back panels (wider than front) */}
+      <path d="M 110 325 Q 95 180 175 128 L 175 325 Z" fill={mesh} />
+      <path d="M 110 325 Q 95 180 175 128 L 175 325 Z" fill="url(#mesh-p)" />
+      <path d="M 425 128 Q 505 180 490 325 L 425 325 Z" fill={mesh} />
+      <path d="M 425 128 Q 505 180 490 325 L 425 325 Z" fill="url(#mesh-p)" />
+      {/* foam front */}
+      <path d="M 175 325 L 170 150 Q 175 105 225 102 L 375 102 Q 425 105 430 150 L 425 325 Z" fill={crown} />
+      {/* front panel seam */}
+      <path d="M 300 102 L 300 325" stroke={stitch} strokeWidth="1" fill="none" strokeDasharray="2 3" opacity="0.5" />
+      {/* top button */}
+      <circle cx="300" cy="108" r="5" fill={shade(crown, -0.25)} />
+      {/* mesh-to-front seam */}
+      <path d="M 175 128 L 175 325" stroke={shade(crown, -0.2)} strokeWidth="1" opacity="0.7" />
+      <path d="M 425 128 L 425 325" stroke={shade(crown, -0.2)} strokeWidth="1" opacity="0.7" />
+      {/* logo slot */}
+      <foreignObject x="180" y="155" width="240" height="120">
+        <div xmlns="http://www.w3.org/1999/xhtml" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {children}
+        </div>
+      </foreignObject>
+    </svg>
+  );
+}
+
+function Beanie({ crown, brim, stitch, features = {}, children }) {
+  // brim here = cuff color
+  return (
+    <svg viewBox="0 0 600 420" width="100%" height="100%" style={{ display: 'block' }}>
+      <defs>
+        <pattern id="knit-p" width="6" height="8" patternUnits="userSpaceOnUse">
+          <path d="M 0 0 Q 3 4 6 0 M 0 8 Q 3 4 6 8" stroke={shade(crown, -0.15)} strokeWidth="0.7" fill="none" opacity="0.55" />
+        </pattern>
+        <pattern id="knit-cuff" width="4" height="10" patternUnits="userSpaceOnUse">
+          <path d="M 2 0 L 2 10" stroke={shade(brim, -0.2)} strokeWidth="0.8" opacity="0.6" />
+        </pattern>
+      </defs>
+      <ellipse cx="300" cy="365" rx="200" ry="10" fill="rgba(0,0,0,0.18)" />
+      {/* body */}
+      <path d="M 140 320 Q 115 180 200 110 Q 300 55 400 110 Q 485 180 460 320 Z" fill={crown} />
+      <path d="M 140 320 Q 115 180 200 110 Q 300 55 400 110 Q 485 180 460 320 Z" fill="url(#knit-p)" />
+      {/* subtle crown vertical ribs */}
+      <g stroke={shade(crown, -0.12)} strokeWidth="0.6" opacity="0.5" fill="none">
+        <path d="M 250 80 Q 245 200 232 320" />
+        <path d="M 350 80 Q 355 200 368 320" />
+        <path d="M 300 65 L 300 320" />
+      </g>
+      {/* pom */}
+      <circle cx="300" cy="66" r="22" fill={shade(crown, 0.1)} />
+      <g stroke={shade(crown, -0.2)} strokeWidth="0.8" opacity="0.5">
+        <path d="M 290 50 L 285 45" /><path d="M 305 48 L 310 42" /><path d="M 315 60 L 322 58" />
+        <path d="M 283 72 L 276 76" /><path d="M 310 78 L 316 82" /><path d="M 298 48 L 298 42" />
+      </g>
+      {/* cuff */}
+      <path d="M 150 305 Q 300 345 450 305 L 455 355 Q 300 395 145 355 Z" fill={brim} />
+      <path d="M 150 305 Q 300 345 450 305 L 455 355 Q 300 395 145 355 Z" fill="url(#knit-cuff)" />
+      <path d="M 150 305 Q 300 345 450 305" stroke={shade(brim, -0.2)} strokeWidth="1" fill="none" opacity="0.7" />
+      {/* logo slot — on cuff */}
+      <foreignObject x="200" y="312" width="200" height="54">
+        <div xmlns="http://www.w3.org/1999/xhtml" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {children}
+        </div>
+      </foreignObject>
+    </svg>
+  );
+}
+
+// ─── helpers ────────────────────────────────────────────
+function shade(hex, amt) {
+  // amt in [-1, 1]. negative = darker, positive = lighter
+  const c = hex.replace('#','');
+  const n = c.length === 3 ? c.split('').map(x=>x+x).join('') : c;
+  const r = parseInt(n.slice(0,2),16), g = parseInt(n.slice(2,4),16), b = parseInt(n.slice(4,6),16);
+  const mix = (v) => Math.max(0, Math.min(255, Math.round(v + (amt < 0 ? v*amt : (255-v)*amt))));
+  const toHex = (v) => v.toString(16).padStart(2,'0');
+  return '#' + toHex(mix(r)) + toHex(mix(g)) + toHex(mix(b));
+}
+
+// ─── logo embroidery renderer ───────────────────────────
+// Handles mark variant (full/wordmark/triangles) via CSS clip + tone via filter.
+function LogoPatch({ treatment, variant, size, emb }) {
+  const src = treatment.src;
+  // The source PNG is 187x100. Triangles occupy ~top 58% (y 0–58),
+  // wordmark the bottom ~42% (y 58–100). We render via a <div> with
+  // background-image so we can independently clip.
+  const ASPECT = 187 / 100;
+  const fullH  = size;
+  let boxW, boxH, bgW, bgH, bgX, bgY;
+  if (variant === 'full') {
+    boxH = fullH; boxW = fullH * ASPECT;
+    bgW = boxW; bgH = boxH; bgX = 0; bgY = 0;
+  } else if (variant === 'wordmark') {
+    // show only bottom 42% of image
+    boxH = fullH * 0.38;          // target rendered height
+    // we need the full image drawn at source scale so cropping works.
+    bgH  = boxH / 0.38;           // total image height so our slice = boxH
+    bgW  = bgH * ASPECT;
+    boxW = bgW * 0.92;            // wordmark occupies full width
+    bgX  = -(bgW - boxW) / 2;
+    bgY  = -bgH * 0.58;           // shift up past triangles
+  } else {
+    // triangles: top 58% of image; but triangles are narrow, centered
+    boxH = fullH;
+    bgH  = boxH / 0.58;
+    bgW  = bgH * ASPECT;
+    // triangle cluster spans roughly the middle 26% width of the image
+    boxW = bgW * 0.26;
+    bgX  = -(bgW - boxW) / 2;
+    bgY  = 0;
+  }
+
+  // Tone / filter. For 'color' treatments keep as-is. For mono, use filter chain
+  // to force a single color without altering shape.
+  let toneFilter = '';
+  if (treatment.tone === 'mono') {
+    // Convert to pure black, then tint with drop-shadow of the target color,
+    // then null out original via 0-opacity. We can't 'fill' a PNG so instead:
+    // use filter: brightness(0) then drop-shadow(0 0 0 color) + contrast bump.
+    // Simpler route: for white target, use `brightness(0) invert(1)`.
+    // For colored targets, layer a CSS mask.
+    // Cheap path: use mask-image (supported everywhere in modern browsers).
+  }
+
+  // Embroidery treatment styles
+  const embShadow =
+    emb === 'puff'
+      ? 'drop-shadow(0 2px 0 rgba(0,0,0,0.5)) drop-shadow(0 3px 2px rgba(0,0,0,0.35)) drop-shadow(0 0 0.5px rgba(255,255,255,0.5))'
+      : emb === 'flat'
+        ? 'drop-shadow(0 1px 0 rgba(0,0,0,0.35)) drop-shadow(0 0 0.4px rgba(0,0,0,0.4))'
+        : 'none';
+
+  // The mark itself — use a mask if mono, plain bg-image if color.
+  const markStyle = treatment.tone === 'mono'
+    ? {
+        width: boxW, height: boxH,
+        WebkitMaskImage: `url(${src})`, maskImage: `url(${src})`,
+        WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat',
+        WebkitMaskSize: `${bgW}px ${bgH}px`, maskSize: `${bgW}px ${bgH}px`,
+        WebkitMaskPosition: `${bgX}px ${bgY}px`, maskPosition: `${bgX}px ${bgY}px`,
+        background: treatment.mono,
+        filter: embShadow !== 'none' ? embShadow : undefined,
+      }
+    : {
+        width: boxW, height: boxH,
+        backgroundImage: `url(${src})`, backgroundRepeat: 'no-repeat',
+        backgroundSize: `${bgW}px ${bgH}px`,
+        backgroundPosition: `${bgX}px ${bgY}px`,
+        filter: embShadow !== 'none' ? embShadow : undefined,
+      };
+
+  const mark = <div style={markStyle} />;
+
+  if (emb === 'patch') {
+    return (
+      <div style={{
+        padding: '10px 14px',
+        background: '#f2ebd9',
+        border: '2px solid #1a1a1c',
+        borderRadius: 4,
+        boxShadow: '0 3px 0 rgba(0,0,0,0.35), 0 6px 8px rgba(0,0,0,0.25), inset 0 0 0 1px rgba(0,0,0,0.15)',
+        position: 'relative',
+      }}>
+        {/* re-tone to black for patch regardless of treatment */}
+        <div style={{
+          width: boxW, height: boxH,
+          WebkitMaskImage: `url(${src})`, maskImage: `url(${src})`,
+          WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat',
+          WebkitMaskSize: `${bgW}px ${bgH}px`, maskSize: `${bgW}px ${bgH}px`,
+          WebkitMaskPosition: `${bgX}px ${bgY}px`, maskPosition: `${bgX}px ${bgY}px`,
+          background: '#1a1a1c',
+        }} />
+      </div>
+    );
+  }
+
+  return mark;
+}
+
+// ─── main ───────────────────────────────────────────────
+function HatStudio() {
+  const [silhouette, setSilhouette] = useState('runner');
+  const [crownId, setCrownId] = useState('black');
+  const [brimMatch, setBrimMatch] = useState(true);
+  const [brimId, setBrimId] = useState('cream');
+  const [logoId, setLogoId] = useState('color-white');
+  const [markVariant, setMarkVariant] = useState('full');
+  const [emb, setEmb] = useState('flat');
+  const [logoSize, setLogoSize] = useState(64);
+  const [fabric, setFabric] = useState('stretch');
+  const [features, setFeatures] = useState({ sweatband: true, vent: true, reflect: false, strap: true });
+
+  const crown = CROWN_COLORS.find(c => c.id === crownId);
+  const brim  = brimMatch ? crown : CROWN_COLORS.find(c => c.id === brimId);
+  const logo  = LOGO_TREATMENTS.find(l => l.id === logoId);
+  const stitch = useMemo(() => {
+    // readable stitch color against crown
+    const hex = crown.hex.replace('#','');
+    const r = parseInt(hex.slice(0,2),16), g = parseInt(hex.slice(2,4),16), b = parseInt(hex.slice(4,6),16);
+    const luma = (0.2126*r + 0.7152*g + 0.0722*b);
+    return luma > 160 ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.65)';
+  }, [crown]);
+
+  const props = { crown: crown.hex, brim: brim.hex, stitch, features, fabric };
+  const Hat =
+    silhouette === 'runner'  ? Runner :
+    silhouette === 'dad'     ? DadCap :
+    silhouette === 'snap'    ? Snapback :
+    silhouette === 'trucker' ? Trucker : Beanie;
+
+  let logoHeight = logoSize;
+  if (silhouette === 'beanie') logoHeight = Math.round(logoSize * 0.75);
+  if (silhouette === 'runner') logoHeight = Math.round(logoSize * 0.95);
+  if (markVariant === 'triangles') logoHeight = Math.round(logoHeight * 1.25);
+  if (markVariant === 'wordmark')  logoHeight = Math.round(logoHeight * 1.15);
+
+  const priceByFabric = { twill: 48, ripstop: 56, stretch: 58, perf: 64 };
+  const price = priceByFabric[fabric] ?? 48;
+  const markLabel = MARK_VARIANTS.find(m=>m.id===markVariant).name.toUpperCase();
+
+  const styleCode = `SHAPE · ${SILHOUETTES.find(s=>s.id===silhouette).name.toUpperCase()} · ${FABRICS.find(f=>f.id===fabric).name.toUpperCase()} · ${crown.name.toUpperCase()}${brimMatch ? '' : ' / ' + brim.name.toUpperCase()} · ${markLabel}`;
+
+  function toggleFeat(k) { setFeatures(f => ({ ...f, [k]: !f[k] })); }
+
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {/* header */}
+      <header style={{
+        padding: '22px 32px 18px', borderBottom: `1px solid ${HAIR}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <img src="assets/shape-logo-new-black.png" alt="Shape" style={{ height: 24, width: 'auto' }} />
+          <div style={{ width: 1, height: 18, background: HAIR }} />
+          <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.18em', color: INK60 }}>HAT STUDIO — ED. 01</div>
+        </div>
+        <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.2em', color: INK35 }}>APR 2026 · MADE TO ORDER</div>
+      </header>
+
+      {/* body */}
+      <main style={{
+        flex: 1, display: 'grid', gridTemplateColumns: 'minmax(0,1.3fr) 360px',
+        gap: 0, alignItems: 'stretch',
+      }}>
+        {/* ── stage ─────────────────────────── */}
+        <section style={{ padding: '48px 56px', position: 'relative', background: PAPER, display: 'flex', flexDirection: 'column' }}>
+          {/* editorial title */}
+          <div style={{ maxWidth: 640, marginBottom: 32 }}>
+            <div style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.22em', color: TEAL_DEEP, marginBottom: 10 }}>
+              NO. 01 / DESIGN YOUR OWN
+            </div>
+            <h1 style={{
+              margin: 0, fontFamily: SERIF, fontWeight: 400, fontSize: 68,
+              lineHeight: 0.95, letterSpacing: '-0.02em', color: INK,
+            }}>
+              A hat, <em style={{ fontStyle: 'italic', color: TEAL_DEEP, fontWeight: 500 }}>engineered to train in.</em>
+            </h1>
+            <p style={{ marginTop: 14, fontFamily: SANS, fontSize: 15, color: INK60, maxWidth: 520, lineHeight: 1.5 }}>
+              Built for reps, miles and sweat. Pick the silhouette and fabric, dial the colorway, and choose how the mark sits on the crown — full lockup, wordmark only, or just the triangles. We stitch one, hand-finish it, and send it in a week.
+            </p>
+          </div>
+
+          {/* the hat */}
+          <div style={{
+            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            position: 'relative', minHeight: 420,
+          }}>
+            {/* decorative serif number */}
+            <div style={{
+              position: 'absolute', top: -10, right: -20,
+              fontFamily: SERIF, fontStyle: 'italic', fontWeight: 300,
+              fontSize: 220, color: 'rgba(26,26,28,0.05)', lineHeight: 1, userSelect: 'none',
+            }}>
+              01
+            </div>
+            <div style={{ width: '100%', maxWidth: 720, position: 'relative' }}>
+              <Hat {...props}>
+                <LogoPatch treatment={logo} variant={markVariant} size={logoHeight} emb={emb} />
+              </Hat>
+            </div>
+          </div>
+
+          {/* spec rail */}
+          <div style={{
+            marginTop: 12, paddingTop: 18, borderTop: `1px solid ${HAIR}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20,
+            fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.14em', color: INK60,
+          }}>
+            <div>{styleCode}</div>
+            <div style={{ display: 'flex', gap: 24 }}>
+              <span>${price}</span>
+              <span style={{ color: INK35 }}>· ships 5–7 days</span>
+            </div>
+          </div>
+        </section>
+
+        {/* ── controls ─────────────────────── */}
+        <aside style={{
+          background: PAPER2, borderLeft: `1px solid ${HAIR}`,
+          padding: '40px 32px', display: 'flex', flexDirection: 'column', gap: 28,
+          overflowY: 'auto',
+        }}>
+          <Group label="Silhouette" n="01">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {SILHOUETTES.map(s => (
+                <TileBtn key={s.id} active={silhouette===s.id} onClick={() => setSilhouette(s.id)}>
+                  <div style={{ fontFamily: SERIF, fontSize: 18, fontStyle: silhouette===s.id?'italic':'normal' }}>{s.name}</div>
+                  <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.1em', color: INK60, marginTop: 4 }}>{s.sub}</div>
+                </TileBtn>
+              ))}
+            </div>
+          </Group>
+
+          <Group label="Fabric" n="02">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {FABRICS.map(f => (
+                <TileBtn key={f.id} active={fabric===f.id} onClick={() => setFabric(f.id)}>
+                  <div style={{ fontFamily: SERIF, fontSize: 16, fontStyle: fabric===f.id?'italic':'normal' }}>{f.name}</div>
+                  <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', color: INK60, marginTop: 3 }}>{f.sub}</div>
+                </TileBtn>
+              ))}
+            </div>
+          </Group>
+
+          <Group label="Crown color" n="03">
+            <Swatches items={CROWN_COLORS} active={crownId} onPick={setCrownId} />
+          </Group>
+
+          <Group label="Brim / cuff" n="04">
+            <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+              <Seg active={brimMatch} onClick={() => setBrimMatch(true)}>Match crown</Seg>
+              <Seg active={!brimMatch} onClick={() => setBrimMatch(false)}>Contrast</Seg>
+            </div>
+            {!brimMatch && <Swatches items={CROWN_COLORS} active={brimId} onPick={setBrimId} />}
+          </Group>
+
+          <Group label="Mark" n="05">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginBottom: 10 }}>
+              {MARK_VARIANTS.map(m => (
+                <button key={m.id} onClick={() => setMarkVariant(m.id)} style={{
+                  padding: '10px 6px', borderRadius: 6,
+                  border: `1px solid ${markVariant===m.id ? INK : HAIR}`,
+                  background: markVariant===m.id ? INK : '#fff',
+                  color: markVariant===m.id ? '#fff' : INK,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer',
+                }}>
+                  <MarkThumb variant={m.id} dark={markVariant===m.id} />
+                  <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em' }}>{m.name.toUpperCase()}</span>
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginBottom: 10 }}>
+              {LOGO_TREATMENTS.map(l => (
+                <button key={l.id} onClick={() => setLogoId(l.id)} title={l.name} style={{
+                  padding: '8px 4px', borderRadius: 6,
+                  border: `1px solid ${logoId===l.id ? INK : HAIR}`,
+                  background: logoId===l.id ? INK : '#fff',
+                  color: logoId===l.id ? '#fff' : INK,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, cursor: 'pointer',
+                }}>
+                  <ColorSwatch treatment={l} />
+                  <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.08em' }}>{l.name.toUpperCase()}</span>
+                </button>
+              ))}
+            </div>
+            <Row>
+              <div style={labelS}>Emb.</div>
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                {EMBROIDERY.map(e => (
+                  <Seg key={e.id} active={emb===e.id} onClick={() => setEmb(e.id)}>{e.name}</Seg>
+                ))}
+              </div>
+            </Row>
+            <Row>
+              <div style={labelS}>Size</div>
+              <input type="range" min={40} max={96} value={logoSize} onChange={e => setLogoSize(+e.target.value)}
+                style={{ flex: 1, accentColor: TEAL_DEEP }} />
+              <div style={{ fontFamily: MONO, fontSize: 10, color: INK60, width: 40, textAlign: 'right' }}>{logoSize}mm</div>
+            </Row>
+          </Group>
+
+          <Group label="Features" n="06">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+              <FeatBtn on={features.sweatband} onClick={() => toggleFeat('sweatband')} label="Sweatband" sub="Moisture-wicking" />
+              <FeatBtn on={features.vent}      onClick={() => toggleFeat('vent')}      label="Ventilation"  sub="Eyelets + perf" />
+              <FeatBtn on={features.reflect}   onClick={() => toggleFeat('reflect')}   label="Reflective"   sub="Night visibility" />
+              <FeatBtn on={features.strap}     onClick={() => toggleFeat('strap')}     label="Strapback"    sub="Adjustable" />
+            </div>
+          </Group>
+
+          <div style={{ flex: 1 }} />
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <button style={{
+              background: INK, color: '#fff', border: 0, padding: '16px 18px', borderRadius: 10,
+              fontFamily: SANS, fontSize: 14, fontWeight: 600, letterSpacing: '0.01em',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <span>Add to cart · 1</span>
+              <span style={{ fontFamily: MONO, fontSize: 12, opacity: 0.7 }}>${price}</span>
+            </button>
+            <button style={{
+              background: 'transparent', color: INK, border: `1px solid ${HAIR}`,
+              padding: '12px 18px', borderRadius: 10,
+              fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.2em', fontWeight: 500,
+            }}>
+              SAVE DESIGN
+            </button>
+          </div>
+        </aside>
+      </main>
+    </div>
+  );
+}
+
+// ─── controls primitives ────────────────────────────────
+const labelS = { fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', color: INK60, width: 76, flexShrink: 0 };
+
+function Group({ label, n, children }) {
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12 }}>
+        <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.18em', color: INK35 }}>{n}</span>
+        <span style={{ fontFamily: SERIF, fontSize: 20, color: INK }}>{label}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function TileBtn({ active, onClick, children }) {
+  return (
+    <button onClick={onClick} style={{
+      textAlign: 'left', padding: '12px 12px', borderRadius: 8,
+      border: `1px solid ${active ? INK : HAIR}`,
+      background: active ? '#fff' : 'rgba(255,255,255,0.5)',
+      boxShadow: active ? '0 0 0 2px rgba(10,143,128,0.2)' : 'none',
+      cursor: 'pointer',
+    }}>
+      {children}
+    </button>
+  );
+}
+
+function Swatches({ items, active, onPick }) {
+  const cur = items.find(i => i.id === active);
+  return (
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 6 }}>
+        {items.map(i => (
+          <button key={i.id} onClick={() => onPick(i.id)}
+            title={i.name}
+            style={{
+              aspectRatio: '1', borderRadius: 999, background: i.hex,
+              border: active===i.id ? `2px solid ${INK}` : `1px solid ${HAIR}`,
+              boxShadow: active===i.id ? '0 0 0 2px #fff inset' : 'none',
+              cursor: 'pointer', padding: 0,
+            }}
+          />
+        ))}
+      </div>
+      {cur && <div style={{ marginTop: 8, fontFamily: MONO, fontSize: 10, letterSpacing: '0.12em', color: INK60 }}>
+        {cur.name.toUpperCase()} · {cur.hex.toUpperCase()}
+      </div>}
+    </div>
+  );
+}
+
+function Seg({ active, onClick, children }) {
+  return (
+    <button onClick={onClick} style={{
+      padding: '6px 10px', borderRadius: 6, border: `1px solid ${active ? INK : HAIR}`,
+      background: active ? INK : 'transparent', color: active ? '#fff' : INK,
+      fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.14em', fontWeight: 500,
+      cursor: 'pointer',
+    }}>
+      {children}
+    </button>
+  );
+}
+
+function Row({ children }) {
+  return <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>{children}</div>;
+}
+
+// Tiny preview of which part of the mark is selected
+function MarkThumb({ variant, dark }) {
+  const stroke = dark ? '#fff' : INK;
+  const fill = dark ? '#fff' : INK;
+  return (
+    <svg width="34" height="18" viewBox="0 0 34 18">
+      {(variant === 'full' || variant === 'triangles') && (
+        <g>
+          <path d="M 14 2 L 18 8 L 10 8 Z" fill="none" stroke={stroke} strokeWidth="1" />
+          <path d="M 14 3 L 17 7.5 L 11 7.5 Z" fill={dark ? TEAL : TEAL_DEEP} opacity={variant==='triangles'?1:0.9} />
+          <path d="M 21 1 L 24 5.5 L 18 5.5 Z" fill={fill} />
+        </g>
+      )}
+      {(variant === 'full' || variant === 'wordmark') && (
+        <text x="17" y="16" textAnchor="middle" fontFamily={MONO} fontSize="5" letterSpacing="0.25em" fill={fill}>SHAPE</text>
+      )}
+    </svg>
+  );
+}
+
+// Tiny color-swatch chip for logo treatment
+function ColorSwatch({ treatment }) {
+  const isColor = treatment.tone === 'color';
+  const base = isColor ? (treatment.src.includes('white') ? '#fff' : '#111') : treatment.mono;
+  return (
+    <div style={{
+      display: 'flex', gap: 2, alignItems: 'center', padding: 2,
+      background: 'rgba(0,0,0,0.08)', borderRadius: 3,
+    }}>
+      <div style={{ width: 10, height: 10, borderRadius: 2, background: base, border: '1px solid rgba(0,0,0,0.15)' }} />
+      {isColor && <div style={{ width: 10, height: 10, borderRadius: 2, background: TEAL_DEEP }} />}
+    </div>
+  );
+}
+
+function FeatBtn({ on, onClick, label, sub }) {
+  return (
+    <button onClick={onClick} style={{
+      textAlign: 'left', padding: '10px 10px', borderRadius: 8,
+      border: `1px solid ${on ? INK : HAIR}`,
+      background: on ? '#fff' : 'rgba(255,255,255,0.4)',
+      boxShadow: on ? `inset 3px 0 0 ${TEAL_DEEP}` : 'none',
+      cursor: 'pointer', position: 'relative',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+        <div style={{ fontFamily: SANS, fontSize: 12.5, fontWeight: 600, color: INK }}>{label}</div>
+        <div style={{
+          width: 14, height: 14, borderRadius: 3,
+          border: `1.5px solid ${on ? TEAL_DEEP : INK35}`,
+          background: on ? TEAL_DEEP : 'transparent',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#fff', fontSize: 9, lineHeight: 1,
+        }}>{on ? '✓' : ''}</div>
+      </div>
+      <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.08em', color: INK60, marginTop: 3 }}>{sub}</div>
+    </button>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<HatStudio />);
+</script>
+</body></html>
