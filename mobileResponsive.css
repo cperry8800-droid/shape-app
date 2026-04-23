@@ -1,0 +1,309 @@
+/* Shape — mobile responsive overrides (≤480px)
+   Strategy: inline React styles dominate the page. We override them
+   with aggressive tag- and attribute-selector !important rules that
+   only activate under 480px. Desktop is untouched.               */
+
+@media (max-width: 480px) {
+  /* ── Global page rhythm ─────────────────────────────────────── */
+  html, body {
+    overflow-x: hidden !important;
+  }
+
+  /* Section-like blocks: strip desktop gutters */
+  section,
+  header,
+  footer,
+  main > div,
+  [class*="section"] {
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+  }
+
+  /* Inner wrappers using maxWidth:1320/1280/1200 etc — let them fill */
+  [style*="max-width: 13"],
+  [style*="maxWidth: 13"],
+  [style*="max-width: 12"],
+  [style*="maxWidth: 12"],
+  [style*="max-width: 11"],
+  [style*="maxWidth: 11"],
+  [style*="max-width: 10"],
+  [style*="maxWidth: 10"],
+  [style*="max-width: 14"],
+  [style*="maxWidth: 14"] {
+    max-width: 100% !important;
+  }
+
+  /* ── Typography — tighten huge display type ─────────────────── */
+  h1 {
+    font-size: clamp(40px, 11vw, 52px) !important;
+    line-height: 1 !important;
+    letter-spacing: -0.03em !important;
+  }
+  h2 {
+    font-size: clamp(28px, 8vw, 38px) !important;
+    line-height: 1.05 !important;
+  }
+  h3 {
+    font-size: clamp(22px, 6vw, 28px) !important;
+    line-height: 1.1 !important;
+  }
+
+  /* Body paragraphs */
+  p {
+    font-size: 15px !important;
+    line-height: 1.55 !important;
+  }
+
+  /* ── Grid collapse — the big one ──────────────────────────────
+     Any grid using multi-column template goes to single column.   */
+  [style*="grid-template-columns"],
+  [style*="gridTemplateColumns"] {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+
+  /* Flex rows with many children stack on mobile */
+  [style*="display: flex"][style*="justify-content: space-between"],
+  [style*="display:flex"][style*="space-between"] {
+    flex-wrap: wrap !important;
+    gap: 12px !important;
+  }
+
+  /* ── Padding / spacing compression ──────────────────────────── */
+  [style*="padding: 160px"],
+  [style*="padding:160px"],
+  [style*="padding: 140px"],
+  [style*="padding: 120px"],
+  [style*="padding: 100px"],
+  [style*="padding: 80px"] {
+    padding: 32px 20px 40px !important;
+  }
+
+  /* Card / tile interior padding  */
+  [style*="padding: 40px"],
+  [style*="padding:40px"],
+  [style*="padding: 48px"],
+  [style*="padding: 56px"] {
+    padding: 24px !important;
+  }
+
+  [style*="padding: 36px 32px"] {
+    padding: 24px 20px !important;
+  }
+
+  /* Remove tall min-heights on cards — let content size them */
+  [style*="min-height: 420px"],
+  [style*="minHeight: 420px"],
+  [style*="min-height: 480px"],
+  [style*="minHeight: 480px"],
+  [style*="min-height: 520px"],
+  [style*="minHeight: 520px"] {
+    min-height: 0 !important;
+  }
+
+  /* ── Nav header ──────────────────────────────────────────────
+     Make it sticky (not absolute) so content flows below it.     */
+  header[style*="position: absolute"] {
+    position: sticky !important;
+    top: 0 !important;
+  }
+  header [style*="padding: 24px 40px"],
+  header[style*="padding: 24px 40px"] {
+    padding: 12px 18px !important;
+    background: rgba(26,22,18,0.96) !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  /* Shrink logo on mobile */
+  header img[alt="Shape"] {
+    height: 40px !important;
+  }
+  /* Hide the "Already have an account?" span + Log in link on mobile —
+     we route nav through the hamburger drawer instead. */
+  header span,
+  header a[href="Login.html"] {
+    display: none !important;
+  }
+
+  /* Hero kicker — tighten */
+  section [style*="letter-spacing: 0.2em"][style*="text-transform: uppercase"] {
+    font-size: 10px !important;
+    letter-spacing: 0.16em !important;
+    margin-bottom: 14px !important;
+  }
+
+  /* Hero aside ("01 — Pick your path") — align left on mobile */
+  section [style*="text-align: right"][style*="white-space: nowrap"] {
+    text-align: left !important;
+    white-space: normal !important;
+    font-size: 10px !important;
+  }
+
+  /* ── Switcher (Shape Redesign A/B/C) ────────────────────────── */
+  nav.switcher {
+    top: 8px !important;
+  }
+  nav.switcher button {
+    padding: 6px 10px !important;
+    font-size: 9.5px !important;
+  }
+
+  /* ── Images / placeholders ──────────────────────────────────── */
+  img {
+    max-width: 100% !important;
+    height: auto;
+  }
+
+  /* Reduce aspect-ratio tiles that are way too tall */
+  [style*="aspect-ratio: 3/4"],
+  [style*="aspectRatio: 3/4"] {
+    aspect-ratio: 4/5 !important;
+  }
+
+  /* ── Hamburger drawer (Shape-wide) ───────────────────────────
+     A hidden <dialog id=mobileNav> is injected by mobileNav.js;
+     these are its styles.                                         */
+  #shape-mobile-nav-toggle {
+    display: inline-flex !important;
+  }
+  .shape-desktop-nav {
+    display: none !important;
+  }
+}
+
+/* ====================================================================
+   Mirror all of the above for the desktop "mobile preview" frame.
+   The preview wraps <body> in a 390px column but viewport stays wide,
+   so @media (max-width:480px) never fires. We repeat key rules here.
+   ==================================================================== */
+html.mobile-preview-active #shape-mobile-nav-toggle { display: inline-flex !important; }
+html.mobile-preview-active .shape-desktop-nav { display: none !important; }
+html.mobile-preview-active [style*="max-width: 13"],
+html.mobile-preview-active [style*="maxWidth: 13"],
+html.mobile-preview-active [style*="max-width: 12"],
+html.mobile-preview-active [style*="maxWidth: 12"] {
+  max-width: 100% !important;
+}
+html.mobile-preview-active [style*="grid-template-columns"] {
+  grid-template-columns: 1fr !important;
+  gap: 14px !important;
+}
+html.mobile-preview-active header[style*="position: absolute"] {
+  position: sticky !important;
+  top: 0 !important;
+}
+html.mobile-preview-active header [style*="padding: 24px 40px"] {
+  padding: 12px 18px !important;
+  background: rgba(26,22,18,0.96) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+html.mobile-preview-active header img[alt="Shape"] {
+  height: 40px !important;
+}
+html.mobile-preview-active header span,
+html.mobile-preview-active header a[href="Login.html"] {
+  display: none !important;
+}
+html.mobile-preview-active [style*="padding: 160px"],
+html.mobile-preview-active [style*="padding: 140px"],
+html.mobile-preview-active [style*="padding: 120px"] {
+  padding: 32px 20px 40px !important;
+}
+html.mobile-preview-active [style*="padding: 36px 32px"] {
+  padding: 24px 20px !important;
+}
+html.mobile-preview-active [style*="min-height: 420px"],
+html.mobile-preview-active [style*="minHeight: 420px"] {
+  min-height: 0 !important;
+}
+html.mobile-preview-active header [style*="padding: 24px 40px"] {
+  padding: 14px 18px !important;
+  background: rgba(26,22,18,0.92) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+html.mobile-preview-active section [style*="letter-spacing: 0.2em"][style*="text-transform: uppercase"] {
+  font-size: 10px !important;
+  letter-spacing: 0.16em !important;
+  margin-bottom: 14px !important;
+}
+html.mobile-preview-active section [style*="text-align: right"][style*="white-space: nowrap"] {
+  text-align: left !important;
+  white-space: normal !important;
+  font-size: 10px !important;
+}
+
+/* Hamburger defaults (desktop hides it) */
+#shape-mobile-nav-toggle {
+  display: none;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 8px;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+}
+#shape-mobile-nav-toggle svg {
+  width: 22px;
+  height: 22px;
+}
+
+#shape-mobile-nav {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  background: #0a0d0c;
+  color: #f2ede4;
+  display: flex;
+  flex-direction: column;
+  padding: 72px 28px 40px;
+  transform: translateY(-100%);
+  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  font-family: 'Fraunces', 'Instrument Serif', serif;
+}
+#shape-mobile-nav.open {
+  transform: translateY(0);
+}
+#shape-mobile-nav a {
+  display: block;
+  font-size: 30px;
+  letter-spacing: -0.02em;
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(242,237,228,0.08);
+  color: #f2ede4;
+  text-decoration: none;
+}
+#shape-mobile-nav a em {
+  color: #1ec0a8;
+  font-style: italic;
+  font-weight: 500;
+}
+#shape-mobile-nav .close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font-size: 22px;
+  cursor: pointer;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+#shape-mobile-nav .meta {
+  margin-top: auto;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(242,237,228,0.4);
+  padding-top: 24px;
+}
