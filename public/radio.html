@@ -249,6 +249,23 @@
       .radio-footer { padding: 32px 24px; }
       .radio-gate { padding: 24px; min-height: calc(100vh - 80px); }
     }
+
+    @media (max-width: 480px) {
+      .radio-logo {
+        font-size: 1.25rem;
+        letter-spacing: 0.22em;
+        gap: 6px;
+        white-space: nowrap;
+      }
+      .radio-logo .shape-text { height: 26px; }
+      .radio-logo .shape-text img {
+        height: 76px;
+        margin-top: -45px;
+      }
+      /* the trailing letter-spacing adds phantom space on the right;
+         nudge the block left so the wordmark looks visually centered */
+      .radio-logo .radio-label { margin-right: -0.22em; }
+    }
   </style>
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0a0a0a">
