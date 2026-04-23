@@ -39,6 +39,14 @@ export async function GET() {
         NEXT_PUBLIC_SUPABASE_ANON_KEY: !!env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
         SUPABASE_SERVICE_ROLE_KEY: !!env.SUPABASE_SERVICE_ROLE_KEY,
       },
+      integrations: {
+        STRAVA_CLIENT_ID: !!env.STRAVA_CLIENT_ID,
+        STRAVA_CLIENT_SECRET: !!env.STRAVA_CLIENT_SECRET,
+      },
+      email: {
+        RESEND_API_KEY: !!env.RESEND_API_KEY,
+        RESEND_FROM: env.RESEND_FROM ?? null,
+      },
       runtime: {
         VERCEL_ENV: env.VERCEL_ENV ?? null,
         NODE_ENV: env.NODE_ENV ?? null,
