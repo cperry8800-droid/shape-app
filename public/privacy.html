@@ -138,7 +138,7 @@
 <section class="hero">
   <div class="eyebrow">Legal</div>
   <h1>Privacy <em>policy.</em></h1>
-  <div class="updated">Last updated — April 1, 2026</div>
+  <div class="updated">Last updated — April 23, 2026</div>
 </section>
 
 <div class="wrap">
@@ -146,104 +146,144 @@
     <div class="toc-label">Contents</div>
     <a href="#s1"><span class="num">01</span>Information we collect</a>
     <a href="#s2"><span class="num">02</span>How we use your information</a>
-    <a href="#s3"><span class="num">03</span>Information sharing</a>
+    <a href="#s3"><span class="num">03</span>Information sharing &amp; processors</a>
     <a href="#s4"><span class="num">04</span>Data security</a>
     <a href="#s5"><span class="num">05</span>Your rights</a>
     <a href="#s6"><span class="num">06</span>Cookies &amp; tracking</a>
     <a href="#s7"><span class="num">07</span>Data retention</a>
     <a href="#s8"><span class="num">08</span>Children's privacy</a>
-    <a href="#s9"><span class="num">09</span>Changes to this policy</a>
-    <a href="#s10"><span class="num">10</span>Contact us</a>
+    <a href="#s9"><span class="num">09</span>International transfers</a>
+    <a href="#s10"><span class="num">10</span>Changes to this policy</a>
+    <a href="#s11"><span class="num">11</span>Contact us</a>
   </aside>
 
   <article class="content">
+    <section class="section" id="intro">
+      <p>This policy explains what Shape collects, why we collect it, who we share it with, and the choices you have. It applies to theshapecommunity.com and any connected apps or services operated by Shape ("Shape," "we," "our"). By using Shape you accept this policy; if you do not agree, please don't use the service.</p>
+    </section>
+
     <section class="section" id="s1">
       <div class="num">01</div>
       <h2>Information we collect</h2>
-      <p>When you create an account or use Shape, we may collect the following types of information:</p>
-      <ul>
-        <li>Account information such as your name, email address, and password.</li>
-        <li>Profile information including your fitness goals, preferences, and bio.</li>
-        <li>Payment information processed securely through our payment providers.</li>
-        <li>Usage data such as workout completions, subscriptions, and platform activity.</li>
-        <li>Device information including browser type, operating system, and IP address.</li>
-      </ul>
+      <p><strong>Account &amp; profile.</strong> Name, email, password hash, role (client, trainer, nutritionist), bio, profile photo, and—if you're a coach—credentials, specialties, and business details submitted during application.</p>
+      <p><strong>Fitness &amp; health information you choose to share.</strong> Goals, workout logs, session notes, meal plans, macro targets, weight, measurements, performance metrics, and progress photos. We treat this as sensitive data and apply stricter protections below.</p>
+      <p><strong>Payment information.</strong> Shape uses Stripe for all payments. Card details are entered directly into Stripe; Shape receives only the last four digits, card brand, and transaction status. We never see, store, or transmit full card numbers.</p>
+      <p><strong>Communications.</strong> Messages you send through our in-app chat with coaches, consultation notes, and support requests.</p>
+      <p><strong>Usage &amp; device.</strong> IP address, browser type, device identifiers, pages visited, referring pages, session timestamps, and basic analytics. Collected automatically for security and product improvement.</p>
+      <p><strong>Third-party connections (optional).</strong> If you connect Strava, Apple Health, or a similar service, we pull the specific data types you authorize (e.g., activities, routes) and nothing more.</p>
     </section>
 
     <section class="section" id="s2">
       <div class="num">02</div>
       <h2>How we use your information</h2>
-      <p>We use the information we collect to:</p>
       <ul>
-        <li>Provide, maintain, and improve the Shape platform.</li>
-        <li>Process subscriptions and payments between clients and providers.</li>
-        <li>Personalize your experience, including trainer and nutritionist recommendations.</li>
-        <li>Calculate and maintain your Shape Score and rewards.</li>
-        <li>Communicate with you about your account, updates, and support requests.</li>
-        <li>Ensure the security and integrity of the platform.</li>
+        <li>Provide core service: account creation, authentication, billing, and matching clients with coaches.</li>
+        <li>Personalize your experience: showing relevant trainers/nutritionists, calculating Shape Score, and recommending programs.</li>
+        <li>Facilitate coaching: sharing relevant client data with the specific coach(es) a client has subscribed to or booked — never more broadly.</li>
+        <li>Handle payments: processing the $5/month membership, coach subscriptions, and one-off purchases through Stripe.</li>
+        <li>Operate the platform: fraud detection, debugging, security monitoring, and platform improvements.</li>
+        <li>Communicate: transactional email (receipts, booking confirmations, password resets), product updates, and—only if you opt in—marketing.</li>
+        <li>Comply with legal obligations, including tax reporting for coaches earning revenue on the platform.</li>
       </ul>
+      <p>We do not use your fitness or health data to train machine-learning models or sell targeted advertising.</p>
     </section>
 
     <section class="section" id="s3">
       <div class="num">03</div>
-      <h2>Information sharing</h2>
-      <p>We do not sell your personal information. We may share your information in the following limited circumstances:</p>
+      <h2>Information sharing &amp; processors</h2>
+      <p>We do not sell your personal information. We share it only in these specific situations:</p>
+      <p><strong>With the coach(es) you subscribe to or book.</strong> A trainer you've subscribed to sees the workout data, goals, and messages relevant to coaching you. A nutritionist you hire sees your meal log and targets. You control the relationship: cancel any time and that coach's ongoing access ends.</p>
+      <p><strong>With subprocessors who help us run Shape.</strong> Each is bound by contract to protect your data and use it only to deliver their service to us.</p>
       <ul>
-        <li>With trainers and nutritionists you subscribe to, so they can provide their services.</li>
-        <li>With payment processors to complete transactions.</li>
-        <li>With service providers who help us operate the platform.</li>
-        <li>When required by law or to protect the rights and safety of our users.</li>
+        <li><strong>Supabase</strong> — database, authentication, file storage (hosted in United States / EU regions).</li>
+        <li><strong>Stripe</strong> — payments, subscriptions, Connect payouts to coaches. See <a href="https://stripe.com/privacy" rel="noopener">Stripe's privacy policy</a>.</li>
+        <li><strong>Vercel</strong> — web hosting and edge delivery. See <a href="https://vercel.com/legal/privacy-policy" rel="noopener">Vercel's privacy policy</a>.</li>
+        <li><strong>Cloudflare</strong> — DNS and network security.</li>
+        <li><strong>Resend</strong> — transactional email delivery.</li>
       </ul>
+      <p><strong>With law enforcement or legal counterparties</strong> when required by subpoena, court order, or applicable law, or to protect the rights, safety, and property of Shape or others.</p>
+      <p><strong>In connection with a business transfer</strong> (merger, acquisition, financing) — recipients are bound by this policy.</p>
     </section>
 
     <section class="section" id="s4">
       <div class="num">04</div>
       <h2>Data security</h2>
-      <p>We implement industry-standard security measures to protect your data. All data is encrypted in transit and at rest. We regularly review our security practices to ensure your information remains safe.</p>
-      <p>While we take every reasonable precaution, no method of transmission over the internet is 100% secure. We encourage you to use strong passwords and protect your account credentials.</p>
+      <p>Shape uses industry-standard safeguards:</p>
+      <ul>
+        <li>TLS 1.2+ for all traffic in transit.</li>
+        <li>Encryption at rest for database tables and storage.</li>
+        <li>Role-based access controls; engineering staff access logged and minimized.</li>
+        <li>Short-lived session tokens with automatic rotation.</li>
+        <li>Payment data handled only by Stripe (PCI-DSS Level 1).</li>
+        <li>Regular dependency audits and vulnerability patching.</li>
+      </ul>
+      <p>No system is perfectly secure. If a breach affects your personal data, we will notify you and any regulator required by law (typically within 72 hours of discovery).</p>
     </section>
 
     <section class="section" id="s5">
       <div class="num">05</div>
       <h2>Your rights</h2>
-      <p>You have the right to:</p>
+      <p>Depending on where you live, you may have the right to:</p>
       <ul>
-        <li>Access the personal data we hold about you.</li>
-        <li>Request correction of inaccurate information.</li>
-        <li>Request deletion of your account and associated data.</li>
-        <li>Opt out of marketing communications at any time.</li>
-        <li>Export your data in a portable format.</li>
+        <li><strong>Access:</strong> request a copy of the personal information we hold about you.</li>
+        <li><strong>Correct:</strong> update inaccurate or incomplete data.</li>
+        <li><strong>Delete:</strong> request we erase your account and associated data (subject to legal retention needs such as tax records).</li>
+        <li><strong>Port:</strong> receive your data in a machine-readable format.</li>
+        <li><strong>Object or restrict:</strong> limit how we process your data.</li>
+        <li><strong>Opt out of marketing:</strong> unsubscribe links in every marketing email; transactional email cannot be disabled.</li>
       </ul>
+      <p><strong>California residents (CCPA/CPRA):</strong> you additionally have the right to know the categories of personal information collected and shared, and to opt out of any sharing that qualifies as a "sale" or cross-context behavioral advertising — we do not engage in either.</p>
+      <p><strong>EEA/UK residents (GDPR):</strong> our legal bases for processing are (a) contract performance, (b) legitimate interest (security, product improvement), (c) consent for optional analytics and marketing, and (d) legal obligation. You may lodge a complaint with your national data protection authority.</p>
+      <p>To exercise any right, email <a href="mailto:info@theshapecommunity.com">info@theshapecommunity.com</a>. We verify identity before acting and respond within 30 days.</p>
     </section>
 
     <section class="section" id="s6">
       <div class="num">06</div>
       <h2>Cookies &amp; tracking</h2>
-      <p>Shape uses essential cookies to keep you logged in and maintain your preferences. We may use analytics tools to understand how the platform is used so we can improve the experience. You can manage cookie preferences in your browser settings.</p>
+      <p>We use cookies and similar technologies for three purposes:</p>
+      <ul>
+        <li><strong>Strictly necessary:</strong> session cookies that keep you logged in and protect against CSRF. Cannot be disabled without breaking the site.</li>
+        <li><strong>Functional:</strong> remember your preferences (e.g., dashboard view, active role) across sessions.</li>
+        <li><strong>Analytics:</strong> Vercel Analytics collects aggregate, anonymized usage data (page views, referrers) to help us improve the product. No cross-site tracking or advertising pixels.</li>
+      </ul>
+      <p>You can block or delete cookies in your browser settings. Doing so may sign you out or disable certain features.</p>
     </section>
 
     <section class="section" id="s7">
       <div class="num">07</div>
       <h2>Data retention</h2>
-      <p>We retain your information for as long as your account is active or as needed to provide services. If you request account deletion, we will remove your data within 30 days, except where retention is required by law or for legitimate business purposes.</p>
+      <p>We keep personal data only as long as we need it:</p>
+      <ul>
+        <li><strong>Active accounts:</strong> kept for as long as the account is active.</li>
+        <li><strong>Deleted accounts:</strong> removed within 30 days of your deletion request, except for records we must keep by law (e.g., tax records are retained for 7 years).</li>
+        <li><strong>Financial records:</strong> retained for 7 years to comply with U.S. tax law.</li>
+        <li><strong>Backups:</strong> may contain deleted data for up to 90 days before they expire.</li>
+        <li><strong>Support correspondence:</strong> retained for 2 years.</li>
+      </ul>
     </section>
 
     <section class="section" id="s8">
       <div class="num">08</div>
       <h2>Children's privacy</h2>
-      <p>Shape is not intended for users under the age of 16. We do not knowingly collect personal information from children. If we become aware that a child has provided us with personal data, we will take steps to delete that information.</p>
+      <p>Shape is not directed to children under 18. We do not knowingly collect personal information from anyone under 18. If you believe a minor has created an account, email <a href="mailto:info@theshapecommunity.com">info@theshapecommunity.com</a> and we will delete it promptly.</p>
     </section>
 
     <section class="section" id="s9">
       <div class="num">09</div>
-      <h2>Changes to this policy</h2>
-      <p>We may update this privacy policy from time to time. When we do, we will revise the "Last updated" date at the top. We encourage you to review this page periodically. Continued use of the platform after changes constitutes acceptance of the updated policy.</p>
+      <h2>International data transfers</h2>
+      <p>Shape is operated from the United States. If you access Shape from outside the U.S., your personal data will be transferred to, stored in, and processed in the U.S. Where required by law (e.g., for EEA/UK users), we rely on Standard Contractual Clauses approved by the European Commission to legitimize the transfer.</p>
     </section>
 
     <section class="section" id="s10">
       <div class="num">10</div>
+      <h2>Changes to this policy</h2>
+      <p>We may update this privacy policy. Material changes will be announced via email or in-app notice at least 14 days before taking effect. The "Last updated" date at the top of this page always reflects the current version. Continued use after the effective date means you accept the updated terms.</p>
+    </section>
+
+    <section class="section" id="s11">
+      <div class="num">11</div>
       <h2>Contact us</h2>
-      <p>If you have questions about this privacy policy or your data, reach out to us through the <a href="/contact.html">contact page</a> or email us at <a href="mailto:info@theshapecommunity.com">info@theshapecommunity.com</a>.</p>
+      <p>Questions about this policy, or how to exercise a right? Reach us at <a href="mailto:info@theshapecommunity.com">info@theshapecommunity.com</a> or through the <a href="/contact.html">contact page</a>. For security reports, please use the same address.</p>
     </section>
 
     <div class="contact-card">
