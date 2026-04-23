@@ -1,0 +1,170 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Train · Shape</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>html,body{margin:0;padding:0;background:#1a1612}*{box-sizing:border-box}a{text-decoration:none;color:inherit}</style>
+<link rel="stylesheet" href="mobilePreview.css" />
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="pageShell.jsx"></script>
+<script type="text/babel" src="chatWidget.jsx"></script>
+<script type="text/babel" src="clientChatThreads.jsx"></script>
+<script type="text/babel" src="trainerDashboard.jsx"></script>
+<script type="text/babel" src="clientNav.jsx"></script>
+<script type="text/babel">
+function ClientTrainPage() {
+  const today = [
+    ["A", "Back squat", "4 × 6 @ 195 lb",   "RPE 8 · 3 min rest",  "NEXT"],
+    ["B1","Romanian DL", "3 × 10 @ 155 lb", "paired with B2",       null],
+    ["B2","Walking lunge","3 × 12 each",    "bodyweight + 20s",     null],
+    ["C", "Hanging leg raise","3 × 12",     "slow eccentric",       null],
+    ["D", "Cooldown · foam roll","8 min",   "quads, adductors, TFL",null],
+  ];
+  const week = [
+    { d: "MON", t: "Upper push",  sub: "Bench + vertical press", status: "DONE" },
+    { d: "TUE", t: "Lower power", sub: "Squat + plyos",           status: "DONE" },
+    { d: "WED", t: "Lower strength", sub: "Today's session",      status: "NEXT" },
+    { d: "THU", t: "Upper pull",  sub: "Row + vertical pull",     status: null },
+    { d: "FRI", t: "Rest",        sub: "Mobility 10 min",         status: null },
+    { d: "SAT", t: "Long run",    sub: "10k Prospect loop",       status: null },
+    { d: "SUN", t: "Rest",        sub: "",                         status: null },
+  ];
+  return (
+    <DashPage
+      navItems={clientNavItems("train")}
+      payoutCard={clientPayoutCard}
+      eyebrow="WEDNESDAY · LOWER STRENGTH · WK 10 / 12"
+      title="Lower strength — Block 3"
+      subtitle="Built by Maya Okafor. Log sets as you go; RPE goes back to Maya for autoregulation."
+      actions={<>
+        <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Ask Maya</button>
+        <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Start session</button>
+      </>}
+    >
+      <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 20 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Coach-attached playlist — hero note card */}
+          <Card style={{ padding: 0, overflow: "hidden", background: "linear-gradient(135deg, #2a3a6a 0%, #1a1612 75%)", border: "1px solid rgba(106,140,255,0.25)" }}>
+            <div style={{ padding: "20px 22px", display: "grid", gridTemplateColumns: "1fr auto", gap: 20, alignItems: "center" }}>
+              <div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: "rgba(255,255,255,0.7)", marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: 999, background: "#1DB954" }}/> SPOTIFY · FROM MAYA · ATTACHED TO THIS SESSION
+                </div>
+                <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.015em", color: "#fff", marginBottom: 6, textWrap: "pretty" }}>
+                  <span style={{ color: "#6a8cff", fontSize: 28, lineHeight: 0, verticalAlign: "-0.1em", marginRight: 2 }}>"</span>
+                  Builds across the session. Peaks at your top sets — don't pussyfoot that row.
+                </div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(255,255,255,0.65)", letterSpacing: "0.06em" }}>UPPER PULL — PEAK · 95–130 BPM · 31 TRACKS · 1H 48M</div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", width: 40, height: 40, borderRadius: 999, cursor: "pointer", fontSize: 16 }} title="Save to library">♡</button>
+                <button style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", width: 40, height: 40, borderRadius: 999, cursor: "pointer", fontSize: 14 }} title="Send to a friend">↗</button>
+                <button style={{ background: "#fff", border: 0, color: PAPER, padding: "0 22px", height: 40, borderRadius: 999, cursor: "pointer", fontFamily: sans, fontSize: 13, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>▶ Play</button>
+              </div>
+            </div>
+          </Card>
+
+          <Card>
+          <SectionTitle right="5 EXERCISES · ~52 MIN">Today</SectionTitle>
+          {today.map((row, i) => (
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "28px 1fr auto", gap: 14, alignItems: "center", padding: "16px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)" }}>{row[0]}</div>
+              <div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+                  <div style={{ fontSize: 14, fontWeight: 500 }}>{row[1]}</div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.65)" }}>{row[2]}</div>
+                </div>
+                <div style={{ fontSize: 12, color: "rgba(242,237,228,0.5)", marginTop: 3 }}>{row[3]}</div>
+              </div>
+              {row[4] && <Pill tone={row[4] === "NEXT" ? "teal" : "done"}>{row[4]}</Pill>}
+            </div>
+          ))}
+        </Card>
+        </div>
+
+        <Card>
+          <SectionTitle right="APR 14 – APR 20">This week</SectionTitle>
+          {week.map((w, i) => (
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "46px 1fr auto", gap: 12, alignItems: "center", padding: "12px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)" }}>{w.d}</div>
+              <div>
+                <div style={{ fontSize: 13.5, fontWeight: w.status === "NEXT" ? 500 : 400 }}>{w.t}</div>
+                {w.sub && <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginTop: 1 }}>{w.sub}</div>}
+              </div>
+              {w.status && <Pill tone={w.status === "NEXT" ? "teal" : "done"}>{w.status}</Pill>}
+            </div>
+          ))}
+        </Card>
+      </div>
+
+      <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20 }}>
+        <Card>
+          <SectionTitle>Volume this block</SectionTitle>
+          <div style={{ fontFamily: serif, fontSize: 40, letterSpacing: "-0.02em", lineHeight: 1 }}>38,450 lb</div>
+          <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>Week 10/12 · +6% vs last block</div>
+        </Card>
+        <Card>
+          <SectionTitle>RPE trend</SectionTitle>
+          <div style={{ fontFamily: serif, fontSize: 40, letterSpacing: "-0.02em", lineHeight: 1 }}>7.6</div>
+          <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>Target 7.5–8.5 · on track</div>
+        </Card>
+        <Card style={{ background: "rgba(30,192,168,0.06)", border: "1px solid rgba(30,192,168,0.25)" }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>FROM MAYA · 9:02</div>
+          <div style={{ fontSize: 14, lineHeight: 1.5, color: "rgba(242,237,228,0.85)" }}>Push 185 today on squat, deload next week. Ice shoulder tonight and log sleep before we talk Friday.</div>
+        </Card>
+      </div>
+
+      {/* Shape Radio — stations */}
+      <div style={{ marginTop: 32, display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 16 }}>
+        <div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ width: 6, height: 6, borderRadius: 999, background: TEAL_BRIGHT }}/> SHAPE RADIO · 3,472 LISTENING
+          </div>
+          <div style={{ fontFamily: serif, fontSize: 28, letterSpacing: "-0.02em" }}>Music built for training.</div>
+          <div style={{ fontSize: 13, color: "rgba(242,237,228,0.55)", marginTop: 4 }}>Ad-free mixes by BPM. Included with your $5/mo.</div>
+        </div>
+        <a href="Radio.html" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", color: TEAL_BRIGHT, textDecoration: "none", whiteSpace: "nowrap" }}>BROWSE ALL →</a>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
+        {[
+          { name: "Heavy Day",   bpm: 132, listeners: 1284, tag: "Lifts · power · grit",      color: "#2ee0c4", live: true },
+          { name: "Tempo Run",   bpm: 172, listeners: 842,  tag: "Steady state · zone 3",     color: "#e89b4a" },
+          { name: "Intervals",   bpm: 168, listeners: 624,  tag: "HIIT · 30/30 · 40/20",      color: "#c978d8" },
+          { name: "Cooldown",    bpm: 90,  listeners: 302,  tag: "Zone 2 · mobility",         color: "#a3c98c" },
+        ].map((s, i) => (
+          <div key={i} style={{ position: "relative", padding: 18, background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, overflow: "hidden", cursor: "pointer" }}>
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: s.color }}/>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 14 }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.12em", color: s.color }}>{s.live ? "◉ LIVE" : "ON DEMAND"}</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.08em", color: "rgba(242,237,228,0.45)" }}>{s.listeners.toLocaleString()}</div>
+            </div>
+            <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.02em", lineHeight: 1.05 }}>{s.name}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 15, color: s.color, marginTop: 4 }}>{s.bpm}<span style={{ fontSize: 10, opacity: 0.7 }}> BPM</span></div>
+            <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.6)", marginTop: 10, lineHeight: 1.45 }}>{s.tag}</div>
+            <button style={{ marginTop: 14, padding: "7px 14px", borderRadius: 999, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.2)", fontFamily: sans, fontSize: 11.5, cursor: "pointer" }}>▶ Tune in</button>
+          </div>
+        ))}
+      </div>
+    </DashPage>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.Fragment>
+    <ClientTrainPage />
+    <ChatWidget tabs={clientChatTabs} />
+  </React.Fragment>
+);
+</script>
+<script src="mobilePreview.js"></script>
+</body>
+</html>

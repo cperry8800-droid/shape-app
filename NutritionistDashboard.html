@@ -1,0 +1,97 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Nutritionist Dashboard · Shape</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>html,body{margin:0;padding:0;background:#1a1612}*{box-sizing:border-box}a{text-decoration:none;color:inherit}</style>
+<link rel="stylesheet" href="mobilePreview.css" />
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="pageShell.jsx"></script>
+<script type="text/babel" src="trainerDashboard.jsx"></script>
+<script type="text/babel" src="coachNav.jsx"></script>
+<script type="text/babel">
+const NUTRI_CAL_EVENTS = [
+  { date: "2026-04-13", time: "09:00", kind: "CONSULT", title: "Elena R. · weekly check", sub: "Remote · 30 min" },
+  { date: "2026-04-13", time: "14:00", kind: "PLAN",    title: "Marcus L. · meal plan", sub: "Protein shortfall" },
+  { date: "2026-04-14", time: "10:00", kind: "CONSULT", title: "Ana P. · marathon fueling", sub: "Race week" },
+  { date: "2026-04-14", time: "15:00", kind: "REVIEW",  title: "Bloodwork review", sub: "Priya S." },
+  { date: "2026-04-15", time: "08:30", kind: "CONSULT", title: "Jonah W. · intake", sub: "New client" },
+  { date: "2026-04-15", time: "13:00", kind: "PLAN",    title: "Weekly plan drops", sub: "5 clients" },
+  { date: "2026-04-16", time: "09:00", kind: "CONSULT", title: "Priya S. · sleep + macros", sub: "20 min" },
+  { date: "2026-04-16", time: "16:00", kind: "REVIEW",  title: "Log review · Elena", sub: "30 min" },
+  { date: "2026-04-17", time: "10:00", kind: "CONSULT", title: "Marcus L. · refeed plan", sub: "30 min" },
+  { date: "2026-04-17", time: "14:00", kind: "ADMIN",   title: "Insurance billing", sub: "Admin block" },
+  { date: "2026-04-18", time: "08:30", kind: "CONSULT", title: "Elena R. · weekly check", sub: "Remote" },
+  { date: "2026-04-18", time: "11:00", kind: "PLAN",    title: "Marcus L. · meal plan refresh", sub: "30 min" },
+  { date: "2026-04-18", time: "13:30", kind: "CONSULT", title: "Priya S. · sleep + macros", sub: "30 min" },
+  { date: "2026-04-18", time: "16:00", kind: "CONSULT", title: "Jonah W. · race fueling", sub: "20 min" },
+  { date: "2026-04-19", time: "11:00", kind: "ADMIN",   title: "Content block", sub: "Newsletter" },
+  { date: "2026-04-20", time: "09:00", kind: "CONSULT", title: "Ana P. · race debrief", sub: "30 min" },
+  { date: "2026-04-21", time: "10:00", kind: "ADMIN",   title: "Payout day", sub: "Apr 21 · $1,864" },
+  { date: "2026-04-22", time: "14:00", kind: "REVIEW",  title: "Bloodwork · Priya S.", sub: "30 min" },
+  { date: "2026-04-23", time: "10:00", kind: "CONSULT", title: "Elena R. · monthly", sub: "Body-comp retest" },
+  { date: "2026-04-24", time: "13:00", kind: "PLAN",    title: "Weekly plan drops", sub: "6 clients" },
+  { date: "2026-04-28", time: "17:30", kind: "CONSULT", title: "Monthly review · Priya", sub: "With Maya" },
+  { date: "2026-04-30", time: "11:00", kind: "ADMIN",   title: "Month close-out", sub: "Admin" },
+];
+
+function NutritionistDashboardPage() {
+  return (
+    <DashShell
+      role="nutritionist"
+      userName="Rae"
+      date="WEDNESDAY APR 18"
+      greeting="Good morning, Rae."
+      primaryCta={["+ Meal plan"]}
+      secondaryCta={["New consult"]}
+      navItems={nutriNavItems("today")}
+      payoutCard={nutriPayoutCard}
+      kpis={[
+        { k: "$1,864.00", l: "Current balance" },
+        { k: "Apr 21", l: "Next payout", sub: "in 3 days" },
+        { k: "$2,948.00", l: "This month" },
+        { k: "$24,160", l: "Lifetime" },
+      ]}
+      scheduleTitle="Today's consults"
+      calendarEvents={NUTRI_CAL_EVENTS}
+      schedule={[
+        { time: "08:30", who: "Elena R.", sub: "Weekly check · remote", status: "DONE" },
+        { time: "11:00", who: "Marcus L.", sub: "Meal plan refresh", status: "DONE" },
+        { time: "13:30", who: "Priya S.", sub: "Sleep + macros", status: "NEXT" },
+        { time: "16:00", who: "Jonah W.", sub: "Race fueling" },
+      ]}
+      pulseTitle="Logs needing review"
+      pulse={[
+        { who: "Elena R.",  sub: "7 days logged · −14% BF",  trend: [0.3,0.4,0.5,0.4,0.6,0.7,0.8] },
+        { who: "Marcus L.", sub: "5 days · protein short",    trend: [0.5,0.4,0.6,0.5,0.4,0.5,0.45] },
+        { who: "Priya S.",  sub: "Flagged: sleep low",        trend: [0.7,0.6,0.5,0.4,0.5,0.4,0.3] },
+        { who: "Jonah W.",  sub: "Long-run carbs missed",     trend: [0.4,0.5,0.45,0.6,0.5,0.7,0.6] },
+        { who: "Ana P.",    sub: "On plan · no flags",        trend: [0.5,0.6,0.55,0.7,0.65,0.8,0.75] },
+      ]}
+      extraSections={[{
+        title: "Recent payouts",
+        render: () => <RecentPayouts rows={[
+          { date: "Apr 7, 2026",  mid: "26 subscribers", amount: "$1,820.00" },
+          { date: "Mar 31, 2026", mid: "25 subscribers", amount: "$1,750.00" },
+          { date: "Mar 24, 2026", mid: "24 subscribers", amount: "$1,680.00" },
+          { date: "Mar 17, 2026", mid: "24 subscribers", amount: "$1,680.00" },
+        ]} />,
+      }]}
+    />
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<NutritionistDashboardPage />);
+</script>
+<script src="mobilePreview.js"></script>
+</body>
+</html>

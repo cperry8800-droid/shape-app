@@ -1,0 +1,194 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Profile · Shape</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>html,body{margin:0;padding:0;background:#1a1612}*{box-sizing:border-box}a{text-decoration:none;color:inherit}</style>
+<link rel="stylesheet" href="mobilePreview.css" />
+</head>
+<body><div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="pageShell.jsx"></script>
+<script type="text/babel" src="trainerDashboard.jsx"></script>
+<script type="text/babel" src="coachNav.jsx"></script>
+<script type="text/babel">
+function Row({ label, value, action }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 12, alignItems: "center", padding: "14px 0", borderTop: "1px solid rgba(242,237,228,0.06)" }}>
+      <div style={{ fontSize: 13.5, color: "rgba(242,237,228,0.6)" }}>{label}</div>
+      <div style={{ fontSize: 13.5 }}>{value}</div>
+      {action && <span style={{ fontSize: 12, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", cursor: "pointer" }}>{action}</span>}
+    </div>
+  );
+}
+function TrainerProfilePage() {
+  return (
+    <DashPage
+      navItems={trainerNavItems("profile")}
+      payoutCard={trainerPayoutCard}
+      eyebrow="YOUR COACH PROFILE"
+      title="Profile"
+      subtitle="How clients find you in the marketplace. Edits go live after a 1-hour review window."
+      actions={<>
+        <a href="TrainerPublic.html" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", display: "inline-block" }}>Preview public page</a>
+        <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Edit profile</button>
+      </>}
+    >
+      {/* Hero identity card + cover + avatar */}
+      <ProfileHero
+        eyebrow="COACH · BROOKLYN · ON SHAPE SINCE JAN '24"
+        name="Maya Okafor"
+        pills={[
+          { label: "PEAK · 2,260", tone: "teal" },
+          { label: "VERIFIED" },
+          { label: "4.97 ★ · 1,284" },
+          { label: "34 CLIENTS" },
+        ]}
+        score="2,260"
+        scoreCaption="Top 5% · Q2 '26"
+        stats={[["28 mo","Coaching on Shape"],["92%","Client retention · 12mo"],["$14.8k","MTD revenue"],["96%","Program adherence"]]}
+      />
+
+      {/* Bio */}
+      <BioCard
+        charLimit={500}
+        body="Strength and hybrid coach based in Brooklyn. Former collegiate thrower, now ten years deep coaching lifters who want to get stronger without wrecking themselves. My work sits at the intersection of powerbuilding, return-to-lifting, and long-game hybrid endurance — blocks designed to hold up under real life, not Instagram. If you've been lifting for a while and want structure that respects your joints, training age, and schedule, we'll probably get along."
+      />
+
+      <SubscriptionCard
+        caption="Set your own monthly subscription price"
+        includes={["Full workout library", "New workouts each month", "Direct messaging", "Progress tracking"]}
+      />
+
+      {/* Weekly coaching volume + review callout */}
+      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 20, marginBottom: 20 }}>
+        <Card>
+          <SectionTitle right="THIS WEEK">Sessions delivered</SectionTitle>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 140, padding: "8px 4px 0" }}>
+            {[["M",4],["T",6],["W",5],["T",7],["F",4],["S",3],["S",0]].map(([d,v],i)=>(
+              <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                <div style={{ width: "100%", height: 120, display: "flex", alignItems: "flex-end" }}>
+                  <div style={{ width: "100%", height: `${(v/8)*100}%`, background: v ? TEAL : "rgba(242,237,228,0.08)", borderRadius: 3 }} />
+                </div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(242,237,228,0.5)" }}>{d}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.6)", marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.06)" }}>29 sessions this week · on track for $4,350. 96% completion.</div>
+        </Card>
+        <Card style={{ background: "rgba(30,192,168,0.08)", border: "1px solid rgba(30,192,168,0.25)" }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 12 }}>NEW REVIEW · PRIYA S. · 2D AGO</div>
+          <div style={{ fontFamily: serif, fontSize: 19, fontStyle: "italic", lineHeight: 1.45, letterSpacing: "-0.005em" }}>"Maya reads my body better than I do. First coach who respected that I wanted to get stronger without burning out."</div>
+          <div style={{ marginTop: 14, fontSize: 12, color: "rgba(242,237,228,0.55)" }}>★★★★★ · 5.0</div>
+          <div style={{ marginTop: 14, display: "flex", gap: 10 }}>
+            <button style={{ background: TEAL, color: PAPER, border: 0, padding: "8px 14px", borderRadius: 999, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: sans }}>Feature on profile</button>
+            <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.2)", padding: "8px 14px", borderRadius: 999, fontSize: 12, cursor: "pointer", fontFamily: sans }}>Thank Priya</button>
+          </div>
+        </Card>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+        <Card>
+          <SectionTitle>Public profile</SectionTitle>
+          <Row label="Display name" value="Maya Okafor" action="EDIT" />
+          <Row label="Headline" value="Strength coach · Brooklyn" action="EDIT" />
+          <Row label="Specialties" value="Strength · Hybrid · Powerbuilding" action="EDIT" />
+          <Row label="Certifications" value="NASM CPT, PPSC (verified)" action="VIEW" />
+          <Row label="Languages" value="English, Yoruba" action="EDIT" />
+        </Card>
+        <Card>
+          <SectionTitle>Pricing &amp; availability</SectionTitle>
+          <Row label="Strength + hybrid" value="$220 / month" action="EDIT" />
+          <Row label="Beginner barbell" value="$180 / month" action="EDIT" />
+          <Row label="1:1 session (Brooklyn)" value="$150 / 60 min" action="EDIT" />
+          <Row label="Intake call" value="Free · 20 min" action="EDIT" />
+          <Row label="Accepting new clients" value="Yes · 6 slots" action="TOGGLE" />
+          <Row label="Availability" value="Tue–Sat · 6am–8pm" action="EDIT" />
+        </Card>
+        <Card>
+          <SectionTitle>Payouts</SectionTitle>
+          <Row label="Payout tier" value="Peak" />
+          <Row label="Next payout" value="Apr 30 · $14,820" />
+          <Row label="Bank account" value="Chase ••• 4120" action="UPDATE" />
+          <Row label="Tax form" value="W-9 on file" action="VIEW" />
+          <Row label="Payout cadence" value="Monthly · 30th" action="CHANGE" />
+        </Card>
+        <Card>
+          <SectionTitle>Account</SectionTitle>
+          <Row label="Email" value="maya@okaforstrength.com" action="EDIT" />
+          <Row label="Phone" value="+1 (718) •••• 4412" action="EDIT" />
+          <Row label="2-factor auth" value="On · Authenticator" action="MANAGE" />
+          <Row label="Connected apps" value="Calendly, Gmail, Whoop" action="MANAGE" />
+          <Row label="Notification preferences" value="Push + email" action="CHANGE" />
+        </Card>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginTop: 20 }}>
+        <Card>
+          <SectionTitle>Coaching philosophy &amp; method</SectionTitle>
+          <Row label="Training style" value="Powerbuilding · conjugate-inspired" action="EDIT" />
+          <Row label="Programming cadence" value="4-week blocks · deload wk 5" action="EDIT" />
+          <Row label="Check-in cadence" value="2× / wk · video + async" action="EDIT" />
+          <Row label="Assessment tools" value="Velocity, RPE, weekly form check" action="EDIT" />
+          <Row label="Metrics I track" value="e1RM, tonnage, RPE drift, sleep" action="EDIT" />
+          <Row label="Typical client" value="Intermediate · 30–45 · hybrid goals" action="EDIT" />
+        </Card>
+        <Card>
+          <SectionTitle>Ideal client &amp; matching</SectionTitle>
+          <Row label="Best for" value="Strength after 30, return-to-lifting, hybrid athletes" action="EDIT" />
+          <Row label="Not a fit" value="Competitive powerlifters &gt;IPF Elite" action="EDIT" />
+          <Row label="Experience range" value="Beginner → advanced (no novice powerlifting)" action="EDIT" />
+          <Row label="Training minimums" value="3 sessions / wk · 60 min" action="EDIT" />
+          <Row label="Equipment required" value="Barbell + rack · or commercial gym" action="EDIT" />
+          <Row label="Response time" value="Under 6h weekdays · next-day weekends" action="EDIT" />
+        </Card>
+        <Card>
+          <SectionTitle>Featured work</SectionTitle>
+          <Row label="Case study · Priya S." value="+22 lb squat · 14-week block" action="VIEW" />
+          <Row label="Case study · Jordan M." value="5K PR + 315 deadlift hybrid" action="VIEW" />
+          <Row label="Sample program" value="Powerbuilding intermediate · 12 wk" action="VIEW" />
+          <Row label="Intro video" value="1:42 · uploaded Mar 12" action="REPLACE" />
+          <Row label="Gallery photos" value="8 of 12 uploaded" action="MANAGE" />
+        </Card>
+        <Card>
+          <SectionTitle>Insurance &amp; liability</SectionTitle>
+          <Row label="Liability insurance" value="Alliant · $2M · valid through Dec '26" action="VIEW" />
+          <Row label="Waiver template" value="Shape standard · v3" action="CHANGE" />
+          <Row label="CPR / AED" value="Red Cross · expires Aug '26" action="UPLOAD" />
+          <Row label="Background check" value="Checkr · cleared Jan '24" action="VIEW" />
+          <Row label="Business entity" value="Okafor Strength LLC · NY" action="EDIT" />
+        </Card>
+      </div>
+      <Card style={{ marginTop: 20 }}>
+        <SectionTitle>Social &amp; links</SectionTitle>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 32px" }}>
+          <Row label="Instagram" value="@mayaokaforstrength · 48.2k" action="EDIT" />
+          <Row label="TikTok" value="@maya.strength · 12.1k" action="EDIT" />
+          <Row label="YouTube" value="Maya Okafor · 6.4k subs" action="EDIT" />
+          <Row label="Website" value="okaforstrength.com" action="EDIT" />
+          <Row label="Strava" value="maya-okafor · public" action="EDIT" />
+          <Row label="Podcast" value="Not connected" action="CONNECT" />
+          <Row label="Substack" value="Not connected" action="CONNECT" />
+          <Row label="Twitter / X" value="@mayalifts" action="EDIT" />
+        </div>
+      </Card>
+
+      <Card style={{ marginTop: 20, padding: 22 }}>
+        <SectionTitle>Danger zone</SectionTitle>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+          <button style={{ background: "transparent", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.2)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Export client data</button>
+          <button style={{ background: "transparent", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.2)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Pause coach profile</button>
+          <button style={{ background: "transparent", color: "#e07856", border: "1px solid rgba(224,120,86,0.4)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Close account</button>
+        </div>
+      </Card>
+    </DashPage>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<TrainerProfilePage />);
+</script>
+<script src="mobilePreview.js"></script>
+</body>
+</html>

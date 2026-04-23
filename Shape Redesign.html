@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Shape — Redesign Explorations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&family=Inter+Tight:wght@300;400;500;600;700&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<style>
+  :root {
+    --teal: #0ac5a8;
+    --teal-deep: #087a68;
+    --teal-soft: #c7f5ec;
+    --ink: #0a0d0c;
+    --paper: #fafaf7;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #0a0d0c; color: #fff; font-family: 'Inter Tight', sans-serif; -webkit-font-smoothing: antialiased; }
+  img { display: block; max-width: 100%; }
+  a { color: inherit; text-decoration: none; }
+
+  /* Top switcher */
+  .switcher {
+    position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
+    z-index: 9999; display: flex; gap: 4px;
+    background: rgba(20,22,21,0.72); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 999px; padding: 4px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.04em;
+  }
+  .switcher button { appearance: none; border: 0; background: transparent; color: rgba(255,255,255,0.6); padding: 8px 14px; border-radius: 999px; cursor: pointer; text-transform: uppercase; font-family: inherit; font-size: inherit; letter-spacing: inherit; transition: all .2s; }
+  .switcher button:hover { color: #fff; }
+  .switcher button.on { background: #fff; color: #0a0d0c; }
+
+  .direction { min-height: 100vh; }
+  .direction[hidden] { display: none; }
+
+  /* Stripe decorations */
+  ::selection { background: var(--teal); color: #0a0d0c; }
+
+  /* Shared placeholder pattern */
+  .ph-stripes {
+    background-image: repeating-linear-gradient(135deg, rgba(255,255,255,0.06) 0 1px, transparent 1px 8px);
+  }
+  .ph-stripes-dark {
+    background-image: repeating-linear-gradient(135deg, rgba(0,0,0,0.06) 0 1px, transparent 1px 8px);
+  }
+</style>
+<link rel="stylesheet" href="mobilePreview.css" />
+<link rel="stylesheet" href="mobileResponsive.css" />
+</head>
+<body>
+
+<nav class="switcher" id="switcher">
+  <button data-dir="A" class="on">A — Performance</button>
+  <button data-dir="B">B — Editorial</button>
+  <button data-dir="C">C — Platform</button>
+</nav>
+
+<main>
+  <section class="direction" id="dir-A" data-screen-label="A Performance"></section>
+  <section class="direction" id="dir-B" data-screen-label="B Editorial" hidden></section>
+  <section class="direction" id="dir-C" data-screen-label="C Platform" hidden></section>
+</main>
+
+<!-- Tweaks panel mount -->
+<div id="tweaks-root"></div>
+
+<script type="text/babel" data-presets="react" src="shared.jsx"></script>
+<script type="text/babel" data-presets="react" src="directionA.jsx"></script>
+<script type="text/babel" data-presets="react" src="directionB.jsx"></script>
+<script type="text/babel" data-presets="react" src="directionC.jsx"></script>
+<script type="text/babel" data-presets="react" src="app.jsx"></script>
+<script src="mobilePreview.js"></script>
+<script src="mobileNav.js"></script>
+
+</body>
+</html>

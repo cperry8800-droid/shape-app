@@ -1,0 +1,126 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Community · Shape</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>html,body{margin:0;padding:0;background:#1a1612}*{box-sizing:border-box}a{text-decoration:none;color:inherit}</style>
+<link rel="stylesheet" href="mobilePreview.css" />
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="pageShell.jsx"></script>
+<script type="text/babel" src="chatWidget.jsx"></script>
+<script type="text/babel" src="clientChatThreads.jsx"></script>
+<script type="text/babel" src="trainerDashboard.jsx"></script>
+<script type="text/babel" src="clientNav.jsx"></script>
+<script type="text/babel">
+function ClientCommunityPage() {
+  const chatThreads = [
+    { who: "Maya Okafor", role: "Head trainer", last: "Stick with 185 for top set. Drop backoffs to 165.", time: "2m", unread: 0, messages: [
+      { who: "Maya", t: "How'd the warmups feel this morning?", time: "8:48 AM", me: false },
+      { who: "You", t: "Squat 185 felt heavy — knee a bit grumpy.", time: "8:54 AM", me: true },
+      { who: "Maya", t: "Stick with 185 for top set. Drop backoffs to 165.", time: "9:02 AM", me: false },
+    ]},
+    { who: "Rae Lindqvist", role: "Nutritionist", last: "30g whey + 60g carbs within 45 min.", time: "14m", unread: 1, messages: [
+      { who: "Rae", t: "Post-run fueling template is live in your Nutri tab.", time: "Tue 6:14 PM", me: false },
+      { who: "You", t: "Saw it — trying the rice bowl tomorrow.", time: "Tue 7:02 PM", me: true },
+      { who: "Rae", t: "30g whey + 60g carbs within 45 min. Recovery window matters.", time: "14m", me: false },
+    ]},
+    { who: "Marcus J.", role: "Training partner", last: "Still on for 6am tomorrow?", time: "31m", unread: 2, messages: [
+      { who: "Marcus", t: "Hey — how's block 3 treating you?", time: "Yesterday 9:12 PM", me: false },
+      { who: "You", t: "Brutal but I'm loving it. You?", time: "Yesterday 9:40 PM", me: true },
+      { who: "Marcus", t: "Still on for 6am tomorrow?", time: "31m", me: false },
+      { who: "Marcus", t: "Bringing coffee.", time: "31m", me: false },
+    ]},
+  ];
+  const feed = [
+    { who: "Marcus J.", role: "Tempo · 1,412", time: "18m", body: "First time hitting 225 on bench after 8 months. Maya's programming is unreal. Anyone else in strength block 3 right now?", likes: 34, comments: 12, tag: "STRENGTH" },
+    { who: "Elena R.",  role: "Peak · 2,108",  time: "1h",  body: "Down 14 lb and running negative splits for the first time ever. Rae's post-run fueling protocol changed everything.", likes: 82, comments: 24, tag: "NUTRITION" },
+    { who: "Jonah W.",  role: "Tempo · 980",   time: "3h",  body: "Race day tomorrow — Brooklyn Half. Anyone else running? Meet by the start corral at 6:45.", likes: 19, comments: 8, tag: "RACING" },
+    { who: "Ana P.",    role: "Raw · 412",     time: "5h",  body: "3 weeks in and I finally enjoy the gym. The team structure makes the difference — I don't feel alone.", likes: 56, comments: 14, tag: "GENERAL" },
+  ];
+  const events = [
+    ["SAT 6:30am", "Prospect Park Long Run", "24 going · 12 from your borough"],
+    ["TUE 7pm",   "Form check drop-in (Zoom)","with Maya Okafor"],
+    ["APR 27",    "Brooklyn Half",           "8 Shape runners confirmed"],
+  ];
+  return (
+    <DashPage
+      navItems={clientNavItems("community")}
+      payoutCard={clientPayoutCard}
+      eyebrow="4,218 MEMBERS · 128 ACTIVE NOW"
+      title="Community"
+      subtitle="What the Shape community is working on this week. Posts, meetups, and PRs from people training alongside you."
+      actions={<>
+        <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}>My posts</button>
+        <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap" }}>New post</button>
+      </>}
+    >
+      <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 20 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ display: "flex", gap: 8, fontSize: 12, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", flexWrap: "wrap" }}>
+            {["ALL","STRENGTH","NUTRITION","RACING","GENERAL"].map((t, i) => (
+              <span key={t} style={{ padding: "6px 12px", borderRadius: 999, background: i === 0 ? "rgba(30,192,168,0.16)" : "rgba(242,237,228,0.04)", color: i === 0 ? TEAL_BRIGHT : "rgba(242,237,228,0.6)", border: "1px solid " + (i === 0 ? "rgba(30,192,168,0.3)" : "rgba(242,237,228,0.08)"), cursor: "pointer" }}>{t}</span>
+            ))}
+          </div>
+          {feed.map((p, i) => (
+            <Card key={i} style={{ padding: 22 }}>
+              <div style={{ display: "flex", gap: 12, marginBottom: 14, alignItems: "center" }}>
+                <div style={{ width: 40, height: 40, borderRadius: 999, background: "#efece6", flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <div style={{ fontSize: 14, fontWeight: 500 }}>{p.who}</div>
+                    <div style={{ fontSize: 11, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>{p.role}</div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                    <span style={{ fontSize: 11, color: "rgba(242,237,228,0.45)" }}>{p.time}</span>
+                    <span style={{ width: 3, height: 3, borderRadius: 999, background: "rgba(242,237,228,0.25)" }} />
+                    <Pill>{p.tag}</Pill>
+                  </div>
+                </div>
+              </div>
+              <div style={{ fontSize: 14.5, lineHeight: 1.55, color: "rgba(242,237,228,0.9)" }}>{p.body}</div>
+              <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(242,237,228,0.06)", display: "flex", gap: 20, alignItems: "center", fontSize: 12, color: "rgba(242,237,228,0.55)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 10.2S1.5 7.5 1.5 4.5a2.5 2.5 0 0 1 4.5-1.5 2.5 2.5 0 0 1 4.5 1.5c0 3-4.5 5.7-4.5 5.7Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/></svg>{p.likes}</span>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 5.5a3 3 0 0 1 3-3h4a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H5l-2.5 2V7a2.5 2.5 0 0 1-.5-1.5Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/></svg>{p.comments} replies</span>
+                <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M9 4.5V3a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V7.5M6.5 4.5H10m0 0L8 2.5M10 4.5 8 6.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/></svg>SHARE</span>
+              </div>
+            </Card>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <Card>
+            <SectionTitle>Upcoming meetups</SectionTitle>
+            {events.map((e, i) => (
+              <div key={i} style={{ padding: "14px 0", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.1em", color: TEAL_BRIGHT, marginBottom: 4 }}>{e[0]}</div>
+                <div style={{ fontSize: 14, fontWeight: 500 }}>{e[1]}</div>
+                <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.55)", marginTop: 2 }}>{e[2]}</div>
+              </div>
+            ))}
+          </Card>
+
+          <Card style={{ background: "rgba(30,192,168,0.06)", border: "1px solid rgba(30,192,168,0.25)" }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 8 }}>SHAPE RADIO · LIVE</div>
+            <div style={{ fontFamily: serif, fontSize: 20, letterSpacing: "-0.01em", marginBottom: 6 }}>Deload weeks, explained</div>
+            <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.65)", lineHeight: 1.5 }}>Maya + 3 trainers on why deloading isn't rest. 42 listening.</div>
+            <button style={{ marginTop: 14, width: "100%", background: PAPER, color: INK, border: 0, padding: "9px 0", borderRadius: 999, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: sans }}>Join room</button>
+          </Card>
+        </div>
+      </div>
+      <ChatWidget tabs={clientChatTabs} />
+    </DashPage>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<ClientCommunityPage />);
+</script>
+<script src="mobilePreview.js"></script>
+</body>
+</html>
