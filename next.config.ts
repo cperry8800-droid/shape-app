@@ -40,6 +40,12 @@ const nextConfig: NextConfig = {
       })),
       { source: '/newdesign', destination: '/newdesign/index.html' },
       { source: '/newdesign/', destination: '/newdesign/index.html' },
+      // Mobile preview lives at public/mobile/Mobile.html. Give it clean,
+      // lowercase URLs so the mixed-case filename isn't the only way in.
+      { source: '/mobile', destination: '/mobile/Mobile.html' },
+      { source: '/mobile/', destination: '/mobile/Mobile.html' },
+      { source: '/mobile.html', destination: '/mobile/Mobile.html' },
+      { source: '/mobile/mobile.html', destination: '/mobile/Mobile.html' },
     ];
   },
 };
