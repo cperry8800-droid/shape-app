@@ -113,13 +113,15 @@ function DashTodayItemRow({ t }) {
             <svg width="10" height="10" viewBox="0 0 10 10" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s", opacity: 0.6 }}><path d="M2 3.5l3 3 3-3" stroke="currentColor" fill="none" strokeWidth="1.5"/></svg>
           </button>
         ) : <div />}
-        {t.cta ? (
-          t.cta.primary ? (
-            <button style={{ background: TEAL, color: PAPER, border: 0, padding: "10px 18px", borderRadius: 4, fontFamily: sans, fontSize: 12, fontWeight: 500, letterSpacing: "0.04em", cursor: "pointer", whiteSpace: "nowrap" }}>{t.cta.label} <span style={{ marginLeft: 4 }}>→</span></button>
-          ) : (
-            <button style={{ background: "transparent", color: TEAL_BRIGHT, border: `1px solid ${TEAL}`, padding: "9px 18px", borderRadius: 4, fontFamily: sans, fontSize: 12, fontWeight: 500, letterSpacing: "0.04em", cursor: "pointer", whiteSpace: "nowrap" }}>{t.cta.label}</button>
-          )
-        ) : <div />}
+        {t.cta ? (() => {
+          const primaryStyle = { background: TEAL, color: PAPER, border: 0, padding: "10px 18px", borderRadius: 4, fontFamily: sans, fontSize: 12, fontWeight: 500, letterSpacing: "0.04em", cursor: "pointer", whiteSpace: "nowrap" };
+          const ghostStyle = { background: "transparent", color: TEAL_BRIGHT, border: `1px solid ${TEAL}`, padding: "9px 18px", borderRadius: 4, fontFamily: sans, fontSize: 12, fontWeight: 500, letterSpacing: "0.04em", cursor: "pointer", whiteSpace: "nowrap" };
+          const style = t.cta.primary ? primaryStyle : ghostStyle;
+          const inner = t.cta.primary ? <>{t.cta.label} <span style={{ marginLeft: 4 }}>→</span></> : t.cta.label;
+          if (t.cta.href) return <a href={t.cta.href} style={{ ...style, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>{inner}</a>;
+          if (typeof t.cta.onClick === "function") return <button onClick={t.cta.onClick} style={style}>{inner}</button>;
+          return <button style={style}>{inner}</button>;
+        })() : <div />}
       </div>
 
       {open && p && (
@@ -135,12 +137,17 @@ function DashTodayItemRow({ t }) {
                 {p.bpm} BPM · {p.tracks || "—"} tracks · optional, always skippable
               </div>
             </div>
-            <button style={{ background: p.accent, color: "#1a1612", border: 0, padding: "9px 16px", borderRadius: 999, fontFamily: sans, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>▶ Play</button>
+            {(() => {
+              const playStyle = { background: p.accent, color: "#1a1612", border: 0, padding: "9px 16px", borderRadius: 999, fontFamily: sans, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" };
+              return p.href
+                ? <a href={p.href} style={{ ...playStyle, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>▶ Play</a>
+                : <button style={playStyle}>▶ Play</button>;
+            })()}
           </div>
           {p.note && (
             <div style={{ padding: "12px 18px", background: "rgba(242,237,228,0.04)", display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ fontSize: 12, color: "rgba(242,237,228,0.75)", fontStyle: "italic", flex: 1 }}>"{p.note}" — {p.author || "Coach"}</span>
-              <button style={{ background: "transparent", color: "rgba(242,237,228,0.5)", border: 0, fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.1em", cursor: "pointer" }}>HIDE PLAYLIST</button>
+              <button onClick={() => setOpen(false)} style={{ background: "transparent", color: "rgba(242,237,228,0.5)", border: 0, fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.1em", cursor: "pointer" }}>HIDE PLAYLIST</button>
             </div>
           )}
         </div>
@@ -183,8 +190,18 @@ function DashShell({
             <h1 style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.025em", fontWeight: 400, margin: 0, lineHeight: 1.02 }}>{greeting}</h1>
           </div>
           <div style={{ display: "flex", gap: 10, paddingTop: 10, flexShrink: 0 }}>
-            {primaryCta && <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}>{primaryCta[0]}</button>}
-            {secondaryCta && <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap" }}>{secondaryCta[0]}</button>}
+            {primaryCta && (() => {
+              const style = { background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" };
+              if (typeof primaryCta[1] === "string") return <a href={primaryCta[1]} style={{ ...style, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>{primaryCta[0]}</a>;
+              if (typeof primaryCta[1] === "function") return <button onClick={primaryCta[1]} style={style}>{primaryCta[0]}</button>;
+              return <button style={style}>{primaryCta[0]}</button>;
+            })()}
+            {secondaryCta && (() => {
+              const style = { background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap" };
+              if (typeof secondaryCta[1] === "string") return <a href={secondaryCta[1]} style={{ ...style, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>{secondaryCta[0]}</a>;
+              if (typeof secondaryCta[1] === "function") return <button onClick={secondaryCta[1]} style={style}>{secondaryCta[0]}</button>;
+              return <button style={style}>{secondaryCta[0]}</button>;
+            })()}
           </div>
         </div>
 

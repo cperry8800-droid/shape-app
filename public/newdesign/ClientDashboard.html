@@ -52,8 +52,8 @@ function ClientDashboardPage() {
       userName="Priya"
       date="WEDNESDAY APR 18"
       greeting="Welcome back, Priya."
-      primaryCta={["Log workout"]}
-      secondaryCta={["Book session"]}
+      primaryCta={["Log workout", "ClientTrain.html"]}
+      secondaryCta={["Book session", "ClientTeam.html"]}
       navItems={clientNavItems("today")}
       payoutCard={clientPayoutCard}
       kpis={[
@@ -64,10 +64,10 @@ function ClientDashboardPage() {
       ]}
       scheduleTitle="This week"
       todayItems={[
-        { time: "9:00 AM",  kind: "WORKOUT",  title: "Upper Body Pull",      sub: "45 min · 6 exercises · programmed by Marcus", cta: { label: "START", primary: true },
-          playlist: { name: "Upper Pull — Peak", provider: "spotify", bpm: "95–130", tracks: 31, accent: "#6a8cff", cover: "linear-gradient(135deg, #2a3a6a 0%, #1a1612 70%)", note: "Builds across the session. Peaks at top sets.", author: "Marcus" } },
-        { time: "12:30 PM", kind: "MEAL",     title: "Grilled chicken bowl", sub: "620 cal · 52g P · 68g C · 18g F",              cta: { label: "LOG MEAL" } },
-        { time: "6:30 PM",  kind: "CHECK-IN", title: "Weekly with Marcus",   sub: "20 min · video call",                          cta: { label: "JOIN" } },
+        { time: "9:00 AM",  kind: "WORKOUT",  title: "Upper Body Pull",      sub: "45 min · 6 exercises · programmed by Marcus", cta: { label: "START", primary: true, href: "ClientTrain.html" },
+          playlist: { name: "Upper Pull — Peak", provider: "spotify", bpm: "95–130", tracks: 31, accent: "#6a8cff", cover: "linear-gradient(135deg, #2a3a6a 0%, #1a1612 70%)", note: "Builds across the session. Peaks at top sets.", author: "Marcus", href: "ClientPlaylists.html" } },
+        { time: "12:30 PM", kind: "MEAL",     title: "Grilled chicken bowl", sub: "620 cal · 52g P · 68g C · 18g F",              cta: { label: "LOG MEAL", href: "ClientNutri.html" } },
+        { time: "6:30 PM",  kind: "CHECK-IN", title: "Weekly with Marcus",   sub: "20 min · video call",                          cta: { label: "JOIN", href: "ClientTeam.html" } },
       ]}
       schedule={[
         { time: "TUE", who: "Upper push · Maya", sub: "Bench 4×6 · 185lb", status: "DONE" },
