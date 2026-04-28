@@ -21,6 +21,7 @@
 <script type="text/babel" src="trainerDashboard.jsx"></script>
 <script type="text/babel" src="clientNav.jsx"></script>
 <script type="text/babel" src="habits.jsx"></script>
+<script type="text/babel" src="recipes.jsx"></script>
 <script type="text/babel">
 const CLIENT_CAL_EVENTS = [
   { date: "2026-04-13", time: "07:00", kind: "WORKOUT", title: "Lower push",   sub: "60 min · with Maya" },
@@ -87,6 +88,10 @@ function ClientDashboardPage() {
         {
           title: "Today's habits",
           render: () => <HabitsWidget max={6} />,
+        },
+        {
+          title: "Recipe of the day",
+          render: () => <RecipeOfTheDayWidget />,
         },
         {
           title: "This week's focus",
