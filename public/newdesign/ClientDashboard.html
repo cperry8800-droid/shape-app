@@ -20,6 +20,7 @@
 <script type="text/babel" src="clientChatThreads.jsx"></script>
 <script type="text/babel" src="trainerDashboard.jsx"></script>
 <script type="text/babel" src="clientNav.jsx"></script>
+<script type="text/babel" src="habits.jsx"></script>
 <script type="text/babel">
 const CLIENT_CAL_EVENTS = [
   { date: "2026-04-13", time: "07:00", kind: "WORKOUT", title: "Lower push",   sub: "60 min · with Maya" },
@@ -82,24 +83,30 @@ function ClientDashboardPage() {
         { who: "Maya Okafor",    sub: "Trainer · replied 2m",   trend: [0.3,0.5,0.4,0.7,0.6,0.8,0.7] },
         { who: "Rae Lindqvist",  sub: "Nutritionist · 14m",     trend: [0.4,0.3,0.5,0.4,0.6,0.5,0.7] },
       ]}
-      extraSections={[{
-        title: "This week's focus",
-        render: () => (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16 }}>
-            {[
-              ["Overreach week", "Push 185 today, deload next week. Ice shoulder tonight.", "Maya · 9:02"],
-              ["Post-run fueling", "30g whey + 60g carbs within 45 min. Template added to your plan.", "Rae · Tue"],
-              ["Sleep protocol", "Mg glycinate 300mg PM, no caffeine after 1pm for 2 weeks.", "Rae · 9:16"],
-            ].map(([t, b, m], i) => (
-              <div key={i} style={{ padding: 18, background: "rgba(30,192,168,0.06)", border: "1px solid rgba(30,192,168,0.2)", borderRadius: 8 }}>
-                <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.015em", marginBottom: 6 }}>{t}</div>
-                <div style={{ fontSize: 13, color: "rgba(242,237,228,0.75)", lineHeight: 1.5 }}>{b}</div>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: TEAL_BRIGHT, letterSpacing: "0.1em", marginTop: 12 }}>{m}</div>
-              </div>
-            ))}
-          </div>
-        )
-      }]}
+      extraSections={[
+        {
+          title: "Today's habits",
+          render: () => <HabitsWidget max={6} />,
+        },
+        {
+          title: "This week's focus",
+          render: () => (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16 }}>
+              {[
+                ["Overreach week", "Push 185 today, deload next week. Ice shoulder tonight.", "Maya · 9:02"],
+                ["Post-run fueling", "30g whey + 60g carbs within 45 min. Template added to your plan.", "Rae · Tue"],
+                ["Sleep protocol", "Mg glycinate 300mg PM, no caffeine after 1pm for 2 weeks.", "Rae · 9:16"],
+              ].map(([t, b, m], i) => (
+                <div key={i} style={{ padding: 18, background: "rgba(30,192,168,0.06)", border: "1px solid rgba(30,192,168,0.2)", borderRadius: 8 }}>
+                  <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.015em", marginBottom: 6 }}>{t}</div>
+                  <div style={{ fontSize: 13, color: "rgba(242,237,228,0.75)", lineHeight: 1.5 }}>{b}</div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: TEAL_BRIGHT, letterSpacing: "0.1em", marginTop: 12 }}>{m}</div>
+                </div>
+              ))}
+            </div>
+          )
+        }
+      ]}
     />
   );
 }
