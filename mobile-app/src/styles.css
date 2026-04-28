@@ -1,0 +1,64 @@
+:root {
+  --paper: #1a1612;
+  --paper-2: #221c16;
+  --ink: #f2ede4;
+  --teal: #1ec0a8;
+  --teal-bright: #2ee0c4;
+  --muted: rgba(242, 237, 228, 0.6);
+  --muted-2: rgba(242, 237, 228, 0.4);
+  --border: rgba(242, 237, 228, 0.1);
+  --tabbar-h: calc(64px + env(safe-area-inset-bottom));
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+a { color: inherit; text-decoration: none; }
+
+.app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.screen {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: env(safe-area-inset-top) 20px var(--tabbar-h);
+}
+
+.tabbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--tabbar-h);
+  padding-bottom: env(safe-area-inset-bottom);
+  background: rgba(26, 22, 18, 0.92);
+  backdrop-filter: saturate(180%) blur(18px);
+  -webkit-backdrop-filter: saturate(180%) blur(18px);
+  border-top: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+}
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.tab-icon { font-size: 22px; line-height: 1; }
+.tab--active { color: var(--ink); }
+.tab--active .tab-icon { color: var(--teal-bright); }
