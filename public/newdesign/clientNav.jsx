@@ -10,6 +10,7 @@ function clientNavItems(active) {
     { label: "Team",      href: "ClientTeam.html", count: 2 },
     { label: "Community", href: "ClientCommunity.html" },
     { label: "Score",     href: "ClientScore.html" },
+    { label: "Habits",    href: "ClientHabits.html" },
     { label: "Goal",      href: "ClientGoal.html" },
     { label: "Me",        href: "ClientMe.html" },
   ];

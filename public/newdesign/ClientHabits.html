@@ -1,0 +1,203 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Habits · Shape</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>html,body{margin:0;padding:0;background:#1a1612}*{box-sizing:border-box}a{text-decoration:none;color:inherit}</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="pageShell.jsx"></script>
+<script type="text/babel" src="chatWidget.jsx"></script>
+<script type="text/babel" src="clientChatThreads.jsx"></script>
+<script type="text/babel" src="trainerDashboard.jsx"></script>
+<script type="text/babel" src="clientNav.jsx"></script>
+<script type="text/babel">
+// Seven days, oldest -> newest. Today is the rightmost slot.
+const DAY_LABELS = ["THU", "FRI", "SAT", "SUN", "MON", "TUE", "WED"];
+
+// Each habit: id, label, sub, history[7] booleans (oldest first), and `today` toggleable.
+// `streak` is computed from history + today.
+const SEED_HABITS = [
+  { id: "sleep",    label: "Sleep 7+ hours",        sub: "Track via Whoop or manual log", history: [true, true, false, true, true, true],  today: true  },
+  { id: "steps",    label: "10,000 steps",          sub: "Anything counts — walk to coffee", history: [true, true, true, true, false, true], today: true  },
+  { id: "water",    label: "3 L water",             sub: "Bottle on the desk = solved",  history: [true, false, true, true, true, false], today: false },
+  { id: "alcohol",  label: "No alcohol",            sub: "Weekend exceptions on you",     history: [true, true, true, true, true, true],  today: true  },
+  { id: "mobility", label: "10 min mobility",       sub: "Hips + shoulders, evening",     history: [false, true, false, true, false, true], today: false },
+  { id: "protein",  label: "Protein at every meal", sub: "≥30g per main meal",            history: [true, true, true, false, true, true],  today: true  },
+];
+
+function streakFor(h) {
+  // Walk backwards from today through history. Stop at first miss.
+  let s = h.today ? 1 : 0;
+  if (!h.today) return 0;
+  for (let i = h.history.length - 1; i >= 0; i--) {
+    if (h.history[i]) s++;
+    else break;
+  }
+  return s;
+}
+
+function ClientHabitsPage() {
+  const [habits, setHabits] = React.useState(SEED_HABITS);
+
+  const toggleToday = (id) => {
+    setHabits(hs => hs.map(h => h.id === id ? { ...h, today: !h.today } : h));
+  };
+
+  const addHabit = () => {
+    const label = window.prompt("New habit (e.g. “Meditate 10 min”)");
+    if (!label || !label.trim()) return;
+    const id = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 32) + "-" + Math.random().toString(36).slice(2, 6);
+    setHabits(hs => [...hs, {
+      id, label: label.trim(), sub: "Just added — start your streak today",
+      history: [false, false, false, false, false, false], today: false,
+    }]);
+  };
+
+  const removeHabit = (id) => {
+    if (!window.confirm("Remove this habit? History will be discarded.")) return;
+    setHabits(hs => hs.filter(h => h.id !== id));
+  };
+
+  const todayDone = habits.filter(h => h.today).length;
+  const todayPct = habits.length ? Math.round((todayDone / habits.length) * 100) : 0;
+  const weekTotal = habits.reduce((acc, h) => acc + h.history.filter(Boolean).length + (h.today ? 1 : 0), 0);
+  const weekMax = habits.length * 7;
+  const weekPct = weekMax ? Math.round((weekTotal / weekMax) * 100) : 0;
+  const longest = habits.reduce((m, h) => Math.max(m, streakFor(h)), 0);
+
+  return (
+    <DashPage
+      navItems={clientNavItems("habits")}
+      payoutCard={clientPayoutCard}
+      eyebrow="DAILY · WEEK 16 OF 52"
+      title="Habits"
+      subtitle="Small daily reps that earn Shape Score and keep you honest with Maya. Tap a habit to mark today done."
+      actions={<>
+        <a href="ClientScore.html" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>How streaks work</a>
+        <button onClick={addHabit} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ Add habit</button>
+      </>}
+    >
+      {/* KPI strip */}
+      <div style={{
+        display: "grid", gridTemplateColumns: "repeat(4,1fr)",
+        background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)",
+        borderRadius: 10, marginBottom: 20, overflow: "hidden",
+      }}>
+        {[
+          { l: "Today",          k: `${todayDone}/${habits.length}`, sub: `${todayPct}% complete` },
+          { l: "This week",      k: `${weekTotal}/${weekMax}`,        sub: `${weekPct}% adherence` },
+          { l: "Longest streak", k: `${longest}d`,                     sub: longest >= 7 ? "you're in the zone" : "build it up" },
+          { l: "Score impact",   k: `+${todayDone * 4}`,              sub: "today, if you finish" },
+        ].map((k, i) => (
+          <div key={i} style={{ padding: "20px 20px", borderLeft: i ? "1px solid rgba(242,237,228,0.08)" : "none" }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "rgba(242,237,228,0.5)", marginBottom: 10, textTransform: "uppercase" }}>{k.l}</div>
+            <div style={{ fontFamily: serif, fontSize: 26, fontWeight: 400, letterSpacing: "-0.015em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{k.k}</div>
+            <div style={{ fontSize: 11, color: "rgba(242,237,228,0.5)", marginTop: 6 }}>{k.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 20 }}>
+        {/* Today's habits — toggleable */}
+        <Card>
+          <SectionTitle right={`${todayDone}/${habits.length} TODAY`}>Today</SectionTitle>
+          {habits.length === 0 ? (
+            <div style={{ padding: "32px 4px", textAlign: "center", color: "rgba(242,237,228,0.5)", fontSize: 13 }}>
+              No habits yet. Tap "+ Add habit" to create one.
+            </div>
+          ) : habits.map((h, i) => (
+            <div key={h.id} style={{ display: "grid", gridTemplateColumns: "32px 1fr auto auto", gap: 14, alignItems: "center", padding: "14px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+              <button onClick={() => toggleToday(h.id)} aria-label={h.today ? "Mark not done" : "Mark done"}
+                style={{
+                  width: 26, height: 26, borderRadius: 999, cursor: "pointer", padding: 0,
+                  background: h.today ? TEAL : "transparent",
+                  border: h.today ? `1px solid ${TEAL}` : "1px solid rgba(242,237,228,0.25)",
+                  color: PAPER, fontSize: 14, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                {h.today ? "✓" : ""}
+              </button>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 500, color: h.today ? "rgba(242,237,228,0.6)" : INK, textDecoration: h.today ? "line-through" : "none" }}>{h.label}</div>
+                <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginTop: 2 }}>{h.sub}</div>
+              </div>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.1em", color: streakFor(h) > 0 ? TEAL_BRIGHT : "rgba(242,237,228,0.4)" }}>
+                {streakFor(h)}d
+              </span>
+              <button onClick={() => removeHabit(h.id)} aria-label="Remove habit" title="Remove"
+                style={{ background: "transparent", border: 0, color: "rgba(242,237,228,0.35)", fontSize: 16, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>
+                &times;
+              </button>
+            </div>
+          ))}
+        </Card>
+
+        {/* 7-day grid */}
+        <Card>
+          <SectionTitle right="LAST 7 DAYS">Grid</SectionTitle>
+          <div style={{ display: "grid", gridTemplateColumns: `1.4fr repeat(7, 1fr)`, gap: 8, alignItems: "center", marginBottom: 6 }}>
+            <div />
+            {DAY_LABELS.map((d, i) => (
+              <div key={i} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(242,237,228,0.4)", textAlign: "center" }}>
+                {d}
+              </div>
+            ))}
+          </div>
+          {habits.map((h, i) => {
+            const cells = [...h.history, h.today];
+            return (
+              <div key={h.id} style={{ display: "grid", gridTemplateColumns: `1.4fr repeat(7, 1fr)`, gap: 8, alignItems: "center", padding: "8px 0", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+                <div style={{ fontSize: 12, color: "rgba(242,237,228,0.85)", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{h.label}</div>
+                {cells.map((on, j) => {
+                  const isToday = j === cells.length - 1;
+                  return (
+                    <div key={j} style={{ height: 22, borderRadius: 4,
+                      background: on ? (isToday ? TEAL : "rgba(30,192,168,0.45)") : "rgba(242,237,228,0.06)",
+                      border: isToday ? `1px solid ${on ? "transparent" : "rgba(46,224,196,0.4)"}` : "none",
+                    }} />
+                  );
+                })}
+              </div>
+            );
+          })}
+        </Card>
+      </div>
+
+      {/* Coach note + tip cards */}
+      <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20 }}>
+        <Card style={{ background: "rgba(30,192,168,0.06)", border: "1px solid rgba(30,192,168,0.25)" }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>FROM MAYA · MON</div>
+          <div style={{ fontSize: 14, lineHeight: 1.55, color: "rgba(242,237,228,0.85)" }}>
+            Sleep is the one I want you to defend. If you're under 7 hours twice in a row, deload the next squat session.
+          </div>
+        </Card>
+        <Card>
+          <SectionTitle>Two-week trend</SectionTitle>
+          <div style={{ fontFamily: serif, fontSize: 40, letterSpacing: "-0.02em", lineHeight: 1 }}>{weekPct}%</div>
+          <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>This week · vs 71% last week</div>
+        </Card>
+        <Card>
+          <SectionTitle>Earned this week</SectionTitle>
+          <div style={{ fontFamily: serif, fontSize: 40, letterSpacing: "-0.02em", lineHeight: 1, color: TEAL_BRIGHT }}>+{weekTotal * 4}</div>
+          <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>Shape Score from habits · 4 pts each</div>
+        </Card>
+      </div>
+    </DashPage>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.Fragment>
+    <ClientHabitsPage />
+    <ChatWidget tabs={clientChatTabs} />
+  </React.Fragment>
+);
+</script>
+</body>
+</html>
