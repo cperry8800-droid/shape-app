@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
   if (error) {
     console.error('provider_applications insert failed:', error);
     return NextResponse.json(
-      { error: 'Could not submit your application. Please email info@theshapecommunity.com directly.' },
+      { error: 'Could not submit your application. Please email christopher.perry@theshapecommunity.com directly.' },
       { status: 500 }
     );
   }
