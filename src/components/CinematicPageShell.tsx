@@ -52,7 +52,7 @@ export default function CinematicPageShell({
           <div className="flex gap-6">
             <Link href="/privacy" className="hover:text-white">Privacy</Link>
             <Link href="/terms" className="hover:text-white">Terms</Link>
-            <Link href="mailto:hello@theshapecommunity.com" className="hover:text-white">Contact</Link>
+            <Link href="mailto:christopher.perry@theshapecommunity.com" className="hover:text-white">Contact</Link>
           </div>
           <div className="text-white/30">&copy; {new Date().getFullYear()} Shape</div>
         </footer>

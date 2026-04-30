@@ -83,7 +83,7 @@ function ShapeWord({ color, weight = 500, size = 18, letter = "0.01em", variant 
   const src = v === "white"
     ? "/shape-logo-new-white.png?v=3"
     : v === "black"
-    ? "/shape-logo-new-black.png?v=3"
+    ? "/shape-logo-black.png?v=3"
     : "/shape-logo-new-white.png?v=3";
   const h = Math.round(size * 1.8);
   return (
