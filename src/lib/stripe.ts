@@ -11,7 +11,7 @@ if (!process.env.STRIPE_SECRET_KEY) {
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? 'sk_missing', {
   // Pin to a known API version so the SDK types line up.
-  apiVersion: '2026-04-22.dahlia',
+  apiVersion: '2026-03-25.dahlia',
   appInfo: {
     name: 'Shape',
     url: 'https://theshapecommunity.com',
