@@ -215,45 +215,147 @@ function RadioCoachPlaylists() {
 }
 
 function RadioInClientApp() {
+  // Cream iOS app palette — matches the new Shape Radio / TRAIN / EAT
+  // reference screens. Kept local so it doesn't collide with the dark
+  // PAPER/INK constants used elsewhere in this file.
+  const PAPER_LIGHT = "#efe5cd";
+  const INK_DARK = "#0a0d0c";
+  const TEAL_ACCENT = "#0aa090";
+  const HAIRLINE = "rgba(10,13,12,0.08)";
+  const HAIRLINE_2 = "rgba(10,13,12,0.06)";
+
+  // Bottom tab bar — same pattern as the reference Radio screens
+  // (01 HOME / 02 TRAIN / 03 EAT / 04 CHAT / 05 STORE / 06 ME).
+  const TabBar = ({ active }) => (
+    <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 56, padding: "8px 6px 12px", background: "rgba(239,229,205,0.95)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderTop: `1px solid ${HAIRLINE_2}`, display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 2 }}>
+      {[["01","HOME"],["02","TRAIN"],["03","EAT"],["04","CHAT"],["05","STORE"],["06","ME"]].map(([n, l]) => (
+        <div key={l} style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, borderRadius: 6, background: active === l ? INK_DARK : "transparent", color: active === l ? PAPER_LIGHT : INK_DARK, padding: "4px 0" }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, opacity: active === l ? 1 : 0.55 }}>{n}</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, letterSpacing: "0.08em" }}>{l}</span>
+        </div>
+      ))}
+    </div>
+  );
+
+  // Inline workout card with playlist strip — light theme.
+  const WorkoutCard = ({ time, title, sub, playlist }) => (
+    <div style={{ background: "rgba(10,13,12,0.04)", border: `1px solid ${HAIRLINE}`, borderRadius: 14, overflow: "hidden", color: INK_DARK }}>
+      <div style={{ padding: "16px 16px 12px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", color: "rgba(10,13,12,0.5)", marginBottom: 4 }}>{time}</div>
+          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, letterSpacing: "-0.015em", marginBottom: 2, fontWeight: 500 }}>{title}</div>
+          <div style={{ fontSize: 12, color: "rgba(10,13,12,0.6)" }}>{sub}</div>
+        </div>
+        <div style={{ background: INK_DARK, color: PAPER_LIGHT, padding: "7px 14px", borderRadius: 999, fontSize: 11, fontFamily: "'Space Grotesk', sans-serif", fontWeight: 500, letterSpacing: "0.1em" }}>START</div>
+      </div>
+      <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, borderTop: `1px solid ${HAIRLINE_2}`, background: `linear-gradient(90deg, ${playlist.accent}1a 0%, rgba(10,13,12,0.02) 60%)` }}>
+        <div style={{ width: 44, height: 44, borderRadius: 8, background: playlist.cover, flexShrink: 0 }}/>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{playlist.name}</div>
+          <div style={{ fontSize: 11, color: "rgba(10,13,12,0.55)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>{playlist.bpm} BPM · {playlist.tracks} tracks · from {playlist.author}</div>
+        </div>
+        <button style={{ background: INK_DARK, color: PAPER_LIGHT, border: 0, width: 36, height: 36, borderRadius: 999, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>▶</button>
+      </div>
+    </div>
+  );
+
+  // Hero playlist card — quote on a colored gradient cover sits in a
+  // cream-paper container so it matches the rest of the iOS design.
+  const HeroCard = ({ playlist }) => (
+    <div style={{ borderRadius: 18, overflow: "hidden", border: `1px solid ${HAIRLINE_2}` }}>
+      <div style={{ background: playlist.cover, padding: "18px 18px 0", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(0,0,0,0.45)", padding: "5px 10px", borderRadius: 999, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(255,255,255,0.9)" }}>
+          <span style={{ width: 8, height: 8, borderRadius: 999, background: "#1DB954", display: "inline-block" }}/>
+          SPOTIFY
+        </div>
+        <div style={{ display: "flex", gap: 6 }}>
+          <div style={{ background: "rgba(0,0,0,0.45)", border: 0, width: 32, height: 32, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12 }}>↗</div>
+          <div style={{ background: playlist.hearted ? "rgba(46,224,196,0.25)" : "rgba(0,0,0,0.45)", border: 0, width: 32, height: 32, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", color: playlist.hearted ? "#2ee0c4" : "#fff", fontSize: 14 }}>♥</div>
+        </div>
+      </div>
+      <div style={{ background: playlist.cover, padding: "32px 22px 20px" }}>
+        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, lineHeight: 1.25, letterSpacing: "-0.012em", color: "#fff", textWrap: "pretty" }}>
+          <span style={{ fontFamily: "'Fraunces', serif", fontSize: 36, color: playlist.accent, lineHeight: 0, verticalAlign: "-0.1em", marginRight: 2 }}>"</span>
+          {playlist.note}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14 }}>
+          <div style={{ width: 22, height: 22, borderRadius: 999, background: playlist.accent, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Fraunces', serif", fontSize: 11, color: INK_DARK, fontWeight: 500 }}>{playlist.author[0]}</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.06em", color: "rgba(255,255,255,0.85)" }}>
+            {playlist.author.toUpperCase()} · {playlist.authorRole.toUpperCase()}
+          </div>
+        </div>
+      </div>
+      <div style={{ background: "rgba(10,13,12,0.04)", padding: "14px 18px", display: "flex", alignItems: "center", gap: 14, borderTop: `1px solid ${HAIRLINE_2}` }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 18, color: INK_DARK, letterSpacing: "-0.01em", fontWeight: 500 }}>{playlist.name}</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(10,13,12,0.55)", letterSpacing: "0.06em" }}>{playlist.bpm} BPM · {playlist.tracks} TRACKS · {playlist.duration}</div>
+        </div>
+        <button style={{ background: INK_DARK, color: PAPER_LIGHT, border: 0, width: 44, height: 44, borderRadius: 999, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>▶</button>
+      </div>
+    </div>
+  );
+
+  const TrackRow = ({ tracks, accent }) => (
+    <div>
+      {tracks.map(([artist, title, len], i) => (
+        <div key={i} style={{ display: "grid", gridTemplateColumns: "20px 1fr auto", gap: 10, alignItems: "center", padding: "10px 0", borderTop: i === 0 ? "none" : `1px solid ${HAIRLINE_2}` }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(10,13,12,0.4)" }}>{String(i + 1).padStart(2, "0")}</div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, color: INK_DARK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title}</div>
+            <div style={{ fontSize: 11, color: "rgba(10,13,12,0.55)" }}>{artist}</div>
+          </div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(10,13,12,0.5)" }}>{len}</div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const Eyebrow = ({ children }) => (
+    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_ACCENT, marginTop: 14, marginBottom: 10 }}>{children}</div>
+  );
+
   const phones = [
     { label: "A · INLINE", subtitle: "Play button on the workout card. Lowest friction — no new surface.", render: () => (
-      <div style={{ background: "#1a1612", minHeight: "100%", padding: "8px 14px 100px" }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: "rgba(242,237,228,0.5)", marginTop: 14, marginBottom: 10 }}>TODAY</div>
-        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 32, letterSpacing: "-0.02em", lineHeight: 1.05, marginBottom: 18, color: "#f2ede4" }}>Pull day.</div>
-        <WorkoutCardWithPlaylist
-          workout={{ time: "9:00 AM · TODAY", title: "Upper Body Pull", sub: "45 min · 6 exercises · from Maya" }}
-          playlist={{ name: "Upper Pull — Peak", provider: "spotify", bpm: "95–130", tracks: 31, accent: "#6a8cff", cover: "linear-gradient(135deg, #2a3a6a 0%, #1a1612 70%)", author: "Maya" }}
-          playing={false} onPlay={() => {}}
+      <div style={{ background: PAPER_LIGHT, minHeight: "100%", padding: "8px 14px 70px", color: INK_DARK, fontFamily: "'Space Grotesk', sans-serif", position: "relative" }}>
+        <Eyebrow>TODAY</Eyebrow>
+        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 32, letterSpacing: "-0.02em", lineHeight: 1.05, marginBottom: 18, fontWeight: 500 }}>Pull day.</div>
+        <WorkoutCard
+          time="9:00 AM · TODAY"
+          title="Upper Body Pull"
+          sub="45 min · 6 exercises · from Maya"
+          playlist={{ name: "Upper Pull — Peak", bpm: "95–130", tracks: 31, accent: "#6a8cff", cover: "linear-gradient(135deg, #2a3a6a 0%, #1a1612 70%)", author: "Maya" }}
         />
         <div style={{ marginTop: 14 }}>
-          <WorkoutCardWithPlaylist
-            workout={{ time: "TOMORROW · 9 AM", title: "Lower strength", sub: "52 min · from Maya" }}
-            playlist={{ name: "Squat Day Bangers", provider: "spotify", bpm: "110–140", tracks: 22, accent: "#e86bd8", cover: "linear-gradient(135deg, #5a2a4a 0%, #1a1612 70%)", author: "Maya" }}
-            playing={false} onPlay={() => {}}
+          <WorkoutCard
+            time="TOMORROW · 9 AM"
+            title="Lower strength"
+            sub="52 min · from Maya"
+            playlist={{ name: "Squat Day Bangers", bpm: "110–140", tracks: 22, accent: "#e86bd8", cover: "linear-gradient(135deg, #5a2a4a 0%, #1a1612 70%)", author: "Maya" }}
           />
         </div>
+        <TabBar active="HOME" />
       </div>
     )},
     { label: "B · COACH-NOTE HERO", subtitle: "Tap the card → dedicated view. The coach's note is the hero.", render: () => (
-      <div style={{ background: "#1a1612", minHeight: "100%", padding: "8px 14px 30px" }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: "rgba(242,237,228,0.5)", marginTop: 14, marginBottom: 10 }}>FOR TODAY'S WORKOUT</div>
-        <HeroPlaylistCard
-          playlist={{ name: "Upper Pull — Peak", provider: "spotify", bpm: "95–130", tracks: 31, duration: "1h 48m", accent: "#6a8cff", cover: "linear-gradient(135deg, #2a3a6a 0%, #1a1612 70%)", note: "Builds across the session. Peaks at your top sets — don't pussyfoot that row.", author: "Maya", authorRole: "Trainer" }}
-          playing={false} onPlay={() => {}} hearted={true} onHeart={() => {}} onSend={() => {}}
+      <div style={{ background: PAPER_LIGHT, minHeight: "100%", padding: "8px 14px 70px", color: INK_DARK, fontFamily: "'Space Grotesk', sans-serif", position: "relative" }}>
+        <Eyebrow>FOR TODAY'S WORKOUT</Eyebrow>
+        <HeroCard
+          playlist={{ name: "Upper Pull — Peak", bpm: "95–130", tracks: 31, duration: "1h 48m", accent: "#6a8cff", cover: "linear-gradient(135deg, #2a3a6a 0%, #1a1612 70%)", note: "Builds across the session. Peaks at your top sets — don't pussyfoot that row.", author: "Maya", authorRole: "Trainer", hearted: true }}
         />
-        <div style={{ marginTop: 20, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: "rgba(242,237,228,0.5)", marginBottom: 10 }}>TRACKLIST</div>
-        <TrackList tracks={[["Floating Points","Last Bloom","4:26"],["Bonobo","Bambro Koyo Ganda","4:50"],["Fred again..","Delilah (pull me out of this)","4:12"]]} accent="#6a8cff" currentIndex={-1}/>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: "rgba(10,13,12,0.5)", margin: "20px 0 10px" }}>TRACKLIST</div>
+        <TrackRow tracks={[["Floating Points","Last Bloom","4:26"],["Bonobo","Bambro Koyo Ganda","4:50"],["Fred again..","Delilah (pull me out of this)","4:12"]]} accent="#6a8cff"/>
+        <TabBar active="TRAIN" />
       </div>
     )},
     { label: "C · MEAL PREP", subtitle: "Same pattern on the Nutri side. Rae attaches a cook-along mix.", render: () => (
-      <div style={{ background: "#1a1612", minHeight: "100%", padding: "8px 14px 30px" }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: "rgba(242,237,228,0.5)", marginTop: 14, marginBottom: 10 }}>FOR SUNDAY PREP</div>
-        <HeroPlaylistCard
-          playlist={{ name: "Sunday Meal Prep", provider: "spotify", bpm: "95–120", tracks: 32, duration: "2h 18m", accent: "#f2a94e", cover: "linear-gradient(135deg, #6a4a1c 0%, #1a1612 70%)", note: "2 hours. Enough to batch-cook without burning out — ends right as you're plating.", author: "Rae", authorRole: "Nutritionist" }}
-          playing={false} onPlay={() => {}} hearted={false} onHeart={() => {}} onSend={() => {}}
+      <div style={{ background: PAPER_LIGHT, minHeight: "100%", padding: "8px 14px 70px", color: INK_DARK, fontFamily: "'Space Grotesk', sans-serif", position: "relative" }}>
+        <Eyebrow>FOR SUNDAY PREP</Eyebrow>
+        <HeroCard
+          playlist={{ name: "Sunday Meal Prep", bpm: "95–120", tracks: 32, duration: "2h 18m", accent: "#f2a94e", cover: "linear-gradient(135deg, #6a4a1c 0%, #1a1612 70%)", note: "2 hours. Enough to batch-cook without burning out — ends right as you're plating.", author: "Rae", authorRole: "Nutritionist", hearted: false }}
         />
-        <div style={{ marginTop: 20, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: "rgba(242,237,228,0.5)", marginBottom: 10 }}>TRACKLIST</div>
-        <TrackList tracks={[["Khruangbin","Maria También","4:58"],["Mild High Club","Homage","3:40"],["Unknown Mortal Orchestra","Multi-Love","4:26"]]} accent="#f2a94e" currentIndex={-1}/>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: "rgba(10,13,12,0.5)", margin: "20px 0 10px" }}>TRACKLIST</div>
+        <TrackRow tracks={[["Khruangbin","Maria También","4:58"],["Mild High Club","Homage","3:40"],["Unknown Mortal Orchestra","Multi-Love","4:26"]]} accent="#f2a94e"/>
+        <TabBar active="EAT" />
       </div>
     )},
   ];
@@ -274,7 +376,7 @@ function RadioInClientApp() {
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: TEAL_BRIGHT, marginBottom: 6 }}>{p.label}</div>
                 <div style={{ fontSize: 13, color: "rgba(242,237,228,0.65)", lineHeight: 1.5, textWrap: "pretty" }}>{p.subtitle}</div>
               </div>
-              <IOSDevice dark={true} width={340} height={700}>{p.render()}</IOSDevice>
+              <IOSDevice dark={false} width={340} height={700}>{p.render()}</IOSDevice>
             </div>
           ))}
         </div>
