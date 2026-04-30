@@ -45,12 +45,19 @@
     }
     .device-screen {
       width: 100%; height: 100%;
-      background: linear-gradient(180deg, #0b0b0b 0%, #050505 100%);
+      background:
+        radial-gradient(rgba(15,14,12,0.16) 0.7px, transparent 1px) 0 0/6px 6px,
+        linear-gradient(180deg, #f5f0e6 0%, #ede6d6 100%);
       border-radius: 42px;
       overflow: hidden;
       position: relative;
+      color: #0f0e0c;
+      font-family: Inter, system-ui, sans-serif;
     }
-    .status-bar { padding: 14px 28px 0; display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 600; color: #fff; }
+    .status-bar { padding: 14px 28px 0; display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 700; color: #0f0e0c; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; letter-spacing: 0.18em; text-transform: uppercase; }
+    .serif { font-family: Georgia, 'Times New Roman', serif; }
+    .shape-rule { border-top: 2px solid #0f0e0c; }
     @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
     .live-dot { animation: pulse-dot 2s ease-in-out infinite; }
   </style>
@@ -138,87 +145,156 @@
                 </span>
               </div>
 
-              <!-- App top bar -->
-              <div class="px-6 pt-10 flex items-center justify-between">
-                <div>
-                  <div class="text-[10px] tracking-[0.22em] text-neutral-500 uppercase">Today</div>
-                  <div class="text-[17px] font-semibold mt-0.5">Push &mdash; Week 12</div>
+              <!-- Shape Daily header -->
+              <div class="px-6 pt-9">
+                <div class="flex items-center justify-between mono text-[8px] text-neutral-600">
+                  <span class="inline-flex items-center gap-2">
+                    <svg viewBox="0 0 95 110" class="h-3 w-auto"><polygon points="5,113 5,43 55,78" fill="#0f0e0c"/><polygon points="90,-3 90,67 40,32" fill="#0f0e0c"/></svg>
+                    Vol. 6 · No. 38
+                  </span>
+                  <span class="rounded-md bg-neutral-950 text-[#f5f0e6] px-2 py-1 tracking-normal">A</span>
                 </div>
-                <div class="w-9 h-9 rounded-full bg-neutral-800 flex items-center justify-center text-[12px] font-medium">MJ</div>
+                <div class="mt-5 text-center serif text-[27px] leading-none font-bold">
+                  The <em class="text-[38px] font-normal">Shape</em> Daily.
+                </div>
+                <div class="mt-5 border-t border-neutral-950 pt-3 flex justify-between mono text-[8px] text-neutral-600">
+                  <span>Tue · Apr 21 · 2026</span>
+                  <span>Cut · W6 · D38</span>
+                </div>
               </div>
 
-              <!-- Coach card -->
-              <div class="mx-5 mt-5 rounded-2xl bg-gradient-to-br from-brand-400/15 to-brand-400/5 border border-brand-400/25 p-4">
-                <div class="flex items-center gap-3">
-                  <div class="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center text-[12px] font-medium">MJ</div>
+              <!-- Edition strip -->
+              <div class="mt-3 border-y border-neutral-950 bg-[#e8e0cf] px-6 py-2 flex justify-between mono text-[8px]">
+                <span class="text-emerald-700">Clients edition · No. 21</span>
+                <span class="text-neutral-500">Vol. VI</span>
+              </div>
+
+              <!-- Week strip -->
+              <div class="bg-neutral-950 text-[#f5f0e6] px-5 py-4">
+                <div class="flex items-start justify-between">
+                  <div class="mono text-[11px] leading-tight"><span class="inline-block w-1.5 h-4 bg-[#f5f0e6] mr-2 align-middle"></span>This<br/>week</div>
+                  <div class="mono text-[8px] text-neutral-400 leading-relaxed">Wk 17 · Apr 20-26<br/>Apr 21</div>
+                  <div class="mono text-[8px] text-[#f5f0e6]">Month view →</div>
+                </div>
+                <div class="mt-3 grid grid-cols-7 gap-1 border-t-2 border-[#f5f0e6] pt-3">
+                  <div class="rounded-md border border-white/10 px-1 py-2 text-center">
+                    <div class="mono text-[7px] text-neutral-500">M</div>
+                    <div class="num text-[22px] leading-none mt-1">20</div>
+                    <div class="mt-1 flex justify-center gap-1">
+                      <span class="w-1 h-1 rounded-full bg-amber-400"></span>
+                      <span class="w-1 h-1 rounded-full bg-blue-400"></span>
+                    </div>
+                  </div>
+                  <div class="rounded-md bg-[#f5f0e6] text-neutral-950 px-1 py-2 text-center">
+                    <div class="mono text-[7px] text-neutral-500">T</div>
+                    <div class="num text-[22px] leading-none mt-1">21</div>
+                    <div class="mt-1 flex justify-center gap-1">
+                      <span class="w-1 h-1 rounded-full bg-amber-400"></span>
+                      <span class="w-1 h-1 rounded-full bg-blue-400"></span>
+                      <span class="w-1 h-1 rounded-full bg-emerald-500"></span>
+                    </div>
+                  </div>
+                  <div class="rounded-md border border-white/10 px-1 py-2 text-center">
+                    <div class="mono text-[7px] text-neutral-500">W</div>
+                    <div class="num text-[22px] leading-none mt-1">22</div>
+                    <div class="mt-1 flex justify-center gap-1">
+                      <span class="w-1 h-1 rounded-full bg-amber-400"></span>
+                      <span class="w-1 h-1 rounded-full bg-blue-400"></span>
+                    </div>
+                  </div>
+                  <div class="rounded-md border border-white/10 px-1 py-2 text-center">
+                    <div class="mono text-[7px] text-neutral-500">T</div>
+                    <div class="num text-[22px] leading-none mt-1">23</div>
+                    <div class="mt-1 flex justify-center gap-1">
+                      <span class="w-1 h-1 rounded-full bg-amber-400"></span>
+                    </div>
+                  </div>
+                  <div class="rounded-md border border-white/10 px-1 py-2 text-center">
+                    <div class="mono text-[7px] text-neutral-500">F</div>
+                    <div class="num text-[22px] leading-none mt-1">24</div>
+                    <div class="mt-1 flex justify-center gap-1">
+                      <span class="w-1 h-1 rounded-full bg-amber-400"></span>
+                    </div>
+                  </div>
+                  <div class="rounded-md border border-white/10 px-1 py-2 text-center">
+                    <div class="mono text-[7px] text-neutral-500">S</div>
+                    <div class="num text-[22px] leading-none mt-1">25</div>
+                    <div class="mt-1 flex justify-center gap-1">
+                      <span class="w-1 h-1 rounded-full bg-amber-400"></span>
+                    </div>
+                  </div>
+                  <div class="rounded-md border border-white/10 px-1 py-2 text-center">
+                    <div class="mono text-[7px] text-neutral-500">S</div>
+                    <div class="num text-[22px] leading-none mt-1">26</div>
+                    <div class="mt-1 flex justify-center gap-1">
+                      <span class="w-1 h-1 rounded-full bg-amber-400"></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Radio card -->
+              <div class="mx-0 bg-emerald-200/70 border-y border-neutral-950 px-5 py-3 relative overflow-hidden">
+                <div class="absolute inset-0 opacity-50" style="background-image:radial-gradient(#0f0e0c 1px, transparent 1.5px);background-size:7px 7px;"></div>
+                <div class="relative flex items-center gap-3">
+                  <div class="w-9 h-9 rounded-full border border-neutral-950 grid place-items-center text-[11px] num">132</div>
                   <div class="flex-1 min-w-0">
-                    <div class="text-[13px] font-medium leading-tight">Marcus Johnson</div>
-                    <div class="text-[10px] text-neutral-400 mt-0.5 flex items-center gap-1.5">
-                      <span class="w-1.5 h-1.5 rounded-full bg-brand-400 live-dot"></span>
-                      Active &middot; 2m ago
-                    </div>
+                    <div class="mono text-[8px] text-emerald-800">Shape Radio · 33,492 on</div>
+                    <div class="text-[15px] font-semibold leading-tight truncate">Floor Program ii</div>
+                    <div class="mono text-[7px] text-neutral-600">Tariq Ossei · 130 BPM</div>
                   </div>
-                  <svg class="w-4 h-4 text-brand-300" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a3 3 0 013-3h10a3 3 0 013 3v7a3 3 0 01-3 3h-4l-4 3v-3H5a3 3 0 01-3-3V5z"/></svg>
-                </div>
-                <div class="mt-3 text-[11px] text-neutral-300 leading-snug">
-                  "Nice work yesterday &mdash; let's ease into today. Stop 2 reps shy on every set."
+                  <button class="w-8 h-8 bg-neutral-950/70 text-[#f5f0e6] grid place-items-center text-[11px]">▶</button>
                 </div>
               </div>
 
-              <!-- Session list -->
-              <div class="px-5 mt-5">
-                <div class="flex items-center justify-between mb-3">
-                  <div class="text-[10px] tracking-[0.22em] text-neutral-500 uppercase">Today's session</div>
-                  <div class="num text-[10px] text-neutral-400">48 min</div>
+              <!-- Lead metric -->
+              <div class="px-6 pt-5">
+                <div class="flex justify-between mono text-[8px]">
+                  <span class="text-cyan-700">Lead · Calorie deficit</span>
+                  <span class="text-neutral-500">09:42</span>
                 </div>
-
-                <div class="space-y-2">
-                  <!-- exercise done -->
-                  <div class="flex items-center gap-3 p-2.5 rounded-lg bg-white/[0.03] border border-white/5">
-                    <div class="w-7 h-7 rounded-md bg-brand-400/20 flex items-center justify-center">
-                      <svg class="w-3.5 h-3.5 text-brand-300" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                      <div class="text-[12px] font-medium leading-tight">Bench press</div>
-                      <div class="num text-[10px] text-neutral-500 mt-0.5">4 &times; 6 &middot; 185 lb</div>
-                    </div>
-                    <div class="num text-[10px] text-brand-300">+5 lb</div>
-                  </div>
-
-                  <!-- exercise active -->
-                  <div class="flex items-center gap-3 p-2.5 rounded-lg bg-brand-400/10 border border-brand-400/30">
-                    <div class="w-7 h-7 rounded-md bg-brand-400 flex items-center justify-center text-neutral-950 num text-[11px] font-semibold">2</div>
-                    <div class="flex-1 min-w-0">
-                      <div class="text-[12px] font-medium leading-tight">Incline DB press</div>
-                      <div class="num text-[10px] text-neutral-400 mt-0.5">3 &times; 10 &middot; 55 lb</div>
-                    </div>
-                    <div class="text-[10px] text-neutral-400">Set 2/3</div>
-                  </div>
-
-                  <!-- upcoming -->
-                  <div class="flex items-center gap-3 p-2.5 rounded-lg border border-white/5 opacity-70">
-                    <div class="w-7 h-7 rounded-md bg-white/5 flex items-center justify-center text-neutral-400 num text-[11px]">3</div>
-                    <div class="flex-1 min-w-0">
-                      <div class="text-[12px] font-medium leading-tight">Cable fly</div>
-                      <div class="num text-[10px] text-neutral-500 mt-0.5">3 &times; 12</div>
-                    </div>
-                  </div>
-                  <div class="flex items-center gap-3 p-2.5 rounded-lg border border-white/5 opacity-60">
-                    <div class="w-7 h-7 rounded-md bg-white/5 flex items-center justify-center text-neutral-400 num text-[11px]">4</div>
-                    <div class="flex-1 min-w-0">
-                      <div class="text-[12px] font-medium leading-tight">Triceps pushdown</div>
-                      <div class="num text-[10px] text-neutral-500 mt-0.5">3 &times; 12</div>
-                    </div>
-                  </div>
+                <div class="mt-2 flex items-end gap-2">
+                  <span class="text-[70px] leading-[0.85] font-light tracking-[-0.08em]">-532</span>
+                  <span class="mono text-[9px] text-neutral-500 mb-2">KCAL</span>
+                </div>
+                <div class="mt-3 text-[13px] leading-snug text-neutral-600">
+                  On track. 1568 in, 2100 burned.<br/>One workout and lunch left to log.
+                </div>
+                <div class="mt-3 grid grid-cols-7 gap-1">
+                  <div class="h-3 bg-neutral-400"></div>
+                  <div class="h-3 bg-neutral-950"></div>
+                  <div class="h-3 bg-neutral-400"></div>
+                  <div class="h-3 bg-neutral-400"></div>
+                  <div class="h-3 bg-neutral-400"></div>
+                  <div class="h-3 bg-neutral-400"></div>
+                  <div class="h-3 bg-neutral-400"></div>
                 </div>
               </div>
 
-              <!-- bottom quick action -->
-              <div class="absolute bottom-6 inset-x-5">
-                <button class="w-full bg-white text-neutral-950 rounded-full py-3 text-[13px] font-semibold flex items-center justify-center gap-2">
-                  Log set
-                  <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z"/></svg>
-                </button>
+              <!-- Day log -->
+              <div class="absolute bottom-0 inset-x-0 bg-[#f5f0e6] border-t border-neutral-950">
+                <div class="px-6 py-3 flex justify-between mono text-[9px] border-b-2 border-neutral-950">
+                  <span><span class="inline-block w-1.5 h-4 bg-neutral-950 mr-2 align-middle"></span>Day log</span>
+                  <span class="text-neutral-500">8 items</span>
+                </div>
+                <div class="px-6 py-3 space-y-3">
+                  <div class="grid grid-cols-[48px_1fr] gap-3">
+                    <div class="mono text-[10px] text-neutral-500">07:20</div>
+                    <div><span class="mono text-[8px] rounded-full bg-blue-700 text-[#f5f0e6] px-2 py-0.5">Meal</span><div class="mt-1 text-[13px] line-through text-neutral-500">Oats, berries, whey</div></div>
+                  </div>
+                  <div class="grid grid-cols-[48px_1fr] gap-3">
+                    <div class="mono text-[10px] text-neutral-500">09:05</div>
+                    <div><span class="mono text-[8px] rounded-full bg-amber-700 text-[#f5f0e6] px-2 py-0.5">Trn</span><div class="mt-1 text-[13px] line-through text-neutral-500">Upper Push — Peak</div></div>
+                  </div>
+                </div>
+                <div class="grid grid-cols-6 border-t border-neutral-950 bg-neutral-950 text-[#f5f0e6] mono text-[8px] text-center">
+                  <div class="bg-[#f5f0e6] text-neutral-950 py-3"><div>01</div><div class="mt-1">Home</div></div>
+                  <div class="py-3 border-l border-white/10"><div>02</div><div class="mt-1">Train</div></div>
+                  <div class="py-3 border-l border-white/10"><div>03</div><div class="mt-1">Eat</div></div>
+                  <div class="py-3 border-l border-white/10"><div>04</div><div class="mt-1">Chat</div></div>
+                  <div class="py-3 border-l border-white/10"><div>05</div><div class="mt-1">Store</div></div>
+                  <div class="py-3 border-l border-white/10"><div>06</div><div class="mt-1">Me</div></div>
+                </div>
               </div>
             </div>
           </div>

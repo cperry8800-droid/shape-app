@@ -374,6 +374,229 @@ const DirB = (() => {
     );
   }
 
+  function PhoneTodayCurrent() {
+    const days = [
+      ["M", "20", ["#e8a93a", "#5fa8ff"]],
+      ["T", "21", ["#e8a93a", "#5fa8ff", "#43c36b"]],
+      ["W", "22", ["#e8a93a", "#5fa8ff"]],
+      ["T", "23", ["#e8a93a"]],
+      ["F", "24", ["#e8a93a"]],
+      ["S", "25", ["#e8a93a"]],
+      ["S", "26", ["#e8a93a"]],
+    ];
+    const nav = ["Home", "Train", "Eat", "Chat", "Store", "Me"];
+    const mono = "'JetBrains Mono', monospace";
+    const paper = "#f5f0e6";
+    const paperAlt = "#e8e0cf";
+    const black = "#0f0e0c";
+
+    return (
+      <section style={{ padding: "120px 72px", background: PAPER, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
+        <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 380px", gap: 100, alignItems: "center" }}>
+          <div>
+            <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>In your pocket</div>
+            <h2 style={{ fontFamily: serif, fontSize: 84, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, lineHeight: 0.92, color: INK }}>
+              Today, <em style={{ fontStyle: "italic", color: TEAL }}>in&nbsp;Shape&nbsp;Daily</em>.
+            </h2>
+            <p style={{ fontFamily: sans, fontSize: 18, lineHeight: 1.55, color: "rgba(242,237,228,0.65)", maxWidth: 500, marginTop: 28 }}>
+              The client home screen reads like a daily fitness edition: coaching, calendar, radio, nutrition, day log, and navigation in one native app surface.
+            </p>
+            <div style={{ marginTop: 36, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, maxWidth: 520 }}>
+              {[["Daily issue", "Training, nutrition, and recovery in one view"], ["Shape Radio", "Workout audio built into the session"], ["Day log", "Meals, lifts, check-ins, and progress"], ["Store ready", "Rewards and Shape Store in the nav"]].map(([k, v]) => (
+                <div key={k}>
+                  <div style={{ fontFamily: sans, fontSize: 13.5, fontWeight: 500, color: INK, marginBottom: 4 }}>{k}</div>
+                  <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)", lineHeight: 1.5 }}>{v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ position: "relative", width: 380, margin: "0 auto" }}>
+            <div style={{ position: "absolute", inset: "-40px -60px", background: "radial-gradient(ellipse at center, rgba(30,192,168,0.12), transparent 70%)", filter: "blur(20px)", zIndex: 0 }} />
+            <div style={{ position: "relative", zIndex: 1, background: "#000", borderRadius: 48, padding: 10, boxShadow: "0 40px 80px -30px rgba(242,237,228,0.35), 0 0 0 1px rgba(242,237,228,0.08)" }}>
+              <div style={{
+                minHeight: 720,
+                position: "relative",
+                overflow: "hidden",
+                borderRadius: 40,
+                color: black,
+                fontFamily: sans,
+                background: `linear-gradient(180deg, ${paper} 0%, #ede6d6 100%)`
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 26px 0", fontSize: 13, fontWeight: 700 }}>
+                  <span>9:41</span>
+                  <div style={{ width: 84, height: 26, background: "#000", borderRadius: 999 }} />
+                  <span style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.05em" }}>5G 100</span>
+                </div>
+
+                <div style={{ padding: "34px 24px 0" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontFamily: mono, fontSize: 8, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(15,14,12,0.62)" }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                      <svg viewBox="0 0 95 110" style={{ height: 13, width: "auto" }}><polygon points="5,113 5,43 55,78" fill={black}/><polygon points="90,-3 90,67 40,32" fill={black}/></svg>
+                      Vol. 6 &middot; No. 38
+                    </span>
+                    <span style={{ background: black, color: paper, borderRadius: 6, padding: "6px 8px", letterSpacing: 0 }}>A</span>
+                  </div>
+                  <div style={{ marginTop: 20, textAlign: "center", fontFamily: serif, fontSize: 28, lineHeight: 1, fontWeight: 700 }}>
+                    The <em style={{ fontSize: 40, fontWeight: 300 }}>Shape</em> Daily.
+                  </div>
+                  <div style={{ marginTop: 20, borderTop: `1px solid ${black}`, paddingTop: 12, display: "flex", justifyContent: "space-between", fontFamily: mono, fontSize: 8, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(15,14,12,0.62)" }}>
+                    <span>Tue &middot; Apr 21 &middot; 2026</span>
+                    <span>Cut &middot; W6 &middot; D38</span>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 12, borderTop: `1px solid ${black}`, borderBottom: `1px solid ${black}`, background: paperAlt, padding: "9px 24px", display: "flex", justifyContent: "space-between", fontFamily: mono, fontSize: 8, letterSpacing: "0.18em", textTransform: "uppercase" }}>
+                  <span style={{ color: "#0b7a49" }}>Clients edition &middot; No. 21</span>
+                  <span style={{ color: "rgba(15,14,12,0.5)" }}>Vol. VI</span>
+                </div>
+
+                <div style={{
+                  background: black,
+                  color: paper,
+                  padding: "9px 20px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  overflow: "hidden",
+                  whiteSpace: "nowrap",
+                  fontFamily: mono,
+                  fontSize: 8,
+                  letterSpacing: "0.15em",
+                  textTransform: "uppercase"
+                }}>
+                  <span>Cal <span style={{ color: "#6ec6ff" }}>1568/2100</span></span>
+                  <span>&middot;</span>
+                  <span>Pro <span style={{ color: "#6ec6ff" }}>118g</span></span>
+                  <span>&middot;</span>
+                  <span>Slp <span style={{ color: "#8bcf68" }}>7h24m</span></span>
+                  <span>&middot;</span>
+                  <span>Hrv <span style={{ color: "#8bcf68" }}>62ms</span></span>
+                </div>
+
+                <div style={{ background: black, color: paper, padding: "18px 20px" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+                    <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", lineHeight: 1.25 }}><span style={{ display: "inline-block", width: 6, height: 17, background: paper, marginRight: 8, verticalAlign: "middle" }} />This<br/>week</div>
+                    <div style={{ fontFamily: mono, fontSize: 8, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(245,240,230,0.46)", lineHeight: 1.55 }}>Wk 17 &middot; Apr 20-26<br/>Apr 21</div>
+                    <div style={{ fontFamily: mono, fontSize: 8, letterSpacing: "0.18em", textTransform: "uppercase" }}>Month view -&gt;</div>
+                  </div>
+                  <div style={{ marginTop: 13, borderTop: `2px solid ${paper}`, paddingTop: 12, display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 5 }}>
+                    {days.map(([day, date, dots], i) => (
+                      <div key={date} style={{ border: i === 1 ? "none" : "1px solid rgba(245,240,230,0.12)", background: i === 1 ? paper : "transparent", color: i === 1 ? black : paper, borderRadius: 7, padding: "8px 2px", textAlign: "center" }}>
+                        <div style={{ fontFamily: mono, fontSize: 7, color: i === 1 ? "rgba(15,14,12,0.55)" : "rgba(245,240,230,0.45)" }}>{day}</div>
+                        <div style={{ fontFamily: sans, fontSize: 23, fontWeight: 300, lineHeight: 1, marginTop: 6 }}>{date}</div>
+                        <div style={{ marginTop: 6, display: "flex", justifyContent: "center", gap: 3 }}>
+                          {dots.map((dot, idx) => <span key={idx} style={{ width: 4, height: 4, borderRadius: 999, background: dot }} />)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ background: "rgba(174,222,208,0.9)", borderTop: `1px solid ${black}`, borderBottom: `1px solid ${black}`, padding: "13px 20px", position: "relative", overflow: "hidden" }}>
+                  <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 38, height: 38, borderRadius: 999, border: `1px solid ${black}`, display: "grid", placeItems: "center", fontSize: 12 }}>132</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: mono, fontSize: 8, letterSpacing: "0.18em", textTransform: "uppercase", color: "#087a68" }}>Shape Radio &middot; 33,492 on</div>
+                      <div style={{ fontSize: 16, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Floor Program ii</div>
+                      <div style={{ fontFamily: mono, fontSize: 7, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(15,14,12,0.58)" }}>Tariq Ossei &middot; 130 BPM</div>
+                    </div>
+                    <button style={{ width: 34, height: 34, border: 0, background: "rgba(15,14,12,0.68)", color: paper, display: "grid", placeItems: "center", cursor: "pointer" }}>▶</button>
+                  </div>
+                </div>
+
+                <div style={{ padding: "22px 24px 0" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontFamily: mono, fontSize: 8, letterSpacing: "0.18em", textTransform: "uppercase" }}>
+                    <span style={{ color: "#0688a0" }}>Lead &middot; calorie deficit</span>
+                    <span style={{ color: "rgba(15,14,12,0.55)" }}>09:42</span>
+                  </div>
+                  <div style={{ marginTop: 7, display: "flex", alignItems: "flex-end", gap: 9 }}>
+                    <span style={{ fontSize: 72, lineHeight: 0.84, fontWeight: 300, letterSpacing: "-0.08em" }}>-532</span>
+                    <span style={{ fontFamily: mono, fontSize: 9, letterSpacing: "0.18em", color: "rgba(15,14,12,0.52)", marginBottom: 8 }}>KCAL</span>
+                  </div>
+                  <div style={{ marginTop: 14, fontSize: 14, lineHeight: 1.35, color: "rgba(15,14,12,0.62)" }}>On track. 1568 in, 2100 burned.<br/>One workout and lunch left to log.</div>
+                  <div style={{ marginTop: 13, display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 5 }}>
+                    {[0, 1, 0, 0, 0, 0, 0].map((active, i) => <div key={i} style={{ height: 13, background: active ? black : "rgba(15,14,12,0.45)" }} />)}
+                  </div>
+                </div>
+
+                <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, background: paper, borderTop: `1px solid ${black}` }}>
+                  <div style={{ padding: "12px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `2px solid ${black}`, fontFamily: mono, fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase" }}>
+                    <span><span style={{ display: "inline-block", width: 6, height: 17, background: black, marginRight: 8, verticalAlign: "middle" }} />Day log</span>
+                    <span style={{ color: "rgba(15,14,12,0.48)" }}>8 items</span>
+                  </div>
+                  <div style={{ padding: "12px 24px", display: "grid", gap: 10 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "48px 1fr", gap: 12 }}>
+                      <div style={{ fontFamily: mono, fontSize: 10, color: "rgba(15,14,12,0.5)" }}>07:20</div>
+                      <div><span style={{ fontFamily: mono, fontSize: 8, background: "#24498d", color: paper, borderRadius: 999, padding: "2px 8px", textTransform: "uppercase" }}>Meal</span><div style={{ marginTop: 4, fontSize: 13, color: "rgba(15,14,12,0.48)", textDecoration: "line-through" }}>Oats, berries, whey</div></div>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "48px 1fr", gap: 12 }}>
+                      <div style={{ fontFamily: mono, fontSize: 10, color: "rgba(15,14,12,0.5)" }}>09:05</div>
+                      <div><span style={{ fontFamily: mono, fontSize: 8, background: "#8a6824", color: paper, borderRadius: 999, padding: "2px 8px", textTransform: "uppercase" }}>Trn</span><div style={{ marginTop: 4, fontSize: 13, color: "rgba(15,14,12,0.48)", textDecoration: "line-through" }}>Upper Push - Peak</div></div>
+                    </div>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", background: black, color: paper, borderTop: `1px solid ${black}`, fontFamily: mono, fontSize: 8, letterSpacing: "0.14em", textTransform: "uppercase", textAlign: "center" }}>
+                    {nav.map((item, i) => (
+                      <div key={item} style={{ padding: "11px 0", background: i === 0 ? paper : black, color: i === 0 ? black : paper, borderLeft: i ? "1px solid rgba(245,240,230,0.12)" : 0 }}>
+                        <div>0{i + 1}</div>
+                        <div style={{ marginTop: 5 }}>{item}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  function PhoneTodayImage() {
+    return (
+      <section style={{ padding: "120px 72px", background: PAPER, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
+        <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 380px", gap: 100, alignItems: "center" }}>
+          <div>
+            <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>In your pocket</div>
+            <h2 style={{ fontFamily: serif, fontSize: 84, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, lineHeight: 0.92, color: INK }}>
+              Today, <em style={{ fontStyle: "italic", color: TEAL }}>in&nbsp;Shape&nbsp;Daily</em>.
+            </h2>
+            <p style={{ fontFamily: sans, fontSize: 18, lineHeight: 1.55, color: "rgba(242,237,228,0.65)", maxWidth: 500, marginTop: 28 }}>
+              The client home screen reads like a daily fitness edition: coaching, calendar, radio, nutrition, day log, and navigation in one native app surface.
+            </p>
+            <div style={{ marginTop: 36, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, maxWidth: 520 }}>
+              {[["Daily issue", "Training, nutrition, and recovery in one view"], ["Shape Radio", "Workout audio built into the session"], ["Day log", "Meals, lifts, check-ins, and progress"], ["Store ready", "Rewards and Shape Store in the nav"]].map(([k, v]) => (
+                <div key={k}>
+                  <div style={{ fontFamily: sans, fontSize: 13.5, fontWeight: 500, color: INK, marginBottom: 4 }}>{k}</div>
+                  <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)", lineHeight: 1.5 }}>{v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ position: "relative", width: 380, margin: "0 auto" }}>
+            <div style={{ position: "absolute", inset: "-40px -60px", background: "radial-gradient(ellipse at center, rgba(30,192,168,0.10), transparent 70%)", filter: "blur(20px)", zIndex: 0 }} />
+            <div style={{ position: "relative", zIndex: 1, background: "#070707", borderRadius: 48, padding: 10, boxShadow: "0 40px 80px -30px rgba(242,237,228,0.35), 0 0 0 1px rgba(242,237,228,0.08)" }}>
+              <img
+                src="/newdesign/shape-daily-phone-home.png"
+                alt="Shape Daily client home screen"
+                style={{
+                  display: "block",
+                  width: "100%",
+                  height: 720,
+                  objectFit: "cover",
+                  objectPosition: "top",
+                  borderRadius: 40,
+                  background: "#f5f0e6"
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   function PhoneNutrition() {
     const meals = [
       { n: 1, name: "Oats + whey + berries", set: "520 kcal · 42P / 68C / 9F", badge: "✓", done: true, time: "7:30" },
@@ -488,6 +711,168 @@ const DirB = (() => {
                   <div style={{ width: 16, height: 16, borderRadius: 4, border: `1.5px solid ${g.checked ? TEAL : "rgba(242,237,228,0.25)"}`, background: g.checked ? TEAL : "transparent", display: "flex", alignItems: "center", justifyContent: "center", color: PAPER, fontSize: 10, fontWeight: 700 }}>{g.checked ? "✓" : ""}</div>
                   <div style={{ fontSize: 13.5, color: g.checked ? "rgba(242,237,228,0.45)" : INK, textDecoration: g.checked ? "line-through" : "none" }}>{g.item}</div>
                   <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(242,237,228,0.45)", letterSpacing: "0.06em" }}>{g.aisle.toUpperCase()}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  function PhoneNutritionCurrent() {
+    const mono = "'JetBrains Mono', monospace";
+    const paper = "#f5f0e6";
+    const paper2 = "#eee7d8";
+    const black = "#0f0e0c";
+    const rule = "rgba(15,14,12,0.18)";
+    const meals = [
+      { time: "07:20", tag: "BFAST", color: "#8cab86", name: "Oats, berries, whey", meta: "412 kcal · 32P · 58C · 8F", done: true },
+      { time: "10:30", tag: "SNACK", color: "#8da6e8", name: "Whey shake", meta: "156 kcal · 28P", done: true },
+      { time: "12:40", tag: "LUNCH", color: "#c99019", name: "Chicken bowl + rice", meta: "620 kcal · 48P · 72C · 14F", active: true },
+      { time: "16:00", tag: "SNACK", color: "#1952d8", name: "Greek yogurt + almonds", meta: "280 kcal · 22P · 18C · 12F" },
+      { time: "19:30", tag: "DINR", color: "#a8331b", name: "Salmon, quinoa, greens", meta: "580 kcal · 44P · 48C · 22F" },
+    ];
+    const macros = [
+      ["CAL", "1568", "/2100"],
+      ["PRO", "118", "/165g"],
+      ["CARB", "186", "/240g"],
+      ["FAT", "52", "/68g"],
+    ];
+    const nav = ["Home", "Train", "Eat", "Chat", "Store", "Me"];
+
+    return (
+      <section style={{ padding: "120px 72px 140px", background: PAPER, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
+        <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "380px 1fr", gap: 100, alignItems: "center" }}>
+          <div style={{ position: "relative", width: 380, margin: "0 auto" }}>
+            <div style={{ position: "absolute", inset: "-40px -60px", background: "radial-gradient(ellipse at center, rgba(30,192,168,0.10), transparent 70%)", filter: "blur(20px)", zIndex: 0 }} />
+            <div style={{ position: "relative", zIndex: 1, background: "#000", borderRadius: 48, padding: 10, boxShadow: "0 40px 80px -30px rgba(242,237,228,0.35), 0 0 0 1px rgba(242,237,228,0.08)" }}>
+              <div style={{ minHeight: 720, position: "relative", overflow: "hidden", borderRadius: 40, background: paper, color: black, fontFamily: sans }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 26px 0", fontSize: 13, fontWeight: 700 }}>
+                  <span>9:41</span>
+                  <div style={{ width: 84, height: 26, background: "#000", borderRadius: 999 }} />
+                  <span style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.05em" }}>5G 100</span>
+                </div>
+
+                <div style={{ padding: "24px 16px 0" }}>
+                  <div style={{ border: `1px solid ${rule}`, borderRadius: 6, background: paper2, padding: 20 }}>
+                    <div style={{ fontFamily: mono, fontSize: 9, letterSpacing: "0.22em", textTransform: "uppercase", color: "#008d84" }}>
+                      <span style={{ background: "#c99019", color: paper, borderRadius: 6, padding: "4px 7px", marginRight: 10 }}>Peak</span>
+                      5 services · 3 logged
+                    </div>
+                    <div style={{ marginTop: 16, fontSize: 34, lineHeight: 0.9, letterSpacing: "-0.045em", fontWeight: 300 }}>
+                      Pull day.<br/>Full plates.
+                    </div>
+                    <p style={{ margin: "16px 0 0", fontSize: 14.5, lineHeight: 1.45, color: "rgba(15,14,12,0.62)" }}>
+                      Peak pull day. Anchor lunch, slow protein into the evening, no surprises before the lift.
+                    </p>
+                    <div style={{ marginTop: 16, fontFamily: mono, fontSize: 9, letterSpacing: "0.2em", textTransform: "uppercase", color: "#008d84" }}>Read the day brief -</div>
+                  </div>
+
+                  <div style={{ marginTop: 18, border: `1px solid ${rule}`, borderRadius: 6, display: "grid", gridTemplateColumns: "repeat(4,1fr)", background: paper2, padding: "15px 16px" }}>
+                    {macros.map(([label, value, target]) => (
+                      <div key={label}>
+                        <div style={{ fontFamily: mono, fontSize: 8, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(15,14,12,0.44)" }}>{label}</div>
+                        <div style={{ marginTop: 7, fontSize: 31, lineHeight: 0.9, letterSpacing: "-0.06em", fontWeight: 300 }}>{value}</div>
+                        <div style={{ marginTop: 4, fontFamily: mono, fontSize: 8, color: "rgba(15,14,12,0.44)" }}>{target}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 18, borderTop: `2px solid ${black}`, borderBottom: `1px solid ${rule}`, padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: mono, fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase" }}>
+                  <span><span style={{ display: "inline-block", width: 5, height: 14, background: black, marginRight: 10, verticalAlign: "middle" }} />Today's menu</span>
+                  <span style={{ color: "rgba(15,14,12,0.45)" }}>5 services · 2 logged</span>
+                </div>
+
+                <div style={{ padding: "10px 16px 0" }}>
+                  {meals.map((meal) => (
+                    <div key={meal.time} style={{ display: "grid", gridTemplateColumns: "58px 46px 1fr", gap: 8, alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${rule}`, background: meal.active ? "#e7ece2" : "transparent", margin: meal.active ? "0 -10px" : 0, paddingLeft: meal.active ? 10 : 0, paddingRight: meal.active ? 10 : 0, borderRadius: meal.active ? 6 : 0 }}>
+                      <div style={{ fontFamily: mono, fontSize: 11, color: meal.active ? "#008d84" : "rgba(15,14,12,0.62)" }}>{meal.time}</div>
+                      <span style={{ justifySelf: "start", borderRadius: 5, background: meal.color, color: "#fff", padding: "3px 7px", fontFamily: mono, fontSize: 8, letterSpacing: "0.12em", textTransform: "uppercase" }}>{meal.tag}</span>
+                      <div>
+                        <div style={{ fontSize: 14.5, lineHeight: 1.15, textDecoration: meal.done ? "line-through" : "none", color: meal.done ? "rgba(15,14,12,0.44)" : black }}>{meal.name}</div>
+                        <div style={{ marginTop: 3, fontFamily: mono, fontSize: 8, letterSpacing: "0.06em", color: "rgba(15,14,12,0.44)" }}>{meal.meta}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ position: "absolute", left: 16, right: 16, bottom: 49, background: black, color: paper, borderRadius: 6, padding: "18px 20px 22px" }}>
+                  <div style={{ fontFamily: mono, fontSize: 9, letterSpacing: "0.22em", textTransform: "uppercase", color: "#c99019" }}><span style={{ display: "inline-block", width: 4, height: 14, background: "#c99019", marginRight: 12, verticalAlign: "middle" }} />Notes from Maya</div>
+                  <div style={{ marginTop: 14, fontSize: 18, lineHeight: 1.28, letterSpacing: "-0.02em" }}>
+                    Five plates. Three logged before noon. Don&apos;t coast through the afternoon -
+                  </div>
+                </div>
+
+                <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, display: "grid", gridTemplateColumns: "repeat(6,1fr)", borderTop: `2px solid ${black}`, background: paper, fontFamily: mono, fontSize: 8, letterSpacing: "0.14em", textTransform: "uppercase", textAlign: "center" }}>
+                  {nav.map((item, i) => (
+                    <div key={item} style={{ padding: "9px 0 10px", background: i === 2 ? black : paper, color: i === 2 ? paper : black, borderLeft: i ? `1px solid ${rule}` : 0 }}>
+                      <div>0{i + 1}</div>
+                      <div style={{ marginTop: 5 }}>{item}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>In your pocket · nutrition</div>
+            <h2 style={{ fontFamily: serif, fontSize: 84, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, lineHeight: 0.92, color: INK }}>
+              Eat the plan, <em style={{ fontStyle: "italic", color: TEAL }}>not&nbsp;the&nbsp;app</em>.
+            </h2>
+            <p style={{ fontFamily: sans, fontSize: 18, lineHeight: 1.55, color: "rgba(242,237,228,0.65)", maxWidth: 480, marginTop: 28 }}>
+              Your nutritionist's meal plan, built around your training week. Macros auto-tally as you log. One tap turns the week into a grocery list sorted by aisle.
+            </p>
+            <div style={{ marginTop: 36, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, maxWidth: 520 }}>
+              {[["Daily menu", "Meals lined up by time and intent"], ["Live macros", "Calories and protein update as you log"], ["Coach notes", "Nutrition cues stay attached to the day"], ["Store ready", "Eat tab lives beside training, chat, and store"]].map(([k, v]) => (
+                <div key={k}>
+                  <div style={{ fontFamily: sans, fontSize: 13.5, fontWeight: 500, color: INK, marginBottom: 4 }}>{k}</div>
+                  <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)", lineHeight: 1.5 }}>{v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  function PhoneNutritionImage() {
+    return (
+      <section style={{ padding: "120px 72px 140px", background: PAPER, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
+        <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "380px 1fr", gap: 100, alignItems: "center" }}>
+          <div style={{ position: "relative", width: 380, margin: "0 auto" }}>
+            <div style={{ position: "absolute", inset: "-40px -60px", background: "radial-gradient(ellipse at center, rgba(30,192,168,0.10), transparent 70%)", filter: "blur(20px)", zIndex: 0 }} />
+            <img
+              src="/newdesign/shape-daily-phone-eat.png"
+              alt="Shape Daily Eat screen"
+              style={{
+                position: "relative",
+                zIndex: 1,
+                display: "block",
+                width: "100%",
+                height: "auto",
+                borderRadius: 48,
+                boxShadow: "0 40px 80px -30px rgba(242,237,228,0.35), 0 0 0 1px rgba(242,237,228,0.08)"
+              }}
+            />
+          </div>
+
+          <div>
+            <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>In your pocket · nutrition</div>
+            <h2 style={{ fontFamily: serif, fontSize: 84, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, lineHeight: 0.92, color: INK }}>
+              Eat the plan, <em style={{ fontStyle: "italic", color: TEAL }}>not&nbsp;the&nbsp;app</em>.
+            </h2>
+            <p style={{ fontFamily: sans, fontSize: 18, lineHeight: 1.55, color: "rgba(242,237,228,0.65)", maxWidth: 480, marginTop: 28 }}>
+              Your nutritionist's meal plan, built around your training week. Macros auto-tally as you log. One tap turns the week into a grocery list sorted by aisle.
+            </p>
+            <div style={{ marginTop: 36, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, maxWidth: 520 }}>
+              {[["Daily menu", "Meals lined up by time and intent"], ["Live macros", "Calories and protein update as you log"], ["Coach notes", "Nutrition cues stay attached to the day"], ["Store ready", "Eat tab lives beside training, chat, and store"]].map(([k, v]) => (
+                <div key={k}>
+                  <div style={{ fontFamily: sans, fontSize: 13.5, fontWeight: 500, color: INK, marginBottom: 4 }}>{k}</div>
+                  <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)", lineHeight: 1.5 }}>{v}</div>
                 </div>
               ))}
             </div>
@@ -806,8 +1191,8 @@ const DirB = (() => {
           <SharedHeader />
           <Hero />
           <Audiences />
-          <PhoneToday />
-          <PhoneNutrition />
+          <PhoneTodayCurrent />
+          <PhoneNutritionImage />
           <Marketplace />
           <Score />
           <TrainerDash />
