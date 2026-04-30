@@ -451,6 +451,29 @@ const DirB = (() => {
                   <span style={{ color: "rgba(15,14,12,0.5)" }}>Vol. VI</span>
                 </div>
 
+                <div style={{
+                  background: black,
+                  color: paper,
+                  padding: "9px 20px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  overflow: "hidden",
+                  whiteSpace: "nowrap",
+                  fontFamily: mono,
+                  fontSize: 8,
+                  letterSpacing: "0.15em",
+                  textTransform: "uppercase"
+                }}>
+                  <span>Cal <span style={{ color: "#6ec6ff" }}>1568/2100</span></span>
+                  <span>&middot;</span>
+                  <span>Pro <span style={{ color: "#6ec6ff" }}>118g</span></span>
+                  <span>&middot;</span>
+                  <span>Slp <span style={{ color: "#8bcf68" }}>7h24m</span></span>
+                  <span>&middot;</span>
+                  <span>Hrv <span style={{ color: "#8bcf68" }}>62ms</span></span>
+                </div>
+
                 <div style={{ background: black, color: paper, padding: "18px 20px" }}>
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
                     <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", lineHeight: 1.25 }}><span style={{ display: "inline-block", width: 6, height: 17, background: paper, marginRight: 8, verticalAlign: "middle" }} />This<br/>week</div>
