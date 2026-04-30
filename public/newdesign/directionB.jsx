@@ -529,6 +529,51 @@ const DirB = (() => {
     );
   }
 
+  function PhoneTodayImage() {
+    return (
+      <section style={{ padding: "120px 72px", background: PAPER, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
+        <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 380px", gap: 100, alignItems: "center" }}>
+          <div>
+            <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>In your pocket</div>
+            <h2 style={{ fontFamily: serif, fontSize: 84, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, lineHeight: 0.92, color: INK }}>
+              Today, <em style={{ fontStyle: "italic", color: TEAL }}>in&nbsp;Shape&nbsp;Daily</em>.
+            </h2>
+            <p style={{ fontFamily: sans, fontSize: 18, lineHeight: 1.55, color: "rgba(242,237,228,0.65)", maxWidth: 500, marginTop: 28 }}>
+              The client home screen reads like a daily fitness edition: coaching, calendar, radio, nutrition, day log, and navigation in one native app surface.
+            </p>
+            <div style={{ marginTop: 36, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, maxWidth: 520 }}>
+              {[["Daily issue", "Training, nutrition, and recovery in one view"], ["Shape Radio", "Workout audio built into the session"], ["Day log", "Meals, lifts, check-ins, and progress"], ["Store ready", "Rewards and Shape Store in the nav"]].map(([k, v]) => (
+                <div key={k}>
+                  <div style={{ fontFamily: sans, fontSize: 13.5, fontWeight: 500, color: INK, marginBottom: 4 }}>{k}</div>
+                  <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)", lineHeight: 1.5 }}>{v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ position: "relative", width: 380, margin: "0 auto" }}>
+            <div style={{ position: "absolute", inset: "-40px -60px", background: "radial-gradient(ellipse at center, rgba(30,192,168,0.10), transparent 70%)", filter: "blur(20px)", zIndex: 0 }} />
+            <div style={{ position: "relative", zIndex: 1, background: "#070707", borderRadius: 48, padding: 10, boxShadow: "0 40px 80px -30px rgba(242,237,228,0.35), 0 0 0 1px rgba(242,237,228,0.08)" }}>
+              <img
+                src="/newdesign/shape-daily-phone-home.png"
+                alt="Shape Daily client home screen"
+                style={{
+                  display: "block",
+                  width: "100%",
+                  height: 720,
+                  objectFit: "cover",
+                  objectPosition: "top",
+                  borderRadius: 40,
+                  background: "#f5f0e6"
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   function PhoneNutrition() {
     const meals = [
       { n: 1, name: "Oats + whey + berries", set: "520 kcal · 42P / 68C / 9F", badge: "✓", done: true, time: "7:30" },
@@ -1080,7 +1125,7 @@ const DirB = (() => {
           <SharedHeader />
           <Hero />
           <Audiences />
-          <PhoneTodayCurrent />
+          <PhoneTodayImage />
           <PhoneNutritionCurrent />
           <Marketplace />
           <Score />
