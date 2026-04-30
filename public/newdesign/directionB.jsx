@@ -816,6 +816,49 @@ const DirB = (() => {
     );
   }
 
+  function PhoneNutritionImage() {
+    return (
+      <section style={{ padding: "120px 72px 140px", background: PAPER, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
+        <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "380px 1fr", gap: 100, alignItems: "center" }}>
+          <div style={{ position: "relative", width: 380, margin: "0 auto" }}>
+            <div style={{ position: "absolute", inset: "-40px -60px", background: "radial-gradient(ellipse at center, rgba(30,192,168,0.10), transparent 70%)", filter: "blur(20px)", zIndex: 0 }} />
+            <img
+              src="/newdesign/shape-daily-phone-eat.png"
+              alt="Shape Daily Eat screen"
+              style={{
+                position: "relative",
+                zIndex: 1,
+                display: "block",
+                width: "100%",
+                height: "auto",
+                borderRadius: 48,
+                boxShadow: "0 40px 80px -30px rgba(242,237,228,0.35), 0 0 0 1px rgba(242,237,228,0.08)"
+              }}
+            />
+          </div>
+
+          <div>
+            <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>In your pocket · nutrition</div>
+            <h2 style={{ fontFamily: serif, fontSize: 84, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, lineHeight: 0.92, color: INK }}>
+              Eat the plan, <em style={{ fontStyle: "italic", color: TEAL }}>not&nbsp;the&nbsp;app</em>.
+            </h2>
+            <p style={{ fontFamily: sans, fontSize: 18, lineHeight: 1.55, color: "rgba(242,237,228,0.65)", maxWidth: 480, marginTop: 28 }}>
+              Your nutritionist's meal plan, built around your training week. Macros auto-tally as you log. One tap turns the week into a grocery list sorted by aisle.
+            </p>
+            <div style={{ marginTop: 36, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, maxWidth: 520 }}>
+              {[["Daily menu", "Meals lined up by time and intent"], ["Live macros", "Calories and protein update as you log"], ["Coach notes", "Nutrition cues stay attached to the day"], ["Store ready", "Eat tab lives beside training, chat, and store"]].map(([k, v]) => (
+                <div key={k}>
+                  <div style={{ fontFamily: sans, fontSize: 13.5, fontWeight: 500, color: INK, marginBottom: 4 }}>{k}</div>
+                  <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)", lineHeight: 1.5 }}>{v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   function Score() {
     return (
       <section style={{ padding: "120px 72px", background: PAPER }}>
@@ -1126,7 +1169,7 @@ const DirB = (() => {
           <Hero />
           <Audiences />
           <PhoneTodayImage />
-          <PhoneNutritionCurrent />
+          <PhoneNutritionImage />
           <Marketplace />
           <Score />
           <TrainerDash />
