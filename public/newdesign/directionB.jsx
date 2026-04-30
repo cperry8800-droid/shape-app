@@ -1168,7 +1168,7 @@ const DirB = (() => {
           <SharedHeader />
           <Hero />
           <Audiences />
-          <PhoneTodayImage />
+          <PhoneTodayCurrent />
           <PhoneNutritionImage />
           <Marketplace />
           <Score />
