@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
     }
     console.error('[shape-app] sessions insert failed', insertError);
     return NextResponse.json(
-      { error: 'Could not save your booking. Please email info@theshapecommunity.com directly.' },
+      { error: 'Could not save your booking. Please email christopher.perry@theshapecommunity.com directly.' },
       { status: 500 }
     );
   }
