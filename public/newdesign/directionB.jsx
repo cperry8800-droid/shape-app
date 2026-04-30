@@ -421,7 +421,7 @@ const DirB = (() => {
                 borderRadius: 40,
                 color: black,
                 fontFamily: sans,
-                background: `radial-gradient(rgba(15,14,12,0.16) 0.7px, transparent 1px) 0 0/6px 6px, linear-gradient(180deg, ${paper} 0%, #ede6d6 100%)`
+                background: `linear-gradient(180deg, ${paper} 0%, #ede6d6 100%)`
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 26px 0", fontSize: 13, fontWeight: 700 }}>
                   <span>9:41</span>
@@ -471,7 +471,6 @@ const DirB = (() => {
                 </div>
 
                 <div style={{ background: "rgba(174,222,208,0.9)", borderTop: `1px solid ${black}`, borderBottom: `1px solid ${black}`, padding: "13px 20px", position: "relative", overflow: "hidden" }}>
-                  <div style={{ position: "absolute", inset: 0, opacity: 0.45, backgroundImage: `radial-gradient(${black} 1px, transparent 1.5px)`, backgroundSize: "7px 7px" }} />
                   <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{ width: 38, height: 38, borderRadius: 999, border: `1px solid ${black}`, display: "grid", placeItems: "center", fontSize: 12 }}>132</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
