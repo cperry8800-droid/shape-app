@@ -45,8 +45,8 @@
   /* Header */
   .nav { position: sticky; top: 0; z-index: 50; background: rgba(239,229,205,0.85); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid var(--hairline-2); }
   .nav-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; gap: 16px; }
-  .brand { display: inline-flex; align-items: center; gap: 10px; font-family: var(--serif); font-size: 19px; font-weight: 500; letter-spacing: -0.01em; }
-  .brand-mark { width: 26px; height: 26px; border-radius: 6px; background: #0a3d35; display: inline-flex; align-items: center; justify-content: center; color: var(--paper); font-family: var(--mono); font-size: 13px; font-weight: 600; }
+  .brand { display: inline-flex; align-items: center; gap: 10px; }
+  .brand img { height: 32px; width: auto; display: block; }
   .nav-back { font-size: 13px; color: var(--ink-2); }
   .nav-back:hover { color: var(--ink); }
 
@@ -146,7 +146,7 @@
 
 <header class="nav">
   <div class="wrap nav-row">
-    <a href="/newdesign/index.html" class="brand"><span class="brand-mark">+</span>Shape</a>
+    <a href="/newdesign/index.html" class="brand" aria-label="Shape home"><img src="/shape-logo-black.png" alt="Shape" /></a>
     <a href="/newdesign/index.html" class="nav-back">← Shape home</a>
   </div>
 </header>
