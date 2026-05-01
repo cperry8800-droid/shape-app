@@ -109,6 +109,24 @@
     .feat:nth-child(2) { padding-top: 0; border-top: 0; }
   }
 
+  /* Screen gallery — every screenshot inside a phone frame */
+  .gallery { padding: 80px 0 40px; }
+  .gallery-head { text-align: center; margin-bottom: 48px; }
+  .gallery-head h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(34px, 6.4vw, 52px); letter-spacing: -0.025em; line-height: 1; margin: 8px 0 14px; }
+  .gallery-head p { font-size: 15px; line-height: 1.55; color: var(--ink-2); margin: 0 auto; max-width: 540px; }
+  .gallery-grid { display: grid; gap: 28px 22px; grid-template-columns: repeat(4, 1fr); }
+  @media (max-width: 1080px) { .gallery-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 760px)  { .gallery-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 460px)  { .gallery-grid { grid-template-columns: 1fr; } }
+  .gallery-item { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .gallery-phone {
+    width: 100%; max-width: 240px; aspect-ratio: 240/494;
+    background: #1a1612; border-radius: 36px; padding: 8px;
+    box-shadow: 0 18px 40px rgba(10,13,12,0.16), 0 0 0 1px rgba(10,13,12,0.6);
+  }
+  .gallery-phone img { width: 100%; height: 100%; border-radius: 28px; display: block; object-fit: cover; object-position: top; }
+  .gallery-label { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-2); }
+
   /* Why band */
   .why { background: var(--paper-2); padding: 60px 0; margin-top: 32px; border-top: 1px solid var(--hairline-2); border-bottom: 1px solid var(--hairline-2); }
   .why h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(30px, 5.4vw, 42px); letter-spacing: -0.025em; line-height: 1.05; margin: 0 0 14px; }
@@ -194,6 +212,50 @@
         <div class="t"><span class="n">04</span><span class="l">EAT</span></div>
         <div class="t"><span class="n">05</span><span class="l">CHAT</span></div>
         <div class="t"><span class="n">06</span><span class="l">ME</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="gallery">
+  <div class="wrap">
+    <div class="gallery-head">
+      <div class="eyebrow">Take a tour</div>
+      <h2>Every tab, in your pocket.</h2>
+      <p>The full Shape app — Today, Train, Eat, Grocery, Radio, Chat — laid out for a quick scroll.</p>
+    </div>
+    <div class="gallery-grid">
+      <div class="gallery-item">
+        <div class="gallery-phone"><img src="/newdesign/App%20homepage.png" alt="Shape Daily home — dark"/></div>
+        <div class="gallery-label">01 · Home</div>
+      </div>
+      <div class="gallery-item">
+        <div class="gallery-phone"><img src="/newdesign/Shape%20App%20homepage.png" alt="Shape Daily home — light"/></div>
+        <div class="gallery-label">01 · Home (light)</div>
+      </div>
+      <div class="gallery-item">
+        <div class="gallery-phone"><img src="/newdesign/app%20train.png" alt="Train screen"/></div>
+        <div class="gallery-label">02 · Train</div>
+      </div>
+      <div class="gallery-item">
+        <div class="gallery-phone"><img src="/newdesign/app%20workout%20preview.png" alt="Workout preview"/></div>
+        <div class="gallery-label">02 · Workout preview</div>
+      </div>
+      <div class="gallery-item">
+        <div class="gallery-phone"><img src="/newdesign/app%20nutrition.png" alt="Nutrition screen"/></div>
+        <div class="gallery-label">03 · Eat</div>
+      </div>
+      <div class="gallery-item">
+        <div class="gallery-phone"><img src="/newdesign/nutri%20steps.png" alt="Nutrition step-by-step"/></div>
+        <div class="gallery-label">03 · Eat — step</div>
+      </div>
+      <div class="gallery-item">
+        <div class="gallery-phone"><img src="/newdesign/Shape%20radio%20app.png" alt="Shape Radio screen with HRM sync"/></div>
+        <div class="gallery-label">04 · Radio</div>
+      </div>
+      <div class="gallery-item">
+        <div class="gallery-phone"><img src="/newdesign/shape%20chat.png" alt="Chat — Letters &amp; replies"/></div>
+        <div class="gallery-label">05 · Chat</div>
       </div>
     </div>
   </div>
