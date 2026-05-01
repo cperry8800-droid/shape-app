@@ -664,10 +664,10 @@
     audio.addEventListener('play', function () { syncPlayUI(true); });
     audio.addEventListener('playing', function () { syncPlayUI(true); });
     audio.addEventListener('pause', function () { syncPlayUI(false); });
-    audio.addEventListener('ended', function () {
-      loadTrack(trackIndex + 1);
-      audio.play().catch(function () { syncPlayUI(false); });
-    });
+    // Loop the current track instead of auto-advancing the playlist —
+    // keeps "Now Playing" pinned to whatever the user picked. Manual
+    // prev/next buttons still work to switch tracks deliberately.
+    audio.loop = true;
     audio.addEventListener('error', function () {
       console.warn('[shape-radio] track failed, skipping:', audio.src);
       loadTrack(trackIndex + 1);
