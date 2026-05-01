@@ -579,8 +579,8 @@ const DirB = (() => {
             <div style={{ position: "absolute", inset: "-40px -60px", background: "radial-gradient(ellipse at center, rgba(30,192,168,0.10), transparent 70%)", filter: "blur(20px)", zIndex: 0 }} />
             <div style={{ position: "relative", zIndex: 1, background: "#070707", borderRadius: 48, padding: 10, boxShadow: "0 40px 80px -30px rgba(242,237,228,0.35), 0 0 0 1px rgba(242,237,228,0.08)" }}>
               <img
-                src="/newdesign/shape-daily-phone-eat.png"
-                alt="Shape Daily Eat screen"
+                src="/newdesign/shape-daily-phone-home.png"
+                alt="Shape Daily client home screen"
                 style={{
                   display: "block",
                   width: "100%",
