@@ -48,18 +48,13 @@
       text-align: center; padding: 80px 48px 60px;
     }
     .radio-logo {
-      font-family: 'Inter', sans-serif; font-weight: 300; font-size: clamp(1.7rem, 2.8vw, 2.1rem);
-      letter-spacing: 0.35em; text-transform: uppercase; margin-bottom: 16px; color: #fff;
-      display: flex; align-items: center; justify-content: center; gap: 10px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 16px;
     }
-    .radio-logo .shape-text {
-      display: inline-block; height: 36px; overflow: hidden; line-height: 0;
+    .radio-logo img {
+      height: clamp(36px, 5vw, 56px);
+      width: auto; display: block;
     }
-    .radio-logo .shape-text img {
-      height: 104px;
-      margin-top: -62px;
-    }
-    .radio-logo .radio-label { color: #2DD4BF; }
     .radio-tagline {
       font-size: clamp(0.9rem, 1.2vw, 1.05rem); color: rgba(255,255,255,0.5);
       font-weight: 300; max-width: 500px; margin: 0 auto;
@@ -284,27 +279,7 @@
     }
 
     @media (max-width: 480px) {
-      .radio-logo {
-        font-size: 1.1rem;
-        letter-spacing: 0.2em;
-        gap: 6px;
-        flex-wrap: nowrap;
-      }
-      .radio-logo .shape-text {
-        height: 22px;
-        flex-shrink: 0;
-      }
-      .radio-logo .shape-text img {
-        height: 64px;
-        margin-top: -38px;
-      }
-      .radio-logo .radio-label {
-        white-space: nowrap;
-        flex-shrink: 0;
-        /* trailing letter-spacing adds phantom space on the right;
-           nudge the block left so the wordmark looks visually centered */
-        margin-right: -0.2em;
-      }
+      .radio-logo img { height: 32px; }
     }
   </style>
   <link rel="manifest" href="manifest.json">
@@ -324,7 +299,7 @@
   <!-- Login Gate -->
   <div class="radio-gate" id="radioGate">
     <div class="radio-gate-box">
-      <div class="radio-logo" style="margin-bottom:24px;"><span class="shape-text"><img src="logo.png" alt="Shape"></span><span class="radio-label">R A D I O</span></div>
+      <div class="radio-logo" style="margin-bottom:24px;"><img src="/shape-radio-wordmark.svg" alt="Shape Radio" /></div>
       <h2>Welcome back</h2>
       <p class="subtitle">Shape Radio is included with every Shape account.</p>
       <button class="btn-radio-login" onclick="radioGoLogin()">Log In to Your Shape Account</button>
@@ -337,7 +312,7 @@
   <!-- Radio Content (hidden until login) -->
   <div class="radio-content" id="radioContent">
   <section class="radio-hero">
-    <div class="radio-logo"><span class="shape-text"><img src="logo.png" alt="Shape"></span><span class="radio-label">R A D I O</span></div>
+    <div class="radio-logo"><img src="/shape-radio-wordmark.svg" alt="Shape Radio" /></div>
     <p class="radio-tagline">Live music to fuel your workout.</p>
   </section>
 
