@@ -42,6 +42,73 @@ function HeroC() {
   );
 }
 
+// Live activity strip — what members are doing across the network right now.
+// Read-only marketing view of the same activity feed kinds that ClientCommunity
+// renders for signed-in members.
+const LIVE_ACTIVITY = [
+  { kind: "pr",      who: "Marcus J.", city: "Brooklyn",  tier: "Tempo",  ago: "2m",  lift: "Bench Press", load: "225 lb", delta: "+10 lb" },
+  { kind: "run",     who: "Diego A.",  city: "Austin",    tier: "Form",   ago: "6m",  distance: "8.4 mi",  pace: "7:42 / mi", duration: "1h 04m" },
+  { kind: "workout", who: "Elena R.",  city: "London",    tier: "Peak",   ago: "11m", title: "Lower strength · Block 3", duration: "52 min", coach: "Maya" },
+  { kind: "tier",    who: "Ana P.",    city: "Miami",     tier: "Tempo",  ago: "18m", from: "Raw",   to: "Tempo" },
+  { kind: "streak",  who: "Yuki A.",   city: "Tokyo",     tier: "Form",   ago: "24m", days: 21 },
+  { kind: "pr",      who: "Tomás R.",  city: "Miami",     tier: "Peak",   ago: "31m", lift: "Deadlift",     load: "405 lb", delta: "+15 lb" },
+  { kind: "run",     who: "Mel T.",    city: "Stockholm", tier: "Tempo",  ago: "42m", distance: "5 km",     pace: "5:08 / km", duration: "25:40" },
+  { kind: "workout", who: "Jonah W.",  city: "Brooklyn",  tier: "Tempo",  ago: "1h",  title: "Upper push · taper",         duration: "38 min", coach: "Maya" },
+];
+
+function LiveActivity() {
+  const accent = (k) => k === "pr" ? TEAL_BRIGHT : k === "run" ? "#9ab2ff" : k === "tier" ? "#e89740" : k === "streak" ? TEAL : "rgba(242,237,228,0.7)";
+  const headline = (a) => {
+    if (a.kind === "pr")      return <><strong style={{ fontWeight: 500, color: INK }}>{a.lift} · {a.load}</strong> <span style={{ color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>{a.delta}</span></>;
+    if (a.kind === "run")     return <><strong style={{ fontWeight: 500, color: INK }}>{a.distance}</strong> <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "rgba(242,237,228,0.6)" }}>{a.pace} · {a.duration}</span></>;
+    if (a.kind === "workout") return <strong style={{ fontWeight: 500, color: INK }}>{a.title}</strong>;
+    if (a.kind === "tier")    return <><span style={{ color: "rgba(242,237,228,0.55)" }}>{a.from}</span> <span style={{ color: "#e89740" }}>→</span> <strong style={{ fontWeight: 500, color: INK }}>{a.to}</strong></>;
+    if (a.kind === "streak")  return <><strong style={{ fontWeight: 500, color: INK }}>{a.days}-day streak</strong></>;
+    return null;
+  };
+  const sub = (a) => {
+    if (a.kind === "workout") return `${a.duration} · with ${a.coach}`;
+    if (a.kind === "tier")    return "Tier up";
+    if (a.kind === "streak")  return "Daily reps · habits + workouts";
+    return null;
+  };
+  const label = (k) => k === "pr" ? "NEW PR" : k === "run" ? "RUN" : k === "workout" ? "WORKOUT" : k === "tier" ? "TIER UP" : k === "streak" ? "STREAK" : "";
+
+  return (
+    <section style={{ padding: "60px 72px", borderTop: "1px solid rgba(242,237,228,0.12)" }}>
+      <div style={{ maxWidth: 1320, margin: "0 auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", marginBottom: 32 }}>
+          <div>
+            <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 999, background: TEAL_BRIGHT, boxShadow: `0 0 8px ${TEAL_BRIGHT}` }}/> Live · across the network
+            </div>
+            <h2 style={{ fontFamily: serif, fontSize: 64, letterSpacing: "-0.03em", fontWeight: 400, margin: 0, lineHeight: 0.95 }}>
+              Today on <em style={{ fontStyle: "italic", color: TEAL }}>Shape</em>.
+            </h2>
+          </div>
+          <a href="/login" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.16em", color: TEAL_BRIGHT, textDecoration: "none", whiteSpace: "nowrap" }}>JOIN THE FEED →</a>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
+          {LIVE_ACTIVITY.map((a, i) => (
+            <article key={i} style={{ padding: "18px 20px", background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", color: accent(a.kind), fontWeight: 600 }}>{label(a.kind)}</span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(242,237,228,0.45)" }}>{a.ago}</span>
+              </div>
+              <div style={{ fontFamily: serif, fontSize: 18, letterSpacing: "-0.012em", lineHeight: 1.2 }}>{headline(a)}</div>
+              {sub(a) && <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)" }}>{sub(a)}</div>}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 8, borderTop: "1px solid rgba(242,237,228,0.06)", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.06em", color: "rgba(242,237,228,0.55)" }}>
+                <span>{a.who.toUpperCase()} · {a.city.toUpperCase()}</span>
+                <span style={{ color: TEAL }}>{a.tier.toUpperCase()}</span>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Events() {
   const [city, setCity] = useSC("All cities");
   const cities = ["All cities", ...new Set(EVENTS.map(e => e.city))];
@@ -341,6 +408,7 @@ function Community() {
       <div style={{ position: "relative", zIndex: 1 }}>
         <Header active="Community" />
         <HeroC />
+        <LiveActivity />
         <Events />
         <Chat />
         <Challenges />
