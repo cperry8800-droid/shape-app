@@ -115,12 +115,11 @@
   .feat-row .copy h3 { font-family: var(--serif); font-weight: 500; font-size: clamp(28px, 4vw, 38px); letter-spacing: -0.02em; line-height: 1.05; margin: 0 0 14px; }
   .feat-row .copy p { font-size: 15.5px; line-height: 1.6; color: var(--ink-2); margin: 0; }
   .feat-row .phone {
-    width: 320px; max-width: 100%; aspect-ratio: 320/660;
-    background: #1a1612; border-radius: 44px; padding: 10px;
-    box-shadow: 0 30px 80px rgba(10,13,12,0.18), 0 0 0 1.5px rgba(10,13,12,0.92);
+    width: 320px; max-width: 100%;
+    background: transparent; padding: 0;
     margin: 0 auto;
   }
-  .feat-row .phone img { width: 100%; height: 100%; border-radius: 36px; display: block; object-fit: cover; object-position: top; }
+  .feat-row .phone img { width: 100%; height: auto; display: block; }
   @media (max-width: 760px) {
     .feat-row, .feat-row.reverse { grid-template-columns: 1fr; gap: 28px; padding: 40px 0; }
     .feat-row.reverse .copy { order: 1; }
@@ -298,12 +297,13 @@
       </div>
     </div>
 
-    <div class="feat-row text-only">
+    <div class="feat-row">
       <div class="copy">
         <div class="step"><span class="n">07</span><span>SHAPE SCORE</span></div>
         <h3>Five tiers. Monthly points. Real rewards.</h3>
         <p>Raw, Tempo, Form, Peak, Legend. Earn for workouts, plan adherence, habits, PRs, community kudos. Cash them in at the Shape Store.</p>
       </div>
+      <div class="phone"><img src="/newdesign/shape%20score.png" alt="Shape Score — five-tier ladder"/></div>
     </div>
 
     <div class="feat-row reverse">
