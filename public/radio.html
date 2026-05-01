@@ -88,7 +88,7 @@
       background: radial-gradient(circle at center, rgba(45,212,191,0.05) 0%, rgba(0,0,0,0) 65%);
       filter: drop-shadow(0 0 28px rgba(45,212,191,0.18));
     }
-    .now-playing.paused .np-canvas { filter: drop-shadow(0 0 14px rgba(45,212,191,0.08)); opacity: 0.55; transition: opacity 0.4s, filter 0.4s; }
+    .now-playing.paused .np-canvas { filter: drop-shadow(0 0 18px rgba(45,212,191,0.12)); opacity: 0.85; transition: opacity 0.4s, filter 0.4s; }
 
     .hr-sync {
       display: grid; grid-template-columns: 1fr 1fr; gap: 14px 20px;
@@ -459,18 +459,25 @@
 
     function drawViz() {
       if (!vizCtx) return;
-      if (analyser) analyser.getByteFrequencyData(freqData);
+      var t = performance.now();
       var w = vizCanvas.width, h = vizCanvas.height;
-      // soft trail fade
+      var isPlaying = audio && !audio.paused && !audio.ended;
+
+      // Soft trail fade
       vizCtx.fillStyle = 'rgba(8, 10, 12, 0.18)';
       vizCtx.fillRect(0, 0, w, h);
 
       var cx = w / 2, cy = h / 2;
-      var t = performance.now();
       var avg = 0;
-      if (freqData) {
+
+      if (isPlaying && analyser) {
+        analyser.getByteFrequencyData(freqData);
         for (var k = 0; k < freqData.length; k++) avg += freqData[k];
         avg = avg / freqData.length / 255;
+      } else {
+        // Idle breathing — synthetic gentle pulse so the canvas keeps
+        // moving even when paused or before first play
+        avg = 0.10 + (Math.sin(t * 0.0008) + 1) * 0.06;
       }
 
       var rings = 14;
@@ -487,8 +494,14 @@
         vizCtx.beginPath();
         for (var i = 0; i <= segments; i++) {
           var ang = (i / segments) * Math.PI * 2 + t * rotSpeed;
-          var fIdx = freqData ? (bandStart + (i % 16)) % freqData.length : 0;
-          var f = freqData ? freqData[fIdx] / 255 : 0;
+          var f;
+          if (isPlaying && analyser && freqData) {
+            var fIdx = (bandStart + (i % 16)) % freqData.length;
+            f = freqData[fIdx] / 255;
+          } else {
+            // Idle: layered sine waves with offsets per ring + segment
+            f = 0.08 + (Math.sin(t * 0.0006 + i * 0.28 + r * 0.7) + 1) * 0.05;
+          }
           var dr = f * 32;
           var R = radius + dr;
           var x = cx + Math.cos(ang) * R;
@@ -516,13 +529,20 @@
     }
 
     function startViz() {
+      // Start the RAF loop once. drawViz() decides between idle and reactive
+      // based on audio.paused, so it keeps breathing even before first play.
+      if (!vizRunning) {
+        vizRunning = true;
+        requestAnimationFrame(drawViz);
+      }
+      // Audio graph still needs a user gesture to attach on iOS/Safari —
+      // ensure it lazily so reactive mode kicks in once playback starts.
       ensureAudioGraph();
       if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-      if (vizRunning) return;
-      vizRunning = true;
-      requestAnimationFrame(drawViz);
     }
-    function stopViz() { vizRunning = false; }
+    function stopViz() { /* keep animating; idle mode handles paused state */ }
+    // Kick off the idle animation immediately on page load.
+    if (vizCanvas) startViz();
 
     // ===== HR / BPM sync indicator =====
     var bpmValueEl = document.getElementById('bpmValue');
@@ -535,18 +555,32 @@
     var hrDemoVal = document.getElementById('hrDemoVal');
     var currentBpm = 120;
     var bpmLast = 0, hrLast = 0;
+    var locked = false;
+    var lockedAt = 0;
 
     function refreshLock() {
       var v = parseInt(hrDemo.value, 10);
       hrValueEl.textContent = v;
       hrDemoVal.textContent = v;
       var diff = Math.abs(v - currentBpm);
-      hrSync.classList.toggle('locked', diff <= 4);
-      lockBadge.textContent = diff <= 4
+      var now = performance.now();
+      // Sticky lock: enter at <=8 BPM, hold for at least 2s, only release
+      // when the user drifts >12 BPM away. Easy to land, slow to lose.
+      if (!locked && diff <= 8) {
+        locked = true;
+        lockedAt = now;
+      } else if (locked && diff > 12 && (now - lockedAt) > 2000) {
+        locked = false;
+      }
+      hrSync.classList.toggle('locked', locked);
+      lockBadge.textContent = locked
         ? 'Locked — your pace is the song'
-        : (diff <= 12 ? 'Closing in…' : 'Out of sync');
+        : (diff <= 16 ? 'Closing in…' : 'Out of sync');
     }
     if (hrDemo) hrDemo.addEventListener('input', refreshLock);
+    // Re-check periodically so the 2s minimum hold gets honored even when
+    // the slider isn't being touched.
+    setInterval(refreshLock, 500);
 
     function tickRings() {
       var now = performance.now();
