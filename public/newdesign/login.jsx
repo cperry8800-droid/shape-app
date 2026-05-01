@@ -102,11 +102,20 @@ function LoginCard() {
         }),
       }).catch(() => {});
       // Keep the user in the newdesign layout after login.
-      const nextDashboard = role === 'trainer'
+      // Honor ?next= when it points to a same-origin path, otherwise
+      // fall back to the role's dashboard.
+      let nextDashboard = role === 'trainer'
         ? '/newdesign/TrainerDashboard.html'
         : role === 'nutritionist'
           ? '/newdesign/NutritionistDashboard.html'
           : '/newdesign/ClientDashboard.html';
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const next = params.get('next');
+        if (next && next.startsWith('/') && !next.startsWith('//')) {
+          nextDashboard = next;
+        }
+      } catch (e) {}
       window.location.href = nextDashboard;
     } catch (err) {
       console.error('[login] unexpected', err);
