@@ -575,23 +575,11 @@ const DirB = (() => {
             </div>
           </div>
 
-          <div style={{ position: "relative", width: 380, margin: "0 auto" }}>
-            <div style={{ position: "absolute", inset: "-40px -60px", background: "radial-gradient(ellipse at center, rgba(30,192,168,0.10), transparent 70%)", filter: "blur(20px)", zIndex: 0 }} />
-            <div style={{ position: "relative", zIndex: 1, background: "#070707", borderRadius: 48, padding: 10, boxShadow: "0 40px 80px -30px rgba(242,237,228,0.35), 0 0 0 1px rgba(242,237,228,0.08)" }}>
-              <img
-                src="/newdesign/shape-daily-phone-home.png"
-                alt="Shape Daily client home screen"
-                style={{
-                  display: "block",
-                  width: "100%",
-                  height: 720,
-                  objectFit: "cover",
-                  objectPosition: "top",
-                  borderRadius: 40,
-                  background: "#f5f0e6"
-                }}
-              />
-            </div>
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <a href="/newdesign/GetApp.html"
+              style={{ fontFamily: sans, fontSize: 14, fontWeight: 500, letterSpacing: "0.04em", color: TEAL, padding: "14px 24px", border: `1px solid ${TEAL}`, borderRadius: 999, textDecoration: "none", whiteSpace: "nowrap" }}>
+              Get the app →
+            </a>
           </div>
         </div>
       </section>
@@ -844,21 +832,11 @@ const DirB = (() => {
     return (
       <section style={{ padding: "120px 72px 140px", background: PAPER, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "380px 1fr", gap: 100, alignItems: "center" }}>
-          <div style={{ position: "relative", width: 380, margin: "0 auto" }}>
-            <div style={{ position: "absolute", inset: "-40px -60px", background: "radial-gradient(ellipse at center, rgba(30,192,168,0.10), transparent 70%)", filter: "blur(20px)", zIndex: 0 }} />
-            <img
-              src="/newdesign/shape-daily-phone-eat.png"
-              alt="Shape Daily Eat screen"
-              style={{
-                position: "relative",
-                zIndex: 1,
-                display: "block",
-                width: "100%",
-                height: "auto",
-                borderRadius: 48,
-                boxShadow: "0 40px 80px -30px rgba(242,237,228,0.35), 0 0 0 1px rgba(242,237,228,0.08)"
-              }}
-            />
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <a href="/newdesign/GetApp.html"
+              style={{ fontFamily: sans, fontSize: 14, fontWeight: 500, letterSpacing: "0.04em", color: TEAL, padding: "14px 24px", border: `1px solid ${TEAL}`, borderRadius: 999, textDecoration: "none", whiteSpace: "nowrap" }}>
+              Get the app →
+            </a>
           </div>
 
           <div>
