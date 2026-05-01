@@ -2,11 +2,11 @@
 const { useState: useSScore } = React;
 
 const SCORE_TOTAL = 1284;
-const SCORE_GOAL = 5000;
+const SCORE_GOAL = 2000;
 const STREAK = 14;
 const TIER = "Tempo";
-const NEXT_TIER = "Peak";
-const POINTS_TO_NEXT = 3716;
+const NEXT_TIER = "Form";
+const POINTS_TO_NEXT = 716;
 
 const LEDGER = [
   { d: "Apr 18", t: "Session kept · Maya Okafor", p: 14, k: "session" },
@@ -36,10 +36,11 @@ const HEATMAP = Array.from({ length: 84 }, (_, i) => {
 });
 
 const TIERS = [
-  { name: "Raw", min: 0, color: "rgba(242,237,228,0.35)" },
-  { name: "Tempo", min: 1000, color: "rgba(242,237,228,0.85)", current: true },
-  { name: "Peak", min: 5000, color: "#0a7463" },
-  { name: "Legend", min: 15000, color: "#0ac5a8" },
+  { name: "Raw",    min: 0,     color: "rgba(242,237,228,0.35)", desc: "Starting level" },
+  { name: "Tempo",  min: 750,   color: "rgba(242,237,228,0.85)", current: true, desc: "2× redemption value" },
+  { name: "Form",   min: 2000,  color: "#e89740",                desc: "Early access drops + streak boosts" },
+  { name: "Peak",   min: 5000,  color: "#0a7463",                desc: "Priority booking + 1 free intro / mo" },
+  { name: "Legend", min: 15000, color: "#0ac5a8",                desc: "Annual store credit + tier gear" },
 ];
 
 function ScoreHero() {
@@ -112,12 +113,12 @@ function ScoreTiers() {
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>Tiers</div>
         <h2 style={{ fontFamily: serif, fontSize: 56, letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 40px", lineHeight: 1 }}>
-          You're <em style={{ fontStyle: "italic", color: TEAL }}>Tempo</em>. 3,716 to Peak.
+          You're <em style={{ fontStyle: "italic", color: TEAL }}>{TIER}</em>. {POINTS_TO_NEXT.toLocaleString()} to {NEXT_TIER}.
         </h2>
         <div style={{ position: "relative", padding: "40px 0" }}>
           <div style={{ position: "absolute", left: 0, right: 0, top: "50%", height: 2, background: "rgba(242,237,228,0.12)", transform: "translateY(-50%)" }} />
           <div style={{ position: "absolute", left: 0, top: "50%", height: 2, background: TEAL, transform: "translateY(-50%)", width: `${(SCORE_TOTAL / 15000) * 100}%` }} />
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", position: "relative" }}>
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(${TIERS.length}, 1fr)`, position: "relative" }}>
             {TIERS.map((t, i) => {
               const reached = SCORE_TOTAL >= t.min;
               const current = t.current;
@@ -129,10 +130,7 @@ function ScoreTiers() {
                   </div>
                   <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.01em", color: reached ? INK : "rgba(242,237,228,0.45)" }}>{t.name}</div>
                   <div style={{ fontFamily: sans, fontSize: 11, color: "rgba(242,237,228,0.5)", textAlign: "center", maxWidth: 160 }}>
-                    {i === 0 && "Starting level"}
-                    {i === 1 && "2× redemption value"}
-                    {i === 2 && "Priority booking + 1 free intro / mo"}
-                    {i === 3 && "Annual store credit + tier gear"}
+                    {t.desc}
                   </div>
                 </div>
               );
