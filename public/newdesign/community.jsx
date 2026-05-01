@@ -42,41 +42,229 @@ function HeroC() {
   );
 }
 
-// Live activity strip — what members are doing across the network right now.
-// Read-only marketing view of the same activity feed kinds that ClientCommunity
-// renders for signed-in members.
+// Live activity feed — Strava-style vertical feed of what members are doing
+// across the network right now. Read-only marketing view of the same activity
+// kinds that ClientCommunity renders for signed-in members.
 const LIVE_ACTIVITY = [
-  { kind: "pr",      who: "Marcus J.", city: "Brooklyn",  tier: "Tempo",  ago: "2m",  lift: "Bench Press", load: "225 lb", delta: "+10 lb" },
-  { kind: "run",     who: "Diego A.",  city: "Austin",    tier: "Form",   ago: "6m",  distance: "8.4 mi",  pace: "7:42 / mi", duration: "1h 04m" },
-  { kind: "workout", who: "Elena R.",  city: "London",    tier: "Peak",   ago: "11m", title: "Lower strength · Block 3", duration: "52 min", coach: "Maya" },
-  { kind: "tier",    who: "Ana P.",    city: "Miami",     tier: "Tempo",  ago: "18m", from: "Raw",   to: "Tempo" },
-  { kind: "streak",  who: "Yuki A.",   city: "Tokyo",     tier: "Form",   ago: "24m", days: 21 },
-  { kind: "pr",      who: "Tomás R.",  city: "Miami",     tier: "Peak",   ago: "31m", lift: "Deadlift",     load: "405 lb", delta: "+15 lb" },
-  { kind: "run",     who: "Mel T.",    city: "Stockholm", tier: "Tempo",  ago: "42m", distance: "5 km",     pace: "5:08 / km", duration: "25:40" },
-  { kind: "workout", who: "Jonah W.",  city: "Brooklyn",  tier: "Tempo",  ago: "1h",  title: "Upper push · taper",         duration: "38 min", coach: "Maya" },
+  {
+    kind: "pr", who: "Marcus J.", city: "Brooklyn, NY", tier: "Tempo", ago: "2m",
+    avatarHue: 160,
+    body: "Eight months in. First time the bar moved this clean.",
+    lift: "Bench Press", load: "225 lb", delta: "+10 lb", sets: [["1", "5 × 5 @ 185"], ["2", "3 × 3 @ 205"], ["TOP", "1 × 5 @ 225 ✓"]],
+    kudos: 142, replies: 18, coach: "Maya Okafor",
+  },
+  {
+    kind: "run", who: "Diego A.", city: "Austin, TX", tier: "Form", ago: "6m",
+    avatarHue: 184,
+    body: "Easy long. Brooklyn Half is Sunday — taper feels good.",
+    distance: "8.4 mi", pace: "7:42 / mi", duration: "1h 04m", elev: "+412 ft", hr: "152 avg",
+    splits: [7.8, 7.6, 7.7, 7.4, 7.5, 7.8, 7.6, 7.9],
+    coach: "Diego solo",
+  },
+  {
+    kind: "workout", who: "Elena R.", city: "London, UK", tier: "Peak", ago: "11m",
+    avatarHue: 120,
+    body: "Squats felt locked in today. RPE 8 across the board, no missed reps.",
+    title: "Lower strength · Block 3", duration: "52 min", exercises: 6, rpe: 8.5,
+    moves: [["Back squat", "5 × 5 @ 185 lb"], ["RDL", "4 × 8 @ 155 lb"], ["Lunge", "3 × 12 ea"], ["Leg curl", "3 × 12"]],
+    coach: "Maya Okafor",
+  },
+  {
+    kind: "tier", who: "Ana P.", city: "Miami, FL", tier: "Tempo", ago: "18m",
+    avatarHue: 14,
+    body: "Three weeks in. Tempo unlocked — 2× redemption value at the store, here we come.",
+    from: "Raw", to: "Tempo", earnedThisMonth: 752,
+  },
+  {
+    kind: "streak", who: "Yuki A.", city: "Tokyo, JP", tier: "Form", ago: "24m",
+    avatarHue: 280,
+    body: "Three weeks straight. Sunday-night protein prep is the unlock.",
+    days: 21,
+  },
+  {
+    kind: "pr", who: "Tomás R.", city: "Miami, FL", tier: "Peak", ago: "31m",
+    avatarHue: 200,
+    body: "Conventional, no belt. Felt like nothing.",
+    lift: "Deadlift", load: "405 lb", delta: "+15 lb", sets: [["WARM", "5 × 5 @ 245"], ["BUILD", "3 × 3 @ 335"], ["TOP", "1 × 1 @ 405 ✓"]],
+    coach: "Tomás Reyes",
+  },
 ];
 
-function LiveActivity() {
-  const accent = (k) => k === "pr" ? TEAL_BRIGHT : k === "run" ? "#9ab2ff" : k === "tier" ? "#e89740" : k === "streak" ? TEAL : "rgba(242,237,228,0.7)";
-  const headline = (a) => {
-    if (a.kind === "pr")      return <><strong style={{ fontWeight: 500, color: INK }}>{a.lift} · {a.load}</strong> <span style={{ color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>{a.delta}</span></>;
-    if (a.kind === "run")     return <><strong style={{ fontWeight: 500, color: INK }}>{a.distance}</strong> <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "rgba(242,237,228,0.6)" }}>{a.pace} · {a.duration}</span></>;
-    if (a.kind === "workout") return <strong style={{ fontWeight: 500, color: INK }}>{a.title}</strong>;
-    if (a.kind === "tier")    return <><span style={{ color: "rgba(242,237,228,0.55)" }}>{a.from}</span> <span style={{ color: "#e89740" }}>→</span> <strong style={{ fontWeight: 500, color: INK }}>{a.to}</strong></>;
-    if (a.kind === "streak")  return <><strong style={{ fontWeight: 500, color: INK }}>{a.days}-day streak</strong></>;
-    return null;
-  };
-  const sub = (a) => {
-    if (a.kind === "workout") return `${a.duration} · with ${a.coach}`;
-    if (a.kind === "tier")    return "Tier up";
-    if (a.kind === "streak")  return "Daily reps · habits + workouts";
-    return null;
-  };
-  const label = (k) => k === "pr" ? "NEW PR" : k === "run" ? "RUN" : k === "workout" ? "WORKOUT" : k === "tier" ? "TIER UP" : k === "streak" ? "STREAK" : "";
-
+function Avatar({ name, hue = 180, size = 38 }) {
+  const initial = (name || "?").trim()[0].toUpperCase();
   return (
-    <section style={{ padding: "60px 72px", borderTop: "1px solid rgba(242,237,228,0.12)" }}>
-      <div style={{ maxWidth: 1320, margin: "0 auto" }}>
+    <div style={{ width: size, height: size, borderRadius: 999, flexShrink: 0,
+      background: `linear-gradient(135deg, hsl(${hue},45%,38%), hsl(${(hue+30)%360},55%,22%))`,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontFamily: serif, fontSize: size * 0.42, color: "rgba(242,237,228,0.92)", letterSpacing: "-0.02em" }}>
+      {initial}
+    </div>
+  );
+}
+
+function ActivityHeader({ a }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+      <Avatar name={a.who} hue={a.avatarHue} size={42} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 15, fontWeight: 500, color: INK }}>{a.who}</div>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.1em", color: TEAL_BRIGHT }}>{a.tier.toUpperCase()}</span>
+        </div>
+        <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 2 }}>
+          {a.city} · {a.ago} ago{a.coach ? ` · with ${a.coach}` : ""}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PRCard({ a }) {
+  return (
+    <>
+      <div style={{ fontFamily: serif, fontSize: 32, letterSpacing: "-0.025em", lineHeight: 1.05, color: INK, marginBottom: 12 }}>
+        {a.lift} · <span style={{ color: TEAL_BRIGHT }}>{a.load}</span>
+      </div>
+      {a.body && <div style={{ fontSize: 14.5, color: "rgba(242,237,228,0.85)", lineHeight: 1.5, marginBottom: 18 }}>{a.body}</div>}
+      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 16, alignItems: "stretch", padding: "16px 18px", background: "rgba(46,224,196,0.06)", border: "1px solid rgba(46,224,196,0.2)", borderRadius: 10 }}>
+        <div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.18em", color: TEAL_BRIGHT, fontWeight: 600 }}>NEW PR</div>
+          <div style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", lineHeight: 1, marginTop: 6, color: INK }}>{a.delta}</div>
+        </div>
+        <div style={{ paddingLeft: 18, borderLeft: "1px solid rgba(46,224,196,0.18)" }}>
+          {a.sets && a.sets.map(([label, line], i) => (
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "60px 1fr", gap: 10, padding: "4px 0", fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, letterSpacing: "0.04em" }}>
+              <span style={{ color: "rgba(242,237,228,0.5)" }}>{label}</span>
+              <span style={{ color: "rgba(242,237,228,0.85)" }}>{line}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function RunCard({ a }) {
+  // Build an SVG "splits" sparkline from per-mile paces (lower = faster, draw inverted).
+  const max = Math.max(...a.splits), min = Math.min(...a.splits);
+  const W = 600, H = 90;
+  const pts = a.splits.map((p, i) => {
+    const x = (i / (a.splits.length - 1)) * W;
+    const y = H - ((max - p) / (max - min || 1)) * (H - 12) - 6;
+    return [x, y];
+  });
+  const path = pts.map(([x, y], i) => (i === 0 ? `M ${x} ${y}` : `L ${x} ${y}`)).join(" ");
+  return (
+    <>
+      {a.body && <div style={{ fontSize: 14.5, color: "rgba(242,237,228,0.85)", lineHeight: 1.5, marginBottom: 16 }}>{a.body}</div>}
+      <div style={{ padding: "16px 18px 14px", background: "linear-gradient(100deg, rgba(106,140,255,0.10) 0%, rgba(242,237,228,0.04) 70%)", border: "1px solid rgba(106,140,255,0.22)", borderRadius: 10 }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", color: "#9ab2ff", fontWeight: 600, marginBottom: 10 }}>RUN</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14, marginBottom: 14 }}>
+          {[["DIST", a.distance], ["PACE", a.pace], ["TIME", a.duration], ["ELEV", a.elev], ["HR", a.hr]].map(([l, v]) => (
+            <div key={l}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.12em", color: "rgba(242,237,228,0.5)" }}>{l}</div>
+              <div style={{ fontFamily: serif, fontSize: 18, letterSpacing: "-0.015em", color: INK, marginTop: 2, lineHeight: 1 }}>{v}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ background: "rgba(0,0,0,0.25)", borderRadius: 6, padding: "10px 12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.12em", color: "rgba(242,237,228,0.5)" }}>
+            <span>SPLITS · MIN/MI</span>
+            <span>{a.splits.length} miles</span>
+          </div>
+          <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="60" preserveAspectRatio="none">
+            <path d={path} stroke="#9ab2ff" strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+            {pts.map(([x, y], i) => <circle key={i} cx={x} cy={y} r="3" fill="#9ab2ff"/>)}
+          </svg>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function WorkoutCard({ a }) {
+  return (
+    <>
+      {a.body && <div style={{ fontSize: 14.5, color: "rgba(242,237,228,0.85)", lineHeight: 1.5, marginBottom: 16 }}>{a.body}</div>}
+      <div style={{ padding: "16px 18px", background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10 }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}>
+          <div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", color: TEAL_BRIGHT, fontWeight: 600, marginBottom: 4 }}>WORKOUT LOGGED</div>
+            <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.015em", color: INK }}>{a.title}</div>
+          </div>
+          <div style={{ display: "flex", gap: 14, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.6)", letterSpacing: "0.06em", flexShrink: 0 }}>
+            <span>{a.duration.toUpperCase()}</span><span>{a.exercises} EX</span><span>RPE {a.rpe}</span>
+          </div>
+        </div>
+        <div>
+          {a.moves && a.moves.map(([name, line], i) => (
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, padding: "8px 0", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)", fontSize: 13.5 }}>
+              <span style={{ color: "rgba(242,237,228,0.85)" }}>{name}</span>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: "rgba(242,237,228,0.6)", letterSpacing: "0.04em" }}>{line}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function TierCard({ a }) {
+  return (
+    <>
+      {a.body && <div style={{ fontSize: 14.5, color: "rgba(242,237,228,0.85)", lineHeight: 1.5, marginBottom: 16 }}>{a.body}</div>}
+      <div style={{ padding: "20px 22px", background: "rgba(193,100,31,0.08)", border: "1px solid rgba(193,100,31,0.28)", borderRadius: 10 }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.18em", color: "#e89740", fontWeight: 600, marginBottom: 10 }}>TIER UP</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
+          <span style={{ fontFamily: serif, fontSize: 28, letterSpacing: "-0.015em", color: "rgba(242,237,228,0.5)" }}>{a.from}</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 18, color: "#e89740" }}>→</span>
+          <span style={{ fontFamily: serif, fontSize: 38, letterSpacing: "-0.025em", color: INK }}>{a.to}</span>
+          <span style={{ marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: "rgba(242,237,228,0.6)", letterSpacing: "0.06em" }}>{a.earnedThisMonth.toLocaleString()} PTS THIS MONTH</span>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function StreakCard({ a }) {
+  return (
+    <>
+      {a.body && <div style={{ fontSize: 14.5, color: "rgba(242,237,228,0.85)", lineHeight: 1.5, marginBottom: 16 }}>{a.body}</div>}
+      <div style={{ padding: "16px 18px", background: "rgba(46,224,196,0.07)", border: "1px solid rgba(46,224,196,0.2)", borderRadius: 10, display: "grid", gridTemplateColumns: "auto 1fr", gap: 22, alignItems: "center" }}>
+        <div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.18em", color: TEAL_BRIGHT, fontWeight: 600 }}>STREAK</div>
+          <div style={{ fontFamily: serif, fontSize: 38, letterSpacing: "-0.02em", lineHeight: 1, marginTop: 6, color: INK }}>{a.days}d</div>
+        </div>
+        <div style={{ display: "flex", gap: 4 }}>
+          {Array.from({ length: 28 }).map((_, i) => (
+            <div key={i} style={{ flex: 1, height: 36, borderRadius: 3, background: i < a.days ? TEAL : "rgba(242,237,228,0.06)" }} />
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function ActivityFooter() {
+  return (
+    <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.06)", display: "flex", gap: 22, alignItems: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)", letterSpacing: "0.08em" }}>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 10.2S1.5 7.5 1.5 4.5a2.5 2.5 0 0 1 4.5-1.5 2.5 2.5 0 0 1 4.5 1.5c0 3-4.5 5.7-4.5 5.7Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/></svg>
+        KUDOS
+      </span>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 5.5a3 3 0 0 1 3-3h4a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H5l-2.5 2V7a2.5 2.5 0 0 1-.5-1.5Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/></svg>
+        REPLY
+      </span>
+      <span style={{ marginLeft: "auto", color: TEAL }}>SIGN IN TO ENGAGE →</span>
+    </div>
+  );
+}
+
+function LiveActivity() {
+  return (
+    <section style={{ padding: "60px 72px 40px", borderTop: "1px solid rgba(242,237,228,0.12)" }}>
+      <div style={{ maxWidth: 980, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", marginBottom: 32 }}>
           <div>
             <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
@@ -86,23 +274,26 @@ function LiveActivity() {
               Today on <em style={{ fontStyle: "italic", color: TEAL }}>Shape</em>.
             </h2>
           </div>
-          <a href="/login" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.16em", color: TEAL_BRIGHT, textDecoration: "none", whiteSpace: "nowrap" }}>JOIN THE FEED →</a>
+          <a href="/newdesign/Login.html" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.16em", color: TEAL_BRIGHT, textDecoration: "none", whiteSpace: "nowrap" }}>JOIN THE FEED →</a>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {LIVE_ACTIVITY.map((a, i) => (
-            <article key={i} style={{ padding: "18px 20px", background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 10 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", color: accent(a.kind), fontWeight: 600 }}>{label(a.kind)}</span>
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(242,237,228,0.45)" }}>{a.ago}</span>
-              </div>
-              <div style={{ fontFamily: serif, fontSize: 18, letterSpacing: "-0.012em", lineHeight: 1.2 }}>{headline(a)}</div>
-              {sub(a) && <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)" }}>{sub(a)}</div>}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 8, borderTop: "1px solid rgba(242,237,228,0.06)", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.06em", color: "rgba(242,237,228,0.55)" }}>
-                <span>{a.who.toUpperCase()} · {a.city.toUpperCase()}</span>
-                <span style={{ color: TEAL }}>{a.tier.toUpperCase()}</span>
-              </div>
+            <article key={i} style={{ padding: "22px 24px", background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 12 }}>
+              <ActivityHeader a={a} />
+              {a.kind === "pr"      && <PRCard a={a} />}
+              {a.kind === "run"     && <RunCard a={a} />}
+              {a.kind === "workout" && <WorkoutCard a={a} />}
+              {a.kind === "tier"    && <TierCard a={a} />}
+              {a.kind === "streak"  && <StreakCard a={a} />}
+              <ActivityFooter />
             </article>
           ))}
+        </div>
+
+        <div style={{ marginTop: 28, textAlign: "center" }}>
+          <a href="/newdesign/Login.html" style={{ display: "inline-block", padding: "14px 28px", borderRadius: 999, background: TEAL, color: PAPER, fontFamily: sans, fontSize: 13.5, fontWeight: 500, letterSpacing: "0.04em", textDecoration: "none" }}>Join the feed</a>
+          <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.45)" }}>FREE WITH ANY SHAPE MEMBERSHIP</div>
         </div>
       </div>
     </section>
