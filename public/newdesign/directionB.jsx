@@ -575,11 +575,23 @@ const DirB = (() => {
             </div>
           </div>
 
-          <div style={{ display: "flex", justifyContent: "center" }}>
-            <a href="/newdesign/GetApp.html"
-              style={{ fontFamily: sans, fontSize: 14, fontWeight: 500, letterSpacing: "0.04em", color: TEAL, padding: "14px 24px", border: `1px solid ${TEAL}`, borderRadius: 999, textDecoration: "none", whiteSpace: "nowrap" }}>
-              Get the app →
-            </a>
+          <div style={{ position: "relative", width: 380, margin: "0 auto" }}>
+            <div style={{ position: "absolute", inset: "-40px -60px", background: "radial-gradient(ellipse at center, rgba(30,192,168,0.10), transparent 70%)", filter: "blur(20px)", zIndex: 0 }} />
+            <div style={{ position: "relative", zIndex: 1, background: "#070707", borderRadius: 48, padding: 10, boxShadow: "0 40px 80px -30px rgba(242,237,228,0.35), 0 0 0 1px rgba(242,237,228,0.08)" }}>
+              <img
+                src="/newdesign/shape-daily-phone-home.png"
+                alt="Shape Daily client home screen"
+                style={{
+                  display: "block",
+                  width: "100%",
+                  height: 720,
+                  objectFit: "cover",
+                  objectPosition: "top",
+                  borderRadius: 40,
+                  background: "#f5f0e6"
+                }}
+              />
+            </div>
           </div>
         </div>
       </section>
