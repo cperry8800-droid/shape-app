@@ -61,6 +61,7 @@ const SHAPE_NAV_GROUPS = [
   { kind: "link", label: "Community", href: "Community.html" },
   { kind: "drop", label: "Rewards", match: ["Rewards", "Shape Score", "Store"], items: [["Shape Score", "Score.html"], ["Shape Store", "Store.html"]] },
   { kind: "link", label: "Radio", href: "Radio.html" },
+  { kind: "link", label: "App", href: "GetApp.html" },
   { kind: "link", label: "Pricing", href: "Pricing.html" },
 ];
 
@@ -163,6 +164,7 @@ function Header({ active }) {
           {link("Community", "Community.html")}
           <NavDropdown label="Rewards" active={active} activeMatch={["Rewards", "Shape Score", "Store"]} items={[["Shape Score", "Score.html"], ["Shape Store", "Store.html"]]} />
           {link("Radio", "Radio.html")}
+          {link("App", "GetApp.html")}
           {link("Pricing", "Pricing.html")}
         </nav>
         <div className="shape-nav-auth" style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>
