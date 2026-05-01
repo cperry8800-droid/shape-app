@@ -669,9 +669,8 @@
     // prev/next buttons still work to switch tracks deliberately.
     audio.loop = true;
     audio.addEventListener('error', function () {
-      console.warn('[shape-radio] track failed, skipping:', audio.src);
-      loadTrack(trackIndex + 1);
-      audio.play().catch(function () { syncPlayUI(false); });
+      console.warn('[shape-radio] track failed:', audio.src);
+      syncPlayUI(false);
     });
 
     volumeSlider.addEventListener('input', function () {
