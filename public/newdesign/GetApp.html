@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Get the Shape App — iOS &amp; Android</title>
+<meta name="description" content="Shape is an iPhone and Android app for finding vetted trainers and nutritionists, booking intro calls, and keeping workouts, nutrition notes, messages, and progress in one place." />
+<link rel="canonical" href="https://theshapecommunity.com/newdesign/GetApp.html">
+<meta property="og:title" content="Get the Shape App — iOS &amp; Android" />
+<meta property="og:description" content="Find your coach. Train. Eat. Recover. The Shape app keeps a real human coach in your pocket." />
+<meta name="theme-color" content="#efe5cd">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper: #efe5cd;
+    --paper-2: #e6dabe;
+    --paper-3: #f7f1e3;
+    --ink: #0a0d0c;
+    --ink-2: rgba(10,13,12,0.6);
+    --ink-3: rgba(10,13,12,0.4);
+    --teal: #0aa090;
+    --teal-bright: #14c0a8;
+    --orange: #c1641f;
+    --orange-bright: #d97706;
+    --pill-green: #4f8a5a;
+    --pill-purple: #7355a8;
+    --pill-red: #b8442a;
+    --hairline: rgba(10,13,12,0.1);
+    --hairline-2: rgba(10,13,12,0.06);
+    --serif: 'Fraunces', serif;
+    --sans: 'Space Grotesk', sans-serif;
+    --mono: 'JetBrains Mono', monospace;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+  img { display: block; max-width: 100%; }
+  a { color: inherit; text-decoration: none; }
+  button { font-family: inherit; cursor: pointer; }
+  ::selection { background: var(--teal); color: var(--paper); }
+
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+  /* Header */
+  .nav { position: sticky; top: 0; z-index: 50; background: rgba(239,229,205,0.85); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid var(--hairline-2); }
+  .nav-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; gap: 16px; }
+  .brand { display: inline-flex; align-items: center; gap: 10px; font-family: var(--serif); font-size: 19px; font-weight: 500; letter-spacing: -0.01em; }
+  .brand-mark { width: 26px; height: 26px; border-radius: 6px; background: #0a3d35; display: inline-flex; align-items: center; justify-content: center; color: var(--paper); font-family: var(--mono); font-size: 13px; font-weight: 600; }
+  .nav-back { font-size: 13px; color: var(--ink-2); }
+  .nav-back:hover { color: var(--ink); }
+
+  /* Hero */
+  .hero { padding: 48px 0 32px; text-align: center; }
+  .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 0.18em; color: var(--teal); text-transform: uppercase; margin-bottom: 18px; }
+  h1.hero-title { font-family: var(--serif); font-weight: 500; font-size: clamp(40px, 9vw, 64px); letter-spacing: -0.035em; line-height: 0.95; margin: 0 0 18px; }
+  .hero-sub { font-size: 16px; line-height: 1.55; color: var(--ink-2); max-width: 520px; margin: 0 auto 28px; }
+
+  /* Store buttons */
+  .store-row { display: inline-flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .store-btn { display: inline-flex; align-items: center; gap: 12px; padding: 12px 18px; border-radius: 12px; background: var(--ink); color: var(--paper); font-size: 13px; font-weight: 500; line-height: 1.1; text-align: left; }
+  .store-btn .glyph { font-size: 24px; line-height: 0; flex: none; }
+  .store-btn small { display: block; font-size: 9.5px; letter-spacing: 0.06em; opacity: 0.75; margin-bottom: 1px; }
+  .store-btn b { font-weight: 600; font-size: 14.5px; letter-spacing: -0.005em; }
+  .store-note { display: block; margin-top: 14px; font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.12em; color: var(--ink-3); text-transform: uppercase; }
+
+  /* Phone preview */
+  .phone-frame {
+    margin: 36px auto 0; width: min(320px, 86vw); aspect-ratio: 320/640;
+    background: #1a1612; border-radius: 44px; padding: 10px;
+    box-shadow: 0 30px 80px rgba(10,13,12,0.18), 0 0 0 1.5px rgba(10,13,12,0.92);
+    position: relative;
+  }
+  .phone-screen { width: 100%; height: 100%; border-radius: 36px; overflow: hidden; background: var(--paper-3); position: relative; padding: 38px 14px 70px; }
+  .phone-notch { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); width: 88px; height: 22px; background: #1a1612; border-radius: 999px; z-index: 5; }
+  .pcard { background: #efe7d3; border-radius: 14px; padding: 16px 14px; margin-bottom: 12px; color: var(--ink); }
+  .ppill { display: inline-block; padding: 3px 9px; border-radius: 5px; font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.1em; font-weight: 600; text-transform: uppercase; color: #fff; background: var(--orange-bright); }
+  .pmono { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.1em; color: var(--teal); margin-top: 8px; }
+  .ptitle { font-family: var(--serif); font-weight: 500; font-size: 26px; line-height: 1; letter-spacing: -0.025em; margin: 8px 0 6px; color: var(--ink); }
+  .pcopy { font-size: 11px; line-height: 1.45; color: var(--ink-2); }
+  .ptab { position: absolute; bottom: 10px; left: 10px; right: 10px; background: rgba(239,231,211,0.95); border-top: 1px solid var(--hairline-2); padding: 8px 6px 14px; border-radius: 0 0 32px 32px; display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; }
+  .ptab .t { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 0; border-radius: 6px; color: var(--ink); }
+  .ptab .t.on { background: var(--ink); color: var(--paper); }
+  .ptab .t .n { font-family: var(--mono); font-size: 8.5px; opacity: 0.55; }
+  .ptab .t.on .n { opacity: 1; }
+  .ptab .t .l { font-family: var(--mono); font-size: 7.5px; letter-spacing: 0.08em; }
+  .psection-bar { display: flex; align-items: center; gap: 8px; padding: 4px 0; margin: 6px 2px; }
+  .psection-bar::before { content: ''; width: 3px; height: 12px; background: var(--orange-bright); }
+  .psection-bar .lbl { font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em; font-weight: 600; }
+  .prow { display: grid; grid-template-columns: 24px 1fr auto; gap: 8px; padding: 8px 4px; border-top: 1px solid var(--hairline-2); align-items: center; }
+  .prow:first-of-type { border-top: 0; }
+  .prow .num { font-family: var(--mono); font-size: 9.5px; color: var(--ink-3); }
+  .prow .name { font-size: 11.5px; font-weight: 500; }
+  .prow .meta { font-family: var(--mono); font-size: 9px; color: var(--ink-3); margin-top: 1px; }
+  .prow .load { font-family: var(--mono); font-size: 10px; color: var(--ink); }
+  .prow .load.pr { color: var(--teal); }
+
+  /* Features */
+  .features { padding: 64px 0 32px; }
+  .features h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(34px, 6.4vw, 48px); letter-spacing: -0.025em; line-height: 1; margin: 0 0 32px; text-align: center; }
+  .feat-list { display: grid; gap: 0; }
+  .feat { padding: 22px 0; border-top: 1px solid var(--hairline-2); display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: start; }
+  .feat:first-child { border-top: 0; padding-top: 0; }
+  .feat .ix { font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; color: var(--orange); margin-top: 4px; min-width: 28px; }
+  .feat h3 { font-family: var(--serif); font-weight: 500; font-size: 22px; letter-spacing: -0.015em; line-height: 1.1; margin: 0 0 6px; }
+  .feat p { font-size: 14px; line-height: 1.55; color: var(--ink-2); margin: 0; }
+  @media (min-width: 720px) {
+    .feat-list { grid-template-columns: 1fr 1fr; gap: 0 40px; }
+    .feat:nth-child(2) { padding-top: 0; border-top: 0; }
+  }
+
+  /* Why band */
+  .why { background: var(--paper-2); padding: 60px 0; margin-top: 32px; border-top: 1px solid var(--hairline-2); border-bottom: 1px solid var(--hairline-2); }
+  .why h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(30px, 5.4vw, 42px); letter-spacing: -0.025em; line-height: 1.05; margin: 0 0 14px; }
+  .why p { font-size: 15px; line-height: 1.6; color: var(--ink-2); margin: 0; max-width: 540px; }
+  .why .cols { display: grid; gap: 28px; }
+  @media (min-width: 720px) { .why .cols { grid-template-columns: 1fr 1fr; gap: 56px; } }
+
+  /* FAQ */
+  .faq { padding: 60px 0; }
+  .faq h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(30px, 5.4vw, 42px); letter-spacing: -0.025em; line-height: 1; margin: 0 0 28px; text-align: center; }
+  .qa { padding: 16px 0; border-top: 1px solid var(--hairline-2); cursor: pointer; }
+  .qa:first-of-type { border-top: 1px solid var(--hairline-2); }
+  .qa summary { list-style: none; display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+  .qa summary::-webkit-details-marker { display: none; }
+  .qa h4 { font-family: var(--serif); font-size: 18px; letter-spacing: -0.01em; font-weight: 500; margin: 0; line-height: 1.3; flex: 1; }
+  .qa .arr { font-family: var(--mono); font-size: 16px; color: var(--teal); transition: transform 0.2s; }
+  .qa[open] .arr { transform: rotate(45deg); }
+  .qa p { font-size: 14px; line-height: 1.55; color: var(--ink-2); margin: 12px 0 0; }
+
+  /* Final CTA */
+  .cta { text-align: center; padding: 60px 0 40px; }
+  .cta h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(34px, 6.4vw, 48px); letter-spacing: -0.025em; line-height: 1; margin: 6px 0 18px; }
+  .cta .eyebrow { color: var(--orange); }
+  .cta p { font-size: 15px; color: var(--ink-2); max-width: 480px; margin: 0 auto 22px; line-height: 1.55; }
+
+  /* Footer */
+  footer { padding: 28px 0 40px; border-top: 1px solid var(--hairline-2); font-size: 12.5px; color: var(--ink-3); }
+  .foot-row { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .foot-row a:hover { color: var(--ink); }
+  .foot-links { display: flex; gap: 22px; }
+  @media (max-width: 540px) { .foot-row { justify-content: center; text-align: center; } .foot-links { gap: 16px; } }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-row">
+    <a href="/newdesign/index.html" class="brand"><span class="brand-mark">+</span>Shape</a>
+    <a href="/newdesign/index.html" class="nav-back">← Shape home</a>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <div class="eyebrow">iOS · Android · coming soon</div>
+    <h1 class="hero-title">The Shape app,<br/>in your pocket.</h1>
+    <p class="hero-sub">Find a vetted trainer or nutritionist. Book a session. Keep your workouts, meals, habits, messages, and Shape Score in one place. Built for the daily loop, not the dashboard.</p>
+    <div class="store-row">
+      <a href="#notify" class="store-btn">
+        <span class="glyph"></span>
+        <span><small>Coming soon on</small><b>App Store</b></span>
+      </a>
+      <a href="#notify" class="store-btn" style="background:transparent;color:var(--ink);border:1px solid var(--hairline);">
+        <span class="glyph">▶</span>
+        <span><small>Coming soon on</small><b>Google Play</b></span>
+      </a>
+    </div>
+    <span class="store-note">Free with any Shape membership · $5/mo</span>
+
+    <div class="phone-frame">
+      <div class="phone-notch"></div>
+      <div class="phone-screen">
+        <div class="pcard">
+          <span class="ppill">FEATURE</span>
+          <div class="pmono">52 MIN · RPE 8</div>
+          <div class="ptitle">Upper Pull —<br/>Peak.</div>
+          <div class="pcopy">Three weeks of intent has bought one chance to test. Bar speed, not load, decides the rep.</div>
+          <div style="display:flex;gap:6px;margin-top:14px;">
+            <span style="background:var(--ink);color:var(--paper);padding:7px 12px;border-radius:6px;font-family:var(--mono);font-size:9.5px;letter-spacing:0.14em;font-weight:600;">START SESSION →</span>
+            <span style="background:transparent;color:var(--ink);padding:7px 12px;border-radius:6px;font-family:var(--mono);font-size:9.5px;letter-spacing:0.14em;font-weight:600;border:1px solid var(--hairline);">PREVIEW</span>
+          </div>
+        </div>
+        <div class="psection-bar"><span class="lbl">THE CARD</span></div>
+        <div class="prow"><span class="num">01</span><div><div class="name">Pull-up</div><div class="meta">4 × 6-8 · 3:00</div></div><span class="load pr">+42 LB</span></div>
+        <div class="prow"><span class="num">02</span><div><div class="name">Barbell row</div><div class="meta">4 × 8 · 2:00</div></div><span class="load">155 LB</span></div>
+        <div class="prow"><span class="num">03</span><div><div class="name">Chest-sup. row</div><div class="meta">3 × 10 · 1:30</div></div><span class="load">60 LB</span></div>
+        <div class="prow"><span class="num">04</span><div><div class="name">Face pull</div><div class="meta">3 × 15 · 1:00</div></div><span class="load">35 LB</span></div>
+      </div>
+      <div class="ptab">
+        <div class="t"><span class="n">01</span><span class="l">HOME</span></div>
+        <div class="t"><span class="n">02</span><span class="l">CAL</span></div>
+        <div class="t on"><span class="n">03</span><span class="l">TRAIN</span></div>
+        <div class="t"><span class="n">04</span><span class="l">EAT</span></div>
+        <div class="t"><span class="n">05</span><span class="l">CHAT</span></div>
+        <div class="t"><span class="n">06</span><span class="l">ME</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="features">
+  <div class="wrap">
+    <h2>Everything Shape, in one app.</h2>
+    <div class="feat-list">
+      <div class="feat">
+        <div class="ix">01</div>
+        <div><h3>Train</h3><p>Coach-programmed sessions land on your phone the night before. Log sets in two taps. Bar speed and RPE flow back to your trainer for next-week's plan.</p></div>
+      </div>
+      <div class="feat">
+        <div class="ix">02</div>
+        <div><h3>Eat</h3><p>Daily meal plans and macro tracking. Recipe of the day, cook-along playlists from your nutritionist, and templates for fast-week chaos.</p></div>
+      </div>
+      <div class="feat">
+        <div class="ix">03</div>
+        <div><h3>Habits</h3><p>Do's, don'ts, streaks. Tap to log. Earn Shape Score for every check.</p></div>
+      </div>
+      <div class="feat">
+        <div class="ix">04</div>
+        <div><h3>Score</h3><p>Five tiers — Raw, Tempo, Form, Peak, Legend. Earn monthly points for workouts, plan adherence, habits, PRs, community kudos. Cash them in at the Shape Store.</p></div>
+      </div>
+      <div class="feat">
+        <div class="ix">05</div>
+        <div><h3>Radio</h3><p>Live music for training, curated by your coach. Heart the good ones, send to friends, locked to your heart-rate zone.</p></div>
+      </div>
+      <div class="feat">
+        <div class="ix">06</div>
+        <div><h3>Chat</h3><p>One-tap messaging with your trainer, nutritionist, and training partners. No app switching, no inbox archaeology.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="why">
+  <div class="wrap cols">
+    <div>
+      <div class="eyebrow">Why an app</div>
+      <h2>Real coaches.<br/>Real plans.<br/>Pocket-sized.</h2>
+    </div>
+    <div>
+      <p>Shape isn't a chatbot. Every program is written by a vetted trainer or nutritionist who reads your logs, asks how you're feeling, and adjusts each week. The app keeps that loop tight — daily.</p>
+      <p style="margin-top:14px;">Your data stays yours. Wearables sync. Coaches see what you let them.</p>
+    </div>
+  </div>
+</section>
+
+<section class="faq">
+  <div class="wrap">
+    <h2>Common questions.</h2>
+    <details class="qa">
+      <summary><h4>When does the app launch?</h4><span class="arr">+</span></summary>
+      <p>iOS first — TestFlight beta this quarter, App Store launch shortly after. Android follows. Drop your email below and we'll send the link the day it ships.</p>
+    </details>
+    <details class="qa">
+      <summary><h4>Is it free?</h4><span class="arr">+</span></summary>
+      <p>The app is included with any Shape membership ($5/mo). Sessions with coaches are billed separately at their listed rate.</p>
+    </details>
+    <details class="qa">
+      <summary><h4>What if I already use the website?</h4><span class="arr">+</span></summary>
+      <p>Your account, coaches, plans, history, and Shape Score all carry over. Sign in to the app with the same email — the data shows up.</p>
+    </details>
+    <details class="qa">
+      <summary><h4>Does it work with Apple Health, Whoop, Garmin?</h4><span class="arr">+</span></summary>
+      <p>Yes. HealthKit on iOS, plus first-party integrations with Whoop, Garmin, and Strava. Heart rate, sleep, and workout data flow into the app and back to your coach.</p>
+    </details>
+    <details class="qa">
+      <summary><h4>Will my coach reach me through the app?</h4><span class="arr">+</span></summary>
+      <p>Direct messages, weekly check-ins, and timestamped reactions on your workouts and meals — all in-app. Push notifications opt-in, of course.</p>
+    </details>
+  </div>
+</section>
+
+<section class="cta" id="notify">
+  <div class="wrap">
+    <div class="eyebrow">Coming soon</div>
+    <h2>Be the first to download.</h2>
+    <p>We'll send the App Store link the day it ships. Nothing else, ever.</p>
+    <div class="store-row">
+      <a href="/signup-client.html" class="store-btn"><span class="glyph"></span><span><small>Notify me on</small><b>App Store</b></span></a>
+      <a href="/signup-client.html" class="store-btn" style="background:transparent;color:var(--ink);border:1px solid var(--hairline);"><span class="glyph">▶</span><span><small>Notify me on</small><b>Google Play</b></span></a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot-row">
+    <div>© 2026 Shape · Find your coach.</div>
+    <div class="foot-links">
+      <a href="/newdesign/index.html">Home</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="/contact">Contact</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
