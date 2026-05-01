@@ -1,5 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 120" width="760" height="120" aria-label="Shape Radio">
-  <text x="20" y="86" font-family="Inter, system-ui, sans-serif" font-size="78" font-weight="300" letter-spacing="14" fill="#FFFFFF">SHAPE</text>
-  <circle cx="380" cy="60" r="6" fill="#2DD4BF"/>
-  <text x="420" y="86" font-family="Inter, system-ui, sans-serif" font-size="78" font-weight="300" letter-spacing="14" fill="#FFFFFF">RADIO</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 120" width="880" height="120" aria-label="Shape Radio">
+  <text x="0" y="92" font-family="Inter, system-ui, sans-serif" font-size="86" font-weight="300" fill="#2DD4BF">[</text>
+  <!-- Chromatic aberration / anaglyph layers behind the white wordmark -->
+  <text x="77" y="86" font-family="Inter, system-ui, sans-serif" font-size="78" font-weight="300" letter-spacing="14" fill="#FF0040" opacity="0.55">SHAPE RADIO</text>
+  <text x="83" y="86" font-family="Inter, system-ui, sans-serif" font-size="78" font-weight="300" letter-spacing="14" fill="#00DFFF" opacity="0.55">SHAPE RADIO</text>
+  <text x="80" y="86" font-family="Inter, system-ui, sans-serif" font-size="78" font-weight="300" letter-spacing="14" fill="#FFFFFF">SHAPE RADIO</text>
+  <text x="820" y="92" font-family="Inter, system-ui, sans-serif" font-size="86" font-weight="300" fill="#2DD4BF">]</text>
 </svg>
