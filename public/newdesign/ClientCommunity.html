@@ -39,11 +39,146 @@ function ClientCommunityPage() {
     ]},
   ];
   const feed = [
-    { who: "Marcus J.", role: "Tempo · 1,412", time: "18m", body: "First time hitting 225 on bench after 8 months. Maya's programming is unreal. Anyone else in strength block 3 right now?", likes: 34, comments: 12, tag: "STRENGTH" },
-    { who: "Elena R.",  role: "Peak · 2,108",  time: "1h",  body: "Down 14 lb and running negative splits for the first time ever. Rae's post-run fueling protocol changed everything.", likes: 82, comments: 24, tag: "NUTRITION" },
-    { who: "Jonah W.",  role: "Tempo · 980",   time: "3h",  body: "Race day tomorrow — Brooklyn Half. Anyone else running? Meet by the start corral at 6:45.", likes: 19, comments: 8, tag: "RACING" },
-    { who: "Ana P.",    role: "Raw · 412",     time: "5h",  body: "3 weeks in and I finally enjoy the gym. The team structure makes the difference — I don't feel alone.", likes: 56, comments: 14, tag: "GENERAL" },
+    // PR — celebratory
+    { kind: "pr", who: "Marcus J.", role: "Tempo · 1,412", time: "8m", lift: "Bench Press", load: "225 lb", delta: "+10 lb", reps: "5 × 5", body: "First time hitting 225 on bench after 8 months. Maya's programming is unreal.", likes: 47, comments: 12, tag: "STRENGTH" },
+    // Workout completed
+    { kind: "workout", who: "Elena R.", role: "Peak · 6,108", time: "32m", title: "Lower strength · Block 3", duration: "52 min", exercises: 6, rpe: 8.5, coach: "Maya Okafor", note: "Squats felt locked in today.", likes: 18, comments: 3, tag: "STRENGTH" },
+    // Run logged
+    { kind: "run", who: "Jonah W.", role: "Tempo · 980", time: "1h", distance: "8.4 mi", pace: "7:42 / mi", duration: "1h 04m", elev: "+412 ft", body: "Easy long. Brooklyn Half is Sunday — taper feels good.", likes: 24, comments: 6, tag: "RACING" },
+    // Tier-up
+    { kind: "tier", who: "Ana P.", role: "Tempo · 752", time: "2h", from: "Raw", to: "Tempo", earned: 752, body: "Three weeks in. Tempo unlocked — 2× redemption value on the store, here we come.", likes: 56, comments: 14, tag: "GENERAL" },
+    // Meal
+    { kind: "meal", who: "Priya S.", role: "Tempo · 1,284", time: "3h", title: "Sheet-pan salmon, sweet potato & broccoli", kcal: 620, p: 44, c: 58, f: 22, source: "From Rae · cook-along", likes: 12, comments: 2, tag: "NUTRITION" },
+    // Streak milestone
+    { kind: "streak", who: "Diego R.", role: "Form · 2,540", time: "4h", days: 21, body: "Three weeks straight. Sunday-night protein prep is the unlock.", likes: 41, comments: 9, tag: "GENERAL" },
+    // Text post (existing style)
+    { kind: "post", who: "Elena R.", role: "Peak · 6,108", time: "5h", body: "Down 14 lb and running negative splits for the first time ever. Rae's post-run fueling protocol changed everything.", likes: 82, comments: 24, tag: "NUTRITION" },
+    // Race / event
+    { kind: "post", who: "Jonah W.", role: "Tempo · 980", time: "7h", body: "Race day Sunday — Brooklyn Half. Meet by the start corral at 6:45 if you're running. Coffee on me after.", likes: 19, comments: 8, tag: "RACING" },
   ];
+
+  // ── Inline renderers per feed kind ────────────────────────────────────
+  function PRStat({ p }) {
+    return (
+      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 18, alignItems: "center", padding: "16px 18px", marginBottom: 14, background: "rgba(46,224,196,0.07)", border: "1px solid rgba(46,224,196,0.22)", borderRadius: 10 }}>
+        <div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.18em", color: TEAL_BRIGHT, fontWeight: 600 }}>NEW PR</div>
+          <div style={{ fontFamily: serif, fontSize: 36, letterSpacing: "-0.02em", lineHeight: 1, marginTop: 6, color: INK }}>{p.load}</div>
+          <div style={{ fontSize: 11.5, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em", marginTop: 4 }}>{p.delta} · {p.reps}</div>
+        </div>
+        <div style={{ paddingLeft: 18, borderLeft: "1px solid rgba(46,224,196,0.18)" }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: "rgba(242,237,228,0.55)" }}>LIFT</div>
+          <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.015em", marginTop: 4, color: INK }}>{p.lift}</div>
+        </div>
+      </div>
+    );
+  }
+  function WorkoutStat({ p }) {
+    return (
+      <div style={{ padding: "16px 18px", marginBottom: 14, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10 }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", color: TEAL_BRIGHT, fontWeight: 600, marginBottom: 6 }}>WORKOUT LOGGED</div>
+        <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.015em", color: INK, marginBottom: 8 }}>{p.title}</div>
+        <div style={{ display: "flex", gap: 20, flexWrap: "wrap", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.6)", letterSpacing: "0.06em" }}>
+          <span>{p.duration.toUpperCase()}</span>
+          <span>{p.exercises} EXERCISES</span>
+          <span>RPE {p.rpe}</span>
+          <span>WITH {p.coach.split(" ")[0].toUpperCase()}</span>
+        </div>
+      </div>
+    );
+  }
+  function RunStat({ p }) {
+    return (
+      <div style={{ padding: "16px 18px", marginBottom: 14, background: "linear-gradient(100deg, rgba(106,140,255,0.10) 0%, rgba(242,237,228,0.04) 70%)", border: "1px solid rgba(106,140,255,0.22)", borderRadius: 10 }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", color: "#9ab2ff", fontWeight: 600, marginBottom: 8 }}>RUN LOGGED</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+          {[["DIST", p.distance], ["PACE", p.pace], ["TIME", p.duration], ["ELEV", p.elev]].map(([l, v]) => (
+            <div key={l}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.12em", color: "rgba(242,237,228,0.5)" }}>{l}</div>
+              <div style={{ fontFamily: serif, fontSize: 20, letterSpacing: "-0.015em", color: INK, marginTop: 2, lineHeight: 1 }}>{v}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  function TierStat({ p }) {
+    return (
+      <div style={{ padding: "16px 18px", marginBottom: 14, background: "rgba(193,100,31,0.08)", border: "1px solid rgba(193,100,31,0.28)", borderRadius: 10 }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.18em", color: "#e89740", fontWeight: 600, marginBottom: 6 }}>TIER UP</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <span style={{ fontFamily: serif, fontSize: 24, letterSpacing: "-0.015em", color: "rgba(242,237,228,0.55)" }}>{p.from}</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, color: "#e89740" }}>→</span>
+          <span style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", color: INK }}>{p.to}</span>
+          <span style={{ marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.6)", letterSpacing: "0.06em" }}>{p.earned.toLocaleString()} PTS</span>
+        </div>
+      </div>
+    );
+  }
+  function MealStat({ p }) {
+    return (
+      <div style={{ padding: "16px 18px", marginBottom: 14, background: "rgba(232,151,64,0.06)", border: "1px solid rgba(232,151,64,0.22)", borderRadius: 10 }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", color: "#e89740", fontWeight: 600, marginBottom: 6 }}>MEAL LOGGED</div>
+        <div style={{ fontFamily: serif, fontSize: 20, letterSpacing: "-0.015em", color: INK, marginBottom: 10, lineHeight: 1.15 }}>{p.title}</div>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: "rgba(242,237,228,0.7)", letterSpacing: "0.04em" }}>
+          <span><span style={{ color: "rgba(242,237,228,0.45)" }}>KCAL</span> {p.kcal}</span>
+          <span><span style={{ color: "rgba(242,237,228,0.45)" }}>P</span> {p.p}g</span>
+          <span><span style={{ color: "rgba(242,237,228,0.45)" }}>C</span> {p.c}g</span>
+          <span><span style={{ color: "rgba(242,237,228,0.45)" }}>F</span> {p.f}g</span>
+        </div>
+        <div style={{ marginTop: 8, fontSize: 11.5, color: "rgba(242,237,228,0.5)" }}>{p.source}</div>
+      </div>
+    );
+  }
+  function StreakStat({ p }) {
+    return (
+      <div style={{ padding: "16px 18px", marginBottom: 14, background: "rgba(46,224,196,0.07)", border: "1px solid rgba(46,224,196,0.2)", borderRadius: 10, display: "flex", alignItems: "center", gap: 18 }}>
+        <div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.18em", color: TEAL_BRIGHT, fontWeight: 600 }}>STREAK</div>
+          <div style={{ fontFamily: serif, fontSize: 36, letterSpacing: "-0.02em", lineHeight: 1, marginTop: 6, color: INK }}>{p.days}d</div>
+        </div>
+        <div style={{ flex: 1, display: "flex", gap: 4 }}>
+          {Array.from({ length: 21 }).map((_, i) => (
+            <div key={i} style={{ flex: 1, height: 32, borderRadius: 3, background: i < p.days ? TEAL : "rgba(242,237,228,0.06)" }} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  function FeedItem({ p }) {
+    return (
+      <Card style={{ padding: 22 }}>
+        <div style={{ display: "flex", gap: 12, marginBottom: 14, alignItems: "center" }}>
+          <div style={{ width: 40, height: 40, borderRadius: 999, background: "#efece6", flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <div style={{ fontSize: 14, fontWeight: 500 }}>{p.who}</div>
+              <div style={{ fontSize: 11, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>{p.role}</div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+              <span style={{ fontSize: 11, color: "rgba(242,237,228,0.45)" }}>{p.time}</span>
+              <span style={{ width: 3, height: 3, borderRadius: 999, background: "rgba(242,237,228,0.25)" }} />
+              <Pill>{p.tag}</Pill>
+            </div>
+          </div>
+        </div>
+        {p.kind === "pr"      && <PRStat p={p} />}
+        {p.kind === "workout" && <WorkoutStat p={p} />}
+        {p.kind === "run"     && <RunStat p={p} />}
+        {p.kind === "tier"    && <TierStat p={p} />}
+        {p.kind === "meal"    && <MealStat p={p} />}
+        {p.kind === "streak"  && <StreakStat p={p} />}
+        {p.body && <div style={{ fontSize: 14.5, lineHeight: 1.55, color: "rgba(242,237,228,0.9)" }}>{p.body}</div>}
+        {p.note && <div style={{ fontSize: 12.5, lineHeight: 1.5, color: "rgba(242,237,228,0.55)", fontStyle: "italic", marginTop: 6 }}>"{p.note}"</div>}
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(242,237,228,0.06)", display: "flex", gap: 20, alignItems: "center", fontSize: 12, color: "rgba(242,237,228,0.55)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 10.2S1.5 7.5 1.5 4.5a2.5 2.5 0 0 1 4.5-1.5 2.5 2.5 0 0 1 4.5 1.5c0 3-4.5 5.7-4.5 5.7Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/></svg>{p.likes}</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 5.5a3 3 0 0 1 3-3h4a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H5l-2.5 2V7a2.5 2.5 0 0 1-.5-1.5Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/></svg>{p.comments} replies</span>
+          <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M9 4.5V3a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V7.5M6.5 4.5H10m0 0L8 2.5M10 4.5 8 6.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/></svg>SHARE</span>
+        </div>
+      </Card>
+    );
+  }
   const events = [
     ["SAT 6:30am", "Prospect Park Long Run", "24 going · 12 from your borough"],
     ["TUE 7pm",   "Form check drop-in (Zoom)","with Maya Okafor"],
@@ -63,35 +198,40 @@ function ClientCommunityPage() {
     >
       <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 20 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ display: "flex", gap: 8, fontSize: 12, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", flexWrap: "wrap" }}>
-            {["ALL","STRENGTH","NUTRITION","RACING","GENERAL"].map((t, i) => (
-              <span key={t} style={{ padding: "6px 12px", borderRadius: 999, background: i === 0 ? "rgba(30,192,168,0.16)" : "rgba(242,237,228,0.04)", color: i === 0 ? TEAL_BRIGHT : "rgba(242,237,228,0.6)", border: "1px solid " + (i === 0 ? "rgba(30,192,168,0.3)" : "rgba(242,237,228,0.08)"), cursor: "pointer" }}>{t}</span>
-            ))}
-          </div>
-          {feed.map((p, i) => (
-            <Card key={i} style={{ padding: 22 }}>
-              <div style={{ display: "flex", gap: 12, marginBottom: 14, alignItems: "center" }}>
-                <div style={{ width: 40, height: 40, borderRadius: 999, background: "#efece6", flexShrink: 0 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <div style={{ fontSize: 14, fontWeight: 500 }}>{p.who}</div>
-                    <div style={{ fontSize: 11, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>{p.role}</div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-                    <span style={{ fontSize: 11, color: "rgba(242,237,228,0.45)" }}>{p.time}</span>
-                    <span style={{ width: 3, height: 3, borderRadius: 999, background: "rgba(242,237,228,0.25)" }} />
-                    <Pill>{p.tag}</Pill>
-                  </div>
+          {(() => {
+            const filters = [
+              { label: "ALL",      kinds: null },
+              { label: "WORKOUTS", kinds: ["workout"] },
+              { label: "PRs",      kinds: ["pr"] },
+              { label: "RUNS",     kinds: ["run"] },
+              { label: "MEALS",    kinds: ["meal"] },
+              { label: "MILESTONES", kinds: ["streak", "tier"] },
+              { label: "POSTS",    kinds: ["post"] },
+            ];
+            const [active, setActive] = React.useState("ALL");
+            const visible = feed.filter(p => {
+              const f = filters.find(x => x.label === active);
+              return !f || !f.kinds || f.kinds.includes(p.kind);
+            });
+            return (
+              <>
+                <div style={{ display: "flex", gap: 8, fontSize: 12, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", flexWrap: "wrap" }}>
+                  {filters.map((f) => {
+                    const on = f.label === active;
+                    return (
+                      <button key={f.label} onClick={() => setActive(f.label)}
+                        style={{ padding: "6px 12px", borderRadius: 999, background: on ? "rgba(30,192,168,0.16)" : "rgba(242,237,228,0.04)", color: on ? TEAL_BRIGHT : "rgba(242,237,228,0.6)", border: "1px solid " + (on ? "rgba(30,192,168,0.3)" : "rgba(242,237,228,0.08)"), cursor: "pointer", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
+                        {f.label}
+                      </button>
+                    );
+                  })}
                 </div>
-              </div>
-              <div style={{ fontSize: 14.5, lineHeight: 1.55, color: "rgba(242,237,228,0.9)" }}>{p.body}</div>
-              <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(242,237,228,0.06)", display: "flex", gap: 20, alignItems: "center", fontSize: 12, color: "rgba(242,237,228,0.55)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 10.2S1.5 7.5 1.5 4.5a2.5 2.5 0 0 1 4.5-1.5 2.5 2.5 0 0 1 4.5 1.5c0 3-4.5 5.7-4.5 5.7Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/></svg>{p.likes}</span>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 5.5a3 3 0 0 1 3-3h4a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H5l-2.5 2V7a2.5 2.5 0 0 1-.5-1.5Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/></svg>{p.comments} replies</span>
-                <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M9 4.5V3a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V7.5M6.5 4.5H10m0 0L8 2.5M10 4.5 8 6.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/></svg>SHARE</span>
-              </div>
-            </Card>
-          ))}
+                {visible.length === 0
+                  ? <div style={{ padding: "32px 4px", color: "rgba(242,237,228,0.5)", fontSize: 13, textAlign: "center" }}>Nothing in this filter yet.</div>
+                  : visible.map((p, i) => <FeedItem key={i} p={p} />)}
+              </>
+            );
+          })()}
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
