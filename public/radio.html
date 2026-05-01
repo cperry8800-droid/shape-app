@@ -569,7 +569,7 @@
       if (!locked && diff <= 8) {
         locked = true;
         lockedAt = now;
-      } else if (locked && diff > 12 && (now - lockedAt) > 2000) {
+      } else if (locked && diff > 12 && (now - lockedAt) > 10000) {
         locked = false;
       }
       hrSync.classList.toggle('locked', locked);
