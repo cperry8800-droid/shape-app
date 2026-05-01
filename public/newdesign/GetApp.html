@@ -95,37 +95,38 @@
   .prow .load { font-family: var(--mono); font-size: 10px; color: var(--ink); }
   .prow .load.pr { color: var(--teal); }
 
-  /* Features */
-  .features { padding: 64px 0 32px; }
-  .features h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(34px, 6.4vw, 48px); letter-spacing: -0.025em; line-height: 1; margin: 0 0 32px; text-align: center; }
-  .feat-list { display: grid; gap: 0; }
-  .feat { padding: 22px 0; border-top: 1px solid var(--hairline-2); display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: start; }
-  .feat:first-child { border-top: 0; padding-top: 0; }
-  .feat .ix { font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; color: var(--orange); margin-top: 4px; min-width: 28px; }
-  .feat h3 { font-family: var(--serif); font-weight: 500; font-size: 22px; letter-spacing: -0.015em; line-height: 1.1; margin: 0 0 6px; }
-  .feat p { font-size: 14px; line-height: 1.55; color: var(--ink-2); margin: 0; }
-  @media (min-width: 720px) {
-    .feat-list { grid-template-columns: 1fr 1fr; gap: 0 40px; }
-    .feat:nth-child(2) { padding-top: 0; border-top: 0; }
+  /* Features — vertical scroll, phone mockup beside each that has one */
+  .features { padding: 80px 0 40px; }
+  .features-head { text-align: center; margin-bottom: 48px; }
+  .features-head h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(34px, 6.4vw, 52px); letter-spacing: -0.025em; line-height: 1; margin: 8px 0 14px; }
+  .features-head p { font-size: 15px; line-height: 1.55; color: var(--ink-2); margin: 0 auto; max-width: 540px; }
+  .feat-row {
+    display: grid; grid-template-columns: 1fr 320px; gap: 60px;
+    align-items: center; padding: 64px 0;
+    border-top: 1px solid var(--hairline-2);
   }
-
-  /* Screen gallery — every screenshot inside a phone frame */
-  .gallery { padding: 80px 0 40px; }
-  .gallery-head { text-align: center; margin-bottom: 48px; }
-  .gallery-head h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(34px, 6.4vw, 52px); letter-spacing: -0.025em; line-height: 1; margin: 8px 0 14px; }
-  .gallery-head p { font-size: 15px; line-height: 1.55; color: var(--ink-2); margin: 0 auto; max-width: 540px; }
-  .gallery-grid { display: grid; gap: 28px 22px; grid-template-columns: repeat(4, 1fr); }
-  @media (max-width: 1080px) { .gallery-grid { grid-template-columns: repeat(3, 1fr); } }
-  @media (max-width: 760px)  { .gallery-grid { grid-template-columns: repeat(2, 1fr); } }
-  @media (max-width: 460px)  { .gallery-grid { grid-template-columns: 1fr; } }
-  .gallery-item { display: flex; flex-direction: column; align-items: center; gap: 12px; }
-  .gallery-phone {
-    width: 100%; max-width: 240px; aspect-ratio: 240/494;
-    background: #1a1612; border-radius: 36px; padding: 8px;
-    box-shadow: 0 18px 40px rgba(10,13,12,0.16), 0 0 0 1px rgba(10,13,12,0.6);
+  .feat-row:first-of-type { border-top: 0; padding-top: 32px; }
+  .feat-row.reverse { grid-template-columns: 320px 1fr; }
+  .feat-row.reverse .copy { order: 2; }
+  .feat-row.reverse .phone { order: 1; }
+  .feat-row.text-only { grid-template-columns: 1fr; max-width: 720px; margin: 0 auto; padding: 40px 0; }
+  .feat-row .copy .step { font-family: var(--mono); font-size: 11px; letter-spacing: 0.16em; color: var(--orange); margin-bottom: 12px; display: flex; align-items: baseline; gap: 10px; }
+  .feat-row .copy .step .n { color: var(--ink-3); }
+  .feat-row .copy h3 { font-family: var(--serif); font-weight: 500; font-size: clamp(28px, 4vw, 38px); letter-spacing: -0.02em; line-height: 1.05; margin: 0 0 14px; }
+  .feat-row .copy p { font-size: 15.5px; line-height: 1.6; color: var(--ink-2); margin: 0; }
+  .feat-row .phone {
+    width: 320px; max-width: 100%; aspect-ratio: 320/660;
+    background: #1a1612; border-radius: 44px; padding: 10px;
+    box-shadow: 0 30px 80px rgba(10,13,12,0.18), 0 0 0 1.5px rgba(10,13,12,0.92);
+    margin: 0 auto;
   }
-  .gallery-phone img { width: 100%; height: 100%; border-radius: 28px; display: block; object-fit: cover; object-position: top; }
-  .gallery-label { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-2); }
+  .feat-row .phone img { width: 100%; height: 100%; border-radius: 36px; display: block; object-fit: cover; object-position: top; }
+  @media (max-width: 760px) {
+    .feat-row, .feat-row.reverse { grid-template-columns: 1fr; gap: 28px; padding: 40px 0; }
+    .feat-row.reverse .copy { order: 1; }
+    .feat-row.reverse .phone { order: 2; }
+    .feat-row .phone { width: min(280px, 80vw); }
+  }
 
   /* Why band */
   .why { background: var(--paper-2); padding: 60px 0; margin-top: 32px; border-top: 1px solid var(--hairline-2); border-bottom: 1px solid var(--hairline-2); }
@@ -217,93 +218,123 @@
   </div>
 </section>
 
-<section class="gallery">
-  <div class="wrap">
-    <div class="gallery-head">
-      <div class="eyebrow">Take a tour</div>
-      <h2>Every tab, in your pocket.</h2>
-      <p>The full Shape app — Today, Train, Eat, Grocery, Radio, Chat — laid out for a quick scroll.</p>
-    </div>
-    <div class="gallery-grid">
-      <div class="gallery-item">
-        <div class="gallery-phone"><img src="/newdesign/App%20homepage.png" alt="Shape Daily home — dark"/></div>
-        <div class="gallery-label">01 · Home</div>
-      </div>
-      <div class="gallery-item">
-        <div class="gallery-phone"><img src="/newdesign/Shape%20App%20homepage.png" alt="Shape Daily home — light"/></div>
-        <div class="gallery-label">01 · Home (light)</div>
-      </div>
-      <div class="gallery-item">
-        <div class="gallery-phone"><img src="/newdesign/app%20train.png" alt="Train screen"/></div>
-        <div class="gallery-label">02 · Train</div>
-      </div>
-      <div class="gallery-item">
-        <div class="gallery-phone"><img src="/newdesign/app%20workout%20preview.png" alt="Workout preview"/></div>
-        <div class="gallery-label">02 · Workout preview</div>
-      </div>
-      <div class="gallery-item">
-        <div class="gallery-phone"><img src="/newdesign/app%20nutrition.png" alt="Nutrition screen"/></div>
-        <div class="gallery-label">03 · Eat</div>
-      </div>
-      <div class="gallery-item">
-        <div class="gallery-phone"><img src="/newdesign/nutri%20steps.png" alt="Nutrition step-by-step"/></div>
-        <div class="gallery-label">03 · Eat — step</div>
-      </div>
-      <div class="gallery-item">
-        <div class="gallery-phone"><img src="/newdesign/Shape%20radio%20app.png" alt="Shape Radio screen with HRM sync"/></div>
-        <div class="gallery-label">04 · Radio</div>
-      </div>
-      <div class="gallery-item">
-        <div class="gallery-phone"><img src="/newdesign/shape%20chat.png" alt="Chat — Letters &amp; replies"/></div>
-        <div class="gallery-label">05 · Chat</div>
-      </div>
-    </div>
-  </div>
-</section>
-
 <section class="features">
   <div class="wrap">
-    <h2>Everything Shape, in one app.</h2>
-    <div class="feat-list">
-      <div class="feat">
-        <div class="ix">01</div>
-        <div><h3>Train</h3><p>Coach-programmed sessions land on your phone the night before. Log sets in two taps. Bar speed and RPE flow back to your trainer for next-week's plan.</p></div>
+    <div class="features-head">
+      <div class="eyebrow">Everything Shape, in one app</div>
+      <h2>Scroll the tour.</h2>
+      <p>Each tab does one thing well. Together they're the whole loop — train, eat, plan, recover, share.</p>
+    </div>
+
+    <div class="feat-row">
+      <div class="copy">
+        <div class="step"><span class="n">01</span><span>HOME</span></div>
+        <h3>Today, at a glance.</h3>
+        <p>The Shape Daily — your day, top to bottom. Calendar, calorie ledger, what's left to log, who's on the air, day brief from your coach. Skim it in five seconds, dive in if you want.</p>
       </div>
-      <div class="feat">
-        <div class="ix">02</div>
-        <div><h3>Eat</h3><p>Daily meal plans and macro tracking. Cook-along playlists from your nutritionist, swaps for travel days, templates for fast-week chaos.</p></div>
+      <div class="phone"><img src="/newdesign/App%20homepage.png" alt="Shape Daily home"/></div>
+    </div>
+
+    <div class="feat-row reverse">
+      <div class="phone"><img src="/newdesign/app%20train.png" alt="Train screen"/></div>
+      <div class="copy">
+        <div class="step"><span class="n">02</span><span>TRAIN</span></div>
+        <h3>The session, written by your coach.</h3>
+        <p>Coach-programmed sessions land on your phone the night before. Log sets in two taps. Bar speed and RPE flow back to your trainer for next-week's plan.</p>
       </div>
-      <div class="feat">
-        <div class="ix">03</div>
-        <div><h3>Grocery list</h3><p>Auto-built from your week's meal plan, organized by aisle, with a live running cost. Build and save your own custom lists. Save your nutritionist's lists straight to your Library. Coach swaps land inline — "swap salmon for cod if the price jumps." One tap to <strong>Send to Instacart</strong>.</p></div>
+    </div>
+
+    <div class="feat-row">
+      <div class="copy">
+        <div class="step"><span class="n">02</span><span>WORKOUT PREVIEW</span></div>
+        <h3>Know what's coming.</h3>
+        <p>The card view — every move, every set, every cue from your trainer — before you walk into the gym. Tap a move for video. Note your warmups, mark a substitute.</p>
       </div>
-      <div class="feat">
-        <div class="ix">04</div>
-        <div><h3>Recipes</h3><p>Recipe of the day, plus a library of your nutritionist's picks. Filter by prep time, macros, or dietary preference. Save your own. Tap any recipe to add its ingredients to your grocery list.</p></div>
+      <div class="phone"><img src="/newdesign/app%20workout%20preview.png" alt="Workout preview"/></div>
+    </div>
+
+    <div class="feat-row reverse">
+      <div class="phone"><img src="/newdesign/app%20nutrition.png" alt="Nutrition screen"/></div>
+      <div class="copy">
+        <div class="step"><span class="n">03</span><span>EAT</span></div>
+        <h3>Daily meal plans, macros tallied live.</h3>
+        <p>Cook-along playlists from your nutritionist, swaps for travel days, templates for fast-week chaos. The day's calorie deficit (or surplus) ticks as you log.</p>
       </div>
-      <div class="feat">
-        <div class="ix">05</div>
-        <div><h3>Habits</h3><p>Do's, don'ts, streaks. Tap to log. Earn Shape Score for every check. Pick friends or other followers to be notified when you miss — accountability loop without the guilt trip.</p></div>
+    </div>
+
+    <div class="feat-row">
+      <div class="copy">
+        <div class="step"><span class="n">03</span><span>EAT — STEP-BY-STEP</span></div>
+        <h3>Cook the recipe, no scroll war.</h3>
+        <p>Recipes break down into one step at a time on screen. Hands greasy? Tap to advance. Ingredients map back into your grocery list automatically.</p>
       </div>
-      <div class="feat">
-        <div class="ix">06</div>
-        <div><h3>Score</h3><p>Five tiers — Raw, Tempo, Form, Peak, Legend. Earn monthly points for workouts, plan adherence, habits, PRs, community kudos. Cash them in at the Shape Store.</p></div>
+      <div class="phone"><img src="/newdesign/nutri%20steps.png" alt="Recipe step-by-step"/></div>
+    </div>
+
+    <div class="feat-row text-only">
+      <div class="copy">
+        <div class="step"><span class="n">04</span><span>GROCERY LIST</span></div>
+        <h3>Auto-built from the week. Sent to Instacart in a tap.</h3>
+        <p>Organized by aisle with a live running cost. Build and save your own custom lists, save your nutritionist's lists straight to your Library. Coach swaps land inline — "swap salmon for cod if the price jumps." One tap to <strong>Send to Instacart</strong>.</p>
       </div>
-      <div class="feat">
-        <div class="ix">07</div>
-        <div><h3>Radio</h3><p>Live music for training, curated by your coach. Each track's BPM syncs with your live heart rate (Apple Watch, Whoop, Garmin) — when the two lock in, your pace becomes the song. Reactive visualizer reads the audio, not a stock animation. Heart the good ones, send to friends.</p></div>
+    </div>
+
+    <div class="feat-row text-only">
+      <div class="copy">
+        <div class="step"><span class="n">05</span><span>RECIPES</span></div>
+        <h3>A recipe a day, your nutritionist's library on tap.</h3>
+        <p>Filter by prep time, macros, or dietary preference. Save your own. Tap any recipe to add its ingredients to your grocery list.</p>
       </div>
-      <div class="feat">
-        <div class="ix">08</div>
-        <div><h3>Feed</h3><p>The social layer. PRs, workouts, runs, tier-ups, streaks, posts — everything people training alongside you are up to. Strava-style with a community board baked in. Drop a kudos, reply, share to a friend. Public to the community, scoped to your team, or private. You pick.</p></div>
+    </div>
+
+    <div class="feat-row text-only">
+      <div class="copy">
+        <div class="step"><span class="n">06</span><span>HABITS</span></div>
+        <h3>Do's, don'ts, streaks.</h3>
+        <p>Tap to log. Earn Shape Score for every check. Pick friends or other followers to be notified when you miss — accountability loop without the guilt trip.</p>
       </div>
-      <div class="feat">
-        <div class="ix">09</div>
-        <div><h3>Chat</h3><p>One-tap messaging with your trainer, nutritionist, and training partners. Drop into the Shape Community Chat to stay in touch with the entire Shape community — borough-level run clubs, lift partners, race-day groups, AMAs with coaches. No app switching, no inbox archaeology.</p></div>
+    </div>
+
+    <div class="feat-row text-only">
+      <div class="copy">
+        <div class="step"><span class="n">07</span><span>SHAPE SCORE</span></div>
+        <h3>Five tiers. Monthly points. Real rewards.</h3>
+        <p>Raw, Tempo, Form, Peak, Legend. Earn for workouts, plan adherence, habits, PRs, community kudos. Cash them in at the Shape Store.</p>
       </div>
-      <div class="feat">
-        <div class="ix">10</div>
-        <div><h3>Personalize</h3><p>Light paper, dark paper, cream, ink. Pick the colors of your background, accents, and tab bar — the "Shape Daily" home skin is one of several. Match the app to your phone's wallpaper, your gym, or your mood.</p></div>
+    </div>
+
+    <div class="feat-row reverse">
+      <div class="phone"><img src="/newdesign/Shape%20radio%20app.png" alt="Shape Radio with HRM sync"/></div>
+      <div class="copy">
+        <div class="step"><span class="n">08</span><span>RADIO</span></div>
+        <h3>Music that locks to your heart rate.</h3>
+        <p>Live mixes curated by your coach. Each track's BPM syncs with your wearable (Apple Watch, Whoop, Garmin) — when the two lock in, your pace becomes the song. Reactive visualizer reads the audio, not a stock animation.</p>
+      </div>
+    </div>
+
+    <div class="feat-row text-only">
+      <div class="copy">
+        <div class="step"><span class="n">09</span><span>FEED</span></div>
+        <h3>The social layer, opt-in.</h3>
+        <p>PRs, workouts, runs, tier-ups, streaks, posts — Strava-style with a community board baked in. Drop a kudos, reply, share to a friend. Public to the community, scoped to your team, or private. You pick.</p>
+      </div>
+    </div>
+
+    <div class="feat-row">
+      <div class="copy">
+        <div class="step"><span class="n">10</span><span>CHAT</span></div>
+        <h3>Letters &amp; replies.</h3>
+        <p>One-tap messaging with your trainer, nutritionist, and training partners. Drop into the Shape Community Chat for borough-level run clubs, lift partners, race-day groups, AMAs with coaches. No app switching, no inbox archaeology.</p>
+      </div>
+      <div class="phone"><img src="/newdesign/shape%20chat.png" alt="Chat — Letters &amp; replies"/></div>
+    </div>
+
+    <div class="feat-row reverse">
+      <div class="phone"><img src="/newdesign/Shape%20App%20homepage.png" alt="Shape Daily — light theme variant"/></div>
+      <div class="copy">
+        <div class="step"><span class="n">11</span><span>PERSONALIZE</span></div>
+        <h3>Light paper, dark paper, cream, ink.</h3>
+        <p>Pick the colors of your background, accents, and tab bar — the "Shape Daily" home skin is one of several. Match the app to your phone's wallpaper, your gym, or your mood.</p>
       </div>
     </div>
   </div>
