@@ -73,34 +73,6 @@
       background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
       border-radius: 16px; padding: 48px; text-align: center; margin-bottom: 40px;
     }
-    .np-visualizer {
-      display: flex; align-items: flex-end; justify-content: center;
-      gap: 4px; height: 60px; margin-bottom: 32px;
-    }
-    .np-bar {
-      width: 4px; background: #2DD4BF; border-radius: 2px;
-      animation: pulse-bar 1.2s ease-in-out infinite;
-    }
-    .np-bar:nth-child(1) { height: 20px; animation-delay: 0s; }
-    .np-bar:nth-child(2) { height: 35px; animation-delay: 0.1s; }
-    .np-bar:nth-child(3) { height: 50px; animation-delay: 0.2s; }
-    .np-bar:nth-child(4) { height: 25px; animation-delay: 0.3s; }
-    .np-bar:nth-child(5) { height: 45px; animation-delay: 0.15s; }
-    .np-bar:nth-child(6) { height: 30px; animation-delay: 0.25s; }
-    .np-bar:nth-child(7) { height: 55px; animation-delay: 0.05s; }
-    .np-bar:nth-child(8) { height: 20px; animation-delay: 0.35s; }
-    .np-bar:nth-child(9) { height: 40px; animation-delay: 0.1s; }
-    .np-bar:nth-child(10) { height: 28px; animation-delay: 0.2s; }
-    .np-bar:nth-child(11) { height: 48px; animation-delay: 0.3s; }
-    .np-bar:nth-child(12) { height: 22px; animation-delay: 0.15s; }
-
-    .paused .np-bar { animation-play-state: paused; }
-
-    @keyframes pulse-bar {
-      0%, 100% { transform: scaleY(0.4); opacity: 0.6; }
-      50% { transform: scaleY(1); opacity: 1; }
-    }
-
     .np-label {
       font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.15em;
       color: #2DD4BF; margin-bottom: 12px; font-weight: 500;
@@ -109,6 +81,67 @@
       font-size: clamp(1.2rem, 2vw, 1.5rem); font-weight: 400; margin-bottom: 4px;
     }
     .np-artist { color: rgba(255,255,255,0.5); font-size: 0.92rem; font-weight: 300; }
+
+    .np-canvas {
+      width: 100%; max-width: 280px; height: auto; aspect-ratio: 1;
+      display: block; margin: 0 auto 24px; border-radius: 50%;
+      background: radial-gradient(circle at center, rgba(45,212,191,0.05) 0%, rgba(0,0,0,0) 65%);
+      filter: drop-shadow(0 0 28px rgba(45,212,191,0.18));
+    }
+    .now-playing.paused .np-canvas { filter: drop-shadow(0 0 14px rgba(45,212,191,0.08)); opacity: 0.55; transition: opacity 0.4s, filter 0.4s; }
+
+    .hr-sync {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 14px 20px;
+      align-items: center; margin: 0 0 24px; padding: 16px 18px;
+      border: 1px solid rgba(255,255,255,0.08); border-radius: 12px;
+      background: rgba(255,255,255,0.02);
+    }
+    .hr-sync .pulse { display: flex; align-items: center; gap: 14px; }
+    .hr-sync .ring {
+      width: 38px; height: 38px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.25); flex-shrink: 0;
+      transition: transform 0.12s ease-out, border-color 0.3s, box-shadow 0.3s;
+    }
+    .hr-sync .ring.bpm { border-color: rgba(45,212,191,0.55); }
+    .hr-sync .ring.hr  { border-color: rgba(255,255,255,0.55); }
+    .hr-sync .ring.beat { transform: scale(1.18); }
+    .hr-sync.locked .ring { border-color: #2DD4BF; box-shadow: 0 0 14px rgba(45,212,191,0.45); }
+    .hr-sync .label {
+      font-family: 'Inter', sans-serif; font-size: 0.62rem;
+      text-transform: uppercase; letter-spacing: 0.15em;
+      color: rgba(255,255,255,0.5); margin-bottom: 2px;
+    }
+    .hr-sync .value {
+      font-size: 1.5rem; font-weight: 300; line-height: 1;
+      font-variant-numeric: tabular-nums; color: #fff;
+    }
+    .hr-sync .lock-badge {
+      grid-column: 1/-1;
+      font-family: 'Inter', sans-serif; font-size: 0.66rem;
+      letter-spacing: 0.18em; text-transform: uppercase;
+      color: rgba(255,255,255,0.4); text-align: center;
+      padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.06);
+      transition: color 0.3s;
+    }
+    .hr-sync.locked .lock-badge { color: #2DD4BF; }
+    .hr-sync .hr-demo-slider {
+      grid-column: 1/-1; display: flex; align-items: center; gap: 12px;
+      font-family: 'Inter', sans-serif; font-size: 0.62rem;
+      text-transform: uppercase; letter-spacing: 0.15em;
+      color: rgba(255,255,255,0.35); padding-top: 4px;
+    }
+    .hr-sync .hr-demo-slider input {
+      flex: 1; -webkit-appearance: none; background: rgba(255,255,255,0.1);
+      height: 2px; border-radius: 2px; outline: none;
+    }
+    .hr-sync .hr-demo-slider input::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 12px; height: 12px;
+      border-radius: 50%; background: #2DD4BF; cursor: pointer;
+    }
+    .hr-sync .hr-demo-slider .v {
+      font-variant-numeric: tabular-nums; min-width: 28px;
+      text-align: right; color: rgba(255,255,255,0.6);
+    }
 
     .radio-controls {
       display: flex; align-items: center; justify-content: center; gap: 32px;
@@ -309,16 +342,34 @@
   </section>
 
   <div class="radio-player">
-    <div class="now-playing" id="nowPlaying">
-      <div class="np-visualizer" id="visualizer">
-        <div class="np-bar"></div><div class="np-bar"></div><div class="np-bar"></div>
-        <div class="np-bar"></div><div class="np-bar"></div><div class="np-bar"></div>
-        <div class="np-bar"></div><div class="np-bar"></div><div class="np-bar"></div>
-        <div class="np-bar"></div><div class="np-bar"></div><div class="np-bar"></div>
-      </div>
+    <div class="now-playing paused" id="nowPlaying">
+      <canvas id="vizCanvas" class="np-canvas" width="560" height="560" aria-hidden="true"></canvas>
       <div class="np-label">NOW PLAYING</div>
       <div class="np-title" id="npTitle">—</div>
       <div class="np-artist" id="npArtist">—</div>
+    </div>
+
+    <div class="hr-sync" id="hrSync">
+      <div class="pulse">
+        <div class="ring bpm" id="bpmRing"></div>
+        <div>
+          <div class="label">Track BPM</div>
+          <div class="value" id="bpmValue">—</div>
+        </div>
+      </div>
+      <div class="pulse">
+        <div class="ring hr" id="hrRing"></div>
+        <div>
+          <div class="label">Your HR</div>
+          <div class="value" id="hrValue">—</div>
+        </div>
+      </div>
+      <div class="lock-badge" id="lockBadge">Out of sync</div>
+      <div class="hr-demo-slider">
+        <span>Demo HR</span>
+        <input type="range" id="hrDemo" min="60" max="180" value="120" />
+        <span class="v" id="hrDemoVal">120</span>
+      </div>
     </div>
 
     <div class="radio-controls">
@@ -364,15 +415,15 @@
     // Placeholder tracks below are free demo MP3s from SoundHelix, meant
     // only to prove the player works end-to-end.
     var SHAPE_RADIO_PLAYLIST = [
-      { title: "Actin' Tough",  artist: 'Dean Turnley',  src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' },
-      { title: 'Tempo Lift',    artist: 'Shape Radio',   src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3' },
-      { title: 'Main Set',      artist: 'Shape Radio',   src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-12.mp3' },
-      { title: 'Push',          artist: 'Shape Radio',   src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3' },
-      { title: 'Cool Down',     artist: 'Shape Radio',   src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-14.mp3' }
+      { title: "Actin' Tough",  artist: 'Dean Turnley',  bpm: 96,  src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' },
+      { title: 'Tempo Lift',    artist: 'Shape Radio',   bpm: 112, src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3' },
+      { title: 'Main Set',      artist: 'Shape Radio',   bpm: 128, src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-12.mp3' },
+      { title: 'Push',          artist: 'Shape Radio',   bpm: 142, src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3' },
+      { title: 'Cool Down',     artist: 'Shape Radio',   bpm: 84,  src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-14.mp3' }
     ];
 
     var audio = document.getElementById('radioAudio');
-    var visualizer = document.getElementById('visualizer');
+    var nowPlaying = document.getElementById('nowPlaying');
     var playIcon = document.getElementById('playIcon');
     var pauseIcon = document.getElementById('pauseIcon');
     var npTitle = document.getElementById('npTitle');
@@ -380,8 +431,141 @@
     var volumeSlider = document.getElementById('volumeSlider');
     var trackIndex = 0;
 
-    visualizer.classList.add('paused');
     audio.volume = (parseInt(volumeSlider.value, 10) || 75) / 100;
+
+    // ===== Reactive visualizer (Web Audio + canvas) =====
+    var vizCanvas = document.getElementById('vizCanvas');
+    var vizCtx = vizCanvas ? vizCanvas.getContext('2d') : null;
+    var audioCtx = null, analyser = null, freqData = null;
+    var vizRunning = false;
+
+    function ensureAudioGraph() {
+      if (audioCtx) return;
+      try {
+        var Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        audioCtx = new Ctx();
+        var src = audioCtx.createMediaElementSource(audio);
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 512;
+        analyser.smoothingTimeConstant = 0.78;
+        freqData = new Uint8Array(analyser.frequencyBinCount);
+        src.connect(analyser);
+        analyser.connect(audioCtx.destination);
+      } catch (e) {
+        console.warn('[shape-radio] audio graph init failed', e);
+      }
+    }
+
+    function drawViz() {
+      if (!vizCtx) return;
+      if (analyser) analyser.getByteFrequencyData(freqData);
+      var w = vizCanvas.width, h = vizCanvas.height;
+      // soft trail fade
+      vizCtx.fillStyle = 'rgba(8, 10, 12, 0.18)';
+      vizCtx.fillRect(0, 0, w, h);
+
+      var cx = w / 2, cy = h / 2;
+      var t = performance.now();
+      var avg = 0;
+      if (freqData) {
+        for (var k = 0; k < freqData.length; k++) avg += freqData[k];
+        avg = avg / freqData.length / 255;
+      }
+
+      var rings = 14;
+      var baseR = 70;
+      var ringGap = 14;
+      var segments = 120;
+
+      for (var r = 0; r < rings; r++) {
+        var radius = baseR + r * ringGap;
+        var bandStart = Math.floor((r / rings) * (freqData ? freqData.length * 0.55 : 64));
+        var dir = r % 2 === 0 ? 1 : -1;
+        var rotSpeed = 0.00008 * (r + 1) * dir;
+
+        vizCtx.beginPath();
+        for (var i = 0; i <= segments; i++) {
+          var ang = (i / segments) * Math.PI * 2 + t * rotSpeed;
+          var fIdx = freqData ? (bandStart + (i % 16)) % freqData.length : 0;
+          var f = freqData ? freqData[fIdx] / 255 : 0;
+          var dr = f * 32;
+          var R = radius + dr;
+          var x = cx + Math.cos(ang) * R;
+          var y = cy + Math.sin(ang) * R;
+          if (i === 0) vizCtx.moveTo(x, y); else vizCtx.lineTo(x, y);
+        }
+        vizCtx.closePath();
+        var alpha = 0.10 + (r / rings) * 0.42 + avg * 0.14;
+        vizCtx.strokeStyle = 'rgba(45, 212, 191, ' + alpha.toFixed(3) + ')';
+        vizCtx.lineWidth = 1.3;
+        vizCtx.stroke();
+      }
+
+      // Center pulse
+      var pulseR = 26 + avg * 44;
+      var grad = vizCtx.createRadialGradient(cx, cy, 0, cx, cy, pulseR);
+      grad.addColorStop(0, 'rgba(45, 212, 191, ' + (0.5 + avg * 0.4).toFixed(3) + ')');
+      grad.addColorStop(1, 'rgba(45, 212, 191, 0)');
+      vizCtx.fillStyle = grad;
+      vizCtx.beginPath();
+      vizCtx.arc(cx, cy, pulseR, 0, Math.PI * 2);
+      vizCtx.fill();
+
+      if (vizRunning) requestAnimationFrame(drawViz);
+    }
+
+    function startViz() {
+      ensureAudioGraph();
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+      if (vizRunning) return;
+      vizRunning = true;
+      requestAnimationFrame(drawViz);
+    }
+    function stopViz() { vizRunning = false; }
+
+    // ===== HR / BPM sync indicator =====
+    var bpmValueEl = document.getElementById('bpmValue');
+    var hrValueEl = document.getElementById('hrValue');
+    var bpmRing = document.getElementById('bpmRing');
+    var hrRing = document.getElementById('hrRing');
+    var lockBadge = document.getElementById('lockBadge');
+    var hrSync = document.getElementById('hrSync');
+    var hrDemo = document.getElementById('hrDemo');
+    var hrDemoVal = document.getElementById('hrDemoVal');
+    var currentBpm = 120;
+    var bpmLast = 0, hrLast = 0;
+
+    function refreshLock() {
+      var v = parseInt(hrDemo.value, 10);
+      hrValueEl.textContent = v;
+      hrDemoVal.textContent = v;
+      var diff = Math.abs(v - currentBpm);
+      hrSync.classList.toggle('locked', diff <= 4);
+      lockBadge.textContent = diff <= 4
+        ? 'Locked — your pace is the song'
+        : (diff <= 12 ? 'Closing in…' : 'Out of sync');
+    }
+    if (hrDemo) hrDemo.addEventListener('input', refreshLock);
+
+    function tickRings() {
+      var now = performance.now();
+      var bpmInterval = 60000 / currentBpm;
+      if (now - bpmLast >= bpmInterval) {
+        bpmRing.classList.add('beat');
+        setTimeout(function () { bpmRing.classList.remove('beat'); }, 110);
+        bpmLast = now;
+      }
+      var hrVal = parseInt(hrDemo.value, 10) || 120;
+      var hrInterval = 60000 / hrVal;
+      if (now - hrLast >= hrInterval) {
+        hrRing.classList.add('beat');
+        setTimeout(function () { hrRing.classList.remove('beat'); }, 110);
+        hrLast = now;
+      }
+      requestAnimationFrame(tickRings);
+    }
+    requestAnimationFrame(tickRings);
 
     function loadTrack(idx) {
       if (!SHAPE_RADIO_PLAYLIST.length) return;
@@ -390,6 +574,9 @@
       audio.src = t.src;
       npTitle.textContent = t.title || '—';
       npArtist.textContent = t.artist || '—';
+      currentBpm = t.bpm || 120;
+      if (bpmValueEl) bpmValueEl.textContent = currentBpm;
+      refreshLock();
       if ('mediaSession' in navigator) {
         try {
           navigator.mediaSession.metadata = new MediaMetadata({
@@ -404,7 +591,8 @@
     function syncPlayUI(playing) {
       playIcon.style.display = playing ? 'none' : 'block';
       pauseIcon.style.display = playing ? 'block' : 'none';
-      visualizer.classList.toggle('paused', !playing);
+      nowPlaying.classList.toggle('paused', !playing);
+      if (playing) startViz(); else stopViz();
     }
 
     function togglePlay() {
