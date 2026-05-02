@@ -292,24 +292,23 @@
       payload.append('Submitted At', new Date().toISOString());
 
       // Primary: persist to Supabase via /api/apply so we have a reviewable
-      // queue even if the email relay drops a submission.
+      // queue even if the email relay drops a submission. Multipart so the
+      // certProof / insuranceDoc / samplePlan files actually upload.
+      var apiBody = new FormData();
+      apiBody.append('providerType', 'nutritionist');
+      apiBody.append('yearsExperience', data.experience || '');
+      apiBody.append('monthlyPrice', data.price || '');
+      document.querySelectorAll('#step1 [name], #step2 [name], #step3 [name]').forEach(function (el) {
+        if (el.type === 'checkbox') {
+          apiBody.append(el.name, el.checked ? 'Yes' : 'No');
+        } else if (el.type === 'file') {
+          if (el.files && el.files[0]) apiBody.append(el.name, el.files[0]);
+        } else {
+          apiBody.append(el.name, (el.value || '').toString().trim());
+        }
+      });
       try {
-        var apiRes = await fetch('/api/apply', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            providerType: 'nutritionist',
-            firstName: data.firstName,
-            lastName: data.lastName,
-            email: data.email,
-            phone: data.phone,
-            location: data.location,
-            specialty: data.specialty,
-            yearsExperience: data.experience,
-            monthlyPrice: data.price,
-            details: data
-          })
-        });
+        var apiRes = await fetch('/api/apply', { method: 'POST', body: apiBody });
         if (!apiRes.ok) {
           var errBody = await apiRes.json().catch(function(){ return {}; });
           alert(errBody.error || 'Could not submit your application. Please try again.');
