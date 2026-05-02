@@ -16,6 +16,27 @@ function isoOrNull(unixSeconds: number | null | undefined): string | null {
   return new Date(unixSeconds * 1000).toISOString();
 }
 
+// Stripe API 2026-03-25 removed `Charge.invoice` and `Invoice.subscription` from
+// the typed SDK. They're still present at runtime; the structured replacement
+// for the subscription link lives under `invoice.parent.subscription_details`.
+function extractInvoiceId(charge: Stripe.Charge): string | null {
+  const c = charge as unknown as { invoice?: string | { id?: string } | null };
+  if (!c.invoice) return null;
+  return typeof c.invoice === 'string' ? c.invoice : c.invoice.id ?? null;
+}
+
+function extractSubscriptionId(invoice: Stripe.Invoice): string | null {
+  const inv = invoice as unknown as {
+    parent?: {
+      subscription_details?: { subscription?: string | { id?: string } | null } | null;
+    } | null;
+    subscription?: string | { id?: string } | null;
+  };
+  const ref = inv.parent?.subscription_details?.subscription ?? inv.subscription;
+  if (!ref) return null;
+  return typeof ref === 'string' ? ref : ref.id ?? null;
+}
+
 export async function POST(request: Request) {
   const signature = request.headers.get('stripe-signature');
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -92,8 +113,7 @@ export async function POST(request: Request) {
         let currentPeriodEnd: string | null = null;
         if (typeof session.subscription === 'string') {
           const sub = await stripe.subscriptions.retrieve(session.subscription);
-          // @ts-expect-error — current_period_end exists at runtime
-          currentPeriodEnd = isoOrNull(sub.current_period_end);
+          currentPeriodEnd = isoOrNull(sub.items.data[0]?.current_period_end);
         }
 
         await admin.from('subscriptions').upsert(
@@ -120,8 +140,7 @@ export async function POST(request: Request) {
       case 'customer.subscription.deleted': {
         const sub = event.data.object as Stripe.Subscription;
         const status = event.type === 'customer.subscription.deleted' ? 'canceled' : sub.status;
-        // @ts-expect-error — current_period_end exists at runtime
-        const currentPeriodEnd = isoOrNull(sub.current_period_end);
+        const currentPeriodEnd = isoOrNull(sub.items.data[0]?.current_period_end);
 
         await admin
           .from('subscriptions')
@@ -170,13 +189,10 @@ export async function POST(request: Request) {
           }
         }
         // Subscription refunds come in with an invoice → subscription link.
-        // @ts-expect-error — charge.invoice exists at runtime (older SDK typings)
-        const chargeInvoice = charge.invoice as string | { id?: string } | null | undefined;
-        if (chargeInvoice) {
-          const invoiceId = typeof chargeInvoice === 'string' ? chargeInvoice : chargeInvoice.id;
-          const invoice = await stripe.invoices.retrieve(invoiceId!);
-          // @ts-expect-error — subscription exists on invoice at runtime
-          const subId = typeof invoice.subscription === 'string' ? invoice.subscription : null;
+        const invoiceId = extractInvoiceId(charge);
+        if (invoiceId) {
+          const invoice = await stripe.invoices.retrieve(invoiceId);
+          const subId = extractSubscriptionId(invoice);
           if (subId) {
             const { data: subRow } = await admin
               .from('subscriptions')
