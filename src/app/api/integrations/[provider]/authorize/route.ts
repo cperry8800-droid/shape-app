@@ -12,7 +12,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { getProvider, getClientCredentials, type ProviderId } from '@/lib/integrations/providers';
-import { callbackUrl, pkcePair, randomToken } from '@/lib/integrations/oauth';
+import { pkcePair, randomToken } from '@/lib/integrations/oauth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -52,11 +52,12 @@ export async function GET(
 
   const state = randomToken(24);
   const returnTo = new URL(request.url).searchParams.get('return') ?? DEFAULT_RETURN_TO;
+  const redirectUri = `${new URL(request.url).origin}/api/integrations/${cfg.id}/callback`;
 
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: creds.clientId,
-    redirect_uri: callbackUrl(cfg.id),
+    redirect_uri: redirectUri,
     scope: cfg.scope,
     state,
   });
@@ -83,6 +84,7 @@ export async function GET(
   cookieStore.set(`shape_oauth_state_${cfg.id}`, state, cookieOpts);
   cookieStore.set(`shape_oauth_user_${cfg.id}`, user.id, cookieOpts);
   cookieStore.set(`shape_oauth_return_${cfg.id}`, returnTo, cookieOpts);
+  cookieStore.set(`shape_oauth_redirect_${cfg.id}`, redirectUri, cookieOpts);
   if (verifier) {
     cookieStore.set(`shape_oauth_pkce_${cfg.id}`, verifier, cookieOpts);
   }

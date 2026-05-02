@@ -39,6 +39,7 @@ export async function GET(
   const expectedState = cookieStore.get(`shape_oauth_state_${cfg.id}`)?.value ?? null;
   const userId = cookieStore.get(`shape_oauth_user_${cfg.id}`)?.value ?? null;
   const returnTo = cookieStore.get(`shape_oauth_return_${cfg.id}`)?.value ?? DEFAULT_RETURN_TO;
+  const redirectUri = cookieStore.get(`shape_oauth_redirect_${cfg.id}`)?.value ?? callbackUrl(cfg.id);
   const verifier = cookieStore.get(`shape_oauth_pkce_${cfg.id}`)?.value ?? null;
 
   // Clear the one-shot cookies immediately — whether or not the exchange succeeds.
@@ -46,6 +47,7 @@ export async function GET(
     `shape_oauth_state_${cfg.id}`,
     `shape_oauth_user_${cfg.id}`,
     `shape_oauth_return_${cfg.id}`,
+    `shape_oauth_redirect_${cfg.id}`,
     `shape_oauth_pkce_${cfg.id}`,
   ]) {
     cookieStore.set(name, '', { path: '/', maxAge: 0 });
@@ -62,7 +64,7 @@ export async function GET(
   const body = new URLSearchParams({
     grant_type: 'authorization_code',
     code,
-    redirect_uri: callbackUrl(cfg.id),
+    redirect_uri: redirectUri,
     client_id: creds.clientId,
     client_secret: creds.clientSecret,
   });
