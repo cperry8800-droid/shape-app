@@ -1,4 +1,5 @@
 import { getCurrentUserAndProfile } from '@/lib/queries';
+import IntegrationsPanel from './IntegrationsPanel';
 import SettingsForm from './SettingsForm';
 
 export const metadata = { title: 'Settings — Shape' };
@@ -25,6 +26,8 @@ export default async function SettingsPage() {
           Email: <span className="text-neutral-200">{ctx?.email}</span>
         </p>
       </section>
+
+      <IntegrationsPanel />
     </div>
   );
 }
