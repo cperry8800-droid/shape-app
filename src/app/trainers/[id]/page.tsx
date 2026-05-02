@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import CinematicPageShell from '@/components/CinematicPageShell';
+import ProviderMessageButton from '@/components/ProviderMessageButton';
 import { getTrainerById, isSubscribedTo } from '@/lib/queries';
 
 export default async function TrainerDetailPage({
@@ -58,6 +59,7 @@ export default async function TrainerDetailPage({
         )}
 
         {/* CTA */}
+        <div className="grid gap-3 sm:grid-cols-2">
         {subscribed ? (
           <div className="text-center py-4 rounded-full border border-teal-400/30 bg-teal-400/10 text-teal-400 text-sm font-medium">
             Subscribed
@@ -70,6 +72,8 @@ export default async function TrainerDetailPage({
             Subscribe — ${trainer.price ?? 0}/mo
           </Link>
         )}
+          <ProviderMessageButton providerRole="trainer" providerId={trainer.id} providerName={trainer.name} />
+        </div>
       </div>
     </CinematicPageShell>
   );

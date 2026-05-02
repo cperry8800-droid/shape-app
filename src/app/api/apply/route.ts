@@ -6,14 +6,30 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
-const ADMIN_EMAIL = process.env.APPLICATIONS_EMAIL ?? 'chris.perry@shapecommunity.onmicrosoft.com';
+const ADMIN_EMAIL = process.env.APPLICATIONS_EMAIL ?? 'christopher.perry@theshapecommunity.com';
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
 
 const MAX_TEXT = 500;
 const MAX_LONG = 10000;
+const FILE_BUCKET = 'provider-credentials';
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const ALLOWED_FILE_TYPES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+]);
 
 function clean(v: unknown, max = MAX_TEXT): string {
   if (typeof v !== 'string') return '';
@@ -24,9 +40,9 @@ function isEmail(s: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 }
 
-function sanitizeDetails(input: unknown): Record<string, string> {
+function sanitizeDetails(input: unknown): Record<string, unknown> {
   if (!input || typeof input !== 'object') return {};
-  const out: Record<string, string> = {};
+  const out: Record<string, unknown> = {};
   for (const [rawKey, rawVal] of Object.entries(input as Record<string, unknown>)) {
     if (typeof rawKey !== 'string' || !rawKey) continue;
     const key = rawKey.slice(0, 100);
@@ -35,25 +51,111 @@ function sanitizeDetails(input: unknown): Record<string, string> {
       out[key] = rawVal.trim().slice(0, MAX_LONG);
     } else if (typeof rawVal === 'number' || typeof rawVal === 'boolean') {
       out[key] = String(rawVal);
+    } else if (Array.isArray(rawVal)) {
+      out[key] = rawVal.slice(0, 25);
+    } else if (typeof rawVal === 'object') {
+      out[key] = rawVal;
     }
     if (Object.keys(out).length >= 100) break;
   }
   return out;
 }
 
+function minimumYears(value: string): number {
+  const match = value.match(/\d+/);
+  return match ? Number(match[0]) : 0;
+}
+
+function safeFileName(name = 'document'): string {
+  return name
+    .replace(/[^A-Za-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 120) || 'document';
+}
+
+async function parseApplyRequest(req: NextRequest): Promise<{
+  body: Record<string, unknown>;
+  files: Array<{ kind: string; file: File }>;
+}> {
+  const contentType = req.headers.get('content-type') || '';
+  if (!contentType.includes('multipart/form-data')) {
+    return { body: await req.json(), files: [] };
+  }
+
+  const form = await req.formData();
+  const body: Record<string, unknown> = {};
+  const files: Array<{ kind: string; file: File }> = [];
+
+  for (const [key, value] of form.entries()) {
+    if (value instanceof File) {
+      if (value.size > 0) files.push({ kind: key, file: value });
+    } else if (key === 'details') {
+      try {
+        body.details = JSON.parse(value);
+      } catch {
+        body.details = {};
+      }
+    } else {
+      body[key] = value;
+    }
+  }
+
+  return { body, files };
+}
+
+async function uploadApplicationFiles(
+  applicationId: string,
+  files: Array<{ kind: string; file: File }>
+): Promise<Array<Record<string, unknown>>> {
+  if (!files.length) return [];
+  const supabase = createAdminClient();
+  const uploaded: Array<Record<string, unknown>> = [];
+
+  for (const { kind, file } of files) {
+    if (file.size > MAX_FILE_BYTES) {
+      throw new Error(`${file.name} is larger than 10MB.`);
+    }
+    if (file.type && !ALLOWED_FILE_TYPES.has(file.type)) {
+      throw new Error(`${file.name} must be a PDF, DOC, image, or DOCX file.`);
+    }
+
+    const path = `website/${applicationId}/${kind}/${Date.now()}-${safeFileName(file.name)}`;
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const { error } = await supabase.storage.from(FILE_BUCKET).upload(path, bytes, {
+      contentType: file.type || undefined,
+      upsert: false,
+    });
+    if (error) throw error;
+    uploaded.push({
+      kind,
+      bucket: FILE_BUCKET,
+      path,
+      name: file.name,
+      type: file.type || 'application/octet-stream',
+      size: file.size,
+      stored: 'supabase',
+    });
+  }
+
+  return uploaded;
+}
+
 export async function POST(req: NextRequest) {
   let body: Record<string, unknown>;
+  let files: Array<{ kind: string; file: File }> = [];
   try {
-    body = await req.json();
+    const parsed = await parseApplyRequest(req);
+    body = parsed.body;
+    files = parsed.files;
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid application request.' }, { status: 400, headers: CORS_HEADERS });
   }
 
   const providerTypeRaw = clean(body.providerType, 20).toLowerCase();
   if (providerTypeRaw !== 'trainer' && providerTypeRaw !== 'nutritionist') {
     return NextResponse.json(
       { error: 'providerType must be "trainer" or "nutritionist".' },
-      { status: 400 }
+      { status: 400, headers: CORS_HEADERS }
     );
   }
 
@@ -65,16 +167,22 @@ export async function POST(req: NextRequest) {
   const specialty = clean(body.specialty, 200);
   const yearsExperience = clean(body.yearsExperience, 40);
   const monthlyPrice = clean(body.monthlyPrice, 40);
-  const details = sanitizeDetails(body.details);
+  let details = sanitizeDetails(body.details);
 
   if (!firstName || !lastName || !email) {
     return NextResponse.json(
       { error: 'First name, last name, and email are required.' },
-      { status: 400 }
+      { status: 400, headers: CORS_HEADERS }
     );
   }
   if (!isEmail(email)) {
-    return NextResponse.json({ error: 'Please enter a valid email.' }, { status: 400 });
+    return NextResponse.json({ error: 'Please enter a valid email.' }, { status: 400, headers: CORS_HEADERS });
+  }
+  if (minimumYears(yearsExperience) < 7) {
+    return NextResponse.json(
+      { error: 'Shape requires at least 7 years of professional experience for trainer and nutritionist applications.' },
+      { status: 400, headers: CORS_HEADERS }
+    );
   }
 
   const supabase = await createClient();
@@ -100,7 +208,26 @@ export async function POST(req: NextRequest) {
     console.error('provider_applications insert failed:', error);
     return NextResponse.json(
       { error: 'Could not submit your application. Please email christopher.perry@theshapecommunity.com directly.' },
-      { status: 500 }
+      { status: 500, headers: CORS_HEADERS }
+    );
+  }
+
+  try {
+    const documents = await uploadApplicationFiles(data.id, files);
+    if (documents.length) {
+      details = { ...details, documents };
+      const admin = createAdminClient();
+      const { error: updateError } = await admin
+        .from('provider_applications')
+        .update({ details })
+        .eq('id', data.id);
+      if (updateError) throw updateError;
+    }
+  } catch (uploadError) {
+    console.error('provider application upload failed:', uploadError);
+    return NextResponse.json(
+      { error: uploadError instanceof Error ? uploadError.message : 'Could not upload application files.' },
+      { status: 500, headers: CORS_HEADERS }
     );
   }
 
@@ -120,7 +247,11 @@ export async function POST(req: NextRequest) {
     applicationId: data?.id,
   });
 
-  return NextResponse.json({ ok: true, id: data?.id });
+  return NextResponse.json({ ok: true, id: data?.id }, { headers: CORS_HEADERS });
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
 }
 
 type EmailContext = {
@@ -133,7 +264,7 @@ type EmailContext = {
   specialty: string;
   yearsExperience: string;
   monthlyPrice: string;
-  details: Record<string, string>;
+  details: Record<string, unknown>;
   applicationId: string | undefined;
 };
 
@@ -146,7 +277,18 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
+function detailsValueToText(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value == null) return '';
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
 async function sendApplicationEmails(ctx: EmailContext): Promise<void> {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://theshapecommunity.com';
   const baseRows: Array<[string, string]> = [
     ['Role', ctx.role],
     ['Name', ctx.fullName],
@@ -157,8 +299,10 @@ async function sendApplicationEmails(ctx: EmailContext): Promise<void> {
     ['Years experience', ctx.yearsExperience],
     ['Monthly price', ctx.monthlyPrice],
   ];
-  const adminRows: Array<[string, string]> = [...baseRows, ...Object.entries(ctx.details)]
-    .filter(([, v]) => Boolean(v));
+  const adminRows: Array<[string, string]> = [
+    ...baseRows,
+    ...Object.entries(ctx.details).map(([key, value]) => [key, detailsValueToText(value)] as [string, string]),
+  ].filter(([, v]) => Boolean(v));
 
   const adminHtml = `
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:560px;margin:0 auto;padding:24px;">
@@ -167,6 +311,7 @@ async function sendApplicationEmails(ctx: EmailContext): Promise<void> {
       <table style="width:100%;border-collapse:collapse;font-size:14px;">
         ${adminRows.map(([k, v]) => `<tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;width:160px;vertical-align:top;">${escapeHtml(k)}</td><td style="padding:8px 12px;border-bottom:1px solid #eee;">${escapeHtml(v)}</td></tr>`).join('')}
       </table>
+      <p style="margin:20px 0 0;"><a href="${escapeHtml(siteUrl)}/dashboard/applications" style="display:inline-block;background:#0ac5a8;color:#06100e;text-decoration:none;padding:10px 14px;border-radius:999px;font-size:13px;font-weight:600;">Open application review</a></p>
       ${ctx.applicationId ? `<p style="margin:20px 0 0;color:#999;font-size:12px;">Application ID: ${escapeHtml(ctx.applicationId)}</p>` : ''}
     </div>
   `;
@@ -174,6 +319,8 @@ async function sendApplicationEmails(ctx: EmailContext): Promise<void> {
     `New ${ctx.role.toLowerCase()} application`,
     '',
     ...adminRows.map(([k, v]) => `${k}: ${v}`),
+    '',
+    `Review: ${siteUrl}/dashboard/applications`,
     ctx.applicationId ? `\nApplication ID: ${ctx.applicationId}` : '',
   ].join('\n');
 

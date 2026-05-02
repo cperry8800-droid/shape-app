@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import CinematicPageShell from '@/components/CinematicPageShell';
+import ProviderMessageButton from '@/components/ProviderMessageButton';
 import { getNutritionistById, isSubscribedTo } from '@/lib/queries';
 
 export default async function NutritionistDetailPage({
@@ -58,6 +59,7 @@ export default async function NutritionistDetailPage({
         )}
 
         {/* CTA */}
+        <div className="grid gap-3 sm:grid-cols-2">
         {subscribed ? (
           <div className="text-center py-4 rounded-full border border-teal-400/30 bg-teal-400/10 text-teal-400 text-sm font-medium">
             Subscribed
@@ -70,6 +72,8 @@ export default async function NutritionistDetailPage({
             Subscribe — ${nutritionist.price ?? 0}/mo
           </Link>
         )}
+          <ProviderMessageButton providerRole="nutritionist" providerId={nutritionist.id} providerName={nutritionist.name} />
+        </div>
       </div>
     </CinematicPageShell>
   );
