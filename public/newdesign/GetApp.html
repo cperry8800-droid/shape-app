@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -67,12 +67,30 @@
   /* Phone preview */
   .phone-frame {
     margin: 36px auto 0; width: min(320px, 86vw); aspect-ratio: 320/640;
-    background: #1a1612; border-radius: 44px; padding: 10px;
-    box-shadow: 0 30px 80px rgba(10,13,12,0.18), 0 0 0 1.5px rgba(10,13,12,0.92);
+    background: linear-gradient(145deg, #34312c 0%, #060606 38%, #1b1815 100%);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 48px;
+    padding: 8px;
+    box-shadow:
+      0 34px 70px rgba(10,13,12,0.2),
+      0 10px 24px rgba(10,13,12,0.16),
+      inset 0 0 0 1px rgba(255,255,255,0.08),
+      inset 0 -18px 30px rgba(0,0,0,0.42);
     position: relative;
   }
-  .phone-screen { width: 100%; height: 100%; border-radius: 36px; overflow: hidden; background: var(--paper-3); position: relative; padding: 38px 14px 70px; }
-  .phone-notch { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); width: 88px; height: 22px; background: #1a1612; border-radius: 999px; z-index: 5; }
+  .phone-frame::before {
+    content: '';
+    position: absolute;
+    right: -4px;
+    top: 138px;
+    width: 4px;
+    height: 74px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #27231f, #050505);
+    box-shadow: 0 96px 0 #080808;
+  }
+  .phone-screen { width: 100%; height: 100%; border-radius: 40px; overflow: hidden; background: var(--paper-3); position: relative; padding: 38px 14px 70px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); }
+  .phone-notch { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 84px; height: 22px; background: #020202; border-radius: 999px; z-index: 5; box-shadow: inset 0 1px 0 rgba(255,255,255,0.08); }
   .pcard { background: #efe7d3; border-radius: 14px; padding: 16px 14px; margin-bottom: 12px; color: var(--ink); }
   .ppill { display: inline-block; padding: 3px 9px; border-radius: 5px; font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.1em; font-weight: 600; text-transform: uppercase; color: #fff; background: var(--orange-bright); }
   .pmono { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.1em; color: var(--teal); margin-top: 8px; }
@@ -115,25 +133,39 @@
   .feat-row .copy h3 { font-family: var(--serif); font-weight: 500; font-size: clamp(28px, 4vw, 38px); letter-spacing: -0.02em; line-height: 1.05; margin: 0 0 14px; }
   .feat-row .copy p { font-size: 15.5px; line-height: 1.6; color: var(--ink-2); margin: 0; }
   .feat-row .phone {
-    width: 320px; max-width: 100%;
-    aspect-ratio: 9 / 19.5;
+    width: 326px; max-width: 100%;
+    aspect-ratio: 508 / 1088;
     margin: 0 auto;
-    background: #0a0a0a;
-    border-radius: 48px;
-    overflow: hidden;
-    box-shadow: 0 24px 50px rgba(10,13,12,0.18), 0 0 0 1px rgba(10,13,12,0.5);
+    background: transparent;
+    border-radius: 54px;
+    overflow: visible;
+    box-shadow: none;
     position: relative;
+  }
+  .feat-row .phone::before {
+    content: '';
+    position: absolute;
+    inset: 5% 5% 1%;
+    border-radius: 52px;
+    background: rgba(10,13,12,0.18);
+    filter: blur(22px);
+    transform: translateY(16px);
+    z-index: -1;
   }
   .feat-row .phone img {
     width: 100%; height: 100%;
-    object-fit: cover; object-position: top;
+    object-fit: contain; object-position: center;
     display: block;
+    border-radius: 54px;
+    filter:
+      drop-shadow(0 24px 34px rgba(10,13,12,0.18))
+      drop-shadow(0 4px 10px rgba(10,13,12,0.2));
   }
   @media (max-width: 760px) {
     .feat-row, .feat-row.reverse { grid-template-columns: 1fr; gap: 28px; padding: 40px 0; }
     .feat-row.reverse .copy { order: 1; }
     .feat-row.reverse .phone { order: 2; }
-    .feat-row .phone { width: min(280px, 80vw); }
+    .feat-row .phone { width: min(292px, 82vw); }
   }
 
   /* Why band */
@@ -396,3 +428,4 @@
 
 </body>
 </html>
+
