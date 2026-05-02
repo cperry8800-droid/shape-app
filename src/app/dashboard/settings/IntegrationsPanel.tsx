@@ -59,6 +59,10 @@ export default function IntegrationsPanel() {
     () => providers.find((provider) => provider.id === 'whoop'),
     [providers]
   );
+  const strava = useMemo(
+    () => providers.find((provider) => provider.id === 'strava'),
+    [providers]
+  );
 
   async function loadStatus() {
     setLoading(true);
@@ -92,8 +96,8 @@ export default function IntegrationsPanel() {
     }
   }
 
-  function connectWhoop() {
-    window.location.assign('/api/integrations/whoop/authorize?return=/dashboard/settings');
+  function connectProvider(provider: string) {
+    window.location.assign(`/api/integrations/${provider}/authorize?return=/dashboard/settings`);
   }
 
   const recovery = result?.whoop?.recoveries?.records?.[0]?.score;
@@ -145,7 +149,7 @@ export default function IntegrationsPanel() {
           <div className="grid min-w-full grid-cols-2 gap-2 md:min-w-[320px]">
             <button
               type="button"
-              onClick={connectWhoop}
+              onClick={() => connectProvider('whoop')}
               disabled={Boolean(busy)}
               className="border border-teal-400 px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-teal-300 hover:bg-teal-400 hover:text-neutral-950 disabled:opacity-50"
             >
@@ -202,8 +206,39 @@ export default function IntegrationsPanel() {
       </div>
 
       <div className="mt-5 grid gap-3 md:grid-cols-2">
+        <div className="border border-neutral-800 bg-neutral-950/40 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-medium">Strava</h3>
+              <p className="mt-1 text-sm text-neutral-500">
+                Runs, rides, GPS routes, and activity map data.
+              </p>
+            </div>
+            <span className="text-xs uppercase tracking-[0.16em] text-neutral-500">
+              {strava?.connected ? 'Connected' : 'Ready'}
+            </span>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => connectProvider('strava')}
+              disabled={Boolean(busy)}
+              className="border border-neutral-700 px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-200 hover:border-teal-400 hover:text-teal-300 disabled:opacity-40"
+            >
+              {strava?.connected ? 'Reconnect' : 'Connect'}
+            </button>
+            <button
+              type="button"
+              disabled={!strava?.connected || Boolean(busy)}
+              onClick={() => run('Disconnecting Strava', () => fetchJson('/api/integrations/strava/disconnect', { method: 'POST' }))}
+              className="border border-neutral-700 px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-400 hover:border-red-400 hover:text-red-300 disabled:opacity-40"
+            >
+              Disconnect
+            </button>
+          </div>
+        </div>
+
         {[
-          ['Strava', 'Runs, rides, GPS routes', 'Next'],
           ['Garmin', 'Health + activity export', 'Next'],
           ['Spotify', 'Coach playlists', 'Next'],
           ['Apple Music', 'MusicKit library', 'Next'],

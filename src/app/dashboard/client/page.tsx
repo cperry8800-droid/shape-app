@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { getMySessions, getMySubscriptions, getTrainers, getNutritionists } from '@/lib/queries';
 import { cancelSubscription } from '@/app/subscribe/actions';
 import { requestRefund } from '@/app/refunds/actions';
+import HealthMetricsPanel from './HealthMetricsPanel';
 
 export const metadata = { title: 'My Coaches — Shape' };
 
@@ -27,6 +28,8 @@ export default async function ClientDashboardPage() {
 
   return (
     <div className="flex flex-col gap-8">
+      <HealthMetricsPanel />
+
       <section className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-6">
         <h2 className="text-lg font-medium mb-4">
           Your coaches <span className="text-neutral-500 text-sm">({subs.length})</span>
