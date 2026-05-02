@@ -54,6 +54,25 @@
 </head>
 <body>
 
+<script>
+  // Mobile visitors land on the App page instead of the desktop explorer.
+  // ?desktop=1 (or having visited that way once) bypasses the redirect.
+  (function () {
+    try {
+      var params = new URLSearchParams(window.location.search);
+      if (params.has('desktop')) {
+        sessionStorage.setItem('shapeForceDesktop', '1');
+        return;
+      }
+      if (sessionStorage.getItem('shapeForceDesktop') === '1') return;
+      var isMobile = window.matchMedia('(max-width: 760px)').matches;
+      if (isMobile) {
+        window.location.replace('/newdesign/GetApp.html');
+      }
+    } catch (e) {}
+  })();
+</script>
+
 <main>
   <section class="direction" id="dir-A" data-screen-label="A Performance"></section>
   <section class="direction" id="dir-B" data-screen-label="B Editorial" hidden></section>
