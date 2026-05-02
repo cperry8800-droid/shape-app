@@ -16,6 +16,26 @@ function isoOrNull(unixSeconds: number | null | undefined): string | null {
   return new Date(unixSeconds * 1000).toISOString();
 }
 
+async function upsertPlatformSubscription(
+  admin: ReturnType<typeof createAdminClient>,
+  row: {
+    client_id: string;
+    stripe_customer_id: string | null;
+    stripe_subscription_id: string | null;
+    status: string;
+    price_cents: number | null;
+    current_period_end: string | null;
+  }
+) {
+  const { error } = await admin
+    .from('platform_subscriptions')
+    .upsert(row, { onConflict: 'stripe_subscription_id' });
+
+  if (error && error.code !== '42P01') {
+    console.warn('[shape-app] platform subscription upsert failed:', error.message);
+  }
+}
+
 export async function POST(request: Request) {
   const signature = request.headers.get('stripe-signature');
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -96,6 +116,22 @@ export async function POST(request: Request) {
           currentPeriodEnd = isoOrNull(sub.current_period_end);
         }
 
+        if (session.metadata?.plan === 'shape_platform') {
+          await upsertPlatformSubscription(admin, {
+            client_id: clientId,
+            stripe_customer_id:
+              typeof session.customer === 'string' ? session.customer : session.customer?.id ?? null,
+            stripe_subscription_id:
+              typeof session.subscription === 'string'
+                ? session.subscription
+                : session.subscription?.id ?? null,
+            status: 'active',
+            price_cents: priceCents || null,
+            current_period_end: currentPeriodEnd,
+          });
+          break;
+        }
+
         await admin.from('subscriptions').upsert(
           {
             client_id: clientId,
@@ -127,6 +163,13 @@ export async function POST(request: Request) {
           .from('subscriptions')
           .update({ status, current_period_end: currentPeriodEnd })
           .eq('stripe_subscription_id', sub.id);
+        const { error: platformError } = await admin
+          .from('platform_subscriptions')
+          .update({ status, current_period_end: currentPeriodEnd })
+          .eq('stripe_subscription_id', sub.id);
+        if (platformError && platformError.code !== '42P01') {
+          console.warn('[shape-app] platform subscription update failed:', platformError.message);
+        }
         break;
       }
 
