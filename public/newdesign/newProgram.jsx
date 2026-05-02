@@ -43,6 +43,21 @@ function NewProgramPage() {
   const tags = ["SIGNATURE", "FOUNDATIONS", "PERFORMANCE", "REHAB", "ENDURANCE", "HYPERTROPHY"];
   const goals = ["Strength", "Hypertrophy", "Fat loss", "Endurance", "General fitness", "Sport-specific"];
   const levels = ["Beginner", "Intermediate", "Advanced"];
+  const applyDraft = (draft) => {
+    setName(draft.title || name);
+    setSummary(draft.summary || summary);
+    setTag(draft.tag || tag);
+    const generatedWeeks = Number(String(draft.duration || "").match(/\d+/)?.[0]);
+    if (generatedWeeks) setWeeks(generatedWeeks);
+    if (draft.blocks?.length) {
+      setWorkouts(draft.blocks.map((block, index) => ({
+        week: Number(String(block.label || "").match(/\d+/)?.[0]) || Math.min(index + 1, generatedWeeks || weeks),
+        day: days[index % days.length],
+        title: block.title || "",
+        ref: [block.detail, block.note].filter(Boolean).join(" - "),
+      })));
+    }
+  };
 
   return (
     <DashPage
@@ -61,6 +76,7 @@ function NewProgramPage() {
       <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 20 }}>
         {/* LEFT — form */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <AIGeneratorCard kind="program" role="trainer" onApply={applyDraft} />
           <Card>
             <SectionTitle>Basics</SectionTitle>
             <Field label="Program name">

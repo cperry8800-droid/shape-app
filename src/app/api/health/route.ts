@@ -43,6 +43,10 @@ export async function GET() {
         STRAVA_CLIENT_ID: !!env.STRAVA_CLIENT_ID,
         STRAVA_CLIENT_SECRET: !!env.STRAVA_CLIENT_SECRET,
       },
+      ai: {
+        OPENAI_API_KEY: !!env.OPENAI_API_KEY,
+        OPENAI_MODEL: env.OPENAI_MODEL ?? null,
+      },
       email: {
         RESEND_API_KEY: !!env.RESEND_API_KEY,
         RESEND_FROM: env.RESEND_FROM ?? null,
