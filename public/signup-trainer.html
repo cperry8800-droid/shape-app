@@ -118,24 +118,24 @@
             <select name="specialty" required><option value="">Select…</option><option>Strength &amp; Powerlifting</option><option>HIIT &amp; Fat Loss</option><option>At Home Workouts</option><option>Cardio &amp; Endurance</option><option>Functional Fitness</option><option>Bodybuilding</option><option>Sports Performance</option><option>Other</option></select>
           </div>
           <div class="form-group"><label>Secondary specialties</label><input type="text" name="secondarySpecialties" placeholder="Mobility, kettlebell, pre/post-natal…"></div>
-          <div class="form-group"><label>Populations you work best with</label><input type="text" name="populations" placeholder="Beginners, athletes, seniors, postpartum…"></div>
-          <div class="form-group"><label>Coaching style</label><input type="text" name="coachingStyle" placeholder="Data-driven, high-energy, technique-first…"></div>
+          <div class="form-group"><label>Populations you work best with</label><input type="text" name="populations" placeholder="Beginners, athletes, seniors, postpartum…" required></div>
+          <div class="form-group"><label>Coaching style</label><input type="text" name="coachingStyle" placeholder="Data-driven, high-energy, technique-first…" required></div>
 
           <div class="field-group-title">Experience</div>
           <div class="form-row">
-            <div class="form-group"><label>Clients coached (career total)</label><input type="text" name="clientsTotal" placeholder="~120"></div>
+            <div class="form-group"><label>Clients coached (career total)</label><input type="text" name="clientsTotal" placeholder="~120" required></div>
             <div class="form-group">
               <label>Online coaching experience</label>
-              <select name="onlineExp"><option value="">Select…</option><option>None</option><option>&lt; 1 year</option><option>1-3 years</option><option>3+ years</option></select>
+              <select name="onlineExp" required><option value="">Select…</option><option>None</option><option>&lt; 1 year</option><option>1-3 years</option><option>3+ years</option></select>
             </div>
           </div>
           <div class="form-row">
-            <div class="form-group"><label>Previous platforms</label><input type="text" name="prevPlatforms" placeholder="Trainerize, TrueCoach…"></div>
-            <div class="form-group"><label>Online / in-person split</label><input type="text" name="split" placeholder="e.g. 70 / 30"></div>
+            <div class="form-group"><label>Previous platforms</label><input type="text" name="prevPlatforms" placeholder="Trainerize, TrueCoach…" required></div>
+            <div class="form-group"><label>Online / in-person split</label><input type="text" name="split" placeholder="e.g. 70 / 30" required></div>
           </div>
           <div class="form-group">
-            <label>Sample workout plan (optional upload)</label>
-            <input type="file" name="samplePlan" accept="image/*,.pdf,.doc,.docx">
+            <label>Sample workout plan</label>
+            <input type="file" name="samplePlan" accept="image/*,.pdf,.doc,.docx" required>
           </div>
           <button type="submit" class="btn-submit">Continue</button>
         </form>
