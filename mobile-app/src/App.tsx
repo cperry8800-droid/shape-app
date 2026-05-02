@@ -1,11 +1,14 @@
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
+import type { Session } from '@supabase/supabase-js';
+import { supabase } from './lib/supabase';
 import Home from './screens/Home';
 import Train from './screens/Train';
 import Nutri from './screens/Nutri';
 import Me from './screens/Me';
+import Login from './screens/Login';
 
 export default function App() {
   // Match the dark Shape palette in the iOS status bar.
@@ -14,6 +17,28 @@ export default function App() {
       StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
     }
   }, []);
+
+  const [session, setSession] = useState<Session | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setAuthReady(true);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_evt, s) => {
+      setSession(s);
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  if (!authReady) {
+    return <div className="app" style={{ padding: 40, color: 'var(--muted)' }}>Loading…</div>;
+  }
+
+  if (!session) {
+    return <div className="app"><Login /></div>;
+  }
 
   return (
     <div className="app">
