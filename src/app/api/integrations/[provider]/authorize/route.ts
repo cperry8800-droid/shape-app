@@ -18,6 +18,8 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const COOKIE_TTL_SECONDS = 600; // 10 minutes
+const DEFAULT_RETURN_TO = '/newdesign/GetApp.html';
+const DEFAULT_LOGIN_ROUTE = '/newdesign/GetApp.html';
 
 export async function GET(
   request: Request,
@@ -40,12 +42,16 @@ export async function GET(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    const returnTo = new URL(request.url).searchParams.get('return') ?? '/integrations.html';
-    return NextResponse.redirect(`${new URL(request.url).origin}/login.html?return=${encodeURIComponent(returnTo)}`);
+    const returnTo = new URL(request.url).searchParams.get('return') ?? DEFAULT_RETURN_TO;
+    const loginUrl = new URL(DEFAULT_LOGIN_ROUTE, new URL(request.url).origin);
+    loginUrl.searchParams.set('return', returnTo);
+    loginUrl.searchParams.set('integration', cfg.id);
+    loginUrl.searchParams.set('status', 'signin_required');
+    return NextResponse.redirect(loginUrl.toString());
   }
 
   const state = randomToken(24);
-  const returnTo = new URL(request.url).searchParams.get('return') ?? '/integrations.html';
+  const returnTo = new URL(request.url).searchParams.get('return') ?? DEFAULT_RETURN_TO;
 
   const params = new URLSearchParams({
     response_type: 'code',

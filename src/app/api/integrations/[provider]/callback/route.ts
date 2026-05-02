@@ -1,7 +1,7 @@
 // OAuth callback. The provider redirects here with ?code= and ?state=.
 // We validate the state cookie, exchange the code for tokens, persist
 // them, clear the one-shot cookies, and send the user back to wherever
-// they started (default: /integrations.html).
+// they started (default: /newdesign/GetApp.html).
 
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
@@ -11,6 +11,8 @@ import { storeTokens } from '@/lib/integrations/tokens';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+const DEFAULT_RETURN_TO = '/newdesign/GetApp.html';
 
 function redirectBack(returnTo: string, status: 'ok' | 'error', provider: string, message?: string) {
   const url = new URL(returnTo, siteOrigin());
@@ -36,7 +38,7 @@ export async function GET(
   const cookieStore = await cookies();
   const expectedState = cookieStore.get(`shape_oauth_state_${cfg.id}`)?.value ?? null;
   const userId = cookieStore.get(`shape_oauth_user_${cfg.id}`)?.value ?? null;
-  const returnTo = cookieStore.get(`shape_oauth_return_${cfg.id}`)?.value ?? '/integrations.html';
+  const returnTo = cookieStore.get(`shape_oauth_return_${cfg.id}`)?.value ?? DEFAULT_RETURN_TO;
   const verifier = cookieStore.get(`shape_oauth_pkce_${cfg.id}`)?.value ?? null;
 
   // Clear the one-shot cookies immediately — whether or not the exchange succeeds.
