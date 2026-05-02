@@ -30,7 +30,7 @@ export default async function NutritionistDetailPage({
               <span className="text-xs uppercase tracking-wider text-white/40">{nutritionist.credential}</span>
             )}
             <div className="flex gap-4 text-sm text-white/60 mt-1">
-              <span>★ {nutritionist.rating ?? '—'}</span>
+              <span>★ {nutritionist.rating ?? '—'} / 10</span>
               <span>{nutritionist.subscribers ?? 0} subscribers</span>
               <span>${nutritionist.price ?? 0}/mo</span>
             </div>

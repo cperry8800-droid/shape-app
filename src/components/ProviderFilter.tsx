@@ -119,7 +119,7 @@ export default function ProviderFilter({
             bio={it.bio}
             color={it.color}
             credential={it.credential}
-            primary={{ label: 'Rating', value: `★ ${it.rating ?? '—'}` }}
+            primary={{ label: 'Rating', value: `★ ${it.rating ?? '—'} / 10` }}
             secondary={{
               label: 'Count',
               value:

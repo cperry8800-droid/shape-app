@@ -789,7 +789,7 @@
           '<div class="mkt-card-location">' + loc.city + '</div>' +
           '<div class="mkt-card-stats">' +
             '<div class="mkt-card-stat"><span class="mkt-card-stat-val">' + mktFormatSubs(t.subscribers) + '</span><span class="mkt-card-stat-label">Subs</span></div>' +
-            '<div class="mkt-card-stat"><span class="mkt-card-stat-val rating">★ ' + (t.rating || '—') + '</span><span class="mkt-card-stat-label">Rating</span></div>' +
+            '<div class="mkt-card-stat"><span class="mkt-card-stat-val rating">★ ' + (t.rating || '—') + ' / 10</span><span class="mkt-card-stat-label">Rating</span></div>' +
             '<div class="mkt-card-stat"><span class="mkt-card-stat-val">$' + t.price + '</span><span class="mkt-card-stat-label">/mo</span></div>' +
           '</div>' +
         '</div>'
@@ -810,7 +810,7 @@
           '<div class="mkt-card-location">' + loc.city + '</div>' +
           '<div class="mkt-card-stats">' +
             '<div class="mkt-card-stat"><span class="mkt-card-stat-val">' + mktFormatSubs(n.subscribers) + '</span><span class="mkt-card-stat-label">Subs</span></div>' +
-            '<div class="mkt-card-stat"><span class="mkt-card-stat-val rating">★ ' + (n.rating || '—') + '</span><span class="mkt-card-stat-label">Rating</span></div>' +
+            '<div class="mkt-card-stat"><span class="mkt-card-stat-val rating">★ ' + (n.rating || '—') + ' / 10</span><span class="mkt-card-stat-label">Rating</span></div>' +
             '<div class="mkt-card-stat"><span class="mkt-card-stat-val">$' + n.price + '</span><span class="mkt-card-stat-label">/mo</span></div>' +
           '</div>' +
         '</div>'
@@ -1011,7 +1011,7 @@
                   '<h3>' + t.name + '</h3>' +
                   '<div class="meta">' + (t.specialty || '') + '</div>' +
                 '</div>' +
-                '<div class="mkt-spotlight-rating">★ ' + (t.rating || '—') + '</div>' +
+                '<div class="mkt-spotlight-rating">★ ' + (t.rating || '—') + ' / 10</div>' +
                 '<div class="mkt-spotlight-cta">Why?</div>';
             }
           }
@@ -1035,7 +1035,7 @@
                   '<h3>' + n.name + '</h3>' +
                   '<div class="meta">' + (n.specialty || '') + '</div>' +
                 '</div>' +
-                '<div class="mkt-spotlight-rating">★ ' + (n.rating || '—') + '</div>' +
+                '<div class="mkt-spotlight-rating">★ ' + (n.rating || '—') + ' / 10</div>' +
                 '<div class="mkt-spotlight-cta">Why?</div>';
             }
           }
@@ -1045,8 +1045,8 @@
 
     function mktBuildReasons(item, type) {
       var reasons = [];
-      if (item.rating && item.rating >= 4.8) reasons.push('Top-tier ' + item.rating + '★ average rating from verified members');
-      else if (item.rating) reasons.push(item.rating + '★ average rating from verified members');
+      if (item.rating && item.rating >= 9.6) reasons.push('Top-tier ' + item.rating + '★ / 10 average rating from verified members');
+      else if (item.rating) reasons.push(item.rating + '★ / 10 average rating from verified members');
       if (item.subscribers) reasons.push(mktFormatSubs(item.subscribers) + ' active subscribers on Shape');
       if (item.experience) reasons.push(item.experience + ' of professional coaching experience');
       if (item.credential) reasons.push('Credentialed: ' + (item.credentialFull || item.credential));

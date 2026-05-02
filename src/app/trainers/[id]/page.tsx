@@ -30,7 +30,7 @@ export default async function TrainerDetailPage({
               <span className="text-xs uppercase tracking-wider text-white/40">{trainer.credential}</span>
             )}
             <div className="flex gap-4 text-sm text-white/60 mt-1">
-              <span>★ {trainer.rating ?? '—'}</span>
+              <span>★ {trainer.rating ?? '—'} / 10</span>
               <span>{trainer.subscribers ?? 0} subscribers</span>
               <span>${trainer.price ?? 0}/mo</span>
             </div>
