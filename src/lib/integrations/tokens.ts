@@ -26,7 +26,7 @@ export interface StoreTokenInput {
 
 export async function storeTokens(input: StoreTokenInput): Promise<void> {
   const admin = createAdminClient();
-  await admin
+  const { error } = await admin
     .from('user_integrations')
     .upsert(
       {
@@ -43,16 +43,18 @@ export async function storeTokens(input: StoreTokenInput): Promise<void> {
       },
       { onConflict: 'user_id,provider' }
     );
+  if (error) throw new Error(`Unable to store ${input.provider} tokens: ${error.message}`);
 }
 
 export async function getStoredTokens(userId: string, provider: ProviderId): Promise<TokenRow | null> {
   const admin = createAdminClient();
-  const { data } = await admin
+  const { data, error } = await admin
     .from('user_integrations')
     .select('access_token, refresh_token, expires_at, scope, provider_user_id')
     .eq('user_id', userId)
     .eq('provider', provider)
     .maybeSingle();
+  if (error) throw new Error(`Unable to load ${provider} tokens: ${error.message}`);
   return (data as TokenRow | null) ?? null;
 }
 

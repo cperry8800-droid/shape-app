@@ -6,7 +6,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getProvider, getClientCredentials, type ProviderId } from '@/lib/integrations/providers';
-import { callbackUrl, siteOrigin } from '@/lib/integrations/oauth';
+import { callbackUrl } from '@/lib/integrations/oauth';
 import { storeTokens } from '@/lib/integrations/tokens';
 
 export const runtime = 'nodejs';
@@ -14,8 +14,8 @@ export const dynamic = 'force-dynamic';
 
 const DEFAULT_RETURN_TO = '/newdesign/GetApp.html';
 
-function redirectBack(returnTo: string, status: 'ok' | 'error', provider: string, message?: string) {
-  const url = new URL(returnTo, siteOrigin());
+function redirectBack(origin: string, returnTo: string, status: 'ok' | 'error', provider: string, message?: string) {
+  const url = new URL(returnTo, origin);
   url.searchParams.set('integration', provider);
   url.searchParams.set('status', status);
   if (message) url.searchParams.set('message', message);
@@ -31,6 +31,7 @@ export async function GET(
   if (!cfg) return NextResponse.json({ error: 'Unknown provider.' }, { status: 404 });
 
   const url = new URL(request.url);
+  const origin = url.origin;
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
   const providerError = url.searchParams.get('error');
@@ -53,13 +54,13 @@ export async function GET(
     cookieStore.set(name, '', { path: '/', maxAge: 0 });
   }
 
-  if (providerError) return redirectBack(returnTo, 'error', cfg.id, providerError);
-  if (!code || !state) return redirectBack(returnTo, 'error', cfg.id, 'missing_code_or_state');
-  if (!expectedState || state !== expectedState) return redirectBack(returnTo, 'error', cfg.id, 'state_mismatch');
-  if (!userId) return redirectBack(returnTo, 'error', cfg.id, 'missing_session');
+  if (providerError) return redirectBack(origin, returnTo, 'error', cfg.id, providerError);
+  if (!code || !state) return redirectBack(origin, returnTo, 'error', cfg.id, 'missing_code_or_state');
+  if (!expectedState || state !== expectedState) return redirectBack(origin, returnTo, 'error', cfg.id, 'state_mismatch');
+  if (!userId) return redirectBack(origin, returnTo, 'error', cfg.id, 'missing_session');
 
   const creds = getClientCredentials(cfg);
-  if (!creds) return redirectBack(returnTo, 'error', cfg.id, 'missing_credentials');
+  if (!creds) return redirectBack(origin, returnTo, 'error', cfg.id, 'missing_credentials');
 
   const body = new URLSearchParams({
     grant_type: 'authorization_code',
@@ -77,7 +78,7 @@ export async function GET(
   });
   if (!tokenRes.ok) {
     const text = await tokenRes.text().catch(() => '');
-    return redirectBack(returnTo, 'error', cfg.id, `token_exchange_failed:${tokenRes.status}:${text.slice(0, 120)}`);
+    return redirectBack(origin, returnTo, 'error', cfg.id, `token_exchange_failed:${tokenRes.status}:${text.slice(0, 120)}`);
   }
 
   const tokenJson = (await tokenRes.json()) as {
@@ -91,7 +92,7 @@ export async function GET(
     user?: { id?: string };
   };
 
-  if (!tokenJson.access_token) return redirectBack(returnTo, 'error', cfg.id, 'no_access_token');
+  if (!tokenJson.access_token) return redirectBack(origin, returnTo, 'error', cfg.id, 'no_access_token');
 
   const now = Date.now();
   let expiresAt: Date | null = null;
@@ -106,16 +107,26 @@ export async function GET(
   if (tokenJson.athlete?.id) providerUserId = String(tokenJson.athlete.id);
   else if (tokenJson.user?.id) providerUserId = String(tokenJson.user.id);
 
-  await storeTokens({
-    userId,
-    provider: cfg.id as ProviderId,
-    accessToken: tokenJson.access_token,
-    refreshToken: tokenJson.refresh_token ?? null,
-    tokenType: tokenJson.token_type ?? null,
-    scope: tokenJson.scope ?? cfg.scope,
-    expiresAt,
-    providerUserId,
-  });
+  try {
+    await storeTokens({
+      userId,
+      provider: cfg.id as ProviderId,
+      accessToken: tokenJson.access_token,
+      refreshToken: tokenJson.refresh_token ?? null,
+      tokenType: tokenJson.token_type ?? null,
+      scope: tokenJson.scope ?? cfg.scope,
+      expiresAt,
+      providerUserId,
+    });
+  } catch (error) {
+    return redirectBack(
+      origin,
+      returnTo,
+      'error',
+      cfg.id,
+      error instanceof Error ? error.message.slice(0, 180) : 'token_store_failed'
+    );
+  }
 
-  return redirectBack(returnTo, 'ok', cfg.id);
+  return redirectBack(origin, returnTo, 'ok', cfg.id);
 }
