@@ -26,6 +26,14 @@ type WhoopSyncResponse = {
   error?: string;
 };
 
+type StravaSyncResponse = {
+  strava?: {
+    activities?: Array<{ name?: string; distance?: number; moving_time?: number }>;
+  };
+  import?: { imported?: number; errors?: string[] } | null;
+  error?: string;
+};
+
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...init,
@@ -53,7 +61,7 @@ export default function IntegrationsPanel() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
-  const [result, setResult] = useState<WhoopSyncResponse | null>(null);
+  const [result, setResult] = useState<(WhoopSyncResponse & StravaSyncResponse) | null>(null);
 
   const whoop = useMemo(
     () => providers.find((provider) => provider.id === 'whoop'),
@@ -81,13 +89,13 @@ export default function IntegrationsPanel() {
     loadStatus();
   }, []);
 
-  async function run(label: string, action: () => Promise<WhoopSyncResponse | unknown>) {
+  async function run(label: string, action: () => Promise<WhoopSyncResponse | StravaSyncResponse | unknown>) {
     setBusy(label);
     setError('');
     setResult(null);
     try {
       const payload = await action();
-      setResult((payload ?? null) as WhoopSyncResponse | null);
+      setResult((payload ?? null) as (WhoopSyncResponse & StravaSyncResponse) | null);
       await loadStatus();
     } catch (err) {
       setError(err instanceof Error ? err.message : `${label} failed.`);
@@ -230,12 +238,34 @@ export default function IntegrationsPanel() {
             <button
               type="button"
               disabled={!strava?.connected || Boolean(busy)}
+              onClick={() => run('Syncing Strava', () => fetchJson<StravaSyncResponse>('/api/integrations/strava/sync'))}
+              className="border border-neutral-700 px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-200 hover:border-teal-400 hover:text-teal-300 disabled:opacity-40"
+            >
+              {busy === 'Syncing Strava' ? 'Syncing' : 'Sync'}
+            </button>
+            <button
+              type="button"
+              disabled={!strava?.connected || Boolean(busy)}
+              onClick={() => run('Importing Strava', () => fetchJson<StravaSyncResponse>('/api/integrations/strava/sync?import=1'))}
+              className="border border-neutral-700 px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-200 hover:border-teal-400 hover:text-teal-300 disabled:opacity-40"
+            >
+              {busy === 'Importing Strava' ? 'Importing' : 'Import routes'}
+            </button>
+            <button
+              type="button"
+              disabled={!strava?.connected || Boolean(busy)}
               onClick={() => run('Disconnecting Strava', () => fetchJson('/api/integrations/strava/disconnect', { method: 'POST' }))}
               className="border border-neutral-700 px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-400 hover:border-red-400 hover:text-red-300 disabled:opacity-40"
             >
               Disconnect
             </button>
           </div>
+          {result?.strava?.activities && (
+            <div className="mt-3 border-t border-neutral-800 pt-3 text-xs uppercase tracking-[0.16em] text-neutral-500">
+              Latest Strava pull: {result.strava.activities.length} activities
+              {result.import ? ` - ${result.import.imported ?? 0} imported` : ''}
+            </div>
+          )}
         </div>
 
         {[

@@ -42,6 +42,22 @@ type WhoopSyncResponse = {
   import?: { imported?: number; errors?: string[] } | null;
 };
 
+type StravaSyncResponse = {
+  strava?: {
+    athlete?: { firstname?: string; lastname?: string };
+    activities?: Array<{
+      name?: string;
+      distance?: number;
+      moving_time?: number;
+      sport_type?: string;
+      type?: string;
+      average_heartrate?: number;
+      map?: { summary_polyline?: string | null };
+    }>;
+  };
+  import?: { imported?: number; errors?: string[] } | null;
+};
+
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...init,
@@ -63,10 +79,11 @@ function formatMetric(value: number | undefined, suffix = '', digits = 0) {
 export default function HealthMetricsPanel() {
   const [providers, setProviders] = useState<ProviderStatus[]>([]);
   const [whoopData, setWhoopData] = useState<WhoopSyncResponse | null>(null);
+  const [stravaData, setStravaData] = useState<StravaSyncResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
-  const [imported, setImported] = useState<number | null>(null);
+  const [imported, setImported] = useState<{ provider: string; count: number } | null>(null);
 
   const providerMap = useMemo(
     () => new Map(providers.map((provider) => [provider.id, provider])),
@@ -86,6 +103,10 @@ export default function HealthMetricsPanel() {
         const sync = await fetchJson<WhoopSyncResponse>('/api/integrations/whoop/sync');
         setWhoopData(sync);
       }
+      if (nextProviders.some((provider) => provider.id === 'strava' && provider.connected)) {
+        const sync = await fetchJson<StravaSyncResponse>('/api/integrations/strava/sync');
+        setStravaData(sync);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load health metrics.');
     } finally {
@@ -104,9 +125,24 @@ export default function HealthMetricsPanel() {
     try {
       const sync = await fetchJson<WhoopSyncResponse>('/api/integrations/whoop/sync?import=1');
       setWhoopData(sync);
-      setImported(sync.import?.imported ?? 0);
+      setImported({ provider: 'WHOOP', count: sync.import?.imported ?? 0 });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'WHOOP import failed.');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function importStravaActivities() {
+    setBusy('strava-import');
+    setError('');
+    setImported(null);
+    try {
+      const sync = await fetchJson<StravaSyncResponse>('/api/integrations/strava/sync?import=1');
+      setStravaData(sync);
+      setImported({ provider: 'Strava', count: sync.import?.imported ?? 0 });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Strava import failed.');
     } finally {
       setBusy('');
     }
@@ -116,6 +152,9 @@ export default function HealthMetricsPanel() {
   const sleep = whoopData?.whoop?.sleeps?.records?.[0]?.score;
   const workout = whoopData?.whoop?.workouts?.records?.[0];
   const workoutScore = workout?.score;
+  const latestStrava = stravaData?.strava?.activities?.[0];
+  const stravaDistance = latestStrava?.distance != null ? `${(latestStrava.distance / 1609.344).toFixed(2)} mi` : '-';
+  const stravaMinutes = latestStrava?.moving_time != null ? `${Math.round(latestStrava.moving_time / 60)} min` : '-';
 
   return (
     <section className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-6">
@@ -192,7 +231,7 @@ export default function HealthMetricsPanel() {
 
           {imported != null && (
             <div className="border-t border-neutral-800 px-5 py-3 text-sm text-neutral-300">
-              Imported <span className="text-teal-300">{imported}</span> private workouts.
+              Imported <span className="text-teal-300">{imported.count}</span> private {imported.provider} activities.
             </div>
           )}
         </div>
@@ -203,15 +242,37 @@ export default function HealthMetricsPanel() {
           </div>
           <h3 className="mt-2 text-2xl font-light tracking-tight">Runs and rides</h3>
           <p className="mt-2 text-sm text-neutral-400">
-            Connect Strava now so route maps and activity posts can use the same account once the
-            sync/import endpoint is added.
+            Import Strava activities as private community posts with route previews when Strava
+            includes a summary polyline.
           </p>
+          {stravaData?.strava && (
+            <div className="mt-4 grid grid-cols-3 border border-neutral-800">
+              {[
+                ['Latest', latestStrava?.sport_type || latestStrava?.type || '-'],
+                ['Distance', stravaDistance],
+                ['Time', stravaMinutes],
+              ].map(([label, value]) => (
+                <div key={label} className="border-r border-neutral-800 p-3 last:border-r-0">
+                  <div className="text-[0.65rem] uppercase tracking-[0.16em] text-neutral-500">{label}</div>
+                  <div className="mt-1 text-sm text-neutral-100">{value}</div>
+                </div>
+              ))}
+            </div>
+          )}
           <button
             type="button"
             onClick={() => window.location.assign('/api/integrations/strava/authorize?return=/dashboard/client')}
             className="mt-5 w-full border border-neutral-700 px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-200 hover:border-teal-400 hover:text-teal-300"
           >
             {strava?.connected ? 'Reconnect Strava' : 'Connect Strava'}
+          </button>
+          <button
+            type="button"
+            disabled={!strava?.connected || Boolean(busy)}
+            onClick={importStravaActivities}
+            className="mt-2 w-full border border-neutral-700 px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-200 hover:border-teal-400 hover:text-teal-300 disabled:opacity-40"
+          >
+            {busy === 'strava-import' ? 'Importing' : 'Import Strava routes'}
           </button>
         </div>
       </div>
