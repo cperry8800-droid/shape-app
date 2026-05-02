@@ -106,7 +106,7 @@ function RoleCard({ role, index, total }) {
       </div>
 
       <h2 style={{ fontFamily: serif, fontSize: 42, letterSpacing: "-0.025em", fontWeight: 400, margin: 0, lineHeight: 1.02 }}>
-        {isRadio ? <img src="/shape-radio-wordmark.svg" alt="Shape Radio" style={{ height: 128, width: "auto", display: "block", marginLeft: -8 }} /> : role.title}
+        {isRadio ? <><span>Shape</span><br /><em style={{ fontStyle: "italic", color: TEAL }}>Radio</em></> : role.title}
       </h2>
 
       <p style={{ fontFamily: sans, fontSize: 14.5, color: "rgba(242,237,228,0.7)", margin: "18px 0 24px", lineHeight: 1.55, flex: "0 0 auto" }}>{role.blurb}</p>
