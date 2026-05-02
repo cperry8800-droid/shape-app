@@ -170,7 +170,15 @@
       <p><strong>Payment information.</strong> Shape uses Stripe for all payments. Card details are entered directly into Stripe; Shape receives only the last four digits, card brand, and transaction status. We never see, store, or transmit full card numbers.</p>
       <p><strong>Communications.</strong> Messages you send through our in-app chat with coaches, consultation notes, and support requests.</p>
       <p><strong>Usage &amp; device.</strong> IP address, browser type, device identifiers, pages visited, referring pages, session timestamps, and basic analytics. Collected automatically for security and product improvement.</p>
-      <p><strong>Third-party connections (optional).</strong> If you connect Strava, Apple Health, or a similar service, we pull the specific data types you authorize (e.g., activities, routes) and nothing more.</p>
+      <p><strong>Third-party fitness, health, and audio connections (optional).</strong> Shape only pulls the specific data types you authorize during each provider's OAuth or HealthKit consent flow — nothing more. The services you can currently connect are:</p>
+      <ul>
+        <li><strong>Apple Health / Apple Watch / Apple Fitness (HealthKit).</strong> Workouts, heart rate, activity, sleep, and other metrics you enable in the iOS Health permissions sheet. Available only through the Shape iOS app; HealthKit is not exposed on the web.</li>
+        <li><strong>Strava.</strong> Activities, routes, and basic profile, via Strava OAuth. See <a href="https://www.strava.com/legal/privacy" rel="noopener">Strava's privacy policy</a>.</li>
+        <li><strong>Garmin Connect.</strong> Workouts, heart rate, calories, sleep, and similar metrics from your Garmin device, via Garmin's Health API consent flow. See <a href="https://www.garmin.com/en-US/privacy/connect/" rel="noopener">Garmin's privacy policy</a>.</li>
+        <li><strong>Whoop.</strong> Recovery, strain, sleep, and workout data, via Whoop OAuth. See <a href="https://www.whoop.com/us/en/privacy-policy/" rel="noopener">Whoop's privacy policy</a>.</li>
+        <li><strong>Spotify.</strong> Basic profile and the playlists you choose to share with Shape (used for in-workout audio). See <a href="https://www.spotify.com/us/legal/privacy-policy/" rel="noopener">Spotify's privacy policy</a>.</li>
+      </ul>
+      <p>You can disconnect any of these services from your account settings at any time. Disconnecting stops new data from syncing; previously synced data remains in your Shape account until you delete it (see Section 05).</p>
     </section>
 
     <section class="section" id="s2">
