@@ -196,6 +196,20 @@
   .cta .eyebrow { color: var(--orange); }
   .cta p { font-size: 15px; color: var(--ink-2); max-width: 480px; margin: 0 auto 22px; line-height: 1.55; }
 
+  /* Notify-me waitlist form */
+  .notify-form { display: flex; gap: 8px; max-width: 420px; margin: 24px auto 0; padding: 0 4px; }
+  .notify-form input { flex: 1; min-width: 0; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--hairline); background: var(--paper-3); color: var(--ink); font-family: inherit; font-size: 15px; }
+  .notify-form input:focus { outline: 2px solid var(--teal); outline-offset: -1px; border-color: transparent; }
+  .notify-form button { padding: 12px 18px; border-radius: 10px; background: var(--ink); color: var(--paper); border: 0; font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+  .notify-form button:disabled { opacity: 0.6; cursor: not-allowed; }
+  .notify-msg { font-size: 13px; color: var(--ink-2); margin: 10px auto 0; min-height: 18px; max-width: 420px; }
+  .notify-msg.ok { color: var(--teal); }
+  .notify-msg.err { color: var(--pill-red); }
+  @media (max-width: 480px) {
+    .notify-form { flex-direction: column; }
+    .notify-form button { padding: 14px 18px; }
+  }
+
   /* Footer */
   footer { padding: 28px 0 40px; border-top: 1px solid var(--hairline-2); font-size: 12.5px; color: var(--ink-3); }
   .foot-row { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
@@ -444,11 +458,65 @@
     <h2>Be the first to download.</h2>
     <p>We'll send the App Store link the day it ships. Nothing else, ever.</p>
     <div class="store-row">
-      <a href="/signup-client.html" class="store-btn"><span class="glyph"></span><span><small>Notify me on</small><b>App Store</b></span></a>
-      <a href="/signup-client.html" class="store-btn" style="background:transparent;color:var(--ink);border:1px solid var(--hairline);"><span class="glyph">▶</span><span><small>Notify me on</small><b>Google Play</b></span></a>
+      <a href="#notify-form" class="store-btn"><span class="glyph"></span><span><small>Notify me on</small><b>App Store</b></span></a>
+      <a href="#notify-form" class="store-btn" style="background:transparent;color:var(--ink);border:1px solid var(--hairline);"><span class="glyph">▶</span><span><small>Notify me on</small><b>Google Play</b></span></a>
     </div>
+    <form class="notify-form" id="notify-form" novalidate>
+      <input type="email" id="notifyEmail" name="email" placeholder="you@email.com" autocomplete="email" required aria-label="Email address" />
+      <button type="submit" id="notifyBtn">Notify me</button>
+    </form>
+    <p class="notify-msg" id="notifyMsg" role="status" aria-live="polite"></p>
   </div>
 </section>
+
+<script>
+  (function () {
+    var form = document.getElementById('notify-form');
+    if (!form) return;
+    var input = document.getElementById('notifyEmail');
+    var btn   = document.getElementById('notifyBtn');
+    var msg   = document.getElementById('notifyMsg');
+    var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var email = (input.value || '').trim();
+      msg.className = 'notify-msg';
+      if (!EMAIL_RE.test(email)) {
+        msg.classList.add('err');
+        msg.textContent = 'Please enter a valid email.';
+        return;
+      }
+
+      var originalLabel = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+
+      try {
+        var res = await fetch('/api/notify-app', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email, source: 'GetApp.html' })
+        });
+        if (!res.ok) {
+          var body = await res.json().catch(function () { return {}; });
+          msg.classList.add('err');
+          msg.textContent = body.error || 'Could not save your email. Please try again.';
+        } else {
+          msg.classList.add('ok');
+          msg.textContent = "You're on the list. We'll email you the day it ships.";
+          input.value = '';
+        }
+      } catch (err) {
+        msg.classList.add('err');
+        msg.textContent = 'Network error. Please try again.';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalLabel;
+      }
+    });
+  })();
+</script>
 
 <footer>
   <div class="wrap foot-row">
