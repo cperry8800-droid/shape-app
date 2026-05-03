@@ -141,7 +141,7 @@
   .prow .load.pr { color: var(--teal); }
 
   /* Features — vertical scroll, phone mockup beside each that has one */
-  .features { padding: 80px 0 40px; }
+  .features { padding: 34px 0 40px; }
   .features-head { text-align: center; margin-bottom: 48px; }
   .features-head h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(34px, 6.4vw, 52px); letter-spacing: -0.025em; line-height: 1; margin: 8px 0 14px; }
   .features-head p { font-size: 15px; line-height: 1.55; color: var(--ink-2); margin: 0 auto; max-width: 540px; }
@@ -544,7 +544,7 @@
 
     .store-note { margin-top: 12px; font-size: 10px; }
 
-    .features { padding: 40px 0 22px; }
+    .features { padding: 20px 0 22px; }
     .features-head { margin-bottom: 28px; }
     .features-head h2 { font-size: clamp(28px, 8.4vw, 38px); }
     .features-head p { font-size: 14px; }
@@ -914,11 +914,15 @@
   document.querySelectorAll('.feat-row .phone').forEach((phone) => {
     const img = phone.querySelector('img');
     if (img && !phone.querySelector('.screen-crop')) {
+      if (!phone.classList.contains('screen-shot')) {
+        phone.classList.add('framed-shot');
+      }
       const crop = document.createElement('div');
       crop.className = 'screen-crop';
       img.replaceWith(crop);
       crop.appendChild(img);
     }
+    if (phone.classList.contains('framed-shot')) return;
 
     ['volume-a', 'volume-b', 'power'].forEach((name) => {
       if (phone.querySelector(`.side.${name}`)) return;
