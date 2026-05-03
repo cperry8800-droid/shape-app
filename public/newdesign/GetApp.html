@@ -175,7 +175,7 @@
     background:
       linear-gradient(145deg, #41413d 0%, #0b0b0a 28%, #050505 58%, #26231f 100%);
     border: 1px solid rgba(255,255,255,0.18);
-    transform: rotateY(-34deg) rotateX(10deg) rotateZ(-1deg);
+    transform: rotateY(-24deg) rotateX(7deg) rotateZ(-0.8deg);
     transform-style: preserve-3d;
     transform-origin: center center;
     box-shadow:
@@ -191,7 +191,7 @@
     --phone-depth-x: -10px;
     --phone-depth-mid-x: -6px;
     --phone-depth-soft-x: -18px;
-    transform: rotateY(34deg) rotateX(10deg) rotateZ(1deg);
+    transform: rotateY(24deg) rotateX(7deg) rotateZ(0.8deg);
   }
   .feat-row .phone.home-live-demo {
     --phone-depth-x: 0;
@@ -255,6 +255,8 @@
   }
   .feat-row .phone.screen-shot .screen-crop {
     background: #080807;
+    padding: 48px 0 34px;
+    box-sizing: border-box;
   }
   .feat-row .phone.screen-shot.screen-light .screen-crop {
     background: #f4eedf;
@@ -264,7 +266,7 @@
     width: 100%;
     height: 100%;
     max-width: none;
-    object-fit: cover;
+    object-fit: contain;
     object-position: top center;
     margin: 0;
     transform: none;
