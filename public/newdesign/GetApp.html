@@ -196,6 +196,19 @@
       inset 0 0 0 1px rgba(255,255,255,0.08),
       inset 0 0 0 2px rgba(0,0,0,0.82);
   }
+  .feat-row .phone.is-scroll-demo .screen-crop::after {
+    content: '';
+    position: absolute;
+    right: 9px;
+    top: 18%;
+    width: 3px;
+    height: 46px;
+    border-radius: 999px;
+    background: rgba(239,231,211,0.48);
+    z-index: 4;
+    animation: phoneScrollBar 8s ease-in-out infinite;
+    pointer-events: none;
+  }
   .feat-row .phone .island {
     position: absolute;
     top: 18px;
@@ -221,6 +234,26 @@
     border-radius: 0;
     filter: none;
   }
+  .feat-row .phone.is-scroll-demo img {
+    width: 108%;
+    height: 116%;
+    transform: translate(-2%, -1%);
+    animation: phoneScreenScroll 8s ease-in-out infinite;
+  }
+  @keyframes phoneScreenScroll {
+    0%, 16% { transform: translate(-2%, -1%); }
+    48%, 64% { transform: translate(-2%, -13%); }
+    100% { transform: translate(-2%, -1%); }
+  }
+  @keyframes phoneScrollBar {
+    0%, 16% { transform: translateY(0); opacity: 0.34; }
+    48%, 64% { transform: translateY(112px); opacity: 0.72; }
+    100% { transform: translateY(0); opacity: 0.34; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .feat-row .phone.is-scroll-demo img,
+    .feat-row .phone.is-scroll-demo .screen-crop::after { animation: none; }
+  }
   @media (max-width: 760px) {
     .feat-row, .feat-row.reverse { grid-template-columns: 1fr; gap: 28px; padding: 40px 0; }
     .feat-row.reverse .copy { order: 1; }
@@ -230,6 +263,11 @@
       width: 102%;
       height: 102%;
       transform: translate(-0.3%, -0.6%);
+    }
+    .feat-row .phone.is-scroll-demo img {
+      width: 106%;
+      height: 113%;
+      transform: translate(-1.5%, -0.8%);
     }
   }
 
@@ -259,6 +297,8 @@
   .cta p { font-size: 15px; color: var(--ink-2); max-width: 480px; margin: 0 auto 22px; line-height: 1.55; }
   /* Notify-me waitlist — collapsed pill below the App Store / Google Play row.
      Clicking the pill reveals the email + submit form. */
+  .notify-widget { text-align: center; }
+  .hero-notify { margin-top: 20px; }
   .notify-toggle {
     display: inline-block; margin: 18px auto 0;
     padding: 11px 24px; border-radius: 999px;
@@ -269,6 +309,7 @@
   }
   .notify-toggle:hover { border-color: var(--ink); }
   .notify-toggle.is-hidden { display: none; }
+  .hero-notify .notify-toggle { margin-top: 0; }
   .notify-form { display: none; gap: 8px; max-width: 420px; margin: 18px auto 0; padding: 0 4px; }
   .notify-form.is-open { display: flex; }
   .notify-form input { flex: 1; min-width: 0; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--hairline); background: var(--paper-3); color: var(--ink); font-family: inherit; font-size: 15px; }
@@ -350,6 +391,14 @@
       </a>
     </div>
     <span class="store-note">Free with any Shape membership · $5/mo</span>
+    <div class="notify-widget hero-notify">
+      <button type="button" class="notify-toggle" aria-expanded="false">Notify me</button>
+      <form class="notify-form" novalidate>
+        <input type="email" name="email" placeholder="you@email.com" autocomplete="email" required aria-label="Email address" />
+        <button type="submit">Submit</button>
+      </form>
+      <p class="notify-msg" role="status" aria-live="polite"></p>
+    </div>
   </div>
 </section>
 
@@ -367,7 +416,7 @@
         <h3>Today, at a glance.</h3>
         <p>The Shape Daily — your day, top to bottom. Calendar, calorie ledger, what's left to log, who's on the air, day brief from your coach. Skim it in five seconds, dive in if you want.</p>
       </div>
-      <div class="phone"><img src="/newdesign/home%20page%20new.png" alt="Shape Daily home"/></div>
+      <div class="phone is-scroll-demo"><img src="/newdesign/home%20page%20new.png" alt="Shape Daily home"/></div>
     </div>
 
     <div class="feat-row text-only">
@@ -379,7 +428,7 @@
     </div>
 
     <div class="feat-row reverse">
-      <div class="phone"><img src="/newdesign/trainer%20(white).png" alt="Train screen"/></div>
+    <div class="phone is-scroll-demo"><img src="/newdesign/trainer%20(white).png" alt="Train screen"/></div>
       <div class="copy">
         <div class="step"><span class="n">03</span><span>TRAIN</span></div>
         <h3>The session, written by your coach.</h3>
@@ -397,7 +446,7 @@
     </div>
 
     <div class="feat-row reverse">
-      <div class="phone"><img src="/newdesign/nutri%20snap%20white.png" alt="Nutrition screen"/></div>
+    <div class="phone is-scroll-demo"><img src="/newdesign/nutri%20snap%20white.png" alt="Nutrition screen"/></div>
       <div class="copy">
         <div class="step"><span class="n">05</span><span>EAT</span></div>
         <h3>Daily meal plans, macros tallied live.</h3>
@@ -415,7 +464,7 @@
     </div>
 
     <div class="feat-row reverse">
-      <div class="phone"><img src="/newdesign/grocery%20list%20(white).png" alt="Grocery list with Send to Instacart"/></div>
+      <div class="phone is-scroll-demo"><img src="/newdesign/grocery%20list%20(white).png" alt="Grocery list with Send to Instacart"/></div>
       <div class="copy">
         <div class="step"><span class="n">07</span><span>GROCERY LIST</span></div>
         <h3>Auto-built from the week. Sent to Instacart in a tap.</h3>
@@ -433,7 +482,7 @@
     </div>
 
     <div class="feat-row reverse">
-      <div class="phone"><img src="/newdesign/habits.png" alt="Habits — do's, don'ts, streaks"/></div>
+      <div class="phone is-scroll-demo"><img src="/newdesign/habits.png" alt="Habits — do's, don'ts, streaks"/></div>
       <div class="copy">
         <div class="step"><span class="n">09</span><span>HABITS</span></div>
         <h3>Do's, don'ts, streaks.</h3>
@@ -447,7 +496,7 @@
         <h3>Five tiers. Monthly points. Real rewards.</h3>
         <p>Raw, Tempo, Form, Peak, Legend. Earn for workouts, plan adherence, habits, PRs, community kudos. Cash them in at the Shape Store.</p>
       </div>
-      <div class="phone"><img src="/newdesign/shape%20score.png" alt="Shape Score — five-tier ladder"/></div>
+      <div class="phone is-scroll-demo"><img src="/newdesign/shape%20score.png" alt="Shape Score — five-tier ladder"/></div>
     </div>
 
     <div class="feat-row reverse">
@@ -473,7 +522,7 @@
         <h3>Letters &amp; replies.</h3>
         <p>One-tap messaging with your trainer, nutritionist, and training partners. Drop into the Shape Community Chat for borough-level run clubs, lift partners, race-day groups, AMAs with coaches. No app switching, no inbox archaeology.</p>
       </div>
-      <div class="phone"><img src="/newdesign/chat%20new.png" alt="Chat — Letters &amp; replies"/></div>
+      <div class="phone is-scroll-demo"><img src="/newdesign/chat%20new.png" alt="Chat — Letters &amp; replies"/></div>
     </div>
 
     <div class="feat-row reverse">
@@ -535,72 +584,73 @@
       <a href="/signup-client.html" class="store-btn"><span class="glyph"></span><span><small>Notify me on</small><b>App Store</b></span></a>
       <a href="/signup-client.html" class="store-btn" style="background:transparent;color:var(--ink);border:1px solid var(--hairline);"><span class="glyph">▶</span><span><small>Notify me on</small><b>Google Play</b></span></a>
     </div>
-    <div>
-      <button type="button" class="notify-toggle" id="notifyToggle" aria-expanded="false" aria-controls="notify-form">Notify me</button>
+    <div class="notify-widget">
+      <button type="button" class="notify-toggle" aria-expanded="false">Notify me</button>
+      <form class="notify-form" novalidate>
+        <input type="email" name="email" placeholder="you@email.com" autocomplete="email" required aria-label="Email address" />
+        <button type="submit">Submit</button>
+      </form>
+      <p class="notify-msg" role="status" aria-live="polite"></p>
     </div>
-    <form class="notify-form" id="notify-form" novalidate>
-      <input type="email" id="notifyEmail" name="email" placeholder="you@email.com" autocomplete="email" required aria-label="Email address" />
-      <button type="submit" id="notifyBtn">Submit</button>
-    </form>
-    <p class="notify-msg" id="notifyMsg" role="status" aria-live="polite"></p>
   </div>
 </section>
 
 <script>
   (function () {
-    var form = document.getElementById('notify-form');
-    if (!form) return;
-    var input  = document.getElementById('notifyEmail');
-    var btn    = document.getElementById('notifyBtn');
-    var msg    = document.getElementById('notifyMsg');
-    var toggle = document.getElementById('notifyToggle');
     var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    if (toggle) {
+    document.querySelectorAll('.notify-widget').forEach(function (widget) {
+      var form = widget.querySelector('.notify-form');
+      var input = widget.querySelector('input[name="email"]');
+      var btn = widget.querySelector('button[type="submit"]');
+      var msg = widget.querySelector('.notify-msg');
+      var toggle = widget.querySelector('.notify-toggle');
+      if (!form || !input || !btn || !msg || !toggle) return;
+
       toggle.addEventListener('click', function () {
         form.classList.add('is-open');
         toggle.classList.add('is-hidden');
         toggle.setAttribute('aria-expanded', 'true');
         setTimeout(function () { input.focus(); }, 30);
       });
-    }
 
-    form.addEventListener('submit', async function (e) {
-      e.preventDefault();
-      var email = (input.value || '').trim();
-      msg.className = 'notify-msg';
-      if (!EMAIL_RE.test(email)) {
-        msg.classList.add('err');
-        msg.textContent = 'Please enter a valid email.';
-        return;
-      }
-
-      var originalLabel = btn.textContent;
-      btn.disabled = true;
-      btn.textContent = 'Saving…';
-
-      try {
-        var res = await fetch('/api/app-waitlist', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email, source: 'GetApp.html' })
-        });
-        if (!res.ok) {
-          var body = await res.json().catch(function () { return {}; });
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var email = (input.value || '').trim();
+        msg.className = 'notify-msg';
+        if (!EMAIL_RE.test(email)) {
           msg.classList.add('err');
-          msg.textContent = body.error || 'Could not save your email. Please try again.';
-        } else {
-          msg.classList.add('ok');
-          msg.textContent = "You're on the list. We'll email you the day it ships.";
-          input.value = '';
+          msg.textContent = 'Please enter a valid email.';
+          return;
         }
-      } catch (err) {
-        msg.classList.add('err');
-        msg.textContent = 'Network error. Please try again.';
-      } finally {
-        btn.disabled = false;
-        btn.textContent = originalLabel;
-      }
+
+        var originalLabel = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+
+        try {
+          var res = await fetch('/api/app-waitlist', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email, source: 'GetApp.html' })
+          });
+          if (!res.ok) {
+            var body = await res.json().catch(function () { return {}; });
+            msg.classList.add('err');
+            msg.textContent = body.error || 'Could not save your email. Please try again.';
+          } else {
+            msg.classList.add('ok');
+            msg.textContent = "You're on the list. We'll email you the day it ships.";
+            input.value = '';
+          }
+        } catch (err) {
+          msg.classList.add('err');
+          msg.textContent = 'Network error. Please try again.';
+        } finally {
+          btn.disabled = false;
+          btn.textContent = originalLabel;
+        }
+      });
     });
   })();
 </script>
