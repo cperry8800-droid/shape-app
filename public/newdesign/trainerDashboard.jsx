@@ -5,27 +5,28 @@
 // navItems items: { label, count, active, href }
 function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
   return (
-    <aside style={{ borderRight: "1px solid rgba(242,237,228,0.08)", padding: "32px 20px", display: "flex", flexDirection: "column", gap: 4, position: "sticky", top: 0, height: "100vh" }}>
+    <aside style={{ borderRight: "1px solid rgba(242,237,228,0.08)", padding: "32px 20px", display: "flex", flexDirection: "column", gap: 6, position: "sticky", top: 0, height: "100vh", background: "linear-gradient(180deg, rgba(242,237,228,0.025), rgba(242,237,228,0.01))" }}>
       <div style={{ padding: "4px 10px 72px" }}>
         <a href={homeHref} style={{ flex: "none", display: "inline-flex" }}><Logo variant="white" size={40} /></a>
       </div>
       {navItems.map((n, i) => (
         <a key={i} href={n.href || "#"} style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "10px 14px", borderRadius: 6,
-          background: n.active ? "rgba(30,192,168,0.12)" : "transparent",
+          padding: "11px 14px", borderRadius: 14,
+          background: n.active ? "rgba(30,192,168,0.13)" : "transparent",
           color: n.active ? INK : "rgba(242,237,228,0.7)",
           fontSize: 14, fontWeight: n.active ? 500 : 400,
-          borderLeft: n.active ? `2px solid ${TEAL}` : "2px solid transparent",
+          border: n.active ? "1px solid rgba(30,192,168,0.28)" : "1px solid transparent",
+          boxShadow: n.active ? "0 12px 28px rgba(0,0,0,0.24)" : "none",
         }}>
           <span>{n.label}</span>
           {n.count != null && (
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)", background: n.active ? "rgba(30,192,168,0.18)" : "rgba(242,237,228,0.06)", padding: "2px 7px", borderRadius: 4 }}>{n.count}</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)", background: n.active ? "rgba(30,192,168,0.18)" : "rgba(242,237,228,0.06)", padding: "2px 7px", borderRadius: 999 }}>{n.count}</span>
           )}
         </a>
       ))}
       {payoutCard && (
-        <div style={{ marginTop: "auto", padding: 16, background: "rgba(30,192,168,0.08)", border: "1px solid rgba(30,192,168,0.25)", borderRadius: 8 }}>
+        <div style={{ marginTop: "auto", padding: 16, background: "rgba(30,192,168,0.08)", border: "1px solid rgba(30,192,168,0.25)", borderRadius: 18, boxShadow: "0 16px 36px rgba(0,0,0,0.28)" }}>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>{payoutCard.label}</div>
           <div style={{ fontFamily: serif, fontSize: 26, fontWeight: 400, marginTop: 6, letterSpacing: "-0.01em" }}>{payoutCard.amount}</div>
           <div style={{ fontSize: 11, color: "rgba(242,237,228,0.55)", marginTop: 2 }}>{payoutCard.sub}</div>
@@ -60,7 +61,16 @@ function DashPage({ navItems, payoutCard, eyebrow, title, subtitle, actions, chi
 
 // Small helpers available to every inner page
 function Card({ children, style }) {
-  return <div style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: 24, ...style }}>{children}</div>;
+  return <div style={{
+    background: "linear-gradient(180deg, rgba(242,237,228,0.062), rgba(242,237,228,0.035))",
+    border: "1px solid rgba(242,237,228,0.12)",
+    borderRadius: 22,
+    padding: 24,
+    boxShadow: "0 18px 48px rgba(0,0,0,0.28)",
+    backdropFilter: "blur(16px)",
+    WebkitBackdropFilter: "blur(16px)",
+    ...style
+  }}>{children}</div>;
 }
 function SectionTitle({ children, right }) {
   return (
@@ -74,7 +84,7 @@ function Pill({ children, tone = "mute" }) {
   const bg = tone === "teal" ? TEAL : tone === "done" ? "rgba(242,237,228,0.08)" : "rgba(242,237,228,0.08)";
   const col = tone === "teal" ? PAPER : "rgba(242,237,228,0.7)";
   const bd = tone === "teal" ? "none" : "1px solid rgba(242,237,228,0.12)";
-  return <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", padding: "4px 8px", borderRadius: 4, background: bg, color: col, border: bd }}>{children}</span>;
+  return <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", padding: "5px 9px", borderRadius: 999, background: bg, color: col, border: bd }}>{children}</span>;
 }
 
 // Row renderer for DashShell.todayItems. Supports t.playlist = { name, provider, bpm, accent, cover, note, author, tracks }
