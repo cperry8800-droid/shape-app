@@ -284,9 +284,9 @@
   }
   .feat-row .phone.is-scroll-demo img {
     width: 108%;
-    height: 116%;
+    height: 132%;
     transform: translate(-2%, -1%);
-    animation: phoneScreenScroll 8s ease-in-out infinite;
+    animation: phoneScreenScroll 12s ease-in-out infinite;
   }
   .feat-row .phone.is-home-scroll img {
     width: 108%;
@@ -298,9 +298,9 @@
     animation: phoneHomePageScroll 11s ease-in-out infinite;
   }
   @keyframes phoneScreenScroll {
-    0%, 16% { transform: translate(-2%, -1%); }
-    48%, 64% { transform: translate(-2%, -13%); }
-    100% { transform: translate(-2%, -1%); }
+    0%, 12% { transform: translate(-2%, -1%); }
+    44%, 58% { transform: translate(-2%, -29%); }
+    86%, 100% { transform: translate(-2%, -1%); }
   }
   @keyframes phoneHomePageScroll {
     0%, 13% { transform: translate(-2%, -1%); }
@@ -308,9 +308,9 @@
     82%, 100% { transform: translate(-2%, -1%); }
   }
   @keyframes phoneScrollBar {
-    0%, 16% { transform: translateY(0); opacity: 0.34; }
-    48%, 64% { transform: translateY(112px); opacity: 0.72; }
-    100% { transform: translateY(0); opacity: 0.34; }
+    0%, 12% { transform: translateY(0); opacity: 0.34; }
+    44%, 58% { transform: translateY(150px); opacity: 0.72; }
+    86%, 100% { transform: translateY(0); opacity: 0.34; }
   }
   @media (prefers-reduced-motion: reduce) {
     .home-scroll-content,
@@ -329,7 +329,7 @@
     }
     .feat-row .phone.is-scroll-demo img {
       width: 106%;
-      height: 113%;
+      height: 128%;
       transform: translate(-1.5%, -0.8%);
     }
     .feat-row .phone.is-home-scroll img {
