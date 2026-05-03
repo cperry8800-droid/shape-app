@@ -328,6 +328,7 @@
     object-fit: contain;
     object-position: center center;
     transform: none;
+    border-radius: 0;
   }
   .feat-row .phone.framed-shot .side,
   .feat-row .phone.framed-shot .island { display: none; }
@@ -682,7 +683,7 @@
     </div>
 
     <div class="feat-row reverse">
-      <div class="phone"><img src="/newdesign/Shape%20radio%20updated.png" alt="Shape Radio with HRM sync"/></div>
+      <div class="phone needs-bezel"><img src="/newdesign/Shape%20radio%20updated.png" alt="Shape Radio with HRM sync"/></div>
       <div class="copy">
         <div class="step"><span class="n">11</span><span>RADIO</span></div>
         <h3>Music that locks to your heart rate.</h3>
@@ -857,6 +858,9 @@
   document.querySelectorAll('.feat-row .phone').forEach((phone) => {
     const img = phone.querySelector('img');
     if (img && !phone.querySelector('.screen-crop')) {
+      if (!phone.classList.contains('needs-bezel')) {
+        phone.classList.add('framed-shot');
+      }
       const crop = document.createElement('div');
       crop.className = 'screen-crop';
       img.replaceWith(crop);
