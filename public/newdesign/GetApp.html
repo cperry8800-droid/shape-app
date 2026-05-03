@@ -226,6 +226,11 @@
     .feat-row.reverse .copy { order: 1; }
     .feat-row.reverse .phone { order: 2; }
     .feat-row .phone { width: min(292px, 82vw); }
+    .feat-row .phone img {
+      width: 102%;
+      height: 102%;
+      transform: translate(-0.3%, -0.6%);
+    }
   }
 
   /* Why band */
@@ -284,31 +289,37 @@
   /* Phone-tight spacing — keep everything inside the viewport without
      horizontal scroll, full-width stacked CTAs, breathable but not bloated. */
   @media (max-width: 480px) {
-    .wrap { padding: 0 18px; }
+    .wrap { padding: 0 16px; }
     .nav-row { padding: 10px 0; gap: 10px; }
-    .brand img { height: 38px; }
+    .brand img { height: 34px; }
     .nav-back { font-size: 12px; }
 
-    .hero { padding: 28px 0 20px; }
-    .hero-title { font-size: clamp(34px, 11vw, 48px); line-height: 1; }
-    .hero-sub { font-size: 15px; margin: 0 auto 22px; padding: 0 4px; }
+    .hero { padding: 24px 0 18px; }
+    .hero-title { font-size: clamp(31px, 9.8vw, 43px); line-height: 1.02; }
+    .hero-sub { font-size: 14px; line-height: 1.5; margin: 0 auto 20px; padding: 0 2px; }
+    .store-btn { padding: 10px 14px; gap: 10px; }
 
     .store-note { margin-top: 12px; font-size: 10px; }
 
-    .features { padding: 48px 0 24px; }
-    .features-head { margin-bottom: 32px; }
-    .feat-row { padding: 32px 0; gap: 22px; }
+    .features { padding: 40px 0 22px; }
+    .features-head { margin-bottom: 28px; }
+    .features-head h2 { font-size: clamp(28px, 8.4vw, 38px); }
+    .features-head p { font-size: 14px; }
+    .feat-row { padding: 30px 0; gap: 20px; }
     .feat-row:first-of-type { padding-top: 24px; }
     .feat-row.text-only { padding: 28px 0; }
-    .feat-row .copy h3 { font-size: clamp(24px, 6.4vw, 32px); }
-    .feat-row .copy p { font-size: 14.5px; }
+    .feat-row .copy h3 { font-size: clamp(23px, 6vw, 30px); }
+    .feat-row .copy p { font-size: 14px; line-height: 1.55; }
     .feat-row .phone { width: min(260px, 78vw); }
 
-    .why { padding: 44px 0; margin-top: 16px; }
-    .faq { padding: 44px 0; }
+    .why { padding: 38px 0; margin-top: 16px; }
+    .why p { font-size: 14px; }
+    .faq { padding: 38px 0; }
     .qa h4 { font-size: 16.5px; }
 
-    .cta { padding: 44px 0 32px; }
+    .cta { padding: 38px 0 30px; }
+    .cta h2 { font-size: clamp(29px, 8vw, 38px); }
+    .cta p { font-size: 14px; }
     footer { padding: 22px 0 32px; }
   }
 </style>
