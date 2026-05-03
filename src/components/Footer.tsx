@@ -74,12 +74,32 @@ export default async function Footer() {
           text-transform: uppercase;
           color: var(--text-muted);
         }
+        .footer-cta {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 12px;
+          padding-bottom: 56px;
+          text-align: center;
+        }
+        .footer-cta img { height: 96px; width: auto; display: block; }
+        .footer-cta-text {
+          font-size: 1.25rem;
+          letter-spacing: -0.01em;
+          color: var(--text);
+        }
         @media (max-width: 900px) {
           .footer-grid { grid-template-columns: 1fr 1fr; gap: 40px; }
+          .footer-cta img { height: 76px; }
+          .footer-cta-text { font-size: 1.05rem; }
         }
       `}</style>
       <footer className="site-footer">
         <div className="footer-inner">
+          <div className="footer-cta">
+            <img src="/shape-logo-black.png" alt="Shape" />
+            <div className="footer-cta-text">Join the community</div>
+          </div>
           <div className="footer-grid">
             <div className="footer-col">
               <Link href="/" className="footer-brand">Shape</Link>

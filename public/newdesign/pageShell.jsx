@@ -230,6 +230,10 @@ function Footer() {
   return (
     <footer className="shape-footer" style={{ padding: "100px 72px 60px", background: INK, color: PAPER }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
+        <div className="shape-footer-cta" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, paddingBottom: 56, textAlign: "center" }}>
+          <img src="/shape-logo-black.png" alt="Shape" style={{ height: 96, width: "auto", display: "block" }} />
+          <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.01em", color: PAPER }}>Join the community</div>
+        </div>
         <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 40, paddingTop: 40, borderTop: "1px solid rgba(26,22,18,0.12)" }}>
           <div>
             <Logo variant="black" size={64} />
