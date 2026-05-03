@@ -60,7 +60,9 @@
 
   /* Store buttons */
   .store-row { display: inline-flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
-  .store-btn { display: inline-flex; align-items: center; gap: 12px; padding: 12px 18px; border-radius: 12px; background: var(--ink); color: var(--paper); font-size: 13px; font-weight: 500; line-height: 1.1; text-align: left; }
+  .store-btn { display: inline-flex; align-items: center; gap: 12px; padding: 12px 18px; border-radius: 12px; background: var(--ink); color: var(--paper); border: 1px solid var(--ink); font: inherit; font-size: 13px; font-weight: 500; line-height: 1.1; text-align: left; cursor: pointer; }
+  .store-btn.is-outline { background: transparent; color: var(--ink); border-color: var(--hairline); }
+  .store-btn[aria-pressed="true"] { box-shadow: 0 0 0 2px rgba(10,13,12,0.08); }
   .store-btn .glyph { font-size: 24px; line-height: 0; flex: none; }
   .store-btn small { display: block; font-size: 9.5px; letter-spacing: 0.06em; opacity: 0.75; margin-bottom: 1px; }
   .store-btn b { font-weight: 600; font-size: 14.5px; letter-spacing: -0.005em; }
@@ -250,7 +252,6 @@
   .cta h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(34px, 6.4vw, 48px); letter-spacing: -0.025em; line-height: 1; margin: 6px 0 18px; }
   .cta .eyebrow { color: var(--orange); }
   .cta p { font-size: 15px; color: var(--ink-2); max-width: 480px; margin: 0 auto 22px; line-height: 1.55; }
-
   /* Notify-me waitlist — collapsed pill below the App Store / Google Play row.
      Clicking the pill reveals the email + submit form. */
   .notify-toggle {
@@ -565,7 +566,7 @@
       btn.textContent = 'Saving…';
 
       try {
-        var res = await fetch('/api/notify-app', {
+        var res = await fetch('/api/app-waitlist', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: email, source: 'GetApp.html' })
@@ -622,6 +623,7 @@
     island.className = 'island';
     phone.appendChild(island);
   });
+
 </script>
 
 </body>
