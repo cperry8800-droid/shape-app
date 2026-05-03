@@ -178,12 +178,9 @@ export async function POST(req: NextRequest) {
   if (!isEmail(email)) {
     return NextResponse.json({ error: 'Please enter a valid email.' }, { status: 400, headers: CORS_HEADERS });
   }
-  if (minimumYears(yearsExperience) < 7) {
-    return NextResponse.json(
-      { error: 'Shape requires at least 7 years of professional experience for trainer and nutritionist applications.' },
-      { status: 400, headers: CORS_HEADERS }
-    );
-  }
+  // 7+ years is a Shape preference, not a gate. Tag the application so the
+  // review dashboard can sort/filter by candidates who already clear the bar.
+  details = { ...details, meets_experience_preference: minimumYears(yearsExperience) >= 7 };
 
   const supabase = await createClient();
   const { data, error } = await supabase
