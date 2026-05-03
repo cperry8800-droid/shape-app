@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8" />
-<title>Programs · Shape</title>
+<title>Plans · Shape</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>html,body{margin:0;padding:0;background:#1a1612}*{box-sizing:border-box}a{text-decoration:none;color:inherit}</style>
@@ -14,70 +14,144 @@
 <script type="text/babel" src="pageShell.jsx"></script>
 <script type="text/babel" src="trainerDashboard.jsx"></script>
 <script type="text/babel" src="coachNav.jsx"></script>
+<script type="text/babel" src="aiGenerator.jsx"></script>
 <script type="text/babel">
-function TrainerProgramsPage() {
-  const programs = [
-    { t: "Strength + hybrid (12w)",   active: 18, sold: 62,  price: "$220/mo", tag: "SIGNATURE",    playlists: 4, workouts: 16 },
-    { t: "Beginner barbell (8w)",     active: 6,  sold: 28,  price: "$180/mo", tag: "FOUNDATIONS",  playlists: 2, workouts: 10 },
-    { t: "Hybrid cut protocol (10w)", active: 5,  sold: 14,  price: "$240/mo", tag: "PERFORMANCE",  playlists: 3, workouts: 14 },
-    { t: "Return-to-lifting (6w)",    active: 3,  sold: 11,  price: "$200/mo", tag: "REHAB",        playlists: 1, workouts: 8 },
-    { t: "Marathon base (16w)",       active: 2,  sold: 9,   price: "$200/mo", tag: "ENDURANCE",    playlists: 2, workouts: 24 },
+function PlanTabs({ value, onChange }) {
+  const items = [
+    ["programs", "Programs", "Recurring blocks"],
+    ["workouts", "Workouts", "One-time purchases"],
+    ["playlists", "Playlists", "Spotify + Apple Music"],
   ];
   return (
-    <DashPage
-      navItems={trainerNavItems("programs")}
-      payoutCard={trainerPayoutCard}
-      eyebrow="5 PUBLISHED · 2 DRAFTS · 12 PLAYLISTS ATTACHED"
-      title="Programs"
-      subtitle="Reusable training blocks you sell. Edits cascade to every client on the block — with their session history preserved."
-      actions={<>
-        <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Drafts (2)</button>
-        <a href="TrainerNewWorkout.html" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>+ New workout</a>
-        <a href="TrainerNewProgram.html" style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ New program</a>
-      </>}
-    >
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 20 }}>
+      {items.map(([key, label, sub]) => (
+        <button key={key} onClick={() => onChange(key)} style={{
+          textAlign: "left",
+          padding: "14px 16px",
+          borderRadius: 10,
+          border: value === key ? `1px solid ${TEAL_BRIGHT}` : "1px solid rgba(242,237,228,0.12)",
+          background: value === key ? "rgba(30,192,168,0.08)" : "rgba(242,237,228,0.035)",
+          color: INK,
+          cursor: "pointer",
+        }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: value === key ? TEAL_BRIGHT : "rgba(242,237,228,0.55)", textTransform: "uppercase" }}>{label}</div>
+          <div style={{ marginTop: 5, fontSize: 12.5, color: "rgba(242,237,228,0.62)" }}>{sub}</div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ProductGrid({ items, type }) {
+  return (
+    <>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16, marginBottom: 20 }}>
-        {programs.map((p, i) => (
-          <Card key={i} style={{ padding: 22 }}>
-            <div style={{ height: 140, borderRadius: 6, background: "linear-gradient(135deg, rgba(30,192,168,0.16), rgba(242,237,228,0.04))", marginBottom: 16, display: "flex", alignItems: "flex-end", padding: 14 }}>
+        {items.map((p) => (
+          <Card key={p.t} style={{ padding: 22 }}>
+            <div style={{ height: 132, borderRadius: 8, background: `linear-gradient(135deg, ${p.color}, rgba(242,237,228,0.04))`, marginBottom: 16, display: "flex", alignItems: "flex-end", padding: 14 }}>
               <Pill>{p.tag}</Pill>
             </div>
             <div style={{ fontFamily: serif, fontSize: 20, letterSpacing: "-0.01em", marginBottom: 10 }}>{p.t}</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, fontSize: 11.5, color: "rgba(242,237,228,0.55)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em" }}>
               <div><div style={{ color: INK, fontFamily: "Fraunces", fontSize: 18 }}>{p.active}</div>ACTIVE</div>
               <div><div style={{ color: INK, fontFamily: "Fraunces", fontSize: 18 }}>{p.sold}</div>SOLD</div>
-              <div><div style={{ color: INK, fontFamily: "Fraunces", fontSize: 18 }}>{p.price.replace("/mo","")}</div>/MO</div>
+              <div><div style={{ color: INK, fontFamily: "Fraunces", fontSize: 18 }}>{p.price.replace("/mo","")}</div>{p.price.includes("/mo") ? "/MO" : "ONE"}</div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.08)", fontSize: 11.5, color: "rgba(242,237,228,0.55)" }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={TEAL_BRIGHT} strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="m10 8 6 4-6 4V8z" fill={TEAL_BRIGHT}/></svg>
-              <span><span style={{ color: TEAL_BRIGHT }}>{p.playlists}</span> playlists · {p.workouts} workouts</span>
-              <a href="TrainerPlaylists.html" style={{ marginLeft: "auto", fontSize: 11, color: "rgba(242,237,228,0.6)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.1em" }}>MANAGE →</a>
+              <span><span style={{ color: TEAL_BRIGHT }}>{p.playlists}</span> playlists - {p.workouts} {type === "program" ? "workouts" : "sets"}</span>
+              <a href="TrainerPlaylists.html" style={{ marginLeft: "auto", fontSize: 11, color: "rgba(242,237,228,0.6)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.1em" }}>MANAGE -></a>
             </div>
           </Card>
         ))}
       </div>
-
       <Card>
-        <SectionTitle right="LAST 90 DAYS">Program performance</SectionTitle>
-        {programs.map((p, i) => (
-          <div key={i} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 120px", gap: 14, padding: "14px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)", alignItems: "center" }}>
+        <SectionTitle right="LAST 90 DAYS">{type === "program" ? "Program performance" : "Workout sales"}</SectionTitle>
+        {items.map((p, i) => (
+          <div key={p.t} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 120px", gap: 14, padding: "14px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)", alignItems: "center" }}>
             <div>
               <div style={{ fontSize: 14, fontWeight: 500 }}>{p.t}</div>
               <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)" }}>{p.tag.toLowerCase()}</div>
             </div>
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>{p.active} active</span>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>{p.sold} all time</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>{p.sold} sold</span>
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: TEAL_BRIGHT }}>{p.price}</span>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, display: "inline-flex", alignItems: "center", gap: 5, color: "rgba(242,237,228,0.75)" }}>
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={TEAL_BRIGHT} strokeWidth="2"><circle cx="12" cy="12" r="10"/></svg>
-              {p.playlists} playlists
-            </span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "rgba(242,237,228,0.75)" }}>{p.playlists} playlists</span>
             <div style={{ height: 6, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden" }}>
               <div style={{ height: "100%", width: `${Math.min(p.sold / 62 * 100, 100)}%`, background: TEAL }} />
             </div>
           </div>
         ))}
       </Card>
+    </>
+  );
+}
+
+function PlaylistStudio() {
+  return (
+    <Card style={{ borderColor: "rgba(30,192,168,0.24)" }}>
+      <SectionTitle right="ATTACH TO PROGRAMS OR WORKOUTS">Playlist studio</SectionTitle>
+      <div style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: 16 }}>
+        <div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", color: TEAL_BRIGHT, marginBottom: 8 }}>NEW PLAYLIST</div>
+          <input defaultValue="Pull day tempo" style={{ width: "100%", background: "rgba(242,237,228,0.04)", color: INK, border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", marginBottom: 10 }} />
+          <input defaultValue="https://open.spotify.com/playlist/shape-tempo" style={{ width: "100%", background: "rgba(242,237,228,0.04)", color: INK, border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: "10px 12px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, outline: "none", marginBottom: 10 }} />
+          <select defaultValue="Marathon base (16w)" style={{ width: "100%", background: "#211d18", color: INK, border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none" }}>
+            <option>Marathon base (16w)</option>
+            <option>Tempo Run Prep</option>
+            <option>Upper Push - Peak</option>
+          </select>
+          <button style={{ marginTop: 12, background: TEAL, color: PAPER, border: 0, padding: "11px 16px", borderRadius: 8, fontFamily: sans, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Import and attach</button>
+        </div>
+        <div style={{ display: "grid", gap: 10 }}>
+          {[
+            ["Pull day tempo", "Spotify - Upper Push - Peak", "31 tracks"],
+            ["Long run build", "Apple Music - Marathon base", "78 min"],
+            ["Mobility warmup", "Spotify - all workouts", "18 tracks"],
+          ].map(([name, sub, meta]) => (
+            <div key={name} style={{ padding: 14, border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, background: "rgba(242,237,228,0.025)" }}>
+              <div style={{ fontSize: 15, fontWeight: 600 }}>{name}</div>
+              <div style={{ marginTop: 4, fontSize: 12.5, color: "rgba(242,237,228,0.58)" }}>{sub}</div>
+              <div style={{ marginTop: 9, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.1em", color: TEAL_BRIGHT }}>{meta}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function TrainerProgramsPage() {
+  const [tab, setTab] = React.useState("programs");
+  const programs = [
+    { t: "Strength + hybrid (12w)", active: 18, sold: 62, price: "$220/mo", tag: "SIGNATURE", playlists: 4, workouts: 16, color: "rgba(30,192,168,0.18)" },
+    { t: "Beginner barbell (8w)", active: 6, sold: 28, price: "$180/mo", tag: "FOUNDATIONS", playlists: 2, workouts: 10, color: "rgba(106,140,255,0.2)" },
+    { t: "Hybrid cut protocol (10w)", active: 5, sold: 14, price: "$240/mo", tag: "PERFORMANCE", playlists: 3, workouts: 14, color: "rgba(244,151,78,0.2)" },
+    { t: "Return-to-lifting (6w)", active: 3, sold: 11, price: "$200/mo", tag: "REHAB", playlists: 1, workouts: 8, color: "rgba(184,91,72,0.2)" },
+    { t: "Marathon base (16w)", active: 2, sold: 9, price: "$200/mo", tag: "ENDURANCE", playlists: 2, workouts: 24, color: "rgba(30,192,168,0.22)" },
+  ];
+  const workouts = [
+    { t: "Upper Push - Peak", active: 12, sold: 44, price: "$19", tag: "SINGLE", playlists: 1, workouts: 4, color: "rgba(184,91,72,0.22)" },
+    { t: "Lower Pull - Sensor log", active: 9, sold: 31, price: "$21", tag: "WATCH READY", playlists: 2, workouts: 5, color: "rgba(30,192,168,0.22)" },
+    { t: "Tempo Run Prep", active: 7, sold: 26, price: "$15", tag: "MARATHON", playlists: 1, workouts: 3, color: "rgba(106,140,255,0.22)" },
+    { t: "Hotel Gym Full Body", active: 5, sold: 19, price: "$17", tag: "TRAVEL", playlists: 1, workouts: 4, color: "rgba(244,151,78,0.22)" },
+  ];
+  return (
+    <DashPage
+      navItems={trainerNavItems("programs")}
+      payoutCard={trainerPayoutCard}
+      eyebrow="PROGRAMS - WORKOUTS - PLAYLISTS"
+      title="Plans"
+      subtitle="Programs are subscriptions. Workouts are one-time purchases. Playlists can attach to either and open through Spotify or Apple Music."
+      actions={<>
+        <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Drafts (2)</button>
+        <a href="TrainerNewWorkout.html" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>+ New workout</a>
+        <a href="TrainerNewProgram.html" style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ New program</a>
+      </>}
+    >
+      <PlanTabs value={tab} onChange={setTab} />
+      {tab === "programs" && <><AIGeneratorCard kind="program" role="trainer" /><ProductGrid items={programs} type="program" /></>}
+      {tab === "workouts" && <><AIGeneratorCard kind="workout" role="trainer" /><ProductGrid items={workouts} type="workout" /></>}
+      {tab === "playlists" && <PlaylistStudio />}
     </DashPage>
   );
 }

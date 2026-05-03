@@ -59,6 +59,7 @@ function HabitRow({ h, onToggle, onRemove }) {
 
 function ClientHabitsPage() {
   const [habits, setHabits] = React.useState(SEED_HABITS);
+  const [visibility, setVisibility] = React.useState("friends");
 
   const toggleToday = (id) => setHabits(hs => hs.map(h => h.id === id ? { ...h, today: !h.today } : h));
 
@@ -73,6 +74,7 @@ function ClientHabitsPage() {
       id, type, label: label.trim(),
       sub: type === "dont" ? "Tap when you've avoided it today" : "Just added — start your streak today",
       points: 3,
+      visibility,
       history: [false, false, false, false, false, false], today: false,
     }]);
   };
@@ -105,7 +107,7 @@ function ClientHabitsPage() {
       subtitle="Do's earn Shape Score when you complete them. Don'ts earn the same when you successfully avoid them. Tap a circle (do) or square (don't) to log today."
       actions={<>
         <a href="ClientScore.html" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>How streaks work</a>
-        <button onClick={() => addHabit("do")} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ Add habit</button>
+        <button onClick={() => addHabit("do")} title="Add habit" style={{ width: 42, height: 42, borderRadius: 999, background: INK, color: PAPER, border: 0, fontFamily: sans, fontSize: 22, fontWeight: 500, cursor: "pointer", lineHeight: 1 }}>+</button>
       </>}
     >
       {/* KPI strip */}
@@ -127,6 +129,35 @@ function ClientHabitsPage() {
           </div>
         ))}
       </div>
+
+      <Card style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 18, alignItems: "center", marginBottom: 20 }}>
+        <div>
+          <SectionTitle right="ACCOUNTABILITY">Sharing</SectionTitle>
+          <div style={{ fontSize: 13.5, color: "rgba(242,237,228,0.68)", lineHeight: 1.5 }}>
+            Choose who can see completed habits and streak updates. Missed habits stay private unless you opt into sharing them.
+          </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(110px, 1fr))", gap: 8 }}>
+          {[
+            ["public", "Public"],
+            ["friends", "Friends only"],
+            ["private", "Private"],
+          ].map(([key, label]) => (
+            <button key={key} onClick={() => setVisibility(key)} style={{
+              padding: "10px 12px",
+              borderRadius: 999,
+              border: visibility === key ? `1px solid ${TEAL_BRIGHT}` : "1px solid rgba(242,237,228,0.16)",
+              background: visibility === key ? "rgba(30,192,168,0.12)" : "transparent",
+              color: visibility === key ? TEAL_BRIGHT : "rgba(242,237,228,0.72)",
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 10.5,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              cursor: "pointer",
+            }}>{label}</button>
+          ))}
+        </div>
+      </Card>
 
       {/* Do's + Don'ts side by side */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
