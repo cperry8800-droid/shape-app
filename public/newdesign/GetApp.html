@@ -306,6 +306,31 @@
     border-radius: 0;
     filter: none;
   }
+  .feat-row .phone.framed-shot {
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: 0 24px 48px rgba(10,13,12,0.22);
+  }
+  .feat-row .phone.framed-shot::before,
+  .feat-row .phone.framed-shot::after { display: none; }
+  .feat-row .phone.framed-shot .screen-crop {
+    overflow: visible;
+    background: transparent;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .feat-row .phone.framed-shot img {
+    width: 100%;
+    height: 100%;
+    margin: 0 auto;
+    object-fit: contain;
+    object-position: center center;
+    transform: none;
+  }
+  .feat-row .phone.framed-shot .side,
+  .feat-row .phone.framed-shot .island { display: none; }
   .feat-row .phone.is-scroll-demo img {
     width: 108%;
     height: 132%;
@@ -346,6 +371,7 @@
     .feat-row.reverse .copy { order: 1; }
     .feat-row.reverse .phone { order: 2; }
     .feat-row .phone { width: min(224px, 64vw); padding: 9px; border-radius: 52px; }
+    .feat-row .phone.framed-shot { padding: 0; border-radius: 0; }
     .feat-row .phone .screen-crop { border-radius: 43px; }
     .feat-row .phone .island { width: 82px; height: 25px; top: 16px; }
     .feat-row .phone img {
@@ -462,6 +488,7 @@
     .feat-row .copy h3 { font-size: clamp(23px, 6vw, 30px); }
     .feat-row .copy p { font-size: 14px; line-height: 1.55; }
     .feat-row .phone { width: min(198px, 58vw); }
+    .feat-row .phone.framed-shot { width: min(224px, 65vw); }
     .feat-row .phone img { width: 90%; height: 94%; margin-top: 3%; }
 
     .why { padding: 38px 0; margin-top: 16px; }
@@ -817,11 +844,13 @@
   document.querySelectorAll('.feat-row .phone').forEach((phone) => {
     const img = phone.querySelector('img');
     if (img && !phone.querySelector('.screen-crop')) {
+      phone.classList.add('framed-shot');
       const crop = document.createElement('div');
       crop.className = 'screen-crop';
       img.replaceWith(crop);
       crop.appendChild(img);
     }
+    if (phone.classList.contains('framed-shot')) return;
 
     ['volume-a', 'volume-b', 'power'].forEach((name) => {
       if (phone.querySelector(`.side.${name}`)) return;
