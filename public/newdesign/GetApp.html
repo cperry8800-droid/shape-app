@@ -196,6 +196,54 @@
       inset 0 0 0 1px rgba(255,255,255,0.08),
       inset 0 0 0 2px rgba(0,0,0,0.82);
   }
+  .feat-row .phone.home-live-demo .screen-crop { background: #080807; }
+  .home-scroll-content {
+    min-height: 132%;
+    padding: 48px 12px 72px;
+    color: #f2ead8;
+    background:
+      linear-gradient(135deg, rgba(255,255,255,0.035) 25%, transparent 25%) 0 0 / 8px 8px,
+      #080807;
+    animation: homeLiveScroll 12s ease-in-out infinite;
+  }
+  .home-demo-kicker { display: flex; justify-content: space-between; gap: 8px; font-family: var(--mono); font-size: 7px; letter-spacing: 0.22em; color: rgba(242,234,216,0.56); text-transform: uppercase; }
+  .home-demo-title { margin: 20px 0 18px; padding-bottom: 18px; border-bottom: 1px solid rgba(242,234,216,0.18); text-align: center; font-family: var(--serif); font-size: 25px; line-height: 1; font-weight: 700; }
+  .home-demo-title .shape-word { font-family: 'Saira', sans-serif; font-weight: 300; letter-spacing: 0.22em; font-size: 23px; margin: 0 6px; }
+  .home-demo-strip { margin: 0 -12px; padding: 8px 12px; border-top: 2px solid #f2ead8; border-bottom: 1px solid rgba(242,234,216,0.18); font-family: var(--mono); font-size: 8px; letter-spacing: 0.2em; color: #09d1bd; text-transform: uppercase; }
+  .home-demo-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin: 14px 0; padding-top: 10px; border-top: 2px solid #f2ead8; }
+  .home-demo-day { border: 1px solid rgba(242,234,216,0.18); border-radius: 7px; padding: 6px 0 5px; text-align: center; font-family: var(--mono); font-size: 7px; color: rgba(242,234,216,0.68); }
+  .home-demo-day b { display: block; margin-top: 3px; font-family: var(--display); font-size: 18px; font-weight: 400; color: #f2ead8; }
+  .home-demo-day.is-on { background: #f2ead8; color: #080807; }
+  .home-demo-day.is-on b { color: #080807; }
+  .home-demo-radio { margin: 12px -12px; padding: 13px 12px; background: linear-gradient(90deg, rgba(0,207,190,0.34), rgba(0,207,190,0.18)); border-top: 1px solid #f2ead8; border-bottom: 1px solid #f2ead8; display: grid; grid-template-columns: 34px 1fr auto; gap: 9px; align-items: center; }
+  .home-demo-radio .disc { width: 30px; height: 30px; border: 1px solid #f2ead8; border-radius: 999px; display: grid; place-items: center; font-family: var(--mono); font-size: 8px; }
+  .home-demo-radio h4 { margin: 0; font-size: 13px; font-weight: 600; }
+  .home-demo-radio p { margin: 2px 0 0; font-family: var(--mono); font-size: 7px; letter-spacing: 0.13em; color: rgba(242,234,216,0.66); text-transform: uppercase; }
+  .home-demo-lead { padding: 14px 0 18px; border-bottom: 1px solid rgba(242,234,216,0.16); }
+  .home-demo-lead .eyebrow { color: #09d1bd; font-size: 8px; letter-spacing: 0.18em; }
+  .home-demo-number { font-family: var(--display); font-size: 58px; line-height: 0.92; letter-spacing: -0.07em; color: #f2ead8; }
+  .home-demo-number small { font-family: var(--mono); font-size: 9px; letter-spacing: 0.16em; margin-left: 6px; }
+  .home-demo-copy { margin-top: 7px; font-size: 12px; line-height: 1.25; color: rgba(242,234,216,0.72); }
+  .home-demo-bars { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin-top: 10px; }
+  .home-demo-bars span { height: 10px; background: rgba(242,234,216,0.52); }
+  .home-demo-bars span:nth-child(2) { background: #f2ead8; }
+  .home-demo-section { display: flex; justify-content: space-between; align-items: baseline; margin-top: 16px; padding-bottom: 8px; border-bottom: 2px solid #f2ead8; font-family: var(--mono); font-size: 8px; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(242,234,216,0.88); }
+  .home-demo-log { display: grid; gap: 0; }
+  .home-demo-log-row { display: grid; grid-template-columns: 42px 36px 1fr auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid rgba(242,234,216,0.09); }
+  .home-demo-log-row time { font-family: var(--mono); font-size: 10px; color: rgba(242,234,216,0.52); }
+  .home-demo-tag { border-radius: 5px; padding: 3px 4px; text-align: center; font-family: var(--mono); font-size: 7px; letter-spacing: 0.12em; background: #4f86ff; color: #080807; }
+  .home-demo-log-row strong { display: block; font-size: 12px; font-weight: 500; color: #f2ead8; }
+  .home-demo-log-row small { display: block; margin-top: 2px; font-family: var(--mono); font-size: 7px; letter-spacing: 0.08em; color: rgba(242,234,216,0.45); }
+  .home-demo-log-row .done { font-family: var(--mono); font-size: 7px; letter-spacing: 0.14em; color: #80d494; text-transform: uppercase; }
+  .home-demo-habits { margin-top: 14px; padding: 12px; border: 1px solid rgba(242,234,216,0.22); border-radius: 10px; }
+  .home-demo-habit-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
+  .home-demo-habit-grid span { min-height: 34px; border-radius: 8px; border: 1px solid rgba(242,234,216,0.22); padding: 8px 6px; font-family: var(--mono); font-size: 7px; letter-spacing: 0.12em; text-transform: uppercase; }
+  .home-demo-habit-grid span:first-child { background: #6abd7a; color: #080807; }
+  @keyframes homeLiveScroll {
+    0%, 12% { transform: translateY(0); }
+    44%, 58% { transform: translateY(-230px); }
+    86%, 100% { transform: translateY(0); }
+  }
   .feat-row .phone.is-scroll-demo .screen-crop::after {
     content: '';
     position: absolute;
@@ -241,12 +289,12 @@
     animation: phoneScreenScroll 8s ease-in-out infinite;
   }
   .feat-row .phone.is-home-scroll img {
-    width: 118%;
-    height: 138%;
+    width: 108%;
+    height: 118%;
     max-width: none;
     object-fit: cover;
     object-position: center top;
-    transform: translate(-7.5%, -1%);
+    transform: translate(-2%, -1%);
     animation: phoneHomePageScroll 11s ease-in-out infinite;
   }
   @keyframes phoneScreenScroll {
@@ -255,9 +303,9 @@
     100% { transform: translate(-2%, -1%); }
   }
   @keyframes phoneHomePageScroll {
-    0%, 13% { transform: translate(-7.5%, -1%); }
-    42%, 58% { transform: translate(-7.5%, -19%); }
-    82%, 100% { transform: translate(-7.5%, -1%); }
+    0%, 13% { transform: translate(-2%, -1%); }
+    42%, 58% { transform: translate(-2%, -12%); }
+    82%, 100% { transform: translate(-2%, -1%); }
   }
   @keyframes phoneScrollBar {
     0%, 16% { transform: translateY(0); opacity: 0.34; }
@@ -265,6 +313,7 @@
     100% { transform: translateY(0); opacity: 0.34; }
   }
   @media (prefers-reduced-motion: reduce) {
+    .home-scroll-content,
     .feat-row .phone.is-scroll-demo img,
     .feat-row .phone.is-scroll-demo .screen-crop::after { animation: none; }
   }
@@ -284,9 +333,9 @@
       transform: translate(-1.5%, -0.8%);
     }
     .feat-row .phone.is-home-scroll img {
-      width: 116%;
-      height: 136%;
-      transform: translate(-6.8%, -0.8%);
+      width: 106%;
+      height: 116%;
+      transform: translate(-1.5%, -0.8%);
     }
   }
 
@@ -435,7 +484,43 @@
         <h3>Today, at a glance.</h3>
         <p>The Shape Daily — your day, top to bottom. Calendar, calorie ledger, what's left to log, who's on the air, day brief from your coach. Skim it in five seconds, dive in if you want.</p>
       </div>
-      <div class="phone is-scroll-demo is-home-scroll"><img src="/newdesign/home%20page%20new.png" alt="Shape Daily home"/></div>
+      <div class="phone home-live-demo" aria-label="Shape Daily home scrolling preview">
+        <div class="screen-crop">
+          <div class="home-scroll-content">
+            <div class="home-demo-kicker"><span>Vol. 6 - No. 38</span><span>A</span></div>
+            <div class="home-demo-title">The <span class="shape-word">SHAPE</span> Daily.</div>
+            <div class="home-demo-kicker"><span>Tue - Apr 21 - 2026</span><span>Cut - W6 - D38</span></div>
+            <div class="home-demo-strip">Clients Edition - No. 21</div>
+            <div class="home-demo-week">
+              <span class="home-demo-day">M<b>20</b></span><span class="home-demo-day is-on">T<b>21</b></span><span class="home-demo-day">W<b>22</b></span><span class="home-demo-day">T<b>23</b></span><span class="home-demo-day">F<b>24</b></span><span class="home-demo-day">S<b>25</b></span><span class="home-demo-day">S<b>26</b></span>
+            </div>
+            <div class="home-demo-radio">
+              <span class="disc">132</span>
+              <span><h4>Peak Set</h4><p>DJ Kaya Mars - 132 BPM</p></span>
+              <span class="home-demo-tag">II</span>
+            </div>
+            <div class="home-demo-lead">
+              <div class="home-demo-kicker"><span class="eyebrow">Lead - Calorie deficit</span><span>09:42</span></div>
+              <div class="home-demo-number">532<small>KCAL</small></div>
+              <div class="home-demo-copy">On track. 1568 in, 2100 burned.<br>One workout and lunch left to log.</div>
+              <div class="home-demo-bars"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+            </div>
+            <div class="home-demo-section"><span>Day log</span><span>8 items</span></div>
+            <div class="home-demo-log">
+              <div class="home-demo-log-row"><time>07:20</time><span class="home-demo-tag">Meal</span><span><strong>Oats, berries, whey</strong><small>412 kcal - 32P</small></span><span class="done">Logged</span></div>
+              <div class="home-demo-log-row"><time>09:05</time><span class="home-demo-tag" style="background:#d7a52f">Trn</span><span><strong>Upper Push - Peak</strong><small>52 min - Jordan</small></span><span class="done">Logged</span></div>
+              <div class="home-demo-log-row"><time>12:40</time><span class="home-demo-tag">Meal</span><span><strong>Chicken bowl + rice</strong><small>620 kcal - 48P</small></span><span></span></div>
+              <div class="home-demo-log-row"><time>15:00</time><span class="home-demo-tag" style="background:#e86b4e">Con</span><span><strong>Nutrition consult</strong><small>Dr. Maya - Zoom</small></span><span></span></div>
+              <div class="home-demo-log-row"><time>18:30</time><span class="home-demo-tag" style="background:#5caf72">Chk</span><span><strong>Evening check-in</strong><small>RPE recap - Jordan</small></span><span></span></div>
+            </div>
+            <div class="home-demo-section"><span>Habits</span><span>1/3 today</span></div>
+            <div class="home-demo-habits">
+              <div class="home-demo-kicker"><span>Open all</span><span>Daily</span></div>
+              <div class="home-demo-habit-grid"><span>Water</span><span>Vitamins</span><span>No smoking</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="feat-row text-only">
@@ -689,19 +774,21 @@
 <script>
   document.querySelectorAll('.feat-row .phone').forEach((phone) => {
     const img = phone.querySelector('img');
-    if (!img || phone.querySelector('.screen-crop')) return;
-
-    const crop = document.createElement('div');
-    crop.className = 'screen-crop';
-    img.replaceWith(crop);
-    crop.appendChild(img);
+    if (img && !phone.querySelector('.screen-crop')) {
+      const crop = document.createElement('div');
+      crop.className = 'screen-crop';
+      img.replaceWith(crop);
+      crop.appendChild(img);
+    }
 
     ['volume-a', 'volume-b', 'power'].forEach((name) => {
+      if (phone.querySelector(`.side.${name}`)) return;
       const side = document.createElement('span');
       side.className = `side ${name}`;
       phone.appendChild(side);
     });
 
+    if (phone.querySelector('.island')) return;
     const island = document.createElement('span');
     island.className = 'island';
     phone.appendChild(island);
