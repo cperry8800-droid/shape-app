@@ -1,8 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 120" width="340" height="120">
-  <!-- Bottom-left triangle (teal, pointing right) -->
-  <polygon points="72,38 72,82 105,60" fill="#2DD4BF"/>
-  <!-- Top-right triangle (dark, pointing left) -->
-  <polygon points="128,18 128,62 95,40" fill="#1A1A1A"/>
-  <!-- SHAPE text -->
-  <text x="170" y="110" text-anchor="middle" font-family="Inter, Helvetica, Arial, sans-serif" font-size="22" font-weight="300" letter-spacing="8" fill="#1A1A1A">SHAPE RADIO</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 120" width="920" height="120" role="img" aria-label="Shape Radio">
+  <rect width="920" height="120" fill="#15110d"/>
+  <text x="18" y="78"
+        font-family="Saira, Space Grotesk, Helvetica Neue, Arial, sans-serif"
+        font-size="62"
+        font-weight="300"
+        letter-spacing="28"
+        fill="#f2ead8">SHAPE</text>
+  <polygon points="421,46 421,76 445,61" fill="#13cbb8"/>
+  <polygon points="465,34 465,64 441,49" fill="#f2ead8"/>
+  <text x="525" y="78"
+        font-family="Saira, Space Grotesk, Helvetica Neue, Arial, sans-serif"
+        font-size="62"
+        font-weight="300"
+        letter-spacing="24"
+        fill="#13cbb8">RADIO</text>
 </svg>
