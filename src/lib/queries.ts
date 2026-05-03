@@ -9,6 +9,7 @@ import type {
   Profile,
   SessionBooking,
   ProviderAvailability,
+  WorkoutReviewSession,
 } from './types';
 
 /**
@@ -236,6 +237,26 @@ export async function getMyAvailability(): Promise<ProviderAvailability[]> {
     return [];
   }
   return (data ?? []) as ProviderAvailability[];
+}
+
+export async function getMyWorkoutReviewSessions(
+  role?: 'trainer' | 'nutritionist'
+): Promise<WorkoutReviewSession[]> {
+  const supabase = await createClient();
+  let query = supabase
+    .from('workout_sessions')
+    .select('*, workout_set_logs(*), workout_sensor_samples(*), coach_workout_review_notes(*)')
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  if (role) query = query.eq('provider_role', role);
+
+  const { data, error } = await query;
+  if (error) {
+    console.error('[shape-app] getMyWorkoutReviewSessions error', error);
+    return [];
+  }
+  return (data ?? []) as WorkoutReviewSession[];
 }
 
 export async function getTrainers(): Promise<Trainer[]> {

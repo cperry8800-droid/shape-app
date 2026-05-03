@@ -129,6 +129,73 @@ export type ProviderAvailability = {
   created_at: string;
 };
 
+export type WorkoutSetLog = {
+  id: string;
+  session_id: string;
+  movement_name: string | null;
+  set_number: number | null;
+  target_reps: string | null;
+  target_load: string | null;
+  completed: boolean | null;
+  set_duration_seconds: number | null;
+  rest_before_seconds: number | null;
+  started_at: string | null;
+  ended_at: string | null;
+  payload: Record<string, unknown> | null;
+  created_at: string;
+};
+
+export type WorkoutSensorSample = {
+  id: string;
+  session_id: string;
+  source: string | null;
+  metric: string | null;
+  value: number | null;
+  unit: string | null;
+  sampled_at: string | null;
+  payload: Record<string, unknown> | null;
+  created_at: string;
+};
+
+export type CoachWorkoutReviewNote = {
+  id: string;
+  session_id: string;
+  reviewer_id: string;
+  provider_id: number;
+  provider_role: 'trainer' | 'nutritionist';
+  body: string;
+  visibility: 'client' | 'coach_private' | 'team';
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkoutReviewSession = {
+  id: string;
+  client_id: string;
+  client_workout_id: string | null;
+  provider_id: number | null;
+  provider_role: 'trainer' | 'nutritionist' | null;
+  title: string | null;
+  workout_name: string | null;
+  status: string;
+  privacy: string;
+  started_at: string | null;
+  ended_at: string | null;
+  duration_seconds: number | null;
+  summary: {
+    completedSets?: number;
+    avgSetSeconds?: number;
+    avgRestSeconds?: number;
+    [key: string]: unknown;
+  } | null;
+  payload: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+  workout_set_logs?: WorkoutSetLog[];
+  workout_sensor_samples?: WorkoutSensorSample[];
+  coach_workout_review_notes?: CoachWorkoutReviewNote[];
+};
+
 export type Gym = {
   id: number;
   name: string;

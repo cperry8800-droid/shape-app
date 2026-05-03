@@ -25,6 +25,7 @@ export default async function DashboardLayout({
     { href: '/dashboard/client', label: 'Client dashboard', show: true },
     { href: '/dashboard/trainer', label: 'Trainer', show: true },
     { href: '/dashboard/nutritionist', label: 'Nutritionist', show: true },
+    { href: '/dashboard/workout-reviews', label: 'Workout reviews', show: true },
     { href: '/dashboard/applications', label: 'Applications', show: isAdmin },
     { href: '/dashboard/claim', label: 'Claim profile', show: true },
     { href: '/dashboard/settings', label: 'Settings', show: true },

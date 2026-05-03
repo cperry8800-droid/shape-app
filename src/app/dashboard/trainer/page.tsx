@@ -52,6 +52,20 @@ export default async function TrainerDashboardPage() {
             <Stat label="MRR" value={`$${(mrrCents / 100).toFixed(2)}`} />
             <Stat label="Lifetime subs" value={(trainer.subscribers ?? 0).toString()} />
           </div>
+          <div className="mt-5 rounded-lg border border-neutral-800 bg-neutral-950/40 p-4 flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <h3 className="text-sm font-medium">Workout review desk</h3>
+              <p className="text-xs text-neutral-500 mt-1">
+                Review client set timing, rest windows, watch samples, and send coach notes.
+              </p>
+            </div>
+            <Link
+              href="/dashboard/workout-reviews?role=trainer"
+              className="text-xs font-medium uppercase tracking-[0.08em] bg-teal-400 text-neutral-950 rounded-full px-4 py-2 hover:bg-teal-300 transition-colors"
+            >
+              Open reviews
+            </Link>
+          </div>
         </section>
       ) : (
         <section className="rounded-xl border border-amber-900/40 bg-amber-900/10 p-6">
