@@ -45,6 +45,21 @@ function NewWorkoutPage() {
   };
 
   const tags = ["Strength", "Hypertrophy", "Cardio", "Mobility", "HIIT", "Skill", "Recovery"];
+  const applyDraft = (draft) => {
+    setTitle(draft.title || title);
+    setTag(draft.tag || tag);
+    const generatedMinutes = Number(String(draft.duration || "").match(/\d+/)?.[0]);
+    if (generatedMinutes) setMinutes(generatedMinutes);
+    setNotes([draft.summary, ...(draft.coachNotes || [])].filter(Boolean).join("\n"));
+    if (draft.blocks?.length) {
+      setBlocks(draft.blocks.map((block) => ({
+        label: block.label || "",
+        name: block.title || "",
+        detail: block.detail || "",
+        note: block.note || "",
+      })));
+    }
+  };
 
   return (
     <DashPage
@@ -63,6 +78,7 @@ function NewWorkoutPage() {
       <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 20 }}>
         {/* LEFT — builder */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <AIGeneratorCard kind="workout" role="trainer" onApply={applyDraft} />
           <Card>
             <SectionTitle>Basics</SectionTitle>
             <Field label="Workout title">

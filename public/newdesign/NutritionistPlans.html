@@ -14,6 +14,7 @@
 <script type="text/babel" src="pageShell.jsx"></script>
 <script type="text/babel" src="trainerDashboard.jsx"></script>
 <script type="text/babel" src="coachNav.jsx"></script>
+<script type="text/babel" src="aiGenerator.jsx"></script>
 <script type="text/babel">
 function NutritionistPlansPage() {
   const plans = [
@@ -35,6 +36,7 @@ function NutritionistPlansPage() {
         <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ New plan</button>
       </>}
     >
+      <AIGeneratorCard kind="meal_plan" role="nutritionist" />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16, marginBottom: 20 }}>
         {plans.map((p, i) => (
           <Card key={i} style={{ padding: 22 }}>

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUserAndProfile } from '@/lib/queries';
 import { logout } from '@/app/login/actions';
+import { getAdminEmails } from '@/lib/admin-access';
 
 export default async function DashboardLayout({
   children,
@@ -17,12 +18,15 @@ export default async function DashboardLayout({
 
   const { profile, email } = ctx;
   const role = profile?.role ?? 'client';
+  const isAdmin = Boolean(email && getAdminEmails().includes(email.toLowerCase()));
 
   const tabs: { href: string; label: string; show: boolean }[] = [
     { href: '/dashboard', label: 'Overview', show: true },
     { href: '/dashboard/client', label: 'Client dashboard', show: true },
     { href: '/dashboard/trainer', label: 'Trainer', show: true },
     { href: '/dashboard/nutritionist', label: 'Nutritionist', show: true },
+    { href: '/dashboard/workout-reviews', label: 'Workout reviews', show: true },
+    { href: '/dashboard/applications', label: 'Applications', show: isAdmin },
     { href: '/dashboard/claim', label: 'Claim profile', show: true },
     { href: '/dashboard/settings', label: 'Settings', show: true },
   ];

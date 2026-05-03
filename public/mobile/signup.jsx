@@ -76,6 +76,7 @@ const ROLE_CONFIG = {
 const labelStyle = { display: "block", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)", marginBottom: 8 };
 const inputStyle = { width: "100%", background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 8, padding: "12px 14px", color: INK, fontFamily: sans, fontSize: 14, outline: "none" };
 const selectStyle = { ...inputStyle, appearance: "none", WebkitAppearance: "none", backgroundImage: "linear-gradient(45deg, transparent 48%, rgba(242,237,228,0.5) 48% 52%, transparent 52%), linear-gradient(-45deg, transparent 48%, rgba(242,237,228,0.5) 48% 52%, transparent 52%)", backgroundSize: "6px 6px, 6px 6px", backgroundPosition: "right 16px top 50%, right 10px top 50%", backgroundRepeat: "no-repeat", paddingRight: 36 };
+const proExperienceOptions = ["7-10 years", "10-15 years", "15+ years"];
 
 function Field({ label, children, span = 1 }) {
   return (
@@ -222,29 +223,32 @@ function ProCredentials({ v, set, kind }) {
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
         <Field label="Degree / school"><TextInput value={v.edu || ""} onChange={e => set({ edu: e.target.value })} placeholder={isTrainer ? "BS Kinesiology — UT Austin" : "MS Nutrition — NYU"} /></Field>
-        <Field label="Years coaching"><Select value={v.years || "1-2 years"} onChange={e => set({ years: e.target.value })} options={["1-2 years", "3-5 years", "5-10 years", "10+ years"]} /></Field>
+        <Field label="Years professional experience"><Select value={v.years || "7-10 years"} onChange={e => set({ years: e.target.value })} options={proExperienceOptions} /></Field>
       </div>
+      <p style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.68)", margin: 0, lineHeight: 1.55 }}>
+        Shape requires a minimum of 7 years of professional {isTrainer ? "training or coaching" : "nutrition coaching or clinical"} experience before a provider profile can go live.
+      </p>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
         <Field label="Liability insurance"><Select value={v.insurance || "Yes"} onChange={e => set({ insurance: e.target.value })} options={["Yes", "No", "In progress"]} /></Field>
         <Field label="Previous platforms (optional)"><TextInput value={v.prev || ""} onChange={e => set({ prev: e.target.value })} placeholder="Trainerize, MyFitnessPal Pro..." /></Field>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
-        <Field label={isTrainer ? "Proof of certification" : "Proof of license"}>
-          <FileStub label="Upload PDF or image" />
+        <Field label="Resume / CV">
+          <FileInput label="Upload PDF, DOC, or image" onChange={file => set({ resumeFile: file || null })} />
         </Field>
-        <Field label="Insurance document"><FileStub label="Upload PDF or image" /></Field>
+        <Field label={isTrainer ? "Proof of certification" : "Proof of license"}>
+          <FileInput label="Upload PDF or image" onChange={file => set({ credentialFile: file || null })} />
+        </Field>
+        <Field label="Insurance document"><FileInput label="Upload PDF or image" onChange={file => set({ insuranceFile: file || null })} /></Field>
       </div>
       <Check on={v.verify} onClick={() => set({ verify: !v.verify })}>I understand my credentials may be verified by Shape's trust team.</Check>
     </div>
   );
 }
 
-function FileStub({ label }) {
+function FileInput({ label, onChange }) {
   return (
-    <div style={{ ...inputStyle, padding: "14px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
-      <span style={{ color: "rgba(242,237,228,0.55)" }}>{label}</span>
-      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: TEAL, letterSpacing: "0.1em", textTransform: "uppercase" }}>Browse →</span>
-    </div>
+    <input type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" onChange={e => onChange(e.target.files?.[0] || null)} style={{ ...inputStyle, cursor: "pointer", fontSize: 12 }} aria-label={label} />
   );
 }
 
@@ -360,6 +364,8 @@ function SignupForm({ role }) {
   const [step, setStep] = React.useState(0);
   const [values, setValues] = React.useState({});
   const [done, setDone] = React.useState(false);
+  const [error, setError] = React.useState("");
+  const [submitting, setSubmitting] = React.useState(false);
   const set = (patch) => setValues(v => ({ ...v, ...patch }));
 
   const totalSteps = cfg.steps.length;
@@ -407,6 +413,62 @@ function SignupForm({ role }) {
     );
   }
 
+  async function submitApplication() {
+    setError("");
+    if (role !== "trainer" && role !== "nutritionist") {
+      setDone(true);
+      return;
+    }
+    if (!values.firstName || !values.lastName || !values.email) {
+      setError("First name, last name, and email are required.");
+      return;
+    }
+    const years = Number(String(values.years || "").match(/\d+/)?.[0] || 0);
+    if (years < 7) {
+      setError("Shape requires at least 7 years of professional experience.");
+      return;
+    }
+
+    const form = new FormData();
+    form.append("providerType", role);
+    form.append("firstName", values.firstName || "");
+    form.append("lastName", values.lastName || "");
+    form.append("email", values.email || "");
+    form.append("phone", values.phone || "");
+    form.append("location", values.city || "");
+    form.append("specialty", values.primary || "");
+    form.append("yearsExperience", values.years || "");
+    form.append("monthlyPrice", values.subPrice || "");
+    form.append("details", JSON.stringify({
+      timezone: values.tz || "",
+      social: values.social || "",
+      bio: values.bio || "",
+      certification: values.cert || "",
+      certification_expiration: values.certExp || "",
+      education: values.edu || "",
+      insurance_status: values.insurance || "",
+      previous_platforms: values.prev || "",
+      response_time: values.response || "",
+      single_session_price: values.sessionPrice || "",
+      professional_minimum_years: 7,
+    }));
+    if (values.resumeFile) form.append("resume", values.resumeFile);
+    if (values.credentialFile) form.append("credential", values.credentialFile);
+    if (values.insuranceFile) form.append("insurance", values.insuranceFile);
+
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/apply", { method: "POST", body: form });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload.error || "Could not submit application.");
+      setDone(true);
+    } catch (err) {
+      setError(err?.message || "Could not submit application.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <div style={{ background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 14, padding: "40px 44px 36px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
@@ -424,6 +486,8 @@ function SignupForm({ role }) {
 
       <div>{body}</div>
 
+      {error && <div style={{ marginTop: 18, color: "#ff7b6e", fontFamily: sans, fontSize: 13 }}>{error}</div>}
+
       <div style={{ marginTop: 36, display: "flex", gap: 10, justifyContent: "space-between", alignItems: "center" }}>
         <button
           type="button"
@@ -434,9 +498,10 @@ function SignupForm({ role }) {
         </button>
         <button
           type="button"
-          onClick={() => isLast ? setDone(true) : setStep(step + 1)}
+          onClick={() => isLast ? submitApplication() : setStep(step + 1)}
+          disabled={submitting}
           style={{ padding: "14px 24px", borderRadius: 8, background: INK, color: PAPER, border: 0, fontFamily: sans, fontSize: 14, fontWeight: 500, cursor: "pointer" }}>
-          {isLast ? cfg.submitLabel : "Continue"}
+          {submitting ? "Submitting..." : isLast ? cfg.submitLabel : "Continue"}
         </button>
       </div>
     </div>

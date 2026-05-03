@@ -60,7 +60,7 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
     description: 'Share recovery, strain, and sleep data with your coach.',
     authorizeUrl: 'https://api.prod.whoop.com/oauth/oauth2/auth',
     tokenUrl: 'https://api.prod.whoop.com/oauth/oauth2/token',
-    scope: 'read:recovery read:cycles read:workout read:sleep read:profile offline',
+    scope: 'read:recovery read:cycles read:workout read:sleep read:profile read:body_measurement',
     clientIdEnv: 'WHOOP_CLIENT_ID',
     clientSecretEnv: 'WHOOP_CLIENT_SECRET',
   },

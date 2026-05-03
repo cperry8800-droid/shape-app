@@ -12,12 +12,14 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { getProvider, getClientCredentials, type ProviderId } from '@/lib/integrations/providers';
-import { callbackUrl, pkcePair, randomToken } from '@/lib/integrations/oauth';
+import { pkcePair, randomToken } from '@/lib/integrations/oauth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const COOKIE_TTL_SECONDS = 600; // 10 minutes
+const DEFAULT_RETURN_TO = '/newdesign/GetApp.html';
+const DEFAULT_LOGIN_ROUTE = '/newdesign/GetApp.html';
 
 export async function GET(
   request: Request,
@@ -40,17 +42,22 @@ export async function GET(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    const returnTo = new URL(request.url).searchParams.get('return') ?? '/integrations.html';
-    return NextResponse.redirect(`${new URL(request.url).origin}/login.html?return=${encodeURIComponent(returnTo)}`);
+    const returnTo = new URL(request.url).searchParams.get('return') ?? DEFAULT_RETURN_TO;
+    const loginUrl = new URL(DEFAULT_LOGIN_ROUTE, new URL(request.url).origin);
+    loginUrl.searchParams.set('return', returnTo);
+    loginUrl.searchParams.set('integration', cfg.id);
+    loginUrl.searchParams.set('status', 'signin_required');
+    return NextResponse.redirect(loginUrl.toString());
   }
 
   const state = randomToken(24);
-  const returnTo = new URL(request.url).searchParams.get('return') ?? '/integrations.html';
+  const returnTo = new URL(request.url).searchParams.get('return') ?? DEFAULT_RETURN_TO;
+  const redirectUri = `${new URL(request.url).origin}/api/integrations/${cfg.id}/callback`;
 
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: creds.clientId,
-    redirect_uri: callbackUrl(cfg.id),
+    redirect_uri: redirectUri,
     scope: cfg.scope,
     state,
   });
@@ -77,6 +84,7 @@ export async function GET(
   cookieStore.set(`shape_oauth_state_${cfg.id}`, state, cookieOpts);
   cookieStore.set(`shape_oauth_user_${cfg.id}`, user.id, cookieOpts);
   cookieStore.set(`shape_oauth_return_${cfg.id}`, returnTo, cookieOpts);
+  cookieStore.set(`shape_oauth_redirect_${cfg.id}`, redirectUri, cookieOpts);
   if (verifier) {
     cookieStore.set(`shape_oauth_pkce_${cfg.id}`, verifier, cookieOpts);
   }
