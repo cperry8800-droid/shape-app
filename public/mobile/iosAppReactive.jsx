@@ -101,7 +101,7 @@ function RadioBgBloom({ color = '#1ec0a8', enabled = true }) {
   );
 }
 
-function RadioDynamicIsland({ enabled = true, color = '#1ec0a8', label = 'Heavy Day · 132' }) {
+function RadioDynamicIsland({ enabled = true, color = '#1ec0a8', label = 'Shape Radio · 132' }) {
   const { bass, mid, treble, t } = useBeat(enabled);
   if (!enabled) return null;
   const bars = Array.from({ length: 7 }).map((_, i) => {
@@ -222,7 +222,7 @@ function RadioHologramDJ({ enabled = true, color = '#1ec0a8' }) {
   );
 }
 
-function RadioEffects({ mode = 'subtle', label = 'Heavy Day · 132' }) {
+function RadioEffects({ mode = 'subtle', label = 'Shape Radio · 132' }) {
   const on = mode !== 'off';
   const { t } = useBeat(on);
   const color = cycleColor(t, 18);

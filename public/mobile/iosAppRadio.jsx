@@ -8,17 +8,17 @@ const { useState: useStateR } = React;
 // The one live stream.
 const LIVE_STATION = {
   name: 'Shape Radio',
-  show: 'Heavy Day with DJ Kaya Mars',
+  show: 'Shape Radio Station',
   bpm: 132,
   listeners: 3472,
-  nextUp: 'Tempo Run at 6 PM · Nilo Ceza',
+  nextUp: 'Live mix all day',
   color: '#1ec0a8',
   // mock track ticker
   tracks: [
     { t: '— now —', a: 'Roots of the Machine', b: 'MERIT · 132 BPM' },
     { t: '3m ago', a: 'Floor Program II', b: 'Tariq Osei · 130 BPM' },
     { t: '7m ago', a: 'Ironwood', b: 'Sable · 134 BPM' },
-    { t: '11m ago', a: 'Peak Set', b: 'DJ Kaya Mars · 132 BPM' },
+    { t: '11m ago', a: 'Peak Set', b: 'Shape Radio · 132 BPM' },
     { t: '15m ago', a: 'Cue the Lift', b: 'Linnea Aho · 128 BPM' },
   ],
 };
@@ -125,13 +125,7 @@ function RadioScreen({ onBack }) {
           fontWeight: 400, margin: 0, color: INK,
         }}>
           {isLive ? (
-            <>{LIVE_STATION.show.split(' with ')[0]}<br/>
-              <em style={{ fontStyle: 'italic', color: accent, fontWeight: 500 }}>
-                with {LIVE_STATION.show.split(' with ')[1].split(' ').slice(0, 2).join(' ')}
-              </em><em style={{ fontStyle: 'italic', color: accent, fontWeight: 500 }}>
-                {' '}{LIVE_STATION.show.split(' with ')[1].split(' ').slice(2).join(' ')}
-              </em>
-            </>
+            <>{LIVE_STATION.show}</>
           ) : (
             <>{current.name}<em style={{ fontStyle: 'italic', color: accent, fontWeight: 500 }}>.</em></>
           )}

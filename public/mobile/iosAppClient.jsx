@@ -69,7 +69,7 @@ function ClientApp({ dark, onLogout, radioOn, setRadioOn }) {
 
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
-      {showFx && <RadioEffects mode={fxMode} label="HEAVY DAY · 132 BPM" />}
+      {showFx && <RadioEffects mode={fxMode} label="SHAPE RADIO · 132 BPM" />}
       {screens[tab]}
       <TabBar
         active={tab}

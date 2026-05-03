@@ -1,6 +1,6 @@
 // Shape Radio — music built for training
 const STATIONS = [
-  { name: "Heavy Day", bpm: 132, listeners: 1284, tag: "Lifts · power · grit", color: TEAL, live: true },
+  { name: "Shape Radio Station", bpm: 132, listeners: 1284, tag: "Lifts · power · grit", color: TEAL, live: true },
   { name: "Tempo Run", bpm: 172, listeners: 842, tag: "Steady state · zone 3", color: "#e89b4a" },
   { name: "Intervals", bpm: 168, listeners: 624, tag: "HIIT · 30/30 · 40/20", color: "#c978d8" },
   { name: "Long Ride", bpm: 120, listeners: 418, tag: "Endurance · 90–180 min", color: "#7aaae8" },
@@ -9,7 +9,7 @@ const STATIONS = [
 ];
 
 const SHOWS = [
-  { name: "Lift Series vol. 04", dj: "DJ Kaya Mars", len: "1h 12m", style: "Heavy bass · 130–140 bpm", featured: true },
+  { name: "Lift Series vol. 04", dj: "Shape Radio", len: "1h 12m", style: "Heavy bass · 130–140 bpm", featured: true },
   { name: "Long Run Radio", dj: "Nilo Ceza", len: "2h 00m", style: "Afro-house · 168–172 bpm" },
   { name: "Cut the Weight", dj: "Merit & Sable", len: "48m", style: "Grime-adjacent · 160 bpm" },
   { name: "Mobility Hour", dj: "Linnea Aho", len: "60m", style: "Ambient · 80–90 bpm" },
@@ -34,7 +34,7 @@ function RadioHero() {
           </h1>
           <p style={{ fontFamily: sans, fontSize: 18, color: "rgba(242,237,228,0.7)", margin: "28px 0 0", maxWidth: 520, lineHeight: 1.5 }}>Ad-free workout mixes, curated stations by BPM, live DJ sets from residents who lift. Plus: your coach can attach a Spotify or Apple Music playlist to any workout or meal — it plays on the card, in your kitchen, or on the treadmill. Send good ones to friends. Included with every Shape membership.</p>
           <div style={{ display: "flex", gap: 10, marginTop: 36 }}>
-            <button style={{ background: TEAL, color: PAPER, border: 0, padding: "16px 28px", borderRadius: 6, fontWeight: 500, fontSize: 14.5, fontFamily: sans, cursor: "pointer" }}>▶ Play Heavy Day</button>
+            <button style={{ background: TEAL, color: PAPER, border: 0, padding: "16px 28px", borderRadius: 6, fontWeight: 500, fontSize: 14.5, fontFamily: sans, cursor: "pointer" }}>▶ Play Shape Radio Station</button>
             <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "16px 28px", borderRadius: 6, fontWeight: 500, fontSize: 14.5, fontFamily: sans, cursor: "pointer" }}>Browse stations</button>
           </div>
         </div>
@@ -42,8 +42,8 @@ function RadioHero() {
         {/* Now playing card */}
         <div style={{ padding: 32, background: "rgba(26,22,18,0.55)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 4 }}>
           <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.12em", color: TEAL_BRIGHT, textTransform: "uppercase" }}>◉ Live · 1,284 listening</div>
-          <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", marginTop: 14, lineHeight: 1 }}>Heavy Day · 132 BPM</div>
-          <div style={{ fontFamily: sans, fontSize: 13.5, color: "rgba(242,237,228,0.7)", marginTop: 8 }}>DJ Kaya Mars — Lift Series vol. 04</div>
+          <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", marginTop: 14, lineHeight: 1 }}>Shape Radio Station · 132 BPM</div>
+          <div style={{ fontFamily: sans, fontSize: 13.5, color: "rgba(242,237,228,0.7)", marginTop: 8 }}>Shape Radio — Lift Series vol. 04</div>
           <div style={{ display: "flex", alignItems: "center", gap: 3, height: 56, marginTop: 28 }}>
             {bars.map((h, i) => (
               <div key={i} style={{ flex: 1, height: `${20 + h*80}%`, background: i < 32 ? TEAL_BRIGHT : "rgba(242,237,228,0.2)", borderRadius: 1, transition: "height .2s" }} />
@@ -136,7 +136,7 @@ function RadioPitch() {
         <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
           {[
             ["Mixed for movement", "Every track is vetted for tempo consistency. No slow-down bridges that break a set. No key jumps during intervals."],
-            ["Synced to your program", "Radio reads your workout — pulls a Heavy Day station when you're squatting, Tempo when you're on the treadmill. You just press play."],
+            ["Synced to your program", "Radio reads your workout and keeps the Shape Radio Station ready when you're squatting, running, or on the treadmill. You just press play."],
             ["Offline-ready", "Download any station or show for outdoor runs, lifts in garage gyms, flights, or anywhere reception dies. Up to 20 hours at a time."],
             ["Ad-free, always", "Your membership covers it. No skips between tracks, no host shouting about mattresses, no pre-rolls. Just the music you came for."],
           ].map(([t, b], i) => (
