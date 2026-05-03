@@ -241,7 +241,7 @@
   .home-demo-habit-grid span:first-child { background: #6abd7a; color: #080807; }
   @keyframes homeLiveScroll {
     0%, 12% { transform: translateY(0); }
-    44%, 58% { transform: translateY(-230px); }
+    44%, 58% { transform: translateY(-190px); }
     86%, 100% { transform: translateY(0); }
   }
   .feat-row .phone.is-scroll-demo .screen-crop::after {
@@ -273,12 +273,13 @@
     pointer-events: none;
   }
   .feat-row .phone img {
-    width: 105%;
-    height: 104%;
-    object-fit: cover;
-    object-position: center top;
+    width: 94%;
+    height: 96%;
+    object-fit: contain;
+    object-position: center center;
     display: block;
-    transform: translate(-0.7%, -1.2%);
+    margin: 2% auto 0;
+    transform: none;
     border-radius: 0;
     filter: none;
   }
@@ -321,11 +322,14 @@
     .feat-row, .feat-row.reverse { grid-template-columns: 1fr; gap: 28px; padding: 40px 0; }
     .feat-row.reverse .copy { order: 1; }
     .feat-row.reverse .phone { order: 2; }
-    .feat-row .phone { width: min(252px, 72vw); }
+    .feat-row .phone { width: min(224px, 64vw); padding: 9px; border-radius: 52px; }
+    .feat-row .phone .screen-crop { border-radius: 43px; }
+    .feat-row .phone .island { width: 82px; height: 25px; top: 16px; }
     .feat-row .phone img {
-      width: 102%;
-      height: 102%;
-      transform: translate(-0.3%, -0.6%);
+      width: 90%;
+      height: 94%;
+      margin-top: 3%;
+      transform: none;
     }
     .feat-row .phone.is-scroll-demo img {
       width: 106%;
@@ -336,6 +340,20 @@
       width: 106%;
       height: 116%;
       transform: translate(-1.5%, -0.8%);
+    }
+    .home-scroll-content { padding: 54px 10px 72px; }
+    .home-demo-title { font-size: 21px; }
+    .home-demo-title .shape-word { font-size: 18px; letter-spacing: 0.16em; margin: 0 4px; }
+    .home-demo-radio { grid-template-columns: 30px 1fr auto; gap: 7px; }
+    .home-demo-radio h4 { font-size: 12px; }
+    .home-demo-number { font-size: 50px; }
+    .home-demo-log-row { grid-template-columns: 36px 30px 1fr auto; gap: 6px; }
+    .home-demo-log-row strong { font-size: 11px; }
+    .home-demo-habit-grid { grid-template-columns: repeat(2, 1fr); }
+    @keyframes homeLiveScroll {
+      0%, 12% { transform: translateY(0); }
+      44%, 58% { transform: translateY(-148px); }
+      86%, 100% { transform: translateY(0); }
     }
   }
 
@@ -420,7 +438,8 @@
     .feat-row.text-only { padding: 28px 0; }
     .feat-row .copy h3 { font-size: clamp(23px, 6vw, 30px); }
     .feat-row .copy p { font-size: 14px; line-height: 1.55; }
-    .feat-row .phone { width: min(224px, 66vw); }
+    .feat-row .phone { width: min(198px, 58vw); }
+    .feat-row .phone img { width: 90%; height: 94%; margin-top: 3%; }
 
     .why { padding: 38px 0; margin-top: 16px; }
     .why p { font-size: 14px; }
