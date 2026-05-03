@@ -29,12 +29,16 @@ function ClientLibraryPage() {
     { title: "Race-day checklists", sub: "2 docs · Diego", tag: "RACING", items: 2 },
   ];
   const recent = [
-    ["VIDEO", "Bench press setup — 4 cues",  "Maya · 3:12",     "Apr 16"],
-    ["DOC",   "Sleep protocol v2",           "Rae · 4 min read", "Apr 14"],
-    ["RECIPE","Salmon + sweet potato bowl",  "Rae",              "Apr 12"],
-    ["VIDEO", "RDL — hip hinge breakdown",   "Maya · 2:40",     "Apr 10"],
-    ["DOC",   "Deload week — how I program","Maya · 6 min read","Apr 8"],
+    { kind: "VIDEO",  title: "Bench press setup — 4 cues",   meta: "Maya · 3:12",      date: "Apr 16", tag: "TRAINING" },
+    { kind: "DOC",    title: "Sleep protocol v2",            meta: "Rae · 4 min read", date: "Apr 14", tag: "RECOVERY" },
+    { kind: "RECIPE", title: "Salmon + sweet potato bowl",   meta: "Rae",              date: "Apr 12", tag: "NUTRITION" },
+    { kind: "VIDEO",  title: "RDL — hip hinge breakdown",    meta: "Maya · 2:40",      date: "Apr 10", tag: "TRAINING" },
+    { kind: "DOC",    title: "Deload week — how I program",  meta: "Maya · 6 min read",date: "Apr 8",  tag: "TRAINING" },
   ];
+  const tags = ["ALL","TRAINING","NUTRITION","RECOVERY","RACING"];
+  const [active, setActive] = React.useState("ALL");
+  const visibleCollections = active === "ALL" ? collections : collections.filter(c => c.tag === active);
+  const visibleRecent = active === "ALL" ? recent : recent.filter(r => r.tag === active);
   return (
     <DashPage
       navItems={clientNavItems("library")}
@@ -48,13 +52,33 @@ function ClientLibraryPage() {
       </>}
     >
       <div style={{ marginBottom: 24, display: "flex", gap: 8, fontSize: 12, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em" }}>
-        {["ALL","TRAINING","NUTRITION","RECOVERY","RACING"].map((t, i) => (
-          <span key={t} style={{ padding: "6px 12px", borderRadius: 999, background: i === 0 ? "rgba(30,192,168,0.16)" : "rgba(242,237,228,0.04)", color: i === 0 ? TEAL_BRIGHT : "rgba(242,237,228,0.6)", border: "1px solid " + (i === 0 ? "rgba(30,192,168,0.3)" : "rgba(242,237,228,0.08)") }}>{t}</span>
-        ))}
+        {tags.map((t) => {
+          const isActive = active === t;
+          return (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setActive(t)}
+              style={{
+                padding: "6px 12px", borderRadius: 999, cursor: "pointer",
+                background: isActive ? "rgba(30,192,168,0.16)" : "rgba(242,237,228,0.04)",
+                color: isActive ? TEAL_BRIGHT : "rgba(242,237,228,0.6)",
+                border: "1px solid " + (isActive ? "rgba(30,192,168,0.3)" : "rgba(242,237,228,0.08)"),
+                fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit",
+              }}
+            >
+              {t}
+            </button>
+          );
+        })}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16, marginBottom: 20 }}>
-        {collections.map((c, i) => (
+        {visibleCollections.length === 0 ? (
+          <div style={{ gridColumn: "1 / -1", padding: 24, color: "rgba(242,237,228,0.45)", fontSize: 13, textAlign: "center" }}>
+            No collections in {active.toLowerCase()} yet.
+          </div>
+        ) : visibleCollections.map((c, i) => (
           <Card key={i} style={{ padding: 22, cursor: "pointer" }}>
             <div style={{ height: 120, borderRadius: 6, background: `linear-gradient(135deg, rgba(30,192,168,0.15), rgba(242,237,228,0.06))`, marginBottom: 14, display: "flex", alignItems: "flex-end", padding: 12 }}>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", color: TEAL_BRIGHT }}>{c.tag}</div>
@@ -67,12 +91,16 @@ function ClientLibraryPage() {
 
       <Card>
         <SectionTitle right="LAST 30 DAYS">Recently added</SectionTitle>
-        {recent.map((r, i) => (
+        {visibleRecent.length === 0 ? (
+          <div style={{ padding: "20px 4px", color: "rgba(242,237,228,0.45)", fontSize: 13 }}>
+            Nothing recent in {active.toLowerCase()}.
+          </div>
+        ) : visibleRecent.map((r, i) => (
           <div key={i} style={{ display: "grid", gridTemplateColumns: "80px 1fr 140px 80px", gap: 14, alignItems: "center", padding: "14px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
-            <Pill>{r[0]}</Pill>
-            <div style={{ fontSize: 14, fontWeight: 500 }}>{r[1]}</div>
-            <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)" }}>{r[2]}</div>
-            <div style={{ fontSize: 12, color: "rgba(242,237,228,0.45)", textAlign: "right", fontFamily: "'JetBrains Mono', monospace" }}>{r[3]}</div>
+            <Pill>{r.kind}</Pill>
+            <div style={{ fontSize: 14, fontWeight: 500 }}>{r.title}</div>
+            <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)" }}>{r.meta}</div>
+            <div style={{ fontSize: 12, color: "rgba(242,237,228,0.45)", textAlign: "right", fontFamily: "'JetBrains Mono', monospace" }}>{r.date}</div>
           </div>
         ))}
       </Card>
