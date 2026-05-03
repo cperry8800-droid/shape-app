@@ -263,7 +263,8 @@
     cursor: pointer; line-height: 1;
   }
   .notify-toggle:hover { border-color: var(--ink); }
-  .notify-form { display: none; gap: 8px; max-width: 420px; margin: 14px auto 0; padding: 0 4px; }
+  .notify-toggle.is-hidden { display: none; }
+  .notify-form { display: none; gap: 8px; max-width: 420px; margin: 18px auto 0; padding: 0 4px; }
   .notify-form.is-open { display: flex; }
   .notify-form input { flex: 1; min-width: 0; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--hairline); background: var(--paper-3); color: var(--ink); font-family: inherit; font-size: 15px; }
   .notify-form input:focus { outline: 2px solid var(--teal); outline-offset: -1px; border-color: transparent; }
@@ -545,9 +546,10 @@
 
     if (toggle) {
       toggle.addEventListener('click', function () {
-        var open = form.classList.toggle('is-open');
-        toggle.setAttribute('aria-expanded', String(open));
-        if (open) setTimeout(function () { input.focus(); }, 30);
+        form.classList.add('is-open');
+        toggle.classList.add('is-hidden');
+        toggle.setAttribute('aria-expanded', 'true');
+        setTimeout(function () { input.focus(); }, 30);
       });
     }
 
