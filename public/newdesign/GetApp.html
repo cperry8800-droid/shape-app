@@ -458,6 +458,23 @@
       transform: none;
       border-radius: 43px;
     }
+    .feat-row .phone.screen-shot img {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      object-fit: contain;
+      object-position: top center;
+      transform: none;
+      border-radius: 0;
+    }
+    .feat-row .phone.screen-shot.radio-shot img,
+    .feat-row .phone.screen-shot.habit-shot img {
+      width: 112%;
+      height: 108%;
+      object-fit: cover;
+      object-position: top center;
+      transform: translateX(-6%);
+    }
     .feat-row .phone.is-scroll-demo img {
       width: 106%;
       height: 128%;
@@ -577,6 +594,15 @@
     .feat-row .phone { width: min(198px, 58vw); }
     .feat-row .phone.framed-shot { width: min(224px, 65vw); }
     .feat-row .phone img { width: 90%; height: 94%; margin-top: 3%; }
+    .feat-row .phone.screen-shot img {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      object-fit: contain;
+      object-position: top center;
+      transform: none;
+      border-radius: 0;
+    }
     .feat-row .phone.screen-shot.radio-shot,
     .feat-row .phone.screen-shot.habit-shot { width: min(232px, 68vw); }
     .feat-row .phone.screen-shot.radio-shot .screen-crop,
