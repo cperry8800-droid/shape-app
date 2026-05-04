@@ -258,6 +258,9 @@
     padding: 48px 0 34px;
     box-sizing: border-box;
   }
+  .feat-row .phone.screen-shot.is-home-scroll .screen-crop {
+    padding: 0;
+  }
   .feat-row .phone.screen-shot.screen-light .screen-crop {
     background: #f4eedf;
   }
@@ -445,9 +448,8 @@
     .feat-row, .feat-row.reverse { grid-template-columns: 1fr; gap: 28px; padding: 40px 0; }
     .feat-row.reverse .copy { order: 1; }
     .feat-row.reverse .phone { order: 2; }
-    .feat-row .phone { width: min(224px, 64vw); padding: 9px; border-radius: 52px; }
-    .feat-row .phone,
-    .feat-row.reverse .phone { transform: none; }
+    .feat-row .phone { width: min(250px, 72vw); padding: 9px; border-radius: 52px; transform: rotateY(-24deg) rotateX(7deg) rotateZ(-0.8deg); }
+    .feat-row.reverse .phone { transform: rotateY(24deg) rotateX(7deg) rotateZ(0.8deg); }
     .feat-row .phone.framed-shot { padding: 0; border-radius: 0; }
     .feat-row .phone .screen-crop { border-radius: 43px; }
     .feat-row .phone .island { width: 82px; height: 25px; top: 16px; }
@@ -574,8 +576,8 @@
     .feat-row.text-only { padding: 28px 0; }
     .feat-row .copy h3 { font-size: clamp(23px, 6vw, 30px); }
     .feat-row .copy p { font-size: 14px; line-height: 1.55; }
-    .feat-row .phone { width: min(198px, 58vw); }
-    .feat-row .phone.framed-shot { width: min(224px, 65vw); }
+    .feat-row .phone { width: min(232px, 68vw); }
+    .feat-row .phone.framed-shot { width: min(232px, 68vw); }
     .feat-row .phone img { width: 90%; height: 94%; margin-top: 3%; }
     .feat-row .phone.screen-shot.radio-shot,
     .feat-row .phone.screen-shot.habit-shot { width: min(232px, 68vw); }
@@ -660,42 +662,8 @@
         <h3>Today, at a glance.</h3>
         <p>The Shape Daily — your day, top to bottom. Calendar, calorie ledger, what's left to log, who's on the air, day brief from your coach. Skim it in five seconds, dive in if you want.</p>
       </div>
-      <div class="phone home-live-demo" aria-label="Shape Daily home scrolling preview">
-        <div class="screen-crop">
-          <div class="home-scroll-content">
-            <div class="home-demo-kicker"><span>Vol. 6 - No. 38</span><span>A</span></div>
-            <div class="home-demo-title">The <span class="shape-word">SHAPE</span> Daily.</div>
-            <div class="home-demo-kicker"><span>Tue - Apr 21 - 2026</span><span>Cut - W6 - D38</span></div>
-            <div class="home-demo-strip">Clients Edition - No. 21</div>
-            <div class="home-demo-week">
-              <span class="home-demo-day">M<b>20</b></span><span class="home-demo-day is-on">T<b>21</b></span><span class="home-demo-day">W<b>22</b></span><span class="home-demo-day">T<b>23</b></span><span class="home-demo-day">F<b>24</b></span><span class="home-demo-day">S<b>25</b></span><span class="home-demo-day">S<b>26</b></span>
-            </div>
-            <div class="home-demo-radio">
-              <span class="disc">132</span>
-              <span><h4>Peak Set</h4><p>Shape Radio Station - 132 BPM</p></span>
-              <span class="home-demo-tag">II</span>
-            </div>
-            <div class="home-demo-lead">
-              <div class="home-demo-kicker"><span class="eyebrow">Lead - Calorie deficit</span><span>09:42</span></div>
-              <div class="home-demo-number">532<small>KCAL</small></div>
-              <div class="home-demo-copy">On track. 1568 in, 2100 burned.<br>One workout and lunch left to log.</div>
-              <div class="home-demo-bars"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
-            </div>
-            <div class="home-demo-section"><span>Day log</span><span>8 items</span></div>
-            <div class="home-demo-log">
-              <div class="home-demo-log-row"><time>07:20</time><span class="home-demo-tag">Meal</span><span><strong>Oats, berries, whey</strong><small>412 kcal - 32P</small></span><span class="done">Logged</span></div>
-              <div class="home-demo-log-row"><time>09:05</time><span class="home-demo-tag" style="background:#d7a52f">Trn</span><span><strong>Upper Push - Peak</strong><small>52 min - Jordan</small></span><span class="done">Logged</span></div>
-              <div class="home-demo-log-row"><time>12:40</time><span class="home-demo-tag">Meal</span><span><strong>Chicken bowl + rice</strong><small>620 kcal - 48P</small></span><span></span></div>
-              <div class="home-demo-log-row"><time>15:00</time><span class="home-demo-tag" style="background:#e86b4e">Con</span><span><strong>Nutrition consult</strong><small>Dr. Maya - Zoom</small></span><span></span></div>
-              <div class="home-demo-log-row"><time>18:30</time><span class="home-demo-tag" style="background:#5caf72">Chk</span><span><strong>Evening check-in</strong><small>RPE recap - Jordan</small></span><span></span></div>
-            </div>
-            <div class="home-demo-section"><span>Habits</span><span>1/3 today</span></div>
-            <div class="home-demo-habits">
-              <div class="home-demo-kicker"><span>Open all</span><span>Daily</span></div>
-              <div class="home-demo-habit-grid"><span>Water</span><span>Vitamins</span><span>No smoking</span></div>
-            </div>
-          </div>
-        </div>
+      <div class="phone screen-shot is-home-scroll" aria-label="Shape Daily home scrolling preview">
+        <div class="screen-crop"><img src="/newdesign/Shape%20App%20homepage.png" alt="Shape Daily home screen"/></div>
       </div>
     </div>
 
