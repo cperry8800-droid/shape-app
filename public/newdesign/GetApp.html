@@ -159,8 +159,8 @@
   .feat-row.text-only { grid-template-columns: 1fr; max-width: 720px; margin: 0 auto; padding: 40px 0; }
   .feat-row > * { min-width: 0; }
   .mobile-home-shot { display: none; }
-  @media (max-width: 900px) {
-    .desktop-home-demo { display: none !important; }
+  @media (max-width: 900px), (hover: none) and (pointer: coarse) {
+    .home-live-demo { display: none !important; }
     .mobile-home-shot { display: block !important; }
   }
   .feat-row .copy .step { font-family: var(--mono); font-size: 11px; letter-spacing: 0.16em; color: var(--orange); margin-bottom: 12px; display: flex; align-items: baseline; gap: 10px; }
@@ -262,9 +262,6 @@
     background: #080807;
     padding: 48px 0 34px;
     box-sizing: border-box;
-  }
-  .feat-row .phone.screen-shot.is-home-scroll .screen-crop {
-    padding: 0;
   }
   .feat-row .phone.screen-shot.screen-light .screen-crop {
     background: #f4eedf;
@@ -388,11 +385,6 @@
     border-radius: 48px;
     filter: none;
   }
-  .feat-row .phone picture {
-    display: block;
-    width: 100%;
-    height: 100%;
-  }
   .feat-row .phone.framed-shot {
     padding: 0;
     background: transparent;
@@ -458,10 +450,9 @@
     .feat-row, .feat-row.reverse { grid-template-columns: 1fr; gap: 28px; padding: 40px 0; }
     .feat-row.reverse .copy { order: 1; }
     .feat-row.reverse .phone { order: 2; }
-    .desktop-home-demo { display: none !important; }
-    .mobile-home-shot { display: block; }
-    .feat-row .phone { width: min(250px, 72vw); padding: 9px; border-radius: 52px; transform: rotateY(-24deg) rotateX(7deg) rotateZ(-0.8deg); }
-    .feat-row.reverse .phone { transform: rotateY(24deg) rotateX(7deg) rotateZ(0.8deg); }
+    .feat-row .phone { width: min(224px, 64vw); padding: 9px; border-radius: 52px; }
+    .feat-row .phone,
+    .feat-row.reverse .phone { transform: none; }
     .feat-row .phone.framed-shot { padding: 0; border-radius: 0; }
     .feat-row .phone .screen-crop { border-radius: 43px; }
     .feat-row .phone .island { width: 82px; height: 25px; top: 16px; }
@@ -588,8 +579,8 @@
     .feat-row.text-only { padding: 28px 0; }
     .feat-row .copy h3 { font-size: clamp(23px, 6vw, 30px); }
     .feat-row .copy p { font-size: 14px; line-height: 1.55; }
-    .feat-row .phone { width: min(232px, 68vw); }
-    .feat-row .phone.framed-shot { width: min(232px, 68vw); }
+    .feat-row .phone { width: min(198px, 58vw); }
+    .feat-row .phone.framed-shot { width: min(224px, 65vw); }
     .feat-row .phone img { width: 90%; height: 94%; margin-top: 3%; }
     .feat-row .phone.screen-shot.radio-shot,
     .feat-row .phone.screen-shot.habit-shot { width: min(232px, 68vw); }
@@ -604,11 +595,6 @@
       object-position: top center;
       transform: translateX(-6%);
       border-radius: 0;
-    }
-    .feat-row .phone.screen-shot.radio-shot img {
-      width: 104%;
-      height: 104%;
-      transform: translateX(-2%);
     }
     .notify-toggle {
       min-width: 166px;
@@ -679,7 +665,7 @@
         <h3>Today, at a glance.</h3>
         <p>The Shape Daily — your day, top to bottom. Calendar, calorie ledger, what's left to log, who's on the air, day brief from your coach. Skim it in five seconds, dive in if you want.</p>
       </div>
-      <div class="phone home-live-demo desktop-home-demo" aria-label="Shape Daily home scrolling preview">
+      <div class="phone home-live-demo" aria-label="Shape Daily home scrolling preview">
         <div class="screen-crop">
           <div class="home-scroll-content">
             <div class="home-demo-kicker"><span>Vol. 6 - No. 38</span><span>A</span></div>
