@@ -159,6 +159,10 @@
   .feat-row.text-only { grid-template-columns: 1fr; max-width: 720px; margin: 0 auto; padding: 40px 0; }
   .feat-row > * { min-width: 0; }
   .mobile-home-shot { display: none; }
+  @media (max-width: 900px) {
+    .desktop-home-demo { display: none !important; }
+    .mobile-home-shot { display: block !important; }
+  }
   .feat-row .copy .step { font-family: var(--mono); font-size: 11px; letter-spacing: 0.16em; color: var(--orange); margin-bottom: 12px; display: flex; align-items: baseline; gap: 10px; }
   .feat-row .copy .step .n { color: var(--ink-3); }
   .feat-row .copy h3 { font-family: var(--serif); font-weight: 500; font-size: clamp(28px, 4vw, 38px); letter-spacing: -0.02em; line-height: 1.05; margin: 0 0 14px; }
