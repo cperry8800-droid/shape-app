@@ -170,6 +170,7 @@
     aspect-ratio: 393 / 852;
     margin: 0 auto;
     position: relative;
+    box-sizing: border-box;
     border-radius: 58px;
     padding: 10px;
     background:
@@ -445,7 +446,7 @@
     .feat-row, .feat-row.reverse { grid-template-columns: 1fr; gap: 28px; padding: 40px 0; }
     .feat-row.reverse .copy { order: 1; }
     .feat-row.reverse .phone { order: 2; }
-    .feat-row .phone { width: min(224px, 64vw); padding: 9px; border-radius: 52px; }
+    .feat-row .phone { width: min(326px, 86vw); padding: 9px; border-radius: 52px; }
     .feat-row .phone,
     .feat-row.reverse .phone { transform: none; }
     .feat-row .phone.framed-shot { padding: 0; border-radius: 0; }
@@ -566,10 +567,8 @@
     .feat-row.text-only { padding: 28px 0; }
     .feat-row .copy h3 { font-size: clamp(23px, 6vw, 30px); }
     .feat-row .copy p { font-size: 14px; line-height: 1.55; }
-    .feat-row .phone { width: min(198px, 58vw); }
-    .feat-row .phone.framed-shot { width: min(224px, 65vw); }
-    .feat-row .phone.screen-shot.radio-shot .screen-crop,
-    .feat-row .phone.screen-shot.habit-shot .screen-crop { padding: 20px 0 12px; }
+    .feat-row .phone { width: min(326px, 84vw); }
+    .feat-row .phone.framed-shot { width: min(326px, 84vw); }
     .notify-toggle {
       min-width: 166px;
       min-height: 52px;
