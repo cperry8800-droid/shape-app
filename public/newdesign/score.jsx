@@ -25,7 +25,7 @@ const REWARDS = [
   { title: "Shape Radio · Studio tier", sub: "3 months, ad-free", cost: 750, img: "radio" },
   { title: "Coach intro · 2nd opinion", sub: "Free 30-min with any trainer", cost: 900, img: "coach" },
   { title: "Nutrition plan refresh", sub: "Full plan rebuild with your RD", cost: 1200, img: "nutrition" },
-  { title: "Shape Store — 20% off", sub: "Apparel, gear, supplements", cost: 400, img: "store" },
+  { title: "Shape merch — 20% off", sub: "In-house apparel and essentials", cost: 400, img: "store" },
   { title: "Annual membership credit", sub: "$200 toward next year", cost: 3500, img: "annual", locked: true },
 ];
 
@@ -40,7 +40,7 @@ const TIERS = [
   { name: "Tempo",  min: 750,   color: "rgba(242,237,228,0.85)", current: true, desc: "2× redemption value" },
   { name: "Form",   min: 2000,  color: "#e89740",                desc: "Early access drops + streak boosts" },
   { name: "Peak",   min: 5000,  color: "#0a7463",                desc: "Priority booking + 1 free intro / mo" },
-  { name: "Legend", min: 15000, color: "#0ac5a8",                desc: "Annual store credit + tier gear" },
+  { name: "Legend", min: 15000, color: "#0ac5a8",                desc: "Annual Shape merch + service credit" },
 ];
 
 function ScoreHero() {
@@ -57,7 +57,7 @@ function ScoreHero() {
               Rewards for<br/><em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>showing&nbsp;up</em>.
             </h1>
             <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.55, color: "rgba(242,237,228,0.7)", margin: "24px 0 0", maxWidth: 520 }}>
-              Every logged workout, tracked meal, and kept session adds up. Spend points on session credits, Radio, or Shape Store gear. No expiry, no gotchas.
+              Every logged workout, tracked meal, and kept session adds up. Spend points on training credits, nutrition services, Shape Radio, or Shape merch. No expiry, no gotchas.
             </p>
             <div style={{ display: "flex", gap: 12, marginTop: 32 }}>
               <button style={{ background: INK, color: PAPER, border: 0, padding: "14px 22px", borderRadius: 6, fontFamily: sans, fontSize: 14, fontWeight: 500, cursor: "pointer" }}>Redeem points →</button>

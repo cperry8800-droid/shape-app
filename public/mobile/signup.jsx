@@ -319,7 +319,10 @@ function ProAvailability({ v, set, kind }) {
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)", marginBottom: 4 }}>Agreements</div>
         <Check on={v.tos} onClick={() => set({ tos: !v.tos })}>I agree to the <a href="#" style={{ color: TEAL }}>{kind === "trainer" ? "Trainer" : "Nutritionist"} Agreement</a> and <a href="#" style={{ color: TEAL }}>Terms of Service</a>.</Check>
         <Check on={v.conduct} onClick={() => set({ conduct: !v.conduct })}>I agree to Shape's <a href="#" style={{ color: TEAL }}>code of conduct</a>.</Check>
-        <Check on={v.bgcheck} onClick={() => set({ bgcheck: !v.bgcheck })}>I consent to an optional background check (builds trust with clients).</Check>
+        <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.62)", lineHeight: 1.55, border: "1px solid rgba(242,237,228,0.12)", borderRadius: 10, padding: 12 }}>
+          Background checks are required before a provider profile can go live. Shape uses Checkr first; the review team sends the screening invite after application review.
+        </div>
+        <Check on={v.bgcheck} onClick={() => set({ bgcheck: !v.bgcheck })}>I consent to a required background check through Shape's screening partner before my provider profile can go live.</Check>
       </div>
     </div>
   );
@@ -428,6 +431,10 @@ function SignupForm({ role }) {
       setError("Shape requires at least 7 years of professional experience.");
       return;
     }
+    if (!values.tos || !values.conduct || !values.bgcheck) {
+      setError("Terms, code of conduct, and background check consent are required.");
+      return;
+    }
 
     const form = new FormData();
     form.append("providerType", role);
@@ -451,6 +458,10 @@ function SignupForm({ role }) {
       response_time: values.response || "",
       single_session_price: values.sessionPrice || "",
       professional_minimum_years: 7,
+      background_check_provider: "checkr",
+      background_check_required: true,
+      background_check_consent: true,
+      background_check_status: "consent_received",
     }));
     if (values.resumeFile) form.append("resume", values.resumeFile);
     if (values.credentialFile) form.append("credential", values.credentialFile);

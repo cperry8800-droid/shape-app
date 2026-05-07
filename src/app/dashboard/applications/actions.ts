@@ -21,8 +21,89 @@ type ProviderApplication = {
   details: Record<string, unknown> | null;
 };
 
+type BackgroundCheckStatus = 'consent_received' | 'requested' | 'needs_review' | 'clear';
+
 function clean(value: FormDataEntryValue | null, max = 2000): string {
   return String(value ?? '').trim().slice(0, max);
+}
+
+function isAffirmative(value: unknown): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value === 1;
+  if (typeof value !== 'string') return false;
+  return ['yes', 'true', '1', 'on', 'checked', 'accepted'].includes(value.trim().toLowerCase());
+}
+
+function hasBackgroundConsent(details: Record<string, unknown> | null): boolean {
+  if (!details) return false;
+  return (
+    isAffirmative(details.background_check_consent) ||
+    isAffirmative(details.backgroundCheckConsent) ||
+    isAffirmative(details.agreeBgCheck) ||
+    isAffirmative((details.agreements as Record<string, unknown> | undefined)?.background_check)
+  );
+}
+
+function isBackgroundClear(details: Record<string, unknown> | null): boolean {
+  return hasBackgroundConsent(details) && details?.background_check_status === 'clear';
+}
+
+async function updateBackgroundCheckStatus(formData: FormData, status: BackgroundCheckStatus): Promise<void> {
+  const adminUser = await requireAdminUser();
+  const applicationId = clean(formData.get('application_id'), 80);
+  const notes = clean(formData.get('review_notes'), 4000);
+  const admin = createAdminClient();
+  const now = new Date().toISOString();
+
+  const { data: application, error: appError } = await admin
+    .from('provider_applications')
+    .select('details')
+    .eq('id', applicationId)
+    .single();
+  if (appError) throw appError;
+
+  const currentDetails =
+    application?.details && typeof application.details === 'object' && !Array.isArray(application.details)
+      ? (application.details as Record<string, unknown>)
+      : {};
+
+  const nextDetails: Record<string, unknown> = {
+    ...currentDetails,
+    background_check_provider: currentDetails.background_check_provider || 'checkr',
+    background_check_required: true,
+    background_check_consent: hasBackgroundConsent(currentDetails),
+    background_check_status: status,
+  };
+
+  if (status === 'requested') nextDetails.background_check_requested_at = now;
+  if (status === 'clear') nextDetails.background_check_completed_at = now;
+
+  const { error } = await admin
+    .from('provider_applications')
+    .update({
+      status: 'in_review',
+      reviewed_by: adminUser.id,
+      reviewed_at: now,
+      review_notes: notes || null,
+      details: nextDetails,
+    })
+    .eq('id', applicationId);
+  if (error) throw error;
+
+  revalidatePath('/dashboard/applications');
+  redirect(`/dashboard/applications?updated=background_${status}`);
+}
+
+export async function markBackgroundCheckRequested(formData: FormData): Promise<void> {
+  await updateBackgroundCheckStatus(formData, 'requested');
+}
+
+export async function markBackgroundCheckNeedsReview(formData: FormData): Promise<void> {
+  await updateBackgroundCheckStatus(formData, 'needs_review');
+}
+
+export async function markBackgroundCheckClear(formData: FormData): Promise<void> {
+  await updateBackgroundCheckStatus(formData, 'clear');
 }
 
 function parsePriceCents(value: string | null): number | null {
@@ -237,6 +318,9 @@ export async function approveApplication(formData: FormData): Promise<void> {
   const typed = application as ProviderApplication;
   if (typed.provider_type !== 'trainer' && typed.provider_type !== 'nutritionist') {
     throw new Error('Application has an invalid provider type.');
+  }
+  if (!isBackgroundClear(typed.details)) {
+    throw new Error('Background check consent and a clear background check are required before approval.');
   }
 
   const authUser = await resolveOrInviteProviderUser(admin, typed);

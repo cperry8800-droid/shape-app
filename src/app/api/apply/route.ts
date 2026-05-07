@@ -66,6 +66,13 @@ function minimumYears(value: string): number {
   return match ? Number(match[0]) : 0;
 }
 
+function isAffirmative(value: unknown): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value === 1;
+  if (typeof value !== 'string') return false;
+  return ['yes', 'true', '1', 'on', 'checked', 'accepted'].includes(value.trim().toLowerCase());
+}
+
 function safeFileName(name = 'document'): string {
   return name
     .replace(/[^A-Za-z0-9._-]+/g, '-')
@@ -178,9 +185,38 @@ export async function POST(req: NextRequest) {
   if (!isEmail(email)) {
     return NextResponse.json({ error: 'Please enter a valid email.' }, { status: 400, headers: CORS_HEADERS });
   }
-  // 7+ years is a Shape preference, not a gate. Tag the application so the
-  // review dashboard can sort/filter by candidates who already clear the bar.
-  details = { ...details, meets_experience_preference: minimumYears(yearsExperience) >= 7 };
+  if (minimumYears(yearsExperience) < 7) {
+    return NextResponse.json(
+      { error: 'Shape requires at least 7 years of professional experience before applying as a provider.' },
+      { status: 400, headers: CORS_HEADERS }
+    );
+  }
+
+  const backgroundCheckConsent =
+    isAffirmative(body.backgroundCheckConsent) ||
+    isAffirmative(details.backgroundCheckConsent) ||
+    isAffirmative(details.background_check_consent) ||
+    isAffirmative(details.agreeBgCheck) ||
+    isAffirmative((details.agreements as Record<string, unknown> | undefined)?.background_check);
+
+  if (!backgroundCheckConsent) {
+    return NextResponse.json(
+      { error: 'Background check consent is required before submitting a provider application.' },
+      { status: 400, headers: CORS_HEADERS }
+    );
+  }
+
+  details = {
+    ...details,
+    meets_experience_preference: true,
+    background_check_provider: 'checkr',
+    background_check_required: true,
+    background_check_consent: true,
+    background_check_status: 'consent_received',
+    background_check_requested_at: null,
+    background_check_completed_at: null,
+    background_check_report_id: null,
+  };
 
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -334,8 +370,8 @@ async function sendApplicationEmails(ctx: EmailContext): Promise<void> {
       <p style="margin:0 0 16px;line-height:1.55;">We've received your application to join Shape as a ${escapeHtml(ctx.role.toLowerCase())}. Welcome aboard — here's what happens next:</p>
       <ol style="margin:0 0 20px;padding-left:20px;line-height:1.6;">
         <li>Our team reviews your application (usually within 2 business days).</li>
-        <li>If it's a fit, we'll email you to verify your credentials and schedule a short intro call.</li>
-        <li>Once approved, we'll set up your dashboard and help you launch your profile.</li>
+        <li>If it's a fit, we'll verify your credentials and send the required background check invite.</li>
+        <li>After the background check clears, we'll set up your dashboard and help you launch your profile.</li>
       </ol>
       <p style="margin:0 0 16px;line-height:1.55;">Reminder on pricing: there's no monthly fee to be on Shape. We take a <strong>15% platform fee</strong> on everything your clients pay you — so you only pay Shape when you earn.</p>
       <p style="margin:0 0 16px;line-height:1.55;">Questions in the meantime? Just reply to this email.</p>
@@ -349,8 +385,8 @@ async function sendApplicationEmails(ctx: EmailContext): Promise<void> {
     '',
     "Here's what happens next:",
     '  1. Our team reviews your application (usually within 2 business days).',
-    "  2. If it's a fit, we'll email you to verify your credentials and schedule a short intro call.",
-    "  3. Once approved, we'll set up your dashboard and help you launch your profile.",
+    "  2. If it's a fit, we'll verify your credentials and send the required background check invite.",
+    "  3. After the background check clears, we'll set up your dashboard and help you launch your profile.",
     '',
     "No monthly fee on Shape. We take a 15% platform fee on everything your clients pay you — so you only pay Shape when you earn.",
     '',

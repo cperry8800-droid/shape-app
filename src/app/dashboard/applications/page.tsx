@@ -2,7 +2,14 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAdminEmails, requireAdminUser } from '@/lib/admin-access';
-import { approveApplication, markApplicationInReview, rejectApplication } from './actions';
+import {
+  approveApplication,
+  markApplicationInReview,
+  markBackgroundCheckClear,
+  markBackgroundCheckNeedsReview,
+  markBackgroundCheckRequested,
+  rejectApplication,
+} from './actions';
 
 export const metadata = { title: 'Applications - Shape' };
 export const dynamic = 'force-dynamic';
@@ -102,6 +109,37 @@ function statusClass(status: ApplicationStatus): string {
   if (status === 'rejected') return 'border-red-400/40 bg-red-400/10 text-red-200';
   if (status === 'in_review') return 'border-amber-400/40 bg-amber-400/10 text-amber-200';
   return 'border-neutral-700 bg-neutral-900 text-neutral-300';
+}
+
+function isAffirmative(value: unknown): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value === 1;
+  if (typeof value !== 'string') return false;
+  return ['yes', 'true', '1', 'on', 'checked', 'accepted'].includes(value.trim().toLowerCase());
+}
+
+function backgroundCheckInfo(details: Record<string, unknown>) {
+  const agreements = asDetails(details.agreements);
+  const consented =
+    isAffirmative(details.background_check_consent) ||
+    isAffirmative(details.backgroundCheckConsent) ||
+    isAffirmative(details.agreeBgCheck) ||
+    isAffirmative(agreements.background_check);
+  return {
+    provider: displayValue(details.background_check_provider) || 'checkr',
+    status: displayValue(details.background_check_status) || (consented ? 'consent_received' : 'missing_consent'),
+    consented,
+    requestedAt: displayValue(details.background_check_requested_at),
+    completedAt: displayValue(details.background_check_completed_at),
+    reportId: displayValue(details.background_check_report_id),
+  };
+}
+
+function backgroundClass(status: string): string {
+  if (status === 'clear') return 'border-teal-400/40 bg-teal-400/10 text-teal-200';
+  if (status === 'needs_review' || status === 'missing_consent') return 'border-red-400/40 bg-red-400/10 text-red-200';
+  if (status === 'requested') return 'border-blue-400/40 bg-blue-400/10 text-blue-200';
+  return 'border-amber-400/40 bg-amber-400/10 text-amber-200';
 }
 
 export default async function ApplicationsPage({
@@ -205,7 +243,21 @@ export default async function ApplicationsPage({
 
 function ApplicationCard({ row, documents }: { row: ApplicationRow; documents: DocumentLink[] }) {
   const details = asDetails(row.details);
-  const hiddenKeys = new Set(['documents', 'approved_provider']);
+  const bg = backgroundCheckInfo(details);
+  const canApprove = bg.consented && bg.status === 'clear';
+  const hiddenKeys = new Set([
+    'documents',
+    'approved_provider',
+    'background_check_provider',
+    'background_check_required',
+    'background_check_consent',
+    'backgroundCheckConsent',
+    'agreeBgCheck',
+    'background_check_status',
+    'background_check_requested_at',
+    'background_check_completed_at',
+    'background_check_report_id',
+  ]);
   const detailEntries = Object.entries(details).filter(([key, value]) => !hiddenKeys.has(key) && Boolean(displayValue(value)));
   const fullName = `${row.first_name} ${row.last_name}`.trim();
   const created = new Date(row.created_at).toLocaleString();
@@ -258,6 +310,28 @@ function ApplicationCard({ row, documents }: { row: ApplicationRow; documents: D
         </section>
       )}
 
+      <section className="mt-5 rounded-lg border border-neutral-800 bg-neutral-900/50 p-4">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <div className="text-xs uppercase tracking-[0.14em] text-neutral-500">Background check</div>
+            <div className="text-sm text-neutral-300 mt-2">
+              Provider: {bg.provider.toUpperCase()} · Consent: {bg.consented ? 'received' : 'missing'}
+            </div>
+            <div className="text-xs text-neutral-500 mt-1">
+              {bg.requestedAt ? `Requested ${bg.requestedAt}` : 'No screening invite marked yet.'}
+              {bg.completedAt ? ` · Completed ${bg.completedAt}` : ''}
+              {bg.reportId ? ` · Report ${bg.reportId}` : ''}
+            </div>
+          </div>
+          <span className={`text-xs uppercase tracking-[0.12em] border rounded-full px-2 py-1 ${backgroundClass(bg.status)}`}>
+            {bg.status.replace('_', ' ')}
+          </span>
+        </div>
+        <p className="text-xs text-neutral-500 mt-3">
+          Send the Checkr invite from Checkr until the API connection is added, then mark the result here before approval.
+        </p>
+      </section>
+
       {detailEntries.length > 0 && (
         <section className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
           {detailEntries.slice(0, 12).map(([key, value]) => (
@@ -295,11 +369,40 @@ function ApplicationCard({ row, documents }: { row: ApplicationRow; documents: D
             Mark in review
           </button>
           <button
-            formAction={approveApplication}
-            className="rounded-full border border-teal-400 bg-teal-400 text-neutral-950 px-4 py-2 text-sm hover:bg-teal-300 transition-colors"
+            formAction={markBackgroundCheckRequested}
+            className="rounded-full border border-blue-400/60 text-blue-200 px-4 py-2 text-sm hover:bg-blue-400 hover:text-neutral-950 transition-colors"
           >
-            Approve + publish profile
+            BG requested
           </button>
+          <button
+            formAction={markBackgroundCheckNeedsReview}
+            className="rounded-full border border-red-400/60 text-red-200 px-4 py-2 text-sm hover:bg-red-400 hover:text-neutral-950 transition-colors"
+          >
+            BG needs review
+          </button>
+          <button
+            formAction={markBackgroundCheckClear}
+            className="rounded-full border border-teal-400/60 text-teal-200 px-4 py-2 text-sm hover:bg-teal-400 hover:text-neutral-950 transition-colors"
+          >
+            BG clear
+          </button>
+          {canApprove ? (
+            <button
+              formAction={approveApplication}
+              className="rounded-full border border-teal-400 bg-teal-400 text-neutral-950 px-4 py-2 text-sm hover:bg-teal-300 transition-colors"
+            >
+              Approve + publish profile
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="rounded-full border border-neutral-800 text-neutral-600 px-4 py-2 text-sm cursor-not-allowed"
+              title="Approval requires background check consent and a clear result."
+            >
+              Approve requires BG clear
+            </button>
+          )}
           <button
             formAction={rejectApplication}
             className="rounded-full border border-red-400/60 text-red-200 px-4 py-2 text-sm hover:bg-red-400 hover:text-neutral-950 transition-colors"
