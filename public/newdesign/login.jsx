@@ -147,7 +147,7 @@ function LoginCard() {
     <div style={{
       width: "100%",
       maxWidth: 440,
-      background: "linear-gradient(180deg, rgba(10,9,8,0.94) 0%, rgba(11,10,9,0.9) 100%)",
+      background: "linear-gradient(180deg, rgba(10,9,8,0.86) 0%, rgba(11,10,9,0.82) 100%)",
       backdropFilter: "blur(10px) saturate(1.05)",
       WebkitBackdropFilter: "blur(10px) saturate(1.05)",
       border: "1px solid rgba(242,237,228,0.16)",
