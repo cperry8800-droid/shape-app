@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Card, Eyebrow, Row, ScreenTitle, SecondaryAction, Sub, Title, screenTopStyle } from '../components/ui';
 import { supabase } from '../lib/supabase';
+import {
+  createRadioRoom,
+  fetchRadioRooms,
+  formatRadioRoomWhen,
+  radioAudienceLabel,
+  type RadioRoom,
+} from '../lib/radioRooms';
 
 type Intake = {
   first_name: string | null;
@@ -185,6 +192,11 @@ async function loadProviderDashboards(userId: string): Promise<ProviderDashboard
 }
 
 function ProviderDashboardCard({ dashboard }: { dashboard: ProviderDashboard }) {
+  const [radioRooms, setRadioRooms] = useState<RadioRoom[]>([]);
+  const [radioFormOpen, setRadioFormOpen] = useState(false);
+  const [radioSaving, setRadioSaving] = useState(false);
+  const [radioError, setRadioError] = useState<string | null>(null);
+  const [radioDraft, setRadioDraft] = useState(() => nextRadioRoomDraft(dashboard.provider.role));
   const activeSubscriptions = dashboard.subscriptions.filter(
     (subscription) => subscription.status === 'active' || subscription.status === 'trialing'
   );
@@ -202,6 +214,38 @@ function ProviderDashboardCard({ dashboard }: { dashboard: ProviderDashboard }) 
     };
   });
   const payoutRows = buildRecentPayoutRows(activeSubscriptions);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchRadioRooms(dashboard.provider.role)
+      .then((rooms) => {
+        if (!cancelled) setRadioRooms(rooms);
+      })
+      .catch((err) => {
+        if (!cancelled) setRadioError(err.message || 'Could not load radio rooms.');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dashboard.provider.role]);
+
+  async function saveRadioRoom() {
+    setRadioSaving(true);
+    setRadioError(null);
+    try {
+      const room = await createRadioRoom({
+        role: dashboard.provider.role,
+        ...radioDraft,
+      });
+      setRadioRooms((current) => [room, ...current.filter((item) => item.id !== room.id)]);
+      setRadioFormOpen(false);
+      setRadioDraft(nextRadioRoomDraft(dashboard.provider.role));
+    } catch (err) {
+      setRadioError(err instanceof Error ? err.message : 'Could not save radio room.');
+    } finally {
+      setRadioSaving(false);
+    }
+  }
 
   return (
     <Card>
@@ -250,8 +294,105 @@ function ProviderDashboardCard({ dashboard }: { dashboard: ProviderDashboard }) 
           </div>
         )}
       </div>
+
+      <div style={{ marginTop: 16 }}>
+        <Eyebrow>SHAPE RADIO ROOMS</Eyebrow>
+        <Sub>Schedule client and coach audio rooms. Rooms sync with the website.</Sub>
+
+        {radioRooms.slice(0, 2).map((room) => (
+          <div key={room.id} style={radioRoomStyle}>
+            <strong>{room.topic}</strong>
+            <span>{formatRadioRoomWhen(room)}</span>
+            <span>{radioAudienceLabel(room.audience)}</span>
+          </div>
+        ))}
+
+        {radioError && <p style={{ color: '#ef4444', fontSize: 12 }}>{radioError}</p>}
+
+        {radioFormOpen && (
+          <div style={radioFormStyle}>
+            <input
+              value={radioDraft.topic}
+              onChange={(event) => setRadioDraft((current) => ({ ...current, topic: event.target.value }))}
+              placeholder="Room topic"
+              style={radioInputStyle}
+            />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <input
+                type="date"
+                value={radioDraft.date}
+                onChange={(event) => setRadioDraft((current) => ({ ...current, date: event.target.value }))}
+                style={radioInputStyle}
+              />
+              <input
+                type="time"
+                value={radioDraft.time}
+                onChange={(event) => setRadioDraft((current) => ({ ...current, time: event.target.value }))}
+                style={radioInputStyle}
+              />
+            </div>
+            <select
+              value={radioDraft.audience}
+              onChange={(event) => setRadioDraft((current) => ({ ...current, audience: event.target.value }))}
+              style={radioInputStyle}
+            >
+              <option value="Clients + coaches">Clients + coaches</option>
+              <option value="Clients only">Clients only</option>
+              <option value="Coaches only">Coaches only</option>
+              <option value="Public Shape members">Public Shape members</option>
+            </select>
+            <textarea
+              value={radioDraft.description}
+              onChange={(event) => setRadioDraft((current) => ({ ...current, description: event.target.value }))}
+              placeholder="Description"
+              rows={3}
+              style={{ ...radioInputStyle, resize: 'vertical' }}
+            />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <SecondaryAction
+                onClick={() => setRadioFormOpen(false)}
+                disabled={radioSaving}
+                style={{ marginTop: 0, width: '100%' }}
+              >
+                Cancel
+              </SecondaryAction>
+              <SecondaryAction
+                onClick={saveRadioRoom}
+                disabled={radioSaving || !radioDraft.topic.trim()}
+                style={{
+                  marginTop: 0,
+                  width: '100%',
+                  background: 'var(--teal)',
+                  color: 'var(--paper)',
+                  borderColor: 'var(--teal)',
+                }}
+              >
+                {radioSaving ? 'Saving...' : 'Save room'}
+              </SecondaryAction>
+            </div>
+          </div>
+        )}
+
+        {!radioFormOpen && (
+          <SecondaryAction onClick={() => setRadioFormOpen(true)}>Schedule room</SecondaryAction>
+        )}
+      </div>
     </Card>
   );
+}
+
+function nextRadioRoomDraft(role: ProviderRole) {
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  return {
+    topic: role === 'nutritionist' ? 'Fueling Q&A' : 'Training Q&A',
+    date: tomorrow.toISOString().slice(0, 10),
+    time: '19:00',
+    audience: 'Clients + coaches',
+    description:
+      role === 'nutritionist'
+        ? 'Live nutrition room for client questions, templates, and weekly planning.'
+        : 'Live training room for client questions, programming, and weekly planning.',
+  };
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
@@ -337,4 +478,36 @@ const clientRevenueStyle = {
   border: '1px solid var(--border)',
   borderRadius: 12,
   fontSize: 12,
+};
+
+const radioRoomStyle = {
+  display: 'grid',
+  gap: 4,
+  padding: 12,
+  border: '1px solid rgba(30,192,168,0.26)',
+  borderRadius: 12,
+  background: 'rgba(30,192,168,0.08)',
+  marginTop: 10,
+  fontSize: 12,
+};
+
+const radioFormStyle = {
+  display: 'grid',
+  gap: 8,
+  marginTop: 12,
+  padding: 12,
+  border: '1px solid var(--border)',
+  borderRadius: 12,
+};
+
+const radioInputStyle = {
+  width: '100%',
+  boxSizing: 'border-box' as const,
+  padding: '11px 12px',
+  borderRadius: 10,
+  border: '1px solid var(--border)',
+  background: 'rgba(242,237,228,0.04)',
+  color: 'var(--ink)',
+  fontFamily: 'inherit',
+  fontSize: 13,
 };
