@@ -13,6 +13,12 @@ import { Preferences } from '@capacitor/preferences';
 const url = import.meta.env.VITE_SUPABASE_URL;
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+type SupabaseStorage = {
+  getItem: (key: string) => Promise<string | null>;
+  setItem: (key: string, value: string) => Promise<void>;
+  removeItem: (key: string) => Promise<void>;
+};
+
 if (!url || !anonKey) {
   // eslint-disable-next-line no-console
   console.warn('[supabase] missing VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY');
@@ -20,7 +26,7 @@ if (!url || !anonKey) {
 
 // Capacitor's Preferences plugin persists across app launches and survives
 // upgrades — much safer than localStorage on iOS, which can get evicted.
-const capacitorStorage = {
+const capacitorStorage: SupabaseStorage = {
   async getItem(key: string) {
     const { value } = await Preferences.get({ key });
     return value;
@@ -33,9 +39,12 @@ const capacitorStorage = {
   },
 };
 
-export const supabase = createClient(url ?? '', anonKey ?? '', {
+const supabaseUrl = url || 'https://example.supabase.co';
+const supabaseAnonKey = anonKey || 'missing-anon-key';
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    storage: capacitorStorage as never,
+    storage: capacitorStorage,
     storageKey: 'shape.auth',
     autoRefreshToken: true,
     persistSession: true,

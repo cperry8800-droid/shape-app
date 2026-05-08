@@ -4,6 +4,13 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAdminUser } from '@/lib/admin-access';
+import {
+  BackgroundCheckStatus,
+  asRecord,
+  hasBackgroundCheckConsent,
+  isBackgroundCheckClear,
+  withBackgroundCheckDetails,
+} from '@/lib/provider-applications';
 
 type ProviderRole = 'trainer' | 'nutritionist';
 
@@ -21,31 +28,8 @@ type ProviderApplication = {
   details: Record<string, unknown> | null;
 };
 
-type BackgroundCheckStatus = 'consent_received' | 'requested' | 'needs_review' | 'clear';
-
 function clean(value: FormDataEntryValue | null, max = 2000): string {
   return String(value ?? '').trim().slice(0, max);
-}
-
-function isAffirmative(value: unknown): boolean {
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'number') return value === 1;
-  if (typeof value !== 'string') return false;
-  return ['yes', 'true', '1', 'on', 'checked', 'accepted'].includes(value.trim().toLowerCase());
-}
-
-function hasBackgroundConsent(details: Record<string, unknown> | null): boolean {
-  if (!details) return false;
-  return (
-    isAffirmative(details.background_check_consent) ||
-    isAffirmative(details.backgroundCheckConsent) ||
-    isAffirmative(details.agreeBgCheck) ||
-    isAffirmative((details.agreements as Record<string, unknown> | undefined)?.background_check)
-  );
-}
-
-function isBackgroundClear(details: Record<string, unknown> | null): boolean {
-  return hasBackgroundConsent(details) && details?.background_check_status === 'clear';
 }
 
 async function updateBackgroundCheckStatus(formData: FormData, status: BackgroundCheckStatus): Promise<void> {
@@ -62,21 +46,15 @@ async function updateBackgroundCheckStatus(formData: FormData, status: Backgroun
     .single();
   if (appError) throw appError;
 
-  const currentDetails =
-    application?.details && typeof application.details === 'object' && !Array.isArray(application.details)
-      ? (application.details as Record<string, unknown>)
-      : {};
-
-  const nextDetails: Record<string, unknown> = {
-    ...currentDetails,
-    background_check_provider: currentDetails.background_check_provider || 'checkr',
-    background_check_required: true,
-    background_check_consent: hasBackgroundConsent(currentDetails),
-    background_check_status: status,
-  };
-
-  if (status === 'requested') nextDetails.background_check_requested_at = now;
-  if (status === 'clear') nextDetails.background_check_completed_at = now;
+  const currentDetails = asRecord(application?.details);
+  const nextDetails = withBackgroundCheckDetails(
+    {
+      ...currentDetails,
+      background_check_consent: hasBackgroundCheckConsent(currentDetails),
+    },
+    status,
+    now
+  );
 
   const { error } = await admin
     .from('provider_applications')
@@ -319,7 +297,7 @@ export async function approveApplication(formData: FormData): Promise<void> {
   if (typed.provider_type !== 'trainer' && typed.provider_type !== 'nutritionist') {
     throw new Error('Application has an invalid provider type.');
   }
-  if (!isBackgroundClear(typed.details)) {
+  if (!isBackgroundCheckClear(typed.details)) {
     throw new Error('Background check consent and a clear background check are required before approval.');
   }
 

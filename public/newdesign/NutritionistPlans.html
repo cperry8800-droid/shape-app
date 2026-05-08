@@ -82,7 +82,13 @@ function ProductGrid({ items, title, meta }) {
   );
 }
 
-function PlaylistStudio() {
+function PlaylistStudio({ drafts = [] }) {
+  const playlistItems = [
+    ...drafts,
+    { name: "Meal prep, low-key", sub: "Apple Music - Protein-led cut", meta: "54 min" },
+    { name: "Kitchen reset", sub: "Spotify - templates", meta: "28 tracks" },
+    { name: "Race-week calm", sub: "Apple Music - Race-day fueling", meta: "42 min" },
+  ];
   return (
     <Card style={{ borderColor: "rgba(30,192,168,0.24)" }}>
       <SectionTitle right="ATTACH TO MEAL PLANS, TEMPLATES, OR GUIDES">Playlist studio</SectionTitle>
@@ -99,11 +105,7 @@ function PlaylistStudio() {
           <button style={{ marginTop: 12, background: TEAL, color: PAPER, border: 0, padding: "11px 16px", borderRadius: 8, fontFamily: sans, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Import and attach</button>
         </div>
         <div style={{ display: "grid", gap: 10 }}>
-          {[
-            ["Meal prep, low-key", "Apple Music - Protein-led cut", "54 min"],
-            ["Kitchen reset", "Spotify - templates", "28 tracks"],
-            ["Race-week calm", "Apple Music - Race-day fueling", "42 min"],
-          ].map(([name, sub, meta]) => (
+          {playlistItems.map(({ name, sub, meta }) => (
             <div key={name} style={{ padding: 14, border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, background: "rgba(242,237,228,0.025)" }}>
               <div style={{ fontSize: 15, fontWeight: 600 }}>{name}</div>
               <div style={{ marginTop: 4, fontSize: 12.5, color: "rgba(242,237,228,0.58)" }}>{sub}</div>
@@ -116,25 +118,117 @@ function PlaylistStudio() {
   );
 }
 
+function NewAssetComposer({ tab, onCreate, onClose }) {
+  const config = {
+    plans: {
+      eyebrow: "NEW MEAL PLAN",
+      title: "New meal-plan subscription",
+      defaultTitle: "New performance meal plan",
+      defaultPrice: "$160/mo",
+      tag: "DRAFT PLAN",
+      color: "rgba(30,192,168,0.22)",
+      helper: "Use this for recurring nutrition subscriptions clients can buy or be assigned to.",
+    },
+    templates: {
+      eyebrow: "NEW TEMPLATE",
+      title: "New reusable template",
+      defaultTitle: "New meal framework",
+      defaultPrice: "$29",
+      tag: "DRAFT TEMPLATE",
+      color: "rgba(106,140,255,0.22)",
+      helper: "Use this for reusable meal banks, grocery frameworks, or macro templates.",
+    },
+    oneTime: {
+      eyebrow: "NEW ONE-TIME ASSET",
+      title: "New guide or audit",
+      defaultTitle: "New nutrition guide",
+      defaultPrice: "$21",
+      tag: "DRAFT GUIDE",
+      color: "rgba(244,151,78,0.22)",
+      helper: "Use this for one-time purchases that are not subscriptions.",
+    },
+    playlists: {
+      eyebrow: "NEW PLAYLIST",
+      title: "New prep playlist",
+      defaultTitle: "New meal prep playlist",
+      defaultPrice: "$0",
+      tag: "PLAYLIST",
+      color: "rgba(30,192,168,0.28)",
+      helper: "Use this for Spotify or Apple Music playlists attached to plans or templates.",
+    },
+  }[tab];
+  const [title, setTitle] = React.useState(config.defaultTitle);
+  const [price, setPrice] = React.useState(config.defaultPrice);
+  const [target, setTarget] = React.useState(tab === "playlists" ? "Protein-led cut (10w)" : "General clients");
+  const [details, setDetails] = React.useState("");
+
+  return (
+    <div id="nutrition-asset-composer">
+    <Card style={{ borderColor: "rgba(30,192,168,0.32)", marginBottom: 20 }}>
+      <SectionTitle right={config.eyebrow}>{config.title}</SectionTitle>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 140px 1fr", gap: 12, marginBottom: 12 }}>
+        <label>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", color: "rgba(242,237,228,0.55)", marginBottom: 6 }}>TITLE</div>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} style={{ width: "100%", background: "rgba(242,237,228,0.04)", color: INK, border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none" }} />
+        </label>
+        <label>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", color: "rgba(242,237,228,0.55)", marginBottom: 6 }}>PRICE</div>
+          <input value={price} onChange={(e) => setPrice(e.target.value)} style={{ width: "100%", background: "rgba(242,237,228,0.04)", color: INK, border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none" }} />
+        </label>
+        <label>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", color: "rgba(242,237,228,0.55)", marginBottom: 6 }}>{tab === "playlists" ? "ATTACH TO" : "AUDIENCE"}</div>
+          <input value={target} onChange={(e) => setTarget(e.target.value)} style={{ width: "100%", background: "rgba(242,237,228,0.04)", color: INK, border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none" }} />
+        </label>
+      </div>
+      <textarea value={details} onChange={(e) => setDetails(e.target.value)} placeholder={config.helper} rows={3} style={{ width: "100%", resize: "vertical", background: "rgba(242,237,228,0.04)", color: INK, border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: "10px 12px", fontSize: 14, lineHeight: 1.45, outline: "none" }} />
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginTop: 12 }}>
+        <div style={{ fontSize: 12, color: "rgba(242,237,228,0.58)" }}>{config.helper}</div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={onClose} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.18)", padding: "10px 14px", borderRadius: 8, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+          <button onClick={() => onCreate({ t: title || config.defaultTitle, active: 0, sold: 0, price: price || config.defaultPrice, tag: config.tag, color: config.color, target, details })} style={{ background: TEAL, color: PAPER, border: 0, padding: "10px 16px", borderRadius: 8, fontFamily: sans, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Save draft</button>
+        </div>
+      </div>
+    </Card>
+    </div>
+  );
+}
+
 function NutritionistPlansPage() {
   const [tab, setTab] = React.useState("plans");
-  const plans = [
+  const [creatorOpen, setCreatorOpen] = React.useState(false);
+  const [activity, setActivity] = React.useState("");
+  const [plans, setPlans] = React.useState([
     { t: "Performance fuel (12w)", active: 14, sold: 38, price: "$180/mo", tag: "SIGNATURE", color: "rgba(30,192,168,0.18)" },
     { t: "Protein-led cut (10w)", active: 7, sold: 22, price: "$160/mo", tag: "FAT LOSS", color: "rgba(184,91,72,0.22)" },
     { t: "Plant-forward performance", active: 3, sold: 14, price: "$160/mo", tag: "PLANT", color: "rgba(30,192,168,0.24)" },
     { t: "Race-day fueling (8w)", active: 2, sold: 11, price: "$140/mo", tag: "ENDURANCE", color: "rgba(106,140,255,0.22)" },
     { t: "Mass phase (12w)", active: 2, sold: 9, price: "$180/mo", tag: "MASS", color: "rgba(244,151,78,0.22)" },
-  ];
-  const templates = [
+  ]);
+  const [templates, setTemplates] = React.useState([
     { t: "High-protein breakfast bank", active: 12, sold: 71, price: "$29", tag: "TEMPLATE", color: "rgba(30,192,168,0.22)" },
     { t: "Grocery swap library", active: 8, sold: 46, price: "$19", tag: "TEMPLATE", color: "rgba(244,151,78,0.22)" },
     { t: "Low-FODMAP week", active: 5, sold: 33, price: "$35", tag: "TEMPLATE", color: "rgba(106,140,255,0.22)" },
-  ];
-  const oneTime = [
+  ]);
+  const [oneTime, setOneTime] = React.useState([
     { t: "Travel nutrition guide", active: 6, sold: 57, price: "$21", tag: "GUIDE", color: "rgba(30,192,168,0.22)" },
     { t: "Race morning kit", active: 4, sold: 28, price: "$18", tag: "ONE-TIME", color: "rgba(184,91,72,0.22)" },
     { t: "Meal prep audit", active: 3, sold: 19, price: "$45", tag: "AUDIT", color: "rgba(244,151,78,0.22)" },
-  ];
+  ]);
+  const [playlists, setPlaylists] = React.useState([]);
+  const createAsset = (asset) => {
+    if (tab === "plans") setPlans((current) => [asset, ...current]);
+    if (tab === "templates") setTemplates((current) => [asset, ...current]);
+    if (tab === "oneTime") setOneTime((current) => [asset, ...current]);
+    if (tab === "playlists") setPlaylists((current) => [{ name: asset.t, sub: `Draft - ${asset.target || "Unassigned"}`, meta: "Ready to attach" }, ...current]);
+    if (tab === "playlists") setActivity(`${asset.t} saved as a playlist draft. Attach it in Playlist studio.`);
+    if (tab !== "playlists") setActivity(`${asset.t} saved as a draft in ${tab === "plans" ? "Meal plans" : tab === "templates" ? "Templates" : "One-time"}.`);
+    setCreatorOpen(false);
+  };
+  const openCreator = () => {
+    setCreatorOpen(true);
+    setActivity("");
+    window.setTimeout(() => document.getElementById("nutrition-asset-composer")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  };
   return (
     <DashPage
       navItems={nutriNavItems("plans")}
@@ -144,18 +238,21 @@ function NutritionistPlansPage() {
       subtitle="Meal plans are subscriptions. Templates and guides are one-time purchases. Playlists attach to any nutrition workflow."
       actions={<>
         <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Drafts (1)</button>
-        <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ New asset</button>
+        <button onClick={openCreator} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ New asset</button>
       </>}
     >
-      <PlanTabs value={tab} onChange={setTab} />
+      <PlanTabs value={tab} onChange={(nextTab) => { setTab(nextTab); setCreatorOpen(false); setActivity(""); }} />
+      {creatorOpen && <NewAssetComposer tab={tab} onCreate={createAsset} onClose={() => setCreatorOpen(false)} />}
+      {activity && <div style={{ marginBottom: 16, padding: "11px 14px", borderRadius: 10, border: "1px solid rgba(30,192,168,0.24)", background: "rgba(30,192,168,0.08)", color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.08em" }}>{activity}</div>}
       {tab === "plans" && <><AIGeneratorCard kind="meal_plan" role="nutritionist" /><ProductGrid items={plans} title="Meal-plan performance" meta="RECURRING SUBSCRIPTIONS" /></>}
       {tab === "templates" && <ProductGrid items={templates} title="Template sales" meta="REUSABLE MEAL FRAMEWORKS" />}
       {tab === "oneTime" && <ProductGrid items={oneTime} title="One-time purchases" meta="NOT MEAL PLANS - NOT SUBSCRIPTIONS" />}
-      {tab === "playlists" && <PlaylistStudio />}
+      {tab === "playlists" && <PlaylistStudio drafts={playlists} />}
     </DashPage>
   );
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<NutritionistPlansPage />);
 </script>
+<script src="globalChatButton.js" defer></script>
 </body>
 </html>

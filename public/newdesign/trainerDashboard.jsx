@@ -42,7 +42,7 @@ function DashPage({ navItems, payoutCard, eyebrow, title, subtitle, actions, chi
     <div style={{ background: PAPER, color: INK, minHeight: "100vh", fontFamily: sans, display: "flex", flexDirection: "column" }}>
       <div style={{ display: "grid", gridTemplateColumns: "240px 1fr", flex: 1 }}>
       <DashSidebar navItems={navItems} payoutCard={payoutCard} />
-      <main style={{ padding: "40px 48px 80px" }}>
+      <main style={{ padding: "40px 48px 80px", minWidth: 0, overflowX: "hidden" }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 40 }}>
           <div>
             {eyebrow && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: "rgba(242,237,228,0.55)", marginBottom: 14 }}>{eyebrow}</div>}

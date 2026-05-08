@@ -1,16 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { cleanText as clean, isEmail } from '@/lib/request-utils';
 
 export const dynamic = 'force-dynamic';
-
-function clean(value: unknown, max = 300): string {
-  if (typeof value !== 'string') return '';
-  return value.trim().slice(0, max);
-}
-
-function isEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
 
 export async function POST(req: NextRequest) {
   let body: Record<string, unknown>;

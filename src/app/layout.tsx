@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import GlobalChatButton from "@/components/GlobalChatButton";
 import { Analytics } from '@vercel/analytics/next';
 
 const inter = Inter({
@@ -27,6 +28,7 @@ export default function RootLayout({
         <Nav />
         <div className="flex-1">{children}</div>
         <Footer />
+        <GlobalChatButton />
         <Analytics />
       </body>
     </html>

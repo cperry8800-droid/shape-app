@@ -1,6 +1,90 @@
 // Client profile + dashboard pages
 const { useState: useSClient } = React;
 
+const CLIENT_PROFILE_DATA = {
+  "priya-shah": {
+    name: "Priya Shah",
+    meta: "Member - Brooklyn - hybrid strength",
+    summary: "Performance fuel client working strength, hypertrophy, and run support. Protein target is the primary weekly focus.",
+    score: "1,284",
+    scoreSub: "14-day streak - 89% adherence",
+    stats: [["14d", "Current streak"], ["89%", "Adherence"], ["$180", "Monthly revenue"], ["$1,440", "Client revenue"]],
+  },
+  "deandre-kim": {
+    name: "Deandre Kim",
+    meta: "Member - Brooklyn - mass phase",
+    summary: "Strength client in a mass phase. Strong compliance and steady progression across the main lifts.",
+    score: "1,820",
+    scoreSub: "22-day streak - 94% adherence",
+    stats: [["22d", "Current streak"], ["94%", "Adherence"], ["$180", "Monthly revenue"], ["$3,240", "Client revenue"]],
+  },
+  "sam-okafor": {
+    name: "Sam Okafor",
+    meta: "Member - new intake - remote",
+    summary: "New intake client. Needs initial goals, schedule, equipment, and baseline training history confirmed.",
+    score: "40",
+    scoreSub: "1-day streak - intake pending",
+    stats: [["1d", "Current streak"], ["New", "Intake status"], ["$200", "Monthly revenue"], ["$200", "Client revenue"]],
+  },
+  "jaya-patel": {
+    name: "Jaya Patel",
+    meta: "Member - Brooklyn - plant-forward hybrid",
+    summary: "Hybrid training client with plant-forward nutrition support. Focus is consistent fueling around harder sessions.",
+    score: "1,102",
+    scoreSub: "11-day streak - 91% adherence",
+    stats: [["11d", "Current streak"], ["91%", "Adherence"], ["$160", "Monthly revenue"], ["$1,120", "Client revenue"]],
+  },
+  "marcus-johnson": {
+    name: "Marcus Johnson",
+    meta: "Member - remote - strength",
+    summary: "Strength client with steady load progression. Current focus is consistency and clean top-set execution.",
+    score: "1,412",
+    scoreSub: "18-day streak - 94% adherence",
+    stats: [["18d", "Current streak"], ["94%", "Adherence"], ["$240", "Monthly revenue"], ["$2,880", "Client revenue"]],
+  },
+  "marcus-larson": {
+    name: "Marcus Larson",
+    meta: "Member - nutrition - protein-led cut",
+    summary: "Nutrition client flagged for review. Macro adherence has dipped and needs a short check-in.",
+    score: "1,140",
+    scoreSub: "18-day streak - 82% adherence",
+    stats: [["18d", "Current streak"], ["82%", "Adherence"], ["$160", "Monthly revenue"], ["$960", "Client revenue"]],
+  },
+  "elena-rivera": {
+    name: "Elena Rivera",
+    meta: "Member - Brooklyn - performance fuel",
+    summary: "High-adherence client with strong streak history. Current plan supports performance, recovery, and steady output.",
+    score: "2,108",
+    scoreSub: "30-day streak - 96% adherence",
+    stats: [["30d", "Current streak"], ["96%", "Adherence"], ["$180", "Monthly revenue"], ["$2,160", "Client revenue"]],
+  },
+  "jonah-weiss": {
+    name: "Jonah Weiss",
+    meta: "Member - remote - race-day fueling",
+    summary: "Endurance client preparing race-day fueling. Needs attention after a recent adherence dip.",
+    score: "980",
+    scoreSub: "7-day streak - 78% adherence",
+    stats: [["7d", "Current streak"], ["78%", "Adherence"], ["$160", "Monthly revenue"], ["$640", "Client revenue"]],
+  },
+  "ana-park": {
+    name: "Ana Park",
+    meta: "Member - new intake - beginner strength",
+    summary: "New client building baseline habits. Needs starter plan, intake notes, and first-week check-in.",
+    score: "412",
+    scoreSub: "1-day streak - intake new",
+    stats: [["1d", "Current streak"], ["New", "Intake status"], ["$140", "Monthly revenue"], ["$140", "Client revenue"]],
+  },
+};
+
+function clientSlugFromLocation() {
+  const params = new URLSearchParams(window.location.search);
+  return (params.get("client") || "priya-shah").toLowerCase();
+}
+
+function getClientProfileData() {
+  return CLIENT_PROFILE_DATA[clientSlugFromLocation()] || CLIENT_PROFILE_DATA["priya-shah"];
+}
+
 const TODAY = [
   { when: "17:30", what: "Upper push · 5 exercises", with: "Maya Okafor", kind: "workout", playlist: { name: "Upper Push — Peak", provider: "spotify", bpm: "95–130", tracks: 31, accent: "#6a8cff", cover: "linear-gradient(135deg, #2a3a6a 0%, #1a1612 70%)", note: "Builds across the session. Peaks at the top sets.", author: "Maya" } },
   { when: "19:30", what: "Log dinner · protein target 168g", with: null, kind: "nutrition" },
@@ -40,27 +124,28 @@ const CLIENT_EVENTS = [
 
 function ClientProfile() {
   const cal = useCalendarOverlay();
+  const profile = getClientProfileData();
   return (
     <section style={{ padding: "80px 72px 60px", position: "relative", overflow: "hidden" }}>
       <HeroBg />
       <CalendarOverlay {...cal.props} role="client" events={CLIENT_EVENTS} />
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
         <div style={{ display: "grid", gridTemplateColumns: "200px 1fr auto", gap: 40, alignItems: "center" }}>
-          <Ph label="Priya · portrait" ratio="1/1" tone="light" style={{ borderRadius: 999 }} />
+          <Ph label={`${profile.name} portrait`} ratio="1/1" tone="light" style={{ borderRadius: 999 }} />
           <div>
-            <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 12 }}>Member · Brooklyn · since Feb '25</div>
-            <h1 style={{ fontFamily: serif, fontSize: 88, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, lineHeight: 0.95 }}>Priya Shankar</h1>
-            <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.7)", margin: "16px 0 0", maxWidth: 560 }}>Training strength & hypertrophy with Maya. Hybrid endurance block starting June. Tracks protein, not calories.</p>
+            <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 12 }}>{profile.meta}</div>
+            <h1 style={{ fontFamily: serif, fontSize: 88, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, lineHeight: 0.95 }}>{profile.name}</h1>
+            <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.7)", margin: "16px 0 0", maxWidth: 560 }}>{profile.summary}</p>
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)" }}>SHAPE SCORE</div>
-            <div style={{ fontFamily: serif, fontSize: 72, color: TEAL, letterSpacing: "-0.03em", lineHeight: 1 }}>1,284</div>
-            <div style={{ fontFamily: sans, fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 4 }}>14-day streak · +82 this week</div>
+            <div style={{ fontFamily: serif, fontSize: 72, color: TEAL, letterSpacing: "-0.03em", lineHeight: 1 }}>{profile.score}</div>
+            <div style={{ fontFamily: sans, fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 4 }}>{profile.scoreSub}</div>
           </div>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0, marginTop: 56, borderTop: "1px solid rgba(242,237,228,0.15)", borderBottom: "1px solid rgba(242,237,228,0.15)" }}>
-          {[["14 mo", "Training on Shape"], ["+22 lb", "Squat PR this block"], ["4 / 5", "Sessions this week"], ["168g", "Avg protein / day"]].map(([k, l], i) => (
+          {profile.stats.map(([k, l], i) => (
             <div key={i} style={{ padding: "28px 24px", borderLeft: i ? "1px solid rgba(242,237,228,0.08)" : "none" }}>
               <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.03em", color: INK, lineHeight: 1 }}>{k}</div>
               <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.55)", marginTop: 10 }}>{l}</div>
@@ -224,7 +309,7 @@ function TodayRow({ t }) {
 function ClientPage() {
   return (
     <div style={{ background: PAPER, color: INK, fontFamily: sans }}>
-      <Header />
+      <Header active="Clients" />
       <ClientProfile />
       <ClientDashboard />
       <Footer />

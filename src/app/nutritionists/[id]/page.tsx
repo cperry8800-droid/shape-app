@@ -3,6 +3,7 @@ import Link from 'next/link';
 import CinematicPageShell from '@/components/CinematicPageShell';
 import ProviderMessageButton from '@/components/ProviderMessageButton';
 import { getNutritionistById, isSubscribedTo } from '@/lib/queries';
+import type { NutritionistPlan } from '@/lib/types';
 
 export default async function NutritionistDetailPage({
   params,
@@ -48,7 +49,7 @@ export default async function NutritionistDetailPage({
           <div className="mb-8">
             <h2 className="text-lg font-medium mb-4">Meal Plans</h2>
             <div className="space-y-3">
-              {nutritionist.plans.map((p: any) => (
+              {nutritionist.plans.map((p: NutritionistPlan) => (
                 <div key={p.id} className="rounded-lg border border-neutral-800 bg-neutral-900/30 backdrop-blur-md p-4">
                   <h3 className="font-medium mb-1">{p.name}</h3>
                   {p.description && <p className="text-sm text-white/50">{p.description}</p>}

@@ -8,6 +8,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email';
+import { cleanText as clean, isEmail } from '@/lib/request-utils';
+import {
+  REQUIRED_PROVIDER_EXPERIENCE_YEARS,
+  hasBackgroundCheckConsent,
+  minimumYears,
+  withBackgroundCheckDetails,
+} from '@/lib/provider-applications';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +25,6 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
-const MAX_TEXT = 500;
 const MAX_LONG = 10000;
 const FILE_BUCKET = 'provider-credentials';
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -30,15 +36,6 @@ const ALLOWED_FILE_TYPES = new Set([
   'image/jpeg',
   'image/webp',
 ]);
-
-function clean(v: unknown, max = MAX_TEXT): string {
-  if (typeof v !== 'string') return '';
-  return v.trim().slice(0, max);
-}
-
-function isEmail(s: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
-}
 
 function sanitizeDetails(input: unknown): Record<string, unknown> {
   if (!input || typeof input !== 'object') return {};
@@ -59,18 +56,6 @@ function sanitizeDetails(input: unknown): Record<string, unknown> {
     if (Object.keys(out).length >= 100) break;
   }
   return out;
-}
-
-function minimumYears(value: string): number {
-  const match = value.match(/\d+/);
-  return match ? Number(match[0]) : 0;
-}
-
-function isAffirmative(value: unknown): boolean {
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'number') return value === 1;
-  if (typeof value !== 'string') return false;
-  return ['yes', 'true', '1', 'on', 'checked', 'accepted'].includes(value.trim().toLowerCase());
 }
 
 function safeFileName(name = 'document'): string {
@@ -185,38 +170,27 @@ export async function POST(req: NextRequest) {
   if (!isEmail(email)) {
     return NextResponse.json({ error: 'Please enter a valid email.' }, { status: 400, headers: CORS_HEADERS });
   }
-  if (minimumYears(yearsExperience) < 7) {
+  if (minimumYears(yearsExperience) < REQUIRED_PROVIDER_EXPERIENCE_YEARS) {
     return NextResponse.json(
-      { error: 'Shape requires at least 7 years of professional experience before applying as a provider.' },
+      {
+        error: `Shape requires at least ${REQUIRED_PROVIDER_EXPERIENCE_YEARS} years of professional experience before applying as a provider.`,
+      },
       { status: 400, headers: CORS_HEADERS }
     );
   }
 
-  const backgroundCheckConsent =
-    isAffirmative(body.backgroundCheckConsent) ||
-    isAffirmative(details.backgroundCheckConsent) ||
-    isAffirmative(details.background_check_consent) ||
-    isAffirmative(details.agreeBgCheck) ||
-    isAffirmative((details.agreements as Record<string, unknown> | undefined)?.background_check);
-
-  if (!backgroundCheckConsent) {
+  if (!hasBackgroundCheckConsent(details, body)) {
     return NextResponse.json(
       { error: 'Background check consent is required before submitting a provider application.' },
       { status: 400, headers: CORS_HEADERS }
     );
   }
 
-  details = {
+  details = withBackgroundCheckDetails({
     ...details,
     meets_experience_preference: true,
-    background_check_provider: 'checkr',
-    background_check_required: true,
     background_check_consent: true,
-    background_check_status: 'consent_received',
-    background_check_requested_at: null,
-    background_check_completed_at: null,
-    background_check_report_id: null,
-  };
+  }, 'consent_received');
 
   const supabase = await createClient();
   const { data, error } = await supabase

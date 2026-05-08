@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAdminEmails, requireAdminUser } from '@/lib/admin-access';
+import { BACKGROUND_CHECK_DETAIL_KEYS, asRecord, backgroundCheckInfo } from '@/lib/provider-applications';
 import {
   approveApplication,
   markApplicationInReview,
@@ -42,12 +43,6 @@ type DocumentLink = {
   url: string | null;
 };
 
-function asDetails(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
 function displayValue(value: unknown): string {
   if (value == null || value === '') return '';
   if (Array.isArray(value)) return value.map(displayValue).filter(Boolean).join(', ');
@@ -87,7 +82,7 @@ async function signedDocumentLinks(rows: ApplicationRow[]): Promise<Map<string, 
   const result = new Map<string, DocumentLink[]>();
 
   for (const row of rows) {
-    const docs = getDocuments(asDetails(row.details));
+    const docs = getDocuments(asRecord(row.details));
     const links: DocumentLink[] = [];
     for (const doc of docs) {
       const { data, error } = await admin.storage
@@ -109,30 +104,6 @@ function statusClass(status: ApplicationStatus): string {
   if (status === 'rejected') return 'border-red-400/40 bg-red-400/10 text-red-200';
   if (status === 'in_review') return 'border-amber-400/40 bg-amber-400/10 text-amber-200';
   return 'border-neutral-700 bg-neutral-900 text-neutral-300';
-}
-
-function isAffirmative(value: unknown): boolean {
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'number') return value === 1;
-  if (typeof value !== 'string') return false;
-  return ['yes', 'true', '1', 'on', 'checked', 'accepted'].includes(value.trim().toLowerCase());
-}
-
-function backgroundCheckInfo(details: Record<string, unknown>) {
-  const agreements = asDetails(details.agreements);
-  const consented =
-    isAffirmative(details.background_check_consent) ||
-    isAffirmative(details.backgroundCheckConsent) ||
-    isAffirmative(details.agreeBgCheck) ||
-    isAffirmative(agreements.background_check);
-  return {
-    provider: displayValue(details.background_check_provider) || 'checkr',
-    status: displayValue(details.background_check_status) || (consented ? 'consent_received' : 'missing_consent'),
-    consented,
-    requestedAt: displayValue(details.background_check_requested_at),
-    completedAt: displayValue(details.background_check_completed_at),
-    reportId: displayValue(details.background_check_report_id),
-  };
 }
 
 function backgroundClass(status: string): string {
@@ -242,21 +213,13 @@ export default async function ApplicationsPage({
 }
 
 function ApplicationCard({ row, documents }: { row: ApplicationRow; documents: DocumentLink[] }) {
-  const details = asDetails(row.details);
+  const details = asRecord(row.details);
   const bg = backgroundCheckInfo(details);
   const canApprove = bg.consented && bg.status === 'clear';
   const hiddenKeys = new Set([
     'documents',
     'approved_provider',
-    'background_check_provider',
-    'background_check_required',
-    'background_check_consent',
-    'backgroundCheckConsent',
-    'agreeBgCheck',
-    'background_check_status',
-    'background_check_requested_at',
-    'background_check_completed_at',
-    'background_check_report_id',
+    ...BACKGROUND_CHECK_DETAIL_KEYS,
   ]);
   const detailEntries = Object.entries(details).filter(([key, value]) => !hiddenKeys.has(key) && Boolean(displayValue(value)));
   const fullName = `${row.first_name} ${row.last_name}`.trim();

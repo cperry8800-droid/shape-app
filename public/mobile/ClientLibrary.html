@@ -37,7 +37,11 @@ function ClientLibraryPage() {
     { kind: "DOC",    title: "Deload week — how I program",  meta: "Maya · 6 min read",date: "Apr 8",  tag: "TRAINING" },
   ];
   const tags = ["ALL","TRAINING","NUTRITION","RECOVERY","RACING"];
-  const [active, setActive] = React.useState("ALL");
+  const [active, setActive] = React.useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const requested = (params.get("tag") || params.get("filter") || "").toUpperCase();
+    return tags.includes(requested) ? requested : "ALL";
+  });
   const visibleCollections = active === "ALL" ? collections : collections.filter(c => c.tag === active);
   const visibleRecent = active === "ALL" ? recent : recent.filter(r => r.tag === active);
   return (

@@ -48,7 +48,7 @@ function StoreHero() {
             Spend<br />the <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>points</em> you earned.
           </h1>
           <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.55, color: "rgba(242,237,228,0.65)", margin: 0, maxWidth: 420 }}>
-            Trade Shape Score for Shape merch, training credits, nutrition services, and membership perks. No expiry on points. No third-party merchandise discounts.
+            Trade Shape Score for Shape merch, training credits, nutrition services, and membership perks. No expiry on points.
           </p>
         </div>
 

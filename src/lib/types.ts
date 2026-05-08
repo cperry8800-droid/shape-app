@@ -136,9 +136,17 @@ export type WorkoutSetLog = {
   set_number: number | null;
   target_reps: string | null;
   target_load: string | null;
+  actual_reps?: number | null;
+  actual_load?: number | null;
+  load_unit?: string | null;
+  rpe?: number | null;
   completed: boolean | null;
   set_duration_seconds: number | null;
   rest_before_seconds: number | null;
+  progression_snapshot?: string | null;
+  selected_alternate?: string | null;
+  reaction_type?: 'strong' | 'form_broke' | 'skipped' | null;
+  reaction_label?: string | null;
   started_at: string | null;
   ended_at: string | null;
   payload: Record<string, unknown> | null;

@@ -15,21 +15,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { sendEmail } from '@/lib/email';
+import { cleanText as clean, isEmail } from '@/lib/request-utils';
 
 export const dynamic = 'force-dynamic';
 
 const ADMIN_EMAIL = process.env.APPLICATIONS_EMAIL ?? 'chris.perry@shapecommunity.onmicrosoft.com';
 
 const MAX_FIELD = 5000;
-
-function clean(v: unknown, max = 500): string {
-  if (typeof v !== 'string') return '';
-  return v.trim().slice(0, max);
-}
-
-function isEmail(s: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
-}
 
 export async function POST(req: NextRequest) {
   let body: Record<string, unknown>;

@@ -11,16 +11,124 @@ const TRAINER_CLIENTS = [
   { id: 8, name: "Tom Becker",    avatar: "TB", meta: "Beginner barbell · new" },
 ];
 
+const PROGRAM_TAGS = [
+  "SIGNATURE",
+  "FOUNDATIONS",
+  "PERFORMANCE",
+  "REHAB",
+  "ENDURANCE",
+  "HYPERTROPHY",
+  "POWERLIFTING",
+  "BODYBUILDING",
+  "RUNNING",
+  "MARATHON",
+  "ULTRA",
+  "MOBILITY",
+  "FUNCTIONAL",
+  "HYROX",
+  "FAT LOSS",
+  "SPORT",
+  "AT HOME",
+];
+
+const PROGRAM_PRESETS = {
+  "strength-plus-hybrid-12w": {
+    name: "Strength + hybrid (12w)",
+    weeks: 12,
+    price: "220",
+    kind: "subscription",
+    tag: "SIGNATURE",
+    goal: "Strength",
+    level: "Intermediate",
+    summary: "A 12-week strength block with conditioning touches, progression rules, and recovery weeks built in.",
+    workouts: [
+      { week: 1, day: "Mon", title: "Upper push", ref: "Strength focus - 4 x 6" },
+      { week: 1, day: "Wed", title: "Lower pull", ref: "Posterior chain - 5 x 5" },
+      { week: 1, day: "Sat", title: "Hybrid engine", ref: "Zone 2 + carries" },
+    ],
+  },
+  "beginner-barbell-8w": {
+    name: "Beginner barbell (8w)",
+    weeks: 8,
+    price: "180",
+    kind: "subscription",
+    tag: "FOUNDATIONS",
+    goal: "Strength",
+    level: "Beginner",
+    summary: "An 8-week foundation block for new lifters learning squat, hinge, press, row, and safe loading.",
+    workouts: [
+      { week: 1, day: "Mon", title: "Squat pattern", ref: "Technique - 3 x 8" },
+      { week: 1, day: "Wed", title: "Upper basics", ref: "Press + row - 3 x 10" },
+      { week: 1, day: "Fri", title: "Full-body practice", ref: "Light barbell circuit" },
+    ],
+  },
+  "hybrid-cut-protocol-10w": {
+    name: "Hybrid cut protocol (10w)",
+    weeks: 10,
+    price: "240",
+    kind: "subscription",
+    tag: "PERFORMANCE",
+    goal: "Fat loss",
+    level: "Intermediate",
+    summary: "A cut-phase program balancing heavy lifts, conditioning, and nutrition-aware recovery days.",
+    workouts: [
+      { week: 1, day: "Mon", title: "Heavy upper", ref: "Strength retention" },
+      { week: 1, day: "Tue", title: "Tempo intervals", ref: "Conditioning - 30 min" },
+      { week: 1, day: "Thu", title: "Lower strength", ref: "RPE-managed loading" },
+    ],
+  },
+  "return-to-lifting-6w": {
+    name: "Return-to-lifting (6w)",
+    weeks: 6,
+    price: "200",
+    kind: "subscription",
+    tag: "REHAB",
+    goal: "General fitness",
+    level: "Beginner",
+    summary: "A conservative rebuild for clients returning after time off, injury, or inconsistent training.",
+    workouts: [
+      { week: 1, day: "Mon", title: "Movement screen", ref: "Tempo and control" },
+      { week: 1, day: "Wed", title: "Pattern rebuild", ref: "Light load - high quality" },
+      { week: 1, day: "Fri", title: "Capacity base", ref: "Low impact circuit" },
+    ],
+  },
+  "marathon-base-16w": {
+    name: "Marathon base (16w)",
+    weeks: 16,
+    price: "200",
+    kind: "subscription",
+    tag: "ENDURANCE",
+    goal: "Endurance",
+    level: "Intermediate",
+    summary: "A marathon base cycle with easy mileage, long-run progression, strength support, and deload weeks.",
+    workouts: [
+      { week: 1, day: "Tue", title: "Easy base run", ref: "60 min - conversational" },
+      { week: 1, day: "Thu", title: "Tempo run prep", ref: "6PM pace work" },
+      { week: 1, day: "Sun", title: "Long run build", ref: "90+ min progression" },
+    ],
+  },
+};
+
+function getProgramPresetFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const key = params.get("program");
+  return key ? PROGRAM_PRESETS[key] : null;
+}
+
 function NewProgramPage() {
-  const [name, setName] = React.useState("");
-  const [weeks, setWeeks] = React.useState(6);
-  const [price, setPrice] = React.useState("180");
-  const [kind, setKind] = React.useState("one-time");
-  const [tag, setTag] = React.useState("SIGNATURE");
-  const [goal, setGoal] = React.useState("Strength");
-  const [level, setLevel] = React.useState("Intermediate");
-  const [summary, setSummary] = React.useState("");
-  const [workouts, setWorkouts] = React.useState([
+  const urlMode = new URLSearchParams(window.location.search).get("mode");
+  const initialProgram = getProgramPresetFromUrl();
+  const isEditing = urlMode === "edit" && Boolean(initialProgram);
+  const [name, setName] = React.useState(initialProgram?.name || "");
+  const [weeks, setWeeks] = React.useState(initialProgram?.weeks || 6);
+  const [price, setPrice] = React.useState(initialProgram?.price || "180");
+  const [kind, setKind] = React.useState(initialProgram?.kind || "one-time");
+  const [tag, setTag] = React.useState(initialProgram?.tag || "SIGNATURE");
+  const [customTag, setCustomTag] = React.useState(initialProgram?.tag && !PROGRAM_TAGS.includes(initialProgram.tag) ? initialProgram.tag : "");
+  const [goal, setGoal] = React.useState(initialProgram?.goal || "Strength");
+  const [level, setLevel] = React.useState(initialProgram?.level || "Intermediate");
+  const [summary, setSummary] = React.useState(initialProgram?.summary || "");
+  const [workouts, setWorkouts] = React.useState(initialProgram?.workouts || [
     { week: 1, day: "Mon", title: "Lower — push", ref: "" },
   ]);
   const [assignedIds, setAssignedIds] = React.useState([]);
@@ -40,9 +148,14 @@ function NewProgramPage() {
   };
 
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  const tags = ["SIGNATURE", "FOUNDATIONS", "PERFORMANCE", "REHAB", "ENDURANCE", "HYPERTROPHY"];
   const goals = ["Strength", "Hypertrophy", "Fat loss", "Endurance", "General fitness", "Sport-specific"];
   const levels = ["Beginner", "Intermediate", "Advanced"];
+  const applyCustomTag = () => {
+    const value = customTag.trim().replace(/\s+/g, " ").toUpperCase();
+    if (!value) return;
+    setCustomTag(value);
+    setTag(value);
+  };
   const applyDraft = (draft) => {
     setName(draft.title || name);
     setSummary(draft.summary || summary);
@@ -64,7 +177,7 @@ function NewProgramPage() {
       navItems={trainerNavItems("programs")}
       payoutCard={trainerPayoutCard}
       eyebrow={<a href="TrainerPrograms.html" style={{ color: "rgba(242,237,228,0.55)" }}>← PROGRAMS</a>}
-      title="New program"
+      title={isEditing ? "Manage program" : "New program"}
       subtitle="A reusable training block you sell once or via subscription. Sessions cascade to every client on the block — their history stays intact."
       actions={<>
         <a href="TrainerPrograms.html" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</a>
@@ -98,7 +211,7 @@ function NewProgramPage() {
             </div>
             <Field label="Category tag">
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {tags.map(t => (
+                {PROGRAM_TAGS.map(t => (
                   <button key={t} onClick={() => setTag(t)} style={{
                     padding: "7px 12px", borderRadius: 4, fontFamily: "'JetBrains Mono', monospace",
                     fontSize: 10.5, letterSpacing: "0.08em", cursor: "pointer",
@@ -107,6 +220,25 @@ function NewProgramPage() {
                     border: tag === t ? "none" : "1px solid rgba(242,237,228,0.12)",
                   }}>{t}</button>
                 ))}
+                {tag && !PROGRAM_TAGS.includes(tag) && (
+                  <button onClick={() => setTag(tag)} style={{
+                    padding: "7px 12px", borderRadius: 4, fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: 10.5, letterSpacing: "0.08em", cursor: "pointer",
+                    background: TEAL,
+                    color: PAPER,
+                    border: "none",
+                  }}>{tag}</button>
+                )}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 132px", gap: 8, marginTop: 10 }}>
+                <input
+                  value={customTag}
+                  onChange={(e) => setCustomTag(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyCustomTag(); } }}
+                  placeholder="Type custom category..."
+                  style={{ width: "100%", background: "rgba(242,237,228,0.04)", color: INK, border: "1px solid rgba(242,237,228,0.12)", borderRadius: 6, padding: "9px 11px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.06em", outline: "none", textTransform: "uppercase" }}
+                />
+                <button onClick={applyCustomTag} style={{ background: "rgba(242,237,228,0.06)", color: INK, border: "1px solid rgba(242,237,228,0.14)", borderRadius: 6, padding: "9px 12px", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.08em", cursor: "pointer" }}>Use custom</button>
               </div>
             </Field>
             <Field label="Summary (shown on your public profile)">

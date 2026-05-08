@@ -152,7 +152,9 @@ function WorkoutReviewCard({ session }: { session: WorkoutReviewSession }) {
                   <tr className="border-b border-neutral-800">
                     <th className="text-left font-medium py-2 pr-3">Move</th>
                     <th className="text-left font-medium py-2 px-3">Target</th>
+                    <th className="text-left font-medium py-2 px-3">Actual</th>
                     <th className="text-left font-medium py-2 px-3">Set</th>
+                    <th className="text-left font-medium py-2 px-3">Reaction</th>
                     <th className="text-left font-medium py-2 pl-3">Rest before</th>
                   </tr>
                 </thead>
@@ -165,9 +167,26 @@ function WorkoutReviewCard({ session }: { session: WorkoutReviewSession }) {
                       </td>
                       <td className="py-3 px-3 text-neutral-300">
                         {[entry.target_reps, entry.target_load].filter(Boolean).join(' / ') || '-'}
+                        {entry.progression_snapshot && (
+                          <div className="text-[0.65rem] text-teal-300 mt-1">{entry.progression_snapshot}</div>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-neutral-300">
+                        {[
+                          entry.actual_reps ? `${entry.actual_reps} reps` : null,
+                          entry.actual_load ? `${entry.actual_load} ${entry.load_unit || 'lb'}` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' / ') || '-'}
+                        {entry.selected_alternate && (
+                          <div className="text-[0.65rem] text-neutral-500 mt-1">Swap: {entry.selected_alternate}</div>
+                        )}
                       </td>
                       <td className="py-3 px-3 font-mono text-xs text-neutral-300">
                         {formatSeconds(entry.set_duration_seconds)}
+                      </td>
+                      <td className="py-3 px-3 text-xs text-neutral-300">
+                        {entry.reaction_label || reactionLabel(entry.reaction_type)}
                       </td>
                       <td className="py-3 pl-3 font-mono text-xs text-neutral-300">
                         {formatSeconds(entry.rest_before_seconds)}
@@ -294,4 +313,11 @@ function formatSeconds(value: number | null | undefined): string {
   const remainder = seconds % 60;
   if (!minutes) return `${remainder}s`;
   return `${minutes}:${String(remainder).padStart(2, '0')}`;
+}
+
+function reactionLabel(value: string | null | undefined) {
+  if (value === 'strong') return 'Felt strong';
+  if (value === 'form_broke') return 'Form broke';
+  if (value === 'skipped') return 'Skipped';
+  return '-';
 }

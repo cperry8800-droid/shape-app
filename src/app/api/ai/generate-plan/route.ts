@@ -34,6 +34,20 @@ type GeneratedDraft = {
   shoppingList?: { section: string; items: string[] }[];
 };
 
+type OpenAIContentPart = {
+  type?: string;
+  text?: string;
+};
+
+type OpenAIOutputItem = {
+  content?: OpenAIContentPart[];
+};
+
+type OpenAIResponsePayload = {
+  output_text?: string;
+  output?: OpenAIOutputItem[];
+};
+
 const draftSchema = {
   type: 'object',
   additionalProperties: false,
@@ -163,12 +177,12 @@ function fallbackDraft(body: GenerateBody): GeneratedDraft {
   };
 }
 
-function extractOutputText(payload: any): string {
+function extractOutputText(payload: OpenAIResponsePayload): string {
   if (typeof payload?.output_text === 'string') return payload.output_text;
   const parts = Array.isArray(payload?.output) ? payload.output : [];
   for (const item of parts) {
     const content = Array.isArray(item?.content) ? item.content : [];
-    const text = content.find((part: any) => part?.type === 'output_text')?.text;
+    const text = content.find((part) => part?.type === 'output_text')?.text;
     if (typeof text === 'string') return text;
   }
   return '';

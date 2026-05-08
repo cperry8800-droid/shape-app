@@ -35,6 +35,202 @@ function MacroRing({ value, target, label, color }) {
     </div>
   );
 }
+
+const GROCERY_LIBRARY = [
+  {
+    id: "tahini-chicken",
+    title: "Tahini chicken bowl",
+    meta: "Recipe of the day - F 21 - 5 items",
+    categories: [
+      { name: "Protein", items: [{ name: "Chicken thigh", qty: "180 g" }] },
+      { name: "Produce", items: [{ name: "Roast veg medley", qty: "120 g" }, { name: "Lemon", qty: "1" }] },
+      { name: "Pantry", items: [{ name: "Jasmine rice", qty: "150 g" }, { name: "Tahini", qty: "15 g" }] },
+    ],
+  },
+  {
+    id: "salmon-quinoa",
+    title: "Salmon, quinoa, greens",
+    meta: "Dinner plan - 6 items",
+    categories: [
+      { name: "Protein", items: [{ name: "Salmon fillet", qty: "180 g" }] },
+      { name: "Produce", items: [{ name: "Kale", qty: "200 g" }, { name: "Garlic", qty: "2 cloves" }, { name: "Lemon", qty: "1" }] },
+      { name: "Pantry", items: [{ name: "Cooked quinoa", qty: "120 g" }, { name: "Olive oil", qty: "1 tbsp" }] },
+    ],
+  },
+  {
+    id: "sweet-potato-chili",
+    title: "Sweet potato chili",
+    meta: "Batch x4 - 6 items",
+    categories: [
+      { name: "Produce", items: [{ name: "Sweet potatoes", qty: "2 large" }, { name: "Onion", qty: "1" }, { name: "Cilantro", qty: "1 bunch" }] },
+      { name: "Pantry", items: [{ name: "Black beans", qty: "2 cans" }, { name: "Crushed tomatoes", qty: "1 can" }, { name: "Chili spice", qty: "2 tbsp" }] },
+    ],
+  },
+];
+
+const RECIPE_ARCHIVE = [
+  { day: "M 17", title: "Sweet potato chili.", meta: "6 ingredients - 35 min - batch x4", list: GROCERY_LIBRARY[2] },
+  { day: "T 18", title: "Smashed chickpea wrap.", meta: "5 ingredients - 8 min - lunch hack", list: {
+    id: "chickpea-wrap",
+    title: "Smashed chickpea wrap",
+    meta: "Recipe archive - T 18 - 5 items",
+    categories: [
+      { name: "Produce", items: [{ name: "Romaine", qty: "1 head" }, { name: "Cucumber", qty: "1" }, { name: "Lemon", qty: "1" }] },
+      { name: "Pantry", items: [{ name: "Chickpeas", qty: "1 can" }, { name: "Whole-grain wraps", qty: "4" }] },
+    ],
+  } },
+  { day: "W 19", title: "Roast veg + feta plate.", meta: "4 ingredients - 30 min - sheet pan", list: {
+    id: "roast-veg-feta",
+    title: "Roast veg + feta plate",
+    meta: "Recipe archive - W 19 - 4 items",
+    categories: [
+      { name: "Produce", items: [{ name: "Zucchini", qty: "2" }, { name: "Bell peppers", qty: "2" }, { name: "Red onion", qty: "1" }] },
+      { name: "Dairy", items: [{ name: "Feta", qty: "120 g" }] },
+    ],
+  } },
+  { day: "T 20", title: "Steak + jasmine rice.", meta: "4 ingredients - 12 min - pan-sear", list: {
+    id: "steak-rice",
+    title: "Steak + jasmine rice",
+    meta: "Recipe archive - T 20 - 4 items",
+    categories: [
+      { name: "Protein", items: [{ name: "Sirloin steak", qty: "180 g" }] },
+      { name: "Produce", items: [{ name: "Green beans", qty: "150 g" }, { name: "Scallions", qty: "1 bunch" }] },
+      { name: "Pantry", items: [{ name: "Jasmine rice", qty: "150 g" }] },
+    ],
+  } },
+  { day: "F 21", title: "Tahini chicken bowl.", meta: "5 ingredients - 18 min - by Maya P.", list: GROCERY_LIBRARY[0] },
+];
+
+function countListItems(list) {
+  return list.categories.reduce((total, cat) => total + cat.items.length, 0);
+}
+
+function itemKey(list, catName, itemName) {
+  return `${list.id}:${catName}:${itemName}`;
+}
+
+function NutriTabs({ active, onChange }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 22 }}>
+      {[["day", "Day"], ["grocery", "Grocery"], ["recipes", "Recipes"]].map(([id, label]) => {
+        const selected = active === id;
+        return (
+          <button key={id} type="button" onClick={() => onChange(id)}
+            style={{
+              border: `1px solid ${selected ? "rgba(30,192,168,0.45)" : "rgba(242,237,228,0.16)"}`,
+              background: selected ? "rgba(30,192,168,0.16)" : "rgba(242,237,228,0.04)",
+              color: selected ? TEAL_BRIGHT : "rgba(242,237,228,0.78)",
+              borderRadius: 999,
+              padding: "12px 14px",
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 11,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              cursor: "pointer",
+            }}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function GroceryView({ list, checked, onToggle, onReset, onLoad }) {
+  const total = countListItems(list);
+  const done = Object.values(checked).filter(Boolean).length;
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1.45fr 0.9fr", gap: 20 }}>
+      <Card>
+        <SectionTitle right={`${done}/${total} CHECKED`}>Grocery checklist</SectionTitle>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-end", paddingBottom: 18, borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+          <div>
+            <div style={{ fontFamily: serif, fontSize: 34, letterSpacing: "-0.025em", lineHeight: 1 }}>{list.title}</div>
+            <div style={{ marginTop: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>{list.meta}</div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button type="button" onClick={onReset} style={{ background: "transparent", color: "rgba(242,237,228,0.78)", border: "1px solid rgba(242,237,228,0.22)", padding: "10px 14px", borderRadius: 999, fontFamily: sans, fontSize: 12, cursor: "pointer" }}>Reset</button>
+            <button type="button" onClick={() => alert("Saved to grocery library.")} style={{ background: INK, color: PAPER, border: 0, padding: "10px 16px", borderRadius: 999, fontFamily: sans, fontSize: 12, fontWeight: 500, cursor: "pointer" }}>Save</button>
+          </div>
+        </div>
+
+        {list.categories.map((cat) => (
+          <div key={cat.name} style={{ marginTop: 20 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid rgba(242,237,228,0.14)", paddingBottom: 8, marginBottom: 8 }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.16em", color: TEAL_BRIGHT, textTransform: "uppercase" }}>{cat.name}</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(242,237,228,0.45)" }}>{cat.items.length} ITEMS</div>
+            </div>
+            {cat.items.map((item) => {
+              const key = itemKey(list, cat.name, item.name);
+              const isChecked = !!checked[key];
+              return (
+                <button key={key} type="button" onClick={() => onToggle(key)}
+                  style={{
+                    width: "100%",
+                    display: "grid",
+                    gridTemplateColumns: "30px 1fr auto",
+                    gap: 12,
+                    alignItems: "center",
+                    padding: "12px 2px",
+                    border: 0,
+                    borderBottom: "1px solid rgba(242,237,228,0.06)",
+                    background: "transparent",
+                    color: INK,
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  <span style={{ width: 18, height: 18, borderRadius: 4, border: `1px solid ${isChecked ? TEAL_BRIGHT : "rgba(242,237,228,0.45)"}`, background: isChecked ? "rgba(30,192,168,0.28)" : "transparent", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11 }}>{isChecked ? "X" : ""}</span>
+                  <span style={{ fontSize: 15, textDecoration: isChecked ? "line-through" : "none", color: isChecked ? "rgba(242,237,228,0.42)" : INK }}>{item.name}</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)" }}>{item.qty}</span>
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </Card>
+
+      <div style={{ display: "grid", gap: 16, alignContent: "start" }}>
+        <Card>
+          <SectionTitle>Load from library</SectionTitle>
+          {GROCERY_LIBRARY.map((entry) => (
+            <button key={entry.id} type="button" onClick={() => onLoad(entry)}
+              style={{ width: "100%", textAlign: "left", background: entry.id === list.id ? "rgba(30,192,168,0.14)" : "rgba(242,237,228,0.04)", color: INK, border: `1px solid ${entry.id === list.id ? "rgba(30,192,168,0.34)" : "rgba(242,237,228,0.08)"}`, borderRadius: 14, padding: 14, marginTop: 10, cursor: "pointer" }}
+            >
+              <div style={{ fontSize: 14, fontWeight: 500 }}>{entry.title}</div>
+              <div style={{ marginTop: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(242,237,228,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>{entry.meta}</div>
+            </button>
+          ))}
+        </Card>
+        <Card style={{ background: "rgba(30,192,168,0.06)", border: "1px solid rgba(30,192,168,0.24)" }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: TEAL_BRIGHT, letterSpacing: "0.14em", marginBottom: 10 }}>WEBSITE FLOW</div>
+          <div style={{ fontSize: 15, lineHeight: 1.5, color: "rgba(242,237,228,0.82)" }}>Saved lists load here, reset clears checked items, and recipe ingredients create their own grocery list.</div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function RecipesView({ onAdd }) {
+  return (
+    <Card>
+      <SectionTitle right="BY DATE">Recipes of the day</SectionTitle>
+      {RECIPE_ARCHIVE.map((recipe, i) => (
+        <div key={recipe.day} style={{ display: "grid", gridTemplateColumns: "72px 1fr auto auto", gap: 16, alignItems: "center", padding: "18px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.08)" }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>{recipe.day}</div>
+          <div>
+            <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.02em" }}>{recipe.title}</div>
+            <div style={{ marginTop: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>{recipe.meta}</div>
+          </div>
+          <button type="button" onClick={() => alert(`${recipe.title} opened.`)} style={{ background: "transparent", color: "rgba(242,237,228,0.75)", border: "1px solid rgba(242,237,228,0.18)", padding: "9px 14px", borderRadius: 999, fontFamily: sans, fontSize: 12, cursor: "pointer" }}>Open</button>
+          <button type="button" onClick={() => onAdd(recipe.list)} style={{ background: INK, color: PAPER, border: 0, padding: "10px 16px", borderRadius: 999, fontFamily: sans, fontSize: 12, fontWeight: 500, cursor: "pointer" }}>Add ingredients</button>
+        </div>
+      ))}
+    </Card>
+  );
+}
+
 function ClientNutriPage() {
   const meals = [
     ["07:10","Breakfast","Oats · whey · berries · PB","520 kcal · 42p 58c 16f", "DONE"],
@@ -43,6 +239,24 @@ function ClientNutriPage() {
     ["16:30","Pre-workout","Banana + coffee","120 kcal · 2p 28c 0f", null],
     ["19:45","Dinner","Salmon, sweet potato, greens","620 kcal · 44p 58c 22f", null],
   ];
+  const initialView = window.location.hash === "#grocery" ? "grocery" : window.location.hash === "#recipes" ? "recipes" : "day";
+  const [view, setView] = React.useState(initialView);
+  const [activeList, setActiveList] = React.useState(GROCERY_LIBRARY[0]);
+  const [checked, setChecked] = React.useState({});
+  const [playlistSaved, setPlaylistSaved] = React.useState(false);
+  const [playlistPlaying, setPlaylistPlaying] = React.useState(false);
+  const changeView = (next) => {
+    setView(next);
+    window.history.replaceState(null, "", next === "day" ? window.location.pathname : `#${next}`);
+  };
+  const loadList = (list) => {
+    setActiveList(list);
+    setChecked({});
+  };
+  const addRecipeToGrocery = (list) => {
+    loadList(list);
+    changeView("grocery");
+  };
   return (
     <DashPage
       navItems={clientNavItems("nutri")}
@@ -51,10 +265,13 @@ function ClientNutriPage() {
       title="Performance fuel — block 3"
       subtitle="Plan by Rae Lindqvist. Logged meals auto-flow back; Rae adjusts weekly based on training load and body comp."
       actions={<>
-        <a href="ClientLibrary.html" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Swap a meal</a>
-        <a href="#today-plan" style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Log meal</a>
+        <button type="button" onClick={() => changeView("grocery")} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Grocery list</button>
+        <button type="button" onClick={() => changeView("recipes")} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Recipes</button>
       </>}
     >
+      <NutriTabs active={view} onChange={changeView} />
+      {view === "day" && (
+      <>
       <div style={{ display: "grid", gridTemplateColumns: "1.1fr 1.9fr", gap: 20 }}>
         <Card>
           <SectionTitle right="TODAY">Macros</SectionTitle>
@@ -103,10 +320,57 @@ function ClientNutriPage() {
             </div>
             <div style={{ fontFamily: serif, fontSize: 20, letterSpacing: "-0.01em", color: "#fff", marginBottom: 4 }}>Salmon &amp; sweet potato, 35 min</div>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(255,255,255,0.6)", letterSpacing: "0.05em" }}>KITCHEN SLOW · 18 TRACKS · 62 MIN · MELLOW JAZZ &amp; LO-FI</div>
+            {playlistPlaying && (
+              <div style={{ marginTop: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: TEAL_BRIGHT, letterSpacing: "0.14em" }}>
+                PLAYING IN SHAPE
+              </div>
+            )}
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", width: 38, height: 38, borderRadius: 999, cursor: "pointer", fontSize: 14 }} title="Save">♡</button>
-            <button style={{ background: "#fff", border: 0, color: INK, padding: "0 20px", height: 38, borderRadius: 999, cursor: "pointer", fontFamily: sans, fontSize: 13, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>▶ Play</button>
+            <button
+              type="button"
+              aria-pressed={playlistSaved}
+              onClick={() => setPlaylistSaved((saved) => !saved)}
+              style={{
+                background: playlistSaved ? TEAL : "rgba(255,255,255,0.08)",
+                border: `1px solid ${playlistSaved ? TEAL : "rgba(255,255,255,0.15)"}`,
+                color: playlistSaved ? INK : "#fff",
+                width: 38,
+                height: 38,
+                borderRadius: 999,
+                cursor: "pointer",
+                fontSize: 14,
+                fontWeight: 500,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              title={playlistSaved ? "Saved" : "Save"}
+            >
+              {playlistSaved ? "♥" : "♡"}
+            </button>
+            <button
+              type="button"
+              aria-pressed={playlistPlaying}
+              onClick={() => setPlaylistPlaying((playing) => !playing)}
+              style={{
+                background: playlistPlaying ? TEAL : "#fff",
+                border: 0,
+                color: INK,
+                padding: "0 20px",
+                height: 38,
+                borderRadius: 999,
+                cursor: "pointer",
+                fontFamily: sans,
+                fontSize: 13,
+                fontWeight: 500,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              {playlistPlaying ? "Pause" : "Play"}
+            </button>
           </div>
         </div>
       </Card>
@@ -128,11 +392,34 @@ function ClientNutriPage() {
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>FROM RAE · TUE</div>
           <div style={{ fontSize: 14, lineHeight: 1.55, color: "rgba(242,237,228,0.85)" }}>Post-run fueling: 30g whey + 60g carbs within 45 min. I've pre-built 3 shakes in your library — tap Log meal → Templates.</div>
           <div style={{ marginTop: 16, display: "flex", gap: 10 }}>
-            <button style={{ background: "transparent", color: PAPER, border: "1px solid rgba(242,237,228,0.3)", padding: "7px 14px", borderRadius: 999, fontFamily: sans, fontSize: 12, cursor: "pointer" }}>Reply</button>
-            <button style={{ background: PAPER, color: INK, border: 0, padding: "7px 14px", borderRadius: 999, fontFamily: sans, fontSize: 12, fontWeight: 500, cursor: "pointer" }}>Open templates</button>
+            <button
+              type="button"
+              onClick={() => window.__openChat && window.__openChat("Rae", "circle")}
+              style={{ background: "transparent", color: PAPER, border: "1px solid rgba(242,237,228,0.3)", padding: "7px 14px", borderRadius: 999, fontFamily: sans, fontSize: 12, cursor: "pointer" }}
+            >
+              Reply
+            </button>
+            <a
+              href="ClientLibrary.html?tag=NUTRITION"
+              style={{ background: PAPER, color: INK, border: 0, padding: "7px 14px", borderRadius: 999, fontFamily: sans, fontSize: 12, fontWeight: 500, cursor: "pointer", display: "inline-flex", alignItems: "center", textDecoration: "none" }}
+            >
+              Open templates
+            </a>
           </div>
         </Card>
       </div>
+      </>
+      )}
+      {view === "grocery" && (
+        <GroceryView
+          list={activeList}
+          checked={checked}
+          onToggle={(key) => setChecked((prev) => ({ ...prev, [key]: !prev[key] }))}
+          onReset={() => setChecked({})}
+          onLoad={loadList}
+        />
+      )}
+      {view === "recipes" && <RecipesView onAdd={addRecipeToGrocery} />}
     </DashPage>
   );
 }
@@ -143,5 +430,6 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   </React.Fragment>
 );
 </script>
+<script src="globalChatButton.js" defer></script>
 </body>
 </html>

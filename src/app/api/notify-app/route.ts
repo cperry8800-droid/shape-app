@@ -7,13 +7,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { cleanText as clean, isEmail } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-function isEmail(s: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
-}
 
 export async function POST(req: NextRequest) {
   let body: Record<string, unknown>;
@@ -23,8 +20,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
-  const source = typeof body.source === 'string' ? body.source.trim().slice(0, 80) : '';
+  const email = clean(body.email, 200).toLowerCase();
+  const source = clean(body.source, 80);
 
   if (!email || email.length > 200 || !isEmail(email)) {
     return NextResponse.json({ error: 'Please enter a valid email.' }, { status: 400 });

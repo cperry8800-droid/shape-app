@@ -296,7 +296,7 @@
       <!-- Category Tabs -->
       <div class="rewards-cat-tabs">
         <button class="rewards-cat-btn active" onclick="filterRewards('all', this)">All</button>
-        <button class="rewards-cat-btn" onclick="filterRewards('gear', this)">Workout Gear</button>
+        <button class="rewards-cat-btn" onclick="filterRewards('merch', this)">Shape Merch</button>
         <button class="rewards-cat-btn" onclick="filterRewards('nutrition', this)">Nutrition</button>
         <button class="rewards-cat-btn" onclick="filterRewards('shape', this)">Shape Perks</button>
       </div>
@@ -359,20 +359,17 @@
     // ===== Shape Store =====
     const _ssBalance = 2450;
     const _ssRewards = [
-      // Workout Gear
-      { id: 'gear1', cat: 'gear', brand: 'Nike', name: '$10 off Training Shoes', desc: 'Valid on any Nike training or cross-training shoe at nike.com.', value: '$10 OFF', cost: 500, badge: 'popular' },
-      { id: 'gear2', cat: 'gear', brand: 'Under Armour', name: '$15 off Workout Apparel', desc: 'Applies to tops, shorts, leggings, or sports bras at underarmour.com.', value: '$15 OFF', cost: 750, badge: null },
-      { id: 'gear3', cat: 'gear', brand: 'Gymshark', name: '20% off Any Order', desc: 'Site-wide discount on all Gymshark apparel and accessories.', value: '20% OFF', cost: 1000, badge: 'popular' },
-      { id: 'gear4', cat: 'gear', brand: 'Lululemon', name: '$25 off $100+', desc: 'Valid on orders $100+ at lululemon.com. Excludes sale items.', value: '$25 OFF', cost: 1500, badge: 'premium' },
-      { id: 'gear5', cat: 'gear', brand: 'Rogue Fitness', name: '$20 off Equipment', desc: 'Dumbbells, kettlebells, bands, or any equipment at roguefitness.com.', value: '$20 OFF', cost: 1200, badge: null },
-      { id: 'gear6', cat: 'gear', brand: 'Theragun', name: '$30 off Recovery Tools', desc: 'Any massage gun or recovery device at therabody.com.', value: '$30 OFF', cost: 2000, badge: 'new' },
+      // Shape merch
+      { id: 'merch1', cat: 'merch', brand: 'Shape Merch', name: 'Shape Training Tee', desc: 'Members-only Shape training tee from the official store.', value: 'TEE', cost: 450, badge: 'new' },
+      { id: 'merch2', cat: 'merch', brand: 'Shape Merch', name: 'Shape Crewneck', desc: 'Classic Shape crewneck for training days and rest days.', value: 'CREW', cost: 720, badge: null },
+      { id: 'merch3', cat: 'merch', brand: 'Shape Merch', name: 'Shape Training Bottle', desc: 'Official Shape hydration bottle.', value: 'BOTTLE', cost: 280, badge: null },
+      { id: 'merch4', cat: 'merch', brand: 'Shape Merch', name: 'Shape Gym Towel', desc: 'Shape towel for training sessions and recovery work.', value: 'TOWEL', cost: 220, badge: null },
+      { id: 'merch5', cat: 'merch', brand: 'Shape Merch', name: 'Shape Training Duffel', desc: 'Members-only Shape duffel for gym gear and travel.', value: 'DUFFEL', cost: 1640, badge: 'premium' },
       // Nutrition
-      { id: 'nutr1', cat: 'nutrition', brand: 'Optimum Nutrition', name: '$10 off Protein Powder', desc: 'Gold Standard Whey, Plant Protein, or any ON protein at optimumnutrition.com.', value: '$10 OFF', cost: 500, badge: 'popular' },
-      { id: 'nutr2', cat: 'nutrition', brand: 'RXBAR', name: 'Free 12-Pack Box', desc: 'Choose any flavor variety. Redeemable at rxbar.com.', value: 'FREE BOX', cost: 800, badge: null },
-      { id: 'nutr3', cat: 'nutrition', brand: 'Athletic Greens', name: '$20 off AG1 Subscription', desc: 'First month discount on AG1 daily greens supplement.', value: '$20 OFF', cost: 1000, badge: 'new' },
-      { id: 'nutr4', cat: 'nutrition', brand: 'Vital Proteins', name: '25% off Collagen', desc: 'Any collagen peptides or supplement at vitalproteins.com.', value: '25% OFF', cost: 900, badge: null },
-      { id: 'nutr5', cat: 'nutrition', brand: 'Whole Foods', name: '$15 Gift Card', desc: 'Digital gift card for Whole Foods Market. No minimum purchase.', value: '$15 CARD', cost: 1200, badge: 'popular' },
-      { id: 'nutr6', cat: 'nutrition', brand: 'Factor Meals', name: '$40 off First 2 Weeks', desc: 'Chef-prepared, macro-balanced meals delivered to your door.', value: '$40 OFF', cost: 2000, badge: 'premium' },
+      { id: 'nutr1', cat: 'nutrition', brand: 'Shape Nutrition', name: 'Meal-plan Refresh', desc: 'One nutritionist-reviewed meal-plan refresh for your current goal.', value: 'REFRESH', cost: 1200, badge: 'popular' },
+      { id: 'nutr2', cat: 'nutrition', brand: 'Shape Nutrition', name: '$25 Nutrition Credit', desc: 'Apply toward a Shape nutrition consultation or plan update.', value: '$25 CREDIT', cost: 500, badge: null },
+      { id: 'nutr3', cat: 'nutrition', brand: 'Shape Nutrition', name: 'Grocery List Buildout', desc: 'Have a nutritionist turn a weekly plan into a grocery list.', value: 'GROCERY', cost: 420, badge: null },
+      { id: 'nutr4', cat: 'nutrition', brand: 'Shape Nutrition', name: 'Recipe Archive Pack', desc: 'Unlock a curated recipe pack from the Shape archive.', value: 'RECIPES', cost: 340, badge: null },
       // Shape Perks
       { id: 'shape1', cat: 'shape', brand: 'Shape', name: '10% off Any Program', desc: 'Works on any trainer or nutritionist program subscription.', value: '10% OFF', cost: 500, badge: null },
       { id: 'shape2', cat: 'shape', brand: 'Shape', name: 'Free Session Unlock', desc: 'Unlock any single session from any trainer on Shape.', value: 'FREE', cost: 1000, badge: 'popular' },
@@ -472,5 +469,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase.js"></script>
   <script src="/pwa-install.js" defer></script>
+<script src="/newdesign/globalChatButton.js" defer></script>
 </body>
 </html>

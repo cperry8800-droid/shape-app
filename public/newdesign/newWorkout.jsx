@@ -11,16 +11,85 @@ const WORKOUT_CLIENTS = [
   { id: 8, name: "Tom Becker",    avatar: "TB", meta: "Beginner barbell · new" },
 ];
 
+const WORKOUT_PRESETS = {
+  "upper-push-peak": {
+    title: "Upper Push - Peak",
+    tag: "Strength",
+    minutes: 52,
+    rpe: "8",
+    rest: "120s",
+    notes: "Coach-recorded demo preferred. Use library demo fallback if no custom clip is attached.",
+    price: "19",
+    blocks: [
+      { label: "A", name: "Bench press", detail: "4 x 6 @ RPE 8", note: "Pause first rep" },
+      { label: "B", name: "Incline DB press", detail: "3 x 10", note: "Full range" },
+      { label: "C", name: "Cable fly", detail: "3 x 12", note: "Slow eccentric" },
+      { label: "D", name: "Triceps pushdown", detail: "3 x 12", note: "Lockout clean" },
+    ],
+  },
+  "lower-pull-sensor-log": {
+    title: "Lower Pull - Sensor log",
+    tag: "Strength",
+    minutes: 58,
+    rpe: "7-8",
+    rest: "90s",
+    notes: "Watch-assisted timing is enabled for set duration and rest duration.",
+    price: "21",
+    blocks: [
+      { label: "A", name: "Romanian deadlift", detail: "4 x 8", note: "Hamstring tension" },
+      { label: "B", name: "Hip thrust", detail: "4 x 10", note: "Full lockout" },
+      { label: "C", name: "Hamstring curl", detail: "3 x 12", note: "Controlled return" },
+    ],
+  },
+  "tempo-run-prep": {
+    title: "Tempo Run Prep",
+    tag: "Cardio",
+    minutes: 45,
+    rpe: "7",
+    rest: "2:00",
+    notes: "Build toward marathon pace. HRM sync can match the playlist BPM to the target zone.",
+    price: "15",
+    blocks: [
+      { label: "A", name: "Warm-up jog", detail: "10 min easy", note: "Nasal breathing" },
+      { label: "B", name: "Tempo intervals", detail: "4 x 6 min", note: "2 min float" },
+      { label: "C", name: "Cooldown", detail: "8 min", note: "Easy pace" },
+    ],
+  },
+  "hotel-gym-full-body": {
+    title: "Hotel Gym Full Body",
+    tag: "Travel",
+    minutes: 38,
+    rpe: "7",
+    rest: "60s",
+    notes: "Equipment-swap alternates should stay visible for clients training in limited hotel gyms.",
+    price: "17",
+    blocks: [
+      { label: "A", name: "DB goblet squat", detail: "4 x 10", note: "Heavy available DB" },
+      { label: "B", name: "DB row", detail: "4 x 12/side", note: "Brace on bench" },
+      { label: "C", name: "Incline push-up", detail: "3 x AMRAP", note: "Stop 2 reps shy" },
+    ],
+  },
+};
+
+function getWorkoutPresetFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const key = params.get("workout");
+  return key ? WORKOUT_PRESETS[key] : null;
+}
+
 function NewWorkoutPage() {
-  const [title, setTitle] = React.useState("");
-  const [tag, setTag] = React.useState("Strength");
-  const [minutes, setMinutes] = React.useState(60);
-  const [rpe, setRpe] = React.useState("7-8");
-  const [rest, setRest] = React.useState("90s");
-  const [notes, setNotes] = React.useState("");
-  const [price, setPrice] = React.useState("32");
+  const urlMode = new URLSearchParams(window.location.search).get("mode");
+  const initialWorkout = getWorkoutPresetFromUrl();
+  const isEditing = urlMode === "edit" && Boolean(initialWorkout);
+  const [title, setTitle] = React.useState(initialWorkout?.title || "");
+  const [tag, setTag] = React.useState(initialWorkout?.tag || "Strength");
+  const [minutes, setMinutes] = React.useState(initialWorkout?.minutes || 60);
+  const [rpe, setRpe] = React.useState(initialWorkout?.rpe || "7-8");
+  const [rest, setRest] = React.useState(initialWorkout?.rest || "90s");
+  const [notes, setNotes] = React.useState(initialWorkout?.notes || "");
+  const [price, setPrice] = React.useState(initialWorkout?.price || "32");
   const [forSale, setForSale] = React.useState(true);
-  const [blocks, setBlocks] = React.useState([
+  const [blocks, setBlocks] = React.useState(initialWorkout?.blocks || [
     { label: "A", name: "Back squat", detail: "4 × 5 @ 70%", note: "RPE 7" },
     { label: "B1", name: "", detail: "", note: "" },
   ]);
@@ -66,8 +135,8 @@ function NewWorkoutPage() {
       navItems={trainerNavItems("programs")}
       payoutCard={trainerPayoutCard}
       eyebrow={<a href="TrainerPrograms.html" style={{ color: "rgba(242,237,228,0.55)" }}>← PROGRAMS & WORKOUTS</a>}
-      title="New workout"
-      subtitle="Build a single session. Save to your library, attach to a program, or sell stand-alone."
+      title={isEditing ? "Manage workout" : "New workout"}
+      subtitle={isEditing ? "Edit exercise blocks, pricing, client assignments, marketplace settings, and attached playlists for this workout." : "Build a single session. Save to your library, attach to a program, or sell stand-alone."}
       actions={<>
         <a href="TrainerPrograms.html" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</a>
         <button onClick={() => alert("Saved to your library.")} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Save to library</button>

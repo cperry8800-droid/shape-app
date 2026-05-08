@@ -6,16 +6,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createSupabaseClient, SupabaseClient } from '@supabase/supabase-js';
+import { cleanText as clean } from '@/lib/request-utils';
 
 export const dynamic = 'force-dynamic';
 
-const MAX_TEXT = 2000;
 const MAX_LONG = 10000;
-
-function clean(v: unknown, max = MAX_TEXT): string {
-  if (typeof v !== 'string') return '';
-  return v.trim().slice(0, max);
-}
 
 function cleanDate(v: unknown): string | null {
   if (typeof v !== 'string') return null;

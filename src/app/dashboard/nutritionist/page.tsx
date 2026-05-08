@@ -3,6 +3,9 @@
 
 import Link from 'next/link';
 import { getMySessions, getMyProviderRows, getMyProviderSubscribers } from '@/lib/queries';
+import CoachClientCRM from '../_components/CoachClientCRM';
+import CoachCompliancePanel from '../_components/CoachCompliancePanel';
+import RecentPayouts from '../_components/RecentPayouts';
 
 export const metadata = { title: 'Nutritionist — Shape' };
 
@@ -66,6 +69,20 @@ export default async function NutritionistDashboardPage() {
               Open reviews
             </Link>
           </div>
+          <div className="mt-3 rounded-lg border border-neutral-800 bg-neutral-950/40 p-4 flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <h3 className="text-sm font-medium">Program tools</h3>
+              <p className="text-xs text-neutral-500 mt-1">
+                Generate meal-plan drafts, build templates, and attach client-ready notes.
+              </p>
+            </div>
+            <Link
+              href="/dashboard/program-tools"
+              className="text-xs font-medium uppercase tracking-[0.08em] border border-teal-400/60 text-teal-300 rounded-full px-4 py-2 hover:bg-teal-400 hover:text-neutral-950 transition-colors"
+            >
+              Open tools
+            </Link>
+          </div>
         </section>
       ) : (
         <section className="rounded-xl border border-amber-900/40 bg-amber-900/10 p-6">
@@ -82,6 +99,12 @@ export default async function NutritionistDashboardPage() {
           </Link>
         </section>
       )}
+
+      <CoachCompliancePanel role="nutritionist" subscribers={subscribers} />
+
+      {nutritionist && <RecentPayouts subscribers={subscribers} />}
+
+      <CoachClientCRM role="nutritionist" subscribers={subscribers} />
 
       <section className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-6">
         <h2 className="text-lg font-medium mb-4">
