@@ -160,8 +160,6 @@
     var head = node.querySelector(".sgc-head");
     var input = node.querySelector("textarea");
     var send = node.querySelector(".sgc-send");
-    restorePanelPosition(node);
-
     function stamp() {
       return new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
     }
@@ -224,7 +222,9 @@
   }
 
   function openFallbackPanel() {
-    panel().classList.add("open");
+    var node = panel();
+    node.classList.add("open");
+    restorePanelPosition(node);
     var input = document.querySelector("#" + PANEL_ID + " textarea");
     if (input) window.setTimeout(function () { input.focus(); }, 0);
   }

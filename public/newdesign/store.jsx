@@ -5,7 +5,7 @@ const BALANCE = 940;
 const LIFETIME = 3420;
 const REDEEMED_COUNT = 7;
 
-const CATEGORIES = ["All", "Shape Merch", "Training", "Nutrition", "Shape Perks"];
+const CATEGORIES = ["All", "Shape Merch", "Training", "Nutrition", "Shape Perks", "Coach Tools"];
 
 const PRODUCTS = [
   // Shape Merch
@@ -31,6 +31,48 @@ const PRODUCTS = [
   { id: 14, cat: "Shape Perks", name: "Shape Radio · Studio", brand: "3 months ad-free", cost: 750, retail: 36, img: "radio · studio", stock: "Unlimited" },
   { id: 16, cat: "Shape Perks", name: "Annual membership credit", brand: "$200 toward next year", cost: 3500, retail: 200, img: "annual · 200", tag: "Peak tier", stock: "Unlimited", locked: true },
 ];
+
+const COACH_LEAD_BOOST_PRODUCTS = [
+  { id: 101, cat: "Coach Tools", name: "Lead Boost · 7 days", brand: "Marketplace featured placement", cost: 900, retail: 79, img: "boost · 7d", stock: "Activate now", kind: "lead_boost", days: 7 },
+  { id: 102, cat: "Coach Tools", name: "Lead Boost · 14 days", brand: "Marketplace featured placement", cost: 1600, retail: 139, img: "boost · 14d", stock: "Activate now", kind: "lead_boost", days: 14, tag: "Popular" },
+  { id: 103, cat: "Coach Tools", name: "Lead Boost · 30 days", brand: "Marketplace featured placement", cost: 3000, retail: 249, img: "boost · 30d", stock: "Activate now", kind: "lead_boost", days: 30 },
+];
+
+function getRoleHint() {
+  try {
+    const qs = new URLSearchParams(window.location.search);
+    const fromQuery = (qs.get("role") || "").toLowerCase();
+    if (fromQuery === "trainer" || fromQuery === "nutritionist") return fromQuery;
+    const fromSession = (window.sessionStorage.getItem("shapeStoreContext") || "").toLowerCase();
+    if (fromSession === "trainer" || fromSession === "nutritionist") return fromSession;
+  } catch (_) {}
+  return "trainer";
+}
+
+async function getShapeAccessToken() {
+  try {
+    if (!window.shapeDb || !window.shapeDb.client || !window.shapeDb.client.auth) return "";
+    const sessionRes = await window.shapeDb.client.auth.getSession();
+    return sessionRes?.data?.session?.access_token || "";
+  } catch (_) {
+    return "";
+  }
+}
+
+async function redeemLeadBoostRemote({ role, days }) {
+  const token = await getShapeAccessToken();
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch("/api/lead-boosts", {
+    method: "POST",
+    headers,
+    credentials: "include",
+    body: JSON.stringify({ role, days }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json?.error || "Lead Boost redemption failed.");
+  return json?.boost || null;
+}
 
 const UNLOCKED = [
   { code: "SHAPE-TEE-48F2", name: "Shape Training Tee", expires: "Jun 30", cost: 450, redeemed: "Apr 12" },
@@ -104,9 +146,13 @@ function StoreFilters({ cat, setCat, sort, setSort, query, setQuery, affordable,
   );
 }
 
-function ProductCard({ p, balance }) {
+function ProductCard({ p, balance, onRedeem }) {
   const canAfford = !p.locked && p.cost <= balance;
   const dollar = p.retail ? `~$${p.retail} retail` : null;
+  const cta =
+    p.locked ? "Tier locked" :
+    p.kind === "lead_boost" ? "Activate boost →" :
+    canAfford ? "Redeem →" : `+${(p.cost - balance).toLocaleString()} to go`;
   return (
     <article style={{ background: "rgba(242,237,228,0.035)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 12, overflow: "hidden", opacity: p.locked ? 0.65 : 1, display: "flex", flexDirection: "column" }}>
       <div style={{ position: "relative" }}>
@@ -126,8 +172,12 @@ function ProductCard({ p, balance }) {
             {p.cost.toLocaleString()}
             <span style={{ fontSize: 12, color: "rgba(242,237,228,0.5)", fontFamily: sans, marginLeft: 6 }}>pts</span>
           </div>
-          <button disabled={!canAfford} style={{ padding: "9px 14px", borderRadius: 6, background: canAfford ? INK : "rgba(242,237,228,0.08)", color: canAfford ? PAPER : "rgba(242,237,228,0.45)", border: 0, fontFamily: sans, fontSize: 12, fontWeight: 500, cursor: canAfford ? "pointer" : "not-allowed" }}>
-            {p.locked ? "Tier locked" : canAfford ? "Redeem →" : `+${(p.cost - balance).toLocaleString()} to go`}
+          <button
+            disabled={!canAfford}
+            onClick={() => canAfford && onRedeem && onRedeem(p)}
+            style={{ padding: "9px 14px", borderRadius: 6, background: canAfford ? INK : "rgba(242,237,228,0.08)", color: canAfford ? PAPER : "rgba(242,237,228,0.45)", border: 0, fontFamily: sans, fontSize: 12, fontWeight: 500, cursor: canAfford ? "pointer" : "not-allowed" }}
+          >
+            {cta}
           </button>
         </div>
       </div>
@@ -140,9 +190,26 @@ function StoreGrid() {
   const [sort, setSort] = useSStore("Featured");
   const [query, setQuery] = useSStore("");
   const [affordable, setAffordable] = useSStore(false);
+  const [notice, setNotice] = useSStore("");
+  const roleHint = useMStore(() => getRoleHint(), []);
+  const allProducts = useMStore(() => [...PRODUCTS, ...COACH_LEAD_BOOST_PRODUCTS], []);
+
+  async function handleRedeem(product) {
+    if (product.kind !== "lead_boost") {
+      setNotice(`${product.name} unlocked. Code will appear in your locker.`);
+      return;
+    }
+    try {
+      const boost = await redeemLeadBoostRemote({ role: roleHint, days: product.days });
+      const duration = Number(boost?.days || product.days || 0);
+      setNotice(`Lead Boost is live for ${duration} days (${roleHint}). Marketplace ranking has been updated.`);
+    } catch (err) {
+      setNotice((err && err.message) || "Lead Boost redemption failed. Please try again.");
+    }
+  }
 
   const list = useMStore(() => {
-    let arr = PRODUCTS.filter(p => {
+    let arr = allProducts.filter(p => {
       if (cat !== "All" && p.cat !== cat) return false;
       if (affordable && (p.locked || p.cost > BALANCE)) return false;
       if (query && !`${p.name} ${p.brand} ${p.cat}`.toLowerCase().includes(query.toLowerCase())) return false;
@@ -152,13 +219,18 @@ function StoreGrid() {
     else if (sort === "High to low") arr = [...arr].sort((a, b) => b.cost - a.cost);
     else if (sort === "New") arr = [...arr].sort((a, b) => (b.tag === "New" ? 1 : 0) - (a.tag === "New" ? 1 : 0));
     return arr;
-  }, [cat, sort, query, affordable]);
+  }, [allProducts, cat, sort, query, affordable]);
 
   return (
     <>
       <StoreFilters {...{ cat, setCat, sort, setSort, query, setQuery, affordable, setAffordable }} />
       <section style={{ padding: "48px 72px 40px" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
+          {!!notice && (
+            <div style={{ marginBottom: 20, padding: "12px 14px", borderRadius: 8, border: "1px solid rgba(30,192,168,0.35)", background: "rgba(30,192,168,0.08)", color: INK, fontFamily: sans, fontSize: 13 }}>
+              {notice}
+            </div>
+          )}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 28 }}>
             <div style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.65)" }}>
               {list.length} {list.length === 1 ? "item" : "items"}{cat !== "All" ? ` in ${cat}` : ""}
@@ -170,7 +242,7 @@ function StoreGrid() {
           </div>
           {list.length > 0 ? (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20 }}>
-              {list.map(p => <ProductCard key={p.id} p={p} balance={BALANCE} />)}
+              {list.map(p => <ProductCard key={p.id} p={p} balance={BALANCE} onRedeem={handleRedeem} />)}
             </div>
           ) : (
             <div style={{ padding: 80, textAlign: "center", fontFamily: sans, color: "rgba(242,237,228,0.5)", border: "1px dashed rgba(242,237,228,0.1)", borderRadius: 12 }}>

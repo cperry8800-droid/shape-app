@@ -319,9 +319,9 @@ function ProfileHero({ eyebrow, name, headline, pills, score, scoreLabel = "COAC
 
       {/* Identity row — avatar overlaps cover by 56px */}
       <div style={{ padding: "0 32px 32px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "160px 1fr auto", gap: 28, alignItems: "flex-end", marginTop: -60 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "152px 1fr auto", gap: 24, alignItems: "flex-end", marginTop: -56 }}>
           <div style={{ position: "relative" }}>
-            <div style={{ width: 160, height: 160, borderRadius: 999, background: avatarBg, border: "4px solid #1a1612", boxShadow: "0 12px 40px -8px rgba(0,0,0,0.5)" }} />
+            <div style={{ width: 152, height: 152, borderRadius: 999, background: avatarBg, border: "4px solid #1a1612", boxShadow: "0 12px 40px -8px rgba(0,0,0,0.5)" }} />
             <button style={{
               position: "absolute", bottom: 4, right: 4,
               width: 36, height: 36, borderRadius: 999,
@@ -331,9 +331,9 @@ function ProfileHero({ eyebrow, name, headline, pills, score, scoreLabel = "COAC
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 10.5V11a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-.5M7 9V2M7 2 4.5 4.5M7 2l2.5 2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
             </button>
           </div>
-          <div style={{ paddingBottom: 8, minWidth: 0 }}>
+          <div style={{ paddingBottom: 6, minWidth: 0 }}>
             {eyebrow && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>{eyebrow}</div>}
-            <div style={{ fontFamily: serif, fontSize: "clamp(34px, 4.5vw, 56px)", letterSpacing: "-0.03em", lineHeight: 1.05, fontWeight: 400, paddingTop: 4, textWrap: "balance" }}>{name}</div>
+            <div style={{ fontFamily: serif, fontSize: "clamp(32px, 4.1vw, 52px)", letterSpacing: "-0.03em", lineHeight: 1.05, fontWeight: 400, paddingTop: 4, textWrap: "balance" }}>{name}</div>
             {pills && pills.length > 0 && (
               <div style={{ marginTop: 14, display: "flex", gap: 8, fontSize: 11, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", flexWrap: "wrap" }}>
                 {pills.map((p, i) => <Pill key={i} tone={p.tone}>{p.label}</Pill>)}
@@ -341,20 +341,20 @@ function ProfileHero({ eyebrow, name, headline, pills, score, scoreLabel = "COAC
             )}
           </div>
           {score != null && (
-            <div style={{ textAlign: "right", paddingBottom: 8 }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(242,237,228,0.5)", letterSpacing: "0.14em" }}>{scoreLabel}</div>
-              <div style={{ fontFamily: serif, fontSize: 64, color: TEAL_BRIGHT, letterSpacing: "-0.03em", lineHeight: 1 }}>{score}</div>
-              {scoreCaption && <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 4 }}>{scoreCaption}</div>}
+            <div style={{ textAlign: "right", paddingBottom: 6 }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: "rgba(242,237,228,0.5)", letterSpacing: "0.13em" }}>{scoreLabel}</div>
+              <div style={{ fontFamily: serif, fontSize: 58, color: TEAL_BRIGHT, letterSpacing: "-0.03em", lineHeight: 1 }}>{score}</div>
+              {scoreCaption && <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.55)", marginTop: 4 }}>{scoreCaption}</div>}
             </div>
           )}
         </div>
 
         {stats && stats.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: `repeat(${stats.length},1fr)`, marginTop: 28, paddingTop: 24, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(${stats.length},1fr)`, marginTop: 24, paddingTop: 20, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
             {stats.map(([k, l], i) => (
               <div key={i} style={{ borderLeft: i ? "1px solid rgba(242,237,228,0.08)" : "none", padding: i ? "0 0 0 24px" : "0 24px 0 0" }}>
-                <div style={{ fontFamily: serif, fontSize: 36, letterSpacing: "-0.02em", lineHeight: 1 }}>{k}</div>
-                <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>{l}</div>
+                <div style={{ fontFamily: serif, fontSize: 33, letterSpacing: "-0.02em", lineHeight: 1 }}>{k}</div>
+                <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.55)", marginTop: 7 }}>{l}</div>
               </div>
             ))}
           </div>

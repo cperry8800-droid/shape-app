@@ -26,7 +26,7 @@ function Logo({ variant = "black", size = 28 }) {
   // New logo has the play-icon stacked above the SHAPE wordmark (aspect ~1.87:1), not inline like the old one.
   // Scale so the overall mark reads at a comparable visual weight to the previous inline logo.
   const h = Math.round(size * 1.8);
-  return <img src={src} alt="Shape" style={{ height: h, width: "auto", display: "block" }} />;
+  return <img className="shape-brand-logo" src={src} alt="Shape" style={{ "--shape-logo-h": `${h}px` }} />;
 }
 
 function NavDropdown({ label, items, active, activeMatch }) {
@@ -270,6 +270,15 @@ function ShapeMobileStyles() {
          double-scaled. */
       @media (min-width: 901px) {
         body { zoom: 0.92; }
+      }
+      .shape-brand-logo {
+        height: var(--shape-logo-h) !important;
+        width: auto !important;
+        max-width: none !important;
+        max-height: none !important;
+        object-fit: contain !important;
+        display: block !important;
+        flex: 0 0 auto;
       }
       @media (max-width: 900px) {
         /* Header */

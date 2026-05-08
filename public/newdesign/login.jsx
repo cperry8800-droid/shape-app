@@ -5,6 +5,7 @@ const LOGIN_DESTS = {
   client: "ClientDashboard.html",
   trainer: "TrainerDashboard.html",
   nutritionist: "NutritionistDashboard.html",
+  shape_radio: "Radio.html",
 };
 
 function LoginMark() {
@@ -19,14 +20,16 @@ function SocialButton({ icon, label, onClick }) {
   return (
     <button onClick={onClick} style={{
       width: "100%",
-      background: "rgba(242,237,228,0.05)",
-      border: "1px solid rgba(242,237,228,0.12)",
+      background: "rgba(8,7,6,0.72)",
+      border: "1px solid rgba(242,237,228,0.18)",
       color: INK,
-      padding: "12px 14px",
-      borderRadius: 8,
-      fontFamily: sans,
-      fontSize: 14,
-      fontWeight: 500,
+      padding: "11px 12px",
+      borderRadius: 6,
+      fontFamily: "'JetBrains Mono', monospace",
+      fontSize: 11,
+      fontWeight: 700,
+      letterSpacing: "0.1em",
+      textTransform: "uppercase",
       cursor: "pointer",
       display: "flex",
       alignItems: "center",
@@ -34,8 +37,8 @@ function SocialButton({ icon, label, onClick }) {
       gap: 10,
       transition: "background 0.15s ease, border-color 0.15s ease",
     }}
-      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(242,237,228,0.09)"; e.currentTarget.style.borderColor = "rgba(242,237,228,0.2)"; }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(242,237,228,0.05)"; e.currentTarget.style.borderColor = "rgba(242,237,228,0.12)"; }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(15,13,12,0.88)"; e.currentTarget.style.borderColor = "rgba(242,237,228,0.36)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(8,7,6,0.72)"; e.currentTarget.style.borderColor = "rgba(242,237,228,0.18)"; }}
     >
       {icon}<span>{label}</span>
     </button>
@@ -104,7 +107,9 @@ function LoginCard() {
       // Keep the user in the newdesign layout after login.
       // Honor ?next= when it points to a same-origin path, otherwise
       // fall back to the role's dashboard.
-      let nextDashboard = role === 'trainer'
+      let nextDashboard = role === 'shape_radio'
+        ? '/newdesign/Radio.html'
+        : role === 'trainer'
         ? '/newdesign/TrainerDashboard.html'
         : role === 'nutritionist'
           ? '/newdesign/NutritionistDashboard.html'
@@ -127,34 +132,36 @@ function LoginCard() {
   const fieldWrap = { position: "relative" };
   const inputStyle = {
     width: "100%",
-    background: "rgba(15,13,12,0.6)",
-    border: "1px solid rgba(242,237,228,0.14)",
+    background: "rgba(8,7,6,0.76)",
+    border: "1px solid rgba(242,237,228,0.2)",
     color: INK,
-    padding: "14px 16px",
-    borderRadius: 8,
+    padding: "13px 14px",
+    borderRadius: 6,
     fontFamily: sans,
     fontSize: 14.5,
     transition: "border-color 0.15s ease, background 0.15s ease",
   };
-  const labelStyle = { display: "block", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)", marginBottom: 9 };
+  const labelStyle = { display: "block", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(242,237,228,0.66)", marginBottom: 8, fontWeight: 700 };
 
   return (
     <div style={{
       width: "100%",
       maxWidth: 440,
-      background: "rgba(18,14,12,0.38)",
-      backdropFilter: "blur(20px) saturate(1.2)",
-      WebkitBackdropFilter: "blur(20px) saturate(1.2)",
-      border: "1px solid rgba(242,237,228,0.1)",
-      borderRadius: 16,
-      padding: "44px 44px 36px",
-      boxShadow: "0 40px 120px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,220,150,0.04) inset",
+      background: "linear-gradient(180deg, rgba(10,9,8,0.94) 0%, rgba(11,10,9,0.9) 100%)",
+      backdropFilter: "blur(10px) saturate(1.05)",
+      WebkitBackdropFilter: "blur(10px) saturate(1.05)",
+      border: "1px solid rgba(242,237,228,0.16)",
+      borderRadius: 10,
+      padding: "34px 34px 30px",
+      boxShadow: "0 28px 90px rgba(0,0,0,0.56), 0 0 0 1px rgba(255,255,255,0.02) inset",
+      position: "relative",
     }}>
+      <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, borderTopLeftRadius: 10, borderTopRightRadius: 10, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 16%, ${TEAL} 84%, transparent 100%)`, opacity: 0.62 }} />
       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>Welcome back</div>
-      <h1 style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 10px", lineHeight: 1.02 }}>
+      <h1 style={{ fontFamily: serif, fontSize: 52, letterSpacing: "-0.03em", fontWeight: 500, margin: "0 0 10px", lineHeight: 0.96 }}>
         Log in to <em style={{ fontStyle: "italic", color: TEAL }}>Shape</em>.
       </h1>
-      <p style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.6)", margin: "0 0 32px", lineHeight: 1.55 }}>Pick up where you left off. Your coaches, your plans, your progress.</p>
+      <p style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.68)", margin: "0 0 28px", lineHeight: 1.5 }}>Pick up where you left off. Your coaches, your plans, your progress.</p>
 
       {/* Social buttons */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 22 }}>
@@ -163,10 +170,10 @@ function LoginCard() {
       </div>
 
       {/* Divider */}
-      <div style={{ display: "flex", alignItems: "center", gap: 14, margin: "4px 0 24px" }}>
-        <div style={{ flex: 1, height: 1, background: "rgba(242,237,228,0.1)" }} />
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.4)" }}>Or with email</span>
-        <div style={{ flex: 1, height: 1, background: "rgba(242,237,228,0.1)" }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 14, margin: "2px 0 22px" }}>
+        <div style={{ flex: 1, height: 1, background: "rgba(242,237,228,0.14)" }} />
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.22em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" }}>Or with email</span>
+        <div style={{ flex: 1, height: 1, background: "rgba(242,237,228,0.14)" }} />
       </div>
 
       {/* Form */}
@@ -175,8 +182,8 @@ function LoginCard() {
           <label style={labelStyle} htmlFor="email">Email</label>
           <div style={fieldWrap}>
             <input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" style={inputStyle}
-              onFocus={(e) => { e.currentTarget.style.borderColor = TEAL; e.currentTarget.style.background = "rgba(15,13,12,0.8)"; }}
-              onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(242,237,228,0.14)"; e.currentTarget.style.background = "rgba(15,13,12,0.6)"; }} />
+              onFocus={(e) => { e.currentTarget.style.borderColor = TEAL; e.currentTarget.style.background = "rgba(10,9,8,0.95)"; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(242,237,228,0.2)"; e.currentTarget.style.background = "rgba(8,7,6,0.76)"; }} />
           </div>
         </div>
 
@@ -187,9 +194,9 @@ function LoginCard() {
           </div>
           <div style={fieldWrap}>
             <input id="password" type={showPass ? "text" : "password"} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" style={{ ...inputStyle, paddingRight: 52 }}
-              onFocus={(e) => { e.currentTarget.style.borderColor = TEAL; e.currentTarget.style.background = "rgba(15,13,12,0.8)"; }}
-              onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(242,237,228,0.14)"; e.currentTarget.style.background = "rgba(15,13,12,0.6)"; }} />
-            <button type="button" onClick={() => setShowPass(s => !s)} style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "transparent", border: 0, padding: "6px 10px", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)", cursor: "pointer" }}>
+              onFocus={(e) => { e.currentTarget.style.borderColor = TEAL; e.currentTarget.style.background = "rgba(10,9,8,0.95)"; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(242,237,228,0.2)"; e.currentTarget.style.background = "rgba(8,7,6,0.76)"; }} />
+            <button type="button" onClick={() => setShowPass(s => !s)} style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "transparent", border: 0, padding: "6px 10px", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.58)", cursor: "pointer" }}>
               {showPass ? "Hide" : "Show"}
             </button>
           </div>
@@ -198,22 +205,25 @@ function LoginCard() {
         {/* Role (dev switcher for prototype) */}
         <div>
           <label style={labelStyle}>Log in as</label>
-          <div style={{ display: "flex", gap: 6, background: "rgba(15,13,12,0.6)", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 999, padding: 4 }}>
+          <div style={{ display: "flex", gap: 6, background: "rgba(8,7,6,0.76)", border: "1px solid rgba(242,237,228,0.2)", borderRadius: 7, padding: 4 }}>
             {[
               ["client", "Client"],
               ["trainer", "Trainer"],
               ["nutritionist", "Nutritionist"],
+              ["shape_radio", "Shape Radio"],
             ].map(([v, l]) => (
               <button key={v} type="button" onClick={() => setRole(v)} style={{
                 flex: 1,
                 padding: "8px 10px",
-                borderRadius: 999,
+                borderRadius: 5,
                 background: role === v ? INK : "transparent",
                 color: role === v ? PAPER : "rgba(242,237,228,0.7)",
                 border: 0,
-                fontFamily: sans,
-                fontSize: 12.5,
-                fontWeight: role === v ? 500 : 400,
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 10,
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                fontWeight: role === v ? 700 : 500,
                 cursor: "pointer",
                 transition: "background 0.2s ease",
               }}>{l}</button>
@@ -224,7 +234,7 @@ function LoginCard() {
         <label style={{ display: "flex", gap: 10, alignItems: "center", cursor: "pointer", marginTop: 2 }}>
           <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)}
             style={{ width: 16, height: 16, accentColor: TEAL, margin: 0 }} />
-          <span style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.75)" }}>Remember me for 30 days</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.75)" }}>Remember me for 30 days</span>
         </label>
 
         {errMsg ? (
@@ -233,16 +243,17 @@ function LoginCard() {
 
         <button type="submit" disabled={submitting} style={{
           marginTop: 8,
-          padding: "15px 20px",
-          borderRadius: 8,
+          padding: "14px 20px",
+          borderRadius: 6,
           background: INK,
           color: PAPER,
           border: 0,
-          fontFamily: sans,
-          fontSize: 14.5,
-          fontWeight: 500,
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 11,
+          fontWeight: 800,
+          letterSpacing: "0.2em",
+          textTransform: "uppercase",
           cursor: submitting ? "wait" : "pointer",
-          letterSpacing: "0.01em",
           opacity: submitting ? 0.7 : 1,
           transition: "transform 0.15s ease",
         }}
@@ -252,7 +263,7 @@ function LoginCard() {
         >{submitting ? "Signing in…" : "Log in →"}</button>
       </form>
 
-      <div style={{ marginTop: 26, paddingTop: 22, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)" }}>
+      <div style={{ marginTop: 26, paddingTop: 18, borderTop: "1px solid rgba(242,237,228,0.14)", display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)" }}>
         <span>New to Shape?</span>
         <a href="Landing.html" style={{ color: INK, fontWeight: 500, borderBottom: `1.5px solid ${TEAL}`, paddingBottom: 2 }}>Create an account →</a>
       </div>

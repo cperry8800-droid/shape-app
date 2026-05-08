@@ -234,6 +234,7 @@ function ProviderDashboardCard({ dashboard }: { dashboard: ProviderDashboard }) 
   );
   const clientRows = buildClientRoster(dashboard.provider.role, activeSubscriptions, dashboard.intakesById);
   const payoutRows = buildRecentPayoutRows(activeSubscriptions);
+  const analytics = buildAnalyticsSignals(clientRows);
 
   useEffect(() => {
     let cancelled = false;
@@ -321,6 +322,42 @@ function ProviderDashboardCard({ dashboard }: { dashboard: ProviderDashboard }) 
                   <span>{moneyFormatter.format(client.revenueCents / 100)} total</span>
                 </span>
                 <Sparkline points={client.trend} />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        <Eyebrow>ANALYTICS PRO</Eyebrow>
+        <Sub>Revenue/client, adherence correlations, and at-risk priority queue.</Sub>
+        <div style={analyticsGridStyle}>
+          <Metric label="Revenue/client" value={moneyFormatter.format(analytics.revenuePerClient)} />
+          <Metric label="Avg adherence" value={`${analytics.avgAdherence}%`} />
+          <Metric label="At-risk" value={analytics.atRisk.length.toString()} />
+        </div>
+        <div style={analyticsPanelStyle}>
+          <strong style={{ fontSize: 12, letterSpacing: '0.06em' }}>Correlation readout</strong>
+          <p style={{ margin: '6px 0 0', color: 'var(--muted)', fontSize: 12.5, lineHeight: 1.45 }}>
+            {analytics.correlation}
+          </p>
+        </div>
+        {analytics.atRisk.length > 0 && (
+          <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
+            {analytics.atRisk.slice(0, 3).map((client) => (
+              <button
+                key={`risk-${client.id}`}
+                type="button"
+                style={atRiskRowStyle}
+                onClick={() => setSelectedClient(client)}
+              >
+                <span>
+                  <strong style={{ display: 'block', fontSize: 13.5 }}>{client.name}</strong>
+                  <span style={{ color: 'var(--muted)', fontSize: 12 }}>
+                    {client.adherence} adherence · {client.streak} streak
+                  </span>
+                </span>
+                <span style={{ color: '#fca5a5', fontSize: 11, letterSpacing: '0.08em' }}>REVIEW</span>
               </button>
             ))}
           </div>
@@ -559,11 +596,77 @@ function endOfDay(date: Date) {
   return end;
 }
 
+function parsePercent(value: string) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function buildAnalyticsSignals(rows: ClientRosterRecord[]) {
+  if (!rows.length) {
+    return {
+      revenuePerClient: 0,
+      avgAdherence: 0,
+      atRisk: [] as ClientRosterRecord[],
+      correlation: 'No subscribers yet. Correlations appear once client logs and adherence sync.',
+    };
+  }
+  const revenuePerClient = Math.round(
+    rows.reduce((sum, row) => sum + row.mrrCents / 100, 0) / rows.length
+  );
+  const avgAdherence = Math.round(
+    rows.reduce((sum, row) => sum + parsePercent(row.adherence), 0) / rows.length
+  );
+  const atRisk = rows.filter(
+    (row) =>
+      parsePercent(row.adherence) < 85 ||
+      row.status.toLowerCase().includes('flag') ||
+      row.riskReason.toLowerCase().includes('missed') ||
+      row.riskReason.toLowerCase().includes('under target')
+  );
+  const correlation =
+    avgAdherence < 85
+      ? 'Adherence is below target. Lower compliance is tracking with slower revenue growth per client.'
+      : atRisk.length > 0
+        ? 'Revenue is healthy, but at-risk clients are concentrated in low-adherence segments. Prioritize check-ins.'
+        : 'Adherence and revenue/client are aligned. Keep current cadence and monitor weekly drift.';
+  return { revenuePerClient, avgAdherence, atRisk, correlation };
+}
+
 const metricGridStyle = {
   display: 'grid',
   gridTemplateColumns: 'repeat(3, 1fr)',
   gap: 8,
   marginTop: 16,
+};
+
+const analyticsGridStyle = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(3, 1fr)',
+  gap: 8,
+  marginTop: 10,
+};
+
+const analyticsPanelStyle = {
+  marginTop: 10,
+  border: '1px solid var(--border)',
+  borderRadius: 12,
+  padding: 12,
+  background: 'linear-gradient(135deg, rgba(30,192,168,0.08), rgba(242,237,228,0.03))',
+};
+
+const atRiskRowStyle = {
+  display: 'grid',
+  gridTemplateColumns: '1fr auto',
+  gap: 10,
+  alignItems: 'center',
+  border: '1px solid rgba(248,113,113,0.35)',
+  borderRadius: 12,
+  padding: 10,
+  background: 'rgba(127,29,29,0.08)',
+  color: 'var(--ink)',
+  textAlign: 'left' as const,
+  fontFamily: 'inherit',
+  cursor: 'pointer',
 };
 
 const payoutRowStyle = {

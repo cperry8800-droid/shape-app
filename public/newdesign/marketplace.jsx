@@ -1,5 +1,30 @@
 // Marketplace page — editorial coach directory
-const { useState: useS, useMemo: useM } = React;
+const { useState: useS, useMemo: useM, useEffect: useE } = React;
+
+function useActiveLeadBoost(role) {
+  const [active, setActive] = useS(null);
+
+  useE(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await fetch(`/api/lead-boosts?role=${encodeURIComponent(role)}`, {
+          credentials: "include",
+          cache: "no-store",
+        });
+        const json = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        setActive(res.ok ? (json?.active || null) : null);
+      } catch (_) {
+        if (!cancelled) setActive(null);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [role]);
+
+  return active;
+}
 
 const COACHES_FULL = [
   // Trainers
@@ -91,6 +116,7 @@ const SPOTLIGHT = {
 
 function Spotlight({ tab }) {
   const s = SPOTLIGHT[tab];
+  const activeBoost = useActiveLeadBoost(tab === "Trainer" ? "trainer" : "nutritionist");
   return (
     <section style={{ padding: "72px 72px 24px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
@@ -101,8 +127,9 @@ function Spotlight({ tab }) {
               Four to know in <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>{tab === "Trainer" ? "training" : "nutrition"}</em>.
             </h2>
           </div>
-          <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.55)", textAlign: "right", maxWidth: 280 }}>
-            Hand-picked by our editorial team. No paid placement — just coaches with outstanding outcomes this month.
+          <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.55)", textAlign: "right", maxWidth: 320 }}>
+            Editorial + active Lead Boost placements. Boosted profiles are tagged in-grid.
+            {activeBoost ? ` ${activeBoost.days}-day boost active.` : ""}
           </div>
         </div>
 
@@ -230,6 +257,11 @@ function CoachCard({ c }) {
         <Ph label={`${c.name.split(' ')[0]}`} ratio="4/3" tone="light" style={{ borderRadius: 0 }} />
         <span style={{ position: "absolute", top: 10, left: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, padding: "3px 7px", background: "rgba(26,22,18,0.85)", color: TEAL, borderRadius: 3, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}>{c.format}</span>
         <span style={{ position: "absolute", top: 10, right: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, padding: "3px 7px", background: "rgba(26,22,18,0.85)", color: INK, borderRadius: 3 }}>★ {c.rating.toFixed(2)}</span>
+        {c.isLeadBoosted && (
+          <span style={{ position: "absolute", left: 10, bottom: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, padding: "4px 8px", background: "rgba(30,192,168,0.95)", color: PAPER, borderRadius: 3, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}>
+            Lead Boost · {c.boostDays}d
+          </span>
+        )}
       </div>
       <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
         <div style={{ fontFamily: sans, fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: TEAL }}>{c.city}</div>
@@ -259,6 +291,7 @@ function Grid({ tab }) {
   const [loc, setLoc] = useS("Anywhere");
   const [query, setQuery] = useS("");
   const [sort, setSort] = useS("Most Popular");
+  const activeBoost = useActiveLeadBoost(tab === "Trainer" ? "trainer" : "nutritionist");
 
   // Reset category when tab switches
   React.useEffect(() => { setCat("All Categories"); setFormat("All formats"); setLoc("Anywhere"); setQuery(""); }, [tab]);
@@ -280,8 +313,26 @@ function Grid({ tab }) {
     else if (sort === "Lowest Price") arr = [...arr].sort((a, b) => a.rate - b.rate);
     else if (sort === "Most Experience") arr = [...arr].sort((a, b) => b.years - a.years);
     else arr = [...arr].sort((a, b) => b.sessions - a.sessions);
+    if (activeBoost) {
+      const featuredPool = tab === "Trainer"
+        ? ["Maya Okafor", "Diego Alvarez", "Priya Natarajan"]
+        : ["Rae Lindqvist", "Claire Donovan", "Sofia Marchetti"];
+      const featuredCount = activeBoost.days >= 30 ? 3 : activeBoost.days >= 14 ? 2 : 1;
+      const featuredNames = new Set(featuredPool.slice(0, featuredCount));
+      arr = arr.map((row) => (
+        featuredNames.has(row.name)
+          ? { ...row, isLeadBoosted: true, boostDays: activeBoost.days }
+          : row
+      ));
+      arr.sort((a, b) => {
+        const aBoost = a.isLeadBoosted ? 1 : 0;
+        const bBoost = b.isLeadBoosted ? 1 : 0;
+        if (aBoost !== bBoost) return bBoost - aBoost;
+        return 0;
+      });
+    }
     return arr;
-  }, [tab, cat, format, loc, query, sort]);
+  }, [tab, cat, format, loc, query, sort, activeBoost]);
 
   return (
     <>

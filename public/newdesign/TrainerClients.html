@@ -21,6 +21,7 @@ function clientProfileHref(name) {
 }
 
 function TrainerClientsPage() {
+  const [previewClient, setPreviewClient] = React.useState(null);
   const clients = [
     ["Priya Shah",       "Strength + hybrid", "Tempo · 1,284",  "14d", "92%", "$220", "$1,540", "Remote", [0.3,0.5,0.4,0.7,0.6,0.8,0.7], "FLAG"],
     ["Deandre Kim",      "Strength",          "Peak · 1,820",   "22d", "96%", "$260", "$4,160", "Brooklyn", [0.4,0.6,0.5,0.8,0.7,0.9,0.85], ""],
@@ -31,6 +32,16 @@ function TrainerClientsPage() {
     ["Jonah Weiss",      "Running",           "Tempo · 980",    "7d",  "85%", "$180", "$900",   "Remote", [0.3,0.3,0.5,0.4,0.5,0.6,0.55], ""],
     ["Ana Park",         "Strength · beginner","Raw · 412",     "12d", "90%", "$200", "$1,200", "Remote", [0.2,0.3,0.3,0.4,0.5,0.5,0.6], ""],
   ];
+  const atRisk = clients.filter((c) => c[9] === "FLAG" || Number.parseInt(c[4], 10) < 85).slice(0, 3);
+  const avgAdherence = Math.round(
+    clients.reduce((sum, c) => {
+      const n = Number.parseInt(c[4], 10);
+      return Number.isFinite(n) ? sum + n : sum;
+    }, 0) / clients.filter((c) => Number.isFinite(Number.parseInt(c[4], 10))).length
+  );
+  const totalRevenue = clients.reduce((sum, c) => sum + Number((c[6] || "$0").toString().replace(/[^0-9.-]/g, "")), 0);
+  const avgRevenuePerClient = Math.round(totalRevenue / clients.length);
+  const prioBand = avgAdherence >= 92 ? "Stable" : avgAdherence >= 85 ? "Watch" : "Review";
   return (
     <DashPage
       navItems={trainerNavItems("clients")}
@@ -51,12 +62,45 @@ function TrainerClientsPage() {
           </Card>
         ))}
       </div>
+      <Card style={{ marginBottom: 20 }}>
+        <SectionTitle right="ANALYTICS PRO · LIVE">At-risk and correlation surface</SectionTitle>
+        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 16 }}>
+          <div style={{ border: "1px solid rgba(242,237,228,0.1)", borderRadius: 10, padding: 14 }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", color: TEAL_BRIGHT, marginBottom: 8 }}>AT-RISK TODAY</div>
+            {atRisk.map((c, i) => (
+              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, padding: "10px 0", borderTop: i ? "1px solid rgba(242,237,228,0.07)" : "none" }}>
+                <div>
+                  <div style={{ fontSize: 13.5, fontWeight: 500 }}>{c[0]}</div>
+                  <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.6)" }}>{c[1]} · {c[4]} adherence</div>
+                </div>
+                <a href={clientProfileHref(c[0])} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: TEAL_BRIGHT, alignSelf: "center", letterSpacing: "0.1em" }}>OPEN →</a>
+              </div>
+            ))}
+          </div>
+          <div style={{ border: "1px solid rgba(242,237,228,0.1)", borderRadius: 10, padding: 14, display: "grid", gap: 10, alignContent: "start" }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", color: TEAL_BRIGHT }}>PATTERNS</div>
+            <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.7)" }}>Revenue/client</div>
+            <div style={{ fontFamily: serif, fontSize: 34, lineHeight: 1 }}>${avgRevenuePerClient}</div>
+            <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.7)" }}>Adherence correlation</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>{avgAdherence}% avg · {prioBand}</div>
+            <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.55)" }}>
+              Low adherence + missed streaks is currently correlated with lower client revenue velocity.
+            </div>
+          </div>
+        </div>
+      </Card>
       <Card>
         <div style={{ display: "grid", gridTemplateColumns: "1.35fr 1.15fr .95fr 64px 74px 72px 86px 82px 76px 58px", gap: 12, padding: "6px 4px 14px", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
           <span>CLIENT</span><span>PROGRAM</span><span>TIER</span><span>STREAK</span><span>ADHERENCE</span><span>MRR</span><span>REVENUE</span><span>LOCATION</span><span>30D TREND</span><span></span>
         </div>
         {clients.map((c, i) => (
-          <a key={i} href={clientProfileHref(c[0])} aria-label={`Open ${c[0]} profile`} style={{ display: "grid", gridTemplateColumns: "1.35fr 1.15fr .95fr 64px 74px 72px 86px 82px 76px 58px", gap: 12, padding: "14px 4px", alignItems: "center", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.05)", color: "inherit", textDecoration: "none", cursor: "pointer" }}>
+          <a
+            key={i}
+            href={clientProfileHref(c[0])}
+            aria-label={`Open ${c[0]} profile`}
+            onClick={(e) => { e.preventDefault(); setPreviewClient(c); }}
+            style={{ display: "grid", gridTemplateColumns: "1.35fr 1.15fr .95fr 64px 74px 72px 86px 82px 76px 58px", gap: 12, padding: "14px 4px", alignItems: "center", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.05)", color: "inherit", textDecoration: "none", cursor: "pointer" }}
+          >
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
               <div style={{ width: 28, height: 28, borderRadius: 999, background: "#efece6" }} />
               <span style={{ fontSize: 13.5, fontWeight: 500 }}>{c[0]}</span>
@@ -73,6 +117,37 @@ function TrainerClientsPage() {
           </a>
         ))}
       </Card>
+      {previewClient && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setPreviewClient(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(26,22,18,0.72)", backdropFilter: "blur(4px)", zIndex: 120, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: "min(560px, 94vw)", background: "rgba(26,22,18,0.98)", border: "1px solid rgba(242,237,228,0.14)", borderRadius: 12, padding: 18 }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", color: TEAL_BRIGHT }}>CLIENT PREVIEW</div>
+              <button onClick={() => setPreviewClient(null)} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.2)", borderRadius: 999, width: 28, height: 28, cursor: "pointer" }}>×</button>
+            </div>
+            <div style={{ display: "grid", gap: 8 }}>
+              <div style={{ fontFamily: serif, fontSize: 32, letterSpacing: "-0.02em", lineHeight: 1 }}>{previewClient[0]}</div>
+              <div style={{ fontSize: 13, color: "rgba(242,237,228,0.7)" }}>{previewClient[1]} · {previewClient[2]}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginTop: 6 }}>
+                <div style={{ border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: 10 }}><div style={{ fontSize: 10, color: "rgba(242,237,228,0.5)" }}>STREAK</div><div style={{ marginTop: 4 }}>{previewClient[3]}</div></div>
+                <div style={{ border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: 10 }}><div style={{ fontSize: 10, color: "rgba(242,237,228,0.5)" }}>ADHERENCE</div><div style={{ marginTop: 4 }}>{previewClient[4]}</div></div>
+                <div style={{ border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: 10 }}><div style={{ fontSize: 10, color: "rgba(242,237,228,0.5)" }}>MRR</div><div style={{ marginTop: 4 }}>{previewClient[5]}</div></div>
+                <div style={{ border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: 10 }}><div style={{ fontSize: 10, color: "rgba(242,237,228,0.5)" }}>REVENUE</div><div style={{ marginTop: 4, color: TEAL_BRIGHT }}>{previewClient[6]}</div></div>
+              </div>
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
+              <a href={clientProfileHref(previewClient[0])} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, letterSpacing: "0.1em", color: TEAL_BRIGHT }}>VIEW FULL PROFILE →</a>
+            </div>
+          </div>
+        </div>
+      )}
     </DashPage>
   );
 }
