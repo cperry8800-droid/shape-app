@@ -10,6 +10,9 @@ import Nutri from './screens/Nutri';
 import Me from './screens/Me';
 import ClientProfile from './screens/ClientProfile';
 import Login from './screens/Login';
+import Settings from './screens/Settings';
+import PublicProfileSettings from './screens/PublicProfileSettings';
+import Privacy from './screens/Privacy';
 
 export default function App() {
   // Match the dark Shape palette in the iOS status bar.
@@ -49,6 +52,9 @@ export default function App() {
           <Route path="/train" element={<Train />} />
           <Route path="/nutri" element={<Nutri />} />
           <Route path="/me" element={<Me />} />
+          <Route path="/me/settings" element={<Settings />} />
+          <Route path="/me/settings/public-profile" element={<PublicProfileSettings />} />
+          <Route path="/me/settings/privacy" element={<Privacy />} />
           <Route path="/clients/:slug" element={<ClientProfile />} />
         </Routes>
       </main>

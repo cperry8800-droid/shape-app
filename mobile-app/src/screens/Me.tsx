@@ -117,6 +117,9 @@ export default function Me() {
           <Card>
             <Eyebrow>ACCOUNT</Eyebrow>
             <Title>{email ?? 'Signed out'}</Title>
+            <Link to="/me/settings" style={settingsLinkStyle}>
+              Open settings
+            </Link>
           </Card>
 
           {intake ? (
@@ -875,4 +878,16 @@ const radioInputStyle = {
   color: 'var(--ink)',
   fontFamily: 'inherit',
   fontSize: 13,
+};
+
+const settingsLinkStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  marginTop: 10,
+  padding: '9px 14px',
+  borderRadius: 999,
+  border: '1px solid var(--border)',
+  color: 'var(--ink)',
+  textDecoration: 'none',
+  fontSize: 12.5,
 };
