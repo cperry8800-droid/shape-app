@@ -1,6 +1,12 @@
+import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { Card, Eyebrow, Row, ScreenTitle, SecondaryAction, Sub, Title, screenTopStyle } from '../components/ui';
 import { supabase } from '../lib/supabase';
+import {
+  buildClientRoster,
+  type ClientIntakeInput,
+  type ClientRosterRecord,
+} from '../lib/clientRoster';
 import {
   createRadioRoom,
   fetchRadioRooms,
@@ -38,6 +44,7 @@ type SubscriptionRow = {
 type ProviderDashboard = {
   provider: ProviderRow;
   subscriptions: SubscriptionRow[];
+  intakesById: Record<string, ClientIntakeInput | undefined>;
 };
 
 const moneyFormatter = new Intl.NumberFormat('en-US', {
@@ -178,12 +185,32 @@ async function loadProviderDashboards(userId: string): Promise<ProviderDashboard
 
       if (error) {
         console.warn(`[shape-mobile] subscriptions failed for ${provider.role}`, error.message);
-        return { provider, subscriptions: [] };
+        return { provider, subscriptions: [], intakesById: {} };
+      }
+
+      const subscriptions = (data ?? []) as SubscriptionRow[];
+      const clientIds = subscriptions.map((subscription) => subscription.client_id);
+      const intakesById: Record<string, ClientIntakeInput | undefined> = {};
+
+      if (clientIds.length > 0) {
+        const { data: intakes, error: intakeError } = await supabase
+          .from('client_intakes')
+          .select('user_id, first_name, last_name, primary_goal, experience_level, workout_frequency, dietary')
+          .in('user_id', clientIds);
+
+        if (intakeError) {
+          console.warn(`[shape-mobile] client intake lookup failed for ${provider.role}`, intakeError.message);
+        } else {
+          ((intakes ?? []) as ClientIntakeInput[]).forEach((intake) => {
+            intakesById[intake.user_id] = intake;
+          });
+        }
       }
 
       return {
         provider,
-        subscriptions: (data ?? []) as SubscriptionRow[],
+        subscriptions,
+        intakesById,
       };
     })
   );
@@ -192,6 +219,7 @@ async function loadProviderDashboards(userId: string): Promise<ProviderDashboard
 }
 
 function ProviderDashboardCard({ dashboard }: { dashboard: ProviderDashboard }) {
+  const [selectedClient, setSelectedClient] = useState<ClientRosterRecord | null>(null);
   const [radioRooms, setRadioRooms] = useState<RadioRoom[]>([]);
   const [radioFormOpen, setRadioFormOpen] = useState(false);
   const [radioSaving, setRadioSaving] = useState(false);
@@ -204,15 +232,7 @@ function ProviderDashboardCard({ dashboard }: { dashboard: ProviderDashboard }) 
     (sum, subscription) => sum + (subscription.price_cents ?? 0),
     0
   );
-  const clientRows = activeSubscriptions.slice(0, 4).map((subscription) => {
-    const months = Math.max(1, monthsSince(subscription.created_at));
-    const monthlyCents = subscription.price_cents ?? 0;
-    return {
-      id: subscription.client_id.slice(0, 8),
-      mrrCents: monthlyCents,
-      revenueCents: monthlyCents * months,
-    };
-  });
+  const clientRows = buildClientRoster(dashboard.provider.role, activeSubscriptions, dashboard.intakesById);
   const payoutRows = buildRecentPayoutRows(activeSubscriptions);
 
   useEffect(() => {
@@ -279,17 +299,29 @@ function ProviderDashboardCard({ dashboard }: { dashboard: ProviderDashboard }) 
       </div>
 
       <div style={{ marginTop: 16 }}>
-        <Eyebrow>CLIENT REVENUE</Eyebrow>
+        <Eyebrow>CLIENT ROSTER</Eyebrow>
         {clientRows.length === 0 ? (
-          <Sub>Client MRR and revenue appear here once subscriptions are active.</Sub>
+          <Sub>Client previews appear here once subscriptions are active.</Sub>
         ) : (
-          <div style={{ display: 'grid', gap: 8 }}>
+          <div style={{ display: 'grid', gap: 10 }}>
             {clientRows.map((client) => (
-              <div key={client.id} style={clientRevenueStyle}>
-                <span style={{ fontFamily: 'var(--mono)' }}>{client.id}</span>
-                <span>MRR {moneyFormatter.format(client.mrrCents / 100)}</span>
-                <strong>{moneyFormatter.format(client.revenueCents / 100)}</strong>
-              </div>
+              <button
+                key={client.id}
+                type="button"
+                style={clientRosterButtonStyle}
+                onClick={() => setSelectedClient(client)}
+              >
+                <span style={{ ...clientAvatarStyle, background: client.color }}>{client.initials}</span>
+                <span style={{ minWidth: 0 }}>
+                  <strong style={clientNameStyle}>{client.name}</strong>
+                  <span style={clientMetaStyle}>{client.plan} - {client.tier}</span>
+                </span>
+                <span style={clientMoneyStyle}>
+                  <strong>{moneyFormatter.format(client.mrrCents / 100)}/mo</strong>
+                  <span>{moneyFormatter.format(client.revenueCents / 100)} total</span>
+                </span>
+                <Sparkline points={client.trend} />
+              </button>
             ))}
           </div>
         )}
@@ -377,7 +409,89 @@ function ProviderDashboardCard({ dashboard }: { dashboard: ProviderDashboard }) 
           <SecondaryAction onClick={() => setRadioFormOpen(true)}>Schedule room</SecondaryAction>
         )}
       </div>
+      {selectedClient && (
+        <ClientPreviewModal
+          client={selectedClient}
+          role={dashboard.provider.role}
+          onClose={() => setSelectedClient(null)}
+        />
+      )}
     </Card>
+  );
+}
+
+function ClientPreviewModal({
+  client,
+  role,
+  onClose,
+}: {
+  client: ClientRosterRecord;
+  role: ProviderRole;
+  onClose: () => void;
+}) {
+  return (
+    <div style={modalOverlayStyle} role="dialog" aria-modal="true" aria-label={`${client.name} preview`}>
+      <div style={clientModalStyle}>
+        <button type="button" style={modalCloseStyle} onClick={onClose} aria-label="Close client preview">
+          X
+        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ ...clientAvatarStyle, width: 46, height: 46, background: client.color }}>{client.initials}</span>
+          <div>
+            <Eyebrow>{role === 'nutritionist' ? 'NUTRITION CLIENT' : 'TRAINING CLIENT'}</Eyebrow>
+            <Title>{client.name}</Title>
+            <Sub>{client.plan} - {client.location}</Sub>
+          </div>
+        </div>
+
+        <div style={previewMetricGridStyle}>
+          <Metric label="Tier" value={client.tier.split(' - ')[0]} />
+          <Metric label="Streak" value={client.streak} />
+          <Metric label="Adherence" value={client.adherence} />
+        </div>
+
+        <div style={previewPanelStyle}>
+          <Eyebrow>WHAT MATTERS NOW</Eyebrow>
+          <p style={previewTextStyle}>{client.riskReason}</p>
+          <p style={previewActionStyle}>{client.nextAction}</p>
+        </div>
+
+        <div style={previewPanelStyle}>
+          <Eyebrow>RECENT ACTIVITY</Eyebrow>
+          {client.timeline.map((item) => (
+            <div key={item.label} style={timelineRowStyle}>
+              <span>{item.label}</span>
+              <strong>{item.detail}</strong>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <button type="button" style={secondaryPreviewButtonStyle} onClick={onClose}>
+            Close
+          </button>
+          <Link to={`/clients/${client.slug}`} state={{ client }} style={primaryPreviewLinkStyle}>
+            Full profile
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Sparkline({ points }: { points: number[] }) {
+  return (
+    <span style={sparklineStyle} aria-hidden>
+      {points.map((point, index) => (
+        <span
+          key={`${point}-${index}`}
+          style={{
+            ...sparklineBarStyle,
+            height: `${Math.max(4, Math.round(point * 24))}px`,
+          }}
+        />
+      ))}
+    </span>
   );
 }
 
@@ -445,13 +559,6 @@ function endOfDay(date: Date) {
   return end;
 }
 
-function monthsSince(dateText: string) {
-  const created = new Date(dateText).getTime();
-  if (Number.isNaN(created)) return 1;
-  const monthMs = 1000 * 60 * 60 * 24 * 30;
-  return Math.ceil((Date.now() - created) / monthMs);
-}
-
 const metricGridStyle = {
   display: 'grid',
   gridTemplateColumns: 'repeat(3, 1fr)',
@@ -469,15 +576,170 @@ const payoutRowStyle = {
   fontSize: 13,
 };
 
-const clientRevenueStyle = {
+const clientRosterButtonStyle = {
   display: 'grid',
-  gridTemplateColumns: '1fr auto auto',
-  gap: 8,
+  gridTemplateColumns: '42px minmax(0, 1fr) auto',
+  gap: 10,
   alignItems: 'center',
-  padding: 10,
+  width: '100%',
+  padding: 12,
   border: '1px solid var(--border)',
+  borderRadius: 16,
+  background: 'linear-gradient(135deg, rgba(242,237,228,0.055), rgba(30,192,168,0.05))',
+  color: 'var(--ink)',
+  textAlign: 'left' as const,
+  fontFamily: 'inherit',
+  cursor: 'pointer',
+};
+
+const clientAvatarStyle = {
+  width: 38,
+  height: 38,
   borderRadius: 12,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: '#0a0907',
+  fontWeight: 800,
+  fontSize: 13,
+};
+
+const clientNameStyle = {
+  display: 'block',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap' as const,
+  fontSize: 14,
+};
+
+const clientMetaStyle = {
+  display: 'block',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap' as const,
+  color: 'var(--muted)',
   fontSize: 12,
+};
+
+const clientMoneyStyle = {
+  display: 'grid',
+  justifyItems: 'end',
+  gap: 2,
+  fontSize: 12,
+  color: 'var(--muted)',
+};
+
+const sparklineStyle = {
+  gridColumn: '2 / 4',
+  display: 'flex',
+  alignItems: 'end',
+  gap: 3,
+  height: 28,
+  paddingTop: 4,
+};
+
+const sparklineBarStyle = {
+  width: 14,
+  borderRadius: 999,
+  background: 'var(--teal)',
+  opacity: 0.9,
+};
+
+const modalOverlayStyle = {
+  position: 'fixed' as const,
+  inset: 0,
+  zIndex: 60,
+  display: 'grid',
+  placeItems: 'center',
+  padding: 18,
+  background: 'rgba(0,0,0,0.62)',
+};
+
+const clientModalStyle = {
+  position: 'relative' as const,
+  width: 'min(100%, 390px)',
+  maxHeight: 'calc(100vh - 72px)',
+  overflowY: 'auto' as const,
+  display: 'grid',
+  gap: 14,
+  padding: 18,
+  borderRadius: 24,
+  border: '1px solid rgba(242,237,228,0.18)',
+  background: 'linear-gradient(180deg, #15130f, #090807)',
+  boxShadow: '0 24px 70px rgba(0,0,0,0.55)',
+};
+
+const modalCloseStyle = {
+  position: 'absolute' as const,
+  top: 12,
+  right: 12,
+  width: 34,
+  height: 34,
+  borderRadius: 12,
+  border: '1px solid var(--border)',
+  background: 'rgba(242,237,228,0.05)',
+  color: 'var(--ink)',
+  fontFamily: 'var(--mono)',
+};
+
+const previewMetricGridStyle = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(3, 1fr)',
+  gap: 8,
+};
+
+const previewPanelStyle = {
+  display: 'grid',
+  gap: 8,
+  padding: 12,
+  borderRadius: 16,
+  border: '1px solid var(--border)',
+  background: 'rgba(242,237,228,0.035)',
+};
+
+const previewTextStyle = {
+  margin: 0,
+  color: 'var(--ink)',
+  fontSize: 13,
+  lineHeight: 1.45,
+};
+
+const previewActionStyle = {
+  margin: 0,
+  color: 'var(--teal)',
+  fontSize: 12,
+  lineHeight: 1.4,
+};
+
+const timelineRowStyle = {
+  display: 'grid',
+  gap: 3,
+  padding: '8px 0',
+  borderTop: '1px solid var(--border)',
+  fontSize: 12,
+  color: 'var(--muted)',
+};
+
+const secondaryPreviewButtonStyle = {
+  minHeight: 44,
+  borderRadius: 14,
+  border: '1px solid var(--border)',
+  background: 'rgba(242,237,228,0.05)',
+  color: 'var(--ink)',
+  fontFamily: 'inherit',
+  fontWeight: 800,
+};
+
+const primaryPreviewLinkStyle = {
+  minHeight: 44,
+  borderRadius: 14,
+  display: 'grid',
+  placeItems: 'center',
+  border: '1px solid var(--teal)',
+  background: 'var(--teal)',
+  color: '#060504',
+  fontWeight: 900,
+  textDecoration: 'none',
 };
 
 const radioRoomStyle = {

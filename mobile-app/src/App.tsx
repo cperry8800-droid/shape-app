@@ -8,6 +8,7 @@ import Home from './screens/Home';
 import Train from './screens/Train';
 import Nutri from './screens/Nutri';
 import Me from './screens/Me';
+import ClientProfile from './screens/ClientProfile';
 import Login from './screens/Login';
 
 export default function App() {
@@ -48,6 +49,7 @@ export default function App() {
           <Route path="/train" element={<Train />} />
           <Route path="/nutri" element={<Nutri />} />
           <Route path="/me" element={<Me />} />
+          <Route path="/clients/:slug" element={<ClientProfile />} />
         </Routes>
       </main>
       <TabBar />
