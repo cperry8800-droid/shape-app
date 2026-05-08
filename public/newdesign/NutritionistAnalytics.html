@@ -1,0 +1,74 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Nutritionist Analytics · Shape</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>html,body{margin:0;padding:0;background:#1a1612}*{box-sizing:border-box}a{text-decoration:none;color:inherit}</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="pageShell.jsx"></script>
+<script type="text/babel" src="trainerDashboard.jsx"></script>
+<script type="text/babel" src="coachNav.jsx"></script>
+<script type="text/babel">
+function NutritionistAnalyticsPage() {
+  return (
+    <DashShell
+      role="nutritionist"
+      userName="Rae"
+      date="WEDNESDAY APR 18"
+      greeting="Analytics."
+      primaryCta={["Clients", "NutritionistClients.html"]}
+      secondaryCta={["Plans", "NutritionistPlans.html"]}
+      navItems={nutriNavItems("analytics")}
+      payoutCard={nutriPayoutCard}
+      kpis={[
+        { k: "89%", l: "Macro adherence" },
+        { k: "74%", l: "Sleep target hit" },
+        { k: "5", l: "Reviews pending" },
+        { k: "2", l: "At-risk today" },
+      ]}
+      scheduleTitle="At-risk clients"
+      schedule={[
+        { time: "NOW", who: "Marcus Larson", sub: "Protein under target · 3 days", status: "FLAG" },
+        { time: "NOW", who: "Casey Lee", sub: "Skipped meal logs · 4 days", status: "FLAG" },
+      ]}
+      pulseTitle="Compliance signals"
+      pulse={[
+        { who: "Macro adherence", sub: "89% · up 6% vs prior 30d", trend: [0.38,0.42,0.5,0.54,0.58,0.62,0.67] },
+        { who: "Meal timing consistency", sub: "81% · stable", trend: [0.44,0.46,0.48,0.5,0.52,0.53,0.55] },
+        { who: "Hydration goal", sub: "76% · needs follow-up", trend: [0.3,0.34,0.39,0.42,0.4,0.45,0.47] },
+        { who: "Recovery + intake alignment", sub: "72%", trend: [0.35,0.4,0.44,0.47,0.5,0.56,0.6] },
+      ]}
+      extraSections={[{
+        title: "Correlations",
+        render: () => (
+          <div style={{ padding: 20, border: "1px solid rgba(242,237,228,0.12)", borderRadius: 12 }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.7)", marginBottom: 10 }}>
+              ANALYTICS PRO · LIVE
+            </div>
+            <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, lineHeight: 1.2, color: "#f2ede4", marginBottom: 8 }}>
+              Clients with consistent sleep and hydration hit macro targets 1.6× more often in the last 30 days.
+            </div>
+            <div style={{ fontFamily: "Space Grotesk, sans-serif", fontSize: 14, color: "rgba(242,237,228,0.72)" }}>
+              Prioritize outreach to low-sleep clients before high-volume training days.
+            </div>
+          </div>
+        ),
+      }]}
+    />
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<NutritionistAnalyticsPage />);
+</script>
+<script src="globalChatButton.js" defer></script>
+</body>
+</html>

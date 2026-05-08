@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { usePathname } from 'next/navigation';
 
 type Message = {
   from: 'shape' | 'you';
@@ -22,6 +23,7 @@ function replyFor(text: string) {
 }
 
 export default function GlobalChatButton() {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState('');
   const [messages, setMessages] = useState<Message[]>([
@@ -30,6 +32,10 @@ export default function GlobalChatButton() {
       text: 'Welcome to Shape. Send a question about coaches, billing, the app, or your account.',
     },
   ]);
+
+  if (pathname === '/' || pathname === '/intro-preview') {
+    return null;
+  }
 
   function send(text = draft) {
     const value = text.trim();

@@ -1,0 +1,75 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Trainer Analytics · Shape</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>html,body{margin:0;padding:0;background:#1a1612}*{box-sizing:border-box}a{text-decoration:none;color:inherit}</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="pageShell.jsx"></script>
+<script type="text/babel" src="trainerDashboard.jsx"></script>
+<script type="text/babel" src="coachNav.jsx"></script>
+<script type="text/babel">
+function TrainerAnalyticsPage() {
+  return (
+    <DashShell
+      role="trainer"
+      userName="Maya"
+      date="WEDNESDAY APR 18"
+      greeting="Analytics."
+      primaryCta={["Clients", "TrainerClients.html"]}
+      secondaryCta={["Programs", "TrainerPrograms.html"]}
+      navItems={trainerNavItems("analytics")}
+      payoutCard={trainerPayoutCard}
+      kpis={[
+        { k: "92%", l: "Avg adherence" },
+        { k: "18d", l: "Avg streak" },
+        { k: "$7,640", l: "MRR" },
+        { k: "3", l: "At-risk today" },
+      ]}
+      scheduleTitle="At-risk clients"
+      schedule={[
+        { time: "NOW", who: "Casey Lee", sub: "Macros 31% under target · 2 days", status: "FLAG" },
+        { time: "NOW", who: "Drew Park", sub: "Missed last session · no message 8d", status: "FLAG" },
+        { time: "NOW", who: "Jonah Weiss", sub: "Sleep + recovery trend down", status: "WATCH" },
+      ]}
+      pulseTitle="Compliance signals"
+      pulse={[
+        { who: "Workout compliance", sub: "88% · vs 82% prior 30d", trend: [0.4,0.5,0.6,0.55,0.62,0.7,0.74] },
+        { who: "Nutrition compliance", sub: "84% · vs 79% prior 30d", trend: [0.35,0.38,0.45,0.5,0.56,0.6,0.65] },
+        { who: "Sleep target hit", sub: "71% · 7h+ goal", trend: [0.3,0.36,0.4,0.35,0.44,0.5,0.48] },
+        { who: "Recovery readiness", sub: "Avg 67%", trend: [0.45,0.5,0.48,0.52,0.58,0.61,0.66] },
+      ]}
+      extraSections={[{
+        title: "Correlations",
+        render: () => (
+          <div style={{ padding: 20, border: "1px solid rgba(242,237,228,0.12)", borderRadius: 12 }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.7)", marginBottom: 10 }}>
+              ANALYTICS PRO · LIVE
+            </div>
+            <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, lineHeight: 1.2, color: "#f2ede4", marginBottom: 8 }}>
+              Sleep <span style={{ color: "#1ec0a8" }}>↑</span> and macro adherence <span style={{ color: "#1ec0a8" }}>↑</span> correlate with PR rate in 12 of 14 active clients.
+            </div>
+            <div style={{ fontFamily: "Space Grotesk, sans-serif", fontSize: 14, color: "rgba(242,237,228,0.72)" }}>
+              Focus outreach on the 3 flagged clients first, then push week-4 progression only where sleep is stable.
+            </div>
+          </div>
+        ),
+      }]}
+    />
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<TrainerAnalyticsPage />);
+</script>
+<script src="globalChatButton.js" defer></script>
+</body>
+</html>

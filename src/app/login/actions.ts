@@ -7,9 +7,18 @@ import { createClient } from '@/lib/supabase/server';
 export async function login(formData: FormData): Promise<{ error: string } | void> {
   const email = String(formData.get('email') ?? '');
   const password = String(formData.get('password') ?? '');
+  const role = String(formData.get('role') ?? 'client');
   const rawNext = String(formData.get('next') ?? '');
   // Only allow internal paths to avoid open-redirect.
-  const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/newdesign/ClientDashboard.html';
+  const roleDefaultNext =
+    role === 'shape_radio'
+      ? '/newdesign/Radio.html'
+      : role === 'trainer'
+      ? '/newdesign/TrainerDashboard.html'
+      : role === 'nutritionist'
+      ? '/newdesign/NutritionistDashboard.html'
+      : '/newdesign/ClientDashboard.html';
+  const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : roleDefaultNext;
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
