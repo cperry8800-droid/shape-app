@@ -42,21 +42,17 @@ function ChatWidget(props) {
 
   // Drag state ------------------------------------------------------------
   const POS_KEY = "shape.chatWidget.pos";
-  const BUBBLE_POS_KEY = "shape.chatWidget.bubblePos";
   const SIZE_KEY = "shape.chatWidget.size";
   const DEFAULT_SIZE = { w: 960, h: 720 };
   const [pos, setPos] = React.useState(() => {
     try { const s = localStorage.getItem(POS_KEY); return s ? JSON.parse(s) : null; } catch { return null; }
   });
-  const [bubblePos, setBubblePos] = React.useState(() => {
-    try { const s = localStorage.getItem(BUBBLE_POS_KEY); return s ? JSON.parse(s) : null; } catch { return null; }
-  });
   const [size, setSize] = React.useState(() => {
     try { const s = localStorage.getItem(SIZE_KEY); return s ? JSON.parse(s) : DEFAULT_SIZE; } catch { return DEFAULT_SIZE; }
   });
   const dragRef = React.useRef(null);
-  const bubbleDragRef = React.useRef(null);
   const resizeRef = React.useRef(null);
+  const PANEL_VISIBLE_GRAB = 84;
 
   const startResize = (e) => {
     e.preventDefault(); e.stopPropagation();
@@ -94,8 +90,12 @@ function ChatWidget(props) {
   };
   const onDrag = (e) => {
     const d = dragRef.current; if (!d) return;
-    const x = Math.max(8, Math.min(window.innerWidth  - d.w - 8, e.clientX - d.offX));
-    const y = Math.max(8, Math.min(window.innerHeight - d.h - 8, e.clientY - d.offY));
+    const minX = Math.min(8, PANEL_VISIBLE_GRAB - d.w);
+    const maxX = Math.max(8, window.innerWidth - PANEL_VISIBLE_GRAB);
+    const minY = Math.min(8, PANEL_VISIBLE_GRAB - d.h);
+    const maxY = Math.max(8, window.innerHeight - PANEL_VISIBLE_GRAB);
+    const x = Math.max(minX, Math.min(maxX, e.clientX - d.offX));
+    const y = Math.max(minY, Math.min(maxY, e.clientY - d.offY));
     setPos({ x, y });
   };
   const endDrag = () => {
@@ -106,37 +106,6 @@ function ChatWidget(props) {
     setPos(p => { if (p) { try { localStorage.setItem(POS_KEY, JSON.stringify(p)); } catch {} } return p; });
   };
   const resetPos = () => { setPos(null); try { localStorage.removeItem(POS_KEY); } catch {} };
-
-  const startBubbleDrag = (e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    bubbleDragRef.current = {
-      startX: e.clientX, startY: e.clientY,
-      offX: e.clientX - rect.left, offY: e.clientY - rect.top,
-      w: rect.width, h: rect.height, moved: false,
-    };
-    window.addEventListener("mousemove", onBubbleDrag);
-    window.addEventListener("mouseup", endBubbleDrag);
-  };
-  const onBubbleDrag = (e) => {
-    const d = bubbleDragRef.current; if (!d) return;
-    if (!d.moved && Math.hypot(e.clientX - d.startX, e.clientY - d.startY) > 4) d.moved = true;
-    if (!d.moved) return;
-    document.body.style.userSelect = "none";
-    const x = Math.max(8, Math.min(window.innerWidth  - d.w - 8, e.clientX - d.offX));
-    const y = Math.max(8, Math.min(window.innerHeight - d.h - 8, e.clientY - d.offY));
-    setBubblePos({ x, y });
-  };
-  const endBubbleDrag = (e) => {
-    const d = bubbleDragRef.current;
-    bubbleDragRef.current = null;
-    document.body.style.userSelect = "";
-    window.removeEventListener("mousemove", onBubbleDrag);
-    window.removeEventListener("mouseup", endBubbleDrag);
-    if (d && d.moved) {
-      e.preventDefault(); e.stopPropagation();
-      setBubblePos(p => { if (p) { try { localStorage.setItem(BUBBLE_POS_KEY, JSON.stringify(p)); } catch {} } return p; });
-    }
-  };
 
   // Global opener: window.__openChat(whoName, tabId?) ---------------------
   React.useEffect(() => {
@@ -251,16 +220,16 @@ function ChatWidget(props) {
       {!open && (
         <button
           className="chw-bubble"
-          onMouseDown={startBubbleDrag}
-          onClick={() => { if (bubbleDragRef.current && bubbleDragRef.current.moved) return; setOpen(true); }}
+          onClick={() => setOpen(true)}
           style={{
             position: "fixed",
-            ...(bubblePos ? { left: bubblePos.x, top: bubblePos.y } : { right: 28, bottom: 28 }),
+            right: 28,
+            bottom: 28,
             zIndex: 180,
             background: TEAL, color: PAPER, border: 0,
             padding: "18px 26px 18px 22px", borderRadius: 999,
             fontFamily: sans, fontSize: 15, fontWeight: 500, letterSpacing: "0.01em",
-            cursor: "grab", boxShadow: "0 14px 38px rgba(0,0,0,0.38), 0 3px 10px rgba(30,192,168,0.38)",
+            cursor: "pointer", boxShadow: "0 14px 38px rgba(0,0,0,0.38), 0 3px 10px rgba(30,192,168,0.38)",
             display: "inline-flex", alignItems: "center", gap: 12,
           }}>
           <svg width="20" height="20" viewBox="0 0 16 16" fill="none">

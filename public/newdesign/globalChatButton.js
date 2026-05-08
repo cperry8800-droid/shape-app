@@ -5,6 +5,9 @@
   var ID = "shape-global-chat-button";
   var PANEL_ID = "shape-global-chat-panel";
   var HIDDEN_CLASS = "shape-global-chat-hidden";
+  var PANEL_POS_KEY = "shape.globalChatPanel.pos";
+  var PANEL_VISIBLE_GRAB = 84;
+  var panelDrag = null;
 
   function unreadCount() {
     try {
@@ -36,7 +39,8 @@
       "#shape-global-chat-button." + HIDDEN_CLASS + "{opacity:0;pointer-events:none;transform:translateY(8px)}",
       "#shape-global-chat-panel{position:fixed;right:24px;bottom:92px;z-index:2147483000;width:390px;max-width:calc(100vw - 32px);height:540px;max-height:calc(100vh - 116px);display:none;flex-direction:column;overflow:hidden;border-radius:18px;border:1px solid rgba(242,237,228,.14);background:#1a1612;color:#f2ede4;box-shadow:0 28px 80px rgba(0,0,0,.62);font-family:'Space Grotesk',Inter,Arial,sans-serif}",
       "#shape-global-chat-panel.open{display:flex}",
-      "#shape-global-chat-panel .sgc-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 18px;border-bottom:1px solid rgba(242,237,228,.09);background:linear-gradient(180deg,rgba(30,192,168,.08),rgba(30,192,168,0))}",
+      "#shape-global-chat-panel .sgc-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 18px;border-bottom:1px solid rgba(242,237,228,.09);background:linear-gradient(180deg,rgba(30,192,168,.08),rgba(30,192,168,0));cursor:grab;user-select:none}",
+      "#shape-global-chat-panel.dragging .sgc-head{cursor:grabbing}",
       "#shape-global-chat-panel .sgc-kicker{font-family:'JetBrains Mono',Consolas,monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#2ee0c4;margin-bottom:3px}",
       "#shape-global-chat-panel .sgc-title{font-size:18px;font-weight:700;line-height:1.1}",
       "#shape-global-chat-panel .sgc-close{border:0;background:transparent;color:rgba(242,237,228,.64);font-size:24px;line-height:1;cursor:pointer;padding:2px 6px}",
@@ -54,6 +58,74 @@
       "@media (max-width:640px){#shape-global-chat-button{right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));padding:14px 19px 14px 16px;font-size:14px;gap:10px}#shape-global-chat-button .shape-global-chat-count{min-width:25px;height:22px;font-size:11px}#shape-global-chat-panel{right:16px;bottom:82px;width:calc(100vw - 32px);height:min(560px,calc(100vh - 104px));max-height:calc(100vh - 104px)}}"
     ].join("");
     document.head.appendChild(style);
+  }
+
+  function clampPanelPosition(x, y, w, h) {
+    var minX = Math.min(8, PANEL_VISIBLE_GRAB - w);
+    var maxX = Math.max(8, window.innerWidth - PANEL_VISIBLE_GRAB);
+    var minY = Math.min(8, PANEL_VISIBLE_GRAB - h);
+    var maxY = Math.max(8, window.innerHeight - PANEL_VISIBLE_GRAB);
+    return {
+      x: Math.max(minX, Math.min(maxX, x)),
+      y: Math.max(minY, Math.min(maxY, y))
+    };
+  }
+
+  function setPanelPosition(node, pos) {
+    node.style.left = pos.x + "px";
+    node.style.top = pos.y + "px";
+    node.style.right = "auto";
+    node.style.bottom = "auto";
+  }
+
+  function restorePanelPosition(node) {
+    try {
+      var saved = JSON.parse(localStorage.getItem(PANEL_POS_KEY) || "null");
+      if (!saved) return;
+      var rect = node.getBoundingClientRect();
+      setPanelPosition(node, clampPanelPosition(saved.x, saved.y, rect.width || 390, rect.height || 540));
+    } catch (err) {}
+  }
+
+  function startPanelDrag(event, node) {
+    if (event.target.closest("button, input, textarea")) return;
+    var rect = node.getBoundingClientRect();
+    panelDrag = {
+      node: node,
+      offX: event.clientX - rect.left,
+      offY: event.clientY - rect.top,
+      w: rect.width,
+      h: rect.height
+    };
+    node.classList.add("dragging");
+    document.body.style.userSelect = "none";
+    window.addEventListener("mousemove", onPanelDrag);
+    window.addEventListener("mouseup", endPanelDrag);
+  }
+
+  function onPanelDrag(event) {
+    if (!panelDrag) return;
+    var pos = clampPanelPosition(
+      event.clientX - panelDrag.offX,
+      event.clientY - panelDrag.offY,
+      panelDrag.w,
+      panelDrag.h
+    );
+    setPanelPosition(panelDrag.node, pos);
+  }
+
+  function endPanelDrag() {
+    if (!panelDrag) return;
+    var node = panelDrag.node;
+    var rect = node.getBoundingClientRect();
+    var pos = clampPanelPosition(rect.left, rect.top, rect.width, rect.height);
+    setPanelPosition(node, pos);
+    try { localStorage.setItem(PANEL_POS_KEY, JSON.stringify(pos)); } catch (err) {}
+    node.classList.remove("dragging");
+    panelDrag = null;
+    document.body.style.userSelect = "";
+    window.removeEventListener("mousemove", onPanelDrag);
+    window.removeEventListener("mouseup", endPanelDrag);
   }
 
   function panel() {
@@ -85,8 +157,10 @@
     ].join("");
 
     var body = node.querySelector(".sgc-body");
+    var head = node.querySelector(".sgc-head");
     var input = node.querySelector("textarea");
     var send = node.querySelector(".sgc-send");
+    restorePanelPosition(node);
 
     function stamp() {
       return new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -125,6 +199,9 @@
 
     node.querySelector(".sgc-close").addEventListener("click", function () {
       node.classList.remove("open");
+    });
+    head.addEventListener("mousedown", function (event) {
+      startPanelDrag(event, node);
     });
     input.addEventListener("input", function () {
       send.disabled = !input.value.trim();
