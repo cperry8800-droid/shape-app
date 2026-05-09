@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 
 type Habit = {
   id: string;
@@ -50,8 +50,36 @@ const gridRows = [
 ];
 
 export function HabitsPanel({ context = 'client' }: { context?: 'client' | 'trainer' | 'nutritionist' }) {
-  const [habits, setHabits] = useState(initialHabits);
+  const storageKey = `shape-habits-${context}`;
+  const visibilityKey = `shape-habits-visibility-${context}`;
+  const [habits, setHabits] = useState<Habit[]>(initialHabits);
   const [visibility, setVisibility] = useState<'public' | 'friends' | 'private'>('public');
+
+  useEffect(() => {
+    try {
+      const savedHabits = window.localStorage.getItem(storageKey);
+      if (savedHabits) {
+        const parsed = JSON.parse(savedHabits) as Habit[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setHabits(parsed);
+        }
+      }
+      const savedVisibility = window.localStorage.getItem(visibilityKey);
+      if (savedVisibility === 'public' || savedVisibility === 'friends' || savedVisibility === 'private') {
+        setVisibility(savedVisibility);
+      }
+    } catch {
+      // Ignore malformed storage values and keep defaults.
+    }
+  }, [storageKey, visibilityKey]);
+
+  useEffect(() => {
+    window.localStorage.setItem(storageKey, JSON.stringify(habits));
+  }, [habits, storageKey]);
+
+  useEffect(() => {
+    window.localStorage.setItem(visibilityKey, visibility);
+  }, [visibility, visibilityKey]);
 
   const doneCount = useMemo(() => habits.filter((habit) => habit.done).length, [habits]);
   const sharedCount = visibility === 'private' ? 0 : doneCount;

@@ -23,7 +23,6 @@ const posts: CommunityPost[] = [
 
 export default function Community() {
   const [mode, setMode] = useState<Mode>('feed');
-  const [segment, setSegment] = useState<'shape' | 'clients' | 'trainers' | 'nutritionists' | 'friends' | 'channels'>('shape');
   const [query, setQuery] = useState('');
   const [draft, setDraft] = useState('');
 
@@ -32,18 +31,17 @@ export default function Community() {
       mode === 'feed'
         ? ['shape', 'clients', 'trainers', 'nutritionists', 'friends']
         : mode === 'messages'
-          ? [segment === 'channels' ? 'shape' : segment]
+          ? ['shape', 'clients', 'trainers', 'nutritionists', 'friends']
           : ['channels'];
 
     return posts.filter((post) => {
       if (!targetGroups.includes(post.group)) return false;
-      if (mode === 'messages' && segment !== 'shape' && segment !== 'channels' && post.group !== segment) return false;
       if (mode === 'channels' && post.group !== 'channels') return false;
       const needle = query.trim().toLowerCase();
       if (!needle) return true;
       return `${post.author} ${post.role} ${post.body}`.toLowerCase().includes(needle);
     });
-  }, [mode, query, segment]);
+  }, [mode, query]);
 
   return (
     <div style={screenTopStyle}>
@@ -60,28 +58,16 @@ export default function Community() {
               : 'Channels are topic-based group conversations.'}
         </Sub>
 
-        {mode === 'messages' && (
-          <div style={segmentRowStyle}>
-            {(['shape', 'clients', 'trainers', 'nutritionists', 'friends'] as const).map((item) => (
-              <button
-                key={item}
-                type="button"
-                onClick={() => setSegment(item)}
-                style={{
-                  ...segmentButtonStyle,
-                  ...(segment === item ? segmentButtonActiveStyle : null),
-                }}
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-        )}
-
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder={mode === 'channels' ? 'Search channels...' : 'Search people...'}
+          placeholder={
+            mode === 'channels'
+              ? 'Search channels...'
+              : mode === 'messages'
+                ? 'Search clients, trainers, and nutritionists...'
+                : 'Search Shape feed...'
+          }
           style={{ ...inputStyle, marginTop: 10 }}
         />
 
@@ -131,6 +117,7 @@ export default function Community() {
           Send
         </button>
       </div>
+      <div style={{ height: 120 }} />
     </div>
   );
 }
@@ -184,36 +171,11 @@ const modeButtonActiveStyle: CSSProperties = {
   color: 'var(--paper)',
 };
 
-const segmentRowStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
-  gap: 6,
-  marginTop: 10,
-};
-
-const segmentButtonStyle: CSSProperties = {
-  minHeight: 30,
-  borderRadius: 999,
-  border: '1px solid var(--border)',
-  background: 'transparent',
-  color: 'var(--muted)',
-  fontFamily: 'var(--mono)',
-  fontSize: 9.5,
-  letterSpacing: '0.08em',
-  textTransform: 'uppercase',
-};
-
-const segmentButtonActiveStyle: CSSProperties = {
-  borderColor: 'var(--ink)',
-  color: 'var(--paper)',
-  background: 'var(--ink)',
-};
-
 const postsWrapStyle: CSSProperties = {
   display: 'grid',
   gap: 10,
   marginTop: 12,
-  marginBottom: 86,
+  marginBottom: 0,
 };
 
 const postCardStyle: CSSProperties = {
@@ -251,8 +213,11 @@ const miniActionStyle: CSSProperties = {
 };
 
 const composerDockStyle: CSSProperties = {
-  position: 'sticky',
-  bottom: 8,
+  position: 'fixed',
+  left: 'max(10px, env(safe-area-inset-left))',
+  right: 'max(10px, env(safe-area-inset-right))',
+  bottom: 'calc(78px + env(safe-area-inset-bottom))',
+  zIndex: 30,
   display: 'grid',
   gridTemplateColumns: '1fr auto',
   gap: 8,
