@@ -1,9 +1,10 @@
 import { useState, type CSSProperties } from 'react';
 import { HabitsPanel } from '../components/HabitsPanel';
+import { ClientAnalyticsPanel } from '../components/ClientAnalyticsPanel';
 import { Card, Eyebrow, PrimaryAction, SecondaryAction, Sub, Title } from '../components/ui';
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'today' | 'habits'>('today');
+  const [activeTab, setActiveTab] = useState<'today' | 'analytics' | 'habits'>('today');
 
   return (
     <div>
@@ -17,7 +18,7 @@ export default function Home() {
       </header>
 
       <div style={homeTabsStyle} role="tablist" aria-label="Home sections">
-        {(['today', 'habits'] as const).map((tab) => (
+        {(['today', 'analytics', 'habits'] as const).map((tab) => (
           <button
             key={tab}
             type="button"
@@ -50,6 +51,8 @@ export default function Home() {
             <SecondaryAction>View recipe</SecondaryAction>
           </Card>
         </>
+      ) : activeTab === 'analytics' ? (
+        <ClientAnalyticsPanel />
       ) : (
         <HabitsPanel />
       )}

@@ -8,6 +8,7 @@ import { getMySessions, getMySubscriptions, getTrainers, getNutritionists } from
 import { cancelSubscription } from '@/app/subscribe/actions';
 import { requestRefund } from '@/app/refunds/actions';
 import HealthMetricsPanel from './HealthMetricsPanel';
+import ClientProgressAnalytics from './ClientProgressAnalytics';
 
 export const metadata = { title: 'My Coaches — Shape' };
 
@@ -29,6 +30,7 @@ export default async function ClientDashboardPage() {
   return (
     <div className="flex flex-col gap-8">
       <HealthMetricsPanel />
+      <ClientProgressAnalytics />
 
       <section className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-6">
         <h2 className="text-lg font-medium mb-4">
