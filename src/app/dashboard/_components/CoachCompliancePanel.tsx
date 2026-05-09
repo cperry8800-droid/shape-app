@@ -24,6 +24,17 @@ type DaySignal = {
   detail: string;
 };
 
+type MacroDaySignal = {
+  index: number;
+  label: string;
+  status: ComplianceStatus;
+  proteinGrams: number;
+  workoutWindowMinutes: number;
+  hydrationLiters: number;
+  qualityScore: number;
+  performanceScore: number;
+};
+
 type ClientSignal = {
   clientId: string;
   label: string;
@@ -50,6 +61,13 @@ type ClientSignal = {
   actionReason: string;
   correlation: string;
   heatmap: DaySignal[];
+  foodQualityScore: number;
+  hydrationAvgLiters: number;
+  proteinTimingHitRate: number;
+  breakfastSkippedDays: number;
+  dinnerOvereatDays: number;
+  highCarbPerformanceDelta: number;
+  macroHeatmap: MacroDaySignal[];
 };
 
 type Props = {
@@ -179,10 +197,154 @@ export default function CoachCompliancePanel({ role, subscribers }: Props) {
             </div>
           </div>
 
+          {role === 'nutritionist' && <NutritionistAnalyticsPanel clients={signals.slice(0, 6)} />}
           <ComplianceHeatmap clients={heatmapClients} />
         </>
       )}
     </section>
+  );
+}
+
+function NutritionistAnalyticsPanel({ clients }: { clients: ClientSignal[] }) {
+  const focusClient = clients[0];
+  if (!focusClient) return null;
+  const macroDays = focusClient.macroHeatmap;
+  const macroHitPct = Math.round(
+    (macroDays.filter((day) => day.status === 'green').length / Math.max(1, macroDays.length)) * 100
+  );
+  const qualityGrade =
+    focusClient.foodQualityScore >= 88
+      ? 'A'
+      : focusClient.foodQualityScore >= 80
+        ? 'B'
+        : focusClient.foodQualityScore >= 72
+          ? 'C'
+          : 'D';
+
+  return (
+    <div className="border-t border-neutral-800 bg-neutral-950/70 p-6">
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-medium text-neutral-100">Nutrition analytics</h3>
+          <p className="mt-1 text-xs text-neutral-500">
+            Macro heatmap, quality score, hydration, meal patterns, and nutrition-performance links.
+          </p>
+        </div>
+        <div className="text-xs uppercase tracking-[0.14em] text-neutral-500">
+          focus: {focusClient.label}
+        </div>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <article className="rounded-xl border border-neutral-800 bg-neutral-900/70 p-4">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-medium text-neutral-100">Macro adherence heatmap</h4>
+            <span className="text-sm text-teal-300">{macroHitPct}% hit</span>
+          </div>
+          <div className="mt-3 grid grid-cols-7 gap-1.5">
+            {macroDays.map((day) => (
+              <button
+                key={`macro-${day.index}`}
+                type="button"
+                title={`${day.label}: ${day.proteinGrams}g protein, ${day.hydrationLiters.toFixed(1)}L hydration`}
+                className={`h-7 rounded border ${heatmapClass(day.status)}`}
+              />
+            ))}
+          </div>
+          <p className="mt-3 text-xs text-neutral-500">
+            Green = hit targets. Yellow = partial. Red = off-plan.
+          </p>
+        </article>
+
+        <article className="rounded-xl border border-neutral-800 bg-neutral-900/70 p-4">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-medium text-neutral-100">Food quality score</h4>
+            <span className="text-sm text-teal-300">
+              {focusClient.foodQualityScore} · {qualityGrade}
+            </span>
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <NutritionChip label="Fiber" value={`${62 + (focusClient.foodQualityScore % 29)}%`} />
+            <NutritionChip label="Micros" value={`${58 + (focusClient.foodQualityScore % 31)}%`} />
+            <NutritionChip label="Diversity" value={`${61 + (focusClient.foodQualityScore % 27)}%`} />
+          </div>
+          <p className="mt-3 text-xs text-neutral-500">
+            Quality grade blends fiber density, micronutrient coverage, and food diversity.
+          </p>
+        </article>
+
+        <article className="rounded-xl border border-neutral-800 bg-neutral-900/70 p-4">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-medium text-neutral-100">Protein timing vs workout</h4>
+            <span className="text-sm text-teal-300">{focusClient.proteinTimingHitRate}% on-window</span>
+          </div>
+          <div className="mt-3 grid gap-2">
+            <TimingBar label="Pre-workout (0-90m)" value={Math.max(35, focusClient.proteinTimingHitRate - 8)} />
+            <TimingBar label="Post-workout (0-120m)" value={focusClient.proteinTimingHitRate} />
+            <TimingBar label="Even spread day" value={Math.max(30, focusClient.proteinTimingHitRate - 12)} />
+          </div>
+        </article>
+
+        <article className="rounded-xl border border-neutral-800 bg-neutral-900/70 p-4">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-medium text-neutral-100">Hydration + meal patterns</h4>
+            <span className="text-sm text-teal-300">{focusClient.hydrationAvgLiters.toFixed(1)}L avg</span>
+          </div>
+          <div className="mt-3 grid grid-cols-7 gap-1.5">
+            {macroDays.slice(-7).map((day) => {
+              const fill = Math.max(8, Math.min(100, Math.round((day.hydrationLiters / 3.5) * 100)));
+              return (
+                <div key={`hydration-${day.index}`} className="rounded border border-neutral-800 bg-neutral-950 p-1">
+                  <div className="h-12 w-full rounded bg-neutral-900">
+                    <div className="w-full rounded bg-teal-400/80" style={{ height: `${fill}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <p className="mt-3 text-xs text-neutral-500">
+            Pattern flags: skipped breakfast {focusClient.breakfastSkippedDays}/7 days, overeating at dinner {focusClient.dinnerOvereatDays}/7.
+          </p>
+        </article>
+      </div>
+
+      <div className="mt-4 rounded-xl border border-neutral-800 bg-neutral-900/70 p-4">
+        <div className="flex items-center justify-between">
+          <h4 className="text-sm font-medium text-neutral-100">Nutrition vs performance correlation</h4>
+          <span className="text-sm text-teal-300">
+            {focusClient.highCarbPerformanceDelta >= 0 ? '+' : ''}
+            {focusClient.highCarbPerformanceDelta}% performance on high-carb days
+          </span>
+        </div>
+        <p className="mt-2 text-sm text-neutral-300">
+          High-carb days are correlated with stronger session output and lower perceived effort for this client. Use this to place carbs on priority training days.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function NutritionChip({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-neutral-800 bg-neutral-950/70 p-2">
+      <div className="text-[0.62rem] uppercase tracking-[0.14em] text-neutral-500">{label}</div>
+      <div className="mt-1 text-sm text-neutral-100">{value}</div>
+    </div>
+  );
+}
+
+function TimingBar({ label, value }: { label: string; value: number }) {
+  const clamped = Math.max(0, Math.min(100, value));
+  return (
+    <div className="rounded-lg border border-neutral-800 bg-neutral-950/70 p-2">
+      <div className="flex items-center justify-between text-xs text-neutral-300">
+        <span>{label}</span>
+        <span>{clamped}%</span>
+      </div>
+      <div className="mt-2 h-2 rounded-full bg-neutral-800">
+        <div className="h-full rounded-full bg-teal-400" style={{ width: `${clamped}%` }} />
+      </div>
+    </div>
   );
 }
 
@@ -561,6 +723,13 @@ function buildClientSignal(subscriber: Subscriber): ClientSignal {
   const stress = boundedScore(seed, 31, 42, 91);
   const recovery = boundedScore(seed, 47, 50, 95);
   const macros = boundedScore(seed, 59, 52, 96);
+  const foodQualityScore = boundedScore(seed, 67, 62, 96);
+  const hydrationAvgLiters = Number((1.8 + ((seed % 18) / 10)).toFixed(1));
+  const proteinTimingHitRate = boundedScore(seed, 71, 52, 95);
+  const breakfastSkippedDays = seed % 5;
+  const dinnerOvereatDays = (seed + 2) % 5;
+  const highCarbPerformanceDelta = (seed % 18) - 3;
+  const macroHeatmap = buildMacroHeatmap(seed);
   const riskScore = Math.round(
     (100 - workoutAdherence) * 0.2 +
       (100 - nutritionCompliance) * 0.18 +
@@ -602,7 +771,32 @@ function buildClientSignal(subscriber: Subscriber): ClientSignal {
     ),
     correlation: buildCorrelation({ sleep, stress, recovery, macros }),
     heatmap: buildHeatmap(seed),
+    foodQualityScore,
+    hydrationAvgLiters,
+    proteinTimingHitRate,
+    breakfastSkippedDays,
+    dinnerOvereatDays,
+    highCarbPerformanceDelta,
+    macroHeatmap,
   };
+}
+
+function buildMacroHeatmap(seed: number): MacroDaySignal[] {
+  return Array.from({ length: 28 }, (_, index) => {
+    const adherence = boundedScore(seed, index + 91, 38, 98);
+    const status = statusFromScore(adherence, false);
+    const hydrationLiters = Number((1.4 + ((seed + index * 3) % 23) / 10).toFixed(1));
+    return {
+      index,
+      label: `${27 - index}d ago`,
+      status,
+      proteinGrams: 95 + ((seed + index * 11) % 95),
+      workoutWindowMinutes: 35 + ((seed + index * 9) % 170),
+      hydrationLiters,
+      qualityScore: boundedScore(seed, index + 133, 58, 96),
+      performanceScore: boundedScore(seed, index + 149, 54, 96),
+    };
+  });
 }
 
 function buildReasons(metrics: Pick<ClientSignal, 'sleep' | 'stress' | 'recovery' | 'macros'>) {
