@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { Card, Eyebrow, Row, ScreenTitle, SecondaryAction, Sub, Title, screenTopStyle } from '../components/ui';
 import { supabase } from '../lib/supabase';
+import { HabitsPanel } from '../components/HabitsPanel';
 import {
   buildClientRoster,
   type ClientIntakeInput,
@@ -497,6 +498,10 @@ function ProviderDashboardCard({ dashboard }: { dashboard: ProviderDashboard }) 
         {!radioFormOpen && (
           <SecondaryAction onClick={() => setRadioFormOpen(true)}>Schedule room</SecondaryAction>
         )}
+      </div>
+
+      <div style={{ marginTop: 18 }}>
+        <HabitsPanel context={dashboard.provider.role} />
       </div>
       {selectedClient && (
         <ClientPreviewModal
