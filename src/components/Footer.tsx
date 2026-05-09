@@ -18,8 +18,8 @@ export default async function Footer() {
         .site-footer {
           border-top: 1px solid var(--border);
           background: var(--bg);
-          padding: 72px 0 32px;
-          margin-top: 120px;
+          padding: 36px 0 20px;
+          margin-top: 56px;
         }
         .footer-inner {
           max-width: 1440px;
@@ -29,7 +29,7 @@ export default async function Footer() {
         .footer-grid {
           display: grid;
           grid-template-columns: 1.4fr repeat(4, 1fr);
-          gap: 48px;
+          gap: 40px;
         }
         .footer-col h4 {
           font-size: 0.72rem;
@@ -66,8 +66,8 @@ export default async function Footer() {
         }
         .footer-col a:not(.footer-brand):hover { color: var(--text); }
         .footer-bottom {
-          margin-top: 56px;
-          padding-top: 24px;
+          margin-top: 28px;
+          padding-top: 18px;
           border-top: 1px solid var(--border);
           font-size: 0.72rem;
           letter-spacing: 0.1em;
@@ -78,20 +78,20 @@ export default async function Footer() {
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 12px;
-          padding-bottom: 56px;
+          gap: 6px;
+          padding-bottom: 28px;
           text-align: center;
         }
-        .footer-cta img { height: 96px; width: auto; display: block; }
+        .footer-cta img { height: 56px; width: auto; display: block; }
         .footer-cta-text {
-          font-size: 1.25rem;
+          font-size: 0.95rem;
           letter-spacing: -0.01em;
           color: var(--text);
         }
         @media (max-width: 900px) {
-          .footer-grid { grid-template-columns: 1fr 1fr; gap: 40px; }
-          .footer-cta img { height: 76px; }
-          .footer-cta-text { font-size: 1.05rem; }
+          .footer-grid { grid-template-columns: 1fr 1fr; gap: 28px; }
+          .footer-cta img { height: 44px; }
+          .footer-cta-text { font-size: 0.9rem; }
         }
       `}</style>
       <footer className="site-footer">
