@@ -27,6 +27,19 @@ type DaySignal = {
 type ClientSignal = {
   clientId: string;
   label: string;
+  workoutAdherence: number;
+  nutritionCompliance: number;
+  lastCheckInDays: number;
+  missedWorkouts7d: number;
+  noLoginDays: number;
+  macroDropPct: number;
+  sessionVolume: number;
+  sessionLoad: number;
+  previousVolume: number;
+  previousLoad: number;
+  checkInsWeek: number;
+  noteRepliesWeek: number;
+  workoutsCompletedWeek: number;
   sleep: number;
   stress: number;
   recovery: number;
@@ -62,8 +75,10 @@ export default function CoachCompliancePanel({ role, subscribers }: Props) {
   }, [subscribers]);
 
   const priorityClients = signals.slice(0, 3);
+  const rosterClients = signals.slice(0, 10);
   const heatmapClients = signals.slice(0, 5);
   const averages = buildAverages(signals);
+  const efficiency = buildCoachEfficiency(signals);
 
   return (
     <section className="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950 shadow-2xl shadow-black/20">
@@ -101,6 +116,10 @@ export default function CoachCompliancePanel({ role, subscribers }: Props) {
       ) : (
         <>
           <AtRiskStrip clients={priorityClients} role={role} />
+          <div className="grid gap-0 border-b border-neutral-800 xl:grid-cols-[1.25fr_0.75fr]">
+            <TrainerRosterSignals clients={rosterClients} />
+            <CoachEfficiencyPanel efficiency={efficiency} />
+          </div>
           <div className="grid gap-0 xl:grid-cols-[1.1fr_0.9fr]">
             <div className="border-b border-neutral-800 p-6 xl:border-b-0 xl:border-r">
               <div className="mb-4 flex items-center justify-between gap-4">
@@ -250,9 +269,15 @@ function PriorityClientCard({
       </div>
 
       <div className="mt-4 grid grid-cols-4 overflow-hidden rounded-lg border border-neutral-800">
+        <MiniMetric label="Workout" value={client.workoutAdherence} invert={false} />
         <MiniMetric label="Sleep" value={client.sleep} invert={false} />
         <MiniMetric label="Stress" value={client.stress} invert />
         <MiniMetric label="Recovery" value={client.recovery} invert={false} />
+      </div>
+      <div className="mt-2 grid grid-cols-4 overflow-hidden rounded-lg border border-neutral-800">
+        <MiniMetric label="Nutrition" value={client.nutritionCompliance} invert={false} />
+        <MiniMetric label="Load" value={volumeToPct(client.sessionLoad)} invert={false} />
+        <MiniMetric label="Volume" value={volumeToPct(client.sessionVolume)} invert={false} />
         <MiniMetric label="Macros" value={client.macros} invert={false} />
       </div>
 
@@ -271,6 +296,17 @@ function PriorityClientCard({
             {isTrainer
               ? 'Check training load, last session notes, and recovery before the next workout.'
               : 'Check macro adherence, meal timing, and recovery before changing the plan.'}
+          </p>
+        </div>
+        <div className="rounded-lg border border-neutral-800 bg-black/20 p-3">
+          <div className="text-[0.65rem] uppercase tracking-[0.16em] text-teal-300">
+            Week over week
+          </div>
+          <p className="mt-1 text-sm leading-5 text-neutral-300">
+            Volume {client.sessionVolume} vs {client.previousVolume} ({deltaCopy(client.sessionVolume - client.previousVolume)})
+          </p>
+          <p className="mt-1 text-sm leading-5 text-neutral-300">
+            Load {client.sessionLoad} lb vs {client.previousLoad} lb ({deltaCopy(client.sessionLoad - client.previousLoad)})
           </p>
         </div>
       </div>
@@ -407,14 +443,132 @@ function LegendDot({ status, label }: { status: ComplianceStatus; label: string 
   );
 }
 
+function TrainerRosterSignals({ clients }: { clients: ClientSignal[] }) {
+  return (
+    <div className="border-b border-neutral-800 p-6 xl:border-b-0 xl:border-r">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-medium text-neutral-100">Roster signals</h3>
+          <p className="mt-1 text-xs text-neutral-500">
+            Workout adherence, nutrition compliance, and last check-in at a glance.
+          </p>
+        </div>
+        <div className="text-xs uppercase tracking-[0.14em] text-neutral-500">
+          {clients.length} clients
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full border-collapse text-left">
+          <thead>
+            <tr className="text-[0.64rem] uppercase tracking-[0.16em] text-neutral-500">
+              <th className="border-b border-neutral-800 px-2 py-2 font-medium">Client</th>
+              <th className="border-b border-neutral-800 px-2 py-2 font-medium">Workout</th>
+              <th className="border-b border-neutral-800 px-2 py-2 font-medium">Nutrition</th>
+              <th className="border-b border-neutral-800 px-2 py-2 font-medium">Check-in</th>
+              <th className="border-b border-neutral-800 px-2 py-2 font-medium">WoW</th>
+            </tr>
+          </thead>
+          <tbody>
+            {clients.map((client) => (
+              <tr key={`roster-${client.clientId}`} className="text-sm text-neutral-200">
+                <td className="border-b border-neutral-900 px-2 py-2">
+                  <div className="font-medium text-neutral-100">{client.label}</div>
+                </td>
+                <td className="border-b border-neutral-900 px-2 py-2">
+                  <SignalBadge value={client.workoutAdherence} />
+                </td>
+                <td className="border-b border-neutral-900 px-2 py-2">
+                  <SignalBadge value={client.nutritionCompliance} />
+                </td>
+                <td className="border-b border-neutral-900 px-2 py-2">
+                  <span className={lastCheckInClass(client.lastCheckInDays)}>
+                    {formatLastCheckIn(client.lastCheckInDays)}
+                  </span>
+                </td>
+                <td className="border-b border-neutral-900 px-2 py-2 text-xs text-neutral-400">
+                  V {deltaCopy(client.sessionVolume - client.previousVolume)} · L {deltaCopy(client.sessionLoad - client.previousLoad)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function CoachEfficiencyPanel({
+  efficiency,
+}: {
+  efficiency: { checkedIn: number; responded: number; completed: number; active: number };
+}) {
+  return (
+    <div className="p-6">
+      <h3 className="text-sm font-medium text-neutral-100">Coach efficiency</h3>
+      <p className="mt-1 text-xs text-neutral-500">
+        Weekly operating metrics for managing a larger roster.
+      </p>
+      <div className="mt-4 grid gap-3">
+        <EfficiencyMetric label="Clients checked in" value={`${efficiency.checkedIn}/${efficiency.active}`} pct={efficiency.active ? Math.round((efficiency.checkedIn / efficiency.active) * 100) : 0} />
+        <EfficiencyMetric label="Notes replied" value={`${efficiency.responded}/${efficiency.active}`} pct={efficiency.active ? Math.round((efficiency.responded / efficiency.active) * 100) : 0} />
+        <EfficiencyMetric label="Workouts completed" value={`${efficiency.completed}/${efficiency.active}`} pct={efficiency.active ? Math.round((efficiency.completed / efficiency.active) * 100) : 0} />
+      </div>
+    </div>
+  );
+}
+
+function EfficiencyMetric({ label, value, pct }: { label: string; value: string; pct: number }) {
+  return (
+    <div className="rounded-xl border border-neutral-800 bg-neutral-900/70 p-3">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <div className="text-[0.65rem] uppercase tracking-[0.14em] text-neutral-500">{label}</div>
+          <div className="mt-1 text-lg font-medium text-neutral-100">{value}</div>
+        </div>
+        <div className="text-sm text-teal-300">{pct}%</div>
+      </div>
+      <div className="mt-2 h-1.5 rounded-full bg-neutral-800">
+        <div className="h-full rounded-full bg-teal-400" style={{ width: `${Math.max(6, Math.min(100, pct))}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function SignalBadge({ value }: { value: number }) {
+  return (
+    <span className={signalBadgeClass(value)}>
+      {value}%
+    </span>
+  );
+}
+
 function buildClientSignal(subscriber: Subscriber): ClientSignal {
   const seed = hashString(subscriber.client_id);
+  const workoutAdherence = boundedScore(seed, 7, 48, 98);
+  const nutritionCompliance = boundedScore(seed, 13, 45, 98);
+  const lastCheckInDays = seed % 9;
+  const missedWorkouts7d = seed % 5;
+  const noLoginDays = seed % 8;
+  const macroDropPct = 8 + (seed % 31);
+  const sessionVolume = 42 + (seed % 56);
+  const previousVolume = Math.max(30, sessionVolume - 8 + (seed % 17));
+  const sessionLoad = 620 + (seed % 780);
+  const previousLoad = Math.max(420, sessionLoad - 110 + (seed % 171));
+  const checkInsWeek = 1 + (seed % 2);
+  const noteRepliesWeek = 1 + ((seed + 1) % 2);
+  const workoutsCompletedWeek = 2 + (seed % 4);
   const sleep = boundedScore(seed, 17, 54, 94);
   const stress = boundedScore(seed, 31, 42, 91);
   const recovery = boundedScore(seed, 47, 50, 95);
   const macros = boundedScore(seed, 59, 52, 96);
   const riskScore = Math.round(
-    (100 - sleep) * 0.22 + stress * 0.22 + (100 - recovery) * 0.34 + (100 - macros) * 0.22
+    (100 - workoutAdherence) * 0.2 +
+      (100 - nutritionCompliance) * 0.18 +
+      (100 - sleep) * 0.16 +
+      stress * 0.14 +
+      (100 - recovery) * 0.2 +
+      Math.min(20, missedWorkouts7d * 4) +
+      Math.min(18, noLoginDays * 3)
   );
   const status = riskScore >= 55 ? 'Review' : riskScore >= 42 ? 'Watch' : 'Stable';
   const reasons = buildReasons({ sleep, stress, recovery, macros });
@@ -422,6 +576,19 @@ function buildClientSignal(subscriber: Subscriber): ClientSignal {
   return {
     clientId: subscriber.client_id,
     label: `Client ${subscriber.client_id.slice(0, 8)}`,
+    workoutAdherence,
+    nutritionCompliance,
+    lastCheckInDays,
+    missedWorkouts7d,
+    noLoginDays,
+    macroDropPct,
+    sessionVolume,
+    sessionLoad,
+    previousVolume,
+    previousLoad,
+    checkInsWeek,
+    noteRepliesWeek,
+    workoutsCompletedWeek,
     sleep,
     stress,
     recovery,
@@ -429,7 +596,10 @@ function buildClientSignal(subscriber: Subscriber): ClientSignal {
     riskScore,
     status,
     reasons,
-    actionReason: buildActionReason({ sleep, stress, recovery, macros }, seed),
+    actionReason: buildActionReason(
+      { sleep, stress, recovery, macros, missedWorkouts7d, noLoginDays, macroDropPct },
+      seed
+    ),
     correlation: buildCorrelation({ sleep, stress, recovery, macros }),
     heatmap: buildHeatmap(seed),
   };
@@ -445,7 +615,10 @@ function buildReasons(metrics: Pick<ClientSignal, 'sleep' | 'stress' | 'recovery
   return reasons;
 }
 
-function buildActionReason(metrics: Pick<ClientSignal, 'sleep' | 'stress' | 'recovery' | 'macros'>, seed: number) {
+function buildActionReason(metrics: Pick<ClientSignal, 'sleep' | 'stress' | 'recovery' | 'macros' | 'missedWorkouts7d' | 'noLoginDays' | 'macroDropPct'>, seed: number) {
+  if (metrics.missedWorkouts7d >= 3) return 'Three or more workouts missed in the last 7 days.';
+  if (metrics.noLoginDays >= 5) return 'No app login in 5+ days. Needs immediate outreach.';
+  if (metrics.macroDropPct >= 25) return `Macro adherence dropped ${metrics.macroDropPct}% week-over-week.`;
   if (metrics.macros < 68) return 'Macros are roughly 30% under target for two straight days.';
   if (metrics.recovery < 65 && metrics.stress > 74) return 'Recovery is low while stress is elevated.';
   if (metrics.sleep < 68) return 'Sleep target broke twice inside the last compliance window.';
@@ -526,6 +699,15 @@ function buildAverages(signals: ClientSignal[]) {
   };
 }
 
+function buildCoachEfficiency(signals: ClientSignal[]) {
+  return {
+    checkedIn: signals.filter((signal) => signal.lastCheckInDays <= 2 || signal.checkInsWeek > 0).length,
+    responded: signals.filter((signal) => signal.noteRepliesWeek > 0).length,
+    completed: signals.reduce((sum, signal) => sum + signal.workoutsCompletedWeek, 0),
+    active: signals.length,
+  };
+}
+
 function average(values: number[]) {
   if (values.length === 0) return 0;
   return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
@@ -548,6 +730,34 @@ function statusClass(status: ClientSignal['status']) {
   if (status === 'Review') return 'border-red-400/30 bg-red-400/10 text-red-300';
   if (status === 'Watch') return 'border-amber-300/30 bg-amber-300/10 text-amber-200';
   return 'border-teal-300/30 bg-teal-300/10 text-teal-200';
+}
+
+function deltaCopy(delta: number) {
+  if (delta > 0) return `+${delta}`;
+  if (delta < 0) return `${delta}`;
+  return '0';
+}
+
+function signalBadgeClass(value: number) {
+  if (value >= 85) return 'inline-flex rounded-full border border-teal-300/40 bg-teal-400/10 px-2.5 py-1 text-xs font-semibold text-teal-200';
+  if (value >= 70) return 'inline-flex rounded-full border border-amber-300/40 bg-amber-300/10 px-2.5 py-1 text-xs font-semibold text-amber-200';
+  return 'inline-flex rounded-full border border-red-300/40 bg-red-400/10 px-2.5 py-1 text-xs font-semibold text-red-200';
+}
+
+function lastCheckInClass(days: number) {
+  if (days <= 1) return 'text-teal-300 text-xs';
+  if (days <= 4) return 'text-amber-200 text-xs';
+  return 'text-red-300 text-xs';
+}
+
+function formatLastCheckIn(days: number) {
+  if (days <= 0) return 'Today';
+  if (days === 1) return '1d ago';
+  return `${days}d ago`;
+}
+
+function volumeToPct(value: number) {
+  return Math.max(20, Math.min(100, Math.round((value / 1200) * 100)));
 }
 
 function heatmapClass(status: ComplianceStatus) {

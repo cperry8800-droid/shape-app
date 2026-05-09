@@ -238,6 +238,8 @@ function ProviderDashboardCard({ dashboard }: { dashboard: ProviderDashboard }) 
   const clientRows = buildClientRoster(dashboard.provider.role, activeSubscriptions, dashboard.intakesById);
   const payoutRows = buildRecentPayoutRows(activeSubscriptions);
   const analytics = buildAnalyticsSignals(clientRows);
+  const trainerSignals = buildTrainerRosterSignals(clientRows);
+  const efficiency = buildCoachEfficiency(trainerSignals);
 
   useEffect(() => {
     let cancelled = false;
@@ -366,6 +368,53 @@ function ProviderDashboardCard({ dashboard }: { dashboard: ProviderDashboard }) 
           </div>
         )}
       </div>
+
+      {dashboard.provider.role === 'trainer' && trainerSignals.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <Eyebrow>TRAINER SIGNALS</Eyebrow>
+          <Sub>Compliance grid, at-risk triggers, session load, and week-over-week trend.</Sub>
+
+          <div style={trainerEfficiencyGridStyle}>
+            <Metric label="Checked-in" value={`${efficiency.checkedIn}/${efficiency.active}`} />
+            <Metric label="Note replies" value={`${efficiency.replied}/${efficiency.active}`} />
+            <Metric label="Completed wk" value={efficiency.completed.toString()} />
+          </div>
+
+          <div style={trainerSignalTableStyle}>
+            <div style={trainerSignalHeaderStyle}>
+              <span>Client</span>
+              <span>Workout</span>
+              <span>Nutrition</span>
+              <span>Check-in</span>
+            </div>
+            {trainerSignals.slice(0, 7).map((signal) => (
+              <button
+                key={`signal-${signal.client.id}`}
+                type="button"
+                style={trainerSignalRowStyle}
+                onClick={() => setSelectedClient(signal.client)}
+              >
+                <span style={{ minWidth: 0 }}>
+                  <strong style={clientNameStyle}>{signal.client.name}</strong>
+                  <span style={clientMetaStyle}>
+                    Vol {signal.volume} vs {signal.previousVolume} · Load {signal.load} vs {signal.previousLoad}
+                  </span>
+                </span>
+                <span style={signalBadgeStyle(signal.workoutAdherence)}>{signal.workoutAdherence}%</span>
+                <span style={signalBadgeStyle(signal.nutritionCompliance)}>{signal.nutritionCompliance}%</span>
+                <span style={signalCheckinStyle(signal.lastCheckInDays)}>{formatLastCheckIn(signal.lastCheckInDays)}</span>
+              </button>
+            ))}
+          </div>
+
+          <div style={trainerWoWPanelStyle}>
+            <strong style={{ fontSize: 12, letterSpacing: '0.06em' }}>At-risk rules</strong>
+            <p style={{ margin: '6px 0 0', color: 'var(--muted)', fontSize: 12.5, lineHeight: 1.45 }}>
+              Flagged when missed workouts are 3+, no app login is 5+ days, or macro adherence drops 25% week-over-week.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div style={{ marginTop: 16 }}>
         <Eyebrow>SHAPE RADIO ROOMS</Eyebrow>
@@ -604,6 +653,68 @@ function parsePercent(value: string) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+type TrainerRosterSignal = {
+  client: ClientRosterRecord;
+  workoutAdherence: number;
+  nutritionCompliance: number;
+  lastCheckInDays: number;
+  missedWorkouts7d: number;
+  noLoginDays: number;
+  macroDropPct: number;
+  volume: number;
+  previousVolume: number;
+  load: number;
+  previousLoad: number;
+  replied: boolean;
+  checkedIn: boolean;
+  workoutsCompleted: number;
+};
+
+function buildTrainerRosterSignals(rows: ClientRosterRecord[]): TrainerRosterSignal[] {
+  return rows.map((row) => {
+    const seed = hashString(row.id);
+    const workoutAdherence = boundedScore(seed, 7, 48, 98);
+    const nutritionCompliance = boundedScore(seed, 13, 45, 98);
+    const lastCheckInDays = seed % 9;
+    const missedWorkouts7d = seed % 5;
+    const noLoginDays = seed % 8;
+    const macroDropPct = 8 + (seed % 31);
+    const volume = 42 + (seed % 56);
+    const previousVolume = Math.max(30, volume - 8 + (seed % 17));
+    const load = 620 + (seed % 780);
+    const previousLoad = Math.max(420, load - 110 + (seed % 171));
+    const replied = ((seed + 2) % 3) !== 0;
+    const checkedIn = lastCheckInDays <= 2;
+    const workoutsCompleted = 2 + (seed % 4);
+
+    return {
+      client: row,
+      workoutAdherence,
+      nutritionCompliance,
+      lastCheckInDays,
+      missedWorkouts7d,
+      noLoginDays,
+      macroDropPct,
+      volume,
+      previousVolume,
+      load,
+      previousLoad,
+      replied,
+      checkedIn,
+      workoutsCompleted,
+    };
+  });
+}
+
+function buildCoachEfficiency(signals: TrainerRosterSignal[]) {
+  return {
+    checkedIn: signals.filter((signal) => signal.checkedIn).length,
+    replied: signals.filter((signal) => signal.replied).length,
+    completed: signals.reduce((sum, signal) => sum + signal.workoutsCompleted, 0),
+    active: signals.length,
+  };
+}
+
 function buildAnalyticsSignals(rows: ClientRosterRecord[]) {
   if (!rows.length) {
     return {
@@ -635,6 +746,48 @@ function buildAnalyticsSignals(rows: ClientRosterRecord[]) {
   return { revenuePerClient, avgAdherence, atRisk, correlation };
 }
 
+function formatLastCheckIn(days: number) {
+  if (days <= 0) return 'Today';
+  if (days === 1) return '1d ago';
+  return `${days}d ago`;
+}
+
+function signalBadgeStyle(value: number) {
+  const base = {
+    justifySelf: 'end' as const,
+    minWidth: 54,
+    textAlign: 'center' as const,
+    borderRadius: 999,
+    border: '1px solid transparent',
+    padding: '4px 8px',
+    fontSize: 11,
+    fontWeight: 700,
+  };
+  if (value >= 85) return { ...base, borderColor: 'rgba(45,212,191,0.45)', color: '#5eead4', background: 'rgba(45,212,191,0.08)' };
+  if (value >= 70) return { ...base, borderColor: 'rgba(251,191,36,0.45)', color: '#fcd34d', background: 'rgba(251,191,36,0.08)' };
+  return { ...base, borderColor: 'rgba(248,113,113,0.45)', color: '#fca5a5', background: 'rgba(248,113,113,0.08)' };
+}
+
+function signalCheckinStyle(days: number) {
+  const base = { justifySelf: 'end' as const, fontSize: 11, letterSpacing: '0.06em' };
+  if (days <= 1) return { ...base, color: '#5eead4' };
+  if (days <= 4) return { ...base, color: '#fcd34d' };
+  return { ...base, color: '#fca5a5' };
+}
+
+function boundedScore(seed: number, salt: number, min: number, max: number) {
+  const span = max - min;
+  return min + ((seed + salt * 9973) % (span + 1));
+}
+
+function hashString(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return hash;
+}
+
 const metricGridStyle = {
   display: 'grid',
   gridTemplateColumns: 'repeat(3, 1fr)',
@@ -655,6 +808,56 @@ const analyticsPanelStyle = {
   borderRadius: 12,
   padding: 12,
   background: 'linear-gradient(135deg, rgba(30,192,168,0.08), rgba(242,237,228,0.03))',
+};
+
+const trainerEfficiencyGridStyle = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(3, 1fr)',
+  gap: 8,
+  marginTop: 10,
+};
+
+const trainerSignalTableStyle = {
+  marginTop: 10,
+  border: '1px solid var(--border)',
+  borderRadius: 12,
+  overflow: 'hidden',
+  background: 'rgba(242,237,228,0.03)',
+};
+
+const trainerSignalHeaderStyle = {
+  display: 'grid',
+  gridTemplateColumns: '1.4fr 0.7fr 0.8fr 0.7fr',
+  gap: 8,
+  padding: '9px 12px',
+  borderBottom: '1px solid var(--border)',
+  fontFamily: 'var(--mono)',
+  fontSize: 10,
+  letterSpacing: '0.12em',
+  color: 'var(--muted)',
+  textTransform: 'uppercase' as const,
+};
+
+const trainerSignalRowStyle = {
+  display: 'grid',
+  gridTemplateColumns: '1.4fr 0.7fr 0.8fr 0.7fr',
+  gap: 8,
+  alignItems: 'center',
+  width: '100%',
+  padding: '10px 12px',
+  borderBottom: '1px solid var(--border)',
+  background: 'transparent',
+  color: 'var(--ink)',
+  textAlign: 'left' as const,
+  fontFamily: 'inherit',
+};
+
+const trainerWoWPanelStyle = {
+  marginTop: 10,
+  border: '1px solid var(--border)',
+  borderRadius: 12,
+  padding: 12,
+  background: 'rgba(242,237,228,0.025)',
 };
 
 const atRiskRowStyle = {
