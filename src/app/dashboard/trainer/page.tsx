@@ -6,6 +6,7 @@ import { getMySessions, getMyProviderRows, getMyProviderSubscribers } from '@/li
 import CoachClientCRM from '../_components/CoachClientCRM';
 import CoachCompliancePanel from '../_components/CoachCompliancePanel';
 import RecentPayouts from '../_components/RecentPayouts';
+import WeeklyReadout from '../_components/WeeklyReadout';
 
 export const metadata = { title: 'Trainer — Shape' };
 
@@ -101,6 +102,16 @@ export default async function TrainerDashboardPage() {
       )}
 
       <CoachCompliancePanel role="trainer" subscribers={subscribers} />
+
+      <WeeklyReadout
+        framing={{
+          eyebrow: 'Client readout',
+          title: 'Sleep, load, and recovery patterns',
+          empty:
+            'Once this client connects WHOOP or logs sessions, you will see the patterns linking their sleep, training load, and recovery here.',
+        }}
+        subscribers={subscribers.map((s) => ({ client_id: s.client_id }))}
+      />
 
       {trainer && <RecentPayouts subscribers={subscribers} />}
 

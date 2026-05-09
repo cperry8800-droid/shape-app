@@ -6,6 +6,7 @@ import { getMySessions, getMyProviderRows, getMyProviderSubscribers } from '@/li
 import CoachClientCRM from '../_components/CoachClientCRM';
 import CoachCompliancePanel from '../_components/CoachCompliancePanel';
 import RecentPayouts from '../_components/RecentPayouts';
+import WeeklyReadout from '../_components/WeeklyReadout';
 
 export const metadata = { title: 'Nutritionist — Shape' };
 
@@ -101,6 +102,16 @@ export default async function NutritionistDashboardPage() {
       )}
 
       <CoachCompliancePanel role="nutritionist" subscribers={subscribers} />
+
+      <WeeklyReadout
+        framing={{
+          eyebrow: 'Client readout',
+          title: 'Fueling, recovery, and adherence patterns',
+          empty:
+            'Once this client logs nutrition or syncs WHOOP, you will see how their macros, hydration, and recovery move together here.',
+        }}
+        subscribers={subscribers.map((s) => ({ client_id: s.client_id }))}
+      />
 
       {nutritionist && <RecentPayouts subscribers={subscribers} />}
 

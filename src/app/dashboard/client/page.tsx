@@ -9,6 +9,7 @@ import { cancelSubscription } from '@/app/subscribe/actions';
 import { requestRefund } from '@/app/refunds/actions';
 import HealthMetricsPanel from './HealthMetricsPanel';
 import ClientProgressAnalytics from './ClientProgressAnalytics';
+import WeeklyReadout from '../_components/WeeklyReadout';
 
 export const metadata = { title: 'My Coaches — Shape' };
 
@@ -30,6 +31,14 @@ export default async function ClientDashboardPage() {
   return (
     <div className="flex flex-col gap-8">
       <HealthMetricsPanel />
+      <WeeklyReadout
+        framing={{
+          eyebrow: 'This week',
+          title: 'What your data is telling us',
+          empty:
+            'Connect WHOOP or log a few training days and the weekly readout will surface patterns across sleep, training, and nutrition.',
+        }}
+      />
       <ClientProgressAnalytics />
 
       <section className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-6">

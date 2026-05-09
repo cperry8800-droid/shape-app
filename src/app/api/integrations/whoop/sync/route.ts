@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { getFreshAccessToken } from '@/lib/integrations/tokens';
+import { writeWhoopSnapshots } from '@/lib/health-snapshot';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -218,6 +219,16 @@ export async function GET(request: Request) {
         )
       : null;
 
+    const snapshot = await writeWhoopSnapshots(client, user.id, {
+      recoveries,
+      sleeps,
+      cycles,
+      workouts,
+    }).catch((error) => {
+      console.warn('[shape-app] WHOOP snapshot upsert failed:', error);
+      return { days: 0 };
+    });
+
     return NextResponse.json({
       whoop: {
         basicProfile,
@@ -228,6 +239,7 @@ export async function GET(request: Request) {
         workouts,
       },
       import: importResult,
+      snapshot,
     });
   } catch (error) {
     return NextResponse.json(
