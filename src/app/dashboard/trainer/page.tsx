@@ -3,6 +3,7 @@
 
 import Link from 'next/link';
 import { getMySessions, getMyProviderRows, getMyProviderSubscribers } from '@/lib/queries';
+import { getClientOverlays } from '@/lib/analytics-data';
 import CoachClientCRM from '../_components/CoachClientCRM';
 import CoachCompliancePanel from '../_components/CoachCompliancePanel';
 import RecentPayouts from '../_components/RecentPayouts';
@@ -16,6 +17,11 @@ export default async function TrainerDashboardPage() {
     getMyProviderRows(),
     getMyProviderSubscribers('trainer'),
   ]);
+
+  const activeClientIds = subscribers
+    .filter((s) => s.status === 'active' || s.status === 'trialing')
+    .map((s) => s.client_id);
+  const overlays = await getClientOverlays(activeClientIds);
 
   const trainer = providerRows.trainer;
   const requests = sessions.filter((s) => s.status === 'requested');
@@ -101,7 +107,7 @@ export default async function TrainerDashboardPage() {
         </section>
       )}
 
-      <CoachCompliancePanel role="trainer" subscribers={subscribers} />
+      <CoachCompliancePanel role="trainer" subscribers={subscribers} overlays={overlays} />
 
       <WeeklyReadout
         framing={{
