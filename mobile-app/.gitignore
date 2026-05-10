@@ -2,19 +2,7 @@ node_modules/
 dist/
 .env
 .env.local
-*.log
-
-# iOS native shell — added by `npx cap add ios`. Keep out of source until you
-# decide whether to commit Xcode project files (most teams do, after stripping
-# DerivedData / xcuserdata).
-ios/App/Pods/
-ios/App/build/
-ios/App/DerivedData/
-ios/App/App.xcworkspace/xcuserdata/
-ios/App/App.xcodeproj/xcuserdata/
-ios/App/App.xcodeproj/project.xcworkspace/xcuserdata/
-
-.DS_Store
-*.swp
-.idea/
-.vscode/
+.env.*.local
+server/.env
+android/app/build/
+android/build/
