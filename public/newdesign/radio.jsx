@@ -392,7 +392,7 @@ function RadioInClientApp() {
 function RadioPage() {
   return (
     <div className="radio-page" style={{ background: "#050707", color: INK, minHeight: "100vh", position: "relative", isolation: "isolate" }}>
-      <img aria-hidden src={RADIO_BG} style={{ position: "fixed", inset: 0, width: "100vw", height: "100dvh", minHeight: "100vh", objectFit: "fill", pointerEvents: "none", zIndex: 0 }} />
+      <img aria-hidden src={RADIO_BG} style={{ position: "fixed", inset: 0, width: "100vw", height: "100vh", objectFit: "cover", objectPosition: "center center", pointerEvents: "none", zIndex: 0 }} />
       <div style={{ position: "relative", zIndex: 1 }}>
         <Header active="Radio" />
         <RadioHero />
