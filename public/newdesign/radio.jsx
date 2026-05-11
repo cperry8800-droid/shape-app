@@ -38,7 +38,7 @@ function RadioHero() {
 
         {/* Now playing card */}
         <div>
-          <img src="/newdesign/SHape%20radio%20logo.png?v=1" alt="Shape Radio" style={{ height: 96, width: "auto", display: "block", marginBottom: 24 }} />
+          <img src="/shape-radio-wordmark.svg?v=2" alt="Shape Radio" style={{ height: 96, width: "auto", display: "block", marginBottom: 24 }} />
         <div style={{ padding: 32, background: "transparent", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.16)", borderRadius: 4 }}>
           <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.12em", color: TEAL_BRIGHT, textTransform: "uppercase" }}>â—‰ Live Â· 1,284 listening</div>
           <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", marginTop: 14, lineHeight: 1 }}>I Remember Â· 128 BPM</div>
