@@ -1,5 +1,5 @@
 ﻿// Shape Radio â€” music built for training
-const RADIO_BG = "Firefly_seed182903.png?v=1";
+const RADIO_BG = "radio%20background%20upscale.jpg?v=1";
 
 const STATIONS = [
   { name: "Shape Radio Station", bpm: 132, listeners: 1284, tag: "Lifts Â· power Â· grit", color: TEAL, live: true },
@@ -38,7 +38,7 @@ function RadioHero() {
 
         {/* Now playing card */}
         <div style={{ padding: 32, background: "rgba(26,22,18,0.68)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.16)", borderRadius: 4 }}>
-          <img src="/shape-radio-wordmark.svg?v=2" alt="Shape Radio" style={{ height: 44, width: "auto", display: "block", marginBottom: 20 }} />
+          <img src="/newdesign/SHape%20radio%20logo.png?v=1" alt="Shape Radio" style={{ height: 44, width: "auto", display: "block", marginBottom: 20 }} />
           <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.12em", color: TEAL_BRIGHT, textTransform: "uppercase" }}>â—‰ Live Â· 1,284 listening</div>
           <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", marginTop: 14, lineHeight: 1 }}>I Remember Â· 128 BPM</div>
           <div style={{ fontFamily: sans, fontSize: 13.5, color: "rgba(242,237,228,0.7)", marginTop: 8 }}>deadmau5 â€” For Lack of a Better Name</div>
