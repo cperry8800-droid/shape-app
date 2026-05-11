@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import type { ClientOverlay } from '@/lib/analytics-data';
 
 type ProviderRole = 'trainer' | 'nutritionist';
 type ComplianceStatus = 'green' | 'yellow' | 'red';
@@ -73,6 +74,7 @@ type ClientSignal = {
 type Props = {
   role: ProviderRole;
   subscribers: Subscriber[];
+  overlays?: Record<string, ClientOverlay>;
 };
 
 const metricLabels = ['Sleep', 'Stress', 'Recovery', 'Macros'] as const;
@@ -83,14 +85,16 @@ const heatmapRows: Array<{ key: MetricKey; label: string }> = [
   { key: 'recovery', label: 'Recovery' },
 ];
 
-export default function CoachCompliancePanel({ role, subscribers }: Props) {
+export default function CoachCompliancePanel({ role, subscribers, overlays }: Props) {
   const isTrainer = role === 'trainer';
   const signals = useMemo(() => {
     const activeSubscribers = subscribers.filter(
       (subscriber) => subscriber.status === 'active' || subscriber.status === 'trialing'
     );
-    return activeSubscribers.map(buildClientSignal).sort((a, b) => b.riskScore - a.riskScore);
-  }, [subscribers]);
+    return activeSubscribers
+      .map((subscriber) => buildClientSignal(subscriber, overlays?.[subscriber.client_id]))
+      .sort((a, b) => b.riskScore - a.riskScore);
+  }, [subscribers, overlays]);
 
   const priorityClients = signals.slice(0, 3);
   const rosterClients = signals.slice(0, 10);
@@ -704,24 +708,30 @@ function SignalBadge({ value }: { value: number }) {
   );
 }
 
-function buildClientSignal(subscriber: Subscriber): ClientSignal {
+function buildClientSignal(subscriber: Subscriber, overlay?: ClientOverlay): ClientSignal {
   const seed = hashString(subscriber.client_id);
-  const workoutAdherence = boundedScore(seed, 7, 48, 98);
+  // Real data overrides mock per-field. Anything the overlay doesn't have
+  // (no integration yet, no nutrition logging) keeps the mock so the heatmap
+  // still renders something useful.
+  const real = overlay?.hasData ? overlay : null;
+  const workoutAdherence = real?.workoutAdherence ?? boundedScore(seed, 7, 48, 98);
   const nutritionCompliance = boundedScore(seed, 13, 45, 98);
-  const lastCheckInDays = seed % 9;
-  const missedWorkouts7d = seed % 5;
+  const lastCheckInDays = real?.lastCheckInDays ?? seed % 9;
+  const missedWorkouts7d = real?.missedWorkouts7d ?? seed % 5;
   const noLoginDays = seed % 8;
   const macroDropPct = 8 + (seed % 31);
-  const sessionVolume = 42 + (seed % 56);
-  const previousVolume = Math.max(30, sessionVolume - 8 + (seed % 17));
-  const sessionLoad = 620 + (seed % 780);
-  const previousLoad = Math.max(420, sessionLoad - 110 + (seed % 171));
+  const sessionVolume = real?.sessionVolume ?? 42 + (seed % 56);
+  const previousVolume =
+    real?.previousVolume ?? Math.max(30, sessionVolume - 8 + (seed % 17));
+  const sessionLoad = real?.sessionLoad ?? 620 + (seed % 780);
+  const previousLoad =
+    real?.previousLoad ?? Math.max(420, sessionLoad - 110 + (seed % 171));
   const checkInsWeek = 1 + (seed % 2);
   const noteRepliesWeek = 1 + ((seed + 1) % 2);
-  const workoutsCompletedWeek = 2 + (seed % 4);
-  const sleep = boundedScore(seed, 17, 54, 94);
-  const stress = boundedScore(seed, 31, 42, 91);
-  const recovery = boundedScore(seed, 47, 50, 95);
+  const workoutsCompletedWeek = real?.workoutsCompletedWeek ?? 2 + (seed % 4);
+  const sleep = real?.sleep ?? boundedScore(seed, 17, 54, 94);
+  const stress = real?.stress ?? boundedScore(seed, 31, 42, 91);
+  const recovery = real?.recovery ?? boundedScore(seed, 47, 50, 95);
   const macros = boundedScore(seed, 59, 52, 96);
   const foodQualityScore = boundedScore(seed, 67, 62, 96);
   const hydrationAvgLiters = Number((1.8 + ((seed % 18) / 10)).toFixed(1));

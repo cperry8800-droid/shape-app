@@ -5,7 +5,7 @@
 // navItems items: { label, count, active, href }
 function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
   return (
-    <aside style={{ borderRight: "1px solid rgba(242,237,228,0.08)", padding: "32px 20px", display: "flex", flexDirection: "column", gap: 6, position: "sticky", top: 0, height: "100vh", background: "linear-gradient(180deg, rgba(242,237,228,0.025), rgba(242,237,228,0.01))" }}>
+    <aside style={{ borderRight: "1px solid rgba(242,237,228,0.08)", padding: "32px 20px", display: "flex", flexDirection: "column", gap: 6, position: "sticky", top: 0, alignSelf: "start", maxHeight: "100vh", overflowY: "auto", background: "linear-gradient(180deg, rgba(242,237,228,0.025), rgba(242,237,228,0.01))" }}>
       <div style={{ padding: "4px 10px 72px" }}>
         <a href={homeHref} style={{ flex: "none", display: "inline-flex" }}><Logo variant="white" size={40} /></a>
       </div>
@@ -26,7 +26,7 @@ function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
         </a>
       ))}
       {payoutCard && (
-        <div style={{ marginTop: "auto", padding: 16, background: "rgba(30,192,168,0.08)", border: "1px solid rgba(30,192,168,0.25)", borderRadius: 18, boxShadow: "0 16px 36px rgba(0,0,0,0.28)" }}>
+        <div style={{ marginTop: 24, padding: 16, background: "rgba(30,192,168,0.08)", border: "1px solid rgba(30,192,168,0.25)", borderRadius: 18, boxShadow: "0 16px 36px rgba(0,0,0,0.28)" }}>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>{payoutCard.label}</div>
           <div style={{ fontFamily: serif, fontSize: 26, fontWeight: 400, marginTop: 6, letterSpacing: "-0.01em" }}>{payoutCard.amount}</div>
           <div style={{ fontSize: 11, color: "rgba(242,237,228,0.55)", marginTop: 2 }}>{payoutCard.sub}</div>

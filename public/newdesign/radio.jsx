@@ -1,5 +1,5 @@
 ﻿// Shape Radio â€” music built for training
-const RADIO_BG = "assets/radio-bg-wide.png?v=1";
+const RADIO_BG = "Firefly_gpt-image_can%20you%20add%20the%20shape%20triangle%20logos%20where%20the%20current%20triangle%20design%20is%209958.png?v=1";
 
 const STATIONS = [
   { name: "Shape Radio Station", bpm: 132, listeners: 1284, tag: "Lifts Â· power Â· grit", color: TEAL, live: true },
