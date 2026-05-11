@@ -395,7 +395,6 @@ function RadioPage() {
       <div style={{ position: "relative", zIndex: 1 }}>
         <Header active="Radio" />
         <RadioHero />
-        <RadioCoachPlaylists />
         <RadioInClientApp />
         <RadioPitch />
         <Footer />
@@ -405,13 +404,8 @@ function RadioPage() {
         body { background: transparent !important; position: relative; min-height: 100vh; }
         body::before {
           content: ''; position: fixed; inset: 0; z-index: -1;
-          background: url('${RADIO_BG}') center/cover no-repeat;
-        }
-        .radio-page footer,
-        .radio-page footer * {
-          background: transparent !important;
-          color: rgba(242,237,228,0.82) !important;
-          border-color: rgba(242,237,228,0.16) !important;
+          background: url('${RADIO_BG}') center bottom / cover no-repeat;
+          filter: brightness(1.15) saturate(1.18) contrast(1.05);
         }
       `}</style>
     </div>
