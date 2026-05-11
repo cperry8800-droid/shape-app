@@ -397,7 +397,6 @@ function RadioPage() {
       <div style={{ position: "relative", zIndex: 1 }}>
         <Header active="Radio" />
         <RadioHero />
-        <RadioInClientApp />
         <RadioPitch />
         <Footer />
       </div>
