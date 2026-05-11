@@ -163,7 +163,6 @@ function Header({ active }) {
           {link("Marketplace", "Marketplace.html")}
           {link("Community", "Community.html")}
           <NavDropdown label="Rewards" active={active} activeMatch={["Rewards", "Shape Score", "Store"]} items={[["Shape Score", "Score.html"], ["Shape Store", "Store.html"]]} />
-          {link("Radio", "Radio.html")}
           {link("App", "GetApp.html")}
           {link("Pricing", "Pricing.html")}
         </nav>
@@ -196,11 +195,17 @@ function Header({ active }) {
               ) : null}
               <a href={dashboardHref(authUser.role)} style={{ fontSize: 11.5, letterSpacing: "0.13em", textTransform: "uppercase", color: "rgba(242,237,228,0.72)", fontFamily: sans, whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none" }}>Dashboard</a>
               <a href="#" onClick={handleLogout} style={{ background: INK, color: PAPER, border: 0, padding: "9px 16px", borderRadius: 6, fontWeight: 500, fontSize: 11.5, letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1 }}>Sign out</a>
+              <a href="/newdesign/Radio.html" aria-label="Shape Radio" style={{ display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
+                <img src="/shape-radio-wordmark.svg?v=2" alt="Shape Radio" style={{ height: 24, width: "auto", display: "block" }} />
+              </a>
             </>
           ) : (
             <>
               <a href="/newdesign/Login.html" style={{ fontSize: 11.5, letterSpacing: "0.13em", textTransform: "uppercase", color: "rgba(242,237,228,0.72)", fontFamily: sans, whiteSpace: "nowrap", lineHeight: 1 }}>Log in</a>
               <a href="/newdesign/Landing.html" style={{ background: INK, color: PAPER, border: 0, padding: "9px 16px", borderRadius: 6, fontWeight: 500, fontSize: 11.5, letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1 }}>Get started</a>
+              <a href="/newdesign/Radio.html" aria-label="Shape Radio" style={{ display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
+                <img src="/shape-radio-wordmark.svg?v=2" alt="Shape Radio" style={{ height: 24, width: "auto", display: "block" }} />
+              </a>
             </>
           )}
         </div>
