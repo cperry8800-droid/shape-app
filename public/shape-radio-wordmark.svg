@@ -5,8 +5,8 @@
         font-weight="300"
         letter-spacing="28"
         fill="#f2ead8">SHAPE</text>
-  <polygon points="421,46 421,76 445,61" fill="#13cbb8"/>
-  <polygon points="465,34 465,64 441,49" fill="#f2ead8"/>
+  <polygon points="411,46 411,76 435,61" fill="#13cbb8"/>
+  <polygon points="475,34 475,64 451,49" fill="#f2ead8"/>
   <text x="525" y="78"
         font-family="Saira, Space Grotesk, Helvetica Neue, Arial, sans-serif"
         font-size="62"
