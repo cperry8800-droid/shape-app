@@ -37,8 +37,9 @@ function RadioHero() {
         </div>
 
         {/* Now playing card */}
+        <div>
+          <img src="/newdesign/SHape%20radio%20logo.png?v=1" alt="Shape Radio" style={{ height: 96, width: "auto", display: "block", marginBottom: 24 }} />
         <div style={{ padding: 32, background: "rgba(26,22,18,0.68)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.16)", borderRadius: 4 }}>
-          <img src="/newdesign/SHape%20radio%20logo.png?v=1" alt="Shape Radio" style={{ height: 44, width: "auto", display: "block", marginBottom: 20 }} />
           <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.12em", color: TEAL_BRIGHT, textTransform: "uppercase" }}>â—‰ Live Â· 1,284 listening</div>
           <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", marginTop: 14, lineHeight: 1 }}>I Remember Â· 128 BPM</div>
           <div style={{ fontFamily: sans, fontSize: 13.5, color: "rgba(242,237,228,0.7)", marginTop: 8 }}>deadmau5 â€” For Lack of a Better Name</div>
@@ -55,6 +56,7 @@ function RadioHero() {
             <button onClick={() => setHearted(h => !h)} aria-label={hearted ? "Unfavorite" : "Favorite"} style={{ background: hearted ? "rgba(46,224,196,0.18)" : "transparent", color: hearted ? TEAL_BRIGHT : INK, border: `1px solid ${hearted ? TEAL : "rgba(242,237,228,0.25)"}`, padding: "12px 18px", borderRadius: 6, fontFamily: sans, fontSize: 13, cursor: "pointer", transition: "all 0.2s" }}>{hearted ? "â™¥" : "â™¡"}</button>
             <a href="#stations" aria-label="Browse stations" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "12px 18px", borderRadius: 6, fontFamily: sans, fontSize: 13, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>â‡…</a>
           </div>
+        </div>
         </div>
       </div>
       <style>{`@keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.3 } }`}</style>
@@ -404,7 +406,7 @@ function RadioPage() {
         body { background: transparent !important; position: relative; min-height: 100vh; }
         body::before {
           content: ''; position: fixed; inset: 0; z-index: -1;
-          background: url('${RADIO_BG}') center bottom / cover no-repeat;
+          background: url('${RADIO_BG}') center center / cover no-repeat;
           filter: brightness(1.15) saturate(1.18) contrast(1.05);
         }
       `}</style>
