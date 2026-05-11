@@ -1,4 +1,6 @@
 // Shape Radio — music built for training
+const RADIO_BG = "assets/club-shape-radio-bg.png";
+
 const STATIONS = [
   { name: "Shape Radio Station", bpm: 132, listeners: 1284, tag: "Lifts · power · grit", color: TEAL, live: true },
   { name: "Tempo Run", bpm: 172, listeners: 842, tag: "Steady state · zone 3", color: "#e89b4a" },
@@ -21,7 +23,7 @@ function RadioHero() {
   const bars = Array.from({ length: 48 }, () => Math.random());
   const [hearted, setHearted] = React.useState(false);
   return (
-    <section style={{ padding: "100px 72px 80px", position: "relative", overflow: "hidden", minHeight: 700 }}>
+    <section style={{ padding: "100px 72px 80px", position: "relative", overflow: "hidden", minHeight: "calc(100vh - 109px)", boxSizing: "border-box", display: "flex", alignItems: "center", background: "transparent" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative", display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 80, alignItems: "center" }}>
         <div>
           <h1 style={{ fontFamily: serif, fontSize: 140, letterSpacing: "-0.04em", fontWeight: 400, margin: 0, lineHeight: 0.88 }}>
@@ -35,7 +37,7 @@ function RadioHero() {
         </div>
 
         {/* Now playing card */}
-        <div style={{ padding: 32, background: "rgba(26,22,18,0.55)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 4 }}>
+        <div style={{ padding: 32, background: "rgba(26,22,18,0.68)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.16)", borderRadius: 4 }}>
           <img src="/shape-radio-wordmark.svg" alt="Shape Radio" style={{ height: 44, width: "auto", display: "block", marginBottom: 20 }} />
           <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.12em", color: TEAL_BRIGHT, textTransform: "uppercase" }}>◉ Live · 1,284 listening</div>
           <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", marginTop: 14, lineHeight: 1 }}>I Remember · 128 BPM</div>
@@ -68,7 +70,7 @@ function RadioStations() {
         <h2 style={{ fontFamily: serif, fontSize: 72, letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 48px", lineHeight: 0.95 }}>Pick the <em style={{ fontStyle: "italic", color: TEAL }}>pace</em>. We'll pick the <em style={{ fontStyle: "italic", color: TEAL }}>music</em>.</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
           {STATIONS.map((s, i) => (
-            <div key={i} style={{ position: "relative", padding: 28, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, overflow: "hidden" }}>
+            <div key={i} style={{ position: "relative", padding: 28, background: "rgba(26,22,18,0.48)", border: "1px solid rgba(242,237,228,0.14)", borderRadius: 10, overflow: "hidden", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
               <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: s.color }} />
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 20 }}>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", color: s.color }}>{s.live ? "◉ LIVE" : "ON DEMAND"}</div>
@@ -88,7 +90,7 @@ function RadioStations() {
 
 function RadioShows() {
   return (
-    <section style={{ padding: "100px 72px", background: INK, color: PAPER }}>
+    <section style={{ padding: "100px 72px", background: "transparent", color: INK }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>Shows & residents</div>
         <h2 style={{ fontFamily: serif, fontSize: 72, letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 48px", lineHeight: 0.95 }}>Residents <em style={{ fontStyle: "italic", color: TEAL }}>who train</em>. Sets <em style={{ fontStyle: "italic", color: TEAL }}>that land</em>.</h2>
@@ -362,7 +364,7 @@ function RadioInClientApp() {
     )},
   ];
   return (
-    <section style={{ padding: "120px 72px 80px", background: "linear-gradient(180deg, rgba(20,16,13,1) 0%, rgba(13,10,8,1) 100%)" }}>
+    <section style={{ padding: "120px 72px 80px", background: "transparent" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "end", marginBottom: 64 }}>
           <div>
@@ -389,9 +391,8 @@ function RadioInClientApp() {
 
 function RadioPage() {
   return (
-    <div style={{ background: PAPER, color: INK, minHeight: "100vh", position: "relative" }}>
-      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/Make_the_lines_202604170430%20%281%29.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
-      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "rgba(26,22,18,0.6)", pointerEvents: "none" }} />
+    <div className="radio-page" style={{ background: "#050707", color: INK, minHeight: "100vh", position: "relative", isolation: "isolate" }}>
+      <img aria-hidden src={RADIO_BG} style={{ position: "fixed", inset: 0, width: "100vw", height: "100vh", objectFit: "contain", objectPosition: "center center", pointerEvents: "none", zIndex: 0 }} />
       <div style={{ position: "relative", zIndex: 1 }}>
         <Header active="Radio" />
         <RadioHero />
@@ -400,6 +401,14 @@ function RadioPage() {
         <RadioPitch />
         <Footer />
       </div>
+      <style>{`
+        .radio-page footer,
+        .radio-page footer * {
+          background: transparent !important;
+          color: rgba(242,237,228,0.82) !important;
+          border-color: rgba(242,237,228,0.16) !important;
+        }
+      `}</style>
     </div>
   );
 }
