@@ -1,0 +1,13 @@
+﻿Use case: stylized-concept
+Asset type: Club Shape / Shape Radio website and app marketing hero image
+Primary request: Create a cinematic high-detail 3D concept render for the interior of Club Shape, the live venue inside Shape Radio.
+Scene/backdrop: a grand futuristic open-roof club interior with a large central dance floor, VIP tables and booth seating placed throughout the floor, elevated VIP terraces, multi-level balconies, and a premium DJ broadcast stage at the front/center. The open roof must be clearly visible, looking up to a future city skyline and night sky.
+Subject: people inside the club: members dancing on the large floor, groups seated at VIP tables, people watching from balconies, and the DJ performing a real-time streamed set for Shape members globally.
+Style/medium: premium 3D architectural visualization, refined sci-fi virtual-world energy, high-end wellness-meets-music members club, futuristic but not cheesy.
+Composition/framing: wide zoomed-out hero composition showing the scale of the room, open roof, dance floor, VIP tables, balconies, and DJ booth in one image.
+Lighting/mood: cinematic dark interior with teal/cyan light ribbons, holographic sound-wave screens, cream/off-white highlights, and subtle amber warmth from VIP tables.
+Color palette: Shape palette: black/deep charcoal, cream/off-white, teal/cyan glow, subtle amber.
+Materials/textures: dark glass, brushed metal, concrete, cream/off-white lounge seating, warm table lighting, holographic panels.
+Logo guidance: the Shape triangle mark must look like clean geometric play-triangle wedges. Use the Shape mark as two clean opposing triangle wedges in the offset Shape-logo arrangement; both triangle wedges must be white/cream-white. Place the white double-triangle mark tastefully on the DJ booth, VIP table details, balcony railings, and wall panels. Do not use random decorative triangle patterns.
+Constraints: no unrelated brand logos, no watermark, no distorted text, no generic triangle patterns, no neon overload, no cliche nightclub aesthetic.
+Avoid: random logos, unreadable signs, warped text, empty room, cramped lounge, concert arena look.
