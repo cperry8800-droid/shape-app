@@ -401,7 +401,8 @@ function RadioPage() {
         <Footer />
       </div>
       <style>{`
-        html, body { background: #050707 !important; }
+        html { background: #050707 !important; }
+        body { background: transparent !important; position: relative; min-height: 100vh; }
         body::before {
           content: ''; position: fixed; inset: 0; z-index: -1;
           background: url('${RADIO_BG}') center/cover no-repeat;
