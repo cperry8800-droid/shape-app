@@ -407,12 +407,6 @@ function RadioPage() {
           background: url('${RADIO_BG}') center bottom / cover no-repeat;
           filter: brightness(1.15) saturate(1.18) contrast(1.05);
         }
-        .radio-page footer,
-        .radio-page footer * {
-          background: transparent !important;
-          color: rgba(242,237,228,0.82) !important;
-          border-color: rgba(242,237,228,0.16) !important;
-        }
       `}</style>
     </div>
   );
