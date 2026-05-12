@@ -23,37 +23,37 @@ function RadioHero() {
   const bars = Array.from({ length: 48 }, () => Math.random());
   const [hearted, setHearted] = React.useState(false);
   return (
-    <section style={{ padding: "100px 72px 80px", position: "relative", overflow: "hidden", minHeight: "calc(100vh - 109px)", boxSizing: "border-box", display: "flex", alignItems: "center", background: "transparent" }}>
-      <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative", display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 80, alignItems: "center" }}>
+    <section style={{ padding: "72px 72px 56px", position: "relative", overflow: "hidden", minHeight: "calc(100vh - 109px)", boxSizing: "border-box", display: "flex", alignItems: "center", background: "transparent" }}>
+      <div style={{ maxWidth: 1180, margin: "0 auto", position: "relative", display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 56, alignItems: "center" }}>
         <div>
-          <h1 style={{ fontFamily: serif, fontSize: 140, letterSpacing: "-0.04em", fontWeight: 400, margin: 0, lineHeight: 0.88 }}>
+          <h1 style={{ fontFamily: serif, fontSize: 104, letterSpacing: "-0.04em", fontWeight: 400, margin: 0, lineHeight: 0.9 }}>
             Music<br/>built for<br/><em style={{ fontStyle: "italic", color: TEAL }}>training.</em>
           </h1>
-          <p style={{ fontFamily: sans, fontSize: 18, color: "rgba(242,237,228,0.7)", margin: "28px 0 0", maxWidth: 520, lineHeight: 1.5 }}>Ad-free workout mixes, curated stations by BPM, live DJ sets from residents who lift. Plus: your coach can attach a Spotify or Apple Music playlist to any workout or meal â€” it plays on the card, in your kitchen, or on the treadmill. Send good ones to friends. Included with every Shape membership.</p>
-          <div style={{ display: "flex", gap: 10, marginTop: 36 }}>
-            <a href="/radio.html" style={{ background: TEAL, color: PAPER, border: 0, padding: "16px 28px", borderRadius: 6, fontWeight: 500, fontSize: 14.5, fontFamily: sans, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>â–¶ Play Shape Radio Station</a>
-            <a href="#stations" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "16px 28px", borderRadius: 6, fontWeight: 500, fontSize: 14.5, fontFamily: sans, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Browse stations</a>
+          <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.7)", margin: "22px 0 0", maxWidth: 480, lineHeight: 1.5 }}>Ad-free workout mixes, curated stations by BPM, live DJ sets from residents who lift. Plus: your coach can attach a Spotify or Apple Music playlist to any workout or meal â€” it plays on the card, in your kitchen, or on the treadmill. Send good ones to friends. Included with every Shape membership.</p>
+          <div style={{ display: "flex", gap: 10, marginTop: 28 }}>
+            <a href="/radio.html" style={{ background: TEAL, color: PAPER, border: 0, padding: "12px 22px", borderRadius: 6, fontWeight: 500, fontSize: 13.5, fontFamily: sans, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>â–¶ Play Shape Radio Station</a>
+            <a href="#stations" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "12px 22px", borderRadius: 6, fontWeight: 500, fontSize: 13.5, fontFamily: sans, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Browse stations</a>
           </div>
         </div>
 
         {/* Now playing card */}
-        <div style={{ padding: 32, background: "transparent", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.16)", borderRadius: 4 }}>
-          <img src="/shape-radio-wordmark.svg?v=2" alt="Shape Radio" style={{ height: 96, width: "auto", display: "block", marginBottom: 24 }} />
-          <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.12em", color: TEAL_BRIGHT, textTransform: "uppercase" }}>â—‰ Live Â· 1,284 listening</div>
-          <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", marginTop: 14, lineHeight: 1 }}>I Remember Â· 128 BPM</div>
-          <div style={{ fontFamily: sans, fontSize: 13.5, color: "rgba(242,237,228,0.7)", marginTop: 8 }}>deadmau5 â€” For Lack of a Better Name</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 3, height: 56, marginTop: 28 }}>
+        <div style={{ padding: 24, background: "transparent", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.16)", borderRadius: 4 }}>
+          <img src="/shape-radio-wordmark.svg?v=2" alt="Shape Radio" style={{ height: 64, width: "auto", display: "block", marginBottom: 18 }} />
+          <div style={{ fontFamily: sans, fontSize: 10.5, letterSpacing: "0.12em", color: TEAL_BRIGHT, textTransform: "uppercase" }}>â—‰ Live Â· 1,284 listening</div>
+          <div style={{ fontFamily: serif, fontSize: 32, letterSpacing: "-0.02em", marginTop: 10, lineHeight: 1 }}>I Remember Â· 128 BPM</div>
+          <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.7)", marginTop: 6 }}>deadmau5 â€” For Lack of a Better Name</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 3, height: 40, marginTop: 20 }}>
             {bars.map((h, i) => (
               <div key={i} style={{ flex: 1, height: `${20 + h*80}%`, background: i < 32 ? TEAL_BRIGHT : "rgba(242,237,228,0.2)", borderRadius: 1, transition: "height .2s" }} />
             ))}
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(242,237,228,0.55)" }}>
             <span>28:14</span><span>48:30</span>
           </div>
-          <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
-            <a href="/radio.html" style={{ flex: 1, background: TEAL, color: PAPER, border: 0, padding: "12px 0", borderRadius: 6, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer", textAlign: "center", textDecoration: "none" }}>â–¶ Play</a>
-            <button onClick={() => setHearted(h => !h)} aria-label={hearted ? "Unfavorite" : "Favorite"} style={{ background: hearted ? "rgba(46,224,196,0.18)" : "transparent", color: hearted ? TEAL_BRIGHT : INK, border: `1px solid ${hearted ? TEAL : "rgba(242,237,228,0.25)"}`, padding: "12px 18px", borderRadius: 6, fontFamily: sans, fontSize: 13, cursor: "pointer", transition: "all 0.2s" }}>{hearted ? "â™¥" : "â™¡"}</button>
-            <a href="#stations" aria-label="Browse stations" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "12px 18px", borderRadius: 6, fontFamily: sans, fontSize: 13, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>â‡…</a>
+          <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+            <a href="/radio.html" style={{ flex: 1, background: TEAL, color: PAPER, border: 0, padding: "10px 0", borderRadius: 6, fontFamily: sans, fontSize: 12.5, fontWeight: 500, cursor: "pointer", textAlign: "center", textDecoration: "none" }}>â–¶ Play</a>
+            <button onClick={() => setHearted(h => !h)} aria-label={hearted ? "Unfavorite" : "Favorite"} style={{ background: hearted ? "rgba(46,224,196,0.18)" : "transparent", color: hearted ? TEAL_BRIGHT : INK, border: `1px solid ${hearted ? TEAL : "rgba(242,237,228,0.25)"}`, padding: "10px 16px", borderRadius: 6, fontFamily: sans, fontSize: 12.5, cursor: "pointer", transition: "all 0.2s" }}>{hearted ? "â™¥" : "â™¡"}</button>
+            <a href="#stations" aria-label="Browse stations" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 16px", borderRadius: 6, fontFamily: sans, fontSize: 12.5, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>â‡…</a>
           </div>
         </div>
       </div>
