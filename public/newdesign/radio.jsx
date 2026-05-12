@@ -413,27 +413,18 @@ function RadioPage() {
           border: 1px solid rgba(242,237,228,0.16) !important;
           border-radius: 4px !important;
           margin: 32px 72px !important;
-          padding: 32px 32px 22px !important;
         }
         .radio-page footer * {
           background: transparent !important;
           color: rgba(242,237,228,0.82) !important;
           border-color: rgba(242,237,228,0.16) !important;
         }
-        .radio-page footer .shape-footer-cta { gap: 8px !important; padding-bottom: 22px !important; }
         .radio-page footer .shape-footer-cta img {
-          height: 48px !important;
           content: url('/shape-logo-white.png');
         }
         .radio-page footer .shape-footer-grid img.shape-brand-logo {
           content: url('/shape-logo-new-white.png?v=3');
         }
-        .radio-page footer .shape-footer-cta div { font-size: 14px !important; }
-        .radio-page footer .shape-footer-grid { gap: 24px !important; padding-top: 22px !important; }
-        .radio-page footer .shape-footer-grid p { font-size: 12px !important; margin-top: 10px !important; }
-        .radio-page footer .shape-footer-grid a { font-size: 12px !important; }
-        .radio-page footer .shape-footer-grid > div > div:first-child { font-size: 10px !important; margin-bottom: 10px !important; }
-        .radio-page footer .shape-footer-base { margin-top: 28px !important; padding-top: 16px !important; font-size: 10px !important; }
       `}</style>
     </div>
   );
