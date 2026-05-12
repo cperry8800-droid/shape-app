@@ -32,7 +32,6 @@ function RadioHero() {
           <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.7)", margin: "22px 0 0", maxWidth: 480, lineHeight: 1.5 }}>Ad-free workout mixes, curated stations by BPM, live DJ sets from residents who lift. Plus: your coach can attach a Spotify or Apple Music playlist to any workout or meal — it plays on the card, in your kitchen, or on the treadmill. Send good ones to friends. Included with every Shape membership.</p>
           <div style={{ display: "flex", gap: 10, marginTop: 28 }}>
             <a href="/radio.html" style={{ background: TEAL, color: PAPER, border: 0, padding: "12px 22px", borderRadius: 6, fontWeight: 500, fontSize: 13.5, fontFamily: sans, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>▶ Play Shape Radio Station</a>
-            <a href="#stations" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "12px 22px", borderRadius: 6, fontWeight: 500, fontSize: 13.5, fontFamily: sans, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Browse stations</a>
           </div>
         </div>
 
