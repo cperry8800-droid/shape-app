@@ -233,16 +233,16 @@ function HeroBg() {
 
 function Footer() {
   return (
-    <footer className="shape-footer" style={{ padding: "100px 72px 60px", background: INK, color: PAPER }}>
+    <footer className="shape-footer" style={{ padding: "40px 72px 28px", background: INK, color: PAPER }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
-        <div className="shape-footer-cta" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, paddingBottom: 56, textAlign: "center" }}>
-          <img src="/shape-logo-black.png" alt="Shape" style={{ height: 96, width: "auto", display: "block" }} />
-          <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.01em", color: PAPER }}>Join the community</div>
+        <div className="shape-footer-cta" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, paddingBottom: 28, textAlign: "center" }}>
+          <img src="/shape-logo-black.png" alt="Shape" style={{ height: 48, width: "auto", display: "block" }} />
+          <div style={{ fontFamily: serif, fontSize: 14, letterSpacing: "-0.01em", color: PAPER }}>Join the community</div>
         </div>
-        <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 40, paddingTop: 40, borderTop: "1px solid rgba(26,22,18,0.12)" }}>
+        <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 28, paddingTop: 22, borderTop: "1px solid rgba(26,22,18,0.12)" }}>
           <div>
-            <Logo variant="black" size={64} />
-            <p style={{ fontFamily: sans, fontSize: 13, color: "rgba(26,22,18,0.55)", marginTop: 16, maxWidth: 280 }}>Real coaches. One marketplace. One platform.</p>
+            <Logo variant="black" size={48} />
+            <p style={{ fontFamily: sans, fontSize: 12, color: "rgba(26,22,18,0.55)", marginTop: 10, maxWidth: 280 }}>Real coaches. One marketplace. One platform.</p>
           </div>
           {[
             ["Product",      [["Marketplace", "Marketplace.html"], ["Shape Score", "Score.html"], ["Radio", "Radio.html"], ["Dashboard", "ClientDashboard.html"]]],
@@ -251,12 +251,12 @@ function Footer() {
             ["Support",      [["Help", "/help.html"], ["Contact", "/contact.html"], ["Privacy", "/privacy.html"], ["Terms", "/terms.html"]]],
           ].map(([h, items]) => (
             <div key={h}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(26,22,18,0.5)", marginBottom: 16 }}>{h}</div>
-              {items.map(([label, href]) => <div key={label} style={{ marginBottom: 8 }}><a href={href} style={{ fontFamily: sans, fontSize: 13, color: "rgba(26,22,18,0.8)", textDecoration: "none" }}>{label}</a></div>)}
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(26,22,18,0.5)", marginBottom: 10 }}>{h}</div>
+              {items.map(([label, href]) => <div key={label} style={{ marginBottom: 6 }}><a href={href} style={{ fontFamily: sans, fontSize: 12, color: "rgba(26,22,18,0.8)", textDecoration: "none" }}>{label}</a></div>)}
             </div>
           ))}
         </div>
-        <div className="shape-footer-base" style={{ marginTop: 60, paddingTop: 24, borderTop: "1px solid rgba(26,22,18,0.08)", display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", color: "rgba(26,22,18,0.5)" }}>
+        <div className="shape-footer-base" style={{ marginTop: 28, paddingTop: 16, borderTop: "1px solid rgba(26,22,18,0.08)", display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", color: "rgba(26,22,18,0.5)" }}>
           <span>© 2026 SHAPE</span>
           <span>BROOKLYN · LISBON · MELBOURNE</span>
         </div>
@@ -294,7 +294,7 @@ function ShapeMobileStyles() {
         .shape-nav-burger { display: inline-flex !important; }
 
         /* Footer */
-        .shape-footer { padding: 60px 22px 72px !important; }
+        .shape-footer { padding: 32px 22px 24px !important; }
         .shape-footer-grid { grid-template-columns: 1fr 1fr !important; gap: 28px !important; padding-top: 28px !important; }
         .shape-footer-grid > div:first-child { grid-column: 1 / -1; }
         .shape-footer-base { flex-direction: column; gap: 10px; align-items: flex-start !important; }
