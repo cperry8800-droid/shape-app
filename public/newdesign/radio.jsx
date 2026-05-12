@@ -24,7 +24,7 @@ function RadioHero() {
   const [hearted, setHearted] = React.useState(false);
   return (
     <section style={{ padding: "72px 72px 56px", position: "relative", overflow: "hidden", minHeight: "calc(100vh - 109px)", boxSizing: "border-box", display: "flex", alignItems: "center", background: "transparent" }}>
-      <div style={{ maxWidth: 1180, margin: "0 auto", position: "relative", display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 56, alignItems: "center" }}>
+      <div style={{ maxWidth: 1480, margin: "0 auto", position: "relative", display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 120, alignItems: "center" }}>
         <div>
           <h1 style={{ fontFamily: serif, fontSize: 104, letterSpacing: "-0.04em", fontWeight: 400, margin: 0, lineHeight: 0.9 }}>
             Music<br/>built for<br/><em style={{ fontStyle: "italic", color: TEAL }}>training.</em>
