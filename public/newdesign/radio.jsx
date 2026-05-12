@@ -418,7 +418,6 @@ function RadioPage() {
         <Header active="Radio" />
         <RadioHero />
         <RadioShapeSets />
-        <RadioPitch />
         <Footer />
       </div>
       <style>{`
