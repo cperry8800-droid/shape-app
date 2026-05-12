@@ -149,6 +149,57 @@ function RadioPitch() {
   );
 }
 
+function RadioShapeSets() {
+  const lineup = [
+    { date: "FRI · MAY 17", artist: "Nilo Ceza", set: "Afro-house · 168–172 BPM", len: "120 min" },
+    { date: "SAT · MAY 24", artist: "Merit & Sable", set: "Grime-adjacent · 160 BPM", len: "75 min" },
+    { date: "FRI · MAY 31", artist: "Tariq Osei", set: "House cuts · 128 BPM", len: "90 min" },
+    { date: "SAT · JUN 07", artist: "Linnea Aho", set: "Ambient cooldown · 80–90 BPM", len: "60 min" },
+  ];
+  return (
+    <section style={{ padding: "80px 72px" }}>
+      <div style={{ maxWidth: 1480, margin: "0 auto", padding: 48, background: "transparent", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", border: "1px solid rgba(242,237,228,0.16)", borderRadius: 4 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr", gap: 80, alignItems: "start" }}>
+          <div>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>
+              <span style={{ width: 6, height: 6, borderRadius: 999, background: TEAL_BRIGHT, animation: "pulse 1.6s ease-in-out infinite" }} />
+              Live from Club Shape
+            </div>
+            <h2 style={{ fontFamily: serif, fontSize: 64, letterSpacing: "-0.03em", fontWeight: 400, margin: 0, lineHeight: 0.95 }}>
+              Shape <em style={{ fontStyle: "italic", color: TEAL }}>Sets.</em>
+            </h2>
+            <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.72)", marginTop: 22, maxWidth: 460, lineHeight: 1.55 }}>
+              A monthly virtual concert series broadcast straight from <strong style={{ color: INK, fontWeight: 500 }}>Club Shape</strong>, our flagship venue. Residents who lift, residents who run — DJs and live acts mixed for movement, captured on the floor and streamed through Shape Radio.
+            </p>
+            <p style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.6)", marginTop: 14, maxWidth: 460, lineHeight: 1.55 }}>
+              Watch from the gym floor, the kitchen, or the treadmill. Replays drop into the Shows tab the next morning. Free with every Shape membership.
+            </p>
+            <div style={{ display: "flex", gap: 10, marginTop: 28 }}>
+              <a href="/radio.html#sets" style={{ background: TEAL, color: PAPER, border: 0, padding: "12px 22px", borderRadius: 6, fontWeight: 500, fontSize: 13.5, fontFamily: sans, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>▶ Watch the next set</a>
+              <a href="/radio.html#sets" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "12px 22px", borderRadius: 6, fontWeight: 500, fontSize: 13.5, fontFamily: sans, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Full schedule</a>
+            </div>
+          </div>
+          <div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)", marginBottom: 16 }}>Upcoming sets</div>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {lineup.map((s, i) => (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "120px 1fr auto", alignItems: "center", gap: 18, padding: "18px 0", borderTop: i === 0 ? "1px solid rgba(242,237,228,0.16)" : "1px solid rgba(242,237,228,0.08)" }}>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>{s.date}</div>
+                  <div>
+                    <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.015em", color: INK, lineHeight: 1.1 }}>{s.artist}</div>
+                    <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.6)", marginTop: 4 }}>{s.set}</div>
+                  </div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.1em", color: "rgba(242,237,228,0.55)" }}>{s.len}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function RadioCoachPlaylists() {
   const examples = [
     { from: "Maya Okafor", role: "Trainer", ctx: "UPPER PULL · TODAY", title: "Upper Pull — Peak", meta: "95–130 BPM · 31 tracks · 1h 48m", note: "Builds across the session. Peaks at your top sets — don't pussyfoot that row.", accent: "#6a8cff", cover: "linear-gradient(135deg, #2a3a6a 0%, #1a1612 70%)", provider: "Spotify" },
@@ -395,6 +446,7 @@ function RadioPage() {
       <div style={{ position: "relative", zIndex: 1 }}>
         <Header active="Radio" />
         <RadioHero />
+        <RadioShapeSets />
         <RadioPitch />
         <Footer />
       </div>
