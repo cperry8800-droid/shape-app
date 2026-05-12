@@ -163,7 +163,7 @@ function RadioShapeSets() {
         <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.72)", margin: "22px auto 0", maxWidth: 620, lineHeight: 1.55 }}>
           A virtual concert series broadcast straight from <strong style={{ color: INK, fontWeight: 500 }}>Club Shape</strong>, our flagship venue. DJs and live acts mixed for movement, captured on the floor and streamed through Shape Radio.
         </p>
-        <div style={{ marginTop: 28, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL_BRIGHT }}>
+        <div style={{ marginTop: 36, fontFamily: "'JetBrains Mono', monospace", fontSize: 24, letterSpacing: "0.28em", textTransform: "uppercase", color: TEAL_BRIGHT, fontWeight: 500 }}>
           Coming soon
         </div>
       </div>
