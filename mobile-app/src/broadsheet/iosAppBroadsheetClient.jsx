@@ -4995,6 +4995,25 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         </div>}
       />
 
+      <BSSection title="Reward tiers" kicker="Monthly points" meta="5 tiers" />
+      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+        {tiers.map((tier, i) => (
+          <div key={tier.name} style={{
+            display: 'grid', gridTemplateColumns: '88px 1fr', gap: 12,
+            padding: '12px 0', borderBottom: i === tiers.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+          }}>
+            <div>
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>PTS</div>
+              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.08em', color: t.INK, fontWeight: 700 }}>{tier.range}</div>
+            </div>
+            <div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{tier.name}</div>
+              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tier.perk}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
       <div style={{ padding: `16px ${t.padX}px 18px`, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
         <BSEyebrow color={t.ACCENT}>How it works</BSEyebrow>
         <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 17, lineHeight: 1.28, color: t.INK, letterSpacing: '-0.015em' }}>
@@ -5028,25 +5047,6 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
               <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{sub}</div>
             </div>
             <div style={{ alignSelf: 'center', textAlign: 'right', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', color: t.ACCENT }}>{cost}</div>
-          </div>
-        ))}
-      </div>
-
-      <BSSection title="Reward tiers" kicker="Monthly points" meta="5 tiers" />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
-        {tiers.map((tier, i) => (
-          <div key={tier.name} style={{
-            display: 'grid', gridTemplateColumns: '88px 1fr', gap: 12,
-            padding: '12px 0', borderBottom: i === tiers.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-          }}>
-            <div>
-              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>PTS</div>
-              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.08em', color: t.INK, fontWeight: 700 }}>{tier.range}</div>
-            </div>
-            <div>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{tier.name}</div>
-              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tier.perk}</div>
-            </div>
           </div>
         ))}
       </div>
