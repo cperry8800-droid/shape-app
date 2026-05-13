@@ -1071,7 +1071,6 @@ const DirB = (() => {
         </div>
         <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
           <a href="Radio.html" style={{ background: TEAL_BRIGHT, color: PAPER, border: 0, padding: "12px 22px", borderRadius: 6, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>▶ Play mix</a>
-          <a href="Radio.html" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "12px 22px", borderRadius: 6, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Browse stations</a>
         </div>
       </div>
     );
