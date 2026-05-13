@@ -3864,10 +3864,12 @@ function BSClientChat({ onProfile, role = 'client' }) {
   const [view, setView] = useStateBSC('feed'); // 'feed' | 'direct' | 'community'
   const [subId, setSubId] = useStateBSC(null);   // active sub-bucket id
   const [chatQuery, setChatQuery] = useStateBSC(''); // search filter (community only)
+  const [selectedThreadKey, setSelectedThreadKey] = useStateBSC(null);
 
   const buckets = view === 'direct' ? directBuckets : communityBuckets;
   const activeSubId = subId && buckets.some(b => b.id === subId) ? subId : buckets[0]?.id;
   const activeBucket = buckets.find(b => b.id === activeSubId) || buckets[0];
+  const getThreadKey = (th) => `${view}:${activeSubId || 'none'}:${th?.who || ''}:${th?.role || ''}`;
   // Filter threads by query — match on name, role/sub, or last message
   const rawThreads = activeBucket?.threads || [];
   const q = chatQuery.trim().toLowerCase();
@@ -3878,6 +3880,9 @@ function BSClientChat({ onProfile, role = 'client' }) {
         (th.last || '').toLowerCase().includes(q)
       )
     : rawThreads;
+  const selectedThread = selectedThreadKey
+    ? activeThreads.find((th) => getThreadKey(th) === selectedThreadKey)
+    : null;
   const bucketKey = `${view}:${activeSubId || 'none'}`;
   const baseFeedMessages = activeThreads.flatMap((th) => {
     const msgs = Array.isArray(th.messages) ? th.messages : [];
@@ -3922,6 +3927,11 @@ function BSClientChat({ onProfile, role = 'client' }) {
   const communityUnread = communityBuckets.reduce((s, b) => s + b.threads.reduce((x, th) => x + (th.unread || 0), 0), 0);
   const totalUnread = view === 'direct' ? directUnread : communityUnread;
 
+  React.useEffect(() => {
+    setSelectedThreadKey(null);
+    setChatQuery('');
+  }, [view, activeSubId]);
+
   // Color map for the bucket chips on each thread row
   const bucketColor = {
     COACH:     t.BLUE,
@@ -3958,7 +3968,7 @@ function BSClientChat({ onProfile, role = 'client' }) {
       ].map((v) => {
         const active = view === v.id;
         return (
-          <button key={v.id} onClick={() => { setView(v.id); setSubId(null); }} style={{ borderRadius: 999,
+            <button key={v.id} onClick={() => { setView(v.id); setSubId(null); setSelectedThreadKey(null); }} style={{ borderRadius: 999,
             border: 0, background: active ? t.INK : 'transparent', cursor: 'pointer', padding: '10px 8px',
             color: active ? t.PAPER : t.INK,
             borderLeft: 0,
@@ -4000,6 +4010,16 @@ function BSClientChat({ onProfile, role = 'client' }) {
     );
   }
 
+  if (selectedThread) {
+    return (
+      <BSChatThread
+        thread={selectedThread}
+        eyebrow={`${view === 'direct' ? 'Direct' : 'Channel'} · ${activeBucket?.label || ''}`}
+        onBack={() => setSelectedThreadKey(null)}
+      />
+    );
+  }
+
   return (
     <BSPage>
       <BSPageHeader
@@ -4023,7 +4043,7 @@ function BSClientChat({ onProfile, role = 'client' }) {
           // Single metric: unread badge in accent if any, else dimmed count
           const showUnread = u > 0;
           return (
-            <button key={b.id} onClick={() => setSubId(b.id)} style={{
+            <button key={b.id} onClick={() => { setSubId(b.id); setSelectedThreadKey(null); }} style={{
               borderRadius: 999,
               flex: '1 1 0', padding: '9px 12px', cursor: 'pointer',
               background: active ? t.INK : t.SURFACE,
@@ -4101,7 +4121,47 @@ function BSClientChat({ onProfile, role = 'client' }) {
           color: t.INK70,
           boxShadow: t.ELEVATION_SOFT,
         }}>
-          Open feed mode. Messages post directly to this stream for {activeBucket?.label || 'this group'}.
+          Open feed mode. Messages post directly to this stream for {activeBucket?.label || 'this group'}. Tap a person or channel below to message there.
+        </div>
+        <div style={{ display: 'grid', gap: 8, marginBottom: 14 }}>
+          {activeThreads.map((th) => {
+            const key = getThreadKey(th);
+            const tagColor = bucketColor[th.bucket] || (th.group ? t.ACCENT : t.AMBER);
+            return (
+              <button key={key} onClick={() => setSelectedThreadKey(key)} style={{
+                width: '100%',
+                border: `1px solid ${t.SURFACE_BORDER}`,
+                background: t.SURFACE,
+                color: t.INK,
+                borderRadius: t.RADIUS_LG,
+                padding: 12,
+                boxShadow: t.ELEVATION_SOFT,
+                display: 'grid',
+                gridTemplateColumns: '38px 1fr auto',
+                gap: 10,
+                alignItems: 'center',
+                textAlign: 'left',
+                cursor: 'pointer',
+              }}>
+                <BSAvatar init={(th.who.match(/[A-Z#]/) || ['S'])[0]} size={36} fill={tagColor} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: t.BODY, fontSize: 14, fontWeight: 760, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{th.who}</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{th.role}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {!!th.unread && (
+                    <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, background: t.ACCENT, color: t.PAPER, borderRadius: 999, padding: '2px 6px' }}>{th.unread}</span>
+                  )}
+                  <span style={{ fontFamily: t.MONO, fontSize: 14, color: t.INK50 }}>→</span>
+                </div>
+              </button>
+            );
+          })}
+          {activeThreads.length === 0 && (
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, padding: '10px 2px' }}>
+              No people or channels match this search.
+            </div>
+          )}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '0 0 90px' }}>
           {filteredFeedMessages.map((m, i) => {
