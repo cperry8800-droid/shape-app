@@ -699,7 +699,6 @@ const DirB = (() => {
         </div>
         <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
           <button style={{ background: TEAL_BRIGHT, color: PAPER, border: 0, padding: "12px 22px", borderRadius: 6, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>▶ Play mix</button>
-          <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "12px 22px", borderRadius: 6, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Browse stations</button>
         </div>
       </div>
     );
