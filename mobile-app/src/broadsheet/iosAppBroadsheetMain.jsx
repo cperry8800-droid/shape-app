@@ -508,36 +508,36 @@ function BSPreviewNotice({ onClose, onSignIn }) {
   return (
     <div style={{ borderRadius: t.RADIUS_SM,
       position: 'absolute',
-      top: 48, left: 12, right: 12,
+      top: 24, left: 18, right: 18,
       zIndex: 60,
       background: t.PAPER,
       color: t.INK,
       border: `1.5px solid ${t.INK}`,
       boxShadow: '0 6px 18px rgba(0,0,0,0.10)',
-      padding: '10px 12px',
-      display: 'flex', alignItems: 'flex-start', gap: 10,
+      padding: '7px 9px',
+      display: 'flex', alignItems: 'center', gap: 8,
     }}>
       <div style={{
-        flex: '0 0 auto', marginTop: 1,
+        flex: '0 0 auto',
         background: t.ACCENT, color: t.INK,
-        fontFamily: t.MONO, fontSize: 9, fontWeight: 800,
+        fontFamily: t.MONO, fontSize: 8, fontWeight: 800,
         letterSpacing: '0.18em', textTransform: 'uppercase',
-        padding: '3px 6px',
+        padding: '3px 5px',
       }}>Preview</div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontWeight: 600, fontSize: 12.5, letterSpacing: '-0.005em', color: t.INK, lineHeight: 1.25 }}>
-          You're browsing without an account.
+        <div style={{ fontFamily: t.DISPLAY, fontWeight: 600, fontSize: 11.5, letterSpacing: '-0.005em', color: t.INK, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          Browsing without an account
         </div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginTop: 3, lineHeight: 1.35 }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 7.4, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, marginTop: 2, lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           Stats &amp; activity are AI-generated for preview · Marketplace data is live.
         </div>
         {onSignIn && (
           <button onClick={onSignIn} style={{ borderRadius: t.RADIUS_SM,
-            marginTop: 6, padding: '4px 8px', cursor: 'pointer',
+            marginTop: 3, padding: '3px 7px', cursor: 'pointer',
             background: 'transparent', color: t.INK,
             border: `1px solid ${t.INK}`,
-            fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700,
+            fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700,
           }}>Sign in →</button>
         )}
       </div>
@@ -565,7 +565,7 @@ function BSSubscribeBanner({ onJoin, onClose }) {
     <div style={{ borderRadius: t.RADIUS_SM,
       position: 'absolute',
       // Sit above the tab bar (~58–66px tall depending on safe-area).
-      left: 16, right: 16, bottom: 90,
+      left: 18, right: 18, bottom: 92,
       zIndex: 60,
       background: surface,
       WebkitBackdropFilter: 'blur(14px) saturate(140%)',
@@ -573,20 +573,20 @@ function BSSubscribeBanner({ onJoin, onClose }) {
       color: fg,
       border: `1px solid ${borderC}`,
       boxShadow: '0 6px 18px rgba(0,0,0,0.16)',
-      padding: '8px 10px',
+      padding: '7px 9px',
       display: 'flex', alignItems: 'center', gap: 10,
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.15, color: fg }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.05, color: fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           Join the Shape community
         </div>
-        <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: fgMuted, marginTop: 2 }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 7.2, letterSpacing: '0.13em', textTransform: 'uppercase', color: fgMuted, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           $5 / mo · cancel anytime
         </div>
       </div>
       <button onClick={onJoin} style={{ borderRadius: t.RADIUS_SM,
-        padding: '7px 11px', background: btnBg, color: btnFg, border: 0,
-        fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em',
+        padding: '6px 10px', background: btnBg, color: btnFg, border: 0,
+        fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.15em',
         textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap',
       }}>Join →</button>
       <button onClick={onClose} aria-label="Dismiss" style={{ borderRadius: t.RADIUS_SM,
@@ -604,7 +604,6 @@ function BSBrowseChrome({ noticeDismissed, bannerDismissed, onCloseNotice, onClo
   if (r.showPrompt) return null;
   return (
     <>
-      {!noticeDismissed && <BSPreviewNotice onClose={onCloseNotice} onSignIn={onSignIn} />}
       {!bannerDismissed && <BSSubscribeBanner onJoin={onJoin} onClose={onCloseBanner} />}
     </>
   );
