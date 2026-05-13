@@ -29,7 +29,7 @@ function RadioHero() {
           <h1 style={{ fontFamily: serif, fontSize: 104, letterSpacing: "-0.04em", fontWeight: 400, margin: 0, lineHeight: 0.9 }}>
             Music<br/>built for<br/><em style={{ fontStyle: "italic", color: TEAL }}>training.</em>
           </h1>
-          <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.7)", margin: "22px 0 0", maxWidth: 480, lineHeight: 1.5 }}>Ad-free workout mixes, curated stations by BPM, live DJ sets from residents who lift. Plus: your coach can attach a Spotify or Apple Music playlist to any workout or meal — it plays on the card, in your kitchen, or on the treadmill. Send good ones to friends. Included with every Shape membership.</p>
+          <p style={{ fontFamily: sans, fontSize: 16, fontWeight: 500, color: "rgba(242,237,228,0.95)", margin: "22px 0 0", maxWidth: 480, lineHeight: 1.5 }}>Ad-free workout mixes, curated stations by BPM, live DJ sets from residents who lift. Plus: your coach can attach a Spotify or Apple Music playlist to any workout or meal — it plays on the card, in your kitchen, or on the treadmill. Send good ones to friends. Included with every Shape membership.</p>
           <div style={{ display: "flex", gap: 10, marginTop: 28 }}>
             <a href="/radio.html" style={{ background: TEAL, color: PAPER, border: 0, padding: "12px 22px", borderRadius: 6, fontWeight: 500, fontSize: 13.5, fontFamily: sans, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>▶ Play Shape Radio Station</a>
           </div>
@@ -159,7 +159,7 @@ function RadioShapeSets() {
         <h2 style={{ fontFamily: serif, fontSize: 64, letterSpacing: "-0.03em", fontWeight: 400, margin: 0, lineHeight: 0.95 }}>
           Shape <em style={{ fontStyle: "italic", color: TEAL }}>Sets.</em>
         </h2>
-        <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.72)", margin: "22px auto 0", maxWidth: 620, lineHeight: 1.55 }}>
+        <p style={{ fontFamily: sans, fontSize: 16, fontWeight: 500, color: "rgba(242,237,228,0.95)", margin: "22px auto 0", maxWidth: 620, lineHeight: 1.55 }}>
           A virtual concert series broadcast straight from <strong style={{ color: INK, fontWeight: 500 }}>Club Shape</strong>, our flagship venue. DJs and live acts mixed for movement, captured on the floor and streamed through Shape Radio.
         </p>
         <div style={{ marginTop: 36, fontFamily: "'JetBrains Mono', monospace", fontSize: 24, letterSpacing: "0.28em", textTransform: "uppercase", color: TEAL_BRIGHT, fontWeight: 500 }}>
