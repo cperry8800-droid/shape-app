@@ -5,9 +5,38 @@ import * as ReactDOM from 'react-dom/client';
 const { useState: useStateBSM, useEffect: useEffectBSM } = React;
 const {
   useBS, BSProvider, BSPhone, BSLogo,
-  BSClientApp, BSTrainerApp, BSNutritionistApp,
   BSRadioProvider, useBSRadio,
 } = window;
+
+let _clientBundlePromise = null;
+let _prosBundlePromise = null;
+
+function loadClientBundle() {
+  if (_clientBundlePromise) return _clientBundlePromise;
+  _clientBundlePromise = Promise.all([
+    import('./iosAppBroadsheetCalendar.jsx'),
+    import('./iosAppBroadsheetProviderApply.jsx'),
+    import('./iosAppBroadsheetMarketplace.jsx'),
+    import('./iosAppBroadsheetWidgets.jsx'),
+    import('./iosAppBroadsheetHabits.jsx'),
+    import('./iosAppBroadsheetClient.jsx'),
+  ]).then(() => true);
+  return _clientBundlePromise;
+}
+
+function loadProsBundle() {
+  if (_prosBundlePromise) return _prosBundlePromise;
+  _prosBundlePromise = import('./iosAppBroadsheetPros.jsx').then(() => true);
+  return _prosBundlePromise;
+}
+
+async function ensureRoleBundle(role) {
+  if (role === 'trainer' || role === 'nutritionist') {
+    await loadProsBundle();
+    return;
+  }
+  await loadClientBundle();
+}
 
 // Hex → "r,g,b" string for rgba(), local copy so this file can use it
 // without a window roundtrip. Returns null on bad input.
@@ -618,6 +647,8 @@ function BSAppShell({ tweaks, setTweak }) {
   const [bannerDismissed, setBannerDismissed] = useStateBSM(false);
   const [noticeDismissed, setNoticeDismissed] = useStateBSM(false);
   const [loginMode, setLoginMode] = useStateBSM('signin'); // initial tab on next login mount
+  const [bundleLoading, setBundleLoading] = useStateBSM(false);
+  const [bundleError, setBundleError] = useStateBSM('');
   const t = useBS();
 
   useEffectBSM(() => { setRole(tweaks.role || 'client'); }, [tweaks.role]);
@@ -629,13 +660,27 @@ function BSAppShell({ tweaks, setTweak }) {
     return () => window.removeEventListener('bs-replay-splash', onReplay);
   }, []);
 
+  useEffectBSM(() => {
+    let cancelled = false;
+    setBundleError('');
+    setBundleLoading(true);
+    ensureRoleBundle(role)
+      .catch((err) => {
+        if (!cancelled) setBundleError(err?.message || 'Failed loading app module.');
+      })
+      .finally(() => {
+        if (!cancelled) setBundleLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [role]);
+
   const appByRole = {
-    client: BSClientApp,
-    trainer: BSTrainerApp,
-    nutritionist: BSNutritionistApp,
-    shape_radio: BSClientApp,
+    client: window.BSClientApp,
+    trainer: window.BSTrainerApp,
+    nutritionist: window.BSNutritionistApp,
+    shape_radio: window.BSClientApp,
   };
-  const App = appByRole[role] || BSClientApp;
+  const App = appByRole[role] || window.BSClientApp;
   const appProps = role === 'shape_radio' ? { initialTab: 'radio' } : {};
 
   useEffectBSM(() => {
@@ -683,10 +728,40 @@ function BSAppShell({ tweaks, setTweak }) {
           onLogin={handleLogin}
           onBrowse={() => { setBrowseMode(true); setBannerDismissed(false); setNoticeDismissed(false); setLoginMode('signin'); setStage('app'); }}
         />}
-        {stage === 'app'    && <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />}
+        {stage === 'app' && !!bundleError && (
+          <div style={{
+            margin: 18,
+            padding: 14,
+            border: `1px solid ${t.RULE}`,
+            background: t.PAPER2,
+            color: t.INK,
+            fontFamily: t.MONO,
+            fontSize: 10,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+          }}>
+            {bundleError}
+          </div>
+        )}
+        {stage === 'app' && !bundleError && !App && (
+          <div style={{
+            margin: 18,
+            padding: 14,
+            border: `1px solid ${t.RULE}`,
+            background: t.PAPER2,
+            color: t.INK,
+            fontFamily: t.MONO,
+            fontSize: 10,
+            letterSpacing: '0.16em',
+            textTransform: 'uppercase',
+          }}>
+            Loading app...
+          </div>
+        )}
+        {stage === 'app' && !!App && <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />}
 
         {/* Browse-mode chrome (preview banner + subscribe CTA) — gated below */}
-        {stage === 'app' && browseMode && !tweaks.startLoggedIn && (
+        {stage === 'app' && !!App && !bundleLoading && browseMode && !tweaks.startLoggedIn && (
           <BSBrowseChrome
             noticeDismissed={noticeDismissed}
             bannerDismissed={bannerDismissed}
