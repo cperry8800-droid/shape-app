@@ -463,13 +463,21 @@
     .feat-row .phone.framed-shot { padding: 0; border-radius: 0; }
     .feat-row .phone .screen-crop { border-radius: 43px; }
     .feat-row .phone .island { width: 82px; height: 25px; top: 16px; }
+    /* Consistent screen-shot framing on mobile: zero inner padding,
+       object-fit contain centered, so every screenshot sits flush
+       within the same bezel regardless of source aspect ratio. */
+    .feat-row .phone.screen-shot .screen-crop,
     .feat-row .phone.screen-shot.radio-shot .screen-crop,
-    .feat-row .phone.screen-shot.habit-shot .screen-crop { padding: 24px 0 14px; }
+    .feat-row .phone.screen-shot.habit-shot .screen-crop,
+    .feat-row .phone.screen-shot.home-shot .screen-crop { padding: 0; }
+    .feat-row .phone.screen-shot img,
     .feat-row .phone.screen-shot.radio-shot img,
-    .feat-row .phone.screen-shot.habit-shot img {
+    .feat-row .phone.screen-shot.habit-shot img,
+    .feat-row .phone.screen-shot.home-shot img {
       width: 100%;
       height: 100%;
       object-fit: contain;
+      object-position: center center;
       transform: none;
     }
     .home-scroll-content { padding: 54px 10px 72px; }
