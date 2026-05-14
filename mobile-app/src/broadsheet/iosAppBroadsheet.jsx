@@ -313,6 +313,12 @@ function getTargetScroller(eventTarget) {
   return document.querySelector('.bs-scroll');
 }
 
+function isInteractiveTarget(target) {
+  return Boolean(target?.closest?.(
+    'input, textarea, select, button, a, label, [role="button"], [contenteditable="true"]'
+  ));
+}
+
 // ═══════════════════════════════════════════════════════════
 // PRIMITIVES
 // ═══════════════════════════════════════════════════════════
@@ -332,7 +338,7 @@ function BSPage({ children, tabBarHeight = 80 }) {
 
     const onTouchStart = (event) => {
       if (event.touches.length !== 1) return;
-      if (event.target?.closest?.('input, textarea, select')) return;
+      if (isInteractiveTarget(event.target)) return;
       active = true;
       moved = false;
       lastY = event.touches[0].clientY;
@@ -942,7 +948,7 @@ function BSPhone({ children }) {
 
     const onTouchStart = (event) => {
       if (event.touches.length !== 1) return;
-      if (event.target?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+      if (isInteractiveTarget(event.target)) return;
 
       const scroller = getTargetScroller(event.target);
       if (!scroller || scroller.scrollHeight <= scroller.clientHeight + 2) return;
