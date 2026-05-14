@@ -3871,6 +3871,8 @@ function BSClientChat({ onProfile, role = 'client' }) {
   const buckets = view === 'direct' ? directBuckets : communityBuckets;
   const activeSubId = subId && buckets.some(b => b.id === subId) ? subId : buckets[0]?.id;
   const activeBucket = buckets.find(b => b.id === activeSubId) || buckets[0];
+  const isThreadedBucket = view === 'direct' && (activeSubId === 'circle' || activeSubId === 'friends');
+  const isFeedBucket = view !== 'feed' && !isThreadedBucket;
   const getThreadKey = (th) => `${view}:${activeSubId || 'none'}:${th?.who || ''}:${th?.role || ''}`;
   // Filter threads by query — match on name, role/sub, or last message
   const rawThreads = activeBucket?.threads || [];
@@ -4072,7 +4074,11 @@ function BSClientChat({ onProfile, role = 'client' }) {
 
       <BSSection
         title={activeBucket?.label || ''}
-        meta={totalUnread > 0 ? `${totalUnread} unread` : `${filteredFeedMessages.length} messages`}
+        meta={
+          isThreadedBucket
+            ? `${activeThreads.length} conversations`
+            : (totalUnread > 0 ? `${totalUnread} unread` : `${filteredFeedMessages.length} messages`)
+        }
       />
 
       {/* Search — both tabs */}
@@ -4111,61 +4117,65 @@ function BSClientChat({ onProfile, role = 'client' }) {
       )}
 
       <div style={{ padding: `0 ${t.padX}px 20px` }}>
-        <div style={{
-          marginBottom: 12,
-          border: `1px solid ${t.SURFACE_BORDER}`,
-          background: t.SURFACE,
-          borderRadius: t.RADIUS_LG,
-          padding: 14,
-          fontFamily: t.BODY,
-          fontSize: 13.5,
-          lineHeight: 1.4,
-          color: t.INK70,
-          boxShadow: t.ELEVATION_SOFT,
-        }}>
-          Open feed mode. Messages post directly to this stream for {activeBucket?.label || 'this group'}. Tap a person or channel below to message there.
-        </div>
-        <div style={{ display: 'grid', gap: 8, marginBottom: 14 }}>
-          {activeThreads.map((th) => {
-            const key = getThreadKey(th);
-            const tagColor = bucketColor[th.bucket] || (th.group ? t.ACCENT : t.AMBER);
-            return (
-              <button key={key} onClick={() => setSelectedThreadKey(key)} style={{
-                width: '100%',
-                border: `1px solid ${t.SURFACE_BORDER}`,
-                background: t.SURFACE,
-                color: t.INK,
-                borderRadius: t.RADIUS_LG,
-                padding: 12,
-                boxShadow: t.ELEVATION_SOFT,
-                display: 'grid',
-                gridTemplateColumns: '38px 1fr auto',
-                gap: 10,
-                alignItems: 'center',
-                textAlign: 'left',
-                cursor: 'pointer',
-              }}>
-                <BSAvatar init={(th.who.match(/[A-Z#]/) || ['S'])[0]} size={36} fill={tagColor} />
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: t.BODY, fontSize: 14, fontWeight: 760, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{th.who}</div>
-                  <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{th.role}</div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {!!th.unread && (
-                    <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, background: t.ACCENT, color: t.PAPER, borderRadius: 999, padding: '2px 6px' }}>{th.unread}</span>
-                  )}
-                  <span style={{ fontFamily: t.MONO, fontSize: 14, color: t.INK50 }}>→</span>
-                </div>
-              </button>
-            );
-          })}
-          {activeThreads.length === 0 && (
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, padding: '10px 2px' }}>
-              No people or channels match this search.
-            </div>
-          )}
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '0 0 90px' }}>
+        {isThreadedBucket && (
+          <div style={{ display: 'grid', gap: 8, marginBottom: 14 }}>
+            {activeThreads.map((th) => {
+              const key = getThreadKey(th);
+              const tagColor = bucketColor[th.bucket] || (th.group ? t.ACCENT : t.AMBER);
+              return (
+                <button key={key} onClick={() => setSelectedThreadKey(key)} style={{
+                  width: '100%',
+                  border: `1px solid ${t.SURFACE_BORDER}`,
+                  background: t.SURFACE,
+                  color: t.INK,
+                  borderRadius: t.RADIUS_LG,
+                  padding: 12,
+                  boxShadow: t.ELEVATION_SOFT,
+                  display: 'grid',
+                  gridTemplateColumns: '38px 1fr auto',
+                  gap: 10,
+                  alignItems: 'center',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                }}>
+                  <BSAvatar init={(th.who.match(/[A-Z#]/) || ['S'])[0]} size={36} fill={tagColor} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontFamily: t.BODY, fontSize: 14, fontWeight: 760, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{th.who}</div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{th.role}</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {!!th.unread && (
+                      <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, background: t.ACCENT, color: t.PAPER, borderRadius: 999, padding: '2px 6px' }}>{th.unread}</span>
+                    )}
+                    <span style={{ fontFamily: t.MONO, fontSize: 14, color: t.INK50 }}>→</span>
+                  </div>
+                </button>
+              );
+            })}
+            {activeThreads.length === 0 && (
+              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, padding: '10px 2px' }}>
+                No people match this search.
+              </div>
+            )}
+          </div>
+        )}
+        {isFeedBucket && (
+          <div style={{
+            marginBottom: 12,
+            border: `1px solid ${t.SURFACE_BORDER}`,
+            background: t.SURFACE,
+            borderRadius: t.RADIUS_LG,
+            padding: 14,
+            fontFamily: t.BODY,
+            fontSize: 13.5,
+            lineHeight: 1.4,
+            color: t.INK70,
+            boxShadow: t.ELEVATION_SOFT,
+          }}>
+            Feed mode is active. Messages post directly to {activeBucket?.label || 'this stream'}.
+          </div>
+        )}
+        {isFeedBucket && <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '0 0 90px' }}>
           {filteredFeedMessages.map((m, i) => {
             const me = m.me;
             const tagColor = bucketColor[m._bucket] || (m.coach ? t.AMBER : t.ACCENT);
@@ -4197,8 +4207,8 @@ function BSClientChat({ onProfile, role = 'client' }) {
               No messages yet in this feed.
             </div>
           )}
-        </div>
-        <div style={{
+        </div>}
+        {isFeedBucket && <div style={{
           position: 'sticky',
           bottom: 10,
           zIndex: 3,
@@ -4238,7 +4248,7 @@ function BSClientChat({ onProfile, role = 'client' }) {
             fontWeight: 760,
             cursor: 'pointer',
           }}>Send</button>
-        </div>
+        </div>}
       </div>
 
       <BSFooter right={`Pg 4 of 5 · ${view === 'direct' ? 'Direct' : 'Community'} · ${activeBucket?.label || ''}`} />
