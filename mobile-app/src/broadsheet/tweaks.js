@@ -8,7 +8,7 @@ window.__TWEAKS = {
   startLoggedIn: false,
   textureKey: 'none',
   homeWidgets: '',
-  habits: '[{"id":"h_1777342129806_879","name":"drink 3 glasses of water","type":"do","remindAt":"","public":false,"history":["2026-04-21"]},{"id":"h_1777342180911_679","name":"Take vitamins","type":"do","remindAt":"","public":false,"history":[]},{"id":"h_1777471957523_576","name":"smoking","type":"avoid","remindAt":"","public":false,"history":[]}]',
+  habits: '[{"id":"h_1777342129806_879","name":"drink 3 glasses of water","type":"do","remindAt":"","public":false,"history":["2026-05-14"]},{"id":"h_1777342180911_679","name":"Take vitamins","type":"do","remindAt":"","public":false,"history":[]},{"id":"h_1777471957523_576","name":"smoking","type":"avoid","remindAt":"","public":false,"history":[]}]',
   inkOverride: 'default',
   splashBg: 'plain',
   textureColor: '#2e7d32',

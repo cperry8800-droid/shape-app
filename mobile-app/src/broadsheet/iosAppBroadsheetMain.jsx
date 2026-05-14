@@ -150,7 +150,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
       <div style={{ position: 'absolute', inset: 0, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '54px 20px 40px' }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${t.INK}`, paddingBottom: 10 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><BSLogo size={22} color={t.INK} /> Vol. 6 · No. 38</span>
-          <span>Tue · Apr 21 · 2026</span>
+          <span>Thu · May 14 · 2026</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <div className="bs-splash-title" style={{ textAlign: 'center', lineHeight: 1, width: '100%', margin: '0 auto', paddingBottom: 16, borderBottom: `3px solid ${t.INK}` }}>
@@ -195,7 +195,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
       <div style={{ position: 'absolute', inset: 0, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '50px 18px 8px' }}>
           <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, display: 'flex', justifyContent: 'space-between', borderBottom: `1px solid ${t.RULE}`, paddingBottom: 6 }}>
-            <span>Vol. 6 · No. 38</span><span>Apr 21 · 2026</span><span>$0 · Daily</span>
+            <span>Vol. 6 · No. 38</span><span>May 14 · 2026</span><span>$0 · Daily</span>
           </div>
           <div style={{ borderBottom: `3px double ${t.INK}`, padding: '12px 0 14px', display: 'flex', justifyContent: 'center' }}>
             <BSWordmark size={42} full color={t.INK} />

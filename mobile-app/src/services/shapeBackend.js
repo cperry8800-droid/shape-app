@@ -746,7 +746,7 @@ async function submitProviderApplication({ role, values }) {
   return { stored: 'supabase', data };
 }
 
-function toBookingDate(date, month = 'Apr') {
+function toBookingDate(date, month = 'May') {
   const day = Number(date);
   if (!Number.isFinite(day)) return null;
   const monthIndex = {
@@ -767,7 +767,7 @@ function toBookingDate(date, month = 'Apr') {
 }
 
 function scheduledAtFromSlot(slot = {}) {
-  const scheduledDate = slot.scheduled_date || toBookingDate(slot.date, slot.month || 'Apr');
+  const scheduledDate = slot.scheduled_date || toBookingDate(slot.date, slot.month || 'May');
   if (!scheduledDate || !slot.time || slot.time === '--') return null;
   return `${scheduledDate}T${String(slot.time).padStart(5, '0')}:00`;
 }

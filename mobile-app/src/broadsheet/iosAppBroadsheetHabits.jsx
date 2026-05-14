@@ -8,11 +8,11 @@ import React from 'react';
 //     history: ['YYYY-MM-DD', ...]  // dates this habit was completed
 //   }
 //
-// Today's date is held internally as Apr 21 2026 to match the rest of the app.
+// Today's date is held internally as May 14 2026 to match the rest of the app.
 
 const { useState: useStateBSH } = React;
 
-const _bsHabitsToday = '2026-04-21';
+const _bsHabitsToday = '2026-05-14';
 
 // ── Date helpers (anchored at "today") ────────────────────
 function _bsDateAdd(yyyymmdd, deltaDays) {
@@ -30,7 +30,7 @@ function _bsLast7() {
   for (let i = 6; i >= 0; i--) out.push(_bsDateAdd(_bsHabitsToday, -i));
   return out;
 }
-// Letter for the day of week — Apr 21, 2026 is a Tuesday. Hard-coded ring matches.
+// Letter for the day of week — anchored to May 14, 2026.
 const _BS_DOW_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 function _bsDowLetter(yyyymmdd) {
   const [y, m, d] = yyyymmdd.split('-').map(Number);

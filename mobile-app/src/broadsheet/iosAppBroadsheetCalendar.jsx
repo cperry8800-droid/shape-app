@@ -97,12 +97,12 @@ function BSToast({ message, kind = 'info', onDone }) {
 // ═══════════════════════════════════════════════════════════
 // EVENT MODELS — per role
 // ═══════════════════════════════════════════════════════════
-// Each event: { day: 0-30 (April), time, dur, kind, title, sub, accent }
-// April 2026: starts on Wednesday. Today = 21 (Tue, week 4).
+// Each event: { day: 0-31 (May), time, dur, kind, title, sub, accent }
+// May 2026: starts on Friday. Today = 14 (Thu, week 20).
 
 function clientEvents(t) {
   return [
-    // current week (Apr 20–26) — heavy detail
+    // current week (May 11-17) — heavy detail
     { day: 20, time: '07:00', dur: 60, kind: 'TRN',  title: 'Upper Push — Peak',     sub: 'Jordan · 52m',     accent: t.AMBER, state: 'done' },
     { day: 20, time: '12:30', dur: 30, kind: 'MEAL', title: 'Lunch · chicken bowl',   sub: '620 kcal',          accent: t.BLUE, state: 'done' },
     { day: 21, time: '07:30', dur: 60, kind: 'TRN',  title: 'Upper Pull — Peak',     sub: 'Jordan · 52m',     accent: t.AMBER, state: 'now' },
@@ -185,13 +185,17 @@ function eventsFor(role, t) {
 // ═══════════════════════════════════════════════════════════
 function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', onBack }) {
   const t = useBSCal();
-  // month picker state — default to April 2026 (the demo month with data)
+  // month picker state — default to May 2026 (the demo month with data)
   const [viewYear, setViewYear] = useStateBSCal(2026);
-  const [viewMonth, setViewMonth] = useStateBSCal(3); // 0=Jan ... 3=Apr
-  const [selDay, setSelDay] = useStateBSCal(21); // April 21
-  const events = eventsFor(role, t);
+  const [viewMonth, setViewMonth] = useStateBSCal(4); // 0=Jan ... 4=May
+  const [selDay, setSelDay] = useStateBSCal(14); // May 14
+  const sourceDayByDate = { 20: 11, 21: 14, 22: 15, 23: 16, 24: 17, 25: 18, 26: 19 };
+  const events = eventsFor(role, t).map((event) => {
+    const day = sourceDayByDate[event.day];
+    return day ? { ...event, day } : event;
+  });
   const sheet = useBSSheet();
-  const isDemoMonth = viewYear === 2026 && viewMonth === 3;
+  const isDemoMonth = viewYear === 2026 && viewMonth === 4;
   const monthName = ['January','February','March','April','May','June','July','August','September','October','November','December'][viewMonth];
 
   const masthead = role === 'trainer' ? <>The<br/>schedule.</>
@@ -262,7 +266,7 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
 // ────────── WEEK VIEW
 function BSCalendarWeek({ events, selDay, setSelDay, sheet, role }) {
   const t = useBSCal();
-  const weekDays = [20, 21, 22, 23, 24, 25, 26]; // Apr 20–26 (Mon–Sun)
+  const weekDays = [11, 12, 13, 14, 15, 16, 17]; // May 11-17 (Mon-Sun)
   const dowLabels = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
 
   // counts per day
@@ -277,7 +281,7 @@ function BSCalendarWeek({ events, selDay, setSelDay, sheet, role }) {
       <div style={{ padding: `14px ${t.padX}px`, borderBottom: `2px solid ${t.INK}`, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
         {weekDays.map((d, i) => {
           const on = d === selDay;
-          const isToday = d === 21;
+          const isToday = d === 14;
           const c = countByDay[d];
           return (
             <button key={d} onClick={() => setSelDay(d)} style={{ borderRadius: t.RADIUS_SM,
@@ -300,13 +304,13 @@ function BSCalendarWeek({ events, selDay, setSelDay, sheet, role }) {
       </div>
 
       {/* Day timeline */}
-      <BSSectionCal title={`Day · Apr ${selDay}`} meta={`${dayEvents.length} item${dayEvents.length === 1 ? '' : 's'}`} />
+      <BSSectionCal title={`Day · May ${selDay}`} meta={`${dayEvents.length} item${dayEvents.length === 1 ? '' : 's'}`} />
       <BSDayTimeline events={dayEvents} sheet={sheet} role={role} />
     </>
   );
 }
 
-// Day timeline — vertical, each event a row. Mark "now" (8:30 AM Apr 21) and gaps.
+// Day timeline — vertical, each event a row. Mark "now" (8:30 AM May 14) and gaps.
 function BSDayTimeline({ events, sheet, role }) {
   const t = useBSCal();
   if (events.length === 0) {
@@ -363,8 +367,8 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
   const today = new Date();
   const isCurrentMonth = today.getFullYear() === viewYear && today.getMonth() === viewMonth;
   const todayDay = isCurrentMonth ? today.getDate() : null;
-  // for the demo month (April 2026), pin "today" visual to the 21st
-  const visualToday = isDemoMonth ? 21 : todayDay;
+  // for the demo month (May 2026), pin "today" visual to the 14th
+  const visualToday = isDemoMonth ? 14 : todayDay;
   const cells = [];
   for (let i = 0; i < firstDow; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
@@ -502,7 +506,7 @@ function BSEventSheet({ event, role, onClose }) {
       <div style={{ padding: `40px ${t.padX}px 18px`, borderBottom: `2px solid ${t.INK}` }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 10 }}>
           <BSTagCal color={event.accent}>{event.kind}</BSTagCal>
-          <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', color: t.INK70, fontWeight: 600 }}>Apr {event.day} · {event.time}{event.dur ? ` · ${event.dur}m` : ''}</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', color: t.INK70, fontWeight: 600 }}>May {event.day} · {event.time}{event.dur ? ` · ${event.dur}m` : ''}</span>
         </div>
         <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 40, lineHeight: 0.95, letterSpacing: '-0.035em', color: t.INK }}>
           {event.title}

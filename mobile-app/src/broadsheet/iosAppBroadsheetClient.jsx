@@ -430,7 +430,7 @@ function BSClientApp_old({ onLogout }) {
 // ═══════════════════════════════════════════════════════════
 function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket, goScore, goIntegrations, tweaks = {}, setTweak = () => {} }) {
   const t = useBS();
-  const [selDay, setSelDay] = useStateBSC(21);
+  const [selDay, setSelDay] = useStateBSC(14);
   const [nextMealLogged, setNextMealLogged] = useStateBSC(false);
   const [previewMeal, setPreviewMeal] = useStateBSC(null);
   const [habitsPage, setHabitsPage] = useStateBSC(false);
@@ -521,7 +521,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     20: [t.AMBER, t.BLUE, t.GREEN], 21: [t.AMBER, t.RUST, t.BLUE], 22: [t.AMBER, t.GREEN],
     23: [t.AMBER], 24: [t.AMBER, t.RUST, t.GREEN], 25: [t.AMBER, t.BLUE], 26: [],
   };
-  const dayLog = DAY_LOGS[selDay] || [];
+  const sourceDayByDate = { 11: 20, 14: 21, 15: 22, 16: 23, 17: 24 };
+  const dataDay = sourceDayByDate[selDay] || selDay;
+  const dayLog = DAY_LOGS[dataDay] || [];
   const dayLogKey = (row, i) => `${selDay}-${row.time}-${row.tag || 'item'}-${i}`;
   const dayLogDetails = (row) => {
     if (row.tag === 'MEAL') return {
@@ -578,7 +580,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     25: { kcalIn: 1720, kcalBurn: 1850, status: 'long run', note: 'Long run done. Brunch + 3 meals.' },
     26: { kcalIn: 1320, kcalBurn: 1700, status: 'rest day', note: 'Rest day. Three lighter meals.' },
   };
-  const macros = DAY_MACROS[selDay] || DAY_MACROS[21];
+  const macros = DAY_MACROS[dataDay] || DAY_MACROS[21];
   const balance = macros.kcalIn - macros.kcalBurn; // negative = deficit
   const balanceSign = balance < 0 ? '−' : '+';
   const balanceValue = Math.abs(balance).toString();
@@ -601,7 +603,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
           <span className="bs-daily-shape" style={{ display: 'inline-block', marginLeft: 8, marginRight: 10, fontFamily: `'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif`, fontWeight: 300, fontStyle: 'normal', fontSize: 37, letterSpacing: '0.18em', textTransform: 'uppercase', transform: 'translateY(1px)' }}>SHAPE</span>
           <span className="bs-daily-daily" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>Daily.</span>
         </span>}
-        leftKicker="Tue · Apr 21 · 2026"
+        leftKicker="Thu · May 14 · 2026"
         rightKicker="Cut · W6 · D38"
         trailing={<BSAvatar init="A" size={32} onClick={onProfile} />}
       />
@@ -614,7 +616,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         background: t.PAPER2,
       }}>
         <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: t.GREEN }}>
-          Clients Edition · No. 21
+          Clients Edition · No. 14
         </span>
         <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600, color: t.INK50 }}>
           Vol. VI
@@ -695,16 +697,16 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
       <BSNowPlaying onOpen={goRadio} />
 
       {/* THIS WEEK — calendar preview */}
-      <BSSection title="This week" kicker={`Wk 17 · Apr 20–26 · Apr ${selDay}`} meta={<span onClick={goCalendar} style={{ cursor: 'pointer', fontWeight: 800, color: t.INK, marginLeft: 'auto' }}>Month view →</span>} />
+      <BSSection title="This week" kicker={`Wk 20 · May 11–17 · May ${selDay}`} meta={<span onClick={goCalendar} style={{ cursor: 'pointer', fontWeight: 800, color: t.INK, marginLeft: 'auto' }}>Month view →</span>} />
       <div style={{ padding: `0 ${t.padX}px 14px` }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, borderTop: `2px solid ${t.INK}`, paddingTop: 10 }}>
           {[
-            { d: 20, l: 'M' }, { d: 21, l: 'T', isToday: true }, { d: 22, l: 'W' },
-            { d: 23, l: 'T' }, { d: 24, l: 'F' }, { d: 25, l: 'S' }, { d: 26, l: 'S' },
+            { d: 11, l: 'M' }, { d: 12, l: 'T' }, { d: 13, l: 'W' },
+            { d: 14, l: 'T', isToday: true, src: 21 }, { d: 15, l: 'F', src: 22 }, { d: 16, l: 'S', src: 23 }, { d: 17, l: 'S', src: 24 },
           ].map((day) => {
             const on    = day.d === selDay;
             const today = day.isToday;
-            const dots  = WEEK_DOTS[day.d] || [];
+            const dots  = WEEK_DOTS[day.src || day.d] || [];
             return (
               <button key={day.d} onClick={() => { setSelDay(day.d); setActiveDayLogKey(null); }} style={{ borderRadius: t.RADIUS_SM,
                 border: `1px solid ${on ? t.INK : t.HAIR}`,
@@ -728,7 +730,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
       <div style={{ padding: `24px ${t.padX}px 22px`, borderBottom: `1px solid ${t.RULE}` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
           <BSEyebrow color={t.ACCENT}>{leadKicker}</BSEyebrow>
-          <BSEyebrow>{selDay === 21 ? '09:42' : `Apr ${selDay}`}</BSEyebrow>
+          <BSEyebrow>{selDay === 14 ? '09:42' : `May ${selDay}`}</BSEyebrow>
         </div>
         <BSHeadlineNumber sign={balanceSign} value={balanceValue} unit="KCAL" size={Math.round(t.headlineHero * 0.78)} />
         <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: t.body + 1, fontWeight: 500, color: t.INK70, letterSpacing: '-0.01em', lineHeight: 1.3, whiteSpace: 'pre-line' }}>
@@ -738,8 +740,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         {/* Spark — interactive: tap a day to scope the Day log below */}
         <div style={{ marginTop: 10, display: 'flex', gap: 3, height: 26, alignItems: 'flex-end' }}>
           {[0.62, 0.78, 0.55, 0.81, 0.69, 0.74, 0.96].map((v, i) => {
-            const dayNum = 20 + i;
-            const today = i === 1;
+            const dayNum = 11 + i;
+            const today = i === 3;
             const on = dayNum === selDay;
             return (
               <button
@@ -770,7 +772,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
       </div>
 
       {/* DAY LOG */}
-      <BSSection title="Day log" kicker={selDay === 21 ? 'Today · Apr 21' : `Apr ${selDay}`} meta={`${dayLog.length} item${dayLog.length === 1 ? '' : 's'}`} />
+      <BSSection title="Day log" kicker={selDay === 14 ? 'Today · May 14' : `May ${selDay}`} meta={`${dayLog.length} item${dayLog.length === 1 ? '' : 's'}`} />
       <div style={{ padding: `0 ${t.padX}px` }}>
         <div style={{ borderTop: `2px solid ${t.INK}` }} />
         {dayLog.length === 0 ? (
@@ -1212,7 +1214,7 @@ function BSClientTrain({ onProfile }) {
   const [session, setSession] = useStateBSC(false);
   const [previewing, setPreviewing] = useStateBSC(false);
 
-  // ── Per-day program (Apr 17–23, 2026) ──
+  // ── Per-day program (May 8–14, 2026) ──
   const PROGRAM = [
     {
       d: 'M 17',
@@ -1471,10 +1473,10 @@ function BSClientTrain({ onProfile }) {
       <BSSection title="Recent" meta="Last 4 sessions" />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
         {[
-          { d: 'Mon Apr 20', m: 'Lower Pull — Peak',  v: '54 min · 5 moves · RPE 8' },
-          { d: 'Sat Apr 18', m: 'Conditioning',       v: '45 min · threshold · RPE 8' },
-          { d: 'Thu Apr 16', m: 'Upper Pull — Vol.',  v: '54 min · 6 moves · RPE 7' },
-          { d: 'Tue Apr 14', m: 'Lower Push — Vol.',  v: '50 min · 5 moves · RPE 7' },
+          { d: 'Wed May 13', m: 'Lower Pull — Peak',  v: '54 min · 5 moves · RPE 8' },
+          { d: 'Mon May 11', m: 'Conditioning',       v: '45 min · threshold · RPE 8' },
+          { d: 'Fri May 8', m: 'Upper Pull — Vol.',  v: '54 min · 6 moves · RPE 7' },
+          { d: 'Wed May 6', m: 'Lower Push — Vol.',  v: '50 min · 5 moves · RPE 7' },
         ].map((r, i, arr) => (
           <div key={i} style={{ padding: `${t.rowY}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
@@ -2055,7 +2057,7 @@ function BSClientEat({ onProfile }) {
     hero, brief, ingredients, steps, coachNote,
   });
 
-  // ── 7-day menu program (Apr 17–23, 2026 — same week as Train)
+  // ── 7-day menu program (May 8–14, 2026 — same week as Train)
   const PROGRAM = [
     {
       d: 'M 17',
@@ -3758,8 +3760,8 @@ function BSClientChat({ onProfile, role = 'client' }) {
         { who: 'Shape', t: "Welcome to Shape. We're here whenever you need us — billing, bugs, feature requests, anything at all.", time: 'Welcome', me: false },
         { who: 'Shape', t: 'Avg reply time is 4 min. Real humans, no bots.', time: 'Welcome', me: false },
       ]},
-      { who: '# product-updates', role: "What's new in Shape · Weekly digest", last: 'Apr 21 · Calendar redesign + Shape Radio FX overlays.', time: '2d', unread: 1, group: true, bucket: 'SHAPE', messages: [
-        { who: 'Shape Product', t: 'Apr 21 · Calendar redesign is live. Tap any day from Home to drill in.', time: 'Mon 9:00 AM', me: false },
+      { who: '# product-updates', role: "What's new in Shape · Weekly digest", last: 'May 14 · Calendar redesign + Shape Radio FX overlays.', time: '2d', unread: 1, group: true, bucket: 'SHAPE', messages: [
+        { who: 'Shape Product', t: 'May 14 · Calendar redesign is live. Tap any day from Home to drill in.', time: 'Mon 9:00 AM', me: false },
         { who: 'Shape Product', t: 'Shape Radio now has reactive FX overlays — try them in Settings → Light effects.', time: 'Mon 9:00 AM', me: false },
       ]},
       { who: '# release-notes', role: 'Beta channel · Opt-in via Me → Settings', last: 'v6.38 — Tweaks panel persists across sessions.', time: '4d', unread: 0, group: true, bucket: 'SHAPE', messages: [
@@ -6697,7 +6699,7 @@ function BSTermsPage({ onBack, onContact }) {
       />
 
       <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <BSEyebrow color={t.ACCENT}>Last updated - Apr 23, 2026</BSEyebrow>
+        <BSEyebrow color={t.ACCENT}>Last updated - May 14, 2026</BSEyebrow>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>
           These terms govern use of Shape, including memberships, coach services, marketplace activity, rewards, content, and account conduct.
         </div>

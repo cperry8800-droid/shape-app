@@ -90,8 +90,8 @@ function demoWorkoutReviewSessions(role = 'trainer') {
       title: isNutri ? 'Macro compliance session' : 'Lower pull session',
       workout_name: isNutri ? 'Big plate day' : 'Lower Pull - Peak',
       status: 'completed',
-      started_at: '2026-04-21T13:05:00Z',
-      ended_at: '2026-04-21T13:57:00Z',
+      started_at: '2026-05-14T13:05:00Z',
+      ended_at: '2026-05-14T13:57:00Z',
       duration_seconds: 3120,
       summary: { completedSets: 10, avgSetSeconds: 48, avgRestSeconds: 94 },
       workout_set_logs: [
@@ -105,7 +105,7 @@ function demoWorkoutReviewSessions(role = 'trainer') {
         { id: 's3', source: 'watch', metric: 'calories', value: 418, unit: 'kcal' },
       ],
       coach_workout_review_notes: [
-        { id: 'n1', body: isNutri ? 'Good adherence. Ask about late-day hunger before changing macros.' : 'Rest timing is solid. Cue slower eccentric on set 2 next week.', visibility: 'client', created_at: '2026-04-21T16:05:00Z' },
+        { id: 'n1', body: isNutri ? 'Good adherence. Ask about late-day hunger before changing macros.' : 'Rest timing is solid. Cue slower eccentric on set 2 next week.', visibility: 'client', created_at: '2026-05-14T16:05:00Z' },
       ],
     },
     {
@@ -472,18 +472,18 @@ function BSProWidgetQueuePage({ role = 'trainer', type = 'pr', onBack }) {
 
 function BSProWeekStrip({ goCalendar, dots, label = 'This week', selDay: selDayProp, onSelectDay }) {
   const t = useBS();
-  const [internalSel, setInternalSel] = useStateBSP(21);
+  const [internalSel, setInternalSel] = useStateBSP(14);
   const selDay = selDayProp != null ? selDayProp : internalSel;
   const setSelDay = onSelectDay || setInternalSel;
   const days = [
-    { d: 20, l: 'M' }, { d: 21, l: 'T', isToday: true }, { d: 22, l: 'W' },
-    { d: 23, l: 'T' }, { d: 24, l: 'F' }, { d: 25, l: 'S' }, { d: 26, l: 'S' },
+    { d: 11, l: 'M' }, { d: 12, l: 'T' }, { d: 13, l: 'W' },
+    { d: 14, l: 'T', isToday: true, src: 21 }, { d: 15, l: 'F', src: 22 }, { d: 16, l: 'S', src: 23 }, { d: 17, l: 'S', src: 24 },
   ];
   return (
     <>
       <BSSection
         title={label}
-        kicker={`Wk 17 · Apr 20–26 · Apr ${selDay}`}
+        kicker={`Wk 20 · May 11–17 · May ${selDay}`}
         meta={<span onClick={goCalendar} style={{ cursor: 'pointer', fontWeight: 800, color: t.INK, marginLeft: 'auto' }}>Month view →</span>}
       />
       <div style={{ padding: `0 ${t.padX}px 14px` }}>
@@ -491,7 +491,7 @@ function BSProWeekStrip({ goCalendar, dots, label = 'This week', selDay: selDayP
           {days.map((day) => {
             const on    = day.d === selDay;
             const today = day.isToday;
-            const dd    = (dots && dots[day.d]) || [];
+            const dd    = (dots && dots[day.src || day.d]) || [];
             return (
               <button key={day.d} onClick={() => setSelDay(day.d)} style={{
                 borderRadius: t.RADIUS_SM,
@@ -599,9 +599,9 @@ function _BSTrainerApp_old({ onLogout }) {
 
 function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, onWidgetOpen = () => {}, onOpenHabits = () => {}, onOpenScore = () => {}, tweaks = {}, setTweak = () => {} }) {
   const t = useBS();
-  const [selDay, setSelDay] = useStateBSP(21);
+  const [selDay, setSelDay] = useStateBSP(14);
 
-  // Per-day bookings dataset. Apr 21 (today) is the full roster; other days lighter.
+  // Per-day bookings dataset. May 14 (today) is the full roster; other days lighter.
   const TRAINER_BOOKINGS = {
     20: [
       { time: '08:00', tag: 'LIVE', tagColor: t.RUST, title: 'Alex Rivera',    sub: 'Lower Pull · 60m', state: 'done' },
@@ -635,19 +635,21 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
       { time: '09:00', tag: 'INTK', tagColor: t.GREEN, title: 'Open hours', sub: 'Drop-in consults', last: true },
     ],
   };
-  const bookings = TRAINER_BOOKINGS[selDay] || [];
+  const sourceDayByDate = { 11: 20, 14: 21, 15: 22, 16: 23, 17: 24 };
+  const dataDay = sourceDayByDate[selDay] || selDay;
+  const bookings = TRAINER_BOOKINGS[dataDay] || [];
 
-  // Per-day lead. selDay 21 = today's narrative.
+  // Per-day lead. selDay 14 = today's narrative.
   const TRAINER_LEAD = {
-    20: { count: '3', kicker: 'Mon · Apr 20',  copy: 'Light Monday — catch-up day for async reviews.' },
+    20: { count: '3', kicker: 'Mon · May 11',  copy: 'Light Monday — catch-up day for async reviews.' },
     21: { count: '8', kicker: "Lead · Today's roster", copy: "First at 7am. Two free hours at noon to write Maya's program." },
-    22: { count: '2', kicker: 'Wed · Apr 22',  copy: 'Quiet day. Block out the morning for Maya.' },
-    23: { count: '2', kicker: 'Thu · Apr 23',  copy: 'One live, one async. Easy build-up to Friday.' },
-    24: { count: '2', kicker: 'Fri · Apr 24',  copy: 'Two heavy sessions — Casey & Quinn back-to-back area.' },
-    25: { count: '0', kicker: 'Sat · Apr 25',  copy: 'Off day. Programming refresh on the docket.' },
-    26: { count: '1', kicker: 'Sun · Apr 26',  copy: 'Open hours — drop-in consults only.' },
+    22: { count: '2', kicker: 'Fri · May 15',  copy: 'Quiet day. Block out the morning for Maya.' },
+    23: { count: '2', kicker: 'Sat · May 16',  copy: 'One live, one async. Easy build-up to Friday.' },
+    24: { count: '2', kicker: 'Sun · May 17',  copy: 'Two heavy sessions — Casey & Quinn back-to-back area.' },
+    25: { count: '0', kicker: 'Mon · May 18',  copy: 'Off day. Programming refresh on the docket.' },
+    26: { count: '1', kicker: 'Tue · May 19',  copy: 'Open hours — drop-in consults only.' },
   };
-  const lead = TRAINER_LEAD[selDay] || TRAINER_LEAD[21];
+  const lead = TRAINER_LEAD[dataDay] || TRAINER_LEAD[21];
   return (
     <BSPage>
       <BSMasthead
@@ -656,7 +658,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
           <span className="bs-daily-shape" style={{ display: 'inline-block', marginLeft: 8, marginRight: 10, fontFamily: "'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif", fontWeight: 300, fontStyle: 'normal', fontSize: 37, letterSpacing: '0.18em', textTransform: 'uppercase', transform: 'translateY(1px)' }}>SHAPE</span>
           <span className="bs-daily-daily" style={{ fontFamily: "'Newsreader', Georgia, serif", fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>Daily.</span>
         </span>}
-        leftKicker="Tue · Apr 21 · 2026"
+        leftKicker="Thu · May 14 · 2026"
         rightKicker="14 active clients"
         trailing={<BSAvatar init="J" size={32} fill={t.AMBER} ink={t.PAPER} onClick={onProfile} />}
       />
@@ -669,7 +671,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         background: t.PAPER2,
       }}>
         <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: t.AMBER }}>
-          Coaches Edition · No. 21
+          Coaches Edition · No. 14
         </span>
         <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600, color: t.INK50 }}>
           Vol. VI
@@ -767,7 +769,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
       <div style={{ padding: `24px ${t.padX}px 22px`, borderBottom: `1px solid ${t.RULE}` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
           <BSEyebrow color={t.AMBER}>{lead.kicker}</BSEyebrow>
-          <BSEyebrow>{selDay === 21 ? '09:42' : `Apr ${selDay}`}</BSEyebrow>
+          <BSEyebrow>{selDay === 14 ? '09:42' : `May ${selDay}`}</BSEyebrow>
         </div>
         <BSHeadlineNumber value={lead.count} unit="SESSIONS" />
         <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: t.body + 1, color: t.INK70, lineHeight: 1.3, fontWeight: 500 }}>
@@ -776,7 +778,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
       </div>
 
       <BSSection
-        title={selDay === 21 ? "Today's bookings" : `Bookings · Apr ${selDay}`}
+        title={selDay === 14 ? "Today's bookings" : `Bookings · May ${selDay}`}
         meta={<span onClick={goCalendar} style={{ cursor: 'pointer', textDecoration: 'underline' }}>Open calendar →</span>}
       />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
@@ -1461,7 +1463,7 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
           <span className="bs-daily-shape" style={{ display: 'inline-block', marginLeft: 8, marginRight: 10, fontFamily: "'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif", fontWeight: 300, fontStyle: 'normal', fontSize: 37, letterSpacing: '0.18em', textTransform: 'uppercase', transform: 'translateY(1px)' }}>SHAPE</span>
           <span className="bs-daily-daily" style={{ fontFamily: "'Newsreader', Georgia, serif", fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>Daily.</span>
         </span>}
-        leftKicker="Tue · Apr 21 · 2026"
+        leftKicker="Thu · May 14 · 2026"
         rightKicker="22 plans · 5 consults"
         trailing={<BSAvatar init="M" size={32} fill={t.RUST} ink={t.PAPER} onClick={onProfile} />}
       />
@@ -1474,7 +1476,7 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
         background: t.PAPER2,
       }}>
         <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: t.RUST }}>
-          Coaches Edition · No. 21
+          Coaches Edition · No. 14
         </span>
         <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600, color: t.INK50 }}>
           Vol. VI

@@ -932,13 +932,13 @@ function buildPublicProfile(coach) {
     sampleMeta: isNutritionist ? '~2,650 kcal - 180g protein' : 'RPE 7-8 - 45 to 60 min',
     sampleBlocks,
     availability: [
-      ['Mon', '22', ['07:00', '17:30']],
-      ['Tue', '23', ['06:30', '18:00']],
-      ['Wed', '24', ['--']],
-      ['Thu', '25', ['12:00', '17:30']],
-      ['Fri', '26', ['14:00']],
-      ['Sat', '27', ['09:00']],
-      ['Sun', '28', ['--']],
+      ['Thu', '14', ['12:00', '17:30']],
+      ['Fri', '15', ['14:00']],
+      ['Sat', '16', ['09:00']],
+      ['Sun', '17', ['--']],
+      ['Mon', '18', ['07:00', '17:30']],
+      ['Tue', '19', ['06:30', '18:00']],
+      ['Wed', '20', ['--']],
     ],
     reviews: isNutritionist
       ? [
@@ -1196,7 +1196,7 @@ function BSCoachDetailPublic({ coach, onBack }) {
 
   const openIntro = () => {
     const nextOpen = p.availability
-      .flatMap(([day, date, times]) => times.map(time => ({ day, date, time, month: 'Apr' })))
+      .flatMap(([day, date, times]) => times.map(time => ({ day, date, time, month: 'May' })))
       .find(slot => slot.time && slot.time !== '--');
     setTab('packages');
     setAction({
@@ -1231,10 +1231,10 @@ function BSCoachDetailPublic({ coach, onBack }) {
     if (time === '--') return;
     setAction({
       type: 'Booking',
-      title: `${day}, Apr ${date} at ${time}`,
+      title: `${day}, May ${date} at ${time}`,
       body: `Free intro call with ${coach.name}. You can reschedule later from messages.`,
       cta: 'Confirm booking',
-      slot: { day, date, time, month: 'Apr' },
+      slot: { day, date, time, month: 'May' },
     });
   };
 
