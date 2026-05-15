@@ -379,7 +379,7 @@ function RadioInClientApp() {
           playlist={{ name: "Sunday Meal Prep", bpm: "95–120", tracks: 32, duration: "2h 18m", accent: "#f2a94e", cover: "linear-gradient(135deg, #6a4a1c 0%, #1a1612 70%)", note: "2 hours. Enough to batch-cook without burning out — ends right as you're plating.", author: "Rae", authorRole: "Nutritionist", hearted: false }}
         />
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: "rgba(10,13,12,0.5)", margin: "20px 0 10px" }}>TRACKLIST</div>
-        <TrackRow tracks={[["Khruangbin","Maria TambiÃ©n","4:58"],["Mild High Club","Homage","3:40"],["Unknown Mortal Orchestra","Multi-Love","4:26"]]} accent="#f2a94e"/>
+        <TrackRow tracks={[["Khruangbin","Maria También","4:58"],["Mild High Club","Homage","3:40"],["Unknown Mortal Orchestra","Multi-Love","4:26"]]} accent="#f2a94e"/>
         <TabBar active="EAT" />
       </div>
     )},
