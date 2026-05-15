@@ -1,3 +1,4 @@
+import React from 'react';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
 
@@ -23,24 +24,343 @@ function BSRadioFx() {
   return <RadioEffects mode={r.fxMode} label={label} />;
 }
 
+function BSHealthIntegrationsCard({ onOpenSettings }) {
+  const t = useBS();
+  const [providers, setProviders] = useStateBSC([]);
+  const [whoopData, setWhoopData] = useStateBSC(null);
+  const [stravaData, setStravaData] = useStateBSC(null);
+  const [loading, setLoading] = useStateBSC(true);
+  const [error, setError] = useStateBSC('');
+
+  React.useEffect(() => {
+    let alive = true;
+    async function load() {
+      setLoading(true);
+      setError('');
+      try {
+        const status = await window.ShapeIntegrations?.getStatus?.();
+        const nextProviders = Array.isArray(status?.providers) ? status.providers : [];
+        if (!alive) return;
+        setProviders(nextProviders);
+        const hasWhoop = nextProviders.some((provider) => provider.id === 'whoop' && provider.connected);
+        const hasStrava = nextProviders.some((provider) => provider.id === 'strava' && provider.connected);
+        if (hasWhoop) {
+          const sync = await window.ShapeIntegrations?.syncWhoop?.();
+          if (alive) setWhoopData(sync);
+        }
+        if (hasStrava) {
+          const sync = await window.ShapeIntegrations?.syncStrava?.();
+          if (alive) setStravaData(sync);
+        }
+      } catch (err) {
+        if (alive) setError(err?.message || 'Health data unavailable.');
+      } finally {
+        if (alive) setLoading(false);
+      }
+    }
+    load();
+    return () => { alive = false; };
+  }, []);
+
+  const providerMap = providers.reduce((acc, provider) => {
+    acc[provider.id] = provider;
+    return acc;
+  }, {});
+  const whoop = providerMap.whoop || { connected: false };
+  const strava = providerMap.strava || { connected: false };
+  const recovery = whoopData?.whoop?.recoveries?.records?.[0]?.score || {};
+  const sleep = whoopData?.whoop?.sleeps?.records?.[0]?.score || {};
+  const workout = whoopData?.whoop?.workouts?.records?.[0] || {};
+  const workoutScore = workout?.score || {};
+  const latestStrava = stravaData?.strava?.activities?.[0] || {};
+  const stravaDistance = latestStrava.distance ? `${(latestStrava.distance / 1609.344).toFixed(2)} mi` : 'Routes';
+  const fmt = (value, suffix = '', digits = 0) => (
+    value === null || value === undefined || Number.isNaN(Number(value))
+      ? '-'
+      : `${Number(value).toFixed(digits)}${suffix}`
+  );
+  const stats = [
+    ['REC', fmt(recovery.recovery_score, '%')],
+    ['RHR', fmt(recovery.resting_heart_rate, '')],
+    ['HRV', fmt(recovery.hrv_rmssd_milli, '')],
+    ['SLP', fmt(sleep.sleep_performance_percentage, '%')],
+    ['STRN', fmt(workoutScore.strain, '', 1)],
+  ];
+
+  const buttonStyle = {
+    borderRadius: t.RADIUS_SM,
+    border: `1px solid ${t.RULE}`,
+    background: 'transparent',
+    color: t.INK,
+    padding: '10px 9px',
+    fontFamily: t.MONO,
+    fontSize: 8.5,
+    fontWeight: 800,
+    letterSpacing: '0.16em',
+    textTransform: 'uppercase',
+    cursor: 'pointer',
+  };
+
+  return (
+    <>
+      <BSSection
+        title="Connected data"
+        kicker={loading ? 'Syncing' : 'WHOOP + Strava'}
+        meta={(
+          <span
+            onClick={onOpenSettings}
+            style={{ cursor: onOpenSettings ? 'pointer' : 'default', color: error ? t.RUST : t.INK50, fontWeight: 800 }}
+          >
+            {error ? 'Check settings' : 'Manage'}
+          </span>
+        )}
+      />
+      <div style={{ padding: `0 ${t.padX}px 16px` }}>
+        <div style={{ borderTop: `2px solid ${t.INK}`, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+          <div style={{ padding: '13px 12px 12px', display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
+            <div>
+              <BSEyebrow color={whoop.connected ? t.ACCENT : t.INK50}>WHOOP</BSEyebrow>
+              <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.035em', color: t.INK }}>
+                Recovery snapshot
+              </div>
+              <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.3, color: t.INK70 }}>
+                {whoop.connected ? `Latest workout: ${workout.sport_name || 'synced activity'}` : 'Connect WHOOP to show recovery, sleep, HRV, and strain.'}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => window.ShapeIntegrations?.connectWhoop?.()}
+              style={{ ...buttonStyle, minWidth: 96, background: whoop.connected ? 'transparent' : t.INK, color: whoop.connected ? t.INK : t.PAPER }}
+            >
+              {whoop.connected ? 'Reconnect' : 'Connect'}
+            </button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', borderTop: `1px solid ${t.RULE}` }}>
+            {stats.map(([label, value], i) => (
+              <div key={label} style={{ padding: '9px 5px', borderLeft: i ? `1px solid ${t.RULE}` : 0, textAlign: 'center' }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', color: t.INK50 }}>{label}</div>
+                <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 17, lineHeight: 1, fontWeight: 700, color: t.INK }}>{value}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: `1px solid ${t.RULE}` }}>
+            <div style={{ padding: 12, borderRight: `1px solid ${t.RULE}` }}>
+              <BSEyebrow color={strava.connected ? t.ACCENT : t.INK50}>STRAVA</BSEyebrow>
+              <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13.5, lineHeight: 1.25, color: t.INK70 }}>
+                {strava.connected ? `${stravaDistance} - ${latestStrava.name || 'latest activity'}` : 'Connect runs, rides, and GPS routes.'}
+              </div>
+            </div>
+            <div style={{ padding: 12, display: 'flex', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    if (strava.connected) {
+                      const result = await window.ShapeIntegrations?.syncStrava?.({ importActivities: true });
+                      setStravaData(result);
+                      window.__bsToast?.(`Imported ${result?.import?.imported ?? 0} Strava activities`, 'ok');
+                    } else {
+                      await window.ShapeIntegrations?.connectStrava?.();
+                    }
+                  } catch (err) {
+                    setError(err?.message || 'Strava import failed.');
+                    window.__bsToast?.(err?.message || 'Strava import failed.', 'err');
+                  }
+                }}
+                style={{ ...buttonStyle, width: '100%' }}
+              >
+                {strava.connected ? 'Import routes' : 'Connect Strava'}
+              </button>
+            </div>
+          </div>
+          {error && (
+            <div style={{ padding: '9px 12px', borderTop: `1px solid ${t.RULE}`, fontFamily: t.DISPLAY, fontSize: 12, color: t.RUST }}>
+              {error}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function BSConnectedDataSummary({ onOpenSettings }) {
+  const t = useBS();
+  const [providers, setProviders] = useStateBSC([]);
+  const [whoopData, setWhoopData] = useStateBSC(null);
+  const [stravaData, setStravaData] = useStateBSC(null);
+  const [loading, setLoading] = useStateBSC(true);
+
+  React.useEffect(() => {
+    let alive = true;
+    async function load() {
+      setLoading(true);
+      try {
+        const status = await window.ShapeIntegrations?.getStatus?.();
+        const nextProviders = Array.isArray(status?.providers) ? status.providers : [];
+        if (!alive) return;
+        setProviders(nextProviders);
+        const hasWhoop = nextProviders.some((provider) => provider.id === 'whoop' && provider.connected);
+        const hasStrava = nextProviders.some((provider) => provider.id === 'strava' && provider.connected);
+        if (hasWhoop) {
+          const sync = await window.ShapeIntegrations?.syncWhoop?.();
+          if (alive) setWhoopData(sync);
+        }
+        if (hasStrava) {
+          const sync = await window.ShapeIntegrations?.syncStrava?.();
+          if (alive) setStravaData(sync);
+        }
+      } catch {
+        if (alive) setProviders([]);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    }
+    load();
+    return () => { alive = false; };
+  }, []);
+
+  const connected = providers.filter((provider) => provider.connected);
+  const recovery = whoopData?.whoop?.recoveries?.records?.[0]?.score || {};
+  const sleep = whoopData?.whoop?.sleeps?.records?.[0]?.score || {};
+  const workout = whoopData?.whoop?.workouts?.records?.[0] || {};
+  const workoutScore = workout?.score || {};
+  const latestStrava = stravaData?.strava?.activities?.[0] || {};
+  const stravaDistance = latestStrava.distance ? `${(latestStrava.distance / 1609.344).toFixed(1)} mi` : null;
+  const metric = (label, value) => ({ label, value: value === null || value === undefined || value === '' ? '-' : value });
+  const metrics = [
+    metric('REC', recovery.recovery_score ? `${Math.round(recovery.recovery_score)}%` : null),
+    metric('HRV', recovery.hrv_rmssd_milli ? Math.round(recovery.hrv_rmssd_milli) : null),
+    metric('SLP', sleep.sleep_performance_percentage ? `${Math.round(sleep.sleep_performance_percentage)}%` : null),
+    metric('STRN', workoutScore.strain ? Number(workoutScore.strain).toFixed(1) : null),
+    metric('GPS', stravaDistance),
+  ];
+
+  if (!connected.length && !loading) {
+    return (
+      <div style={{ padding: `0 ${t.padX}px 12px` }}>
+        <button
+          onClick={onOpenSettings}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            padding: '12px 14px',
+            border: `1px solid ${t.SURFACE_BORDER || t.RULE}`,
+            borderRadius: t.RADIUS_LG,
+            background: t.SURFACE || 'transparent',
+            color: t.INK,
+            cursor: 'pointer',
+            textAlign: 'left',
+          }}
+        >
+          <span>
+            <BSEyebrow color={t.INK50}>Connected data</BSEyebrow>
+            <span style={{ display: 'block', marginTop: 4, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70 }}>
+              WHOOP and Strava are managed in Settings.
+            </span>
+          </span>
+          <BSEyebrow color={t.ACCENT}>Open settings</BSEyebrow>
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <BSSection
+        title="Connected data"
+        kicker={loading ? 'Syncing' : connected.map((provider) => provider.label || provider.id).join(' + ')}
+        meta={<span onClick={onOpenSettings} style={{ cursor: 'pointer', color: t.ACCENT, fontWeight: 800 }}>Settings</span>}
+      />
+      <div style={{ padding: `0 ${t.padX}px 12px` }}>
+        <button
+          onClick={onOpenSettings}
+          style={{
+            width: '100%',
+            display: 'grid',
+            gridTemplateColumns: '1fr auto',
+            alignItems: 'center',
+            gap: 12,
+            padding: '13px 14px',
+            border: `1px solid ${t.SURFACE_BORDER || t.RULE}`,
+            borderRadius: t.RADIUS_LG,
+            background: t.SURFACE || t.PAPER2,
+            color: t.INK,
+            boxShadow: t.ELEVATION_SOFT || 'none',
+            cursor: 'pointer',
+            textAlign: 'left',
+          }}
+        >
+          <div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <BSEyebrow color={t.ACCENT}>{loading ? 'Syncing' : `${connected.length} connected`}</BSEyebrow>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70 }}>
+                {connected.length ? 'Latest health snapshot' : 'Checking data'}
+              </span>
+            </div>
+            <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
+              {metrics.map(({ label, value }) => (
+                <span key={label} style={{ padding: '8px 5px', borderRadius: t.RADIUS_SM, background: 'rgba(255,255,255,0.035)', textAlign: 'center' }}>
+                  <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', color: t.INK50 }}>{label}</span>
+                  <span style={{ display: 'block', marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 750, color: t.INK, lineHeight: 1 }}>{value}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+          <BSEyebrow color={t.ACCENT}>Manage</BSEyebrow>
+        </button>
+      </div>
+    </>
+  );
+}
+
 // Inner wrapper so BSClientApp can access useBSSheet
-function BSClientAppInner({ onLogout, tweaks, setTweak }) {
+function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const sheet = useBSSheet();
-  const [tab, setTab] = useStateBSC('home');
+  const [tab, setTab] = useStateBSC(initialTab);
   const [showSettings, setShowSettings] = useStateBSC(false);
-  const goSettings = () => setShowSettings(true);
+  const [settingsStart, setSettingsStart] = useStateBSC('');
+  const [showCalendar, setShowCalendar] = useStateBSC(false);
+  const [storeView, setStoreView] = useStateBSC('store');
+  const scoreProfile = SHAPE_SCORE_PROFILES.client;
+  const goSettings = () => { setSettingsStart(''); setShowSettings(true); };
+  const goIntegrations = () => { setSettingsStart('integrations'); setShowSettings(true); };
   const goRadio    = () => setTab('radio');
   const goTrain    = () => setTab('train');
   const goMarket   = () => setTab('market');
-  if (showSettings) return <BSSettings onBack={() => setShowSettings(false)} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />;
+  const goScore    = () => { setStoreView('score'); setTab('store'); };
+  if (showSettings) {
+    return (
+      <BSSettings
+        initialPage={settingsStart}
+        onBack={() => { setShowSettings(false); setSettingsStart(''); }}
+        onLogout={onLogout}
+        tweaks={tweaks}
+        setTweak={setTweak}
+      />
+    );
+  }
+  if (showCalendar) {
+    return (
+      <div style={{ position: 'absolute', inset: 0 }}>
+        <BSCalendarScreen role="client" onProfile={goSettings} onBack={() => setShowCalendar(false)} />
+        <BSRadioFx />
+      </div>
+    );
+  }
   const screens = {
-    home:    <BSClientHome     onProfile={goSettings} sheet={sheet} goCalendar={() => setTab('cal')} goRadio={goRadio} goTrain={goTrain} goMarket={goMarket} tweaks={tweaks} setTweak={setTweak} />,
-    cal:     <BSCalendarScreen role="client"        onProfile={goSettings} onBack={() => setTab('home')} />,
+    home:    <BSClientHome     onProfile={goSettings} sheet={sheet} goCalendar={() => setShowCalendar(true)} goRadio={goRadio} goTrain={goTrain} goMarket={goMarket} goScore={goScore} goIntegrations={goIntegrations} tweaks={tweaks} setTweak={setTweak} />,
     train:   <BSClientTrain    onProfile={goSettings} sheet={sheet} />,
     eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} />,
     chat:    <BSClientChat     onProfile={goSettings} sheet={sheet} />,
     radio:   <BSRadioScreen    onBack={() => setTab('home')} />,
     market:  <BSMarketplaceScreen onBack={() => setTab('home')} onProfile={goSettings} />,
+    store:   storeView === 'score'
+      ? <BSShapeScorePage profile={scoreProfile} onBack={() => setStoreView('store')} onOpenStore={() => setStoreView('store')} />
+      : <BSShapeStorePage profile={scoreProfile} onBack={() => setTab('home')} onOpenScore={() => setStoreView('score')} />,
     me:      <BSClientMe       onProfile={goSettings} onLogout={onLogout} sheet={sheet} />,
   };
   return (
@@ -52,10 +372,10 @@ function BSClientAppInner({ onLogout, tweaks, setTweak }) {
         onChange={setTab}
         tabs={[
           { key: 'home',  label: 'Home' },
-          { key: 'cal',   label: 'Cal' },
           { key: 'train', label: 'Train' },
           { key: 'eat',   label: 'Eat' },
           { key: 'chat',  label: 'Chat' },
+          { key: 'store', label: 'Store' },
           { key: 'me',    label: 'Me' },
         ]}
       />
@@ -64,7 +384,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak }) {
   );
 }
 
-function BSClientApp({ onLogout, tweaks, setTweak }) {
+function BSClientApp({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // BSRadioProvider is provided by the entry-point shell (iosAppHub.jsx →
   // BroadsheetSlot, or iosAppBroadsheetMain.jsx → BroadsheetApp), HOISTED
   // ABOVE the stage switch so radio state survives logout → re-login.
@@ -72,7 +392,7 @@ function BSClientApp({ onLogout, tweaks, setTweak }) {
   // its 600ms auto-prompt — making Home flash before the overlay.
   return (
     <BSSheetProvider>
-      <BSClientAppInner onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />
+      <BSClientAppInner onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} initialTab={initialTab} />
     </BSSheetProvider>
   );
 }
@@ -108,12 +428,14 @@ function BSClientApp_old({ onLogout }) {
 // ═══════════════════════════════════════════════════════════
 // HOME — "The Shape Daily" front page
 // ═══════════════════════════════════════════════════════════
-function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket, tweaks = {}, setTweak = () => {} }) {
+function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket, goScore, goIntegrations, tweaks = {}, setTweak = () => {} }) {
   const t = useBS();
-  const [selDay, setSelDay] = useStateBSC(21);
+  const [selDay, setSelDay] = useStateBSC(14);
   const [nextMealLogged, setNextMealLogged] = useStateBSC(false);
   const [previewMeal, setPreviewMeal] = useStateBSC(null);
   const [habitsPage, setHabitsPage] = useStateBSC(false);
+  const [activeDayLogKey, setActiveDayLogKey] = useStateBSC(null);
+  const [quickLoggedItems, setQuickLoggedItems] = useStateBSC({});
 
   // Home-page lunch record (fed to BSMealPreview when user taps the slab).
   // Mirrors the shape of meals in BSClientEat — same preview component.
@@ -199,7 +521,53 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     20: [t.AMBER, t.BLUE, t.GREEN], 21: [t.AMBER, t.RUST, t.BLUE], 22: [t.AMBER, t.GREEN],
     23: [t.AMBER], 24: [t.AMBER, t.RUST, t.GREEN], 25: [t.AMBER, t.BLUE], 26: [],
   };
-  const dayLog = DAY_LOGS[selDay] || [];
+  const sourceDayByDate = { 11: 20, 14: 21, 15: 22, 16: 23, 17: 24 };
+  const dataDay = sourceDayByDate[selDay] || selDay;
+  const dayLog = DAY_LOGS[dataDay] || [];
+  const dayLogKey = (row, i) => `${selDay}-${row.time}-${row.tag || 'item'}-${i}`;
+  const dayLogDetails = (row) => {
+    if (row.tag === 'MEAL') return {
+      label: 'Nutrition log',
+      description: `Confirm ${row.title.toLowerCase()} to update calories, protein, carbs, fat, and meal timing for today's ledger.`,
+      metrics: [['MACROS', row.sub || 'Pending'], ['SOURCE', 'Coach plan'], ['ACTION', 'Confirm meal']],
+      note: 'After logging, this meal counts toward the daily calorie balance and Shape Score nutrition streak.',
+    };
+    if (row.tag === 'TRN') return {
+      label: 'Workout log',
+      description: `Start or confirm ${row.title.toLowerCase()}. Sets, rest time, RPE, and sensor-assisted timing can be captured from the workout screen.`,
+      metrics: [['SESSION', row.sub || 'Assigned'], ['LOGGING', 'Sets + rest'], ['COACH', 'Jordan']],
+      note: 'Use this when you want the coach to see what happened during the workout, not just that it was completed.',
+    };
+    if (row.tag === 'CHK') return {
+      label: 'Check-in',
+      description: `Open a short check-in for ${row.title.toLowerCase()}. Add sleep, energy, soreness, mood, RPE, and a note for your coach.`,
+      metrics: [['FOCUS', row.sub || 'Daily'], ['TIME', '2 min'], ['VISIBLE TO', 'Coach']],
+      note: 'Quick check-ins help adjust tomorrow before the plan gets stale.',
+    };
+    if (row.tag === 'CON') return {
+      label: 'Consult',
+      description: `Preview the scheduled consult details and confirm attendance. Notes can be attached after the call.`,
+      metrics: [['PROVIDER', row.sub || 'Scheduled'], ['TYPE', 'Video'], ['STATUS', 'Upcoming']],
+      note: 'This will connect to booking and video session records once the live backend flow is enabled.',
+    };
+    return {
+      label: 'Daily item',
+      description: row.sub || 'Quick log item.',
+      metrics: [['TIME', row.time], ['TYPE', row.tag || 'Item'], ['STATUS', 'Ready']],
+      note: 'Tap Log now when this item is complete.',
+    };
+  };
+  const logDayItem = (key) => {
+    setQuickLoggedItems(prev => ({ ...prev, [key]: true }));
+  };
+  const activeDayLogEntry = dayLog
+    .map((row, i) => ({ row, key: dayLogKey(row, i), index: i }))
+    .find(entry => entry.key === activeDayLogKey);
+  const activeDayLog = activeDayLogEntry?.row;
+  const activeDayLogLogged = activeDayLogEntry
+    ? activeDayLog.state === 'done' || !!quickLoggedItems[activeDayLogEntry.key]
+    : false;
+  const activeDayLogDetails = activeDayLog ? dayLogDetails(activeDayLog) : null;
 
   // Per-day calorie balance for the LEAD block (target = 2100 burned).
   // Sums kcal from MEAL items in DAY_LOGS, computes deficit/surplus.
@@ -212,7 +580,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     25: { kcalIn: 1720, kcalBurn: 1850, status: 'long run', note: 'Long run done. Brunch + 3 meals.' },
     26: { kcalIn: 1320, kcalBurn: 1700, status: 'rest day', note: 'Rest day. Three lighter meals.' },
   };
-  const macros = DAY_MACROS[selDay] || DAY_MACROS[21];
+  const macros = DAY_MACROS[dataDay] || DAY_MACROS[21];
   const balance = macros.kcalIn - macros.kcalBurn; // negative = deficit
   const balanceSign = balance < 0 ? '−' : '+';
   const balanceValue = Math.abs(balance).toString();
@@ -224,18 +592,18 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     return <BSMealPreview meal={previewMeal} onBack={() => setPreviewMeal(null)} />;
   }
   if (habitsPage) {
-    return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => setHabitsPage(false)} />;
+    return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => setHabitsPage(false)} onOpenScore={() => { setHabitsPage(false); goScore?.(); }} />;
   }
 
   return (
     <BSPage>
       <BSMasthead
-        title={<span style={{ display: 'block', textAlign: 'center', lineHeight: 1, whiteSpace: 'nowrap' }}>
-          <span style={{ fontFamily: `'DM Serif Display', 'Old Standard TT', serif`, fontWeight: 400, fontSize: 32, letterSpacing: '-0.01em' }}>The </span>
-          <span style={{ fontFamily: `'DM Serif Display', 'Old Standard TT', serif`, fontWeight: 400, fontStyle: 'italic', fontSize: 46, letterSpacing: '-0.015em' }}>Shape</span>
-          <span style={{ fontFamily: `'DM Serif Display', 'Old Standard TT', serif`, fontWeight: 400, fontSize: 32, letterSpacing: '-0.01em' }}> Daily.</span>
+        title={<span className="bs-daily-title" style={{ display: 'block', textAlign: 'center', lineHeight: 1, whiteSpace: 'nowrap' }}>
+          <span className="bs-daily-the" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>The</span>
+          <span className="bs-daily-shape" style={{ display: 'inline-block', marginLeft: 8, marginRight: 10, fontFamily: `'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif`, fontWeight: 300, fontStyle: 'normal', fontSize: 37, letterSpacing: '0.18em', textTransform: 'uppercase', transform: 'translateY(1px)' }}>SHAPE</span>
+          <span className="bs-daily-daily" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>Daily.</span>
         </span>}
-        leftKicker="Tue · Apr 21 · 2026"
+        leftKicker="Thu · May 14 · 2026"
         rightKicker="Cut · W6 · D38"
         trailing={<BSAvatar init="A" size={32} onClick={onProfile} />}
       />
@@ -248,7 +616,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         background: t.PAPER2,
       }}>
         <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: t.GREEN }}>
-          Clients Edition · No. 21
+          Clients Edition · No. 14
         </span>
         <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600, color: t.INK50 }}>
           Vol. VI
@@ -264,19 +632,83 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         { label: 'WGT',  value: '178.2LB',   note: '-0.4 7D' },
       ]} />
 
-      {/* THIS WEEK — calendar preview (moved above NowPlaying) */}
-      <BSSection title="This week" kicker={`Wk 17 · Apr 20–26 · Apr ${selDay}`} meta={<span onClick={goCalendar} style={{ cursor: 'pointer', fontWeight: 800, color: t.INK, marginLeft: 'auto' }}>Month view →</span>} />
+      <div style={{
+        padding: `10px ${t.padX}px 12px`,
+        borderBottom: `1px solid ${t.RULE}`,
+        background: t.PAPER,
+      }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+          {[
+            { label: 'Today', meta: `${dayLog.length} logs`, active: true, onClick: () => setActiveDayLogKey(null) },
+            { label: 'Habits', meta: '1/3 done', accent: t.GREEN, onClick: () => setHabitsPage(true) },
+            { label: 'Score', meta: '+4 pts', accent: t.ACCENT, onClick: () => goScore?.() },
+          ].map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              onClick={item.onClick}
+              style={{
+                minWidth: 0,
+                padding: '9px 8px 8px',
+                borderRadius: t.RADIUS_SM,
+                border: `1px solid ${item.active ? t.INK : (item.accent || t.RULE)}`,
+                background: item.active ? t.INK : t.PAPER2,
+                color: item.active ? t.PAPER : t.INK,
+                cursor: 'pointer',
+                textAlign: 'left',
+              }}
+            >
+              <span style={{
+                display: 'block',
+                fontFamily: t.MONO,
+                fontSize: 9,
+                fontWeight: 900,
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                color: item.active ? t.PAPER : (item.accent || t.INK),
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}>
+                {item.label}
+              </span>
+              <span style={{
+                display: 'block',
+                marginTop: 4,
+                fontFamily: t.MONO,
+                fontSize: 8,
+                fontWeight: 800,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                color: item.active ? t.PAPER : t.INK50,
+                opacity: item.active ? 0.72 : 1,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}>
+                {item.meta}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* NOW PLAYING — Shape Radio */}
+      <BSNowPlaying onOpen={goRadio} />
+
+      {/* THIS WEEK — calendar preview */}
+      <BSSection title="This week" kicker={`Wk 20 · May 11–17 · May ${selDay}`} meta={<span onClick={goCalendar} style={{ cursor: 'pointer', fontWeight: 800, color: t.INK, marginLeft: 'auto' }}>Month view →</span>} />
       <div style={{ padding: `0 ${t.padX}px 14px` }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, borderTop: `2px solid ${t.INK}`, paddingTop: 10 }}>
           {[
-            { d: 20, l: 'M' }, { d: 21, l: 'T', isToday: true }, { d: 22, l: 'W' },
-            { d: 23, l: 'T' }, { d: 24, l: 'F' }, { d: 25, l: 'S' }, { d: 26, l: 'S' },
+            { d: 11, l: 'M' }, { d: 12, l: 'T' }, { d: 13, l: 'W' },
+            { d: 14, l: 'T', isToday: true, src: 21 }, { d: 15, l: 'F', src: 22 }, { d: 16, l: 'S', src: 23 }, { d: 17, l: 'S', src: 24 },
           ].map((day) => {
             const on    = day.d === selDay;
             const today = day.isToday;
-            const dots  = WEEK_DOTS[day.d] || [];
+            const dots  = WEEK_DOTS[day.src || day.d] || [];
             return (
-              <button key={day.d} onClick={() => setSelDay(day.d)} style={{ borderRadius: t.RADIUS_SM,
+              <button key={day.d} onClick={() => { setSelDay(day.d); setActiveDayLogKey(null); }} style={{ borderRadius: t.RADIUS_SM,
                 border: `1px solid ${on ? t.INK : t.HAIR}`,
                 background: on ? t.INK : (today ? t.PAPER2 : 'transparent'),
                 color: on ? t.PAPER : t.INK,
@@ -294,16 +726,11 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         </div>
       </div>
 
-      {/* NOW PLAYING — Shape Radio */}
-      <BSNowPlaying onOpen={goRadio} />
-
-      {/* THIS WEEK — (moved above) */}
-
       {/* LEAD — calorie headline */}
       <div style={{ padding: `24px ${t.padX}px 22px`, borderBottom: `1px solid ${t.RULE}` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
           <BSEyebrow color={t.ACCENT}>{leadKicker}</BSEyebrow>
-          <BSEyebrow>{selDay === 21 ? '09:42' : `Apr ${selDay}`}</BSEyebrow>
+          <BSEyebrow>{selDay === 14 ? '09:42' : `May ${selDay}`}</BSEyebrow>
         </div>
         <BSHeadlineNumber sign={balanceSign} value={balanceValue} unit="KCAL" size={Math.round(t.headlineHero * 0.78)} />
         <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: t.body + 1, fontWeight: 500, color: t.INK70, letterSpacing: '-0.01em', lineHeight: 1.3, whiteSpace: 'pre-line' }}>
@@ -313,13 +740,13 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         {/* Spark — interactive: tap a day to scope the Day log below */}
         <div style={{ marginTop: 10, display: 'flex', gap: 3, height: 26, alignItems: 'flex-end' }}>
           {[0.62, 0.78, 0.55, 0.81, 0.69, 0.74, 0.96].map((v, i) => {
-            const dayNum = 20 + i;
-            const today = i === 1;
+            const dayNum = 11 + i;
+            const today = i === 3;
             const on = dayNum === selDay;
             return (
               <button
                 key={i}
-                onClick={() => setSelDay(dayNum)}
+                onClick={() => { setSelDay(dayNum); setActiveDayLogKey(null); }}
                 style={{ borderRadius: t.RADIUS_SM,
                   flex: 1, padding: 0, border: 0, background: 'transparent', cursor: 'pointer',
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
@@ -345,7 +772,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
       </div>
 
       {/* DAY LOG */}
-      <BSSection title="Day log" kicker={selDay === 21 ? 'Today · Apr 21' : `Apr ${selDay}`} meta={`${dayLog.length} item${dayLog.length === 1 ? '' : 's'}`} />
+      <BSSection title="Day log" kicker={selDay === 14 ? 'Today · May 14' : `May ${selDay}`} meta={`${dayLog.length} item${dayLog.length === 1 ? '' : 's'}`} />
       <div style={{ padding: `0 ${t.padX}px` }}>
         <div style={{ borderTop: `2px solid ${t.INK}` }} />
         {dayLog.length === 0 ? (
@@ -353,12 +780,227 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
             — Rest day · nothing logged —
           </div>
         ) : (
-          dayLog.map((row, i) => <BSRow key={i} {...row} />)
+          dayLog.map((row, i) => {
+            const key = dayLogKey(row, i);
+            const logged = row.state === 'done' || !!quickLoggedItems[key];
+            const next = row.state === 'next' && !logged;
+            return (
+              <div key={key} style={{ borderBottom: row.last ? 0 : `1px solid ${t.HAIR}` }}>
+                <button
+                  onClick={() => setActiveDayLogKey(key)}
+                  style={{
+                    width: '100%',
+                    display: 'grid',
+                    gridTemplateColumns: '52px 40px 1fr auto',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: `${t.rowY}px 0`,
+                    border: 0,
+                    borderRadius: next ? t.RADIUS_SM : 0,
+                    background: next ? `${t.ACCENT}10` : 'transparent',
+                    color: t.INK,
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    opacity: logged && row.state === 'done' ? 0.45 : 1,
+                    marginLeft: next ? -8 : 0,
+                    marginRight: next ? -8 : 0,
+                    paddingLeft: next ? 8 : 0,
+                    paddingRight: next ? 8 : 0,
+                  }}
+                >
+                  <span style={{
+                    fontFamily: t.MONO,
+                    fontSize: 12,
+                    color: next ? t.ACCENT : t.INK,
+                    letterSpacing: '-0.01em',
+                    fontWeight: next ? 700 : 500,
+                    fontVariantNumeric: 'tabular-nums',
+                  }}>{row.time}</span>
+                  {row.tag ? (
+                    <span style={{
+                      fontFamily: t.MONO,
+                      fontSize: 8.5,
+                      letterSpacing: '0.16em',
+                      color: t.PAPER,
+                      background: row.tagColor || t.INK,
+                      padding: '2px 4px',
+                      textTransform: 'uppercase',
+                      fontWeight: 700,
+                      textAlign: 'center',
+                      justifySelf: 'start',
+                      borderRadius: t.RADIUS_SM,
+                    }}>{row.tag}</span>
+                  ) : <span />}
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{
+                      fontFamily: t.DISPLAY,
+                      fontSize: 14,
+                      fontWeight: next ? 700 : 500,
+                      color: t.INK,
+                      letterSpacing: '-0.01em',
+                      lineHeight: 1.15,
+                      textDecoration: logged && row.state === 'done' ? 'line-through' : 'none',
+                      textDecorationThickness: '1.5px',
+                    }}>{row.title}</div>
+                    {row.sub && (
+                      <div style={{
+                        fontFamily: t.MONO,
+                        fontSize: 9.5,
+                        color: t.INK50,
+                        marginTop: 2,
+                        letterSpacing: '0.06em',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}>{row.sub}</div>
+                    )}
+                  </div>
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      logDayItem(key);
+                    }}
+                    style={{
+                      border: `1px solid ${logged ? t.GREEN : t.INK}`,
+                      background: logged ? t.GREEN : 'transparent',
+                      color: logged ? t.PAPER : t.INK,
+                      borderRadius: t.RADIUS_SM,
+                      padding: '6px 7px',
+                      fontFamily: t.MONO,
+                      fontSize: 8,
+                      fontWeight: 900,
+                      letterSpacing: '0.16em',
+                      textTransform: 'uppercase',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {logged ? 'Logged' : 'Log now'}
+                  </span>
+                </button>
+              </div>
+            );
+          })
         )}
       </div>
 
       {/* ── HABIT TRACKER (summary on home; full page via tap) ───── */}
-      <BSHabitTracker tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} mode="summary" onOpen={() => setHabitsPage(true)} />
+      {activeDayLog && activeDayLogDetails && (
+        <div
+          onClick={() => setActiveDayLogKey(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 90,
+            background: 'rgba(0,0,0,0.42)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '18px 14px 96px',
+            boxSizing: 'border-box',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: 460,
+              border: `1px solid ${t.INK}`,
+              borderRadius: 14,
+              background: t.PAPER,
+              color: t.INK,
+              boxShadow: '0 18px 60px rgba(0,0,0,0.35)',
+              overflow: 'auto',
+              maxHeight: 'calc(100vh - 132px)',
+              WebkitOverflowScrolling: 'touch',
+            }}
+          >
+            <div style={{
+              padding: '14px 16px',
+              borderBottom: `1px solid ${t.RULE}`,
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              gap: 14,
+              background: t.PAPER2,
+            }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <BSTag color={activeDayLog.tagColor || t.INK}>{activeDayLog.tag || 'ITEM'}</BSTag>
+                  <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', color: t.INK50, fontWeight: 800 }}>
+                    {activeDayLog.time}
+                  </span>
+                </div>
+                <div style={{
+                  fontFamily: t.DISPLAY,
+                  fontSize: 25,
+                  fontWeight: t.W.display,
+                  lineHeight: 0.96,
+                  letterSpacing: '-0.045em',
+                }}>
+                  {activeDayLog.title}
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveDayLogKey(null)}
+                aria-label="Close preview"
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: t.RADIUS_SM,
+                  border: `1px solid ${t.INK}`,
+                  background: 'transparent',
+                  color: t.INK,
+                  fontFamily: t.MONO,
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                x
+              </button>
+            </div>
+
+            <div style={{ padding: 16 }}>
+              <BSEyebrow color={activeDayLog.tagColor || t.ACCENT}>{activeDayLogDetails.label}</BSEyebrow>
+              <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1.42, color: t.INK70 }}>
+                {activeDayLogDetails.description}
+              </div>
+              <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderTop: `1px solid ${t.RULE}`, borderBottom: `1px solid ${t.RULE}` }}>
+                {activeDayLogDetails.metrics.map(([label, value], i) => (
+                  <div key={label} style={{ padding: '12px 8px', borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0 }}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase', fontWeight: 800 }}>
+                      {label}
+                    </div>
+                    <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.1, color: t.INK }}>
+                      {value}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 14, padding: '12px 13px', border: `1px solid ${t.RULE}`, borderRadius: t.RADIUS_SM, background: t.PAPER2, fontFamily: t.DISPLAY, fontSize: 13, lineHeight: 1.35, color: t.INK70 }}>
+                {activeDayLogDetails.note}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.35fr', gap: 8, marginTop: 14 }}>
+                <button
+                  onClick={() => setActiveDayLogKey(null)}
+                  style={{ padding: '12px 10px', border: `1px solid ${t.INK}`, borderRadius: t.RADIUS_SM, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 900, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer' }}
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => {
+                    logDayItem(activeDayLogEntry.key);
+                    setActiveDayLogKey(null);
+                  }}
+                  style={{ padding: '12px 10px', border: `1px solid ${activeDayLogLogged ? t.GREEN : t.INK}`, borderRadius: t.RADIUS_SM, background: activeDayLogLogged ? t.GREEN : t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 10, fontWeight: 900, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer' }}
+                >
+                  {activeDayLogLogged ? 'Logged' : 'Log now'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <BSSection title="Up next" kicker="3 of 8 done" />
 
@@ -572,7 +1214,7 @@ function BSClientTrain({ onProfile }) {
   const [session, setSession] = useStateBSC(false);
   const [previewing, setPreviewing] = useStateBSC(false);
 
-  // ── Per-day program (Apr 17–23, 2026) ──
+  // ── Per-day program (May 8–14, 2026) ──
   const PROGRAM = [
     {
       d: 'M 17',
@@ -831,10 +1473,10 @@ function BSClientTrain({ onProfile }) {
       <BSSection title="Recent" meta="Last 4 sessions" />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
         {[
-          { d: 'Mon Apr 20', m: 'Lower Pull — Peak',  v: '54 min · 5 moves · RPE 8' },
-          { d: 'Sat Apr 18', m: 'Conditioning',       v: '45 min · threshold · RPE 8' },
-          { d: 'Thu Apr 16', m: 'Upper Pull — Vol.',  v: '54 min · 6 moves · RPE 7' },
-          { d: 'Tue Apr 14', m: 'Lower Push — Vol.',  v: '50 min · 5 moves · RPE 7' },
+          { d: 'Wed May 13', m: 'Lower Pull — Peak',  v: '54 min · 5 moves · RPE 8' },
+          { d: 'Mon May 11', m: 'Conditioning',       v: '45 min · threshold · RPE 8' },
+          { d: 'Fri May 8', m: 'Upper Pull — Vol.',  v: '54 min · 6 moves · RPE 7' },
+          { d: 'Wed May 6', m: 'Lower Push — Vol.',  v: '50 min · 5 moves · RPE 7' },
         ].map((r, i, arr) => (
           <div key={i} style={{ padding: `${t.rowY}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
@@ -1009,7 +1651,7 @@ function BSMealPreview({ meal, onBack }) {
 // ═══════════════════════════════════════════════════════════
 // RECIPE PREVIEW — for "Recipe of the day" card (full recipe view)
 // ═══════════════════════════════════════════════════════════
-function BSRecipePreview({ recipe, dayLabel, onBack }) {
+function BSRecipePreview({ recipe, dayLabel, onBack, onAddGrocery, groceryAdded = false }) {
   const t = useBS();
   _bsScrollTopOnMount();
   const [saved, setSaved] = useStateBSC(false);
@@ -1143,6 +1785,11 @@ function BSRecipePreview({ recipe, dayLabel, onBack }) {
           padding: '14px 18px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
           fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
         }}>Close</button>
+        <button onClick={onAddGrocery} style={{ borderRadius: t.RADIUS_SM,
+          flex: 1, padding: '14px', border: `1px solid ${groceryAdded ? t.GREEN : t.INK}`,
+          background: groceryAdded ? t.GREEN : 'transparent', color: groceryAdded ? t.PAPER : t.INK,
+          fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer',
+        }}>{groceryAdded ? 'Added to grocery' : 'Add grocery list'}</button>
         <button onClick={() => setSaved(s => !s)} style={{ borderRadius: t.RADIUS_SM,
           flex: 1, padding: '14px', border: 0,
           background: saved ? t.GREEN : t.INK, color: t.PAPER,
@@ -1298,12 +1945,107 @@ function BSDayBriefPreview({ day, onBack, onMealClick, onRecipeClick }) {
 }
 
 // ═══════════════════════════════════════════════════════════
+function bsNodeText(node) {
+  if (node == null || node === false) return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(bsNodeText).join(' ');
+  if (node.props && node.props.children) return bsNodeText(node.props.children);
+  return '';
+}
+
+function bsRecipeListId(recipe, dayLabel) {
+  const title = bsNodeText(recipe?.title || 'recipe').replace(/\s+/g, ' ').trim().toLowerCase();
+  return `recipe-${dayLabel}-${title}`.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '');
+}
+
+function BSNutritionTopTabs({ active, onChange }) {
+  const t = useBS();
+  const tabs = [
+    ['eat', 'Day'],
+    ['grocery', 'Grocery'],
+    ['recipes', 'Recipes'],
+  ];
+  return (
+    <div style={{ padding: `12px ${t.padX}px`, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, borderBottom: `1px solid ${t.RULE}` }}>
+      {tabs.map(([key, label]) => {
+        const on = active === key;
+        return (
+          <button key={key} onClick={() => onChange(key)} style={{ borderRadius: t.RADIUS_SM,
+            padding: '11px 8px', border: `1px solid ${on ? t.INK : t.RULE}`,
+            background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK,
+            fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase',
+            cursor: 'pointer',
+          }}>{label}</button>
+        );
+      })}
+    </div>
+  );
+}
+
+function BSRecipeArchivePage({ recipes, recipeLists, onOpenRecipe, onAddGrocery, onChangeView }) {
+  const t = useBS();
+  _bsScrollTopOnMount();
+  return (
+    <BSPage>
+      <BSPageHeader kicker="Section · Nutrition" title={<>Recipe<br/>archive.</>} />
+      <BSNutritionTopTabs active="recipes" onChange={onChangeView} />
+
+      <BSSection title="Recipes of the day" meta={`${recipes.length} recipes - by date`} />
+      <div style={{ padding: `0 ${t.padX}px 6px`, display: 'grid', gap: 8 }}>
+        {recipes.map((entry) => {
+          const added = recipeLists.some(l => l.id === bsRecipeListId(entry.recipe, entry.date));
+          return (
+            <div key={entry.date} style={{ borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, overflow: 'hidden' }}>
+              <button
+                onClick={() => onOpenRecipe(entry)}
+                style={{ borderRadius: 0,
+                  width: '100%', padding: '14px', border: 0, background: 'transparent', color: t.INK,
+                  display: 'grid', gridTemplateColumns: '54px 1fr auto', gap: 10, alignItems: 'center', textAlign: 'left', cursor: 'pointer',
+                }}
+              >
+                <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.ACCENT, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700 }}>{entry.date}</span>
+                <span>
+                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, fontWeight: 700, letterSpacing: '-0.02em' }}>{entry.title}</span>
+                  <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.1em', marginTop: 2, textTransform: 'uppercase' }}>{entry.meta}</span>
+                </span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Open</span>
+              </button>
+              <button
+                onClick={() => onAddGrocery(entry.recipe, entry.date)}
+                style={{ borderRadius: 0,
+                  width: '100%', padding: '11px 14px', border: 0, borderTop: `1px solid ${t.HAIR}`,
+                  background: added ? t.GREEN : 'transparent', color: added ? t.PAPER : t.INK,
+                  fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
+                }}
+              >
+                {added ? 'Added to grocery library' : 'Add ingredients to grocery list'}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      <BSFooter right="Recipes" />
+    </BSPage>
+  );
+}
+
 function BSClientEat({ onProfile }) {
   const t = useBS();
   const [view, setView] = useStateBSC('eat'); // 'eat' | 'grocery' | 'library'
   const [previewMealId, setPreviewMealId] = useStateBSC(null);
   const [previewRecipe, setPreviewRecipe] = useStateBSC(false);
+  const [previewRecipeReturnView, setPreviewRecipeReturnView] = useStateBSC('eat');
   const [previewDayBrief, setPreviewDayBrief] = useStateBSC(false);
+  const [recipeLists, setRecipeLists] = useStateBSC(() => {
+    try {
+      const raw = window.localStorage && window.localStorage.getItem('shape.recipeGroceryLists');
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+  const [selectedGroceryList, setSelectedGroceryList] = useStateBSC(null);
   const [day, setDay] = useStateBSC(4); // 0..6 — Fri (idx 4) = today, mirrors Train
 
   // ── Compact builder for non-anchor days. Generates a full BSMealPreview-shaped record.
@@ -1315,7 +2057,7 @@ function BSClientEat({ onProfile }) {
     hero, brief, ingredients, steps, coachNote,
   });
 
-  // ── 7-day menu program (Apr 17–23, 2026 — same week as Train)
+  // ── 7-day menu program (May 8–14, 2026 — same week as Train)
   const PROGRAM = [
     {
       d: 'M 17',
@@ -1989,9 +2731,64 @@ function BSClientEat({ onProfile }) {
     },
   ];
 
+  const recipeArchive = PROGRAM
+    .filter(p => p.recipe)
+    .map((p, idx) => ({
+      idx,
+      date: p.d,
+      title: bsNodeText(p.recipe.title).replace(/\s+/g, ' ').trim(),
+      meta: p.recipe.meta,
+      recipe: p.recipe,
+    }));
+
+  const makeRecipeList = (recipe, dayLabel) => {
+    const title = bsNodeText(recipe.title).replace(/\s+/g, ' ').trim();
+    return {
+      id: bsRecipeListId(recipe, dayLabel),
+      name: `${title} grocery list`,
+      kind: 'recipe',
+      date: dayLabel,
+      eyebrow: `Recipe of the day - ${dayLabel}`,
+      usedCount: 1,
+      preview: recipe.ingredients.slice(0, 3).map(i => i.m).join(' - '),
+      count: recipe.ingredients.length,
+      items: recipe.ingredients.map((ing, idx) => ({
+        id: `${bsRecipeListId(recipe, dayLabel)}-${idx}`,
+        n: ing.m,
+        q: ing.n,
+        meals: title,
+        k: ing.k,
+      })),
+    };
+  };
+
+  const addRecipeToGrocery = (recipe, dayLabel) => {
+    if (!recipe) return;
+    const list = makeRecipeList(recipe, dayLabel);
+    setRecipeLists(prev => {
+      const without = prev.filter(l => l.id !== list.id);
+      return [list, ...without];
+    });
+    window.__bsToast?.('Recipe grocery list added', 'ok');
+  };
+
+  React.useEffect(() => {
+    try {
+      window.localStorage && window.localStorage.setItem('shape.recipeGroceryLists', JSON.stringify(recipeLists));
+    } catch {}
+  }, [recipeLists]);
+
   const cur = PROGRAM[day];
   const days = PROGRAM.map(p => p.d);
   const meals = cur.meals;
+  const activeGroceryList = selectedGroceryList || BS_GROCERY_DEFAULT;
+  const activeGroceryCount = activeGroceryList.aisles
+    ? activeGroceryList.aisles.reduce((sum, aisle) => sum + aisle.items.length, 0)
+    : activeGroceryList.count || 0;
+  const loadGroceryList = (list) => {
+    setSelectedGroceryList(bsNormalizeGroceryList(list));
+    setView('grocery');
+  };
 
   // Reset scroll-to-top whenever the eat-tab view changes (day swap,
   // entering/exiting preview, switching grocery view). Without this,
@@ -2003,14 +2800,33 @@ function BSClientEat({ onProfile }) {
     if (el) el.scrollTop = 0;
   }, [day, previewMealId, previewRecipe, previewDayBrief, view]);
 
-  if (view === 'grocery') return <BSGrocery onBack={() => setView('eat')} onLibrary={() => setView('library')} />;
-  if (view === 'library') return <BSGroceryLibrary onBack={() => setView('grocery')} />;
+  if (view === 'grocery') return <BSGrocery list={activeGroceryList} onBack={() => setView('eat')} onLibrary={() => setView('library')} recipeLists={recipeLists} onChangeView={setView} />;
+  if (view === 'library') return <BSGroceryLibrary onBack={() => setView('grocery')} onLoad={loadGroceryList} recipeLists={recipeLists} />;
+  if (view === 'recipes') {
+    return (
+      <BSRecipeArchivePage
+        recipes={recipeArchive}
+        recipeLists={recipeLists}
+        onChangeView={setView}
+        onAddGrocery={addRecipeToGrocery}
+        onOpenRecipe={(entry) => { setDay(entry.idx); setPreviewRecipeReturnView('recipes'); setView('eat'); setPreviewRecipe(true); }}
+      />
+    );
+  }
   if (previewMealId) {
     const meal = meals.find(m => m.id === previewMealId);
     if (meal) return <BSMealPreview meal={meal} onBack={() => setPreviewMealId(null)} />;
   }
   if (previewRecipe && cur.recipe) {
-    return <BSRecipePreview recipe={cur.recipe} dayLabel={cur.d} onBack={() => setPreviewRecipe(false)} />;
+    return (
+      <BSRecipePreview
+        recipe={cur.recipe}
+        dayLabel={cur.d}
+        onBack={() => { setPreviewRecipe(false); setView(previewRecipeReturnView); setPreviewRecipeReturnView('eat'); }}
+        onAddGrocery={() => addRecipeToGrocery(cur.recipe, cur.d)}
+        groceryAdded={recipeLists.some(l => l.id === bsRecipeListId(cur.recipe, cur.d))}
+      />
+    );
   }
   if (previewDayBrief) {
     return <BSDayBriefPreview
@@ -2032,6 +2848,10 @@ function BSClientEat({ onProfile }) {
         trailing={<BSAvatar init="A" size={32} onClick={onProfile} />}
       />
 
+      <BSNutritionTopTabs active="eat" onChange={setView} />
+      {false && (
+      <>
+
       {/* Recipe of the day — pinned to top of Eat page */}
       <div onClick={() => cur.recipe && setPreviewRecipe(true)} style={{ borderRadius: t.RADIUS_SM, overflow: 'hidden', margin: `12px ${t.padX}px 0`, border: `1px solid ${t.INK}`, cursor: cur.recipe ? 'pointer' : 'default' }}>
         <BSHalftone height={140} accent={cur.accent} pattern="dots" />
@@ -2048,22 +2868,75 @@ function BSClientEat({ onProfile }) {
               <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.ACCENT, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Read →</div>
             )}
           </div>
+          {cur.recipe && (
+            <button
+              onClick={(e) => { e.stopPropagation(); addRecipeToGrocery(cur.recipe, cur.d); }}
+              style={{ borderRadius: t.RADIUS_SM,
+                marginTop: 12, width: '100%', padding: '12px 14px',
+                border: `1px solid ${recipeLists.some(l => l.id === bsRecipeListId(cur.recipe, cur.d)) ? t.GREEN : t.INK}`,
+                background: recipeLists.some(l => l.id === bsRecipeListId(cur.recipe, cur.d)) ? t.GREEN : 'transparent',
+                color: recipeLists.some(l => l.id === bsRecipeListId(cur.recipe, cur.d)) ? t.PAPER : t.INK,
+                fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
+              }}
+            >
+              {recipeLists.some(l => l.id === bsRecipeListId(cur.recipe, cur.d)) ? 'Grocery list added' : 'Add to grocery list'}
+            </button>
+          )}
         </div>
       </div>
 
       {/* Grocery cell — week's list is one tap away */}
-      <BSSection title="Grocery" meta="14 items · ~$48" />
+      <BSSection title="Grocery" meta={`${activeGroceryCount} items`} />
       <div style={{ padding: `0 ${t.padX}px 6px` }}>
         <BSCell dark onClick={() => setView('grocery')}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
             <div>
-              <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.AMBER, fontWeight: 700 }}>This week</div>
-              <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 22, marginTop: 6, letterSpacing: '-0.02em' }}>Open list →</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.AMBER, fontWeight: 700 }}>Viewing</div>
+              <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 22, marginTop: 6, letterSpacing: '-0.02em' }}>{activeGroceryList.name}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 5, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Open checklist</div>
             </div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 36, letterSpacing: '-0.04em', fontVariantNumeric: 'tabular-nums' }}>14</div>
+            <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 36, letterSpacing: '-0.04em', fontVariantNumeric: 'tabular-nums' }}>{activeGroceryCount}</div>
           </div>
         </BSCell>
       </div>
+
+      <BSSection title="Recipe archive" meta={`${recipeArchive.length} recipes - by date`} />
+      <div style={{ padding: `0 ${t.padX}px 6px`, display: 'grid', gap: 8 }}>
+        {recipeArchive.map((entry) => {
+          const added = recipeLists.some(l => l.id === bsRecipeListId(entry.recipe, entry.date));
+          return (
+            <div key={entry.date} style={{ borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, overflow: 'hidden' }}>
+              <button
+                onClick={() => { setDay(entry.idx); setPreviewRecipe(true); }}
+                style={{ borderRadius: 0,
+                  width: '100%', padding: '12px 14px', border: 0, background: 'transparent', color: t.INK,
+                  display: 'grid', gridTemplateColumns: '54px 1fr auto', gap: 10, alignItems: 'center', textAlign: 'left', cursor: 'pointer',
+                }}
+              >
+                <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.ACCENT, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700 }}>{entry.date}</span>
+                <span>
+                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 17, color: t.INK, fontWeight: 700, letterSpacing: '-0.02em' }}>{entry.title}</span>
+                  <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.1em', marginTop: 2, textTransform: 'uppercase' }}>{entry.meta}</span>
+                </span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Open</span>
+              </button>
+              <button
+                onClick={() => addRecipeToGrocery(entry.recipe, entry.date)}
+                style={{ borderRadius: 0,
+                  width: '100%', padding: '10px 14px', border: 0, borderTop: `1px solid ${t.HAIR}`,
+                  background: added ? t.GREEN : 'transparent', color: added ? t.PAPER : t.INK,
+                  fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
+                }}
+              >
+                {added ? 'Added to grocery library' : 'Add ingredients to grocery list'}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      </>
+      )}
 
       {/* Day strip — mirrors Train tab */}
       <div style={{ padding: `12px ${t.padX}px 18px`, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, borderBottom: `1px solid ${t.RULE}` }}>
@@ -2157,8 +3030,703 @@ function BSClientEat({ onProfile }) {
 // ═══════════════════════════════════════════════════════════
 // CHAT — Circle / Clients / Trainers / Nutri / Community
 // ═══════════════════════════════════════════════════════════
+function readStoredCoachThreadsForChat() {
+  try {
+    const raw = window.localStorage && window.localStorage.getItem('shape.clientCoachThreads');
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(th => ({
+      ...th,
+      bucket: th.bucket || 'COACH',
+      unread: th.unread || 0,
+      time: th.time || 'now',
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function mergeChatThreads(primary, fallback) {
+  const seen = new Set();
+  return [...primary, ...fallback].filter(th => {
+    const key = th.id || th.who;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+const SHAPE_FEED_SEED = [
+  {
+    id: 'feed-owen',
+    name: 'Owen Vale',
+    role: 'Client',
+    avatar: 'O',
+    time: 'Live now',
+    privacy: 'Public',
+    workout: 'Tempo run',
+    status: 'Mile 4 of 6',
+    statA: '6.2 mi',
+    statB: '7:18 pace',
+    statC: '148 bpm',
+    labels: ['Distance', 'Pace', 'Heart'],
+    note: 'Holding threshold steady. Last mile is the test.',
+    route: {
+      kind: 'Run route',
+      area: 'Prospect Park, Brooklyn',
+      privacy: 'Start/end hidden',
+      elevation: '184 ft gain',
+      provider: 'Strava',
+      imported: true,
+      points: [[8, 72], [18, 56], [30, 62], [42, 34], [56, 42], [69, 24], [82, 35], [92, 18]],
+    },
+    tags: ['STRAVA', 'GPS', 'RUN', 'TEMPO', 'PUBLIC'],
+    source_provider: 'strava',
+    sourceProviderLabel: 'Strava',
+    likes: 38,
+    comments: [
+      { who: 'Maya O.', text: 'Stay relaxed through the shoulders.' },
+      { who: 'Ari C.', text: 'That pace is moving.' },
+    ],
+    live: true,
+  },
+  {
+    id: 'feed-ari',
+    name: 'Ari Morgan',
+    role: 'Client',
+    avatar: 'A',
+    time: '22m',
+    privacy: 'Public',
+    workout: 'Bike ride',
+    status: 'River loop complete',
+    statA: '18.4 mi',
+    statB: '17.2 mph',
+    statC: '642 ft',
+    labels: ['Distance', 'Speed', 'Elev.'],
+    note: 'Kept it aerobic. Wind picked up on the return but cadence stayed smooth.',
+    route: {
+      kind: 'Ride route',
+      area: 'Hudson River Greenway',
+      privacy: 'Home zone masked',
+      elevation: '642 ft gain',
+      provider: 'Garmin',
+      imported: true,
+      points: [[6, 70], [16, 64], [22, 38], [35, 30], [48, 36], [59, 20], [70, 25], [82, 45], [94, 36]],
+    },
+    tags: ['GARMIN', 'GPS', 'RIDE', 'Z2', 'PUBLIC'],
+    source_provider: 'garmin',
+    sourceProviderLabel: 'Garmin',
+    likes: 51,
+    comments: [
+      { who: 'Owen V.', text: 'That north wind was rude today.' },
+    ],
+  },
+  {
+    id: 'feed-nina',
+    name: 'Nina Chen',
+    role: 'Client',
+    avatar: 'N',
+    time: '8m',
+    privacy: 'Public',
+    workout: 'Lower strength',
+    status: 'Session complete',
+    statA: '54 min',
+    statB: '14 sets',
+    statC: '+5 lb',
+    labels: ['Time', 'Sets', 'Load'],
+    note: 'First pain-free squat session in weeks. Kept RPE at 7.',
+    tags: ['LIFT', 'PR', 'SHAPE'],
+    likes: 64,
+    comments: [
+      { who: 'Jordan R.', text: 'Clean work. Keep the same load next week.' },
+    ],
+  },
+  {
+    id: 'feed-marcus',
+    name: 'Marcus Johnson',
+    role: 'Client',
+    avatar: 'M',
+    time: '41m',
+    privacy: 'Public',
+    workout: 'Upper push',
+    status: 'Top set logged',
+    statA: '225 lb',
+    statB: '8 reps',
+    statC: 'RPE 8',
+    labels: ['Bench', 'Reps', 'Effort'],
+    note: 'Bench moved better than last week. Added one rep and kept the pause clean.',
+    tags: ['LIFT', 'PROGRESS', 'SHAPE'],
+    likes: 27,
+    comments: [
+      { who: 'Jordan R.', text: 'Good rep. Keep the same load next push day.' },
+      { who: 'Kenji M.', text: 'Pause work paying off.' },
+    ],
+  },
+  {
+    id: 'feed-sofia',
+    name: 'Sofia Reyes',
+    role: 'Client',
+    avatar: 'S',
+    time: '1h',
+    privacy: 'Public',
+    workout: 'Meal prep',
+    status: 'Protein target hit',
+    statA: '154g',
+    statB: '5 meals',
+    statC: 'On plan',
+    labels: ['Protein', 'Prepped', 'Status'],
+    note: 'Packed the next two days: chicken bowl, Greek yogurt, salmon dinner. No guessing tomorrow.',
+    tags: ['NUTRITION', 'MEAL PREP', 'PUBLIC'],
+    likes: 44,
+    comments: [
+      { who: 'Maya O.', text: 'That is the exact kind of setup that wins the week.' },
+    ],
+  },
+];
+
+function BSActivityRoutePreview({ route }) {
+  const t = useBS();
+  if (!route) return null;
+  const points = route.points || [];
+  if (points.length < 2) return null;
+  const polyline = points.map(([x, y]) => `${x},${y}`).join(' ');
+  const start = points[0] || [8, 72];
+  const end = points[points.length - 1] || [92, 18];
+  const provider = route.provider || '';
+
+  return (
+    <div style={{
+      position: 'relative',
+      overflow: 'hidden',
+      marginTop: 12,
+      border: `1px solid ${t.INK}`,
+      background: t.PAPER,
+      minHeight: 142,
+    }}>
+      <div aria-hidden style={{
+        position: 'absolute',
+        inset: 0,
+        backgroundImage: `
+          linear-gradient(rgba(${t.inkRGB},0.08) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(${t.inkRGB},0.08) 1px, transparent 1px),
+          radial-gradient(circle, rgba(${t.inkRGB},0.16) 1px, transparent 1.35px)
+        `,
+        backgroundSize: '26px 26px, 26px 26px, 8px 8px',
+        opacity: 0.9,
+        pointerEvents: 'none',
+      }} />
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden style={{
+        position: 'absolute',
+        inset: 0,
+        width: '100%',
+        height: '100%',
+      }}>
+        <polyline
+          points={polyline}
+          fill="none"
+          stroke={t.ACCENT}
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+        <circle cx={start[0]} cy={start[1]} r="9" fill={`rgba(${t.inkRGB},0.12)`} stroke={t.INK} strokeWidth="1.4" vectorEffect="non-scaling-stroke" />
+        <circle cx={end[0]} cy={end[1]} r="5" fill={t.ACCENT} stroke={t.PAPER} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+      </svg>
+      <div style={{
+        position: 'relative',
+        zIndex: 1,
+        display: 'flex',
+        justifyContent: 'space-between',
+        gap: 10,
+        padding: 10,
+      }}>
+        <div>
+          <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 900 }}>{provider ? `${provider} - ${route.kind}` : route.kind}</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, lineHeight: 1.05, letterSpacing: '-0.03em', marginTop: 4 }}>{route.area}</div>
+        </div>
+        <div style={{
+          alignSelf: 'flex-start',
+          border: `1px solid ${t.INK}`,
+          background: t.PAPER2,
+          padding: '5px 6px',
+          fontFamily: t.MONO,
+          fontSize: 7.5,
+          letterSpacing: '0.14em',
+          textTransform: 'uppercase',
+          color: t.INK,
+          fontWeight: 900,
+          whiteSpace: 'nowrap',
+        }}>{route.privacy}</div>
+      </div>
+      <div style={{
+        position: 'absolute',
+        left: 10,
+        right: 10,
+        bottom: 10,
+        zIndex: 1,
+        display: 'flex',
+        justifyContent: 'space-between',
+        gap: 8,
+        fontFamily: t.MONO,
+        fontSize: 8,
+        letterSpacing: '0.16em',
+        textTransform: 'uppercase',
+        color: t.INK70,
+        fontWeight: 800,
+      }}>
+        <span>{provider ? `${provider} GPS` : 'GPS preview'}</span>
+        <span>{route.elevation}</span>
+      </div>
+    </div>
+  );
+}
+
+function BSFeedActivityCard({
+  post,
+  isLiked,
+  likeCount,
+  comments,
+  privacyColor,
+  onLike,
+  commentValue,
+  onCommentChange,
+  onCommentPost,
+}) {
+  const t = useBS();
+  const labels = post.labels || ['Metric', 'Metric', 'Metric'];
+  const providerLabel = post.sourceProviderLabel || post.route?.provider || '';
+
+  return (
+    <article style={{
+      border: `1px solid ${t.SURFACE_BORDER}`,
+      background: t.SURFACE,
+      borderRadius: t.RADIUS_LG,
+      boxShadow: t.ELEVATION_SOFT,
+      overflow: 'hidden',
+      backdropFilter: 'blur(14px)',
+      WebkitBackdropFilter: 'blur(14px)',
+    }}>
+      <div style={{ padding: 14, display: 'grid', gridTemplateColumns: '42px 1fr auto', gap: 11, alignItems: 'center' }}>
+        <BSAvatar init={post.avatar} size={40} fill={privacyColor} />
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+            <span style={{ fontFamily: t.BODY, fontSize: 15, fontWeight: 750, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{post.name}</span>
+            {post.live && <span style={{ width: 7, height: 7, borderRadius: 7, background: '#df3f33', flex: '0 0 auto' }} />}
+          </div>
+          <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>
+            {post.role} - {post.time}
+          </div>
+        </div>
+        <span style={{
+          border: `1px solid ${privacyColor}`,
+          color: privacyColor,
+          borderRadius: 999,
+          padding: '5px 8px',
+          fontFamily: t.MONO,
+          fontSize: 8,
+          letterSpacing: '0.14em',
+          textTransform: 'uppercase',
+          fontWeight: 900,
+          whiteSpace: 'nowrap',
+        }}>{post.privacy}</span>
+      </div>
+
+      <div style={{ padding: '0 14px 14px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.ACCENT, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 900 }}>
+            {post.workout}
+          </div>
+          {providerLabel && (
+            <span style={{
+              border: `1px solid ${t.ACCENT}`,
+              color: t.ACCENT,
+              borderRadius: 999,
+              padding: '4px 7px',
+              fontFamily: t.MONO,
+              fontSize: 7.5,
+              letterSpacing: '0.13em',
+              textTransform: 'uppercase',
+              fontWeight: 900,
+              whiteSpace: 'nowrap',
+            }}>{providerLabel} GPS</span>
+          )}
+        </div>
+        <div style={{ marginTop: 5, fontFamily: t.BODY, fontSize: 25, fontWeight: 760, color: t.INK, lineHeight: 1.05, letterSpacing: '-0.03em' }}>
+          {post.status}
+        </div>
+        <p style={{ margin: '8px 0 0', fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.45, color: t.INK70 }}>
+          {post.note}
+        </p>
+
+        <div style={{ borderRadius: 18, overflow: 'hidden', marginTop: 12 }}>
+          <BSActivityRoutePreview route={post.route} />
+        </div>
+        {post.route?.imported && providerLabel && (
+          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>
+            Imported route - start and finish can be masked
+          </div>
+        )}
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: 8,
+          marginTop: 12,
+          padding: 12,
+          border: `1px solid ${t.SURFACE_BORDER}`,
+          background: t.PAPER2,
+          borderRadius: 18,
+        }}>
+          {[post.statA, post.statB, post.statC].map((stat, i) => (
+            <div key={i} style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: t.BODY, fontSize: 18, fontWeight: 720, color: t.INK, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{stat}</div>
+              <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, color: t.INK50, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{labels[i]}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 10 }}>
+          {(post.tags || []).map(tag => (
+            <span key={tag} style={{
+              border: `1px solid ${t.SURFACE_BORDER}`,
+              background: t.PAPER2,
+              color: tag === 'PRIVATE' ? t.RUST : t.INK70,
+              borderRadius: 999,
+              padding: '5px 8px',
+              fontFamily: t.MONO,
+              fontSize: 8,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              fontWeight: 800,
+            }}>{tag}</span>
+          ))}
+        </div>
+      </div>
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr 1fr',
+        borderTop: `1px solid ${t.SURFACE_BORDER}`,
+        borderBottom: `1px solid ${t.SURFACE_BORDER}`,
+        background: t.PAPER2,
+      }}>
+        <button onClick={onLike} style={{
+          border: 0,
+          borderRight: `1px solid ${t.SURFACE_BORDER}`,
+          background: isLiked ? t.ACCENT : 'transparent',
+          color: isLiked ? t.PAPER : t.INK,
+          padding: '11px 4px',
+          fontFamily: t.BODY,
+          fontSize: 13,
+          fontWeight: 760,
+        }}>{isLiked ? 'Kudoed' : 'Kudos'} {likeCount}</button>
+        <div style={{
+          borderRight: `1px solid ${t.SURFACE_BORDER}`,
+          padding: '11px 4px',
+          fontFamily: t.BODY,
+          fontSize: 13,
+          fontWeight: 700,
+          color: t.INK70,
+          textAlign: 'center',
+        }}>{comments.length} comments</div>
+        <button type="button" style={{
+          border: 0,
+          background: 'transparent',
+          color: t.INK70,
+          padding: '11px 4px',
+          fontFamily: t.BODY,
+          fontSize: 13,
+          fontWeight: 700,
+        }}>Share</button>
+      </div>
+
+      <div style={{ padding: 14 }}>
+        {comments.length > 0 && (
+          <div style={{ display: 'grid', gap: 8, marginBottom: 10 }}>
+            {comments.slice(-2).map((comment, i) => (
+              <div key={i} style={{ borderRadius: 14, background: t.PAPER2, padding: '8px 10px' }}>
+                <span style={{ fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, color: t.INK }}>{comment.who}</span>
+                <span style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK70 }}> {comment.text}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 64px', gap: 8 }}>
+          <input
+            value={commentValue}
+            onChange={(e) => onCommentChange(e.target.value)}
+            placeholder="Add a comment..."
+            style={{
+              minWidth: 0,
+              border: `1px solid ${t.SURFACE_BORDER}`,
+              background: t.PAPER2,
+              color: t.INK,
+              borderRadius: 999,
+              padding: '10px 12px',
+              fontFamily: t.BODY,
+              fontSize: 14,
+              outline: 'none',
+            }}
+          />
+          <button onClick={onCommentPost} style={{
+            border: 0,
+            background: t.INK,
+            color: t.PAPER,
+            borderRadius: 999,
+            fontFamily: t.BODY,
+            fontSize: 13,
+            fontWeight: 760,
+          }}>Post</button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function BSCommunityLiveFeed({ role = 'client' }) {
+  const t = useBS();
+  const [composerOpen, setComposerOpen] = useStateBSC(false);
+  const [postText, setPostText] = useStateBSC('');
+  const [postPrivacy, setPostPrivacy] = useStateBSC('Public');
+  const [liked, setLiked] = useStateBSC({});
+  const [commentText, setCommentText] = useStateBSC({});
+  const [extraComments, setExtraComments] = useStateBSC({});
+  const [posts, setPosts] = useStateBSC(SHAPE_FEED_SEED);
+
+  React.useEffect(() => {
+    let active = true;
+    const loadPosts = async () => {
+      try {
+        const result = await window.ShapeCommunity?.listPosts?.();
+        if (active && Array.isArray(result?.data) && result.data.length) {
+          setPosts(result.data);
+          setLiked(Object.fromEntries(result.data.filter(post => post.liked).map(post => [post.id, true])));
+        }
+      } catch {
+        // Keep the seed feed available if Supabase is not configured yet.
+      }
+    };
+    loadPosts();
+    return () => { active = false; };
+  }, []);
+
+  const feedPosts = posts.length ? posts : SHAPE_FEED_SEED;
+  const visiblePosts = feedPosts.filter(post => post.privacy !== 'Private' || post.mine || post.mutualFollow);
+
+  const addPost = async () => {
+    const note = postText.trim();
+    if (!note) return;
+    const fallbackPost = {
+      id: `feed-local-${Date.now()}`,
+      name: 'You',
+      role: role === 'client' ? 'Client' : role === 'trainer' ? 'Trainer' : 'Nutritionist',
+      avatar: 'A',
+      time: 'Just now',
+      privacy: postPrivacy,
+      workout: role === 'nutritionist' ? 'Fueling update' : 'Workout update',
+      status: postPrivacy === 'Private' ? 'Private log' : 'Posted live',
+      statA: role === 'nutritionist' ? '2 meals' : '48 min',
+      statB: role === 'nutritionist' ? '118g pro' : '12 sets',
+      statC: role === 'nutritionist' ? 'On plan' : 'RPE 7',
+      labels: role === 'nutritionist' ? ['Logged', 'Protein', 'Status'] : ['Time', 'Sets', 'Effort'],
+      note,
+      tags: [postPrivacy.toUpperCase(), role.toUpperCase()],
+      likes: 0,
+      comments: [],
+      mine: true,
+      live: postPrivacy !== 'Private',
+    };
+
+    try {
+      const result = await window.ShapeCommunity?.createPost?.({
+        title: fallbackPost.workout,
+        status: fallbackPost.status,
+        note,
+        privacy: postPrivacy,
+        activityType: fallbackPost.workout,
+        metrics: {
+          statA: fallbackPost.statA,
+          statB: fallbackPost.statB,
+          statC: fallbackPost.statC,
+          labels: fallbackPost.labels,
+          tags: fallbackPost.tags,
+        },
+      });
+      setPosts(current => [result?.data?.id ? result.data : fallbackPost, ...current]);
+    } catch {
+      setPosts(current => [fallbackPost, ...current]);
+    }
+    setPostText('');
+    setComposerOpen(false);
+  };
+
+  const addComment = async (postId) => {
+    const text = (commentText[postId] || '').trim();
+    if (!text) return;
+    try {
+      await window.ShapeCommunity?.addComment?.({ postId, body: text });
+    } catch {
+      // Keep local UI responsive if the user is offline or not signed in.
+    }
+    setExtraComments(prev => ({
+      ...prev,
+      [postId]: [...(prev[postId] || []), { who: 'You', text }],
+    }));
+    setCommentText(prev => ({ ...prev, [postId]: '' }));
+  };
+
+  const toggleLike = async (postId) => {
+    setLiked(prev => ({ ...prev, [postId]: !prev[postId] }));
+    try {
+      const result = await window.ShapeCommunity?.toggleLike?.({ postId });
+      if (typeof result?.liked === 'boolean') {
+        setLiked(prev => ({ ...prev, [postId]: result.liked }));
+      }
+    } catch {
+      // Optimistic local state stays in place for demo/offline mode.
+    }
+  };
+
+  return (
+    <>
+      <BSSection title="Shape Feed" meta={`${visiblePosts.length} updates`} />
+      <div style={{ padding: `0 ${t.padX}px 14px` }}>
+        <div style={{
+          border: `1px solid ${t.SURFACE_BORDER}`,
+          background: t.SURFACE,
+          borderRadius: t.RADIUS_LG,
+          boxShadow: t.ELEVATION_SOFT,
+          padding: 14,
+          backdropFilter: 'blur(14px)',
+          WebkitBackdropFilter: 'blur(14px)',
+        }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr', gap: 10, alignItems: 'center' }}>
+            <BSAvatar init="A" size={38} fill={t.ACCENT} />
+            <button onClick={() => setComposerOpen(v => !v)} style={{
+              border: `1px solid ${t.SURFACE_BORDER}`,
+              background: t.PAPER2,
+              color: t.INK70,
+              borderRadius: 999,
+              padding: '11px 14px',
+              fontFamily: t.BODY,
+              fontSize: 14,
+              textAlign: 'left',
+            }}>{composerOpen ? 'Close update' : 'What did you do today?'}</button>
+          </div>
+
+        {composerOpen && (
+          <div style={{
+            marginTop: 12,
+          }}>
+            <div style={{ display: 'inline-grid', gridTemplateColumns: 'repeat(2, minmax(88px, 1fr))', gap: 6, marginBottom: 10, padding: 4, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, background: t.PAPER2 }}>
+              {['Public', 'Private'].map(option => {
+                const active = postPrivacy === option;
+                return (
+                  <button key={option} onClick={() => setPostPrivacy(option)} style={{
+                    border: 0,
+                    borderRadius: 999,
+                    background: active ? t.INK : 'transparent',
+                    color: active ? t.PAPER : t.INK,
+                    padding: '8px 12px',
+                    fontFamily: t.MONO,
+                    fontSize: 8,
+                    letterSpacing: '0.16em',
+                    textTransform: 'uppercase',
+                    fontWeight: 800,
+                  }}>{option}</button>
+                );
+              })}
+            </div>
+            <textarea
+              value={postText}
+              onChange={(e) => setPostText(e.target.value)}
+              placeholder="Share what you're training right now..."
+              style={{
+                width: '100%',
+                minHeight: 84,
+                resize: 'vertical',
+                boxSizing: 'border-box',
+                border: `1px solid ${t.SURFACE_BORDER}`,
+                borderRadius: 18,
+                background: t.PAPER2,
+                color: t.INK,
+                padding: 12,
+                fontFamily: t.BODY,
+                fontSize: 15,
+                outline: 'none',
+              }}
+            />
+            <button onClick={addPost} style={{
+              width: '100%',
+              marginTop: 8,
+              border: 0,
+              background: t.ACCENT,
+              color: t.PAPER,
+              borderRadius: 999,
+              padding: '11px',
+              fontFamily: t.BODY,
+              fontSize: 14,
+              fontWeight: 760,
+            }}>Post to {postPrivacy}</button>
+          </div>
+        )}
+        </div>
+      </div>
+
+      <div style={{ padding: `0 ${t.padX}px 22px`, display: 'grid', gap: 14 }}>
+        {visiblePosts.map((post) => {
+          const isLiked = liked[post.id] ?? !!post.liked;
+          const likeCount = Math.max(0, (post.likes || 0) + (isLiked && !post.liked ? 1 : 0) - (!isLiked && post.liked ? 1 : 0));
+          const comments = [...(post.comments || []), ...(extraComments[post.id] || [])];
+          const privacyColor = post.privacy === 'Public' ? t.GREEN : post.privacy === 'Private' ? t.RUST : t.ACCENT;
+          return (
+            <BSFeedActivityCard
+              key={post.id}
+              post={post}
+              isLiked={isLiked}
+              likeCount={likeCount}
+              comments={comments}
+              privacyColor={privacyColor}
+              onLike={() => toggleLike(post.id)}
+              commentValue={commentText[post.id] || ''}
+              onCommentChange={(value) => setCommentText(prev => ({ ...prev, [post.id]: value }))}
+              onCommentPost={() => addComment(post.id)}
+            />
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
 function BSClientChat({ onProfile, role = 'client' }) {
   const t = useBS();
+  const [syncedCoachThreads, setSyncedCoachThreads] = useStateBSC([]);
+  const [feedDraft, setFeedDraft] = useStateBSC('');
+  const [feedExtras, setFeedExtras] = useStateBSC({});
+
+  React.useEffect(() => {
+    let active = true;
+    const loadSyncedThreads = async () => {
+      try {
+        const result = await window.ShapeMessages?.listDirectCoachThreads?.();
+        if (active && Array.isArray(result?.data)) {
+          setSyncedCoachThreads(result.data);
+        }
+      } catch {
+        if (active) setSyncedCoachThreads([]);
+      }
+    };
+
+    loadSyncedThreads();
+    const onThreadsUpdated = () => loadSyncedThreads();
+    window.addEventListener?.('shape:clientCoachThreadsUpdated', onThreadsUpdated);
+    return () => {
+      active = false;
+      window.removeEventListener?.('shape:clientCoachThreadsUpdated', onThreadsUpdated);
+    };
+  }, []);
 
   // ── Build role-aware data ────────────────────────────────────
   // Two top-level views: Direct (people) and Channels (group rooms).
@@ -2167,15 +3735,33 @@ function BSClientChat({ onProfile, role = 'client' }) {
   const { directBuckets, communityBuckets } = React.useMemo(() => {
     const raw = (window.clientChatTabs || []);
     const byId = Object.fromEntries(raw.map(tb => [tb.id, tb]));
+    const storedCoachThreads = mergeChatThreads(syncedCoachThreads, readStoredCoachThreadsForChat());
 
     // Shape support — group rooms, used by every role
+    const allMembersRoom = {
+      who: '# shape-members',
+      role: 'Everyone on Shape - clients, trainers, nutritionists - 41,208 members - 2,104 online',
+      last: 'Nina O: welcome everyone - clients, trainers, nutritionists, drop your goal for the month.',
+      time: '4m',
+      unread: 12,
+      group: true,
+      pinned: true,
+      bucket: 'MEMBERS',
+      messages: [
+        { who: 'Nina O.', t: 'welcome everyone - clients, trainers, nutritionists, drop your goal for the month.', time: '4m', me: false },
+        { who: 'Maya Okafor', t: 'Trainer here. Free Q&A Thursday at 7pm EST - bring form questions.', time: '3m', me: false, coach: true },
+        { who: 'Rae Lindqvist', t: 'Nutrition side: consistency beats perfection. Post one target you can hit daily.', time: '2m', me: false, coach: true },
+        { who: 'Marcus J.', t: 'Client goal: 225 bench by end of month. locked in.', time: '2m', me: false },
+        { who: 'Dr. Sam Huang', t: 'Endurance folks, I can answer fueling questions in the thread today.', time: '1m', me: false, coach: true },
+      ],
+    };
     const shapeRooms = [
       { who: 'Shape Support', role: 'Avg reply · 4 min · Mon–Sun · 8a–10p', last: "We're here whenever you need us. Billing, bugs, feature requests — anything.", time: '—', unread: 0, bucket: 'SUPPORT', messages: [
         { who: 'Shape', t: "Welcome to Shape. We're here whenever you need us — billing, bugs, feature requests, anything at all.", time: 'Welcome', me: false },
         { who: 'Shape', t: 'Avg reply time is 4 min. Real humans, no bots.', time: 'Welcome', me: false },
       ]},
-      { who: '# product-updates', role: "What's new in Shape · Weekly digest", last: 'Apr 21 · Calendar redesign + Shape Radio FX overlays.', time: '2d', unread: 1, group: true, bucket: 'SHAPE', messages: [
-        { who: 'Shape Product', t: 'Apr 21 · Calendar redesign is live. Tap any day from Home to drill in.', time: 'Mon 9:00 AM', me: false },
+      { who: '# product-updates', role: "What's new in Shape · Weekly digest", last: 'May 14 · Calendar redesign + Shape Radio FX overlays.', time: '2d', unread: 1, group: true, bucket: 'SHAPE', messages: [
+        { who: 'Shape Product', t: 'May 14 · Calendar redesign is live. Tap any day from Home to drill in.', time: 'Mon 9:00 AM', me: false },
         { who: 'Shape Product', t: 'Shape Radio now has reactive FX overlays — try them in Settings → Light effects.', time: 'Mon 9:00 AM', me: false },
       ]},
       { who: '# release-notes', role: 'Beta channel · Opt-in via Me → Settings', last: 'v6.38 — Tweaks panel persists across sessions.', time: '4d', unread: 0, group: true, bucket: 'SHAPE', messages: [
@@ -2186,6 +3772,7 @@ function BSClientChat({ onProfile, role = 'client' }) {
     // Tag every thread with a `bucket` so the merged Direct list still
     // visually groups coaches vs clients/peers via a small label chip.
     const tagAll = (threads, bucket) => threads.map(th => ({ ...th, bucket }));
+    const communityThreads = (byId.community?.threads || []).filter(th => th.who !== '# shape-community');
 
     if (role === 'trainer') {
       const team = [
@@ -2218,8 +3805,8 @@ function BSClientChat({ onProfile, role = 'client' }) {
           { id: 'friends',  label: 'Friends',  threads: tagAll(byId.friends?.threads || [], 'FRIEND') },
         ],
         communityBuckets: [
-          { id: 'channels', label: 'Channels',      threads: tagAll(byId.community?.threads || [], 'COMMUNITY') },
-          { id: 'shape',    label: 'Shape members', threads: shapeRooms },
+          { id: 'shape',    label: 'Shape Members', threads: [allMembersRoom] },
+          { id: 'channels', label: 'Channels',      threads: [...shapeRooms, ...tagAll(communityThreads, 'COMMUNITY')] },
         ],
       };
     }
@@ -2254,8 +3841,8 @@ function BSClientChat({ onProfile, role = 'client' }) {
           { id: 'friends', label: 'Friends',       threads: tagAll(byId.friends?.threads || [], 'FRIEND') },
         ],
         communityBuckets: [
-          { id: 'channels', label: 'Channels',      threads: tagAll(byId.community?.threads || [], 'COMMUNITY') },
-          { id: 'shape',    label: 'Shape members', threads: shapeRooms },
+          { id: 'shape',    label: 'Shape Members', threads: [allMembersRoom] },
+          { id: 'channels', label: 'Channels',      threads: [...shapeRooms, ...tagAll(communityThreads, 'COMMUNITY')] },
         ],
       };
     }
@@ -2264,26 +3851,29 @@ function BSClientChat({ onProfile, role = 'client' }) {
     //         Community = Channels + Shape members
     return {
       directBuckets: [
-        { id: 'circle',  label: 'Team',          threads: tagAll(byId.circle?.threads || [], 'COACH') },
+        { id: 'circle',  label: 'Team',          threads: mergeChatThreads(storedCoachThreads, tagAll(byId.circle?.threads || [], 'COACH')) },
         { id: 'friends', label: 'Friends',       threads: tagAll(byId.friends?.threads || [], 'FRIEND') },
         { id: 'peers',   label: 'Shape Clients', threads: tagAll(byId.clients?.threads || [], 'PEER') },
       ],
       communityBuckets: [
-        { id: 'channels', label: 'Channels',      threads: tagAll(byId.community?.threads || [], 'COMMUNITY') },
-        { id: 'shape',    label: 'Shape members', threads: shapeRooms },
+        { id: 'shape',    label: 'Shape Members', threads: [allMembersRoom] },
+        { id: 'channels', label: 'Channels',      threads: [...shapeRooms, ...tagAll(communityThreads, 'COMMUNITY')] },
       ],
     };
-  }, [role]);
+  }, [role, syncedCoachThreads]);
 
-  // Two-tier view state
-  const [view, setView] = useStateBSC('direct'); // 'direct' | 'community'
+  // Community opens on the live feed; direct chats and rooms stay one tap away.
+  const [view, setView] = useStateBSC('feed'); // 'feed' | 'direct' | 'community'
   const [subId, setSubId] = useStateBSC(null);   // active sub-bucket id
-  const [openThread, setOpenThread] = useStateBSC(null); // { view, subId, idx }
   const [chatQuery, setChatQuery] = useStateBSC(''); // search filter (community only)
+  const [selectedThreadKey, setSelectedThreadKey] = useStateBSC(null);
 
   const buckets = view === 'direct' ? directBuckets : communityBuckets;
   const activeSubId = subId && buckets.some(b => b.id === subId) ? subId : buckets[0]?.id;
   const activeBucket = buckets.find(b => b.id === activeSubId) || buckets[0];
+  const isThreadedBucket = view === 'direct' && (activeSubId === 'circle' || activeSubId === 'friends');
+  const isFeedBucket = view !== 'feed' && !isThreadedBucket;
+  const getThreadKey = (th) => `${view}:${activeSubId || 'none'}:${th?.who || ''}:${th?.role || ''}`;
   // Filter threads by query — match on name, role/sub, or last message
   const rawThreads = activeBucket?.threads || [];
   const q = chatQuery.trim().toLowerCase();
@@ -2294,18 +3884,57 @@ function BSClientChat({ onProfile, role = 'client' }) {
         (th.last || '').toLowerCase().includes(q)
       )
     : rawThreads;
+  const selectedThread = selectedThreadKey
+    ? activeThreads.find((th) => getThreadKey(th) === selectedThreadKey)
+    : null;
+  const bucketKey = `${view}:${activeSubId || 'none'}`;
+  const baseFeedMessages = activeThreads.flatMap((th) => {
+    const msgs = Array.isArray(th.messages) ? th.messages : [];
+    if (msgs.length) {
+      return msgs.map((m) => ({ ...m, _thread: th.who, _threadRole: th.role, _bucket: th.bucket }));
+    }
+    if (th.last) {
+      return [{ who: th.who, t: th.last, time: th.time || 'now', me: false, _thread: th.who, _threadRole: th.role, _bucket: th.bucket }];
+    }
+    return [];
+  });
+  const localFeedMessages = feedExtras[bucketKey] || [];
+  const allFeedMessages = [...baseFeedMessages, ...localFeedMessages];
+  const filteredFeedMessages = q
+    ? allFeedMessages.filter((m) =>
+        (m.who || '').toLowerCase().includes(q) ||
+        (m.t || '').toLowerCase().includes(q) ||
+        (m._thread || '').toLowerCase().includes(q) ||
+        (m._threadRole || '').toLowerCase().includes(q)
+      )
+    : allFeedMessages;
 
-  if (openThread) {
-    const fromBuckets = openThread.view === 'direct' ? directBuckets : communityBuckets;
-    const fromBucket = fromBuckets.find(b => b.id === openThread.subId) || fromBuckets[0];
-    const thread = fromBucket?.threads[openThread.idx];
-    const eyebrow = (openThread.view === 'direct' ? 'DIRECT' : 'COMMUNITY') + ' · ' + (fromBucket?.label || '').toUpperCase();
-    return <BSChatThread thread={thread} eyebrow={eyebrow} onBack={() => setOpenThread(null)} />;
-  }
+  const sendFeedMessage = () => {
+    const note = feedDraft.trim();
+    if (!note) return;
+    setFeedExtras((current) => ({
+      ...current,
+      [bucketKey]: [...(current[bucketKey] || []), {
+        who: 'You',
+        t: note,
+        time: 'now',
+        me: true,
+        _thread: activeBucket?.label || 'Feed',
+        _threadRole: view === 'direct' ? 'Direct' : 'Community',
+        _bucket: activeBucket?.id || '',
+      }],
+    }));
+    setFeedDraft('');
+  };
 
   const directUnread    = directBuckets.reduce((s, b) => s + b.threads.reduce((x, th) => x + (th.unread || 0), 0), 0);
   const communityUnread = communityBuckets.reduce((s, b) => s + b.threads.reduce((x, th) => x + (th.unread || 0), 0), 0);
   const totalUnread = view === 'direct' ? directUnread : communityUnread;
+
+  React.useEffect(() => {
+    setSelectedThreadKey(null);
+    setChatQuery('');
+  }, [view, activeSubId]);
 
   // Color map for the bucket chips on each thread row
   const bucketColor = {
@@ -2317,9 +3946,83 @@ function BSClientChat({ onProfile, role = 'client' }) {
     TRAINER:   t.GREEN,
     NUTRI:     t.GREEN,
     COMMUNITY: t.INK,
+    MEMBERS:   t.GREEN,
     SHAPE:     t.ACCENT,
     SUPPORT:   t.ACCENT,
   };
+
+  const modeTabs = (
+    <div style={{
+      display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
+      gap: 6,
+      margin: `0 ${t.padX}px 10px`,
+      padding: 4,
+      border: `1px solid ${t.SURFACE_BORDER}`,
+      borderRadius: 999,
+      background: t.SURFACE,
+      boxShadow: t.ELEVATION_SOFT,
+      position: 'sticky', top: 10, zIndex: 2,
+      backdropFilter: 'blur(14px)',
+      WebkitBackdropFilter: 'blur(14px)',
+    }}>
+      {[
+        { id: 'feed',      label: 'Feed',     sub: 'Shape',    unread: 0, count: SHAPE_FEED_SEED.length },
+        { id: 'direct',    label: 'Messages', sub: 'People',   unread: directUnread,    count: directBuckets.reduce((s, b) => s + b.threads.length, 0) },
+        { id: 'community', label: 'Channels', sub: 'Groups',   unread: communityUnread, count: communityBuckets.reduce((s, b) => s + b.threads.length, 0) },
+      ].map((v) => {
+        const active = view === v.id;
+        return (
+            <button key={v.id} onClick={() => { setView(v.id); setSubId(null); setSelectedThreadKey(null); }} style={{ borderRadius: 999,
+            border: 0, background: active ? t.INK : 'transparent', cursor: 'pointer', padding: '10px 8px',
+            color: active ? t.PAPER : t.INK,
+            borderLeft: 0,
+            display: 'flex', alignItems: 'center', gap: 8,
+            justifyContent: 'center', textAlign: 'center', minWidth: 0,
+          }}>
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span style={{ fontFamily: t.BODY, fontWeight: 760, fontSize: 13, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.label}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 7, letterSpacing: '0.14em', textTransform: 'uppercase', opacity: 0.6, fontWeight: 700, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.sub}</span>
+            </div>
+            <span style={{
+              flex: '0 0 auto',
+              fontFamily: t.MONO, fontSize: 9, fontWeight: 700,
+              letterSpacing: '0.04em',
+              color: v.unread > 0 ? (active ? t.INK : t.PAPER) : (active ? t.PAPER : t.INK),
+              background: v.unread > 0 ? (active ? t.PAPER : t.ACCENT) : (active ? t.PAPER : t.INK50),
+              border: 0,
+              borderRadius: 999,
+              padding: '2px 5px', minWidth: 20, textAlign: 'center',
+            }}>{v.unread > 0 ? v.unread : String(v.count).padStart(2,'0')}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  if (view === 'feed') {
+    return (
+      <BSPage>
+        <BSPageHeader
+          kicker="Section · Community"
+          title={<>Shape<br/>feed.</>}
+          trailing={<BSAvatar init="A" size={32} onClick={onProfile} />}
+        />
+        {modeTabs}
+        <BSCommunityLiveFeed role={role} />
+        <BSFooter right="Pg 4 of 5 · Shape Feed" />
+      </BSPage>
+    );
+  }
+
+  if (selectedThread) {
+    return (
+      <BSChatThread
+        thread={selectedThread}
+        eyebrow={`${view === 'direct' ? 'Direct' : 'Channel'} · ${activeBucket?.label || ''}`}
+        onBack={() => setSelectedThreadKey(null)}
+      />
+    );
+  }
 
   return (
     <BSPage>
@@ -2329,48 +4032,13 @@ function BSClientChat({ onProfile, role = 'client' }) {
         trailing={<BSAvatar init="A" size={32} onClick={onProfile} />}
       />
 
-      {/* Two-tier toggle — Direct (people) vs Community (group + Shape) */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: '1fr 1fr',
-        borderTop: `2px solid ${t.INK}`, borderBottom: `1px solid ${t.RULE}`,
-        background: t.PAPER, position: 'sticky', top: 0, zIndex: 2,
-      }}>
-        {[
-          { id: 'direct',    label: 'Direct',    sub: 'People',         unread: directUnread,    count: directBuckets.reduce((s, b) => s + b.threads.length, 0) },
-          { id: 'community', label: 'Community', sub: 'Channels + rooms', unread: communityUnread, count: communityBuckets.reduce((s, b) => s + b.threads.length, 0) },
-        ].map((v, i) => {
-          const active = view === v.id;
-          return (
-            <button key={v.id} onClick={() => { setView(v.id); setSubId(null); }} style={{ borderRadius: t.RADIUS_SM,
-              border: 0, background: active ? t.INK : 'transparent', cursor: 'pointer', padding: '14px 14px',
-              color: active ? t.PAPER : t.INK,
-              borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0,
-              display: 'flex', alignItems: 'center', gap: 10,
-              textAlign: 'left', minWidth: 0,
-            }}>
-              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 20, letterSpacing: '-0.025em', lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.label}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', opacity: 0.6, fontWeight: 700, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.sub}</span>
-              </div>
-              <span style={{
-                flex: '0 0 auto',
-                fontFamily: t.MONO, fontSize: 10, fontWeight: 700,
-                letterSpacing: '0.04em',
-                color: v.unread > 0 ? (active ? t.INK : t.PAPER) : (active ? t.PAPER : t.INK),
-                background: v.unread > 0 ? (active ? t.PAPER : t.ACCENT) : 'transparent',
-                border: v.unread > 0 ? 0 : `1px solid ${active ? 'rgba(244,237,224,0.35)' : t.RULE}`,
-                padding: '2px 7px', minWidth: 22, textAlign: 'center',
-              }}>{v.unread > 0 ? v.unread : String(v.count).padStart(2,'0')}</span>
-            </button>
-          );
-        })}
-      </div>
+      {modeTabs}
 
       {/* Sub-tab row — buckets within the active view */}
       <div className="bs-scroll" style={{
-        display: 'flex', gap: 8, overflowX: 'auto', borderBottom: `1px solid ${t.RULE}`,
-        background: t.PAPER2, position: 'sticky', top: 75, zIndex: 2,
-        padding: '8px 10px',
+        display: 'flex', gap: 8, overflowX: 'auto',
+        background: t.PAPER, position: 'sticky', top: 75, zIndex: 2,
+        padding: `2px ${t.padX}px 12px`,
         scrollbarWidth: 'none', msOverflowStyle: 'none',
       }}>
         {buckets.map(b => {
@@ -2379,13 +4047,14 @@ function BSClientChat({ onProfile, role = 'client' }) {
           // Single metric: unread badge in accent if any, else dimmed count
           const showUnread = u > 0;
           return (
-            <button key={b.id} onClick={() => setSubId(b.id)} style={{ borderRadius: t.RADIUS_SM,
-              flex: '1 1 0', padding: '8px 12px', cursor: 'pointer',
-              background: active ? t.PAPER : 'transparent',
-              border: `1px solid ${active ? t.INK : t.RULE}`,
-              boxShadow: active ? `2px 2px 0 0 ${t.INK}` : 'none',
-              fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
-              color: active ? t.INK : t.INK50,
+            <button key={b.id} onClick={() => { setSubId(b.id); setSelectedThreadKey(null); }} style={{
+              borderRadius: 999,
+              flex: '1 1 0', padding: '9px 12px', cursor: 'pointer',
+              background: active ? t.INK : t.SURFACE,
+              border: `1px solid ${active ? t.INK : t.SURFACE_BORDER}`,
+              boxShadow: active ? t.ELEVATION_SOFT : 'none',
+              fontFamily: t.BODY, fontSize: 12, fontWeight: 760,
+              color: active ? t.PAPER : t.INK50,
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               whiteSpace: 'nowrap',
             }}>
@@ -2393,9 +4062,10 @@ function BSClientChat({ onProfile, role = 'client' }) {
               <span style={{
                 fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.04em',
                 padding: '1px 5px', minWidth: 18, textAlign: 'center',
-                background: showUnread ? t.ACCENT : (active ? t.INK : 'transparent'),
-                color: showUnread ? t.PAPER : (active ? t.PAPER : t.INK50),
-                border: (showUnread || active) ? 0 : `1px solid ${t.RULE}`,
+                background: showUnread ? t.ACCENT : (active ? t.PAPER : t.INK50),
+                color: showUnread ? t.PAPER : (active ? t.INK : t.PAPER),
+                border: 0,
+                borderRadius: 999,
               }}>{showUnread ? u : String(b.threads.length).padStart(2,'0')}</span>
             </button>
           );
@@ -2404,15 +4074,21 @@ function BSClientChat({ onProfile, role = 'client' }) {
 
       <BSSection
         title={activeBucket?.label || ''}
-        meta={totalUnread > 0 ? `${totalUnread} unread` : `${activeThreads.length} thread${activeThreads.length === 1 ? '' : 's'}`}
+        meta={
+          isThreadedBucket
+            ? `${activeThreads.length} conversations`
+            : (totalUnread > 0 ? `${totalUnread} unread` : `${filteredFeedMessages.length} messages`)
+        }
       />
 
       {/* Search — both tabs */}
+      {(view !== 'feed') && (
       <div style={{ padding: `8px ${t.padX}px 12px` }}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 8,
-            border: `1px solid ${t.INK}`, padding: '8px 12px',
-            background: t.PAPER, borderRadius: t.RADIUS_SM,
+            border: `1px solid ${t.SURFACE_BORDER}`, padding: '10px 14px',
+            background: t.SURFACE, borderRadius: 999,
+            boxShadow: t.ELEVATION_SOFT,
           }}>
             <span style={{ fontFamily: t.MONO, fontSize: 12, color: t.INK70 }}>⌕</span>
             <input
@@ -2421,7 +4097,7 @@ function BSClientChat({ onProfile, role = 'client' }) {
               placeholder={`Search ${activeBucket?.label?.toLowerCase() || (view === 'direct' ? 'people' : 'channels')}…`}
               style={{
                 flex: 1, background: 'transparent', border: 0, outline: 'none',
-                fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, letterSpacing: '-0.005em',
+                fontFamily: t.BODY, fontSize: 14, color: t.INK, letterSpacing: '-0.005em',
               }}
             />
             {chatQuery && (
@@ -2438,43 +4114,141 @@ function BSClientChat({ onProfile, role = 'client' }) {
             </div>
           )}
         </div>
+      )}
 
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
-        {activeThreads.map((th, i, arr) => {
-          const isGroup = th.group;
-          const init = isGroup ? '#' : (th.who.match(/[A-Z]/) || ['?'])[0];
-          const chipColor = bucketColor[th.bucket] || t.INK;
-          return (
-            <div key={i} onClick={() => setOpenThread({ view, subId: activeSubId, idx: i })} style={{
-              display: 'grid', gridTemplateColumns: '40px 1fr auto',
-              gap: 12, padding: `${t.rowY + 4}px 0`, cursor: 'pointer',
-              borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-              alignItems: 'flex-start',
-            }}>
-              <BSAvatar init={init} size={36} fill={chipColor} />
-              <div style={{ minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  {th.bucket && (
-                    <span style={{
-                      fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.18em',
-                      padding: '2px 5px', background: chipColor, color: t.PAPER,
-                    }}>{th.bucket}</span>
-                  )}
-                  <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{th.who}</span>
-                  {th.unread > 0 && <span style={{ width: 6, height: 6, background: t.ACCENT, borderRadius: 3 }} />}
+      <div style={{ padding: `0 ${t.padX}px 20px` }}>
+        {isThreadedBucket && (
+          <div style={{ display: 'grid', gap: 8, marginBottom: 14 }}>
+            {activeThreads.map((th) => {
+              const key = getThreadKey(th);
+              const tagColor = bucketColor[th.bucket] || (th.group ? t.ACCENT : t.AMBER);
+              return (
+                <button key={key} onClick={() => setSelectedThreadKey(key)} style={{
+                  width: '100%',
+                  border: `1px solid ${t.SURFACE_BORDER}`,
+                  background: t.SURFACE,
+                  color: t.INK,
+                  borderRadius: t.RADIUS_LG,
+                  padding: 12,
+                  boxShadow: t.ELEVATION_SOFT,
+                  display: 'grid',
+                  gridTemplateColumns: '38px 1fr auto',
+                  gap: 10,
+                  alignItems: 'center',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                }}>
+                  <BSAvatar init={(th.who.match(/[A-Z#]/) || ['S'])[0]} size={36} fill={tagColor} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontFamily: t.BODY, fontSize: 14, fontWeight: 760, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{th.who}</div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{th.role}</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {!!th.unread && (
+                      <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, background: t.ACCENT, color: t.PAPER, borderRadius: 999, padding: '2px 6px' }}>{th.unread}</span>
+                    )}
+                    <span style={{ fontFamily: t.MONO, fontSize: 14, color: t.INK50 }}>→</span>
+                  </div>
+                </button>
+              );
+            })}
+            {activeThreads.length === 0 && (
+              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, padding: '10px 2px' }}>
+                No people match this search.
+              </div>
+            )}
+          </div>
+        )}
+        {isFeedBucket && (
+          <div style={{
+            marginBottom: 12,
+            border: `1px solid ${t.SURFACE_BORDER}`,
+            background: t.SURFACE,
+            borderRadius: t.RADIUS_LG,
+            padding: 14,
+            fontFamily: t.BODY,
+            fontSize: 13.5,
+            lineHeight: 1.4,
+            color: t.INK70,
+            boxShadow: t.ELEVATION_SOFT,
+          }}>
+            Feed mode is active. Messages post directly to {activeBucket?.label || 'this stream'}.
+          </div>
+        )}
+        {isFeedBucket && <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '0 0 90px' }}>
+          {filteredFeedMessages.map((m, i) => {
+            const me = m.me;
+            const tagColor = bucketColor[m._bucket] || (m.coach ? t.AMBER : t.ACCENT);
+            return (
+              <div key={i} style={{
+                border: `1px solid ${t.SURFACE_BORDER}`,
+                background: me ? t.INK : t.SURFACE,
+                color: me ? t.PAPER : t.INK,
+                borderRadius: t.RADIUS_LG,
+                padding: 12,
+                boxShadow: t.ELEVATION_SOFT,
+              }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '36px 1fr auto', gap: 10, alignItems: 'center' }}>
+                  <BSAvatar init={me ? 'A' : (m.who.match(/[A-Z#]/) || ['S'])[0]} size={34} fill={tagColor} />
+                  <div>
+                    <div style={{ fontFamily: t.BODY, fontSize: 14, fontWeight: 760 }}>{me ? 'You' : m.who}</div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: me ? 'rgba(244,237,224,0.62)' : t.INK50 }}>
+                      {(m._thread || activeBucket?.label || '').slice(0, 32)}
+                    </div>
+                  </div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: me ? 'rgba(244,237,224,0.62)' : t.INK50 }}>{m.time || 'now'}</div>
                 </div>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 3, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{th.role}</div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, marginTop: 6, lineHeight: 1.35, letterSpacing: '-0.005em', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{th.last}</div>
+                <div style={{ marginTop: 10, fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.42 }}>{m.t}</div>
               </div>
-              <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-                <BSEyebrow>{th.time}</BSEyebrow>
-                {th.unread > 0 && (
-                  <span style={{ fontFamily: t.MONO, fontSize: 9, padding: '2px 6px', background: t.ACCENT, color: t.PAPER, fontWeight: 700, letterSpacing: '0.04em' }}>{th.unread}</span>
-                )}
-              </div>
+            );
+          })}
+          {filteredFeedMessages.length === 0 && (
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, padding: '10px 2px' }}>
+              No messages yet in this feed.
             </div>
-          );
-        })}
+          )}
+        </div>}
+        {isFeedBucket && <div style={{
+          position: 'sticky',
+          bottom: 10,
+          zIndex: 3,
+          marginTop: 4,
+          display: 'grid',
+          gridTemplateColumns: '1fr 62px',
+          gap: 8,
+          padding: 8,
+          border: `1px solid ${t.SURFACE_BORDER}`,
+          borderRadius: 999,
+          background: t.SURFACE,
+          boxShadow: t.ELEVATION_SOFT,
+        }}>
+          <input
+            value={feedDraft}
+            onChange={(e) => setFeedDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') sendFeedMessage(); }}
+            placeholder={`Message ${activeBucket?.label?.toLowerCase() || 'feed'}...`}
+            style={{
+              minWidth: 0,
+              border: 0,
+              outline: 'none',
+              background: 'transparent',
+              color: t.INK,
+              padding: '10px 8px 10px 12px',
+              fontFamily: t.BODY,
+              fontSize: 14,
+            }}
+          />
+          <button onClick={sendFeedMessage} style={{
+            border: 0,
+            borderRadius: 999,
+            background: feedDraft.trim() ? t.ACCENT : t.PAPER2,
+            color: feedDraft.trim() ? t.INK : t.INK50,
+            fontFamily: t.BODY,
+            fontSize: 12.5,
+            fontWeight: 760,
+            cursor: 'pointer',
+          }}>Send</button>
+        </div>}
       </div>
 
       <BSFooter right={`Pg 4 of 5 · ${view === 'direct' ? 'Direct' : 'Community'} · ${activeBucket?.label || ''}`} />
@@ -2498,11 +4272,11 @@ function BSChatThread({ thread, eyebrow, onBack }) {
   return (
     <BSPage>
       {/* Custom header with back chevron */}
-      <div style={{ padding: '54px 18px 12px', borderBottom: `2px solid ${t.INK}`, background: t.PAPER, position: 'sticky', top: 0, zIndex: 2 }}>
+      <div style={{ padding: '54px 18px 14px', borderBottom: `1px solid ${t.SURFACE_BORDER}`, background: t.PAPER, position: 'sticky', top: 0, zIndex: 2 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <button onClick={onBack} style={{ borderRadius: t.RADIUS_SM,
             background: 'transparent', border: 0, cursor: 'pointer', padding: 0,
-            fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 700,
+            fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, fontWeight: 700,
             display: 'inline-flex', alignItems: 'center', gap: 6,
           }}>
             ← Back
@@ -2512,32 +4286,39 @@ function BSChatThread({ thread, eyebrow, onBack }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <BSAvatar init={(thread.who.match(/[A-Z#]/) || ['?'])[0]} size={36} fill={thread.group ? t.INK : t.AMBER} />
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{thread.who}</div>
+            <div style={{ fontFamily: t.BODY, fontSize: 18, fontWeight: 760, color: t.INK, letterSpacing: '-0.02em' }}>{thread.who}</div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{thread.role}</div>
           </div>
         </div>
       </div>
 
+      <div style={{
+        minHeight: 'calc(100dvh - 210px)',
+        display: 'flex',
+        flexDirection: 'column',
+      }}>
       {/* Messages */}
-      <div style={{ padding: `16px ${t.padX}px 120px`, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ flex: '1 1 auto', padding: `16px ${t.padX}px 18px`, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {allMessages.map((m, i) => {
           const me = m.me;
           return (
             <div key={i} style={{
               alignSelf: me ? 'flex-end' : 'flex-start',
-              maxWidth: '78%',
+              maxWidth: '82%',
             }}>
               {!me && (
                 <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: m.coach ? t.AMBER : t.INK50, fontWeight: 700, marginBottom: 4 }}>
                   {m.who}{m.coach ? ' · Coach' : ''}
                 </div>
               )}
-              <div style={{ borderRadius: t.RADIUS_SM,
-                fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.4, letterSpacing: '-0.005em',
-                color: me ? t.PAPER : t.INK,
-                background: me ? t.INK : t.PAPER2,
-                border: me ? 'none' : `1px solid ${t.RULE}`,
-                padding: '10px 12px',
+              <div style={{
+                borderRadius: me ? '18px 18px 5px 18px' : '18px 18px 18px 5px',
+                fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.4, letterSpacing: '-0.005em',
+                color: me ? '#031f1c' : t.INK,
+                background: me ? t.ACCENT : t.SURFACE,
+                border: me ? 'none' : `1px solid ${t.SURFACE_BORDER}`,
+                boxShadow: me ? 'none' : t.ELEVATION_SOFT,
+                padding: '11px 13px',
               }}>{m.t}</div>
               <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginTop: 4, textAlign: me ? 'right' : 'left' }}>{m.time}</div>
             </div>
@@ -2547,25 +4328,37 @@ function BSChatThread({ thread, eyebrow, onBack }) {
 
       {/* Composer */}
       <div style={{
-        position: 'absolute', left: 0, right: 0, bottom: 80, padding: `10px ${t.padX}px`,
-        background: t.PAPER, borderTop: `2px solid ${t.INK}`,
-        display: 'flex', gap: 8, alignItems: 'center',
+        position: 'sticky',
+        bottom: 10,
+        zIndex: 3,
+        margin: `0 ${t.padX}px 18px`,
+        display: 'grid',
+        gridTemplateColumns: '1fr 60px',
+        gap: 8,
+        padding: 8,
+        border: `1px solid ${t.SURFACE_BORDER}`,
+        borderRadius: 999,
+        background: t.SURFACE,
+        boxShadow: t.ELEVATION_SOFT,
       }}>
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') send(); }}
-          placeholder="Compose a reply…"
-          style={{ borderRadius: t.RADIUS_SM,
-            flex: 1, background: t.PAPER2, border: `1px solid ${t.RULE}`, padding: '10px 12px',
-            fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, outline: 'none',
+          placeholder="Message..."
+          style={{ borderRadius: 999,
+            minWidth: 0, background: 'transparent', border: 0, padding: '10px 8px 10px 12px',
+            fontFamily: t.BODY, fontSize: 14, color: t.INK, outline: 'none',
             letterSpacing: '-0.005em',
           }}
         />
-        <button onClick={send} style={{ borderRadius: t.RADIUS_SM,
-          background: t.INK, color: t.PAPER, border: 0, padding: '10px 14px', cursor: 'pointer',
-          fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
+        <button onClick={send} style={{ borderRadius: 999,
+          background: text.trim() ? t.ACCENT : t.PAPER2,
+          color: text.trim() ? '#031f1c' : t.INK50,
+          border: 0, padding: '10px 12px', cursor: 'pointer',
+          fontFamily: t.BODY, fontSize: 13, fontWeight: 760,
         }}>Send</button>
+      </div>
       </div>
     </BSPage>
   );
@@ -2574,45 +4367,259 @@ function BSChatThread({ thread, eyebrow, onBack }) {
 // ═══════════════════════════════════════════════════════════
 // ME — masthead profile
 // ═══════════════════════════════════════════════════════════
+const SHAPE_SCORE_TIERS = [
+  { name: 'Raw', range: '0+', perk: 'Starting level' },
+  { name: 'Tempo', range: '750+', perk: '2x redemption value' },
+  { name: 'Form', range: '2,000+', perk: 'Early access drops + streak boosts' },
+  { name: 'Peak', range: '5,000+', perk: 'Priority booking + 1 free intro / mo' },
+  { name: 'Legend', range: '15,000+', perk: 'Annual Shape merch + service credit' },
+];
+
+const SHAPE_SCORE_PROFILES = {
+  client: {
+    roleLabel: 'Client',
+    total: 1284, goal: 5000, streak: 14, tier: 'Tempo', tierShort: 'TMP', nextTier: 'Form',
+    pointsToNext: 716, available: 940, lifetime: 3420, redeemedCount: 7, week: '+36',
+    weekRatio: 0.72, streakRatio: 0.64, tierRatio: 0.26, spendRatio: 0.94,
+    activities: [
+      { name: 'Session kept', pts: '+12-18', cap: 'Variable', note: 'With a coach' },
+      { name: 'Workout logged', pts: '+6-10', cap: 'Per log', note: 'Solo or programmed' },
+      { name: 'Protein target hit', pts: '+5', cap: 'Daily', note: 'Daily nutrition goal' },
+      { name: 'Sleep target met', pts: '+3', cap: 'Daily', note: '7+ hours, wearable verified' },
+      { name: 'Habit streak', pts: '+2-4', cap: 'Per streak', note: 'Any logged habit' },
+      { name: 'Weekly review', pts: '+15', cap: 'Weekly', note: 'Submitted on time' },
+      { name: 'New PR logged', pts: '+12', cap: 'Per PR', note: 'Any lift or run' },
+    ],
+    ledger: [
+      ['APR 18', '+14', 'Session kept - Maya Okafor'],
+      ['APR 18', '+3', 'Morning mobility logged'],
+      ['APR 17', '+5', 'Protein target hit - 3rd day'],
+      ['APR 17', '+13', 'Session kept - Rae Lindqvist'],
+      ['APR 16', '+3', 'Sleep >= 7h'],
+      ['APR 16', '+9', 'Upper pull logged'],
+      ['APR 15', '+15', 'Weekly review submitted'],
+      ['APR 15', '+2', 'Steps >= 8,000'],
+    ],
+  },
+  trainer: {
+    roleLabel: 'Trainer',
+    total: 3240, goal: 5000, streak: 9, tier: 'Form', tierShort: 'FRM', nextTier: 'Peak',
+    pointsToNext: 1760, available: 1280, lifetime: 6840, redeemedCount: 11, week: '+88',
+    weekRatio: 0.82, streakRatio: 0.58, tierRatio: 0.54, spendRatio: 0.72,
+    activities: [
+      { name: 'Live session completed', pts: '+18-28', cap: 'Per booking', note: 'Client attended' },
+      { name: 'Program block delivered', pts: '+24', cap: 'Per client', note: 'New or refreshed training block' },
+      { name: 'Form review returned', pts: '+8-12', cap: 'Per review', note: 'Video feedback within 24h' },
+      { name: 'Client check-in answered', pts: '+5', cap: 'Daily', note: 'Meaningful coaching reply' },
+      { name: 'PR verified', pts: '+10', cap: 'Per PR', note: 'Client lift or performance milestone' },
+      { name: 'Retention streak', pts: '+20', cap: 'Weekly', note: 'Active roster held for 7 days' },
+      { name: 'New client onboarded', pts: '+40', cap: 'Per intake', note: 'Completed intake and first plan' },
+    ],
+    ledger: [
+      ['APR 18', '+24', 'Program block delivered - Riley Kim'],
+      ['APR 18', '+10', 'Form review returned - Drew Park'],
+      ['APR 17', '+22', 'Live session completed - Alex Rivera'],
+      ['APR 17', '+5', 'Client check-in answered - Casey Lee'],
+      ['APR 16', '+40', 'New client onboarded - Morgan Liu'],
+      ['APR 16', '+10', 'PR verified - Sam Patel'],
+      ['APR 15', '+20', 'Retention streak held'],
+      ['APR 15', '+8', 'Async review returned - Quinn Choi'],
+    ],
+  },
+  nutritionist: {
+    roleLabel: 'Nutritionist',
+    total: 2140, goal: 5000, streak: 11, tier: 'Form', tierShort: 'FRM', nextTier: 'Peak',
+    pointsToNext: 2860, available: 870, lifetime: 5310, redeemedCount: 8, week: '+64',
+    weekRatio: 0.76, streakRatio: 0.61, tierRatio: 0.42, spendRatio: 0.68,
+    activities: [
+      { name: 'Consult completed', pts: '+16-24', cap: 'Per booking', note: 'Initial or follow-up consult' },
+      { name: 'Meal plan delivered', pts: '+22', cap: 'Per client', note: 'New or adjusted nutrition plan' },
+      { name: 'Macro review returned', pts: '+7-10', cap: 'Per review', note: 'Food log analysis within 24h' },
+      { name: 'Adherence check-in', pts: '+5', cap: 'Daily', note: 'Useful client follow-up' },
+      { name: 'Biomarker note logged', pts: '+12', cap: 'Per update', note: 'Labs, weight trend, or recovery signal' },
+      { name: 'Plan adherence streak', pts: '+18', cap: 'Weekly', note: 'Client hit targets for the week' },
+      { name: 'New nutrition client onboarded', pts: '+36', cap: 'Per intake', note: 'Completed intake and first plan' },
+    ],
+    ledger: [
+      ['APR 18', '+22', 'Meal plan delivered - Jamie Wong'],
+      ['APR 18', '+8', 'Macro review returned - Alex Rivera'],
+      ['APR 17', '+18', 'Plan adherence streak - Sara Mendez'],
+      ['APR 17', '+20', 'Consult completed - Riley Kim'],
+      ['APR 16', '+12', 'Biomarker note logged - Pat Doan'],
+      ['APR 16', '+5', 'Adherence check-in - Casey Lee'],
+      ['APR 15', '+36', 'New nutrition client onboarded'],
+      ['APR 15', '+7', 'Food log analysis returned'],
+    ],
+  },
+};
+
 function BSClientMe({ onProfile, onLogout }) {
   const t = useBS();
+  const [showScore, setShowScore] = useStateBSC(false);
+  const [showStore, setShowStore] = useStateBSC(false);
+  const [showContact, setShowContact] = useStateBSC(false);
+  const [showTerms, setShowTerms] = useStateBSC(false);
+  const scoreProfile = SHAPE_SCORE_PROFILES.client;
+  const authProfile = window.ShapeAuth?.getCachedState?.().profile || {};
+  const displayName = authProfile.full_name || 'Alex Rivera';
+  const [firstName, ...lastParts] = displayName.split(' ');
+  const lastName = lastParts.join(' ') || 'Rivera';
+
+  if (showScore) {
+    return <BSShapeScorePage profile={scoreProfile} onBack={() => setShowScore(false)} onOpenStore={() => { setShowScore(false); setShowStore(true); }} />;
+  }
+  if (showStore) {
+    return <BSShapeStorePage profile={scoreProfile} onBack={() => setShowStore(false)} onOpenScore={() => { setShowStore(false); setShowScore(true); }} />;
+  }
+  if (showContact) {
+    return <BSContactPage onBack={() => setShowContact(false)} />;
+  }
+  if (showTerms) {
+    return <BSTermsPage onBack={() => setShowTerms(false)} onContact={() => { setShowTerms(false); setShowContact(true); }} />;
+  }
+
+  const openProfileAction = (label) => window.__bsToast?.(`${label} opened`, 'ok');
+  const renderRows = (rows) => (
+    <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+      {rows.map((row, i, arr) => (
+        <button key={`${row.l}-${i}`} onClick={() => row.action && openProfileAction(row.action)} style={{
+          borderRadius: 0,
+          width: '100%',
+          border: 0,
+          borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+          background: 'transparent',
+          color: t.INK,
+          cursor: row.action ? 'pointer' : 'default',
+          padding: `${t.rowY + 4}px 0`,
+          display: 'grid',
+          gridTemplateColumns: '1fr auto auto',
+          alignItems: 'center',
+          gap: 10,
+          textAlign: 'left',
+        }}>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em' }}>{row.l}</span>
+          <span style={{
+            minWidth: 0,
+            maxWidth: 150,
+            textAlign: 'right',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            fontFamily: t.DISPLAY,
+            fontSize: 13,
+            fontWeight: 500,
+            color: t.INK70,
+          }}>{row.r}</span>
+          {row.action && <BSEyebrow color={t.ACCENT}>{row.action}</BSEyebrow>}
+        </button>
+      ))}
+    </div>
+  );
+  const todayItems = [
+    ['17:30', 'Upper push - 5 exercises', 'Jordan Chen'],
+    ['19:30', 'Log dinner - protein target 168g', 'Nutrition'],
+    ['21:00', 'Mobility - 10 min', 'Recovery'],
+  ];
+  const profileRows = [
+    { l: 'Email', r: authProfile.email || 'alex@rivera.co', action: 'Edit' },
+    { l: 'Phone', r: authProfile.phone || '+1 (415) 555-0144', action: 'Edit' },
+    { l: 'Location', r: authProfile.location || 'Brooklyn, NY', action: 'Edit' },
+    { l: 'Birthday', r: 'Oct 4, 1993', action: 'Edit' },
+    { l: 'Height / weight', r: '5 ft 6 in - 171 lb', action: 'Update' },
+  ];
+  const billingRows = [
+    { l: 'Shape Platform', r: '$5 / month', action: 'Manage' },
+    { l: 'Jordan - Strength + hybrid', r: '$220 / month', action: 'Manage' },
+    { l: 'Maya - Performance fuel', r: '$180 / month', action: 'Manage' },
+    { l: 'Total monthly', r: '$405' },
+    { l: 'Next charge', r: 'May 4, 2026' },
+    { l: 'Payment method', r: 'Visa 4290', action: 'Update' },
+  ];
+  const connectedRows = [
+    { l: 'Apple Health', r: 'Connected', action: 'Disconnect' },
+    { l: 'WHOOP', r: 'Connected', action: 'Disconnect' },
+    { l: 'Strava', r: 'Not connected', action: 'Connect' },
+    { l: 'MyFitnessPal', r: 'Not connected', action: 'Connect' },
+    { l: 'Garmin', r: 'Not connected', action: 'Connect' },
+  ];
+  const nutritionRows = [
+    { l: 'Dietary style', r: 'Omnivore - high protein', action: 'Edit' },
+    { l: 'Allergies', r: 'Shellfish, tree nuts', action: 'Edit' },
+    { l: 'Dislikes', r: 'Cilantro, blue cheese', action: 'Edit' },
+    { l: 'Protein target', r: '168 g / day', action: 'Edit' },
+    { l: 'Calorie range', r: 'By feel', action: 'Change' },
+    { l: 'Meal cadence', r: '3 meals + 1 snack', action: 'Edit' },
+    { l: 'Kitchen', r: 'Full kitchen - 30 min', action: 'Edit' },
+    { l: 'Supplements', r: 'Creatine, D, omega-3', action: 'Edit' },
+    { l: 'Alcohol', r: 'Social - Fri / Sat', action: 'Edit' },
+    { l: 'Hydration target', r: '3.0 L / day', action: 'Edit' },
+  ];
+  const trainingRows = [
+    { l: 'Primary goal', r: 'Strength + hypertrophy', action: 'Edit' },
+    { l: 'Experience', r: 'Intermediate - 3 yrs', action: 'Edit' },
+    { l: 'Sessions / week', r: '4 - 60 to 75 min', action: 'Edit' },
+    { l: 'Equipment access', r: 'Full gym + home DBs', action: 'Edit' },
+    { l: 'Injuries & notes', r: 'Left shoulder', action: 'Edit' },
+    { l: 'Preferred times', r: 'Evenings - 6 to 8pm', action: 'Edit' },
+  ];
+  const privacyRows = [
+    { l: 'Profile visibility', r: 'Community only', action: 'Change' },
+    { l: 'Share data with coaches', r: 'All metrics', action: 'Change' },
+    { l: 'Community posts', r: 'On', action: 'Toggle' },
+    { l: 'Coach messages', r: 'Push + email', action: 'Change' },
+    { l: 'Weekly digest', r: 'Sunday 8am', action: 'Change' },
+    { l: 'Marketing emails', r: 'Off', action: 'Toggle' },
+  ];
+  const socialRows = [
+    { l: 'Instagram', r: '@alex.rivera', action: 'Edit' },
+    { l: 'TikTok', r: 'Not connected', action: 'Connect' },
+    { l: 'Strava', r: 'alex-r - public', action: 'Edit' },
+    { l: 'Website', r: 'Not added', action: 'Add' },
+    { l: 'YouTube', r: 'Not connected', action: 'Connect' },
+    { l: 'Twitter / X', r: '@alexr', action: 'Edit' },
+  ];
+
   return (
     <BSPage>
       <BSPageHeader
         kicker="Member · 14 week streak"
-        title={<>Alex<br/>Rivera.</>}
+        title={<>{firstName}<br/>{lastName}.</>}
         trailing={<BSAvatar init="A" size={32} fill={t.RUST} onClick={onProfile} />}
       />
 
       {/* SHAPE SCORE — hero number */}
-      <div style={{ padding: `16px ${t.padX}px 18px`, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+      <button onClick={() => setShowScore(true)} style={{ borderRadius: 0,
+        width: '100%', textAlign: 'left', padding: `16px ${t.padX}px 18px`,
+        border: 0, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER2,
+        color: t.INK, cursor: 'pointer',
+      }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
           <BSEyebrow color={t.ACCENT}>Shape Score</BSEyebrow>
-          <BSEyebrow>+4 this wk · top 18%</BSEyebrow>
+          <BSEyebrow>{scoreProfile.week} this wk · details →</BSEyebrow>
         </div>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, marginTop: 4 }}>
-          <span style={{ fontFamily: t.DISPLAY, fontSize: 72, fontWeight: 700, color: t.INK, letterSpacing: '-0.05em', lineHeight: 0.95 }}>78</span>
-          <span style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 500, color: t.INK50, letterSpacing: '-0.04em', marginBottom: 10 }}>/100</span>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 62, fontWeight: 700, color: t.INK, letterSpacing: '-0.05em', lineHeight: 0.95 }}>{scoreProfile.total.toLocaleString()}</span>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 500, color: t.INK50, letterSpacing: '-0.04em', marginBottom: 8 }}>/{scoreProfile.goal.toLocaleString()}</span>
         </div>
 
         {/* Breakdown bars — tighter */}
         <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 5 }}>
           {[
-            { k: 'TRAIN',       v: 0.88, n: 88, c: t.AMBER },
-            { k: 'NUTRITION',   v: 0.74, n: 74, c: t.BLUE },
-            { k: 'RECOVERY',    v: 0.62, n: 62, c: t.RUST },
-            { k: 'CONSISTENCY', v: 0.92, n: 92, c: t.GREEN },
+            { k: 'WEEK',        v: scoreProfile.weekRatio, n: scoreProfile.week, c: t.AMBER },
+            { k: 'STREAK',      v: scoreProfile.streakRatio, n: `${scoreProfile.streak}D`, c: t.GREEN },
+            { k: 'TIER',        v: scoreProfile.tierRatio, n: scoreProfile.tierShort, c: t.ACCENT },
+            { k: 'SPEND',       v: scoreProfile.spendRatio, n: scoreProfile.available.toLocaleString(), c: t.BLUE },
           ].map(r => (
             <div key={r.k} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ width: 86, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK70, fontWeight: 600 }}>{r.k}</div>
               <div style={{ flex: 1, height: 4, background: t.HAIR, position: 'relative' }}>
                 <div style={{ width: `${r.v * 100}%`, height: '100%', background: r.c }} />
               </div>
-              <div style={{ width: 24, textAlign: 'right', fontFamily: t.MONO, fontSize: 11, color: t.INK, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{r.n}</div>
+              <div style={{ width: 34, textAlign: 'right', fontFamily: t.MONO, fontSize: 10, color: t.INK, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{r.n}</div>
             </div>
           ))}
         </div>
-      </div>
+      </button>
 
       <BSSection title="Your team" />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
@@ -2634,20 +4641,97 @@ function BSClientMe({ onProfile, onLogout }) {
         ))}
       </div>
 
+      <BSSection title="Bio" meta="500 chars" />
+      <div style={{ padding: `14px ${t.padX}px 18px`, borderTop: `2px solid ${t.INK}`, borderBottom: `1px solid ${t.RULE}` }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK70, lineHeight: 1.45 }}>
+          Product designer by day, lifter by evening. Working with Jordan on strength and hypertrophy, and Maya on protein targets that do not feel like homework. Goals this year: a real 1.5x bodyweight squat, a credible 5K, and better fueling for long rides.
+        </div>
+        <button onClick={() => openProfileAction('Edit bio')} style={{ borderRadius: t.RADIUS_SM,
+          marginTop: 12, padding: '9px 12px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
+          fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
+        }}>Edit bio</button>
+      </div>
+
+      <BSSection title="Today" meta="Wk 6 / 12" />
+      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+        {todayItems.map(([time, what, owner], i, arr) => (
+          <button key={time} onClick={() => openProfileAction('Today item')} style={{
+            borderRadius: 0,
+            width: '100%',
+            border: 0,
+            borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+            background: 'transparent',
+            color: t.INK,
+            cursor: 'pointer',
+            padding: `${t.rowY + 7}px 0`,
+            display: 'grid',
+            gridTemplateColumns: '52px 1fr auto',
+            alignItems: 'center',
+            gap: 10,
+            textAlign: 'left',
+          }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK70, fontWeight: 700 }}>{time}</span>
+            <span>
+              <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 650, color: t.INK }}>{what}</span>
+              <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{owner}</span>
+            </span>
+            <BSEyebrow color={t.ACCENT}>Open</BSEyebrow>
+          </button>
+        ))}
+      </div>
+
+      <div style={{ padding: `18px ${t.padX}px`, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, borderTop: `1px solid ${t.RULE}`, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+        {[
+          ['14 mo', 'On Shape'],
+          ['+22 lb', 'Squat PR'],
+          ['4/5', 'Sessions'],
+          ['168g', 'Protein'],
+        ].map(([v, l]) => (
+          <div key={l}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, letterSpacing: '-0.05em', color: t.INK, lineHeight: 1 }}>{v}</div>
+            <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{l}</div>
+          </div>
+        ))}
+      </div>
+
+      <BSSection title="Profile" meta="Personal info" />
+      {renderRows(profileRows)}
+
+      <BSSection title="Plan & billing" meta="$405/mo" />
+      {renderRows(billingRows)}
+
+      <BSSection title="Connected apps" meta="2 connected" />
+      {renderRows(connectedRows)}
+
+      <BSSection title="Nutrition preferences" meta="Targets" />
+      {renderRows(nutritionRows)}
+
+      <BSSection title="Training preferences" meta="Program inputs" />
+      {renderRows(trainingRows)}
+
+      <BSSection title="Privacy & notifications" meta="Controls" />
+      {renderRows(privacyRows)}
+
+      <BSSection title="Social & links" meta="Public profile" />
+      {renderRows(socialRows)}
+
       <BSSection title="Settings" />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
         {[
           { l: 'Account & billing',       r: 'Pro' },
+          { l: 'Shape Store',             r: `${scoreProfile.available.toLocaleString()} pts`, action: () => setShowStore(true) },
           { l: 'Notifications',           r: 'On' },
           { l: 'Health integrations',     r: 'Apple · WHOOP' },
+          { l: 'Contact support',         r: '24h reply', action: () => setShowContact(true) },
+          { l: 'Terms of service',        r: 'Legal', action: () => setShowTerms(true) },
           { l: 'Privacy & data',          r: '' },
           { l: 'Sign out',                r: '', alert: true },
         ].map((s, i, arr) => (
-          <div key={i} onClick={s.alert ? onLogout : undefined} style={{
+          <div key={i} onClick={s.alert ? onLogout : s.action} style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             padding: `${t.rowY + 4}px 0`,
             borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-            cursor: s.alert ? 'pointer' : 'default',
+            cursor: (s.alert || s.action) ? 'pointer' : 'default',
           }}>
             <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em' }}>{s.l}</span>
             {s.r && <BSEyebrow>{s.r}</BSEyebrow>}
@@ -2655,12 +4739,531 @@ function BSClientMe({ onProfile, onLogout }) {
         ))}
       </div>
 
+      <BSSection title="Account actions" meta="Danger zone" />
+      {renderRows([
+        { l: 'Export all my data', r: 'Request file', action: 'Export' },
+        { l: 'Pause membership', r: 'Keep account', action: 'Pause' },
+        { l: 'Delete account', r: 'Permanent', action: 'Delete' },
+      ])}
+
       <BSFooter right="Pg 5 of 5" />
     </BSPage>
   );
 }
 
-window.BSClientApp = BSClientApp;
+function BSIntegrationsPage({ onBack }) {
+  const t = useBS();
+  const [providers, setProviders] = useStateBSC([]);
+  const [loading, setLoading] = useStateBSC(true);
+  const [busy, setBusy] = useStateBSC('');
+  const [summary, setSummary] = useStateBSC(null);
+  const [error, setError] = useStateBSC('');
+
+  const loadStatus = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const result = await window.ShapeIntegrations?.getStatus?.();
+      setProviders(Array.isArray(result?.providers) ? result.providers : []);
+    } catch (err) {
+      setError(err?.message || 'Unable to load integrations.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    loadStatus();
+  }, []);
+
+  const providerMap = providers.reduce((acc, provider) => {
+    acc[provider.id] = provider;
+    return acc;
+  }, {});
+  const whoop = providerMap.whoop || { id: 'whoop', label: 'WHOOP', connected: false };
+  const strava = providerMap.strava || { id: 'strava', label: 'Strava', connected: false };
+
+  const runAction = async (key, label, action) => {
+    setBusy(key);
+    setError('');
+    setSummary(null);
+    try {
+      const result = await action();
+      setSummary({ label, result });
+      window.__bsToast?.(label, 'ok');
+      await loadStatus();
+    } catch (err) {
+      const message = err?.message || `${label} failed.`;
+      setError(message);
+      window.__bsToast?.(message, 'error');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const Button = ({ children, onClick, active = false, disabled = false }) => (
+    <button
+      onClick={onClick}
+      disabled={disabled || Boolean(busy)}
+      style={{
+        borderRadius: t.RADIUS_SM,
+        padding: '12px 10px',
+        border: `1px solid ${active ? t.INK : t.RULE}`,
+        background: active ? t.INK : 'transparent',
+        color: active ? t.PAPER : t.INK,
+        fontFamily: t.MONO,
+        fontSize: 9.5,
+        fontWeight: 800,
+        letterSpacing: '0.18em',
+        textTransform: 'uppercase',
+        cursor: disabled || busy ? 'wait' : 'pointer',
+        opacity: disabled ? 0.45 : 1,
+      }}
+    >
+      {children}
+    </button>
+  );
+
+  const IntegrationCard = ({ id, name, note, status, children, muted = false }) => (
+    <div style={{
+      padding: `16px ${t.padX}px 18px`,
+      borderTop: `2px solid ${t.INK}`,
+      borderBottom: `1px solid ${t.RULE}`,
+      background: muted ? 'transparent' : t.PAPER2,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14 }}>
+        <div>
+          <BSEyebrow color={status === 'Connected' ? t.ACCENT : t.INK50}>{id}</BSEyebrow>
+          <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.035em', lineHeight: 1 }}>
+            {name}
+          </div>
+          <div style={{ marginTop: 7, maxWidth: 310, fontFamily: t.DISPLAY, fontSize: 13.5, lineHeight: 1.35, fontWeight: 500, color: t.INK70 }}>
+            {note}
+          </div>
+        </div>
+        <div style={{
+          borderRadius: t.RADIUS_SM,
+          padding: '7px 9px',
+          border: `1px solid ${status === 'Connected' ? t.ACCENT : t.RULE}`,
+          color: status === 'Connected' ? t.ACCENT : t.INK50,
+          fontFamily: t.MONO,
+          fontSize: 8.5,
+          fontWeight: 800,
+          letterSpacing: '0.16em',
+          textTransform: 'uppercase',
+          whiteSpace: 'nowrap',
+        }}>
+          {status}
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+
+  const statCards = summary?.result?.whoop ? [
+    ['Recovery', `${summary.result.whoop.recoveries?.records?.[0]?.score?.recovery_score ?? '-'}%`],
+    ['RHR', `${summary.result.whoop.recoveries?.records?.[0]?.score?.resting_heart_rate ?? '-'} bpm`],
+    ['Workouts', `${summary.result.whoop.workouts?.records?.length ?? 0}`],
+  ] : null;
+
+  return (
+    <BSPage>
+      <BSDetailHeader
+        onBack={onBack}
+        eyebrow="Data"
+        kicker="Settings · Integrations"
+        title={<>Connected<br/>apps.</>}
+        trailing={<div style={{ textAlign: 'right' }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 36, lineHeight: 0.9, fontWeight: 700, color: t.INK, letterSpacing: '-0.05em' }}>
+            {providers.filter(p => p.connected).length}
+          </div>
+          <BSEyebrow>Live</BSEyebrow>
+        </div>}
+      />
+
+      <div style={{ padding: `14px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.4, fontWeight: 500, color: t.INK70 }}>
+          Connect health, activity, and music platforms. WHOOP imports default to private, then you choose what gets shared with coaches or the community feed.
+        </div>
+      </div>
+
+      {error && (
+        <div style={{ padding: `12px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}`, color: t.RUST, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600 }}>
+          {error}
+        </div>
+      )}
+
+      <BSSection title="WHOOP" meta={loading ? 'Checking' : whoop.connected ? 'Connected' : 'Not connected'} />
+      <IntegrationCard
+        id="Recovery · Sleep · Strain"
+        name="WHOOP"
+        status={whoop.connected ? 'Connected' : 'Connect'}
+        note="Sync recovery, sleep, body measurements, cycles, and workouts. Imported workouts are private until you share them."
+      >
+        <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <Button active={!whoop.connected} onClick={() => window.ShapeIntegrations?.connectWhoop?.()}>
+            {whoop.connected ? 'Reconnect' : 'Connect'}
+          </Button>
+          <Button disabled={!whoop.connected} onClick={() => runAction('whoop-sync', 'WHOOP synced', () => window.ShapeIntegrations.syncWhoop())}>
+            {busy === 'whoop-sync' ? 'Syncing' : 'Sync'}
+          </Button>
+          <Button disabled={!whoop.connected} onClick={() => runAction('whoop-import', 'WHOOP workouts imported', () => window.ShapeIntegrations.syncWhoop({ importWorkouts: true }))}>
+            {busy === 'whoop-import' ? 'Importing' : 'Import workouts'}
+          </Button>
+          <Button disabled={!whoop.connected} onClick={() => runAction('whoop-disconnect', 'WHOOP disconnected', () => window.ShapeIntegrations.disconnect('whoop'))}>
+            Disconnect
+          </Button>
+        </div>
+        {statCards && (
+          <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderTop: `2px solid ${t.INK}`, borderBottom: `1px solid ${t.RULE}` }}>
+            {statCards.map(([label, value], i) => (
+              <div key={label} style={{ padding: '10px 8px', borderLeft: i ? `1px solid ${t.RULE}` : 0 }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{label}</div>
+                <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.04em', color: t.INK }}>{value}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        {summary?.result?.import && (
+          <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.45 }}>
+            Imported {summary.result.import.imported} private workouts · {summary.result.import.errors?.length || 0} errors
+          </div>
+        )}
+      </IntegrationCard>
+
+      <BSSection title="Strava" meta={strava.connected ? 'Connected' : 'Ready'} />
+      <IntegrationCard
+        id="Runs - rides - routes"
+        name="Strava"
+        status={strava.connected ? 'Connected' : 'Connect'}
+        note="Connect Strava activities and map data. Route imports will use the same private-first sharing model as WHOOP."
+      >
+        <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <Button active={!strava.connected} onClick={() => window.ShapeIntegrations?.connectStrava?.()}>
+            {strava.connected ? 'Reconnect' : 'Connect'}
+          </Button>
+          <Button disabled={!strava.connected} onClick={() => runAction('strava-sync', 'Strava synced', () => window.ShapeIntegrations.syncStrava())}>
+            {busy === 'strava-sync' ? 'Syncing' : 'Sync'}
+          </Button>
+          <Button disabled={!strava.connected} onClick={() => runAction('strava-import', 'Strava routes imported', () => window.ShapeIntegrations.syncStrava({ importActivities: true }))}>
+            {busy === 'strava-import' ? 'Importing' : 'Import routes'}
+          </Button>
+          <Button disabled={!strava.connected} onClick={() => runAction('strava-disconnect', 'Strava disconnected', () => window.ShapeIntegrations.disconnect('strava'))}>
+            Disconnect
+          </Button>
+        </div>
+        {summary?.result?.import && (
+          <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.45 }}>
+            Imported {summary.result.import.imported} private activities - {summary.result.import.errors?.length || 0} errors
+          </div>
+        )}
+      </IntegrationCard>
+
+      <BSSection title="Coming later" meta="Same pattern" />
+      {[
+        ['GARMIN', 'Health + activity export', 'Garmin will use the same sync pattern after developer approval and credentials are live.'],
+        ['SPOTIFY', 'Coach playlists', 'Attach coach-created playlists to workouts and open them directly in Spotify.'],
+        ['APPLE MUSIC', 'MusicKit library', 'Apple Music needs Apple Developer MusicKit credentials before production use.'],
+      ].map(([id, name, note]) => (
+        <IntegrationCard key={id} id={id} name={name} note={note} status="Next" muted />
+      ))}
+
+      <BSFooter right="Integrations" />
+    </BSPage>
+  );
+}
+
+function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.client }) {
+  const t = useBS();
+  const scoreTotal = profile.total;
+  const scoreGoal = profile.goal;
+  const streak = profile.streak;
+  const tier = profile.tier;
+  const nextTier = profile.nextTier;
+  const pointsToNext = profile.pointsToNext;
+  const available = profile.available;
+  const activities = profile.activities || SHAPE_SCORE_PROFILES.client.activities;
+  const tiers = SHAPE_SCORE_TIERS;
+  const ledger = profile.ledger || SHAPE_SCORE_PROFILES.client.ledger;
+  const rewards = [
+    ['$25 session credit', 'Use with any coach', '500 pts'],
+    ['Shape Radio - Studio tier', '3 months, ad-free', '750 pts'],
+    ['Coach intro - 2nd opinion', 'Free 30-min with any trainer', '900 pts'],
+    ['Nutrition plan refresh', 'Full plan rebuild with your RD', '1,200 pts'],
+    ['Shape merch - 20% off', 'In-house apparel and essentials', '400 pts'],
+    ['Annual membership credit', '$200 toward next year', '3,500 pts'],
+  ];
+
+  return (
+    <BSPage>
+      <BSDetailHeader
+        onBack={onBack}
+        eyebrow="Rewards"
+        kicker="Shape Score"
+        title={<>Showing<br/>up.</>}
+        trailing={<div style={{ textAlign: 'right' }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 42, lineHeight: 0.9, fontWeight: 700, color: t.INK, letterSpacing: '-0.05em' }}>{scoreTotal.toLocaleString()}</div>
+          <BSEyebrow>of {scoreGoal.toLocaleString()}</BSEyebrow>
+        </div>}
+      />
+
+      <BSSection title="Reward tiers" kicker="Monthly points" meta="5 tiers" />
+      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+        {tiers.map((tier, i) => (
+          <div key={tier.name} style={{
+            display: 'grid', gridTemplateColumns: '88px 1fr', gap: 12,
+            padding: '12px 0', borderBottom: i === tiers.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+          }}>
+            <div>
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>PTS</div>
+              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.08em', color: t.INK, fontWeight: 700 }}>{tier.range}</div>
+            </div>
+            <div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{tier.name}</div>
+              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tier.perk}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ padding: `16px ${t.padX}px 18px`, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+        <BSEyebrow color={t.ACCENT}>How it works</BSEyebrow>
+        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 17, lineHeight: 1.28, color: t.INK, letterSpacing: '-0.015em' }}>
+          Every logged workout, tracked meal, and kept session adds up. Spend points on training credits, nutrition services, Shape Radio, or Shape merch. No expiry, no gotchas.
+        </div>
+        <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderTop: `2px solid ${t.INK}`, borderBottom: `1px solid ${t.RULE}` }}>
+          {[
+            ['THIS WK', '+36', 'vs 32 last'],
+            ['STREAK', `${streak}d`, 'Personal best 22d'],
+            ['TIER', tier, `${pointsToNext.toLocaleString()} to ${nextTier}`],
+          ].map(([label, value, note], i) => (
+            <div key={label} style={{ padding: '10px 8px', borderLeft: i ? `1px solid ${t.RULE}` : 0 }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{label}</div>
+              <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>{value}</div>
+              <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', color: t.INK50, textTransform: 'uppercase' }}>{note}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <BSSection title="Rewards" kicker="Spend your points" meta={`${available.toLocaleString()} available`} />
+      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+        {rewards.map(([title, sub, cost], i) => (
+          <div key={title} onClick={title.includes('Store') ? onOpenStore : undefined} style={{
+            display: 'grid', gridTemplateColumns: '1fr 74px', gap: 12,
+            padding: '12px 0', borderBottom: i === rewards.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+            cursor: title.includes('Store') ? 'pointer' : 'default',
+          }}>
+            <div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{title}</div>
+              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{sub}</div>
+            </div>
+            <div style={{ alignSelf: 'center', textAlign: 'right', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', color: t.ACCENT }}>{cost}</div>
+          </div>
+        ))}
+      </div>
+
+      <BSSection title="Point values" kicker={`${profile.roleLabel || 'Member'} activity`} meta={`${activities.length} ways`} />
+      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+        {activities.map((a, i) => (
+          <div key={a.name} style={{
+            display: 'grid', gridTemplateColumns: '1fr 52px', gap: 12,
+            padding: '12px 0', borderBottom: i === activities.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+          }}>
+            <div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{a.name}</div>
+              <div style={{ marginTop: 3, display: 'flex', gap: 8, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
+                <span>{a.cap}</span>
+                <span>-</span>
+                <span>{a.note}</span>
+              </div>
+            </div>
+            <div style={{ alignSelf: 'center', textAlign: 'right', fontFamily: t.MONO, fontSize: 14, fontWeight: 800, letterSpacing: '0.08em', color: t.ACCENT }}>{a.pts}</div>
+          </div>
+        ))}
+      </div>
+
+      <BSSection title="Recent points" kicker="Ledger" />
+      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+        {ledger.map(([day, pts, label], i) => (
+          <div key={`${day}-${label}`} style={{
+            display: 'grid', gridTemplateColumns: '62px 1fr 52px', alignItems: 'center', gap: 10,
+            padding: '12px 0', borderBottom: i === ledger.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+          }}>
+            <BSEyebrow>{day}</BSEyebrow>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em' }}>{label}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 800, textAlign: 'right', color: t.GREEN }}>{pts}</div>
+          </div>
+        ))}
+      </div>
+
+      <BSFooter right="Rewards" />
+    </BSPage>
+  );
+}
+
+function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.client }) {
+  const t = useBS();
+  const balance = profile.available;
+  const lifetime = profile.lifetime;
+  const redeemedCount = profile.redeemedCount;
+  const categories = ['All', 'Shape Merch', 'Training', 'Nutrition', 'Shape Perks'];
+  const [cat, setCat] = useStateBSC('All');
+  const [affordable, setAffordable] = useStateBSC(false);
+  const products = [
+    { cat: 'Shape Merch', name: 'Shape Training Tee', brand: 'Shape Merch', cost: 450, retail: 48, tag: 'New', stock: 'In stock' },
+    { cat: 'Shape Merch', name: 'Shape Crewneck', brand: 'Shape Merch', cost: 720, retail: 72, tag: 'Members', stock: 'In stock' },
+    { cat: 'Shape Merch', name: 'Shape Training Bottle', brand: 'Shape Merch', cost: 280, retail: 28, stock: 'In stock' },
+    { cat: 'Shape Merch', name: 'Shape Gym Towel', brand: 'Shape Merch', cost: 220, retail: 22, stock: 'In stock' },
+    { cat: 'Shape Merch', name: 'Shape Training Duffel', brand: 'Shape Merch', cost: 1640, retail: 165, tag: 'Peak tier', stock: 'In stock', locked: true },
+    { cat: 'Training', name: '$25 session credit', brand: 'Any Shape coach', cost: 500, retail: 25, stock: 'Unlimited' },
+    { cat: 'Training', name: '$50 session credit', brand: 'Any Shape coach', cost: 950, retail: 50, stock: 'Unlimited' },
+    { cat: 'Training', name: 'Coach 2nd-opinion', brand: 'Free 30-min trainer intro', cost: 900, retail: 95, stock: 'Monthly' },
+    { cat: 'Training', name: 'Program review credit', brand: 'Shape trainer review', cost: 780, retail: 85, stock: 'Unlimited' },
+    { cat: 'Nutrition', name: 'Meal-plan Refresh', brand: 'With your Shape RD', cost: 1200, retail: 140, tag: 'Popular', stock: 'Unlimited' },
+    { cat: 'Nutrition', name: '$25 nutrition credit', brand: 'Any Shape nutritionist', cost: 500, retail: 25, stock: 'Unlimited' },
+    { cat: 'Nutrition', name: 'Grocery list buildout', brand: 'Shape nutrition service', cost: 420, retail: 45, stock: 'Unlimited' },
+    { cat: 'Nutrition', name: 'Recipe archive pack', brand: 'Shape nutrition templates', cost: 340, retail: 35, stock: 'Unlimited' },
+    { cat: 'Shape Perks', name: 'Shape Radio - Studio', brand: '3 months ad-free', cost: 750, retail: 36, stock: 'Unlimited' },
+    { cat: 'Shape Perks', name: 'Annual membership credit', brand: '$200 toward next year', cost: 3500, retail: 200, tag: 'Peak tier', stock: 'Unlimited', locked: true },
+  ];
+  const unlocked = [
+    ['SHAPE-TEE-48F2', 'Shape Training Tee', 'Jun 30', 450],
+    ['NUTRI-PLAN-04F1', 'Grocery list buildout', 'May 20', 420],
+    ['RADIO-3MO-BB7A', 'Shape Radio - Studio - 3 mo', 'Jul 15', 750],
+  ];
+  const visible = products.filter(p => {
+    if (cat !== 'All' && p.cat !== cat) return false;
+    if (affordable && (p.locked || p.cost > balance)) return false;
+    return true;
+  });
+  const storeHeroMuted = t.isLight ? 'rgba(242,237,228,0.74)' : 'rgba(15,14,12,0.72)';
+  const storeHeroFaint = t.isLight ? 'rgba(242,237,228,0.55)' : 'rgba(15,14,12,0.58)';
+  const storeHeroRule = t.isLight ? 'rgba(242,237,228,0.16)' : 'rgba(15,14,12,0.16)';
+  const storeHeroHair = t.isLight ? 'rgba(242,237,228,0.12)' : 'rgba(15,14,12,0.12)';
+
+  return (
+    <BSPage>
+      <BSDetailHeader
+        onBack={onBack}
+        eyebrow="Store"
+        kicker="Shape Store"
+        title={<>Spend<br/>points.</>}
+        trailing={<button onClick={onOpenScore} style={{ borderRadius: t.RADIUS_SM,
+          border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
+          padding: '8px 10px', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700,
+        }}>Score</button>}
+      />
+
+      <div style={{ padding: `16px ${t.padX}px 18px`, borderBottom: `1px solid ${t.RULE}`, background: t.INK, color: t.PAPER }}>
+        <BSEyebrow color={t.ACCENT}>Available balance</BSEyebrow>
+        <div style={{ marginTop: 8, display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 58, fontWeight: 700, lineHeight: 0.9, letterSpacing: '-0.05em' }}>{balance.toLocaleString()}</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: storeHeroFaint }}>pts</div>
+        </div>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 15.5, lineHeight: 1.35, color: storeHeroMuted, letterSpacing: '-0.01em' }}>
+          Trade Shape Score for Shape merch, training credits, nutrition services, and membership perks. No expiry on points. No third-party merchandise discounts.
+        </div>
+        <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderTop: `1px solid ${storeHeroRule}` }}>
+          {[[lifetime.toLocaleString(), 'Lifetime earned'], [redeemedCount, 'Items redeemed'], [profile.tier, 'Current tier']].map(([value, label], i) => (
+            <div key={label} style={{ padding: '10px 8px 0', borderLeft: i ? `1px solid ${storeHeroHair}` : 0 }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.PAPER, letterSpacing: '-0.035em' }}>{value}</div>
+              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: storeHeroFaint }}>{label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{
+        padding: `10px ${t.padX}px 12px`,
+        borderBottom: `1px solid ${t.RULE}`,
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+        gap: 6,
+      }}>
+        {categories.map(c => (
+          <button key={c} onClick={() => setCat(c)} style={{ borderRadius: t.RADIUS_SM,
+            minWidth: 0,
+            padding: '8px 6px',
+            border: `1px solid ${cat === c ? t.INK : t.RULE}`,
+            background: cat === c ? t.INK : 'transparent',
+            color: cat === c ? t.PAPER : t.INK,
+            fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700,
+            whiteSpace: 'normal',
+            lineHeight: 1.15,
+          }}>{c}</button>
+        ))}
+        <button onClick={() => setAffordable(!affordable)} style={{ borderRadius: t.RADIUS_SM,
+          minWidth: 0,
+          padding: '8px 6px',
+          border: `1px solid ${affordable ? t.ACCENT : t.RULE}`,
+          background: affordable ? t.ACCENT : 'transparent',
+          color: affordable ? t.PAPER : t.INK,
+          fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700,
+          whiteSpace: 'normal',
+          lineHeight: 1.15,
+        }}>Within balance</button>
+      </div>
+
+      <BSSection title="Catalog" kicker={cat} meta={`${visible.length} items`} />
+      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+        {visible.map((p, i) => {
+          const canAfford = !p.locked && p.cost <= balance;
+          return (
+            <div key={`${p.cat}-${p.name}`} style={{
+              padding: '13px 0', borderBottom: i === visible.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+              display: 'grid', gridTemplateColumns: '1fr 76px', gap: 12,
+              opacity: p.locked ? 0.62 : 1,
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{p.name}</div>
+                  {p.tag && <BSTag color={p.locked ? t.RUST : t.ACCENT}>{p.tag}</BSTag>}
+                </div>
+                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
+                  {p.brand} - {p.stock} - ~${p.retail} retail
+                </div>
+              </div>
+              <div style={{ textAlign: 'right', alignSelf: 'center' }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: canAfford ? t.ACCENT : t.INK50 }}>{p.cost.toLocaleString()} pts</div>
+                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: canAfford ? t.GREEN : t.INK50 }}>
+                  {p.locked ? 'Tier locked' : canAfford ? 'Redeem' : `+${(p.cost - balance).toLocaleString()}`}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <BSSection title="Unlocked" kicker="Codes" />
+      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+        {unlocked.map(([code, name, expires, cost], i) => (
+          <div key={code} style={{
+            padding: '12px 0', borderBottom: i === unlocked.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+            display: 'grid', gridTemplateColumns: '1fr 72px', gap: 10,
+          }}>
+            <div>
+              <div style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', color: t.ACCENT }}>{code}</div>
+              <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK }}>{name}</div>
+            </div>
+            <div style={{ textAlign: 'right', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>
+              {cost} pts<br/>Exp {expires}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <BSFooter right="Store" />
+    </BSPage>
+  );
+}
+
+Object.assign(window, {
+  BSClientApp,
+  BSShapeScorePage,
+  BSShapeStorePage,
+  SHAPE_SCORE_PROFILES,
+});
 
 // ═══════════════════════════════════════════════════════════
 // SHARED: detail page back-header
@@ -2860,11 +5463,26 @@ function BSWorkoutPreview({ program, onBack, onStart }) {
 function BSSession({ moves, onBack }) {
   const t = useBS();
   _bsScrollTopOnMount();
+  const buildSetInputs = () => moves.reduce((acc, m, mIdx) => {
+    Array.from({ length: m.sets }).forEach((_, setIdx) => {
+      acc[`${mIdx}-${setIdx}`] = {
+        reps: String(m.reps || ''),
+        load: String(m.l || ''),
+      };
+    });
+    return acc;
+  }, {});
   const [moveIdx, setMoveIdx] = useStateBSC(0);
   const [completed, setCompleted] = useStateBSC({}); // key `${moveIdx}-${setIdx}` → true
   const [restEnd, setRestEnd] = useStateBSC(null);   // timestamp ms
   const [now, setNow] = useStateBSC(Date.now());
   const [elapsedStart] = useStateBSC(Date.now());
+  const [activeSetKey, setActiveSetKey] = useStateBSC(null);
+  const [setStartedAt, setSetStartedAt] = useStateBSC(null);
+  const [lastSetEndedAt, setLastSetEndedAt] = useStateBSC(null);
+  const [setLogs, setSetLogs] = useStateBSC([]);
+  const [setInputs, setSetInputs] = useStateBSC(buildSetInputs);
+  const [logStatus, setLogStatus] = useStateBSC('');
 
   React.useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -2878,10 +5496,99 @@ function BSSession({ moves, onBack }) {
   const fmt = (s) => `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
   const restLeft = restEnd ? Math.max(0, Math.ceil((restEnd - now) / 1000)) : 0;
 
+  const activeSetSeconds = activeSetKey && setStartedAt ? Math.max(0, Math.floor((now - setStartedAt) / 1000)) : 0;
+  const avg = (values) => values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
+  const completedLogRows = setLogs.filter((entry) => entry.completed);
+  const avgSetSeconds = avg(completedLogRows.map((entry) => entry.setDurationSeconds || 0));
+  const avgRestSeconds = avg(completedLogRows.map((entry) => entry.restBeforeSeconds).filter((value) => Number.isFinite(value)));
+  const logByKey = setLogs.reduce((acc, entry) => {
+    acc[entry.key] = entry;
+    return acc;
+  }, {});
+
+  const updateSetInput = (setIdx, field, value) => {
+    const k = `${moveIdx}-${setIdx}`;
+    const current = setInputs[k] || { reps: String(move.reps || ''), load: String(move.l || '') };
+    const next = { ...current, [field]: value };
+    setSetInputs({ ...setInputs, [k]: next });
+    setSetLogs(setLogs.map((entry) => (
+      entry.key === k
+        ? {
+            ...entry,
+            actualReps: field === 'reps' ? value : (entry.actualReps ?? next.reps),
+            actualLoad: field === 'load' ? value : (entry.actualLoad ?? next.load),
+          }
+        : entry
+    )));
+  };
+
+  const startSet = (setIdx) => {
+    const k = `${moveIdx}-${setIdx}`;
+    if (completed[k]) return;
+    setActiveSetKey(k);
+    setSetStartedAt(Date.now());
+    setRestEnd(null);
+    setLogStatus(`Capturing set ${setIdx + 1} - tap Finish when the set ends.`);
+  };
+
+  const finishSet = (setIdx) => {
+    const k = `${moveIdx}-${setIdx}`;
+    if (activeSetKey !== k || !setStartedAt) {
+      startSet(setIdx);
+      return;
+    }
+    const endedAt = Date.now();
+    const duration = Math.max(1, Math.round((endedAt - setStartedAt) / 1000));
+    const restBefore = lastSetEndedAt ? Math.max(0, Math.round((setStartedAt - lastSetEndedAt) / 1000)) : null;
+    const actual = setInputs[k] || { reps: String(move.reps || ''), load: String(move.l || '') };
+    const nextLog = {
+      key: k,
+      moveIndex: moveIdx,
+      moveName: move.m,
+      setNumber: setIdx + 1,
+      targetReps: move.reps,
+      targetLoad: move.l,
+      actualReps: actual.reps,
+      actualLoad: actual.load,
+      startedAt: new Date(setStartedAt).toISOString(),
+      finishedAt: new Date(endedAt).toISOString(),
+      setDurationSeconds: duration,
+      restBeforeSeconds: restBefore,
+      completed: true,
+      capturedAt: new Date(endedAt).toISOString(),
+    };
+    setSetLogs([...setLogs.filter((entry) => entry.key !== k), nextLog].sort((a, b) => {
+      if (a.moveIndex !== b.moveIndex) return a.moveIndex - b.moveIndex;
+      return a.setNumber - b.setNumber;
+    }));
+    setCompleted({ ...completed, [k]: true });
+    setActiveSetKey(null);
+    setSetStartedAt(null);
+    setLastSetEndedAt(endedAt);
+    setRestEnd(endedAt + 90 * 1000);
+    setLogStatus(`Captured ${move.m} set ${setIdx + 1}: ${actual.reps || '--'} reps at ${actual.load || '--'}, ${duration}s set${restBefore !== null ? `, ${restBefore}s rest before` : ''}.`);
+  };
+
   const logSet = (setIdx) => {
     const k = `${moveIdx}-${setIdx}`;
-    setCompleted({ ...completed, [k]: true });
-    setRestEnd(Date.now() + 90 * 1000);
+    if (activeSetKey === k) finishSet(setIdx);
+    else startSet(setIdx);
+  };
+
+  const finishSession = async () => {
+    try {
+      await window.ShapeWorkoutLogs?.saveSessionLog?.({
+        title: `${moves[0]?.m || 'Workout'} session`,
+        workout: moves[0]?.m || 'workout',
+        durationSeconds: elapsedSec,
+        setLogs,
+        privacy: 'private',
+      });
+      window.__bsToast?.('Private sensor workout log saved for coach review', 'ok');
+    } catch (error) {
+      window.__bsToast?.(error?.message || 'Workout log saved locally only', 'warn');
+    }
+    onBack();
   };
 
   return (
@@ -2917,6 +5624,36 @@ function BSSession({ moves, onBack }) {
         </div>
       )}
 
+      {/* Sensor-authored session log */}
+      <div style={{ margin: `14px ${t.padX}px 0`, border: `1px solid ${t.INK}`, background: t.PAPER2 }}>
+        <div style={{ padding: '12px 12px 10px', borderBottom: `1px solid ${t.RULE}` }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'baseline' }}>
+            <BSEyebrow color={t.ACCENT}>Sensor-authored log</BSEyebrow>
+            <BSEyebrow>{activeSetKey ? `Set ${fmt(activeSetSeconds)}` : 'Private by default'}</BSEyebrow>
+          </div>
+          <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 13.5, lineHeight: 1.35, color: t.INK70 }}>
+            Captures set duration, rest before each set, elapsed session time, and completion timing. Coaches see the log after the workout is saved.
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderBottom: `1px solid ${t.RULE}` }}>
+          {[
+            ['SETS', `${doneSets}/${totalSets}`],
+            ['AVG SET', avgSetSeconds ? fmt(avgSetSeconds) : '--'],
+            ['AVG REST', avgRestSeconds ? fmt(avgRestSeconds) : '--'],
+          ].map(([label, value], i) => (
+            <div key={label} style={{ padding: '10px 6px', textAlign: 'center', borderLeft: i ? `1px solid ${t.RULE}` : 0 }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.18em', color: t.INK50, fontWeight: 800 }}>{label}</div>
+              <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
+            </div>
+          ))}
+        </div>
+        {logStatus && (
+          <div style={{ padding: '9px 12px', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', color: t.INK50, lineHeight: 1.45 }}>
+            {logStatus}
+          </div>
+        )}
+      </div>
+
       {/* Current move */}
       <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 }}>
@@ -2924,35 +5661,79 @@ function BSSession({ moves, onBack }) {
           <BSEyebrow>Target: {move.l}</BSEyebrow>
         </div>
         <div style={{
-          display: 'grid', gridTemplateColumns: '40px 1fr 80px 80px',
+          display: 'grid', gridTemplateColumns: '40px 1fr 62px 62px 86px',
           padding: '6px 0', borderTop: `2px solid ${t.INK}`, borderBottom: `1px solid ${t.RULE}`,
           fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50,
         }}>
-          <span>Set</span><span>Reps × load</span><span style={{ textAlign: 'right' }}>RPE</span><span style={{ textAlign: 'right' }}> </span>
+          <span>Set</span><span>Actual reps / load</span><span style={{ textAlign: 'right' }}>Set</span><span style={{ textAlign: 'right' }}>Rest</span><span style={{ textAlign: 'right' }}> </span>
         </div>
         {Array.from({ length: move.sets }).map((_, i) => {
           const k = `${moveIdx}-${i}`;
           const done = completed[k];
+          const active = activeSetKey === k;
+          const rowLog = logByKey[k];
+          const rowInput = setInputs[k] || { reps: String(move.reps || ''), load: String(move.l || '') };
           return (
             <div key={i} style={{
-              display: 'grid', gridTemplateColumns: '40px 1fr 80px 80px', alignItems: 'center', padding: `${t.rowY + 2}px 0`,
-              borderBottom: `1px solid ${t.HAIR}`, opacity: done ? 0.55 : 1,
+              display: 'grid', gridTemplateColumns: '40px 1fr 62px 62px 86px', alignItems: 'center', padding: `${t.rowY + 2}px 0`,
+              borderBottom: `1px solid ${t.HAIR}`, opacity: done ? 0.82 : 1,
             }}>
               <span style={{ fontFamily: t.MONO, fontSize: 13, color: t.INK, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{String(i+1).padStart(2,'0')}</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 13, color: t.INK, fontVariantNumeric: 'tabular-nums', letterSpacing: '0.04em' }}>
-                {move.reps} × {move.l}
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(46px, 0.55fr) minmax(70px, 1fr)', gap: 6, alignItems: 'center' }}>
+                <input
+                  value={rowInput.reps}
+                  onChange={(event) => updateSetInput(i, 'reps', event.target.value)}
+                  inputMode="decimal"
+                  aria-label={`Set ${i + 1} actual reps`}
+                  style={{
+                    width: '100%',
+                    minWidth: 0,
+                    boxSizing: 'border-box',
+                    borderRadius: t.RADIUS_SM,
+                    border: `1px solid ${active ? t.ACCENT : t.RULE}`,
+                    background: active ? t.PAPER : 'transparent',
+                    color: t.INK,
+                    padding: '8px 7px',
+                    fontFamily: t.MONO,
+                    fontSize: 11,
+                    letterSpacing: '0.04em',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                />
+                <input
+                  value={rowInput.load}
+                  onChange={(event) => updateSetInput(i, 'load', event.target.value)}
+                  aria-label={`Set ${i + 1} actual load`}
+                  style={{
+                    width: '100%',
+                    minWidth: 0,
+                    boxSizing: 'border-box',
+                    borderRadius: t.RADIUS_SM,
+                    border: `1px solid ${active ? t.ACCENT : t.RULE}`,
+                    background: active ? t.PAPER : 'transparent',
+                    color: t.INK,
+                    padding: '8px 7px',
+                    fontFamily: t.MONO,
+                    fontSize: 11,
+                    letterSpacing: '0.04em',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                />
+              </div>
+              <span style={{ textAlign: 'right', fontFamily: t.MONO, fontSize: 10.5, color: active ? t.ACCENT : t.INK70, fontWeight: 700 }}>
+                {active ? fmt(activeSetSeconds) : rowLog ? fmt(rowLog.setDurationSeconds) : '--'}
               </span>
-              <span style={{ textAlign: 'right', fontFamily: t.MONO, fontSize: 11, color: t.INK70, fontWeight: 600 }}>
-                {done ? `RPE ${Math.min(8, 6 + i)}` : '—'}
+              <span style={{ textAlign: 'right', fontFamily: t.MONO, fontSize: 10.5, color: t.INK70, fontWeight: 700 }}>
+                {rowLog?.restBeforeSeconds !== null && rowLog?.restBeforeSeconds !== undefined ? fmt(rowLog.restBeforeSeconds) : '--'}
               </span>
               <div style={{ textAlign: 'right' }}>
                 {done ? (
-                  <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.GREEN, fontWeight: 700 }}>✓ Done</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.GREEN, fontWeight: 700 }}>Done</span>
                 ) : (
                   <button onClick={() => logSet(i)} style={{ borderRadius: t.RADIUS_SM,
-                    padding: '7px 10px', border: `1px solid ${t.INK}`, background: t.INK, color: t.PAPER, cursor: 'pointer',
+                    padding: '7px 10px', border: `1px solid ${active ? t.ACCENT : t.INK}`, background: active ? t.ACCENT : t.INK, color: t.PAPER, cursor: 'pointer',
                     fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700,
-                  }}>Log</button>
+                  }}>{active ? 'Finish' : 'Start'}</button>
                 )}
               </div>
             </div>
@@ -2986,7 +5767,7 @@ function BSSession({ moves, onBack }) {
             fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
           }}>Next move →</button>
         ) : (
-          <button onClick={onBack} style={{ borderRadius: t.RADIUS_SM,
+          <button onClick={finishSession} style={{ borderRadius: t.RADIUS_SM,
             flex: 1, padding: '14px', border: 0, background: t.GREEN, color: t.PAPER,
             fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
           }}>Finish session ✓</button>
@@ -3000,6 +5781,7 @@ function BSSession({ moves, onBack }) {
 // GROCERY — current week's list
 // ═══════════════════════════════════════════════════════════
 const BS_GROCERY_DEFAULT = {
+  id: 'weekly-plan',
   name: "This week's plan",
   eyebrow: 'Week 17 · Auto-built from plan',
   author: 'Dr. Maya Patel',
@@ -3030,14 +5812,17 @@ const BS_GROCERY_DEFAULT = {
   ],
 };
 
-function BSGrocery({ onBack, onLibrary }) {
+function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onChangeView = () => {} }) {
   const t = useBS();
   _bsScrollTopOnMount();
-  const list = BS_GROCERY_DEFAULT;
+  const list = bsNormalizeGroceryList(activeList || BS_GROCERY_DEFAULT);
   const allKeys = [];
   list.aisles.forEach((a, ai) => a.items.forEach((it, ii) => allKeys.push({ k: `${ai}-${ii}`, have: !!it.have })));
   const initialChecked = new Set(allKeys.filter(x => x.have).map(x => x.k));
   const [checked, setChecked] = useStateBSC(initialChecked);
+  React.useEffect(() => {
+    setChecked(new Set(allKeys.filter(x => x.have).map(x => x.k)));
+  }, [list.id || list.name]);
 
   const toggle = (k) => {
     const next = new Set(checked);
@@ -3056,8 +5841,10 @@ function BSGrocery({ onBack, onLibrary }) {
         onBack={onBack}
         eyebrow={`${done}/${total} · $${estLeft} to go`}
         kicker={list.eyebrow}
-        title={<>Grocery<br/>list.</>}
+        title={<>{list.name}<br/>list.</>}
       />
+
+      <BSNutritionTopTabs active="grocery" onChange={onChangeView} />
 
       {/* Progress + author note */}
       <div style={{ padding: `16px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
@@ -3080,11 +5867,11 @@ function BSGrocery({ onBack, onLibrary }) {
           <button onClick={onLibrary} style={{ borderRadius: t.RADIUS_SM,
             padding: '12px 14px', background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, cursor: 'pointer',
             fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
-          }}>Library</button>
-          <button style={{ borderRadius: t.RADIUS_SM,
+          }}>Library {recipeLists.length ? `(${recipeLists.length})` : ''}</button>
+          <button onClick={() => setChecked(new Set())} style={{ borderRadius: t.RADIUS_SM,
             padding: '12px 14px', background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, cursor: 'pointer',
             fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
-          }}>Save</button>
+          }}>Reset</button>
         </div>
       </div>
 
@@ -3142,24 +5929,59 @@ const BS_GROCERY_LIBRARY = [
   { id: 'mpp', name: 'Plant-forward build', kind: 'mealplan', eyebrow: 'Meal plan · Vegan-friendly', usedCount: 18,  preview: 'Tempeh · Lentils · Quinoa',           count: 35 },
 ];
 
-function BSGroceryLibrary({ onBack }) {
+function bsLibraryPreviewItems(list) {
+  const base = String(list.preview || '')
+    .split(/[·-]/)
+    .map(s => s.trim())
+    .filter(Boolean);
+  const items = base.length ? base : [list.name];
+  const daysMatch = String(list.name || '').match(/(\d+)[-\s]*(?:day|d)/i);
+  const days = daysMatch ? Number(daysMatch[1]) : list.kind === 'mealplan' ? 7 : 1;
+  return items.map((name, idx) => {
+    return {
+      id: `${list.id}-item-${idx}`,
+      n: name,
+      q: list.kind === 'mealplan' ? `${days} day qty` : '1',
+      meals: list.name,
+    };
+  });
+}
+
+function bsNormalizeGroceryList(list) {
+  if (!list) return BS_GROCERY_DEFAULT;
+  if (list.aisles) return list;
+  const items = list.items || bsLibraryPreviewItems(list);
+  return {
+    ...list,
+    author: list.author || 'Shape nutrition',
+    note: list.note || `"${list.name}" loaded from your grocery library.`,
+    aisles: [{
+      aisle: list.kind === 'recipe' ? 'Recipe ingredients' : 'Library items',
+      items,
+    }],
+  };
+}
+
+function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [] }) {
   const t = useBS();
   _bsScrollTopOnMount();
-  const [filter, setFilter] = useStateBSC('all'); // all | custom | template
-  const filtered = BS_GROCERY_LIBRARY.filter(l => filter === 'all' || l.kind === filter);
+  const [filter, setFilter] = useStateBSC('all'); // all | custom | template | mealplan | recipe
+  const [openList, setOpenList] = useStateBSC(null);
+  const allLists = [...recipeLists, ...BS_GROCERY_LIBRARY];
+  const filtered = allLists.filter(l => filter === 'all' || l.kind === filter);
 
   return (
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow={`${BS_GROCERY_LIBRARY.length} lists`}
+        eyebrow={`${allLists.length} lists`}
         kicker="Section · Library"
         title={<>Saved<br/>carts.</>}
       />
 
       {/* Filter chips */}
       <div style={{ padding: `12px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}`, display: 'flex', gap: 6, overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-        {[['all','All'],['custom','Custom'],['template','Templates'],['mealplan','Meal Plans']].map(([k, l]) => (
+        {[['all','All'],['recipe','Recipes'],['custom','Custom'],['template','Templates'],['mealplan','Meal Plans']].map(([k, l]) => (
           <button key={k} onClick={() => setFilter(k)} style={{ borderRadius: t.RADIUS_SM,
             flex: '0 0 auto',
             padding: '8px 12px', border: `1px solid ${t.INK}`,
@@ -3172,7 +5994,8 @@ function BSGroceryLibrary({ onBack }) {
 
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
         {filtered.map((l, i, arr) => {
-          const color = l.kind === 'template' ? t.AMBER : l.kind === 'mealplan' ? t.GREEN : t.ACCENT;
+          const color = l.kind === 'template' ? t.AMBER : l.kind === 'mealplan' ? t.GREEN : l.kind === 'recipe' ? t.RUST : t.ACCENT;
+          const open = openList === l.id;
           return (
             <div key={l.id} style={{
               padding: `${t.rowY + 6}px 0`,
@@ -3184,8 +6007,24 @@ function BSGroceryLibrary({ onBack }) {
               </div>
               <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', marginBottom: 4 }}>{l.name}</div>
               <div style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK70, letterSpacing: '0.06em', marginBottom: 10 }}>{l.count} items · {l.preview}</div>
+              {l.items && open && (
+                <div style={{ borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, marginBottom: 10, overflow: 'hidden' }}>
+                  {l.items.map((it, idx) => (
+                    <div key={it.id || idx} style={{
+                      display: 'grid', gridTemplateColumns: '64px 1fr', gap: 10, padding: '10px 12px',
+                      borderBottom: idx === l.items.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+                    }}>
+                      <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK70, fontWeight: 700, letterSpacing: '0.06em' }}>{it.q}</span>
+                      <span>
+                        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, fontWeight: 700, letterSpacing: '-0.01em' }}>{it.n}</span>
+                        <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.08em', marginTop: 2, textTransform: 'uppercase' }}>{it.meals}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div style={{ display: 'flex', gap: 6 }}>
-                <button style={{ borderRadius: t.RADIUS_SM,
+                <button onClick={() => onLoad(l)} style={{ borderRadius: t.RADIUS_SM,
                   padding: '8px 12px', background: t.INK, color: t.PAPER, border: 0, cursor: 'pointer',
                   fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase',
                 }}>Load →</button>
@@ -3213,9 +6052,12 @@ function BSGroceryLibrary({ onBack }) {
 // ═══════════════════════════════════════════════════════════
 // SETTINGS — full settings page from avatar tap
 // ═══════════════════════════════════════════════════════════
-function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {} }) {
+function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initialPage = '' }) {
   const t = useBS();
   const r = useBSRadio();
+  const [showContact, setShowContact] = useStateBSC(false);
+  const [showTerms, setShowTerms] = useStateBSC(false);
+  const [showIntegrations, setShowIntegrations] = useStateBSC(initialPage === 'integrations');
 
   // Identity editing
   const [identity, setIdentity] = useStateBSC({
@@ -3262,6 +6104,16 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {} }) {
     </button>
   );
 
+  if (showContact) {
+    return <BSContactPage onBack={() => setShowContact(false)} />;
+  }
+  if (showTerms) {
+    return <BSTermsPage onBack={() => setShowTerms(false)} onContact={() => { setShowTerms(false); setShowContact(true); }} />;
+  }
+  if (showIntegrations) {
+    return <BSIntegrationsPage onBack={() => setShowIntegrations(false)} />;
+  }
+
   const sections = [
     {
       title: 'Account',
@@ -3297,11 +6149,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {} }) {
       title: 'Health integrations',
       meta: '2 connected',
       rows: [
-        { l: 'Apple Health',    r: 'Connected' },
+        { l: 'Manage integrations', r: 'Open', action: () => setShowIntegrations(true) },
+        { l: 'Apple Health',    r: 'iOS app' },
         { l: 'WHOOP',           r: 'Connected' },
         { l: 'Garmin',          r: 'Connect' },
-        { l: 'Oura',            r: 'Connect' },
-        { l: 'Withings',        r: 'Connect' },
+        { l: 'Strava',          r: 'Connect' },
+        { l: 'Spotify',         r: 'Connect' },
       ],
     },
     {
@@ -3339,8 +6192,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {} }) {
       meta: 'v6.38.2',
       rows: [
         { l: 'Help center',     r: 'Visit' },
-        { l: 'Contact support', r: '24h reply' },
-        { l: 'Terms of service',r: '' },
+        { l: 'Contact support', r: '24h reply', action: () => setShowContact(true) },
+        { l: 'Terms of service',r: 'Legal', action: () => setShowTerms(true) },
         { l: 'Privacy policy',  r: '' },
         { l: 'Open-source',     r: '' },
       ],
@@ -3539,6 +6392,31 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {} }) {
 
       </div>
 
+      {/* SHAPE RADIO */}
+      <BSSection
+        title="Shape Radio"
+        meta={r.radioOn ? (r.paused ? 'Paused' : 'Playing while browsing') : 'Off'}
+      />
+      <div style={{ padding: `14px ${t.padX}px 18px`, borderTop: `2px solid ${t.INK}` }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8, fontWeight: 700 }}>
+          Listen while using the app
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <Pill on={r.radioOn && !r.paused} onClick={() => r.setRadioPreference(true)}>On</Pill>
+          <Pill on={!r.radioOn} onClick={() => r.setRadioPreference(false)}>Off</Pill>
+        </div>
+        <button onClick={r.requestRadioPrompt} style={{ borderRadius: t.RADIUS_SM,
+          marginTop: 10, width: '100%', padding: '11px 12px', cursor: 'pointer',
+          border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK,
+          fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700,
+        }}>
+          Ask me again
+        </button>
+        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.45 }}>
+          New members see this choice after the login page. You can change it here anytime.
+        </div>
+      </div>
+
       {/* LIGHT EFFECTS — music-reactive overlays while Shape Radio is on */}
       <BSSection
         title="Light effects"
@@ -3600,11 +6478,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {} }) {
           <BSSection title={sec.title} meta={sec.meta} />
           <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
             {sec.rows.map((s, i, arr) => (
-              <div key={i} onClick={s.alert && s.l === 'Sign out' ? onLogout : undefined} style={{
+              <div key={i} onClick={s.action || (s.alert && s.l === 'Sign out' ? onLogout : undefined)} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: `${t.rowY + 4}px 0`,
                 borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-                cursor: s.alert ? 'pointer' : 'default',
+                cursor: (s.alert || s.action) ? 'pointer' : 'default',
               }}>
                 <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em' }}>{s.l}</span>
                 {s.r && <BSEyebrow>{s.r}</BSEyebrow>}
@@ -3622,10 +6500,275 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {} }) {
         }}>Sign out</button>
       </div>
 
+      <BSRadioPrompt />
       <BSFooter right="Settings" />
     </BSPage>
   );
 }
 
+function BSContactPage({ onBack }) {
+  const t = useBS();
+  const [form, setForm] = useStateBSC({
+    first: '',
+    last: '',
+    email: '',
+    phone: '',
+    subject: 'General inquiry',
+    message: '',
+  });
+  const [sent, setSent] = useStateBSC(false);
+  const update = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
+  const inputStyle = {
+    borderRadius: t.RADIUS_SM,
+    width: '100%',
+    padding: '12px 12px',
+    border: `1px solid ${t.RULE}`,
+    background: t.PAPER,
+    color: t.INK,
+    fontFamily: t.DISPLAY,
+    fontSize: 14,
+    fontWeight: 500,
+    outline: 'none',
+  };
+  const labelStyle = {
+    display: 'block',
+    fontFamily: t.MONO,
+    fontSize: 8.5,
+    fontWeight: 800,
+    letterSpacing: '0.22em',
+    textTransform: 'uppercase',
+    color: t.INK50,
+    marginBottom: 6,
+  };
+  const contactActions = [
+    { label: 'Call', value: '(203) 526-3314', action: () => { window.location.href = 'tel:+12035263314'; } },
+    { label: 'Email', value: 'christopher.perry@theshapecommunity.com', action: () => { window.location.href = 'mailto:christopher.perry@theshapecommunity.com'; } },
+    { label: 'Instagram', value: '@theshapecommunity', action: () => { window.location.href = 'https://instagram.com/theshapecommunity'; } },
+  ];
+  const submit = () => {
+    setSent(true);
+    window.__bsToast?.('Message queued - Shape will reply within 1 business day', 'ok');
+  };
 
-Object.assign(window, { BSClientApp, BSClientChat, BSSettings, BSDetailHeader });
+  return (
+    <BSPage>
+      <BSDetailHeader
+        onBack={onBack}
+        eyebrow="Support"
+        kicker="Contact"
+        title={<>Get in<br/>touch.</>}
+        trailing={<BSAvatar init="S" size={36} fill={t.ACCENT} ink={t.PAPER} />}
+      />
+
+      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>
+          Questions, partnerships, billing, coach support, or technical issues. Shape replies within one business day.
+        </div>
+      </div>
+
+      <BSSection title="Reach us directly" meta="Support desk" />
+      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+        {contactActions.map((item, i, arr) => (
+          <button key={item.label} onClick={item.action} style={{
+            borderRadius: 0,
+            width: '100%',
+            border: 0,
+            borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+            background: 'transparent',
+            color: t.INK,
+            cursor: 'pointer',
+            padding: `${t.rowY + 6}px 0`,
+            textAlign: 'left',
+            display: 'grid',
+            gridTemplateColumns: '1fr auto',
+            gap: 12,
+            alignItems: 'center',
+          }}>
+            <span>
+              <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 650, letterSpacing: '-0.01em' }}>{item.label}</span>
+              <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50 }}>{item.value}</span>
+            </span>
+            <BSEyebrow color={t.ACCENT}>Open</BSEyebrow>
+          </button>
+        ))}
+      </div>
+
+      <BSSection title="Hours of operation" meta="Eastern time" />
+      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+        {[
+          ['Mon - Fri', '6am - 10pm'],
+          ['Saturday', '7am - 8pm'],
+          ['Sunday', '8am - 6pm'],
+        ].map((row, i, arr) => (
+          <div key={row[0]} style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            padding: `${t.rowY + 4}px 0`,
+            borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+          }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{row[0]}</span>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, fontWeight: 600 }}>{row[1]}</span>
+          </div>
+        ))}
+      </div>
+
+      <BSSection title="Send us a message" meta={sent ? 'Queued' : '24h reply'} />
+      <div style={{ padding: `14px ${t.padX}px 18px`, borderTop: `2px solid ${t.INK}` }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <label>
+            <span style={labelStyle}>First name</span>
+            <input value={form.first} onChange={(e) => update('first', e.target.value)} style={inputStyle} />
+          </label>
+          <label>
+            <span style={labelStyle}>Last name</span>
+            <input value={form.last} onChange={(e) => update('last', e.target.value)} style={inputStyle} />
+          </label>
+        </div>
+
+        <label style={{ display: 'block', marginTop: 10 }}>
+          <span style={labelStyle}>Email</span>
+          <input type="email" value={form.email} onChange={(e) => update('email', e.target.value)} style={inputStyle} />
+        </label>
+
+        <label style={{ display: 'block', marginTop: 10 }}>
+          <span style={labelStyle}>Phone</span>
+          <input value={form.phone} onChange={(e) => update('phone', e.target.value)} style={inputStyle} />
+        </label>
+
+        <label style={{ display: 'block', marginTop: 10 }}>
+          <span style={labelStyle}>Subject</span>
+          <select value={form.subject} onChange={(e) => update('subject', e.target.value)} style={inputStyle}>
+            {[
+              'General inquiry',
+              'Membership questions',
+              'Trainer partnership',
+              'Nutritionist partnership',
+              'Gym / studio partnership',
+              'Technical support',
+              'Billing',
+            ].map(option => <option key={option}>{option}</option>)}
+          </select>
+        </label>
+
+        <label style={{ display: 'block', marginTop: 10 }}>
+          <span style={labelStyle}>Message</span>
+          <textarea
+            rows={5}
+            value={form.message}
+            onChange={(e) => update('message', e.target.value)}
+            style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.4 }}
+          />
+        </label>
+
+        <button onClick={submit} style={{ borderRadius: t.RADIUS_SM,
+          width: '100%',
+          marginTop: 12,
+          padding: '14px',
+          border: `1px solid ${t.INK}`,
+          background: sent ? t.GREEN : t.INK,
+          color: t.PAPER,
+          cursor: 'pointer',
+          fontFamily: t.MONO,
+          fontSize: 10.5,
+          fontWeight: 800,
+          letterSpacing: '0.22em',
+          textTransform: 'uppercase',
+        }}>{sent ? 'Message queued' : 'Send message'}</button>
+      </div>
+
+      <BSFooter right="Contact" />
+    </BSPage>
+  );
+}
+
+function BSTermsPage({ onBack, onContact }) {
+  const t = useBS();
+  const terms = [
+    ['01', 'Acceptance & eligibility', 'Shape is for users who are at least 18 and legally able to use the platform. Business users must be authorized to accept terms for that business.'],
+    ['02', 'Accounts', 'Each person should keep one accurate account, protect login credentials, and notify Shape if account access appears compromised.'],
+    ['03', 'Memberships & payments', 'Client membership is billed monthly. Coach subscriptions, sessions, programs, and meal plans are priced by each provider. Payments are processed through Stripe.'],
+    ['04', 'Coaches', 'Trainers and nutritionists operate as independent providers. They are responsible for credentials, scope of practice, taxes, service quality, and client delivery.'],
+    ['05', 'Content & conduct', 'Users keep ownership of uploaded content, but must avoid false claims, harassment, infringement, scraping, malware, impersonation, and unlawful activity.'],
+    ['06', 'Shape Score & rewards', 'Points can be earned through qualifying activity and redeemed in Shape Store. Points are not cash, are not transferable, and may be adjusted for abuse.'],
+    ['07', 'IP', 'The Shape name, logo, design, and platform experience belong to Shape. Copyright concerns can be sent to christopher.perry@theshapecommunity.com.'],
+    ['08', 'Health disclaimer', 'Shape is not medical care. Training, nutrition, and coach guidance are informational and should not replace licensed medical advice.'],
+    ['09', 'Liability', 'Shape limits liability to the extent allowed by law. Some jurisdictions may provide rights that cannot be waived.'],
+    ['10', 'Disputes', 'The terms include informal dispute resolution, arbitration, class-action waiver language, and Delaware governing law.'],
+    ['11', 'Termination', 'Accounts may be closed by the user or removed by Shape for serious violations, fraud, safety issues, or breach of platform rules.'],
+    ['12', 'Changes & contact', 'Material changes are announced in advance. Questions go to christopher.perry@theshapecommunity.com or the contact page.'],
+  ];
+
+  return (
+    <BSPage>
+      <BSDetailHeader
+        onBack={onBack}
+        eyebrow="Legal"
+        kicker="Terms of service"
+        title={<>Terms of<br/>service.</>}
+        trailing={<BSAvatar init="T" size={36} fill={t.INK} ink={t.PAPER} />}
+      />
+
+      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
+        <BSEyebrow color={t.ACCENT}>Last updated - May 14, 2026</BSEyebrow>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>
+          These terms govern use of Shape, including memberships, coach services, marketplace activity, rewards, content, and account conduct.
+        </div>
+        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.RUST, lineHeight: 1.45, fontWeight: 800 }}>
+          Includes arbitration and class-action waiver terms.
+        </div>
+      </div>
+
+      <BSSection title="Contents" meta="Summary" />
+      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+        {terms.map(([num, title, body], i, arr) => (
+          <div key={num} style={{
+            display: 'grid',
+            gridTemplateColumns: '34px 1fr',
+            gap: 12,
+            padding: `${t.rowY + 7}px 0`,
+            borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+          }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.12em', color: t.ACCENT, fontWeight: 900 }}>{num}</div>
+            <div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{title}</div>
+              <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK70, lineHeight: 1.4 }}>{body}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ padding: `18px ${t.padX}px 22px`, display: 'grid', gap: 8 }}>
+        <button onClick={() => { window.location.href = 'https://www.theshapecommunity.com/terms.html'; }} style={{ borderRadius: t.RADIUS_SM,
+          width: '100%',
+          padding: '14px',
+          border: `1px solid ${t.INK}`,
+          background: t.INK,
+          color: t.PAPER,
+          cursor: 'pointer',
+          fontFamily: t.MONO,
+          fontSize: 10.5,
+          fontWeight: 800,
+          letterSpacing: '0.22em',
+          textTransform: 'uppercase',
+        }}>Open full terms</button>
+        <button onClick={onContact} style={{ borderRadius: t.RADIUS_SM,
+          width: '100%',
+          padding: '14px',
+          border: `1px solid ${t.INK}`,
+          background: 'transparent',
+          color: t.INK,
+          cursor: 'pointer',
+          fontFamily: t.MONO,
+          fontSize: 10.5,
+          fontWeight: 800,
+          letterSpacing: '0.22em',
+          textTransform: 'uppercase',
+        }}>Contact support</button>
+      </div>
+
+      <BSFooter right="Terms" />
+    </BSPage>
+  );
+}
+
+Object.assign(window, { BSClientApp, BSClientChat, BSSettings, BSDetailHeader, BSContactPage, BSTermsPage });

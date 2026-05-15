@@ -1,3 +1,4 @@
+import React from 'react';
 // iosAppBroadsheet.jsx — Shared tokens, primitives, theme context for the
 // Broadsheet redesign of the Shape iOS app.
 //
@@ -5,24 +6,27 @@
 // and border style can flow through the whole app from one Tweaks panel.
 //
 // Type system:
-//   DISPLAY_BS = Space Grotesk (700 for headlines, 500 for body)
+//   DISPLAY_BS = Space Grotesk (headers, mastheads, section labels)
+//   BODY_BS    = native system stack (body copy, controls, rows)
 //   MONO_BS    = JetBrains Mono (eyebrows, times, tags)
 //   No serifs. No script. This is the contract.
 
-const { useState: useStateBS, useContext: useContextBS, useEffect: useEffectBS, createContext: createContextBS } = React;
+const {
+  useState: useStateBS,
+  useContext: useContextBS,
+  useEffect: useEffectBS,
+  useRef: useRefBS,
+  createContext: createContextBS,
+} = React;
 
 // ─── Type stacks ───────────────────────────────────────────
 const DISPLAY_BS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
+const BODY_BS    = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
 const MONO_BS    = "'JetBrains Mono', ui-monospace, monospace";
 
 // Inject web fonts once (only the families this design uses)
 (function injectBSFonts() {
-  if (document.getElementById('shape-bs-fonts')) return;
-  const link = document.createElement('link');
-  link.id = 'shape-bs-fonts';
-  link.rel = 'stylesheet';
-  link.href = 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&family=Saira:wght@100;200;300;400&display=swap';
-  document.head.appendChild(link);
+  // Fonts are bundled through src/fonts.css for offline app-store builds.
 })();
 
 // ─── Theme palette generator ───────────────────────────────
@@ -39,7 +43,7 @@ function _hexToRGB(h) {
   return `${r},${g},${b}`;
 }
 
-function makePalette({ paperMode = 'light', accentKey = 'blue', inkOverride = null } = {}) {
+function makePalette({ paperMode = 'dark', accentKey = 'blue', inkOverride = null } = {}) {
   // Six paper modes — light/dark are the originals; teal/manila/blueprint/carbon
   // are tuned colored stocks. Each picks PAPER (base), PAPER2 (raised surface),
   // PAPER3 (pressed/active), INK (text), and the rgb tuple used for alpha rules.
@@ -55,7 +59,7 @@ function makePalette({ paperMode = 'light', accentKey = 'blue', inkOverride = nu
     bone:      { paper: '#ece4d3', paper2: '#e2d8c2', paper3: '#d4c8ad', ink: '#1a160e', inkRGB: '26,22,14',    light: true  },
     oxblood:   { paper: '#3a1418', paper2: '#481a1f', paper3: '#5a2128', ink: '#f0dfd2', inkRGB: '240,223,210', light: false },
   };
-  const P = PAPERS[paperMode] || PAPERS.light;
+  const P = PAPERS[paperMode] || PAPERS.dark;
   const isLight = P.light;
   const PAPER  = P.paper;
   const PAPER2 = P.paper2;
@@ -97,15 +101,25 @@ function makePalette({ paperMode = 'light', accentKey = 'blue', inkOverride = nu
   const AMBER = accents.amber[isLight ? 'light' : 'dark'];
   const RUST  = accents.rust [isLight ? 'light' : 'dark'];
   const GREEN = accents.green[isLight ? 'light' : 'dark'];
+  const surfaceAlpha = isLight ? 0.045 : 0.055;
+  const surfaceStrongAlpha = isLight ? 0.075 : 0.085;
+  const surfaceBorderAlpha = isLight ? 0.12 : 0.14;
+  const shadowColor = isLight ? 'rgba(15,14,12,0.10)' : 'rgba(0,0,0,0.28)';
 
   return {
     isLight, paperMode, accentKey, inkRGB,
     PAPER, PAPER2, PAPER3, PAPER_BG, INK, INK85, INK70, INK50, INK30, RULE, HAIR,
     ACCENT, BLUE, AMBER, RUST, GREEN,
+    SURFACE: `rgba(${inkRGB},${surfaceAlpha})`,
+    SURFACE_STRONG: `rgba(${inkRGB},${surfaceStrongAlpha})`,
+    SURFACE_BORDER: `rgba(${inkRGB},${surfaceBorderAlpha})`,
+    ELEVATION: `0 18px 42px ${shadowColor}`,
+    ELEVATION_SOFT: `0 10px 24px ${shadowColor}`,
+    GLASS: isLight ? 'rgba(255,255,255,0.36)' : 'rgba(255,255,255,0.045)',
     // ─── Rounded-edge tokens (medium softening, still editorial) ───
-    RADIUS: 10,    // primary card/cell/sheet radius
-    RADIUS_SM: 6,  // inner inputs, small chips, beakers
-    RADIUS_LG: 14, // large surfaces (full-bleed slabs)
+    RADIUS: 14,    // primary card/cell/sheet radius
+    RADIUS_SM: 10, // inner inputs, small chips, beakers
+    RADIUS_LG: 22, // large surfaces
   };
 }
 
@@ -270,7 +284,7 @@ function BSProvider({ children, paperMode, accentKey, densityKey, borderKey, wei
   const _txRGB = _txOverride || P.inkRGB || '15,14,12';
   const TEXTURE = makeTexture(textureKey, _txRGB, P.isLight);
   const value = { ...P, ...D, B, W, TEXTURE, textureKey, textureColor,
-    DISPLAY: DISPLAY_BS, MONO: MONO_BS,
+    DISPLAY: DISPLAY_BS, BODY: BODY_BS, MONO: MONO_BS,
     densityKey, borderKey, weightKey,
   };
   return (
@@ -288,6 +302,23 @@ function useBS() {
   return v;
 }
 
+function isNativeBSApp() {
+  return document.documentElement.classList.contains('is-native-app') ||
+    !!window.Capacitor?.isNativePlatform?.();
+}
+
+function getTargetScroller(eventTarget) {
+  const targetScroller = eventTarget?.closest?.('.bs-scroll');
+  if (targetScroller) return targetScroller;
+  return document.querySelector('.bs-scroll');
+}
+
+function isInteractiveTarget(target) {
+  return Boolean(target?.closest?.(
+    'input, textarea, select, button, a, label, [role="button"], [contenteditable="true"]'
+  ));
+}
+
 // ═══════════════════════════════════════════════════════════
 // PRIMITIVES
 // ═══════════════════════════════════════════════════════════
@@ -295,13 +326,74 @@ function useBS() {
 // Page wrapper — sets paper background and provides scroll
 function BSPage({ children, tabBarHeight = 80 }) {
   const t = useBS();
+  const scrollerRef = useRefBS(null);
+
+  useEffectBS(() => {
+    const el = scrollerRef.current;
+    if (!el || !isNativeBSApp()) return undefined;
+
+    let lastY = 0;
+    let active = false;
+    let moved = false;
+
+    const onTouchStart = (event) => {
+      if (event.touches.length !== 1) return;
+      if (isInteractiveTarget(event.target)) return;
+      active = true;
+      moved = false;
+      lastY = event.touches[0].clientY;
+    };
+
+    const onTouchMove = (event) => {
+      if (event.defaultPrevented) return;
+      if (!active || event.touches.length !== 1) return;
+      const y = event.touches[0].clientY;
+      const delta = lastY - y;
+      if (Math.abs(delta) < 2 && !moved) return;
+      moved = true;
+      lastY = y;
+      el.scrollTop += delta;
+      event.preventDefault();
+    };
+
+    const onTouchEnd = () => {
+      active = false;
+      moved = false;
+    };
+
+    const onWheel = (event) => {
+      el.scrollTop += event.deltaY;
+      event.preventDefault();
+    };
+
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    el.addEventListener('touchend', onTouchEnd, { passive: true });
+    el.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    el.addEventListener('wheel', onWheel, { passive: false });
+
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+      el.removeEventListener('touchcancel', onTouchEnd);
+      el.removeEventListener('wheel', onWheel);
+    };
+  }, []);
+
   return (
-    <div className="bs-scroll" style={{
-      position: 'absolute', inset: 0, overflow: 'auto',
+    <div ref={scrollerRef} className="bs-scroll" style={{
+      position: 'absolute', inset: 0,
+      height: '100%',
+      overflowX: 'hidden',
+      overflowY: 'scroll',
+      WebkitOverflowScrolling: 'touch',
+      touchAction: 'pan-y',
+      overscrollBehaviorY: 'contain',
       background: t.TEXTURE ? `${t.TEXTURE}, ${t.PAPER_BG}` : t.PAPER_BG,
       color: t.INK,
-      paddingBottom: tabBarHeight + 28,
-      fontFamily: t.DISPLAY,
+      paddingBottom: `calc(${tabBarHeight + 28}px + env(safe-area-inset-bottom, 0px))`,
+      fontFamily: t.BODY,
       scrollbarWidth: 'none', msOverflowStyle: 'none',
     }}>
       {children}
@@ -314,13 +406,34 @@ function BSPage({ children, tabBarHeight = 80 }) {
 function BSLogo({ size = 18, color }) {
   const c = color || 'currentColor';
   return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 99 113"
+      width={size}
+      height={size * (113/99)}
+      style={{
+        display: 'inline-block',
+        flex: '0 0 auto',
+        verticalAlign: 'middle',
+      }}
+    >
+      <polygon points="43,39 82,15 82,63" fill={c} />
+      <polygon points="17,49 56,73 17,97" fill={c} />
+    </svg>
+  );
+}
+
+function BSLogoMask({ size = 18, color }) {
+  const c = color || 'currentColor';
+  const mask = 'url("/assets/shape-logo-triangles-transparent.png")';
+  return (
     <span style={{
       display: 'inline-block',
       width: size,
       height: size * (113/99),
       background: c,
-      WebkitMaskImage: 'url("shape-logo.png")',
-      maskImage: 'url("shape-logo.png")',
+      WebkitMaskImage: mask,
+      maskImage: mask,
       WebkitMaskSize: 'contain',
       maskSize: 'contain',
       WebkitMaskRepeat: 'no-repeat',
@@ -368,7 +481,7 @@ function BSWordmark({ size = 18, color, full = false, vertical = false, align = 
 }
 
 // Masthead — newspaper-style header with vol/no, optional title block
-function BSMasthead({ vol = 'Vol. 6', no = 'No. 38', title, leftKicker, rightKicker, trailing }) {
+function BSMasthead({ vol = 'Vol. 6', no = 'No. 38', title, leftKicker, rightKicker, trailing, showDotTexture = true }) {
   const t = useBS();
   const inkRgb = t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
   // Hero background — only when there's a title (i.e. home pages).
@@ -380,7 +493,7 @@ function BSMasthead({ vol = 'Vol. 6', no = 'No. 38', title, leftKicker, rightKic
   return (
     <div style={{
       padding: `54px ${t.padX}px ${title ? 18 : 14}px`,
-      borderBottom: `2px solid ${t.INK}`,
+      borderBottom: title ? `3px solid ${t.INK}` : `2px solid ${t.INK}`,
       position: 'relative', overflow: 'hidden',
       backgroundColor: title ? `rgba(${inkRgb},0.012)` : 'transparent',
     }}>
@@ -395,12 +508,14 @@ function BSMasthead({ vol = 'Vol. 6', no = 'No. 38', title, leftKicker, rightKic
             maskImage: 'linear-gradient(180deg, black 0%, rgba(0,0,0,0.5) 65%, transparent 100%)',
           }} />
           {/* Halftone dot wash — soft, fades top → bottom */}
-          <div aria-hidden style={{
-            position: 'absolute', inset: 0, pointerEvents: 'none',
-            backgroundImage: dotsBg, backgroundSize: '7px 7px',
-            WebkitMaskImage: 'linear-gradient(180deg, black 0%, rgba(0,0,0,0.55) 50%, transparent 100%)',
-            maskImage: 'linear-gradient(180deg, black 0%, rgba(0,0,0,0.55) 50%, transparent 100%)',
-          }} />
+          {showDotTexture && (
+            <div aria-hidden style={{
+              position: 'absolute', inset: 0, pointerEvents: 'none',
+              backgroundImage: dotsBg, backgroundSize: '7px 7px',
+              WebkitMaskImage: 'linear-gradient(180deg, black 0%, rgba(0,0,0,0.55) 50%, transparent 100%)',
+              maskImage: 'linear-gradient(180deg, black 0%, rgba(0,0,0,0.55) 50%, transparent 100%)',
+            }} />
+          )}
           {/* Side vignette — light, just darkens edges a touch */}
           <div aria-hidden style={{
             position: 'absolute', inset: 0, pointerEvents: 'none',
@@ -512,11 +627,12 @@ function BSSection({ title, meta, kicker, color }) {
   const t = useBS();
   return (
     <div style={{
-      padding: `${t.sectGap}px ${t.padX}px 8px`,
+      padding: `${t.sectGap}px ${t.padX}px 10px`,
       display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10,
     }}>
       <span style={{
-        fontFamily: t.DISPLAY, fontWeight: t.W.displayHeavy, fontSize: 11, letterSpacing: '0.24em',
+        display: 'inline-flex', alignItems: 'center', gap: 8,
+        fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: '0.18em',
         textTransform: 'uppercase', color: color || t.INK,
       }}>
         ▍ {title}
@@ -541,8 +657,11 @@ function BSSlab({ children, tinted, accent, padded = true }) {
   return (
     <div style={{
       padding: padded ? `14px ${t.padX}px 18px` : 0,
-      background: accent ? accent : (tinted ? t.PAPER2 : t.PAPER),
-      borderTop: `1px solid ${t.INK}`, borderBottom: `1px solid ${t.INK}`,
+      background: accent ? accent : (tinted ? t.SURFACE_STRONG : t.SURFACE),
+      borderTop: `1px solid ${t.SURFACE_BORDER}`,
+      borderBottom: `1px solid ${t.SURFACE_BORDER}`,
+      backdropFilter: 'blur(14px)',
+      WebkitBackdropFilter: 'blur(14px)',
     }}>{children}</div>
   );
 }
@@ -550,13 +669,16 @@ function BSSlab({ children, tinted, accent, padded = true }) {
 // Cell — bordered rectangle, like a box advert
 function BSCell({ children, dark, accent, onClick, style }) {
   const t = useBS();
-  const bg = dark ? t.INK : (accent || t.PAPER);
+  const bg = dark ? t.INK : (accent || t.SURFACE);
   const fg = dark ? t.PAPER : t.INK;
   return (
     <div onClick={onClick} style={{
-      padding: 14, border: `1px solid ${dark ? t.INK : t.INK}`,
+      padding: 14, border: `1px solid ${dark ? t.INK : t.SURFACE_BORDER}`,
       background: bg, color: fg, cursor: onClick ? 'pointer' : 'default',
-      borderRadius: t.RADIUS,
+      borderRadius: t.RADIUS_LG,
+      boxShadow: dark ? 'none' : t.ELEVATION_SOFT,
+      backdropFilter: dark ? 'none' : 'blur(14px)',
+      WebkitBackdropFilter: dark ? 'none' : 'blur(14px)',
       ...style,
     }}>{children}</div>
   );
@@ -569,9 +691,9 @@ function BSTag({ children, color, dark }) {
   return (
     <span style={{
       fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em',
-      color: t.PAPER, background: bg, padding: '3px 6px', textTransform: 'uppercase', fontWeight: 700,
+      color: t.PAPER, background: bg, padding: '4px 7px', textTransform: 'uppercase', fontWeight: 700,
       display: 'inline-block', lineHeight: 1.3,
-      borderRadius: t.RADIUS_SM,
+      borderRadius: 999,
     }}>{children}</span>
   );
 }
@@ -610,7 +732,7 @@ function BSRow({ time, tag, tagColor, title, sub, state, onClick, last }) {
       {!tag && <span />}
       <div style={{ minWidth: 0 }}>
         <div style={{
-          fontFamily: t.DISPLAY, fontSize: 14, fontWeight: next ? 700 : 500, color: t.INK,
+          fontFamily: t.BODY, fontSize: 14, fontWeight: next ? 700 : 500, color: t.INK,
           letterSpacing: '-0.01em', lineHeight: 1.15,
           textDecoration: done ? 'line-through' : 'none', textDecorationThickness: '1.5px',
         }}>{title}</div>
@@ -706,27 +828,32 @@ function BSTabBar({ tabs, active, onChange }) {
   return (
     <div style={{
       position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 55,
-      height: 80, paddingBottom: 24,
-      background: t.PAPER, color: t.INK,
-      borderTop: `2px solid ${t.INK}`,
-      display: 'grid', gridTemplateColumns: `repeat(${tabs.length}, 1fr)`,
+      height: 88, padding: '10px 10px calc(16px + env(safe-area-inset-bottom, 0px))',
+      background: `linear-gradient(180deg, rgba(${t.inkRGB},0.03), ${t.PAPER} 78%)`,
+      color: t.INK,
+      borderTop: `1px solid ${t.SURFACE_BORDER}`,
+      display: 'grid', gridTemplateColumns: `repeat(${tabs.length}, 1fr)`, gap: 4,
+      backdropFilter: 'blur(18px)',
+      WebkitBackdropFilter: 'blur(18px)',
+      boxShadow: `0 -16px 40px ${t.isLight ? 'rgba(15,14,12,0.08)' : 'rgba(0,0,0,0.26)'}`,
     }}>
       {tabs.map((tab, i) => {
         const on = tab.key === active;
         return (
-          <button key={tab.key} onClick={() => onChange(tab.key)} style={{ borderRadius: t.RADIUS_SM,
-            border: 0, background: 'transparent', cursor: 'pointer', padding: '10px 0',
+          <button key={tab.key} onClick={() => onChange(tab.key)} style={{ borderRadius: 14,
+            border: on ? `1px solid ${t.SURFACE_BORDER}` : '1px solid transparent',
+            background: on ? t.INK : 'transparent',
+            cursor: 'pointer', padding: '8px 0',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
-            color: on ? t.PAPER : t.INK, position: 'relative',
-            borderLeft: i > 0 ? `1px solid ${t.HAIR}` : 0,
+            color: on ? t.PAPER : t.INK70, position: 'relative',
+            boxShadow: on ? t.ELEVATION_SOFT : 'none',
           }}>
-            {on && <div style={{ position: 'absolute', inset: 0, background: t.INK, zIndex: -1 }} />}
             <span style={{
-              fontFamily: t.MONO, fontWeight: 700, fontSize: 11, letterSpacing: '-0.01em',
+              fontFamily: t.MONO, fontWeight: 700, fontSize: 10.5, letterSpacing: '-0.01em',
               fontVariantNumeric: 'tabular-nums',
             }}>{String(i + 1).padStart(2, '0')}</span>
             <span style={{
-              fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600,
+              fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600,
             }}>{tab.label}</span>
           </button>
         );
@@ -753,6 +880,7 @@ function BSFooter({ left = 'The Shape Daily', right }) {
 // Phone bezel — light/dark sensitive
 function BSPhone({ children }) {
   const t = useBS();
+  const isNativeApp = isNativeBSApp();
   // Inject the weight-shift CSS once. When data-bs-weight="regular" is set on the
   // phone surface, every nested element's font-weight gets a step lighter via
   // CSS attribute selectors (300/400 instead of 600/700/800).
@@ -775,9 +903,126 @@ function BSPhone({ children }) {
       [data-bs-weight="regular"] [style*="fontWeight: 500"] { font-weight: 300 !important; }
       [data-bs-weight="regular"] [style*="font-weight: 400"],
       [data-bs-weight="regular"] [style*="fontWeight: 400"] { font-weight: 300 !important; }
+      [data-bs-weight="regular"] .bs-splash-title,
+      [data-bs-weight="regular"] .bs-splash-title *,
+      [data-bs-weight="regular"] .bs-daily-title,
+      [data-bs-weight="regular"] .bs-daily-title * {
+        font-family: 'Newsreader', Georgia, serif !important;
+      }
+      [data-bs-weight="regular"] .bs-splash-title .bs-splash-the,
+      [data-bs-weight="regular"] .bs-daily-title .bs-daily-the {
+        font-weight: 700 !important;
+      }
+      [data-bs-weight="regular"] .bs-splash-title .bs-splash-shape,
+      [data-bs-weight="regular"] .bs-daily-title .bs-daily-shape {
+        font-family: 'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif !important;
+        font-style: normal !important;
+        font-weight: 300 !important;
+        letter-spacing: 0.18em !important;
+        text-transform: uppercase !important;
+      }
+      [data-bs-weight="regular"] .bs-splash-title .bs-splash-daily,
+      [data-bs-weight="regular"] .bs-daily-title .bs-daily-daily {
+        font-weight: 700 !important;
+      }
     `;
     document.head.appendChild(s);
   }, []);
+
+  useEffectBS(() => {
+    if (!isNativeApp) return undefined;
+
+    let activeScroller = null;
+    let startX = 0;
+    let startY = 0;
+    let lastY = 0;
+    let dragging = false;
+
+    const resetGesture = () => {
+      activeScroller = null;
+      startX = 0;
+      startY = 0;
+      lastY = 0;
+      dragging = false;
+    };
+
+    const onTouchStart = (event) => {
+      if (event.touches.length !== 1) return;
+      if (isInteractiveTarget(event.target)) return;
+
+      const scroller = getTargetScroller(event.target);
+      if (!scroller || scroller.scrollHeight <= scroller.clientHeight + 2) return;
+
+      const touch = event.touches[0];
+      activeScroller = scroller;
+      startX = touch.clientX;
+      startY = touch.clientY;
+      lastY = touch.clientY;
+      dragging = false;
+    };
+
+    const onTouchMove = (event) => {
+      if (!activeScroller || event.touches.length !== 1) return;
+
+      const touch = event.touches[0];
+      const dx = touch.clientX - startX;
+      const dy = touch.clientY - startY;
+
+      if (!dragging) {
+        if (Math.abs(dy) < 6) return;
+        if (Math.abs(dx) > Math.abs(dy)) {
+          resetGesture();
+          return;
+        }
+        dragging = true;
+      }
+
+      const delta = lastY - touch.clientY;
+      lastY = touch.clientY;
+      const max = Math.max(0, activeScroller.scrollHeight - activeScroller.clientHeight);
+      activeScroller.scrollTop = Math.max(0, Math.min(max, activeScroller.scrollTop + delta));
+      event.preventDefault();
+    };
+
+    document.addEventListener('touchstart', onTouchStart, { capture: true, passive: true });
+    document.addEventListener('touchmove', onTouchMove, { capture: true, passive: false });
+    document.addEventListener('touchend', resetGesture, { capture: true, passive: true });
+    document.addEventListener('touchcancel', resetGesture, { capture: true, passive: true });
+
+    return () => {
+      document.removeEventListener('touchstart', onTouchStart, true);
+      document.removeEventListener('touchmove', onTouchMove, true);
+      document.removeEventListener('touchend', resetGesture, true);
+      document.removeEventListener('touchcancel', resetGesture, true);
+    };
+  }, [isNativeApp]);
+
+  if (isNativeApp) {
+    return (
+      <div data-bs-weight={t.weightKey || 'bold'} style={{
+        position: 'fixed',
+        inset: 0,
+        width: '100vw',
+        height: '100dvh',
+        minHeight: '100vh',
+        background: t.PAPER_BG,
+        overflow: 'hidden',
+        touchAction: 'auto',
+        fontFamily: t.BODY,
+      }}>
+        <div className="bs-paper-grain" style={{
+          width: '100%',
+          height: '100%',
+          overflow: 'hidden',
+          position: 'relative',
+          background: t.PAPER_BG,
+        }}>
+          {children}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div data-bs-weight={t.weightKey || 'bold'} style={{
       width: 'min(390px, calc(100vw - 16px))',
@@ -795,6 +1040,7 @@ function BSPhone({ children }) {
           : '#0a0907'),
       boxShadow: '0 30px 80px rgba(0,0,0,0.35), inset 0 0 0 2px rgba(255,255,255,0.04)',
       position: 'relative',
+      fontFamily: t.BODY,
     }}>
       <div className="bs-paper-grain" style={{
         width: '100%', height: '100%', borderRadius: 42, overflow: 'hidden',
@@ -815,5 +1061,5 @@ Object.assign(window, {
   BSContext, BSProvider, useBS,
   BSPage, BSMasthead, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
   BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BSFooter, BSPhone, BSLogo, BSWordmark,
-  DISPLAY_BS, MONO_BS, makePalette,
+  DISPLAY_BS, BODY_BS, MONO_BS, makePalette,
 });
