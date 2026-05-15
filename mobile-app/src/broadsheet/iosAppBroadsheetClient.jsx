@@ -3774,6 +3774,18 @@ function BSClientChat({ onProfile, role = 'client' }) {
     const tagAll = (threads, bucket) => threads.map(th => ({ ...th, bucket }));
     const communityThreads = (byId.community?.threads || []).filter(th => th.who !== '# shape-community');
 
+    // One continuous feed: Shape members + clients + trainers + nutritionists.
+    const pickGroupRoom = (tabId, who) => (byId[tabId]?.threads || []).find(th => th.who === who);
+    const feedRooms = [
+      allMembersRoom,
+      pickGroupRoom('clients', '# shape-clients'),
+      pickGroupRoom('trainers', '# shape-trainers'),
+      pickGroupRoom('nutritionists', '# shape-nutritionists'),
+    ].filter(Boolean).map(th => ({ ...th, bucket: 'MEMBERS' }));
+    const oneFeed = [{ id: 'members', label: 'Shape Members', threads: feedRooms }];
+    // Everything else stays as individual, click-in conversations.
+    const peopleOnly = (threads) => (threads || []).filter(th => !th.group);
+
     if (role === 'trainer') {
       const team = [
         { who: 'Rae Lindqvist', role: 'Nutritionist', last: "Casey's energy on Wed pulls is dragging. Bumped carbs +20g pre-session.", time: '11m', unread: 1, messages: [
@@ -3800,14 +3812,11 @@ function BSClientChat({ onProfile, role = 'client' }) {
       const peers = (byId.trainers?.threads || []).slice(0, 2);
       return {
         directBuckets: [
-          { id: 'clients',  label: 'Clients',  threads: tagAll(clients, 'CLIENT') },
-          { id: 'trainers', label: 'Trainers', threads: tagAll(peers, 'TRAINER') },
-          { id: 'friends',  label: 'Friends',  threads: tagAll(byId.friends?.threads || [], 'FRIEND') },
+          { id: 'clients',  label: 'Clients',  threads: peopleOnly(tagAll(clients, 'CLIENT')) },
+          { id: 'trainers', label: 'Trainers', threads: peopleOnly(tagAll(peers, 'TRAINER')) },
+          { id: 'friends',  label: 'Friends',  threads: peopleOnly(tagAll(byId.friends?.threads || [], 'FRIEND')) },
         ],
-        communityBuckets: [
-          { id: 'shape',    label: 'Shape Members', threads: [allMembersRoom] },
-          { id: 'channels', label: 'Channels',      threads: [...shapeRooms, ...tagAll(communityThreads, 'COMMUNITY')] },
-        ],
+        communityBuckets: oneFeed,
       };
     }
 
@@ -3836,14 +3845,11 @@ function BSClientChat({ onProfile, role = 'client' }) {
       const peers = (byId.nutritionists?.threads || []).slice(0, 2);
       return {
         directBuckets: [
-          { id: 'clients', label: 'Clients',       threads: tagAll(clients, 'CLIENT') },
-          { id: 'nutri',   label: 'Nutritionists', threads: tagAll(peers, 'NUTRI') },
-          { id: 'friends', label: 'Friends',       threads: tagAll(byId.friends?.threads || [], 'FRIEND') },
+          { id: 'clients', label: 'Clients',       threads: peopleOnly(tagAll(clients, 'CLIENT')) },
+          { id: 'nutri',   label: 'Nutritionists', threads: peopleOnly(tagAll(peers, 'NUTRI')) },
+          { id: 'friends', label: 'Friends',       threads: peopleOnly(tagAll(byId.friends?.threads || [], 'FRIEND')) },
         ],
-        communityBuckets: [
-          { id: 'shape',    label: 'Shape Members', threads: [allMembersRoom] },
-          { id: 'channels', label: 'Channels',      threads: [...shapeRooms, ...tagAll(communityThreads, 'COMMUNITY')] },
-        ],
+        communityBuckets: oneFeed,
       };
     }
 
@@ -3851,14 +3857,11 @@ function BSClientChat({ onProfile, role = 'client' }) {
     //         Community = Channels + Shape members
     return {
       directBuckets: [
-        { id: 'circle',  label: 'Team',          threads: mergeChatThreads(storedCoachThreads, tagAll(byId.circle?.threads || [], 'COACH')) },
-        { id: 'friends', label: 'Friends',       threads: tagAll(byId.friends?.threads || [], 'FRIEND') },
-        { id: 'peers',   label: 'Shape Clients', threads: tagAll(byId.clients?.threads || [], 'PEER') },
+        { id: 'circle',  label: 'Team',          threads: peopleOnly(mergeChatThreads(storedCoachThreads, tagAll(byId.circle?.threads || [], 'COACH'))) },
+        { id: 'friends', label: 'Friends',       threads: peopleOnly(tagAll(byId.friends?.threads || [], 'FRIEND')) },
+        { id: 'peers',   label: 'Shape Clients', threads: peopleOnly(tagAll(byId.clients?.threads || [], 'PEER')) },
       ],
-      communityBuckets: [
-        { id: 'shape',    label: 'Shape Members', threads: [allMembersRoom] },
-        { id: 'channels', label: 'Channels',      threads: [...shapeRooms, ...tagAll(communityThreads, 'COMMUNITY')] },
-      ],
+      communityBuckets: oneFeed,
     };
   }, [role, syncedCoachThreads]);
 
@@ -3871,7 +3874,7 @@ function BSClientChat({ onProfile, role = 'client' }) {
   const buckets = view === 'direct' ? directBuckets : communityBuckets;
   const activeSubId = subId && buckets.some(b => b.id === subId) ? subId : buckets[0]?.id;
   const activeBucket = buckets.find(b => b.id === activeSubId) || buckets[0];
-  const isThreadedBucket = view === 'direct' && (activeSubId === 'circle' || activeSubId === 'friends');
+  const isThreadedBucket = view === 'direct';
   const isFeedBucket = view !== 'feed' && !isThreadedBucket;
   const getThreadKey = (th) => `${view}:${activeSubId || 'none'}:${th?.who || ''}:${th?.role || ''}`;
   // Filter threads by query — match on name, role/sub, or last message
@@ -3968,7 +3971,7 @@ function BSClientChat({ onProfile, role = 'client' }) {
       {[
         { id: 'feed',      label: 'Feed',     sub: 'Shape',    unread: 0, count: SHAPE_FEED_SEED.length },
         { id: 'direct',    label: 'Messages', sub: 'People',   unread: directUnread,    count: directBuckets.reduce((s, b) => s + b.threads.length, 0) },
-        { id: 'community', label: 'Channels', sub: 'Groups',   unread: communityUnread, count: communityBuckets.reduce((s, b) => s + b.threads.length, 0) },
+        { id: 'community', label: 'Members', sub: 'Shape',   unread: communityUnread, count: communityBuckets.reduce((s, b) => s + b.threads.length, 0) },
       ].map((v) => {
         const active = view === v.id;
         return (
@@ -4034,7 +4037,8 @@ function BSClientChat({ onProfile, role = 'client' }) {
 
       {modeTabs}
 
-      {/* Sub-tab row — buckets within the active view */}
+      {/* Sub-tab row — buckets within the active view (hidden when single) */}
+      {buckets.length > 1 && (
       <div className="bs-scroll" style={{
         display: 'flex', gap: 8, overflowX: 'auto',
         background: t.PAPER, position: 'sticky', top: 75, zIndex: 2,
@@ -4071,6 +4075,7 @@ function BSClientChat({ onProfile, role = 'client' }) {
           );
         })}
       </div>
+      )}
 
       <BSSection
         title={activeBucket?.label || ''}
@@ -4175,7 +4180,7 @@ function BSClientChat({ onProfile, role = 'client' }) {
             Feed mode is active. Messages post directly to {activeBucket?.label || 'this stream'}.
           </div>
         )}
-        {isFeedBucket && <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '0 0 90px' }}>
+        {isFeedBucket && <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '0 0 150px' }}>
           {filteredFeedMessages.map((m, i) => {
             const me = m.me;
             const tagColor = bucketColor[m._bucket] || (m.coach ? t.AMBER : t.ACCENT);
@@ -4210,7 +4215,7 @@ function BSClientChat({ onProfile, role = 'client' }) {
         </div>}
         {isFeedBucket && <div style={{
           position: 'sticky',
-          bottom: 10,
+          bottom: 'calc(96px + env(safe-area-inset-bottom, 0px))',
           zIndex: 3,
           marginTop: 4,
           display: 'grid',
@@ -4262,6 +4267,11 @@ function BSChatThread({ thread, eyebrow, onBack }) {
   const [text, setText] = useStateBSC('');
   const [extras, setExtras] = useStateBSC([]);
   const allMessages = [...(thread.messages || []), ...extras];
+  const endRef = React.useRef(null);
+
+  React.useEffect(() => {
+    endRef.current?.scrollIntoView({ block: 'end' });
+  }, [allMessages.length]);
 
   const send = () => {
     if (!text.trim()) return;
@@ -4298,13 +4308,14 @@ function BSChatThread({ thread, eyebrow, onBack }) {
         flexDirection: 'column',
       }}>
       {/* Messages */}
-      <div style={{ flex: '1 1 auto', padding: `16px ${t.padX}px 18px`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ flex: '1 1 auto', padding: `16px ${t.padX}px 150px`, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {allMessages.map((m, i) => {
           const me = m.me;
           return (
             <div key={i} style={{
               alignSelf: me ? 'flex-end' : 'flex-start',
               maxWidth: '82%',
+              minWidth: 0,
             }}>
               {!me && (
                 <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: m.coach ? t.AMBER : t.INK50, fontWeight: 700, marginBottom: 4 }}>
@@ -4319,17 +4330,22 @@ function BSChatThread({ thread, eyebrow, onBack }) {
                 border: me ? 'none' : `1px solid ${t.SURFACE_BORDER}`,
                 boxShadow: me ? 'none' : t.ELEVATION_SOFT,
                 padding: '11px 13px',
+                maxWidth: '100%',
+                whiteSpace: 'pre-wrap',
+                overflowWrap: 'anywhere',
+                wordBreak: 'break-word',
               }}>{m.t}</div>
               <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginTop: 4, textAlign: me ? 'right' : 'left' }}>{m.time}</div>
             </div>
           );
         })}
+        <div ref={endRef} />
       </div>
 
       {/* Composer */}
       <div style={{
         position: 'sticky',
-        bottom: 10,
+        bottom: 'calc(96px + env(safe-area-inset-bottom, 0px))',
         zIndex: 3,
         margin: `0 ${t.padX}px 18px`,
         display: 'grid',
