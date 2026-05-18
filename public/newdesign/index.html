@@ -37,7 +37,7 @@
   .nlinks>a{transition:color .16s}.nlinks>a:hover{color:var(--cream)}
   .ndrop{position:relative;display:inline-flex;align-items:center}
   .ndrop>span{display:inline-flex;align-items:center;gap:5px;cursor:default;color:var(--cream-2);transition:color .16s}
-  .ndrop>span:after{content:"\\25BE";font-size:9px;opacity:.6}
+  .ndrop>span:after{content:"\25BE";font-size:9px;opacity:.6}
   .ndrop:hover>span{color:var(--cream)}
   .ndmenu{position:absolute;top:100%;left:50%;transform:translateX(-50%);padding-top:14px;min-width:204px;opacity:0;visibility:hidden;transition:opacity .16s}
   .ndrop:hover .ndmenu{opacity:1;visibility:visible}
@@ -45,7 +45,7 @@
   .ndmenu a{display:block;padding:10px 14px;border-radius:5px;color:var(--cream-2);transition:background .14s,color .14s;white-space:nowrap}
   .ndmenu a:hover{background:rgba(19,194,168,0.12);color:var(--cream)}
   .nauth{display:flex;align-items:center;gap:18px;justify-self:end}
-  .nauth .login{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--cream-2);transition:color .16s}
+  .nauth .login{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--cream-2);transition:color .16s;white-space:nowrap}
   .nauth .login:hover{color:var(--cream)}
   .nradio{display:inline-flex;align-items:center}
   .nradio img{height:20px;width:auto;display:block}
@@ -60,7 +60,7 @@
   .htxt{position:relative;z-index:3;text-align:center;max-width:1100px;will-change:transform}
   .eyb{font-family:var(--mono);font-size:12px;letter-spacing:.34em;text-transform:uppercase;color:var(--teal)}
   .hero h1{font-family:var(--serif);font-weight:300;font-size:clamp(50px,9.6vw,150px);line-height:.9;letter-spacing:-.045em;margin:26px 0 0}
-  .hero h1 b{font-weight:600;font-style:italic;color:transparent;-webkit-text-stroke:1.4px var(--cream)}
+  .hero h1 b{font-weight:600;font-style:italic;color:var(--teal)}
   .hero p{margin:32px auto 0;max-width:60ch;color:var(--cream-2);font-size:18px;line-height:1.62}
   .hcta{margin-top:42px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
   .b{display:inline-flex;align-items:center;gap:10px;padding:17px 30px;font:600 14px/1 var(--sans);border-radius:2px;transition:transform .14s,background .2s}
@@ -179,7 +179,7 @@
   <span class="blob a" id="b1"></span><span class="blob b" id="b2"></span>
   <div class="htxt" id="htxt">
     <div class="eyb">Real coaches · one marketplace · the whole loop</div>
-    <h1>Coached by a<br><b>human.</b> Run by you.</h1>
+    <h1>Real coaches.<br>One <b>marketplace.</b><br>One <b>platform.</b></h1>
     <p>Shape is one marketplace of vetted trainers and nutritionists, one app for the entire training loop, and ad-free workout radio. They write the plan. The app keeps it tight. You just show up.</p>
     <div class="hcta">
       <a class="b p" href="Landing.html">Get started →</a>
