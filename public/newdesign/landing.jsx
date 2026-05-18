@@ -60,7 +60,7 @@ function MinimalHeader() {
   return (
     <header style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 20, padding: "26px 72px" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <a href="index.html" aria-label="Shape home" style={{ flex: "none", display: "inline-flex" }}><Logo variant="white" size={50} /></a>
+        <a href="index.html" aria-label="Shape home" style={{ flex: "none", display: "inline-flex" }}><Logo variant="white" size={34} /></a>
         <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
           <span style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.5)" }}>Already have an account?</span>
           <a href="Login.html" className="shape-nav-link" style={{ fontFamily: mono, fontSize: 11.5, letterSpacing: "0.16em", textTransform: "uppercase", color: INK, fontWeight: 500, borderBottom: `1.5px solid ${TEAL}`, paddingBottom: 4 }}>Log in</a>

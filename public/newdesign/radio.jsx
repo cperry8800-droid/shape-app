@@ -37,7 +37,7 @@ function RadioHero() {
   const bars = Array.from({ length: 48 }, () => Math.random());
   const [hearted, setHearted] = React.useState(false);
   return (
-    <section style={{ padding: "72px 72px 56px 48px", position: "relative", overflow: "hidden", minHeight: "calc(100vh - 109px)", boxSizing: "border-box", display: "flex", alignItems: "center", background: "transparent" }}>
+    <section style={{ padding: "72px 72px 56px 120px", position: "relative", overflow: "hidden", minHeight: "calc(100vh - 109px)", boxSizing: "border-box", display: "flex", alignItems: "center", background: "transparent" }}>
       <div style={{ maxWidth: 1480, width: "100%", margin: 0, position: "relative", display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 120, alignItems: "center" }}>
         <div>
           <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.3em", textTransform: "uppercase", color: TEAL_BRIGHT, marginBottom: 22 }}>Shape Radio</div>
