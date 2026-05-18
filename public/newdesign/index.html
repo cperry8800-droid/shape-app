@@ -48,7 +48,7 @@
   .nauth .login{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--cream-2);transition:color .16s;white-space:nowrap}
   .nauth .login:hover{color:var(--cream)}
   .nradio{display:inline-flex;align-items:center}
-  .nradio img{height:20px;width:auto;display:block}
+  .nradio img{height:30px;width:auto;display:block}
   .ncta{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;border:1px solid var(--cream);padding:10px 18px;transition:.2s}
   .ncta:hover{background:var(--cream);color:var(--ink-d)}
 
@@ -193,16 +193,19 @@
   <div class="stage">
     <div class="beat" data-i="0">
       <div><div class="ix">01 — Train</div><h2>Written <b>before</b> you arrive.</h2><p>Every set, tempo and cue from your trainer — loaded the night before. No deciding at the rack, no guesswork.</p></div>
-      <div class="vis"><div class="scr" id="scr"></div></div>
+      <div class="vis"><div class="scr"><img class="on" src="/newdesign/getapp-train-v2.png" alt="" /></div></div>
     </div>
     <div class="beat" data-i="1">
-      <div><div class="ix">02 — Eat</div><h2>The ledger <b>ticks live.</b></h2><p>Macro plans from your nutritionist. Today's deficit moves as you log. Travel and rest-day swaps already built in.</p></div><div></div>
+      <div><div class="ix">02 — Eat</div><h2>The ledger <b>ticks live.</b></h2><p>Macro plans from your nutritionist. Today's deficit moves as you log. Travel and rest-day swaps already built in.</p></div>
+      <div class="vis"><div class="scr"><img class="on" src="/newdesign/getapp-nutri-v2.png" alt="" /></div></div>
     </div>
     <div class="beat" data-i="2">
-      <div><div class="ix">03 — Recover</div><h2>One number that <b>tells the truth.</b></h2><p>Sleep, stress and Shape Score read every week. Your coach adjusts before you stall — not after.</p></div><div></div>
+      <div><div class="ix">03 — Recover</div><h2>One number that <b>tells the truth.</b></h2><p>Sleep, stress and Shape Score read every week. Your coach adjusts before you stall — not after.</p></div>
+      <div class="vis"><div class="scr"><img class="on" src="/newdesign/getapp-score-v2.png" alt="" /></div></div>
     </div>
     <div class="beat" data-i="3">
-      <div><div class="ix">04 — Coach</div><h2>A real human, <b>in the loop.</b></h2><p>Not a chatbot. A vetted coach reads the data, asks how you feel, and rewrites the plan — every single week.</p></div><div></div>
+      <div><div class="ix">04 — Coach</div><h2>A real human, <b>in the loop.</b></h2><p>Not a chatbot. A vetted coach reads the data, asks how you feel, and rewrites the plan — every single week.</p></div>
+      <div class="vis"><div class="scr"><img class="on" src="/newdesign/getapp-chat-v2.png" alt="" /></div></div>
     </div>
   </div>
 </div></section>
@@ -272,10 +275,6 @@
 
   var beats=[].slice.call(document.querySelectorAll('.beat'));
   var lb=document.getElementById('loopbeats');
-  var SHOTS=["/newdesign/getapp-train-v2.png","/newdesign/getapp-nutri-v2.png","/newdesign/getapp-score-v2.png","/newdesign/getapp-chat-v2.png"];
-  var scr=document.getElementById('scr');
-  SHOTS.forEach(function(s,i){var im=new Image();im.src=s;im.className=i===0?'on':'';im.alt='';scr.appendChild(im);});
-  var shots=[].slice.call(scr.querySelectorAll('img'));
   var cur=-1;
 
   function raf(){
@@ -289,7 +288,7 @@
     if(bw.top<=0&&bw.bottom>=innerHeight){
       var prog=(-bw.top)/(lb.offsetHeight-innerHeight);
       var idx=Math.min(beats.length-1,Math.max(0,Math.floor(prog*beats.length)));
-      if(idx!==cur){cur=idx;beats.forEach(function(b,i){b.classList.toggle('on',i===idx);});shots.forEach(function(im,i){im.classList.toggle('on',i===idx);});}
+      if(idx!==cur){cur=idx;beats.forEach(function(b,i){b.classList.toggle('on',i===idx);});}
     }
     requestAnimationFrame(raf);
   }
