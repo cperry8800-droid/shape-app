@@ -1060,7 +1060,7 @@ const DirB = (() => {
     const [bars, setBars] = useState(Array.from({length: 32}, () => Math.random()));
     useEffect(() => { const id = setInterval(() => setBars(Array.from({length: 32}, () => Math.random())), 220); return () => clearInterval(id); }, []);
     return (
-      <div style={{ background: "rgba(26,22,18,0.55)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 4, padding: 32 }}>
+      <div style={{ background: "linear-gradient(rgba(26,22,18,0.78), rgba(26,22,18,0.78)), url('/Make_the_lines_202604170430%20%281%29.png') center / cover no-repeat", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 4, padding: 32 }}>
         <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.12em", color: TEAL_BRIGHT, textTransform: "uppercase" }}>◉ Live · 1,284 listening</div>
         <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", marginTop: 14, lineHeight: 1 }}>Heavy Day · 132 BPM</div>
         <div style={{ fontFamily: sans, fontSize: 13.5, color: "rgba(242,237,228,0.7)", marginTop: 8 }}>DJ Kaya Mars — Lift Series vol. 04</div>
