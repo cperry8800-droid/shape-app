@@ -48,7 +48,7 @@
   .nauth .login{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--cream-2);transition:color .16s;white-space:nowrap}
   .nauth .login:hover{color:var(--cream)}
   .nradio{display:inline-flex;align-items:center}
-  .nradio img{height:42px;width:auto;display:block}
+  .nradio img{height:56px;width:auto;display:block}
   .ncta{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;border:1px solid var(--cream);padding:10px 18px;transition:.2s}
   .ncta:hover{background:var(--cream);color:var(--ink-d)}
 
@@ -80,8 +80,10 @@
   .beat h2 b{font-weight:600;font-style:italic}
   .beat p{margin-top:24px;max-width:42ch;color:var(--cream-2);font-size:17px;line-height:1.62}
   .vis{justify-self:center;width:300px;aspect-ratio:393/852;border-radius:48px;background:#f4eedf;border:1px solid rgba(255,255,255,.14);padding:8px;box-shadow:0 50px 90px -34px rgba(0,0,0,.8)}
-  .vis .scr{width:100%;height:100%;border-radius:42px;overflow:hidden;position:relative;background:#0b0e0c}
+  .vis .scr{width:100%;height:100%;border-radius:42px;overflow:hidden;position:relative;background:#f4eedf}
   .vis .scr img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center;opacity:0;transition:opacity .55s}
+  .vis.dark{background:#14110d}
+  .vis.dark .scr{background:#14110d}
   .vis .scr img.on{opacity:1}
 
   .sec{padding:130px 0;position:relative}
@@ -201,7 +203,7 @@
     </div>
     <div class="beat" data-i="2">
       <div><div class="ix">03 — Recover</div><h2>One number that <b>tells the truth.</b></h2><p>Sleep, stress and Shape Score read every week. Your coach adjusts before you stall — not after.</p></div>
-      <div class="vis"><div class="scr"><img class="on" src="/newdesign/getapp-score-v2.png" alt="" /></div></div>
+      <div class="vis dark"><div class="scr"><img class="on" src="/newdesign/getapp-score-v2.png" alt="" /></div></div>
     </div>
     <div class="beat" data-i="3">
       <div><div class="ix">04 — Coach</div><h2>A real human, <b>in the loop.</b></h2><p>Not a chatbot. A vetted coach reads the data, asks how you feel, and rewrites the plan — every single week.</p></div>
