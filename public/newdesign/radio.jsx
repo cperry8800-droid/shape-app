@@ -19,15 +19,30 @@ const SHOWS = [
   { name: "Deload Sunday", dj: "Shape Residents", len: "1h 30m", style: "Indie + breaks · 100 bpm" },
 ];
 
+const RD_RPR = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function RdReveal({ children, delay = 0, style = {} }) {
+  const ref = React.useRef(null);
+  const [on, setOn] = React.useState(RD_RPR);
+  React.useEffect(() => {
+    if (RD_RPR || !ref.current) return;
+    const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { setOn(true); io.disconnect(); } }), { threshold: 0.12 });
+    io.observe(ref.current);
+    return () => io.disconnect();
+  }, []);
+  return <div ref={ref} style={{ opacity: on ? 1 : 0, transform: on ? "none" : "translateY(30px)", transition: `opacity .7s ease ${delay}ms, transform .7s ease ${delay}ms`, ...style }}>{children}</div>;
+}
+
 function RadioHero() {
   const bars = Array.from({ length: 48 }, () => Math.random());
   const [hearted, setHearted] = React.useState(false);
   return (
-    <section style={{ padding: "72px 72px 56px", position: "relative", overflow: "hidden", minHeight: "calc(100vh - 109px)", boxSizing: "border-box", display: "flex", alignItems: "center", background: "transparent" }}>
-      <div style={{ maxWidth: 1480, margin: "0 auto", position: "relative", display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 120, alignItems: "center" }}>
+    <section style={{ padding: "72px 72px 56px 200px", position: "relative", overflow: "hidden", minHeight: "calc(100vh - 109px)", boxSizing: "border-box", display: "flex", alignItems: "center", background: "transparent" }}>
+      <div style={{ maxWidth: 1480, width: "100%", margin: 0, position: "relative", display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 120, alignItems: "center" }}>
         <div>
-          <h1 style={{ fontFamily: serif, fontSize: 104, letterSpacing: "-0.04em", fontWeight: 400, margin: 0, lineHeight: 0.9 }}>
-            Music<br/>built for<br/><em style={{ fontStyle: "italic", color: TEAL }}>training.</em>
+          <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.3em", textTransform: "uppercase", color: TEAL_BRIGHT, marginBottom: 22 }}>Shape Radio</div>
+          <h1 style={{ fontFamily: serif, fontSize: "clamp(56px, 8vw, 112px)", letterSpacing: "-0.045em", fontWeight: 300, margin: 0, lineHeight: 0.88 }}>
+            Music<br />built for<br /><em style={{ fontStyle: "italic", fontWeight: 600, color: "transparent", WebkitTextStroke: `1.4px ${INK}` }}>movement.</em>
           </h1>
           <p style={{ fontFamily: sans, fontSize: 16, fontWeight: 500, color: "rgba(242,237,228,0.95)", margin: "22px 0 0", maxWidth: 480, lineHeight: 1.5 }}>Ad-free workout mixes, curated stations by BPM, live DJ sets from residents who lift. Plus: your coach can attach a Spotify or Apple Music playlist to any workout or meal — it plays on the card, in your kitchen, or on the treadmill. Send good ones to friends. Included with every Shape membership.</p>
           <div style={{ display: "flex", gap: 10, marginTop: 28 }}>
@@ -36,8 +51,9 @@ function RadioHero() {
         </div>
 
         {/* Now playing card */}
-        <div style={{ padding: 24, background: "transparent", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", border: "1px solid rgba(242,237,228,0.16)", borderRadius: 4 }}>
-          <img src="/newdesign/SHape%20radio%20logo.png?v=1" alt="Shape Radio" style={{ height: 64, width: "auto", display: "block", marginBottom: 18, borderRadius: 6 }} />
+        <div style={{ position: "relative", overflow: "hidden", padding: 24, background: "transparent", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", border: "1px solid rgba(242,237,228,0.16)", borderRadius: 4 }}>
+          <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${TEAL}, ${RUST})`, opacity: 0.75 }} />
+          <img src="/shape-radio-wordmark.svg?v=2" alt="Shape Radio" style={{ height: 44, width: "auto", display: "block", marginBottom: 18 }} />
           <div style={{ fontFamily: sans, fontSize: 10.5, letterSpacing: "0.12em", color: TEAL_BRIGHT, textTransform: "uppercase" }}>◉ Live · 1,284 listening</div>
           <div style={{ fontFamily: serif, fontSize: 32, letterSpacing: "-0.02em", marginTop: 10, lineHeight: 1 }}>I Remember · 128 BPM</div>
           <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.7)", marginTop: 6 }}>deadmau5 — For Lack of a Better Name</div>
@@ -151,21 +167,24 @@ function RadioPitch() {
 function RadioShapeSets() {
   return (
     <section style={{ padding: "80px 72px" }}>
-      <div style={{ maxWidth: 1480, margin: "0 auto", padding: 48, background: "transparent", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", border: "1px solid rgba(242,237,228,0.16)", borderRadius: 4, textAlign: "center" }}>
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>
-          <span style={{ width: 6, height: 6, borderRadius: 999, background: TEAL_BRIGHT, animation: "pulse 1.6s ease-in-out infinite" }} />
-          Live from Club Shape
+      <RdReveal>
+        <div style={{ position: "relative", overflow: "hidden", maxWidth: 1480, margin: "0 auto", padding: 48, background: "transparent", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", border: "1px solid rgba(242,237,228,0.16)", borderRadius: 4, textAlign: "center" }}>
+          <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${TEAL}, ${RUST})`, opacity: 0.75 }} />
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, fontFamily: mono, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>
+            <span style={{ width: 6, height: 6, borderRadius: 999, background: TEAL_BRIGHT, animation: "pulse 1.6s ease-in-out infinite" }} />
+            Live from Club Shape
+          </div>
+          <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 6vw, 72px)", letterSpacing: "-0.04em", fontWeight: 300, margin: 0, lineHeight: 0.95 }}>
+            Shape <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>Sets.</em>
+          </h2>
+          <p style={{ fontFamily: sans, fontSize: 16, fontWeight: 500, color: "rgba(242,237,228,0.95)", margin: "22px auto 0", maxWidth: 620, lineHeight: 1.55 }}>
+            A virtual concert series broadcast straight from <strong style={{ color: INK, fontWeight: 500 }}>Club Shape</strong>, our flagship venue. DJs and live acts mixed for movement, captured on the floor and streamed through Shape Radio.
+          </p>
+          <div style={{ marginTop: 36, fontFamily: mono, fontSize: 24, letterSpacing: "0.28em", textTransform: "uppercase", color: TEAL_BRIGHT, fontWeight: 500 }}>
+            Coming soon
+          </div>
         </div>
-        <h2 style={{ fontFamily: serif, fontSize: 64, letterSpacing: "-0.03em", fontWeight: 400, margin: 0, lineHeight: 0.95 }}>
-          Shape <em style={{ fontStyle: "italic", color: TEAL }}>Sets.</em>
-        </h2>
-        <p style={{ fontFamily: sans, fontSize: 16, fontWeight: 500, color: "rgba(242,237,228,0.95)", margin: "22px auto 0", maxWidth: 620, lineHeight: 1.55 }}>
-          A virtual concert series broadcast straight from <strong style={{ color: INK, fontWeight: 500 }}>Club Shape</strong>, our flagship venue. DJs and live acts mixed for movement, captured on the floor and streamed through Shape Radio.
-        </p>
-        <div style={{ marginTop: 36, fontFamily: "'JetBrains Mono', monospace", fontSize: 24, letterSpacing: "0.28em", textTransform: "uppercase", color: TEAL_BRIGHT, fontWeight: 500 }}>
-          Coming soon
-        </div>
-      </div>
+      </RdReveal>
     </section>
   );
 }
