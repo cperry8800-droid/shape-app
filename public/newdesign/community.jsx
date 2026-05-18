@@ -295,7 +295,7 @@ function LiveActivity() {
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {LIVE_ACTIVITY.map((a, i) => (
             <CmReveal key={i} delay={Math.min(i * 50, 200)}>
-              <article style={{ padding: "24px 26px", background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6 }}>
+              <article style={{ padding: "24px 26px", background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6 }}>
                 <ActivityHeader a={a} />
                 {a.kind === "pr"      && <PRCard a={a} />}
                 {a.kind === "run"     && <RunCard a={a} />}
@@ -340,7 +340,7 @@ function Events() {
         <div className="cm-3" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
           {list.map((e, i) => (
             <CmReveal key={i} delay={Math.min(i * 50, 200)}>
-              <article style={{ padding: 30, background: "rgba(242,237,228,0.03)", borderRadius: 6, border: "1px solid rgba(242,237,228,0.1)" }}>
+              <article style={{ padding: 30, background: "rgba(11,14,12,0.62)", borderRadius: 6, border: "1px solid rgba(242,237,228,0.1)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 18 }}>
                   <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.03em", color: INK, lineHeight: 1, fontWeight: 300 }}>{e.when}</div>
                   <span style={{ fontFamily: mono, fontSize: 10, padding: "4px 10px", borderRadius: 999, background: "rgba(19,194,168,0.1)", color: TEAL, letterSpacing: "0.08em", textTransform: "uppercase" }}>{e.tag}</span>
@@ -406,7 +406,7 @@ function Stories() {
         </h2>
         <div className="cm-2" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 24 }}>
           {STORIES.map((s, i) => (
-            <article key={i} style={{ padding: 42, background: "rgba(242,237,228,0.03)", borderRadius: 6, borderTop: `3px solid ${TEAL}` }}>
+            <article key={i} style={{ padding: 42, background: "rgba(11,14,12,0.62)", borderRadius: 6, borderTop: `3px solid ${TEAL}` }}>
               <p style={{ fontFamily: serif, fontSize: 26, lineHeight: 1.35, fontStyle: "italic", color: INK, margin: 0 }}>"{s.line}"</p>
               <div style={{ marginTop: 28, paddingTop: 20, borderTop: "1px solid rgba(242,237,228,0.1)", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                 <div>
