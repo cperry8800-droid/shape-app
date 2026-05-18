@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Shape — Spatial Cinema (prototype B)</title>
+<meta name="robots" content="noindex" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper:#efe5cd;--paper-3:#f7f1e3;--ink:#0b0e0c;
+    --ink-2:rgba(245,239,225,.66);--ink-d:#100f0c;
+    --teal:#13c2a8;--teal-2:#0aa090;--rust:#d2693f;
+    --line:rgba(245,239,225,.14);
+    --serif:'Fraunces',serif;--sans:'Space Grotesk',sans-serif;--mono:'JetBrains Mono',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+  body{background:var(--ink-d);color:#f5efe1;font-family:var(--sans);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  a{color:inherit;text-decoration:none}img{display:block;max-width:100%}
+  button{font-family:inherit;cursor:pointer;border:0;background:none}
+  ::selection{background:var(--teal);color:var(--ink)}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 28px;width:100%}
+
+  .rail{position:fixed;top:0;left:0;height:2px;background:linear-gradient(90deg,var(--teal),var(--rust));z-index:60;width:0}
+  nav{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;justify-content:space-between;
+    padding:20px 28px;mix-blend-mode:difference}
+  .mark{font-family:var(--serif);font-weight:600;font-size:22px;letter-spacing:-.02em;color:#fff;display:flex;gap:9px;align-items:center}
+  .mark i{width:8px;height:8px;background:#fff;transform:rotate(45deg)}
+  .nav-cta{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;border:1px solid #fff;color:#fff;padding:9px 16px}
+
+  /* HERO — pinned, parallax depth, pointer-tilt */
+  .hero{height:100vh;position:sticky;top:0;display:grid;place-items:center;overflow:hidden;
+    background:radial-gradient(120% 90% at 50% 10%,#1a1813 0%,#100f0c 60%,#0b0e0c 100%)}
+  .depth{position:absolute;inset:0;display:grid;place-items:center;will-change:transform}
+  .blob{position:absolute;border-radius:50%;filter:blur(60px);opacity:.5}
+  .blob.a{width:520px;height:520px;background:radial-gradient(circle,var(--teal-2),transparent 70%);top:-8%;left:-6%}
+  .blob.b{width:560px;height:560px;background:radial-gradient(circle,var(--rust),transparent 70%);bottom:-14%;right:-8%}
+  .htxt{text-align:center;z-index:3;padding:0 24px}
+  .eyb{font-family:var(--mono);font-size:12px;letter-spacing:.32em;text-transform:uppercase;color:var(--teal)}
+  .hero h1{font-family:var(--serif);font-weight:300;font-size:clamp(46px,10vw,150px);line-height:.92;letter-spacing:-.04em;margin:22px 0 0}
+  .hero h1 b{font-weight:600;font-style:italic;color:transparent;-webkit-text-stroke:1.4px #f5efe1}
+  .hero p{margin:30px auto 0;max-width:48ch;color:var(--ink-2);font-size:18px;line-height:1.6}
+  .hcta{margin-top:38px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+  .b{display:inline-flex;align-items:center;gap:9px;padding:16px 28px;font:600 14px/1 var(--sans);border-radius:2px}
+  .b.p{background:#f5efe1;color:var(--ink)}.b.p:hover{background:var(--teal)}
+  .b.g{border:1px solid var(--line);color:#f5efe1}.b.g:hover{border-color:#f5efe1}
+  .device{position:absolute;z-index:2;width:300px;aspect-ratio:393/852;border-radius:48px;
+    background:#f4eedf;border:1px solid rgba(255,255,255,.14);padding:8px;
+    box-shadow:0 50px 90px -30px rgba(0,0,0,.8);transition:transform .15s ease-out;opacity:.28;filter:saturate(.9)}
+  .device .scr{width:100%;height:100%;border-radius:42px;overflow:hidden;background:#0b0e0c}
+  .device .scr img{width:100%;height:100%;object-fit:cover;object-position:top center}
+  .scrollcue{position:absolute;bottom:26px;left:50%;transform:translateX(-50%);font-family:var(--mono);
+    font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--ink-2);z-index:4}
+  .scrollcue:after{content:"";display:block;width:1px;height:34px;background:linear-gradient(var(--teal),transparent);margin:10px auto 0}
+
+  /* CINEMA — sticky stage scrubbed by scroll */
+  .cinema{position:relative}
+  .beats{height:340vh}
+  .stage{position:sticky;top:0;height:100vh;display:grid;grid-template-columns:1fr 1fr;align-items:center;
+    gap:40px;max-width:1180px;margin:0 auto;padding:0 28px;overflow:hidden}
+  .beat{position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr;align-items:center;
+    gap:40px;max-width:1180px;margin:0 auto;padding:0 28px;opacity:0;transition:opacity .5s}
+  .beat.on{opacity:1}
+  .beat .ix{font-family:var(--mono);font-size:12px;letter-spacing:.26em;color:var(--teal);text-transform:uppercase}
+  .beat h2{font-family:var(--serif);font-weight:300;font-size:clamp(40px,6.6vw,92px);line-height:.96;letter-spacing:-.03em;margin:18px 0 0}
+  .beat h2 b{font-weight:600;font-style:italic}
+  .beat p{margin-top:24px;max-width:42ch;color:var(--ink-2);font-size:17px;line-height:1.62}
+  .vis{justify-self:center;width:300px;aspect-ratio:393/852;border-radius:48px;background:#f4eedf;
+    border:1px solid rgba(255,255,255,.14);padding:8px;box-shadow:0 50px 90px -34px rgba(0,0,0,.8)}
+  .vis .scr{width:100%;height:100%;border-radius:42px;overflow:hidden;position:relative;background:#0b0e0c}
+  .vis .scr img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top center;opacity:0;transition:opacity .55s}
+  .vis .scr img.on{opacity:1}
+
+  /* MARKETPLACE — 3D tilt gallery */
+  .mk{background:var(--paper);color:var(--ink);padding:120px 0 130px;position:relative;z-index:2}
+  .mk-h{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px;
+    border-bottom:1px solid rgba(11,14,12,.18);padding-bottom:22px}
+  .mk-h h2{font-family:var(--serif);font-weight:300;font-size:clamp(36px,6vw,76px);letter-spacing:-.03em}
+  .mk-h h2 b{font-weight:600;font-style:italic}
+  .mk-h .s{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:rgba(11,14,12,.55)}
+  .gal{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:46px;perspective:1400px}
+  .c{position:relative;background:var(--paper-3);border:1px solid rgba(11,14,12,.12);border-radius:4px;
+    padding:30px;transform-style:preserve-3d;transition:transform .12s ease-out,box-shadow .3s;
+    opacity:0;transform:translateY(40px)}
+  .c.in{opacity:1;transform:none;transition:opacity .7s,transform .7s}
+  .c:hover{box-shadow:0 40px 70px -34px rgba(11,14,12,.45)}
+  .c .av{width:62px;height:62px;border-radius:50%;display:grid;place-items:center;color:#f5efe1;
+    font-family:var(--serif);font-weight:600;font-size:23px;transform:translateZ(40px)}
+  .c h4{font-family:var(--serif);font-size:23px;font-weight:600;margin:18px 0 3px;transform:translateZ(28px)}
+  .c .role{font-family:var(--mono);font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--teal-2);transform:translateZ(28px)}
+  .c .bio{margin-top:15px;color:rgba(11,14,12,.62);font-size:14px;line-height:1.6;min-height:64px;transform:translateZ(16px)}
+  .c .st{display:flex;gap:22px;margin-top:18px;padding-top:16px;border-top:1px solid rgba(11,14,12,.08);
+    font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:rgba(11,14,12,.45);transform:translateZ(20px)}
+  .c .st b{display:block;font-family:var(--serif);font-size:19px;color:var(--ink)}
+  .c .go{position:absolute;top:26px;right:26px;font-family:var(--mono);color:rgba(11,14,12,.4);transform:translateZ(50px)}
+
+  footer{background:var(--ink-d);padding:80px 0 60px;position:relative;z-index:2}
+  .fr{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:24px}
+  .fr h3{font-family:var(--serif);font-weight:300;font-size:clamp(32px,5.4vw,64px);letter-spacing:-.03em;max-width:15ch}
+  .fr h3 b{font-weight:600;font-style:italic;color:transparent;-webkit-text-stroke:1.2px #f5efe1}
+  .fm{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2);text-align:right;line-height:2.1}
+
+  @media(max-width:900px){
+    .stage,.beat{grid-template-columns:1fr;text-align:center}
+    .beat{place-content:center;gap:24px}
+    .vis,.device{width:230px}
+    .gal{grid-template-columns:1fr}
+    .beats{height:300vh}
+  }
+  @media(prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto}
+    .hero,.stage{position:relative;height:auto;padding:120px 0}
+    .beats{height:auto}.beat{position:relative;opacity:1;display:grid}
+    .device{display:none}.c{opacity:1;transform:none}
+    *{transition:none!important}
+  }
+</style>
+</head>
+<body>
+<div class="rail" id="rail"></div>
+<nav>
+  <a class="mark" href="#"><i></i> Shape</a>
+  <a class="nav-cta" href="#">Start free</a>
+</nav>
+
+<section class="hero" id="hero">
+  <div class="depth" data-depth="0"><span class="blob a"></span><span class="blob b"></span></div>
+  <div class="device" id="heroDev"><div class="scr"><img src="/newdesign/getapp-home-v3.png" alt=""></div></div>
+  <div class="htxt depth" data-depth="1">
+    <div class="eyb">Shape — the human loop</div>
+    <h1>Coached.<br>Not <b>guessed.</b></h1>
+    <p>A vetted human reads your week and writes the next one. The app just keeps the loop impossibly tight.</p>
+    <div class="hcta">
+      <a class="b p" href="#">Find your coach →</a>
+      <a class="b g" href="#cinema">Watch the loop</a>
+    </div>
+  </div>
+  <div class="scrollcue">Scroll</div>
+</section>
+
+<section class="cinema" id="cinema"><div class="beats" id="beats">
+  <div class="stage">
+    <div class="beat" data-i="0">
+      <div><div class="ix">01 — Train</div><h2>It's <b>written</b> before you arrive.</h2><p>Every set, tempo and cue from your trainer — loaded the night before. No deciding at the rack.</p></div>
+      <div class="vis"><div class="scr" id="scr"></div></div>
+    </div>
+    <div class="beat" data-i="1">
+      <div><div class="ix">02 — Eat</div><h2>The ledger <b>ticks live.</b></h2><p>Macros from your nutritionist. Today's deficit moves as you log. Travel swaps already built in.</p></div>
+      <div></div>
+    </div>
+    <div class="beat" data-i="2">
+      <div><div class="ix">03 — Recover</div><h2>One number that <b>tells the truth.</b></h2><p>Sleep, stress and Shape Score read every week. Your coach adjusts before you stall.</p></div>
+      <div></div>
+    </div>
+    <div class="beat" data-i="3">
+      <div><div class="ix">04 — Coach</div><h2>A real human, <b>in the loop.</b></h2><p>Not a chatbot. They see the data, ask how you feel, and rewrite the plan — every single week.</p></div>
+      <div></div>
+    </div>
+  </div>
+</div></section>
+
+<section class="mk" id="market"><div class="wrap">
+  <div class="mk-h"><h2>The <b>marketplace</b></h2><div class="s">48 coaches matched this week</div></div>
+  <div class="gal" id="gal"></div>
+</div></section>
+
+<footer><div class="wrap fr">
+  <h3>Stop starting over. <b>Start a loop.</b></h3>
+  <div class="fm">Shape — 2026<br>Find your coach<br>iOS · Android soon</div>
+</div></footer>
+
+<script>
+(function(){
+  var still=matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var COACHES=[
+    {n:"Mara Quinn",r:"Strength · Hypertrophy",b:"Ex-national lifter. Dense, sustainable strength for busy professionals.",a:"12y",a2:"310"},
+    {n:"Devon Ils",r:"Endurance · Hybrid",b:"Marathon + threshold specialist. 'I can't run' becomes negative splits.",a:"9y",a2:"188"},
+    {n:"Sela R.",r:"Nutrition · Recomp",b:"RD. Macro plans that survive travel, kids, and a real social life.",a:"11y",a2:"402"},
+    {n:"Theo Marsh",r:"Mobility · Rehab",b:"DPT. Rebuilds what the gym broke. Pain-free pressing again.",a:"14y",a2:"256"},
+    {n:"Junia Park",r:"Women's strength",b:"Peri/post-partum and beyond. Strong is the point, not a phase.",a:"8y",a2:"221"},
+    {n:"Cas Boone",r:"Fat loss · Habit",b:"Behavior-first. Small tracked things compounded. No crash diets.",a:"10y",a2:"377"}
+  ];
+  var hue=[["#0aa090","#13c2a8"],["#d2693f","#e79a52"],["#1f6f62","#13c2a8"],["#9a4f2c","#d2693f"],["#0b0e0c","#3a3f3b"],["#127d70","#13c2a8"]];
+  var gal=document.getElementById('gal');
+  COACHES.forEach(function(c,i){
+    var ini=c.n.split(' ').map(function(x){return x[0]}).join('').slice(0,2);
+    var el=document.createElement('a');el.href="#";el.className="c";
+    el.innerHTML='<div class="go">↗</div><div class="av" style="background:linear-gradient(135deg,'+hue[i][0]+','+hue[i][1]+')">'+ini+'</div>'+
+      '<h4>'+c.n+'</h4><div class="role">'+c.r+'</div><div class="bio">'+c.b+'</div>'+
+      '<div class="st"><span><b>'+c.a+'</b>Coaching</span><span><b>'+c.a2+'</b>Clients</span></div>';
+    gal.appendChild(el);
+  });
+
+  if(still) return;
+
+  /* scroll progress rail */
+  var rail=document.getElementById('rail');
+  /* hero parallax + pointer tilt */
+  var hero=document.getElementById('hero'),dev=document.getElementById('heroDev');
+  var depths=[].slice.call(document.querySelectorAll('.hero .depth'));
+  var mx=0,my=0,tx=0,ty=0;
+  hero.addEventListener('mousemove',function(e){
+    var r=hero.getBoundingClientRect();
+    mx=((e.clientX-r.left)/r.width-.5);my=((e.clientY-r.top)/r.height-.5);
+  });
+  hero.addEventListener('mouseleave',function(){mx=my=0});
+
+  /* cinema beats */
+  var beats=[].slice.call(document.querySelectorAll('.beat'));
+  var beatsWrap=document.getElementById('beats');
+  var SHOTS=["/newdesign/getapp-train-v2.png","/newdesign/getapp-nutri-v2.png","/newdesign/getapp-score-v2.png","/newdesign/getapp-chat-v2.png"];
+  var scr=document.getElementById('scr');
+  SHOTS.forEach(function(s,i){var im=new Image();im.src=s;im.className=i===0?'on':'';im.alt='';scr.appendChild(im);});
+  var shots=[].slice.call(scr.querySelectorAll('img'));
+  var cur=-1;
+
+  function raf(){
+    var doc=document.documentElement;
+    var max=doc.scrollHeight-innerHeight;
+    rail.style.width=(scrollY/max*100)+'%';
+
+    tx+=(mx-tx)*.08;ty+=(my-ty)*.08;
+    if(dev){dev.style.transform='translate(0,0) rotateY('+(tx*16)+'deg) rotateX('+(-ty*14)+'deg) translateZ(0)';}
+    depths.forEach(function(d){var k=+d.dataset.depth;d.style.transform='translate('+(tx*k*-26)+'px,'+(ty*k*-20)+'px)';});
+
+    var bw=beatsWrap.getBoundingClientRect();
+    if(bw.top<=0&&bw.bottom>=innerHeight){
+      var prog=(-bw.top)/(beatsWrap.offsetHeight-innerHeight);
+      var idx=Math.min(beats.length-1,Math.max(0,Math.floor(prog*beats.length)));
+      if(idx!==cur){
+        cur=idx;
+        beats.forEach(function(b,i){b.classList.toggle('on',i===idx);});
+        shots.forEach(function(im,i){im.classList.toggle('on',i===idx);});
+      }
+    }
+    requestAnimationFrame(raf);
+  }
+  requestAnimationFrame(raf);
+
+  /* marketplace reveal + 3D tilt */
+  var io=new IntersectionObserver(function(es){
+    es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});
+  },{threshold:.16});
+  [].slice.call(document.querySelectorAll('.c')).forEach(function(card,i){
+    card.style.transitionDelay=(i%3*70)+'ms';io.observe(card);
+    card.addEventListener('mousemove',function(e){
+      var r=card.getBoundingClientRect();
+      var px=(e.clientX-r.left)/r.width-.5,py=(e.clientY-r.top)/r.height-.5;
+      card.style.transform='rotateY('+(px*9)+'deg) rotateX('+(-py*9)+'deg) translateZ(6px)';
+    });
+    card.addEventListener('mouseleave',function(){card.style.transform='';});
+  });
+})();
+</script>
+</body>
+</html>
