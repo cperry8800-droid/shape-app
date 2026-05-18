@@ -162,7 +162,7 @@ function ScoreActivity() {
     <section style={{ padding: "70px 72px" }}>
       <ScReveal>
         <div className="sc-act" style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 24 }}>
-          <div style={{ background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, padding: 36, position: "relative", overflow: "hidden" }}>
+          <div style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, padding: 36, position: "relative", overflow: "hidden" }}>
             <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${TEAL}, ${RUST})`, opacity: 0.7 }} />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 26 }}>
               <div>
@@ -230,7 +230,7 @@ function ScoreLedger() {
               ))}
             </div>
           </div>
-          <div style={{ background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, overflow: "hidden" }}>
+          <div style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, overflow: "hidden" }}>
             {LEDGER.map((row, i) => (
               <div key={i} style={{ display: "grid", gridTemplateColumns: "100px 86px 1fr auto", gap: 20, padding: "19px 26px", borderTop: i ? "1px solid rgba(242,237,228,0.06)" : "none", alignItems: "center" }}>
                 <div style={{ fontFamily: mono, fontSize: 11, color: "rgba(242,237,228,0.5)" }}>{row.d}</div>
@@ -257,7 +257,7 @@ function RewardCard({ r }) {
   };
   const onLeave = () => { if (ref.current) ref.current.style.transform = ""; };
   return (
-    <article ref={ref} onMouseMove={onMove} onMouseLeave={onLeave} style={{ background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, overflow: "hidden", opacity: r.locked ? 0.55 : 1, transition: "transform .12s ease-out", willChange: "transform" }}>
+    <article ref={ref} onMouseMove={onMove} onMouseLeave={onLeave} style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, overflow: "hidden", opacity: r.locked ? 0.55 : 1, transition: "transform .12s ease-out", willChange: "transform" }}>
       <Ph label={r.img} ratio="16/10" tone="light" style={{ borderRadius: 0, borderBottom: "1px solid rgba(242,237,228,0.06)" }} />
       <div style={{ padding: 26 }}>
         <div style={{ fontFamily: serif, fontSize: 23, letterSpacing: "-0.015em", color: INK }}>{r.title}</div>
