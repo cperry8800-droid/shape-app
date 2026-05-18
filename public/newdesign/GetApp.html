@@ -227,9 +227,8 @@
     border-radius: 55px;
     pointer-events: none;
     box-shadow:
-      inset 0 0 0 2px rgba(255,255,255,0.45),
-      inset 0 0 0 5px rgba(120,100,60,0.18),
-      inset 0 0 18px rgba(255,255,255,0.3);
+      inset 0 0 0 1px rgba(255,255,255,0.22),
+      inset 0 0 0 4px rgba(120,100,60,0.08);
   }
   .feat-row .phone .side {
     position: absolute;
@@ -250,8 +249,7 @@
     border-radius: 48px;
     background: #f4eedf;
     box-shadow:
-      inset 0 0 0 1px rgba(255,255,255,0.5),
-      inset 0 0 0 2px rgba(120,100,60,0.18);
+      inset 0 0 0 1px rgba(120,100,60,0.08);
   }
   .feat-row .phone.screen-shot .screen-crop {
     background: #f4eedf;
@@ -260,6 +258,35 @@
   }
   .feat-row .phone.screen-shot.screen-light .screen-crop {
     background: #f4eedf;
+  }
+  /* Dark-themed screenshots (no .screen-light) get a dark device so the
+     bezel matches the screen instead of clashing with it. */
+  .feat-row .phone.screen-shot:not(.screen-light):not(.home-live-demo) {
+    background: #14110d;
+    border-color: rgba(255,255,255,0.16);
+  }
+  .feat-row .phone.screen-shot:not(.screen-light):not(.home-live-demo)::before {
+    background:
+      linear-gradient(135deg, #2c2a26 0%, #131210 34%, #050505 68%, #23211d 100%);
+    box-shadow:
+      inset 0 0 0 1px rgba(255,255,255,0.14),
+      inset 0 0 0 3px rgba(0,0,0,0.6);
+  }
+  .feat-row .phone.screen-shot:not(.screen-light):not(.home-live-demo)::after {
+    box-shadow:
+      inset 0 0 0 2px rgba(255,255,255,0.1),
+      inset 0 0 0 5px rgba(0,0,0,0.55),
+      inset 0 0 18px rgba(255,255,255,0.05);
+  }
+  .feat-row .phone.screen-shot:not(.screen-light):not(.home-live-demo) .side {
+    background: linear-gradient(180deg, #4a4843, #0c0c0b 45%, #1d1b18);
+    box-shadow: inset 1px 0 rgba(255,255,255,0.18);
+  }
+  .feat-row .phone.screen-shot:not(.screen-light):not(.home-live-demo) .screen-crop {
+    background: #14110d;
+    box-shadow:
+      inset 0 0 0 1px rgba(255,255,255,0.08),
+      inset 0 0 0 2px rgba(0,0,0,0.6);
   }
   .feat-row .phone.screen-shot img {
     display: block;
