@@ -30,11 +30,25 @@
   nav{position:fixed;top:0;left:0;right:0;z-index:60;backdrop-filter:blur(20px) saturate(1.05);-webkit-backdrop-filter:blur(20px) saturate(1.05);
     background:rgba(11,14,12,0.55);border-bottom:1px solid var(--line-2)}
   nav:before{content:"";position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--teal) 30%,var(--rust) 70%,transparent);opacity:.5}
-  .navr{display:flex;align-items:center;justify-content:space-between;padding:16px 0}
+  .navr{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:32px;padding:16px 0}
   .brand{display:flex;align-items:center}
-  .brand img{height:52px;width:auto;display:block}
-  .nlinks{display:flex;gap:30px;font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--cream-2)}
-  .nlinks a{transition:color .16s}.nlinks a:hover{color:var(--cream)}
+  .brand img{height:64px;width:auto;display:block}
+  .nlinks{display:flex;gap:24px;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--cream-2);white-space:nowrap}
+  .nlinks>a{transition:color .16s}.nlinks>a:hover{color:var(--cream)}
+  .ndrop{position:relative;display:inline-flex;align-items:center}
+  .ndrop>span{display:inline-flex;align-items:center;gap:5px;cursor:default;color:var(--cream-2);transition:color .16s}
+  .ndrop>span:after{content:"\\25BE";font-size:9px;opacity:.6}
+  .ndrop:hover>span{color:var(--cream)}
+  .ndmenu{position:absolute;top:100%;left:50%;transform:translateX(-50%);padding-top:14px;min-width:204px;opacity:0;visibility:hidden;transition:opacity .16s}
+  .ndrop:hover .ndmenu{opacity:1;visibility:visible}
+  .ndmenu>div{background:rgba(11,14,12,0.97);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:8px;padding:8px;box-shadow:0 24px 60px rgba(0,0,0,.6)}
+  .ndmenu a{display:block;padding:10px 14px;border-radius:5px;color:var(--cream-2);transition:background .14s,color .14s;white-space:nowrap}
+  .ndmenu a:hover{background:rgba(19,194,168,0.12);color:var(--cream)}
+  .nauth{display:flex;align-items:center;gap:18px;justify-self:end}
+  .nauth .login{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--cream-2);transition:color .16s}
+  .nauth .login:hover{color:var(--cream)}
+  .nradio{display:inline-flex;align-items:center}
+  .nradio img{height:20px;width:auto;display:block}
   .ncta{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;border:1px solid var(--cream);padding:10px 18px;transition:.2s}
   .ncta:hover{background:var(--cream);color:var(--ink-d)}
 
@@ -109,6 +123,7 @@
 
   @media(max-width:920px){
     .nlinks{display:none}
+    .nauth .login,.nradio{display:none}
     .stage,.beat{grid-template-columns:1fr;text-align:center}
     .beat{place-content:center;gap:26px}.vis{width:230px}
     .gal{grid-template-columns:1fr}
@@ -131,12 +146,32 @@
   <div class="wrap navr">
     <a class="brand" href="index.html"><img src="/shape-logo-new-white.png?v=3" alt="Shape" /></a>
     <div class="nlinks">
-      <a href="Marketplace.html">Coaches</a>
-      <a href="GetApp.html">The App</a>
-      <a href="Radio.html">Radio</a>
+      <div class="ndrop"><span>Clients</span><div class="ndmenu"><div>
+        <a href="Client.html">Overview</a>
+        <a href="ClientDashboard.html">Dashboard</a>
+      </div></div></div>
+      <div class="ndrop"><span>Trainers</span><div class="ndmenu"><div>
+        <a href="Coach.html">Overview</a>
+        <a href="TrainerDashboard.html">Dashboard</a>
+      </div></div></div>
+      <div class="ndrop"><span>Nutritionists</span><div class="ndmenu"><div>
+        <a href="Nutritionist.html">Overview</a>
+        <a href="NutritionistDashboard.html">Dashboard</a>
+      </div></div></div>
+      <a href="Marketplace.html">Marketplace</a>
+      <a href="Community.html">Community</a>
+      <div class="ndrop"><span>Rewards</span><div class="ndmenu"><div>
+        <a href="Score.html">Shape Score</a>
+        <a href="Store.html">Shape Store</a>
+      </div></div></div>
+      <a href="GetApp.html">App</a>
       <a href="Pricing.html">Pricing</a>
     </div>
-    <a class="ncta" href="Landing.html">Get started</a>
+    <div class="nauth">
+      <a class="login" href="Login.html">Log in</a>
+      <a class="ncta" href="Landing.html">Get started</a>
+      <a class="nradio" href="Radio.html" aria-label="Shape Radio"><img src="/shape-radio-wordmark.svg?v=2" alt="Shape Radio" /></a>
+    </div>
   </div>
 </nav>
 
