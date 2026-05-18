@@ -4,11 +4,8 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Get the Shape App — iOS &amp; Android</title>
-<meta name="description" content="Shape is an iPhone and Android app for finding vetted trainers and nutritionists, booking intro calls, and keeping workouts, nutrition notes, messages, and progress in one place." />
+<meta name="description" content="A guided, step-by-step walkthrough of the Shape app — train, eat, recover, and stay accountable with a real human coach." />
 <link rel="canonical" href="https://theshapecommunity.com/newdesign/GetApp.html">
-<meta property="og:title" content="Get the Shape App — iOS &amp; Android" />
-<meta property="og:description" content="Find your coach. Train. Eat. Recover. The Shape app keeps a real human coach in your pocket." />
-<meta name="theme-color" content="#efe5cd">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
@@ -18,829 +15,195 @@
     --paper-2: #e6dabe;
     --paper-3: #f7f1e3;
     --ink: #0a0d0c;
-    --ink-2: rgba(10,13,12,0.6);
+    --ink-2: rgba(10,13,12,0.62);
     --ink-3: rgba(10,13,12,0.4);
     --teal: #0aa090;
     --teal-bright: #14c0a8;
-    --orange: #c1641f;
-    --orange-bright: #d97706;
-    --pill-green: #4f8a5a;
-    --pill-purple: #7355a8;
-    --pill-red: #b8442a;
+    --orange: #d2693f;
     --hairline: rgba(10,13,12,0.1);
     --hairline-2: rgba(10,13,12,0.06);
     --serif: 'Fraunces', serif;
     --sans: 'Space Grotesk', sans-serif;
     --mono: 'JetBrains Mono', monospace;
+    --screen: #f4eedf;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
   html { -webkit-text-size-adjust: 100%; }
-  body { overflow-x: hidden; }
+  body { overflow-x: hidden; min-height: 100vh; display: flex; flex-direction: column; }
   img { display: block; max-width: 100%; }
   a { color: inherit; text-decoration: none; }
-  button { font-family: inherit; cursor: pointer; }
+  button { font-family: inherit; cursor: pointer; border: 0; background: none; }
   ::selection { background: var(--teal); color: var(--paper); }
 
-  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 24px; width: 100%; }
 
-  /* Header */
   .nav { position: sticky; top: 0; z-index: 50; background: rgba(239,229,205,0.85); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid var(--hairline-2); }
   .nav-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; gap: 16px; }
-  .brand { display: inline-flex; align-items: center; gap: 10px; }
-  .brand img { height: 48px; width: auto; display: block; }
+  .brand img { height: 44px; width: auto; display: block; }
   .nav-back { font-size: 13px; color: var(--ink-2); }
   .nav-back:hover { color: var(--ink); }
 
-  /* Hero */
-  .hero { padding: 48px 0 32px; text-align: center; }
-  .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 0.18em; color: var(--teal); text-transform: uppercase; margin-bottom: 18px; }
-  h1.hero-title { font-family: var(--serif); font-weight: 500; font-size: clamp(40px, 9vw, 64px); letter-spacing: -0.035em; line-height: 0.95; margin: 0 0 18px; }
-  .hero-sub { font-size: 16px; line-height: 1.55; color: var(--ink-2); max-width: 520px; margin: 0 auto 28px; }
+  .tour { display: flex; flex-direction: column; }
+  .tour-head { text-align: center; padding: 40px 0 8px; }
+  .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 0.2em; color: var(--teal); text-transform: uppercase; }
+  .tour-head h1 { font-family: var(--serif); font-weight: 500; font-size: clamp(30px, 6vw, 50px); letter-spacing: -0.03em; line-height: 1; margin: 12px 0 0; }
 
-  /* Store badges */
-  .store-row { display: inline-flex; gap: 12px; flex-wrap: wrap; justify-content: center; align-items: center; }
-  .store-btn {
-    display: inline-flex; align-items: center; gap: 12px;
-    min-width: 162px; min-height: 58px; padding: 10px 17px;
-    border-radius: 16px; background: var(--ink); color: var(--paper);
-    border: 1px solid var(--ink); font: inherit; line-height: 1.05;
-    text-align: left; cursor: default; user-select: none; text-decoration: none;
-    box-shadow: 0 10px 22px rgba(10,13,12,0.12), inset 0 1px 0 rgba(255,255,255,0.08);
+  .stage {
+    display: grid; grid-template-columns: 1fr 360px; gap: 64px;
+    align-items: center; padding: 24px 0 56px; max-width: 1040px;
+    margin: 0 auto; width: 100%; min-height: 70vh;
   }
-  .store-btn.is-outline {
-    background: rgba(239,229,205,0.34); color: var(--ink);
-    border-color: rgba(10,13,12,0.14);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.28);
-  }
-  .store-btn .glyph {
-    width: 24px; height: 24px; flex: none; position: relative;
-    display: inline-grid; place-items: center;
-  }
-  .store-btn .glyph.apple::before {
-    content: ''; width: 18px; height: 22px; display: block;
-    background: var(--paper);
-    clip-path: path('M10 3 C11.3 1.4 12.8 .7 14.8 .6 C14.9 2.4 14.2 3.8 12.9 4.9 C11.8 5.8 10.8 6.1 9.8 6 C9.7 4.9 9.8 3.9 10 3 Z M9.6 7 C11 7 11.5 7.8 12.8 7.8 C14 7.8 14.8 7 16.2 7.1 C17.2 7.1 18.2 7.6 18.9 8.4 C16.6 9.8 17 13.1 19.3 14 C18.9 15.3 18.3 16.6 17.5 17.8 C16.6 19.1 15.7 20.3 14.4 20.3 C13.1 20.3 12.8 19.5 11.2 19.5 C9.6 19.5 9.2 20.3 8 20.4 C6.8 20.4 5.8 19 4.9 17.7 C3.1 15 1.7 10.1 3.6 7.7 C4.5 6.6 5.7 5.9 7 5.9 C8.3 5.9 8.9 7 9.6 7 Z');
-  }
-  .store-btn.is-outline .glyph.play::before {
-    content: ''; width: 0; height: 0; display: block;
-    border-top: 13px solid transparent; border-bottom: 13px solid transparent;
-    border-left: 22px solid var(--ink);
-  }
-  .store-btn small { display: block; font-size: 10px; letter-spacing: 0.04em; opacity: 0.68; margin-bottom: 2px; }
-  .store-btn b { display: block; font-weight: 700; font-size: 17px; letter-spacing: -0.02em; }
-  .store-note { display: block; margin-top: 14px; font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.12em; color: var(--ink-3); text-transform: uppercase; }
+  .copy { min-width: 0; }
+  .step-no { font-family: var(--mono); font-size: 12px; letter-spacing: 0.16em; color: var(--ink-3); text-transform: uppercase; display: flex; align-items: baseline; gap: 12px; }
+  .step-no b { color: var(--teal); }
+  .copy h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(28px, 4.4vw, 42px); letter-spacing: -0.025em; line-height: 1.05; margin: 16px 0 14px; }
+  .copy p { font-size: 16px; line-height: 1.62; color: var(--ink-2); margin: 0; max-width: 460px; }
 
-  /* Phone preview */
-  .phone-frame {
-    margin: 36px auto 0; width: min(320px, 86vw); aspect-ratio: 320/640;
-    background: linear-gradient(145deg, #34312c 0%, #060606 38%, #1b1815 100%);
-    border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 48px;
-    padding: 8px;
-    box-shadow:
-      0 34px 70px rgba(10,13,12,0.2),
-      0 10px 24px rgba(10,13,12,0.16),
-      inset 0 0 0 1px rgba(255,255,255,0.08),
-      inset 0 -18px 30px rgba(0,0,0,0.42);
-    position: relative;
+  .controls { display: flex; align-items: center; gap: 14px; margin-top: 34px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 13px 22px; border-radius: 10px; font: 600 14px/1 var(--sans);
+    transition: transform .12s ease, background .15s ease, opacity .15s ease;
   }
-  .phone-frame::before {
-    content: '';
-    position: absolute;
-    right: -4px;
-    top: 138px;
-    width: 4px;
-    height: 74px;
-    border-radius: 999px;
-    background: linear-gradient(180deg, #27231f, #050505);
-    box-shadow: 0 96px 0 #080808;
-  }
-  .phone-screen { width: 100%; height: 100%; border-radius: 40px; overflow: hidden; background: var(--paper-3); position: relative; padding: 38px 14px 70px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); }
-  .phone-notch { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 84px; height: 22px; background: #020202; border-radius: 999px; z-index: 5; box-shadow: inset 0 1px 0 rgba(255,255,255,0.08); }
-  .pcard { background: #efe7d3; border-radius: 14px; padding: 16px 14px; margin-bottom: 12px; color: var(--ink); }
-  .ppill { display: inline-block; padding: 3px 9px; border-radius: 5px; font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.1em; font-weight: 600; text-transform: uppercase; color: #fff; background: var(--orange-bright); }
-  .pmono { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.1em; color: var(--teal); margin-top: 8px; }
-  .ptitle { font-family: var(--serif); font-weight: 500; font-size: 26px; line-height: 1; letter-spacing: -0.025em; margin: 8px 0 6px; color: var(--ink); }
-  .pcopy { font-size: 11px; line-height: 1.45; color: var(--ink-2); }
-  .ptab { position: absolute; bottom: 10px; left: 10px; right: 10px; background: rgba(239,231,211,0.95); border-top: 1px solid var(--hairline-2); padding: 8px 6px 14px; border-radius: 0 0 32px 32px; display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; }
-  .ptab .t { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 0; border-radius: 6px; color: var(--ink); }
-  .ptab .t.on { background: var(--ink); color: var(--paper); }
-  .ptab .t .n { font-family: var(--mono); font-size: 8.5px; opacity: 0.55; }
-  .ptab .t.on .n { opacity: 1; }
-  .ptab .t .l { font-family: var(--mono); font-size: 7.5px; letter-spacing: 0.08em; }
-  .psection-bar { display: flex; align-items: center; gap: 8px; padding: 4px 0; margin: 6px 2px; }
-  .psection-bar::before { content: ''; width: 3px; height: 12px; background: var(--orange-bright); }
-  .psection-bar .lbl { font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em; font-weight: 600; }
-  .prow { display: grid; grid-template-columns: 24px 1fr auto; gap: 8px; padding: 8px 4px; border-top: 1px solid var(--hairline-2); align-items: center; }
-  .prow:first-of-type { border-top: 0; }
-  .prow .num { font-family: var(--mono); font-size: 9.5px; color: var(--ink-3); }
-  .prow .name { font-size: 11.5px; font-weight: 500; }
-  .prow .meta { font-family: var(--mono); font-size: 9px; color: var(--ink-3); margin-top: 1px; }
-  .prow .load { font-family: var(--mono); font-size: 10px; color: var(--ink); }
-  .prow .load.pr { color: var(--teal); }
+  .btn.primary { background: var(--ink); color: var(--paper); }
+  .btn.primary:hover { transform: translateY(-1px); }
+  .btn.ghost { border: 1px solid rgba(10,13,12,0.2); color: var(--ink); }
+  .btn.ghost:hover { background: rgba(10,13,12,0.05); }
+  .btn[disabled] { opacity: 0.32; pointer-events: none; }
 
-  /* Features — vertical scroll, phone mockup beside each that has one */
-  .features { padding: 34px 0 40px; }
-  .features-head { text-align: center; margin-bottom: 48px; }
-  .features-head h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(34px, 6.4vw, 52px); letter-spacing: -0.025em; line-height: 1; margin: 8px 0 14px; }
-  .features-head p { font-size: 15px; line-height: 1.55; color: var(--ink-2); margin: 0 auto; max-width: 540px; }
-  .feat-row {
-    display: grid; grid-template-columns: 1fr 296px; gap: 56px;
-    align-items: center; padding: 56px 0;
-    border-top: 1px solid var(--hairline-2);
-    perspective: 1600px;
-    perspective-origin: 50% 50%;
-  }
-  .feat-row:first-of-type { border-top: 0; padding-top: 28px; }
-  .feat-row.reverse { grid-template-columns: 296px 1fr; }
-  .feat-row.reverse .copy { order: 2; }
-  .feat-row.reverse .phone { order: 1; }
-  .feat-row.text-only { grid-template-columns: 1fr; max-width: 720px; margin: 0 auto; padding: 40px 0; }
-  .feat-row > * { min-width: 0; }
-  .feat-row .copy .step { font-family: var(--mono); font-size: 11px; letter-spacing: 0.16em; color: var(--orange); margin-bottom: 12px; display: flex; align-items: baseline; gap: 10px; }
-  .feat-row .copy .step .n { color: var(--ink-3); }
-  .feat-row .copy h3 { font-family: var(--serif); font-weight: 500; font-size: clamp(28px, 4vw, 38px); letter-spacing: -0.02em; line-height: 1.05; margin: 0 0 14px; }
-  .feat-row .copy p { font-size: 15.5px; line-height: 1.6; color: var(--ink-2); margin: 0; }
-  .feat-row .phone {
-    --phone-depth-x: 6px;
-    --phone-depth-mid-x: 3px;
-    --phone-depth-soft-x: 10px;
-    width: 296px; max-width: 100%;
-    aspect-ratio: 393 / 852;
-    margin: 0 auto;
-    position: relative;
-    box-sizing: border-box;
-    border-radius: 54px;
-    padding: 9px;
-    background: #f4eedf;
+  .dots { display: flex; gap: 8px; margin-top: 26px; flex-wrap: wrap; }
+  .dot { width: 9px; height: 9px; border-radius: 999px; background: rgba(10,13,12,0.18); border: 0; padding: 0; transition: all .2s ease; }
+  .dot:hover { background: rgba(10,13,12,0.34); }
+  .dot.on { background: var(--teal); width: 26px; }
+
+  .phone {
+    width: 320px; max-width: 84vw; aspect-ratio: 393 / 852; margin: 0 auto;
+    position: relative; box-sizing: border-box; border-radius: 56px; padding: 9px;
+    background: var(--screen);
     border: 1px solid rgba(10,13,12,0.14);
-    transform: rotateY(-12deg) rotateX(4deg) rotateZ(-0.4deg);
-    transform-style: preserve-3d;
-    transform-origin: center center;
     box-shadow:
-      var(--phone-depth-x) 3px 0 -3px #d8cdac,
-      var(--phone-depth-mid-x) 2px 0 -2px #e6dcc0,
-      var(--phone-depth-soft-x) 14px 28px rgba(40,30,15,0.12),
-      0 22px 44px rgba(40,30,15,0.16),
-      0 8px 14px rgba(40,30,15,0.12),
-      inset 0 1px 1px rgba(255,255,255,0.5),
-      inset 0 -3px 8px rgba(120,100,60,0.16);
+      8px 16px 30px rgba(40,30,15,0.16),
+      0 22px 44px rgba(40,30,15,0.14),
+      inset 0 1px 1px rgba(255,255,255,0.5);
   }
-  .feat-row.reverse .phone {
-    --phone-depth-x: -6px;
-    --phone-depth-mid-x: -3px;
-    --phone-depth-soft-x: -10px;
-    transform: rotateY(12deg) rotateX(4deg) rotateZ(0.4deg);
+  .phone::after {
+    content: ''; position: absolute; inset: 3px; border-radius: 53px;
+    pointer-events: none; box-shadow: inset 0 0 0 1px rgba(120,100,60,0.08);
   }
-  .feat-row .phone.home-live-demo {
-    --phone-depth-x: 0;
-    --phone-depth-mid-x: 0;
-    --phone-depth-soft-x: 0;
-    transform: none;
+  .island {
+    position: absolute; top: 16px; left: 50%; width: 92px; height: 27px;
+    transform: translateX(-50%); border-radius: 999px; background: #050505;
+    z-index: 3; pointer-events: none;
   }
-  .feat-row .phone::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: 58px;
-    background:
-      linear-gradient(135deg, #efe7d2 0%, #ddd0b0 34%, #cabf9c 68%, #e8dec4 100%);
-    box-shadow:
-      inset 0 0 0 1px rgba(255,255,255,0.4),
-      inset 0 0 0 3px rgba(120,100,60,0.22);
-    transform: translate3d(var(--phone-depth-x), 6px, -14px);
-    z-index: -2;
+  .screen-crop {
+    position: relative; width: 100%; height: 100%; overflow: hidden;
+    border-radius: 48px; background: var(--screen);
+    box-shadow: inset 0 0 0 1px rgba(120,100,60,0.08);
   }
-  .feat-row .phone.home-live-demo::before {
-    inset: 4% 5% 0;
-    background: rgba(120,100,60,0.16);
-    filter: blur(22px);
-    transform: translateY(16px);
-    box-shadow: none;
-    z-index: -1;
+  .screen-crop img {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: contain; object-position: center center;
+    opacity: 0; transition: opacity .45s ease;
   }
-  .feat-row .phone::after {
-    content: '';
-    position: absolute;
-    inset: 3px;
-    border-radius: 55px;
-    pointer-events: none;
-    box-shadow:
-      inset 0 0 0 1px rgba(255,255,255,0.22),
-      inset 0 0 0 4px rgba(120,100,60,0.08);
-  }
-  .feat-row .phone .side {
-    position: absolute;
-    width: 3px;
-    border-radius: 999px;
-    background: linear-gradient(180deg, #e8dec4, #cabf9c 45%, #ddd0b0);
-    box-shadow: inset 1px 0 rgba(255,255,255,0.5);
-    pointer-events: none;
-  }
-  .feat-row .phone .side.power { right: -3px; top: 25%; height: 86px; }
-  .feat-row .phone .side.volume-a { left: -3px; top: 17%; height: 54px; }
-  .feat-row .phone .side.volume-b { left: -3px; top: 26%; height: 74px; }
-  .feat-row .phone .screen-crop {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    border-radius: 48px;
-    background: #f4eedf;
-    box-shadow:
-      inset 0 0 0 1px rgba(120,100,60,0.08);
-  }
-  .feat-row .phone.screen-shot .screen-crop {
-    background: #f4eedf;
-    padding: 0;
-    box-sizing: border-box;
-  }
-  .feat-row .phone.screen-shot.screen-light .screen-crop {
-    background: #f4eedf;
-  }
-  /* Dark-themed screenshots (no .screen-light) get a dark device so the
-     bezel matches the screen instead of clashing with it. */
-  .feat-row .phone.screen-shot:not(.screen-light):not(.home-live-demo) {
-    background: #14110d;
-    border-color: rgba(255,255,255,0.16);
-  }
-  .feat-row .phone.screen-shot:not(.screen-light):not(.home-live-demo)::before {
-    background:
-      linear-gradient(135deg, #2c2a26 0%, #131210 34%, #050505 68%, #23211d 100%);
-    box-shadow:
-      inset 0 0 0 1px rgba(255,255,255,0.14),
-      inset 0 0 0 3px rgba(0,0,0,0.6);
-  }
-  .feat-row .phone.screen-shot:not(.screen-light):not(.home-live-demo)::after {
-    box-shadow:
-      inset 0 0 0 2px rgba(255,255,255,0.1),
-      inset 0 0 0 5px rgba(0,0,0,0.55),
-      inset 0 0 18px rgba(255,255,255,0.05);
-  }
-  .feat-row .phone.screen-shot:not(.screen-light):not(.home-live-demo) .side {
-    background: linear-gradient(180deg, #4a4843, #0c0c0b 45%, #1d1b18);
-    box-shadow: inset 1px 0 rgba(255,255,255,0.18);
-  }
-  .feat-row .phone.screen-shot:not(.screen-light):not(.home-live-demo) .screen-crop {
-    background: #14110d;
-    box-shadow:
-      inset 0 0 0 1px rgba(255,255,255,0.08),
-      inset 0 0 0 2px rgba(0,0,0,0.6);
-  }
-  .feat-row .phone.screen-shot img {
-    display: block;
-    width: 100%;
-    height: 100%;
-    max-width: none;
-    object-fit: contain;
-    object-position: center center;
-    margin: 0;
-    transform: none;
-    border-radius: 0;
-    box-shadow: none;
-  }
-  .feat-row .phone.screen-shot.radio-shot .screen-crop {
-    padding: 24px 0 14px;
-  }
-  .feat-row .phone.screen-shot.radio-shot img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    object-position: top center;
-    transform: none;
-  }
-  .feat-row .phone.screen-shot.habit-shot .screen-crop {
-    padding: 24px 0 14px;
-  }
-  .feat-row .phone.screen-shot.habit-shot img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    object-position: top center;
-    transform: none;
-  }
-  .feat-row .phone.screen-shot.home-shot .screen-crop {
-    padding: 0;
-    background: #f4eedf;
-  }
-  .feat-row .phone.screen-shot.home-shot img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    object-position: center center;
-    transform: none;
-  }
-  .feat-row .phone.home-live-demo .screen-crop { background: #080807; }
-  .home-scroll-content {
-    min-height: 132%;
-    padding: 48px 12px 72px;
-    color: #f2ead8;
-    background:
-      linear-gradient(135deg, rgba(255,255,255,0.035) 25%, transparent 25%) 0 0 / 8px 8px,
-      #080807;
-    animation: homeLiveScroll 12s ease-in-out infinite;
-  }
-  .home-demo-kicker { display: flex; justify-content: space-between; gap: 8px; font-family: var(--mono); font-size: 7px; letter-spacing: 0.22em; color: rgba(242,234,216,0.56); text-transform: uppercase; }
-  .home-demo-title { margin: 20px 0 18px; padding-bottom: 18px; border-bottom: 1px solid rgba(242,234,216,0.18); text-align: center; font-family: var(--serif); font-size: 25px; line-height: 1; font-weight: 700; }
-  .home-demo-title .shape-word { font-family: 'Saira', sans-serif; font-weight: 300; letter-spacing: 0.22em; font-size: 23px; margin: 0 6px; }
-  .home-demo-strip { margin: 0 -12px; padding: 8px 12px; border-top: 2px solid #f2ead8; border-bottom: 1px solid rgba(242,234,216,0.18); font-family: var(--mono); font-size: 8px; letter-spacing: 0.2em; color: #09d1bd; text-transform: uppercase; }
-  .home-demo-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin: 14px 0; padding-top: 10px; border-top: 2px solid #f2ead8; }
-  .home-demo-day { border: 1px solid rgba(242,234,216,0.18); border-radius: 7px; padding: 6px 0 5px; text-align: center; font-family: var(--mono); font-size: 7px; color: rgba(242,234,216,0.68); }
-  .home-demo-day b { display: block; margin-top: 3px; font-family: var(--display); font-size: 18px; font-weight: 400; color: #f2ead8; }
-  .home-demo-day.is-on { background: #f2ead8; color: #080807; }
-  .home-demo-day.is-on b { color: #080807; }
-  .home-demo-radio { margin: 12px -12px; padding: 13px 12px; background: linear-gradient(90deg, rgba(0,207,190,0.34), rgba(0,207,190,0.18)); border-top: 1px solid #f2ead8; border-bottom: 1px solid #f2ead8; display: grid; grid-template-columns: 34px 1fr auto; gap: 9px; align-items: center; }
-  .home-demo-radio .disc { width: 30px; height: 30px; border: 1px solid #f2ead8; border-radius: 999px; display: grid; place-items: center; font-family: var(--mono); font-size: 8px; }
-  .home-demo-radio h4 { margin: 0; font-size: 13px; font-weight: 600; }
-  .home-demo-radio p { margin: 2px 0 0; font-family: var(--mono); font-size: 7px; letter-spacing: 0.13em; color: rgba(242,234,216,0.66); text-transform: uppercase; }
-  .home-demo-lead { padding: 14px 0 18px; border-bottom: 1px solid rgba(242,234,216,0.16); }
-  .home-demo-lead .eyebrow { color: #09d1bd; font-size: 8px; letter-spacing: 0.18em; }
-  .home-demo-number { font-family: var(--display); font-size: 58px; line-height: 0.92; letter-spacing: -0.07em; color: #f2ead8; }
-  .home-demo-number small { font-family: var(--mono); font-size: 9px; letter-spacing: 0.16em; margin-left: 6px; }
-  .home-demo-copy { margin-top: 7px; font-size: 12px; line-height: 1.25; color: rgba(242,234,216,0.72); }
-  .home-demo-bars { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin-top: 10px; }
-  .home-demo-bars span { height: 10px; background: rgba(242,234,216,0.52); }
-  .home-demo-bars span:nth-child(2) { background: #f2ead8; }
-  .home-demo-section { display: flex; justify-content: space-between; align-items: baseline; margin-top: 16px; padding-bottom: 8px; border-bottom: 2px solid #f2ead8; font-family: var(--mono); font-size: 8px; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(242,234,216,0.88); }
-  .home-demo-log { display: grid; gap: 0; }
-  .home-demo-log-row { display: grid; grid-template-columns: 42px 36px 1fr auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid rgba(242,234,216,0.09); }
-  .home-demo-log-row time { font-family: var(--mono); font-size: 10px; color: rgba(242,234,216,0.52); }
-  .home-demo-tag { border-radius: 5px; padding: 3px 4px; text-align: center; font-family: var(--mono); font-size: 7px; letter-spacing: 0.12em; background: #4f86ff; color: #080807; }
-  .home-demo-log-row strong { display: block; font-size: 12px; font-weight: 500; color: #f2ead8; }
-  .home-demo-log-row small { display: block; margin-top: 2px; font-family: var(--mono); font-size: 7px; letter-spacing: 0.08em; color: rgba(242,234,216,0.45); }
-  .home-demo-log-row .done { font-family: var(--mono); font-size: 7px; letter-spacing: 0.14em; color: #80d494; text-transform: uppercase; }
-  .home-demo-habits { margin-top: 14px; padding: 12px; border: 1px solid rgba(242,234,216,0.22); border-radius: 10px; }
-  .home-demo-habit-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
-  .home-demo-habit-grid span { min-height: 34px; border-radius: 8px; border: 1px solid rgba(242,234,216,0.22); padding: 8px 6px; font-family: var(--mono); font-size: 7px; letter-spacing: 0.12em; text-transform: uppercase; }
-  .home-demo-habit-grid span:first-child { background: #6abd7a; color: #080807; }
-  @keyframes homeLiveScroll {
-    0%, 12% { transform: translateY(0); }
-    44%, 58% { transform: translateY(-190px); }
-    86%, 100% { transform: translateY(0); }
-  }
-  .feat-row .phone.is-scroll-demo .screen-crop::after {
-    content: '';
-    position: absolute;
-    right: 9px;
-    top: 18%;
-    width: 3px;
-    height: 46px;
-    border-radius: 999px;
-    background: rgba(239,231,211,0.48);
-    z-index: 4;
-    animation: phoneScrollBar 8s ease-in-out infinite;
-    pointer-events: none;
-  }
-  .feat-row .phone .island {
-    position: absolute;
-    top: 18px;
-    left: 50%;
-    width: 96px;
-    height: 29px;
-    transform: translateX(-50%);
-    border-radius: 999px;
-    background: #020202;
-    z-index: 3;
-    box-shadow:
-      inset 0 1px 1px rgba(255,255,255,0.1),
-      0 1px 2px rgba(255,255,255,0.08);
-    pointer-events: none;
-  }
-  .feat-row .phone img {
-    width: 94%;
-    height: 96%;
-    object-fit: contain;
-    object-position: center center;
-    display: block;
-    margin: 2% auto 0;
-    transform: none;
-    border-radius: 48px;
-    filter: none;
-  }
-  .feat-row .phone.framed-shot {
-    padding: 0;
-    background: transparent;
-    border: 0;
-    border-radius: 0;
-    box-shadow: 0 24px 48px rgba(10,13,12,0.22);
-  }
-  .feat-row .phone.framed-shot::before,
-  .feat-row .phone.framed-shot::after { display: none; }
-  .feat-row .phone.framed-shot .screen-crop {
-    overflow: visible;
-    background: transparent;
-    border-radius: 0;
-    box-shadow: none;
-  }
-  .feat-row .phone.framed-shot img {
-    width: 100%;
-    height: 100%;
-    margin: 0 auto;
-    object-fit: contain;
-    object-position: center center;
-    transform: none;
-    border-radius: 0;
-  }
-  .feat-row .phone.framed-shot .side,
-  .feat-row .phone.framed-shot .island { display: none; }
-  .feat-row .phone.is-scroll-demo img {
-    width: 108%;
-    height: 132%;
-    transform: translate(-2%, -1%);
-    animation: phoneScreenScroll 12s ease-in-out infinite;
-  }
-  .feat-row .phone.is-home-scroll img {
-    width: 108%;
-    height: 118%;
-    max-width: none;
-    object-fit: cover;
-    object-position: center top;
-    transform: translate(-2%, -1%);
-    animation: phoneHomePageScroll 11s ease-in-out infinite;
-  }
-  @keyframes phoneScreenScroll {
-    0%, 12% { transform: translate(-2%, -1%); }
-    44%, 58% { transform: translate(-2%, -29%); }
-    86%, 100% { transform: translate(-2%, -1%); }
-  }
-  @keyframes phoneHomePageScroll {
-    0%, 13% { transform: translate(-2%, -1%); }
-    42%, 58% { transform: translate(-2%, -12%); }
-    82%, 100% { transform: translate(-2%, -1%); }
-  }
-  @keyframes phoneScrollBar {
-    0%, 12% { transform: translateY(0); opacity: 0.34; }
-    44%, 58% { transform: translateY(150px); opacity: 0.72; }
-    86%, 100% { transform: translateY(0); opacity: 0.34; }
+  .screen-crop img.on { opacity: 1; }
+  .phone.dark { background: #14110d; border-color: rgba(255,255,255,0.16); }
+  .phone.dark .screen-crop { background: #14110d; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); }
+  .phone.dark::after { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06); }
+
+  .phone-col { display: flex; justify-content: center; }
+
+  .progress-rail { height: 2px; background: var(--hairline-2); position: relative; }
+  .progress-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--teal); transition: width .35s ease; }
+
+  /* Waitlist CTA */
+  .cta { text-align: center; padding: 64px 0 48px; border-top: 1px solid var(--hairline-2); background: var(--paper-3); }
+  .cta h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(30px, 5.4vw, 44px); letter-spacing: -0.025em; line-height: 1.02; margin: 10px 0 14px; }
+  .cta .eyebrow { color: var(--orange); }
+  .cta p { font-size: 15px; color: var(--ink-2); max-width: 460px; margin: 0 auto 24px; line-height: 1.55; }
+  .store-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .store-btn { display: inline-flex; align-items: center; gap: 10px; padding: 12px 20px; border-radius: 12px; background: var(--ink); color: var(--paper); }
+  .store-btn.is-outline { background: transparent; color: var(--ink); border: 1px solid rgba(10,13,12,0.22); }
+  .store-btn small { display: block; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.7; }
+  .store-btn b { display: block; font-size: 15px; font-weight: 600; }
+  .glyph { width: 18px; height: 18px; border-radius: 5px; background: currentColor; opacity: 0.85; flex: 0 0 auto; }
+  .notify-widget { margin-top: 22px; min-height: 44px; }
+  .notify-toggle { font-family: var(--mono); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-2); border-bottom: 1px solid var(--hairline); padding: 6px 2px; }
+  .notify-toggle:hover { color: var(--ink); }
+  .notify-toggle.is-hidden { display: none; }
+  .notify-form { display: none; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .notify-form.is-open { display: flex; }
+  .notify-form input { font-family: var(--sans); font-size: 14px; padding: 12px 14px; border-radius: 10px; border: 1px solid rgba(10,13,12,0.2); background: var(--paper); color: var(--ink); min-width: 240px; }
+  .notify-form input:focus { outline: 2px solid var(--teal); outline-offset: 1px; }
+  .notify-form button { font: 600 14px/1 var(--sans); padding: 12px 20px; border-radius: 10px; background: var(--ink); color: var(--paper); }
+  .notify-msg { font-size: 13px; margin: 12px 0 0; min-height: 18px; }
+  .notify-msg.ok { color: var(--teal); }
+  .notify-msg.err { color: var(--orange); }
+
+  footer { border-top: 1px solid var(--hairline-2); padding: 30px 0 26px; }
+  .foot-cta { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .foot-logo { height: 30px; width: auto; }
+  .foot-tagline { font-family: var(--mono); font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); }
+  .foot-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 18px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; color: var(--ink-3); text-transform: uppercase; flex-wrap: wrap; }
+  .foot-links { display: flex; gap: 18px; }
+  .foot-links a:hover { color: var(--ink); }
+
+  @media (max-width: 860px) {
+    .stage { grid-template-columns: 1fr; gap: 32px; padding: 16px 0 44px; min-height: 0; }
+    .phone-col { order: -1; }
+    .phone { width: 264px; padding: 7px; border-radius: 46px; }
+    .screen-crop { border-radius: 40px; }
+    .copy { text-align: center; }
+    .copy p { margin: 0 auto; }
+    .step-no, .controls, .dots { justify-content: center; }
+    .tour-head { padding: 26px 0 4px; }
+    .foot-row { justify-content: center; text-align: center; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .home-scroll-content,
-    .feat-row .phone.is-scroll-demo img,
-    .feat-row .phone.is-scroll-demo .screen-crop::after { animation: none; }
-  }
-  @media (max-width: 760px) {
-    .feat-row, .feat-row.reverse { grid-template-columns: 1fr; gap: 28px; padding: 40px 0; }
-    .feat-row.reverse .copy { order: 1; }
-    .feat-row.reverse .phone { order: 2; }
-    .feat-row .phone { width: min(258px, 68vw); padding: 7px; border-radius: 44px; }
-    .feat-row .phone,
-    .feat-row.reverse .phone { transform: none; }
-    .feat-row .phone.framed-shot { padding: 0; border-radius: 0; }
-    .feat-row .phone .screen-crop { border-radius: 43px; }
-    .feat-row .phone .island { width: 82px; height: 25px; top: 16px; }
-    /* Consistent screen-shot framing on mobile: zero inner padding,
-       object-fit contain centered, so every screenshot sits flush
-       within the same bezel regardless of source aspect ratio. */
-    .feat-row .phone.screen-shot .screen-crop,
-    .feat-row .phone.screen-shot.radio-shot .screen-crop,
-    .feat-row .phone.screen-shot.habit-shot .screen-crop,
-    .feat-row .phone.screen-shot.home-shot .screen-crop { padding: 0; }
-    .feat-row .phone.screen-shot img,
-    .feat-row .phone.screen-shot.radio-shot img,
-    .feat-row .phone.screen-shot.habit-shot img,
-    .feat-row .phone.screen-shot.home-shot img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      object-position: center center;
-      transform: none;
-    }
-    .home-scroll-content { padding: 54px 10px 72px; }
-    .home-demo-title { font-size: 21px; }
-    .home-demo-title .shape-word { font-size: 18px; letter-spacing: 0.16em; margin: 0 4px; }
-    .home-demo-radio { grid-template-columns: 30px 1fr auto; gap: 7px; }
-    .home-demo-radio h4 { font-size: 12px; }
-    .home-demo-number { font-size: 50px; }
-    .home-demo-log-row { grid-template-columns: 36px 30px 1fr auto; gap: 6px; }
-    .home-demo-log-row strong { font-size: 11px; }
-    .home-demo-habit-grid { grid-template-columns: repeat(2, 1fr); }
-    @keyframes homeLiveScroll {
-      0%, 12% { transform: translateY(0); }
-      44%, 58% { transform: translateY(-148px); }
-      86%, 100% { transform: translateY(0); }
-    }
-  }
-
-  /* Why band */
-  .why { background: var(--paper-2); padding: 60px 0; margin-top: 32px; border-top: 1px solid var(--hairline-2); border-bottom: 1px solid var(--hairline-2); }
-  .why h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(30px, 5.4vw, 42px); letter-spacing: -0.025em; line-height: 1.05; margin: 0 0 14px; }
-  .why p { font-size: 15px; line-height: 1.6; color: var(--ink-2); margin: 0; max-width: 540px; }
-  .why .cols { display: grid; gap: 28px; }
-  @media (min-width: 720px) { .why .cols { grid-template-columns: 1fr 1fr; gap: 56px; } }
-
-  /* FAQ */
-  .faq { padding: 60px 0; }
-  .faq h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(30px, 5.4vw, 42px); letter-spacing: -0.025em; line-height: 1; margin: 0 0 28px; text-align: center; }
-  .qa { padding: 16px 0; border-top: 1px solid var(--hairline-2); cursor: pointer; }
-  .qa:first-of-type { border-top: 1px solid var(--hairline-2); }
-  .qa summary { list-style: none; display: flex; justify-content: space-between; gap: 12px; align-items: center; }
-  .qa summary::-webkit-details-marker { display: none; }
-  .qa h4 { font-family: var(--serif); font-size: 18px; letter-spacing: -0.01em; font-weight: 500; margin: 0; line-height: 1.3; flex: 1; }
-  .qa .arr { font-family: var(--mono); font-size: 16px; color: var(--teal); transition: transform 0.2s; }
-  .qa[open] .arr { transform: rotate(45deg); }
-  .qa p { font-size: 14px; line-height: 1.55; color: var(--ink-2); margin: 12px 0 0; }
-
-  /* Final CTA */
-  .cta { text-align: center; padding: 60px 0 40px; }
-  .cta h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(34px, 6.4vw, 48px); letter-spacing: -0.025em; line-height: 1; margin: 6px 0 18px; }
-  .cta .eyebrow { color: var(--orange); }
-  .cta p { font-size: 15px; color: var(--ink-2); max-width: 480px; margin: 0 auto 22px; line-height: 1.55; }
-  /* Notify-me waitlist — collapsed pill below the App Store / Google Play row.
-     Clicking the pill reveals the email + submit form. */
-  .notify-widget { text-align: center; }
-  .hero-notify { margin-top: 20px; }
-  .notify-toggle {
-    display: inline-block; margin: 18px auto 0;
-    min-width: 158px; min-height: 50px;
-    padding: 15px 34px; border-radius: 999px;
-    background: transparent; color: var(--ink);
-    border: 1px solid var(--hairline);
-    font-family: inherit; font-size: 16px; font-weight: 600;
-    cursor: pointer; line-height: 1;
-  }
-  .notify-toggle:hover { border-color: var(--ink); }
-  .notify-toggle.is-hidden { display: none; }
-  .hero-notify .notify-toggle { margin-top: 0; }
-  .notify-form { display: none; gap: 8px; max-width: 420px; margin: 18px auto 0; padding: 0 4px; }
-  .notify-form.is-open { display: flex; }
-  .notify-form input { flex: 1; min-width: 0; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--hairline); background: var(--paper-3); color: var(--ink); font-family: inherit; font-size: 15px; }
-  .notify-form input:focus { outline: 2px solid var(--teal); outline-offset: -1px; border-color: transparent; }
-  .notify-form button { padding: 12px 18px; border-radius: 10px; background: var(--ink); color: var(--paper); border: 0; font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap; }
-  .notify-form button:disabled { opacity: 0.6; cursor: not-allowed; }
-  .notify-msg { font-size: 13px; color: var(--ink-2); margin: 10px auto 0; min-height: 18px; max-width: 420px; }
-  .notify-msg.ok { color: var(--teal); }
-  .notify-msg.err { color: var(--pill-red); }
-
-  /* Footer */
-  footer { padding: 28px 0 40px; border-top: 1px solid var(--hairline-2); font-size: 12.5px; color: var(--ink-3); }
-  .foot-cta { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 28px 0 32px; text-align: center; }
-  .foot-logo { height: 96px; width: auto; display: block; }
-  .foot-tagline { font-family: var(--serif); font-size: 22px; letter-spacing: -0.01em; color: var(--ink); }
-  .foot-row { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-  .foot-row a:hover { color: var(--ink); }
-  .foot-links { display: flex; gap: 22px; }
-  @media (max-width: 540px) {
-    .foot-row { justify-content: center; text-align: center; }
-    .foot-links { gap: 16px; }
-    .foot-logo { height: 76px; }
-    .foot-tagline { font-size: 19px; }
-  }
-
-  /* Phone-tight spacing — keep everything inside the viewport without
-     horizontal scroll, full-width stacked CTAs, breathable but not bloated. */
-  @media (max-width: 480px) {
-    .wrap { padding: 0 16px; }
-    .nav .wrap { padding-left: max(22px, env(safe-area-inset-left)); padding-right: max(22px, env(safe-area-inset-right)); }
-    .nav-row { padding: 10px 0; gap: 10px; }
-    .brand img { height: 34px; }
-    .nav-back { font-size: 12px; }
-
-    .hero { padding: 24px 0 18px; }
-    .hero-title { font-size: clamp(31px, 9.8vw, 43px); line-height: 1.02; }
-    .hero-sub { font-size: 14px; line-height: 1.5; margin: 0 auto 20px; padding: 0 2px; }
-    .store-btn { min-width: 150px; min-height: 54px; padding: 10px 14px; gap: 10px; border-radius: 14px; }
-
-    .store-note { margin-top: 12px; font-size: 10px; }
-
-    .features { padding: 20px 0 22px; }
-    .features-head { margin-bottom: 28px; }
-    .features-head h2 { font-size: clamp(28px, 8.4vw, 38px); }
-    .features-head p { font-size: 14px; }
-    .feat-row { padding: 30px 0; gap: 20px; }
-    .feat-row:first-of-type { padding-top: 24px; }
-    .feat-row.text-only { padding: 28px 0; }
-    .feat-row .copy h3 { font-size: clamp(23px, 6vw, 30px); }
-    .feat-row .copy p { font-size: 14px; line-height: 1.55; }
-    .feat-row .phone { width: min(232px, 64vw); }
-    .feat-row .phone.framed-shot { width: min(232px, 64vw); }
-    .notify-toggle {
-      min-width: 166px;
-      min-height: 52px;
-      padding: 16px 36px;
-      font-size: 16px;
-    }
-
-    .why { padding: 38px 0; margin-top: 16px; }
-    .why p { font-size: 14px; }
-    .faq { padding: 38px 0; }
-    .qa h4 { font-size: 16.5px; }
-
-    .cta { padding: 38px 0 30px; }
-    .cta h2 { font-size: clamp(29px, 8vw, 38px); }
-    .cta p { font-size: 14px; }
-    footer { padding: 22px 0 32px; }
+    .screen-crop img { transition: none; }
+    .progress-fill { transition: none; }
   }
 </style>
 </head>
 <body>
 
+<div class="progress-rail"><div class="progress-fill" id="progressFill"></div></div>
+
 <header class="nav">
   <div class="wrap nav-row">
     <a href="/newdesign/index.html" class="brand" aria-label="Shape home"><img src="/shape-logo-black.png" alt="Shape" /></a>
-    <a href="/newdesign/index.html" class="nav-back">? Shape home</a>
+    <a href="#notify" class="nav-back">Notify me →</a>
   </div>
 </header>
 
-<section class="hero">
+<main class="tour">
+  <div class="tour-head">
+    <div class="eyebrow">The walkthrough</div>
+    <h1 id="tourTitle">See how Shape works.</h1>
+  </div>
+
   <div class="wrap">
-    <div class="eyebrow">iOS — Android — coming soon</div>
-    <h1 class="hero-title">Shape, in your pocket.</h1>
-    <p class="hero-sub">Find a vetted trainer or nutritionist. Book a session. Keep your workouts, meals, grocery list, habits, messages, and Shape Score in one place. Built for the daily loop, not the dashboard.</p>
-    <div class="store-row">
-      <span class="store-btn" aria-label="Coming soon on App Store">
-        <span class="glyph apple" aria-hidden="true"></span>
-        <span><small>Coming soon on</small><b>App Store</b></span>
-      </span>
-      <span class="store-btn is-outline" aria-label="Coming soon on Google Play">
-        <span class="glyph play" aria-hidden="true"></span>
-        <span><small>Coming soon on</small><b>Google Play</b></span>
-      </span>
-    </div>
-    <span class="store-note">Free with any Shape membership — $5/mo</span>
-    <div class="notify-widget hero-notify">
-      <button type="button" class="notify-toggle" aria-expanded="false">Notify me</button>
-      <form class="notify-form" novalidate>
-        <input type="email" name="email" placeholder="you@email.com" autocomplete="email" required aria-label="Email address" />
-        <button type="submit">Submit</button>
-      </form>
-      <p class="notify-msg" role="status" aria-live="polite"></p>
-    </div>
-  </div>
-</section>
-
-<section class="features">
-  <div class="wrap">
-    <div class="features-head">
-      <div class="eyebrow">Everything Shape, in one app</div>
-      <h2>Scroll the tour.</h2>
-      <p>Each tab does one thing well. Together they're the whole loop — train, eat, plan, recover, share.</p>
-    </div>
-
-    <div class="feat-row">
+    <div class="stage">
       <div class="copy">
-        <div class="step"><span class="n">01</span><span>HOME</span></div>
-        <h3>Today, at a glance.</h3>
-        <p>The Shape Daily — your day, top to bottom. Calendar, calorie ledger, what's left to log, who's on the air, day brief from your coach. Skim it in five seconds, dive in if you want.</p>
+        <div class="step-no"><b id="stepNum">01</b><span id="stepTotal">/ 08</span><span id="stepKind"></span></div>
+        <h2 id="stepTitle"></h2>
+        <p id="stepBody"></p>
+        <div class="controls">
+          <button class="btn ghost" id="prevBtn">← Back</button>
+          <button class="btn primary" id="nextBtn">Next →</button>
+        </div>
+        <div class="dots" id="dots" role="tablist" aria-label="Walkthrough steps"></div>
       </div>
-      <div class="phone screen-shot home-shot screen-light"><div class="screen-crop"><img src="/newdesign/shape-daily-phone-home.png" alt="Shape Daily home screen"/></div></div>
-    </div>
 
-    <div class="feat-row text-only">
-      <div class="copy">
-        <div class="step"><span class="n">02</span><span>MARKETPLACE</span></div>
-        <h3>Vetted trainers and nutritionists, in one place.</h3>
-        <p>Browse coaches by specialty, schedule, price, city. Read real coach notes. Book a free 15-minute intro before you commit. Switch any time — your training history, nutrition logs, and Shape Score follow you.</p>
-      </div>
-    </div>
-
-    <div class="feat-row reverse">
-    <div class="phone screen-shot screen-light"><div class="screen-crop"><img src="/newdesign/getapp-train-v2.png" alt="Train screen"/></div></div>
-      <div class="copy">
-        <div class="step"><span class="n">03</span><span>TRAIN</span></div>
-        <h3>The session, written by your coach.</h3>
-        <p>Coach-programmed sessions land on your phone the night before. Log sets in two taps. Bar speed and RPE flow back to your trainer for next-week's plan.</p>
-      </div>
-    </div>
-
-    <div class="feat-row">
-      <div class="copy">
-        <div class="step"><span class="n">04</span><span>WORKOUT PREVIEW</span></div>
-        <h3>Know what's coming.</h3>
-        <p>The card view — every move, every set, every cue from your trainer — before you walk into the gym. Tap a move for video. Note your warmups, mark a substitute.</p>
-      </div>
-      <div class="phone screen-shot screen-light"><div class="screen-crop"><img src="/newdesign/getapp-workout-v2.png" alt="Workout preview"/></div></div>
-    </div>
-
-    <div class="feat-row reverse">
-    <div class="phone screen-shot screen-light"><div class="screen-crop"><img src="/newdesign/getapp-nutri-v2.png" alt="Nutrition screen"/></div></div>
-      <div class="copy">
-        <div class="step"><span class="n">05</span><span>EAT</span></div>
-        <h3>Daily meal plans, macros tallied live.</h3>
-        <p>Cook-along playlists from your nutritionist, swaps for travel days, templates for fast-week chaos. The day's calorie deficit (or surplus) ticks as you log.</p>
-      </div>
-    </div>
-
-    <div class="feat-row">
-      <div class="copy">
-        <div class="step"><span class="n">06</span><span>EAT — STEP-BY-STEP</span></div>
-        <h3>Cook the recipe, no scroll war.</h3>
-        <p>Recipes break down into one step at a time on screen. Hands greasy? Tap to advance. Ingredients map back into your grocery list automatically.</p>
-      </div>
-      <div class="phone screen-shot screen-light"><div class="screen-crop"><img src="/newdesign/getapp-eat-v2.png" alt="Recipe step-by-step - salmon"/></div></div>
-    </div>
-
-    <div class="feat-row reverse">
-      <div class="phone screen-shot screen-light"><div class="screen-crop"><img src="/newdesign/grocery%20list%20(white).png" alt="Grocery list with Send to Instacart"/></div></div>
-      <div class="copy">
-        <div class="step"><span class="n">07</span><span>GROCERY LIST</span></div>
-        <h3>Auto-built from the week. Sent to Instacart in a tap.</h3>
-        <p>Organized by aisle with a live running cost. Build and save your own custom lists, save your nutritionist's lists straight to your Library. Coach swaps land inline — "swap salmon for cod if the price jumps." One tap to <strong>Send to Instacart</strong>.</p>
-      </div>
-    </div>
-
-    <div class="feat-row">
-      <div class="copy">
-        <div class="step"><span class="n">08</span><span>RECIPES</span></div>
-        <h3>A recipe a day, your nutritionist's library on tap.</h3>
-        <p>Filter by prep time, macros, or dietary preference. Save your own. Tap any recipe to add its ingredients to your grocery list.</p>
-      </div>
-      <div class="phone screen-shot screen-light"><div class="screen-crop"><img src="/newdesign/getapp-recipes-v2.png" alt="Recipes library"/></div></div>
-    </div>
-
-    <div class="feat-row reverse">
-      <div class="phone screen-shot habit-shot"><div class="screen-crop"><img src="/newdesign/habits.png" alt="Habits — do's, don'ts, streaks"/></div></div>
-      <div class="copy">
-        <div class="step"><span class="n">09</span><span>HABITS</span></div>
-        <h3>Do's, don'ts, streaks.</h3>
-        <p>Tap to log. Earn Shape Score for every check. Pick friends or other followers to be notified when you miss — accountability loop without the guilt trip.</p>
-      </div>
-    </div>
-
-    <div class="feat-row">
-      <div class="copy">
-        <div class="step"><span class="n">10</span><span>SHAPE SCORE</span></div>
-        <h3>Five tiers. Monthly points. Real rewards.</h3>
-        <p>Raw, Tempo, Form, Peak, Legend. Earn for workouts, plan adherence, habits, PRs, community kudos. Cash them in at the Shape Store.</p>
-      </div>
-      <div class="phone screen-shot"><div class="screen-crop"><img src="/newdesign/getapp-score-v2.png" alt="Shape Score - five-tier ladder"/></div></div>
-    </div>
-
-    <div class="feat-row reverse">
-      <div class="phone screen-shot radio-shot"><div class="screen-crop"><img src="/newdesign/getapp-radio-v2.png" alt="Shape Radio with HRM sync"/></div></div>
-      <div class="copy">
-        <div class="step"><span class="n">11</span><span>RADIO</span></div>
-        <h3>Music that locks to your heart rate.</h3>
-        <p>Live mixes curated by your coach. Each track's BPM syncs with your wearable (Apple Watch, Whoop, Garmin) — when the two lock in, your pace becomes the song. Reactive visualizer reads the audio, not a stock animation.</p>
-      </div>
-    </div>
-
-    <div class="feat-row text-only">
-      <div class="copy">
-        <div class="step"><span class="n">12</span><span>FEED</span></div>
-        <h3>The social layer, opt-in.</h3>
-        <p>PRs, workouts, runs, tier-ups, streaks, posts — Strava-style with a community board baked in. Drop a kudos, reply, share to a friend. Public to the community, scoped to your team, or private. You pick.</p>
-      </div>
-    </div>
-
-    <div class="feat-row">
-      <div class="copy">
-        <div class="step"><span class="n">13</span><span>CHAT</span></div>
-        <h3>Letters &amp; replies.</h3>
-        <p>One-tap messaging with your trainer, nutritionist, and training partners. Drop into the Shape Community Chat for borough-level run clubs, lift partners, race-day groups, AMAs with coaches. No app switching, no inbox archaeology.</p>
-      </div>
-      <div class="phone screen-shot screen-light"><div class="screen-crop"><img src="/newdesign/getapp-chat-v2.png" alt="Chat - Letters and replies"/></div></div>
-    </div>
-
-    <div class="feat-row reverse">
-      <div class="phone screen-shot screen-light"><div class="screen-crop"><img src="/newdesign/getapp-personalize-v2.png" alt="Shape Daily - personalized theme"/></div></div>
-      <div class="copy">
-        <div class="step"><span class="n">14</span><span>PERSONALIZE</span></div>
-        <h3>Light paper, dark paper, cream, ink.</h3>
-        <p>Pick the colors of your background, accents, and tab bar — the "Shape Daily" home skin is one of several. Match the app to your phone's wallpaper, your gym, or your mood.</p>
+      <div class="phone-col">
+        <div class="phone" id="phone">
+          <div class="island"></div>
+          <div class="screen-crop" id="screenCrop"></div>
+        </div>
       </div>
     </div>
   </div>
-</section>
-
-<section class="why">
-  <div class="wrap cols">
-    <div>
-      <div class="eyebrow">Why an app</div>
-      <h2>Real coaches.<br/>Real plans.<br/>Pocket-sized.</h2>
-    </div>
-    <div>
-      <p>Shape isn't a chatbot. Every program is written by a vetted trainer or nutritionist who reads your logs, asks how you're feeling, and adjusts each week. The app keeps that loop tight — daily.</p>
-      <p style="margin-top:14px;">Your data stays yours. Wearables sync. Coaches see what you let them.</p>
-    </div>
-  </div>
-</section>
-
-<section class="faq">
-  <div class="wrap">
-    <h2>Common questions.</h2>
-    <details class="qa">
-      <summary><h4>When does the app launch?</h4><span class="arr">+</span></summary>
-      <p>iOS first — TestFlight beta this quarter, App Store launch shortly after. Android follows. Drop your email below and we'll send the link the day it ships.</p>
-    </details>
-    <details class="qa">
-      <summary><h4>Is it free?</h4><span class="arr">+</span></summary>
-      <p>The app is included with any Shape membership ($5/mo). Sessions with coaches are billed separately at their listed rate.</p>
-    </details>
-    <details class="qa">
-      <summary><h4>What if I already use the website?</h4><span class="arr">+</span></summary>
-      <p>Your account, coaches, plans, history, and Shape Score all carry over. Sign in to the app with the same email — the data shows up.</p>
-    </details>
-    <details class="qa">
-      <summary><h4>Does it work with Apple Health, Whoop, Garmin?</h4><span class="arr">+</span></summary>
-      <p>Yes. HealthKit on iOS, plus first-party integrations with Whoop, Garmin, and Strava. Heart rate, sleep, and workout data flow into the app and back to your coach.</p>
-    </details>
-    <details class="qa">
-      <summary><h4>Will my coach reach me through the app?</h4><span class="arr">+</span></summary>
-      <p>Direct messages, weekly check-ins, and timestamped reactions on your workouts and meals — all in-app. Push notifications opt-in, of course.</p>
-    </details>
-  </div>
-</section>
+</main>
 
 <section class="cta" id="notify">
   <div class="wrap">
@@ -861,6 +224,108 @@
     </div>
   </div>
 </section>
+
+<footer>
+  <div class="wrap foot-cta">
+    <img src="/shape-logo-black.png" alt="Shape" class="foot-logo" />
+    <div class="foot-tagline">Join the community</div>
+  </div>
+  <div class="wrap foot-row">
+    <div>© 2026 Shape — Find your coach.</div>
+    <div class="foot-links">
+      <a href="/newdesign/index.html">Home</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="/contact">Contact</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var STEPS = [
+    { kind: "HOME",     title: "Today, at a glance.",         body: "The Shape Daily — calendar, calorie ledger, what's left to log, who's on the air. Skim it in five seconds, dive in if you want.", img: "/newdesign/getapp-home-v3.png", dark: false },
+    { kind: "TRAIN",    title: "Know what's coming.",          body: "Every move, set, and cue from your trainer — before you walk into the gym. Tap a move for video, note warmups, mark a substitute.", img: "/newdesign/getapp-train-v2.png", dark: false },
+    { kind: "EAT",      title: "Macros, tallied live.",        body: "Daily meal plans from your nutritionist. The day's deficit (or surplus) ticks as you log. Swaps for travel days built in.", img: "/newdesign/getapp-nutri-v2.png", dark: false },
+    { kind: "GROCERY",  title: "List that builds itself.",     body: "Organized by aisle with a live running cost. Coach swaps land inline. One tap to send the whole list to Instacart.", img: "/newdesign/grocery%20list%20(white).png", dark: false },
+    { kind: "HABITS",   title: "Small things, tracked.",       body: "Tap to log. Earn Shape Score for every check. Pick friends to be notified when you miss — accountability without the guilt trip.", img: "/newdesign/habits.png", dark: true },
+    { kind: "SCORE",    title: "One number that matters.",     body: "A five-tier ladder rewarding consistency across training, nutrition, and recovery. It only moves when you show up.", img: "/newdesign/getapp-score-v2.png", dark: true },
+    { kind: "RADIO",    title: "Music built for movement.",    body: "Live mixes curated by your coach. Each track's BPM syncs with your wearable — when the two lock in, your pace becomes the song.", img: "/newdesign/getapp-radio-v2.png", dark: true },
+    { kind: "CHAT",     title: "A real human, in the loop.",   body: "Not a chatbot. Your vetted coach reads your logs, asks how you're feeling, and adjusts each week. The app keeps that loop tight — daily.", img: "/newdesign/getapp-chat-v2.png", dark: false }
+  ];
+
+  var i = 0;
+  var screenCrop = document.getElementById("screenCrop");
+  var phone = document.getElementById("phone");
+  var dotsWrap = document.getElementById("dots");
+  var prevBtn = document.getElementById("prevBtn");
+  var nextBtn = document.getElementById("nextBtn");
+  var stepNum = document.getElementById("stepNum");
+  var stepTotal = document.getElementById("stepTotal");
+  var stepKind = document.getElementById("stepKind");
+  var stepTitle = document.getElementById("stepTitle");
+  var stepBody = document.getElementById("stepBody");
+  var progressFill = document.getElementById("progressFill");
+  var imgs = [];
+
+  STEPS.forEach(function (s, idx) {
+    var im = document.createElement("img");
+    im.src = s.img;
+    im.alt = s.kind + " screen";
+    im.loading = idx === 0 ? "eager" : "lazy";
+    screenCrop.appendChild(im);
+    imgs.push(im);
+
+    var d = document.createElement("button");
+    d.className = "dot";
+    d.setAttribute("role", "tab");
+    d.setAttribute("aria-label", "Step " + (idx + 1) + ": " + s.kind);
+    d.addEventListener("click", function () { go(idx); });
+    dotsWrap.appendChild(d);
+  });
+  var dots = dotsWrap.querySelectorAll(".dot");
+  stepTotal.textContent = "/ " + String(STEPS.length).padStart(2, "0");
+
+  function render() {
+    var s = STEPS[i];
+    imgs.forEach(function (im, idx) { im.classList.toggle("on", idx === i); });
+    phone.classList.toggle("dark", !!s.dark);
+    stepNum.textContent = String(i + 1).padStart(2, "0");
+    stepKind.textContent = "· " + s.kind;
+    stepTitle.textContent = s.title;
+    stepBody.textContent = s.body;
+    dots.forEach(function (d, idx) {
+      d.classList.toggle("on", idx === i);
+      d.setAttribute("aria-selected", idx === i ? "true" : "false");
+    });
+    prevBtn.disabled = i === 0;
+    nextBtn.textContent = i === STEPS.length - 1 ? "Get the app →" : "Next →";
+    progressFill.style.width = ((i + 1) / STEPS.length * 100) + "%";
+  }
+
+  function go(n) {
+    if (n < 0 || n >= STEPS.length) return;
+    i = n;
+    render();
+  }
+
+  prevBtn.addEventListener("click", function () { go(i - 1); });
+  nextBtn.addEventListener("click", function () {
+    if (i === STEPS.length - 1) {
+      var notify = document.getElementById("notify");
+      if (notify) notify.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    go(i + 1);
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "ArrowRight") { if (i < STEPS.length - 1) go(i + 1); }
+    else if (e.key === "ArrowLeft") { go(i - 1); }
+  });
+
+  render();
+})();
+</script>
 
 <script>
   (function () {
@@ -922,52 +387,6 @@
   })();
 </script>
 
-<footer>
-  <div class="wrap foot-cta">
-    <img src="/shape-logo-black.png" alt="Shape" class="foot-logo" />
-    <div class="foot-tagline">Join the community</div>
-  </div>
-  <div class="wrap foot-row">
-    <div>— 2026 Shape — Find your coach.</div>
-    <div class="foot-links">
-      <a href="/newdesign/index.html">Home</a>
-      <a href="/privacy">Privacy</a>
-      <a href="/terms">Terms</a>
-      <a href="/contact">Contact</a>
-    </div>
-  </div>
-</footer>
-
-<script>
-  document.querySelectorAll('.feat-row .phone').forEach((phone) => {
-    const img = phone.querySelector('img');
-    if (img && !phone.querySelector('.screen-crop')) {
-      if (!phone.classList.contains('screen-shot')) {
-        phone.classList.add('framed-shot');
-      }
-      const crop = document.createElement('div');
-      crop.className = 'screen-crop';
-      img.replaceWith(crop);
-      crop.appendChild(img);
-    }
-    if (phone.classList.contains('framed-shot')) return;
-
-    ['volume-a', 'volume-b', 'power'].forEach((name) => {
-      if (phone.querySelector(`.side.${name}`)) return;
-      const side = document.createElement('span');
-      side.className = `side ${name}`;
-      phone.appendChild(side);
-    });
-
-    if (phone.querySelector('.island')) return;
-    const island = document.createElement('span');
-    island.className = 'island';
-    phone.appendChild(island);
-  });
-
-</script>
-
 <script src="globalChatButton.js" defer></script>
 </body>
 </html>
-
