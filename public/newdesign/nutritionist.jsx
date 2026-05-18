@@ -146,11 +146,11 @@ function NutEarnings() {
         <div className="nu-earn" style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.1fr", gap: 80, alignItems: "center" }}>
           <div>
             <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Earnings</div>
-            <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5vw, 78px)", letterSpacing: "-0.04em", fontWeight: 300, margin: "0 0 28px", lineHeight: 0.96, color: INK }}>Your rate. <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>Keep 85% of it.</em></h2>
+            <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5vw, 78px)", letterSpacing: "-0.04em", fontWeight: 300, margin: "0 0 28px", lineHeight: 0.96, color: INK }}>Your rate. <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>See your take-home.</em></h2>
             <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.68)", lineHeight: 1.62, margin: "0 0 28px", maxWidth: 500 }}>
               Shape takes a <strong style={{ color: INK }}>15% platform fee</strong> on everything clients pay you. No monthly dues, no setup fees, no per-booking cuts — you only pay when you earn. Cancel any time.
             </p>
-            <div style={{ background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, padding: "22px 24px", marginBottom: 28, maxWidth: 500 }}>
+            <div style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, padding: "22px 24px", marginBottom: 28, maxWidth: 500 }}>
               <div style={{ fontFamily: mono, fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL, marginBottom: 10 }}>What the 15% covers</div>
               <div style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.72)", lineHeight: 1.55 }}>
                 Client acquisition through the Shape marketplace, in-app messaging and video, meal plan hosting, scheduling, and liability coverage. Standard card processing is separate.
@@ -164,7 +164,7 @@ function NutEarnings() {
               ))}
             </ul>
           </div>
-          <div style={{ background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 8, padding: 44, position: "relative", overflow: "hidden" }}>
+          <div style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 8, padding: 44, position: "relative", overflow: "hidden" }}>
             <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${TEAL}, ${RUST})`, opacity: 0.7 }} />
             <div style={{ fontFamily: mono, fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 32 }}>Estimate your take-home</div>
             <div style={{ marginBottom: 32 }}>
@@ -282,7 +282,7 @@ function NutFeatured() {
 function NutFAQ() {
   const faqs = [
     { q: "What credentials do I need?", a: "RD, RDN, CNS, CDN, or state-licensed dietitian. CSSD (sports) or IFMCP (functional) help but aren't required. Non-licensed health/nutrition coaches accepted under a distinct scope-of-practice tier." },
-    { q: "What does Shape cost?", a: "No monthly dues, no listing fees. Shape takes a 15% platform fee on what your clients pay you — so you only pay when you earn. Standard card processing is separate." },
+    { q: "What does Shape cost?", a: "You keep 85% of everything your clients pay you. No monthly dues, no listing fees — Shape takes a 15% platform fee, so you only pay when you earn. Standard card processing is separate." },
     { q: "How does Shape handle HIPAA and scope of practice?", a: "Client records are encrypted at rest and in transit. Scope-of-practice tiers are enforced by credential — non-RDs can't access medical nutrition therapy flows. BAAs available for practices that need them." },
     { q: "Can I bring my existing clients?", a: "Yes. Most nutritionists migrate within the first month. We help with transition emails, pricing continuity, and importing plan templates." },
     { q: "Payouts?", a: "Weekly, direct to your bank. Instant payouts available for 1% any day. 1099s auto-generated every January." },

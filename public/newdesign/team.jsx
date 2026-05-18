@@ -112,7 +112,7 @@ function TeamRoster() {
         <div style={{ display: "grid", gap: 20 }}>
           {TEAM.map((m, i) => (
             <TmReveal key={i} delay={i * 60}>
-              <article className="tm-card" style={{ background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, padding: 36, display: "grid", gridTemplateColumns: "120px 1.5fr 1fr auto", gap: 32, alignItems: "center", position: "relative", overflow: "hidden" }}>
+              <article className="tm-card" style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, padding: 36, display: "grid", gridTemplateColumns: "120px 1.5fr 1fr auto", gap: 32, alignItems: "center", position: "relative", overflow: "hidden" }}>
                 {m.status === "primary" && <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${TEAL}, ${RUST})`, opacity: 0.7 }} />}
                 <Ph label="" ratio="1/1" tone="light" style={{ borderRadius: 999 }} />
                 <div>
@@ -158,7 +158,7 @@ function TeamSchedule() {
     <section style={{ padding: "70px 72px" }}>
       <TmReveal>
         <div className="tm-sched" style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 24 }}>
-          <div style={{ background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, padding: 36, position: "relative", overflow: "hidden" }}>
+          <div style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, padding: 36, position: "relative", overflow: "hidden" }}>
             <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${TEAL}, ${RUST})`, opacity: 0.7 }} />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 26 }}>
               <div>
@@ -223,7 +223,7 @@ function TeamCollab() {
           <p style={{ fontFamily: sans, fontSize: 16, lineHeight: 1.6, color: "rgba(242,237,228,0.62)", maxWidth: 640, margin: "16px 0 40px" }}>
             A shared brief keeps Maya, Rae, and Julien aligned on your goals, schedule, and injuries — so nobody programs around an ankle they didn't know about.
           </p>
-          <div style={{ background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, padding: 44, position: "relative", overflow: "hidden" }}>
+          <div style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, padding: 44, position: "relative", overflow: "hidden" }}>
             <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${TEAL}, ${RUST})`, opacity: 0.7 }} />
             <div className="tm-brief" style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: 44, alignItems: "start" }}>
               <div>

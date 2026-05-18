@@ -172,7 +172,7 @@ function Spotlight({ tab }) {
             {/* 3 side picks */}
             <div style={{ display: "grid", gridTemplateRows: "repeat(3, 1fr)", gap: 10 }}>
               {s.side.map((p, i) => (
-                <article key={i} style={{ background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 4, padding: 16, display: "grid", gridTemplateColumns: "90px 1fr auto", gap: 14, alignItems: "center" }}>
+                <article key={i} style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 4, padding: 16, display: "grid", gridTemplateColumns: "90px 1fr auto", gap: 14, alignItems: "center" }}>
                   <Ph label={p.name.split(" ")[0]} ratio="1/1" tone="light" style={{ borderRadius: 4 }} />
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: TEAL }}>{p.city}</div>
@@ -278,7 +278,7 @@ function CoachCard({ c }) {
   };
   const onLeave = () => { if (ref.current) ref.current.style.transform = ""; };
   return (
-    <article ref={ref} onMouseMove={onMove} onMouseLeave={onLeave} style={{ background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 4, overflow: "hidden", display: "flex", flexDirection: "column", transition: "transform .12s ease-out, border-color .15s", willChange: "transform" }}>
+    <article ref={ref} onMouseMove={onMove} onMouseLeave={onLeave} style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 4, overflow: "hidden", display: "flex", flexDirection: "column", transition: "transform .12s ease-out, border-color .15s", willChange: "transform" }}>
       <div style={{ position: "relative" }}>
         <Ph label={`${c.name.split(' ')[0]}`} ratio="4/3" tone="light" style={{ borderRadius: 0 }} />
         <span style={{ position: "absolute", top: 10, left: 10, fontFamily: mono, fontSize: 9, padding: "3px 7px", background: "rgba(11,14,12,0.85)", color: TEAL, borderRadius: 3, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}>{c.format}</span>
