@@ -43,5 +43,7 @@ next-env.d.ts
 
 # agent skills (local tooling, per-developer)
 /.agents/
-/.claude/skills/
+/.claude/skills/*
+!/.claude/skills/front-end-design/
+!/.claude/skills/algorithmic-art/
 /skills-lock.json
