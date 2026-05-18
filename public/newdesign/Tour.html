@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Take the tour — Shape</title>
+<meta name="description" content="A guided, step-by-step walkthrough of the Shape app — train, eat, recover, and stay accountable with a real human coach." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper: #efe5cd;
+    --paper-2: #e6dabe;
+    --paper-3: #f7f1e3;
+    --ink: #0a0d0c;
+    --ink-2: rgba(10,13,12,0.62);
+    --ink-3: rgba(10,13,12,0.4);
+    --teal: #0aa090;
+    --teal-bright: #14c0a8;
+    --hairline: rgba(10,13,12,0.1);
+    --hairline-2: rgba(10,13,12,0.06);
+    --serif: 'Fraunces', serif;
+    --sans: 'Space Grotesk', sans-serif;
+    --mono: 'JetBrains Mono', monospace;
+    --screen: #f4eedf;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { overflow-x: hidden; min-height: 100vh; display: flex; flex-direction: column; }
+  img { display: block; max-width: 100%; }
+  a { color: inherit; text-decoration: none; }
+  button { font-family: inherit; cursor: pointer; border: 0; background: none; }
+  ::selection { background: var(--teal); color: var(--paper); }
+
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 24px; width: 100%; }
+
+  .nav { position: sticky; top: 0; z-index: 50; background: rgba(239,229,205,0.85); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid var(--hairline-2); }
+  .nav-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; gap: 16px; }
+  .brand img { height: 44px; width: auto; display: block; }
+  .nav-back { font-size: 13px; color: var(--ink-2); }
+  .nav-back:hover { color: var(--ink); }
+
+  .tour { flex: 1; display: flex; flex-direction: column; }
+  .tour-head { text-align: center; padding: 40px 0 8px; }
+  .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 0.2em; color: var(--teal); text-transform: uppercase; }
+  .tour-head h1 { font-family: var(--serif); font-weight: 500; font-size: clamp(30px, 6vw, 50px); letter-spacing: -0.03em; line-height: 1; margin: 12px 0 0; }
+
+  .stage {
+    flex: 1; display: grid; grid-template-columns: 1fr 360px; gap: 64px;
+    align-items: center; padding: 24px 0 56px; max-width: 1040px;
+    margin: 0 auto; width: 100%;
+  }
+  .copy { min-width: 0; }
+  .step-no { font-family: var(--mono); font-size: 12px; letter-spacing: 0.16em; color: var(--ink-3); text-transform: uppercase; display: flex; align-items: baseline; gap: 12px; }
+  .step-no b { color: var(--teal); }
+  .copy h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(28px, 4.4vw, 42px); letter-spacing: -0.025em; line-height: 1.05; margin: 16px 0 14px; }
+  .copy p { font-size: 16px; line-height: 1.62; color: var(--ink-2); margin: 0; max-width: 460px; }
+
+  .controls { display: flex; align-items: center; gap: 14px; margin-top: 34px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 13px 22px; border-radius: 10px; font: 600 14px/1 var(--sans);
+    transition: transform .12s ease, background .15s ease, opacity .15s ease;
+  }
+  .btn.primary { background: var(--ink); color: var(--paper); }
+  .btn.primary:hover { transform: translateY(-1px); }
+  .btn.ghost { border: 1px solid rgba(10,13,12,0.2); color: var(--ink); }
+  .btn.ghost:hover { background: rgba(10,13,12,0.05); }
+  .btn[disabled] { opacity: 0.32; pointer-events: none; }
+
+  .dots { display: flex; gap: 8px; margin-top: 26px; flex-wrap: wrap; }
+  .dot { width: 9px; height: 9px; border-radius: 999px; background: rgba(10,13,12,0.18); border: 0; padding: 0; transition: all .2s ease; }
+  .dot:hover { background: rgba(10,13,12,0.34); }
+  .dot.on { background: var(--teal); width: 26px; }
+
+  /* Phone — cream device, screen tracks light/dark of the screenshot */
+  .phone {
+    width: 320px; max-width: 84vw; aspect-ratio: 393 / 852; margin: 0 auto;
+    position: relative; box-sizing: border-box; border-radius: 56px; padding: 9px;
+    background: var(--screen);
+    border: 1px solid rgba(10,13,12,0.14);
+    box-shadow:
+      8px 16px 30px rgba(40,30,15,0.16),
+      0 22px 44px rgba(40,30,15,0.14),
+      inset 0 1px 1px rgba(255,255,255,0.5);
+  }
+  .phone::after {
+    content: ''; position: absolute; inset: 3px; border-radius: 53px;
+    pointer-events: none; box-shadow: inset 0 0 0 1px rgba(120,100,60,0.08);
+  }
+  .island {
+    position: absolute; top: 16px; left: 50%; width: 92px; height: 27px;
+    transform: translateX(-50%); border-radius: 999px; background: #050505;
+    z-index: 3; pointer-events: none;
+  }
+  .screen-crop {
+    position: relative; width: 100%; height: 100%; overflow: hidden;
+    border-radius: 48px; background: var(--screen);
+    box-shadow: inset 0 0 0 1px rgba(120,100,60,0.08);
+  }
+  .screen-crop img {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; object-position: center center;
+    opacity: 0; transition: opacity .45s ease;
+  }
+  .screen-crop img.on { opacity: 1; }
+  .phone.dark { background: #14110d; border-color: rgba(255,255,255,0.16); }
+  .phone.dark .screen-crop { background: #14110d; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); }
+  .phone.dark::after { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06); }
+
+  .phone-col { display: flex; justify-content: center; }
+
+  .progress-rail { height: 2px; background: var(--hairline-2); position: relative; }
+  .progress-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--teal); transition: width .35s ease; }
+
+  footer { border-top: 1px solid var(--hairline-2); padding: 22px 0; text-align: center; font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; color: var(--ink-3); text-transform: uppercase; }
+
+  @media (max-width: 860px) {
+    .stage { grid-template-columns: 1fr; gap: 32px; padding: 16px 0 44px; }
+    .phone-col { order: -1; }
+    .phone { width: 264px; padding: 7px; border-radius: 46px; }
+    .screen-crop { border-radius: 40px; }
+    .copy { text-align: center; }
+    .copy p { margin: 0 auto; }
+    .step-no, .controls, .dots { justify-content: center; }
+    .tour-head { padding: 26px 0 4px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .screen-crop img { transition: none; }
+    .progress-fill { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress-rail"><div class="progress-fill" id="progressFill"></div></div>
+
+<header class="nav">
+  <div class="wrap nav-row">
+    <a href="/newdesign/index.html" class="brand" aria-label="Shape home"><img src="/shape-logo-black.png" alt="Shape" /></a>
+    <a href="/newdesign/GetApp.html" class="nav-back">Get the app →</a>
+  </div>
+</header>
+
+<main class="tour">
+  <div class="tour-head">
+    <div class="eyebrow">The walkthrough</div>
+    <h1 id="tourTitle">See how Shape works.</h1>
+  </div>
+
+  <div class="wrap">
+    <div class="stage">
+      <div class="copy">
+        <div class="step-no"><b id="stepNum">01</b><span id="stepTotal">/ 08</span><span id="stepKind"></span></div>
+        <h2 id="stepTitle"></h2>
+        <p id="stepBody"></p>
+        <div class="controls">
+          <button class="btn ghost" id="prevBtn">← Back</button>
+          <button class="btn primary" id="nextBtn">Next →</button>
+        </div>
+        <div class="dots" id="dots" role="tablist" aria-label="Walkthrough steps"></div>
+      </div>
+
+      <div class="phone-col">
+        <div class="phone" id="phone">
+          <div class="island"></div>
+          <div class="screen-crop" id="screenCrop"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>© 2026 Shape — the loop, in your pocket</footer>
+
+<script>
+(function () {
+  var STEPS = [
+    { kind: "HOME",     title: "Today, at a glance.",         body: "The Shape Daily — calendar, calorie ledger, what's left to log, who's on the air. Skim it in five seconds, dive in if you want.", img: "/newdesign/getapp-home-v3.png", dark: false },
+    { kind: "TRAIN",    title: "Know what's coming.",          body: "Every move, set, and cue from your trainer — before you walk into the gym. Tap a move for video, note warmups, mark a substitute.", img: "/newdesign/getapp-train-v2.png", dark: false },
+    { kind: "EAT",      title: "Macros, tallied live.",        body: "Daily meal plans from your nutritionist. The day's deficit (or surplus) ticks as you log. Swaps for travel days built in.", img: "/newdesign/getapp-nutri-v2.png", dark: false },
+    { kind: "GROCERY",  title: "List that builds itself.",     body: "Organized by aisle with a live running cost. Coach swaps land inline. One tap to send the whole list to Instacart.", img: "/newdesign/grocery%20list%20(white).png", dark: false },
+    { kind: "HABITS",   title: "Small things, tracked.",       body: "Tap to log. Earn Shape Score for every check. Pick friends to be notified when you miss — accountability without the guilt trip.", img: "/newdesign/habits.png", dark: true },
+    { kind: "SCORE",    title: "One number that matters.",     body: "A five-tier ladder rewarding consistency across training, nutrition, and recovery. It only moves when you show up.", img: "/newdesign/getapp-score-v2.png", dark: true },
+    { kind: "RADIO",    title: "Music built for movement.",    body: "Live mixes curated by your coach. Each track's BPM syncs with your wearable — when the two lock in, your pace becomes the song.", img: "/newdesign/getapp-radio-v2.png", dark: true },
+    { kind: "CHAT",     title: "A real human, in the loop.",   body: "Not a chatbot. Your vetted coach reads your logs, asks how you're feeling, and adjusts each week. The app keeps that loop tight — daily.", img: "/newdesign/getapp-chat-v2.png", dark: false }
+  ];
+
+  var i = 0;
+  var screenCrop = document.getElementById("screenCrop");
+  var phone = document.getElementById("phone");
+  var dotsWrap = document.getElementById("dots");
+  var prevBtn = document.getElementById("prevBtn");
+  var nextBtn = document.getElementById("nextBtn");
+  var stepNum = document.getElementById("stepNum");
+  var stepTotal = document.getElementById("stepTotal");
+  var stepKind = document.getElementById("stepKind");
+  var stepTitle = document.getElementById("stepTitle");
+  var stepBody = document.getElementById("stepBody");
+  var progressFill = document.getElementById("progressFill");
+  var imgs = [];
+
+  STEPS.forEach(function (s, idx) {
+    var im = document.createElement("img");
+    im.src = s.img;
+    im.alt = s.kind + " screen";
+    im.loading = idx === 0 ? "eager" : "lazy";
+    screenCrop.appendChild(im);
+    imgs.push(im);
+
+    var d = document.createElement("button");
+    d.className = "dot";
+    d.setAttribute("role", "tab");
+    d.setAttribute("aria-label", "Step " + (idx + 1) + ": " + s.kind);
+    d.addEventListener("click", function () { go(idx); });
+    dotsWrap.appendChild(d);
+  });
+  var dots = dotsWrap.querySelectorAll(".dot");
+  stepTotal.textContent = "/ " + String(STEPS.length).padStart(2, "0");
+
+  function render() {
+    var s = STEPS[i];
+    imgs.forEach(function (im, idx) { im.classList.toggle("on", idx === i); });
+    phone.classList.toggle("dark", !!s.dark);
+    stepNum.textContent = String(i + 1).padStart(2, "0");
+    stepKind.textContent = "· " + s.kind;
+    stepTitle.textContent = s.title;
+    stepBody.textContent = s.body;
+    dots.forEach(function (d, idx) {
+      d.classList.toggle("on", idx === i);
+      d.setAttribute("aria-selected", idx === i ? "true" : "false");
+    });
+    prevBtn.disabled = i === 0;
+    nextBtn.textContent = i === STEPS.length - 1 ? "Get the app →" : "Next →";
+    progressFill.style.width = ((i + 1) / STEPS.length * 100) + "%";
+  }
+
+  function go(n) {
+    if (n < 0 || n >= STEPS.length) return;
+    i = n;
+    render();
+  }
+
+  prevBtn.addEventListener("click", function () { go(i - 1); });
+  nextBtn.addEventListener("click", function () {
+    if (i === STEPS.length - 1) { window.location.href = "/newdesign/GetApp.html"; return; }
+    go(i + 1);
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "ArrowRight") { if (i < STEPS.length - 1) go(i + 1); }
+    else if (e.key === "ArrowLeft") { go(i - 1); }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
