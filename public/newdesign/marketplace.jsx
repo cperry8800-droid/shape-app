@@ -1,5 +1,19 @@
-// Marketplace page — editorial coach directory
+// Marketplace page — editorial coach directory. Spatial Cinema language.
 const { useState: useS, useMemo: useM, useEffect: useE } = React;
+
+const MK_RPR = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function MkReveal({ children, delay = 0, style = {} }) {
+  const ref = React.useRef(null);
+  const [on, setOn] = React.useState(MK_RPR);
+  React.useEffect(() => {
+    if (MK_RPR || !ref.current) return;
+    const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { setOn(true); io.disconnect(); } }), { threshold: 0.1 });
+    io.observe(ref.current);
+    return () => io.disconnect();
+  }, []);
+  return <div ref={ref} style={{ opacity: on ? 1 : 0, transform: on ? "none" : "translateY(30px)", transition: `opacity .7s ease ${delay}ms, transform .7s ease ${delay}ms`, ...style }}>{children}</div>;
+}
 
 function useActiveLeadBoost(role) {
   const [active, setActive] = useS(null);
@@ -118,74 +132,78 @@ function Spotlight({ tab }) {
   const s = SPOTLIGHT[tab];
   const activeBoost = useActiveLeadBoost(tab === "Trainer" ? "trainer" : "nutritionist");
   return (
-    <section style={{ padding: "72px 72px 24px" }}>
-      <div style={{ maxWidth: 1320, margin: "0 auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 28 }}>
-          <div>
-            <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL }}>{s.kicker}</div>
-            <h2 style={{ fontFamily: serif, fontSize: 48, letterSpacing: "-0.03em", fontWeight: 400, margin: "10px 0 0", lineHeight: 1 }}>
-              Four to know in <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>{tab === "Trainer" ? "training" : "nutrition"}</em>.
-            </h2>
-          </div>
-          <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.55)", textAlign: "right", maxWidth: 320 }}>
-            Editorial + active Lead Boost placements. Boosted profiles are tagged in-grid.
-            {activeBoost ? ` ${activeBoost.days}-day boost active.` : ""}
-          </div>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 20 }}>
-          {/* Lead feature */}
-          <article style={{ background: INK, color: PAPER, borderRadius: 12, overflow: "hidden", display: "grid", gridTemplateColumns: "1fr 1fr" }}>
-            <Ph label={`${s.lead.name.split(" ")[0]} · feature`} ratio="auto" tone="dark" style={{ borderRadius: 0, height: "100%", minHeight: 380 }} />
-            <div style={{ padding: "32px 32px", display: "flex", flexDirection: "column", gap: 12 }}>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, padding: "3px 8px", background: TEAL, color: PAPER, borderRadius: 3, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, alignSelf: "start" }}>{s.lead.tag}</span>
-              <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(26,22,18,0.5)" }}>{s.lead.city} · {s.lead.years} yrs</div>
-              <h3 style={{ fontFamily: serif, fontSize: 38, letterSpacing: "-0.02em", fontWeight: 400, margin: 0, color: PAPER, lineHeight: 1 }}>{s.lead.name}</h3>
-              <div style={{ fontFamily: sans, fontSize: 14.5, color: "rgba(26,22,18,0.65)" }}>{s.lead.role}</div>
-              <p style={{ fontFamily: sans, fontSize: 14, lineHeight: 1.55, color: "rgba(26,22,18,0.7)", margin: "6px 0 0" }}>{s.lead.note}</p>
-              <div style={{ display: "flex", gap: 16, marginTop: "auto", paddingTop: 18, borderTop: "1px solid rgba(26,22,18,0.1)", alignItems: "center" }}>
-                <div>
-                  <div style={{ fontFamily: serif, fontSize: 24, letterSpacing: "-0.02em", color: PAPER, lineHeight: 1 }}>${s.lead.rate}<span style={{ fontSize: 11, color: "rgba(26,22,18,0.55)", fontFamily: sans, marginLeft: 4 }}>/session</span></div>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(26,22,18,0.55)", marginTop: 3 }}>★ {s.lead.rating.toFixed(2)} · {s.lead.sessions.toLocaleString()} sessions</div>
-                </div>
-                <button style={{ marginLeft: "auto", padding: "10px 16px", borderRadius: 6, background: TEAL, color: PAPER, border: 0, fontFamily: sans, fontSize: 12.5, fontWeight: 500, cursor: "pointer" }}>View profile →</button>
-              </div>
+    <section style={{ padding: "80px 72px 24px" }}>
+      <MkReveal>
+        <div style={{ maxWidth: 1320, margin: "0 auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 30, flexWrap: "wrap", gap: 16 }}>
+            <div>
+              <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL }}>{s.kicker}</div>
+              <h2 style={{ fontFamily: serif, fontSize: "clamp(34px, 4.4vw, 52px)", letterSpacing: "-0.035em", fontWeight: 300, margin: "12px 0 0", lineHeight: 1 }}>
+                Four to know in <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>{tab === "Trainer" ? "training" : "nutrition"}</em>.
+              </h2>
             </div>
-          </article>
+            <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.55)", textAlign: "right", maxWidth: 320 }}>
+              Editorial + active Lead Boost placements. Boosted profiles are tagged in-grid.
+              {activeBoost ? ` ${activeBoost.days}-day boost active.` : ""}
+            </div>
+          </div>
 
-          {/* 3 side picks */}
-          <div style={{ display: "grid", gridTemplateRows: "repeat(3, 1fr)", gap: 10 }}>
-            {s.side.map((p, i) => (
-              <article key={i} style={{ background: "rgba(242,237,228,0.035)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: 16, display: "grid", gridTemplateColumns: "90px 1fr auto", gap: 14, alignItems: "center" }}>
-                <Ph label={p.name.split(" ")[0]} ratio="1/1" tone="light" style={{ borderRadius: 6 }} />
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: sans, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: TEAL }}>{p.city}</div>
-                  <div style={{ fontFamily: serif, fontSize: 19, letterSpacing: "-0.015em", color: INK, margin: "3px 0 2px", lineHeight: 1.1 }}>{p.name}</div>
-                  <div style={{ fontFamily: sans, fontSize: 12, color: "rgba(242,237,228,0.65)" }}>{p.role}</div>
-                  <div style={{ fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginTop: 4, fontStyle: "italic" }}>"{p.note}"</div>
+          <div className="mk-spot" style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 20 }}>
+            {/* Lead feature */}
+            <article style={{ background: INK, color: PAPER, borderRadius: 6, overflow: "hidden", display: "grid", gridTemplateColumns: "1fr 1fr", position: "relative" }}>
+              <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${TEAL}, ${RUST})`, opacity: 0.75, zIndex: 2 }} />
+              <Ph label={`${s.lead.name.split(" ")[0]} · feature`} ratio="auto" tone="dark" style={{ borderRadius: 0, height: "100%", minHeight: 380 }} />
+              <div style={{ padding: "34px 34px", display: "flex", flexDirection: "column", gap: 12 }}>
+                <span style={{ fontFamily: mono, fontSize: 10, padding: "3px 8px", background: TEAL, color: PAPER, borderRadius: 3, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, alignSelf: "start" }}>{s.lead.tag}</span>
+                <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(26,22,18,0.5)" }}>{s.lead.city} · {s.lead.years} yrs</div>
+                <h3 style={{ fontFamily: serif, fontSize: 40, letterSpacing: "-0.03em", fontWeight: 300, margin: 0, color: PAPER, lineHeight: 1 }}>{s.lead.name}</h3>
+                <div style={{ fontFamily: sans, fontSize: 14.5, color: "rgba(26,22,18,0.65)" }}>{s.lead.role}</div>
+                <p style={{ fontFamily: sans, fontSize: 14, lineHeight: 1.55, color: "rgba(26,22,18,0.7)", margin: "6px 0 0" }}>{s.lead.note}</p>
+                <div style={{ display: "flex", gap: 16, marginTop: "auto", paddingTop: 18, borderTop: "1px solid rgba(26,22,18,0.1)", alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.025em", color: PAPER, lineHeight: 1 }}>${s.lead.rate}<span style={{ fontSize: 11, color: "rgba(26,22,18,0.55)", fontFamily: sans, marginLeft: 4 }}>/session</span></div>
+                    <div style={{ fontFamily: mono, fontSize: 10, color: "rgba(26,22,18,0.55)", marginTop: 4 }}>★ {s.lead.rating.toFixed(2)} · {s.lead.sessions.toLocaleString()} sessions</div>
+                  </div>
+                  <button style={{ marginLeft: "auto", padding: "11px 18px", borderRadius: 2, background: TEAL, color: PAPER, border: 0, fontFamily: sans, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>View profile →</button>
                 </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontFamily: serif, fontSize: 20, color: INK, letterSpacing: "-0.01em", lineHeight: 1 }}>${p.rate}</div>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: TEAL, marginTop: 4 }}>★ {p.rating.toFixed(2)}</div>
-                </div>
-              </article>
-            ))}
+              </div>
+            </article>
+
+            {/* 3 side picks */}
+            <div style={{ display: "grid", gridTemplateRows: "repeat(3, 1fr)", gap: 10 }}>
+              {s.side.map((p, i) => (
+                <article key={i} style={{ background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 4, padding: 16, display: "grid", gridTemplateColumns: "90px 1fr auto", gap: 14, alignItems: "center" }}>
+                  <Ph label={p.name.split(" ")[0]} ratio="1/1" tone="light" style={{ borderRadius: 4 }} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: TEAL }}>{p.city}</div>
+                    <div style={{ fontFamily: serif, fontSize: 19, letterSpacing: "-0.015em", color: INK, margin: "3px 0 2px", lineHeight: 1.1 }}>{p.name}</div>
+                    <div style={{ fontFamily: sans, fontSize: 12, color: "rgba(242,237,228,0.65)" }}>{p.role}</div>
+                    <div style={{ fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginTop: 4, fontStyle: "italic" }}>"{p.note}"</div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontFamily: serif, fontSize: 20, color: INK, letterSpacing: "-0.01em", lineHeight: 1 }}>${p.rate}</div>
+                    <div style={{ fontFamily: mono, fontSize: 10, color: TEAL, marginTop: 4 }}>★ {p.rating.toFixed(2)}</div>
+                  </div>
+                </article>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      </MkReveal>
     </section>);
 }
 
 function MarketplaceHero({ tab, setTab }) {
   return (
-    <section style={{ padding: "100px 72px 60px", position: "relative" }}>
+    <section style={{ padding: "150px 72px 60px", position: "relative", overflow: "hidden" }}>
+      <div aria-hidden style={{ position: "absolute", width: 620, height: 620, top: "-18%", right: "-6%", borderRadius: "50%", filter: "blur(82px)", opacity: 0.3, background: `radial-gradient(circle, ${TEAL}, transparent 70%)`, pointerEvents: "none" }} />
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
-        <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 24 }}>The marketplace</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 80, alignItems: "end" }}>
-          <h1 style={{ fontFamily: serif, fontSize: tab === "Trainer" ? 112 : 96, lineHeight: 0.88, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, color: INK, whiteSpace: "nowrap" }}>
-            Find the <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>{tab === "Trainer" ? "trainer" : "nutritionist"}</em><br />who fits.
+        <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.3em", textTransform: "uppercase", color: TEAL, marginBottom: 24 }}>The marketplace</div>
+        <div className="mk-head" style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 80, alignItems: "end" }}>
+          <h1 style={{ fontFamily: serif, fontSize: "clamp(52px, 7.6vw, 112px)", lineHeight: 0.86, letterSpacing: "-0.045em", fontWeight: 300, margin: 0, color: INK }}>
+            Find the <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>{tab === "Trainer" ? "trainer" : "nutritionist"}</em><br />who fits.
           </h1>
-          <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.5, color: "rgba(242,237,228,0.65)", margin: 0, maxWidth: 420 }}>
+          <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.55, color: "rgba(242,237,228,0.62)", margin: 0, maxWidth: 420 }}>
             Certified {tab === "Trainer" ? "trainers" : "nutritionists"} filtered by specialty, goal, location, and fit — not by who paid for placement.
           </p>
         </div>
@@ -198,11 +216,11 @@ function MarketplaceHero({ tab, setTab }) {
               <button key={t} onClick={() => setTab(t)}
                 style={{
                   flex: 1, padding: "28px 0", background: "transparent", border: 0, cursor: "pointer",
-                  fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", fontWeight: 400, textAlign: "left",
-                  color: active ? INK : "rgba(242,237,228,0.35)",
+                  fontFamily: serif, fontSize: "clamp(28px, 3.4vw, 44px)", letterSpacing: "-0.025em", fontWeight: 300, textAlign: "left",
+                  color: active ? INK : "rgba(242,237,228,0.32)",
                   position: "relative",
                 }}>
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", color: active ? TEAL : "rgba(242,237,228,0.3)", display: "block", marginBottom: 8 }}>
+                <span style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.14em", color: active ? TEAL : "rgba(242,237,228,0.3)", display: "block", marginBottom: 8 }}>
                   {t === "Trainer" ? "01" : "02"} · {t === "Trainer" ? "Training" : "Nutrition"}
                 </span>
                 {t === "Trainer" ? "Trainers" : "Nutritionists"}
@@ -216,13 +234,13 @@ function MarketplaceHero({ tab, setTab }) {
 }
 
 function Filters({ tab, cat, setCat, sort, setSort, format, setFormat, loc, setLoc, query, setQuery }) {
-  const pill = (on) => ({ padding: "8px 14px", borderRadius: 999, border: on ? `1px solid ${INK}` : "1px solid rgba(242,237,228,0.18)", background: on ? INK : "transparent", color: on ? PAPER : INK, fontFamily: sans, fontSize: 12.5, cursor: "pointer", fontWeight: on ? 500 : 400, whiteSpace: "nowrap" });
-  const small = (on) => ({ padding: "7px 11px", borderRadius: 999, border: on ? `1px solid ${TEAL}` : "1px solid rgba(242,237,228,0.18)", background: on ? "rgba(30,192,168,0.12)" : "transparent", color: on ? TEAL : "rgba(242,237,228,0.75)", fontFamily: sans, fontSize: 11.5, cursor: "pointer", fontWeight: on ? 500 : 400, whiteSpace: "nowrap", letterSpacing: "0.02em" });
+  const pill = (on) => ({ padding: "8px 14px", borderRadius: 2, border: on ? `1px solid ${INK}` : "1px solid rgba(242,237,228,0.18)", background: on ? INK : "transparent", color: on ? PAPER : INK, fontFamily: sans, fontSize: 12.5, cursor: "pointer", fontWeight: on ? 600 : 400, whiteSpace: "nowrap" });
+  const small = (on) => ({ padding: "7px 11px", borderRadius: 2, border: on ? `1px solid ${TEAL}` : "1px solid rgba(242,237,228,0.18)", background: on ? "rgba(19,194,168,0.12)" : "transparent", color: on ? TEAL : "rgba(242,237,228,0.75)", fontFamily: sans, fontSize: 11.5, cursor: "pointer", fontWeight: on ? 600 : 400, whiteSpace: "nowrap", letterSpacing: "0.02em" });
   const cats = CATEGORIES[tab];
   const formats = ["All formats", "In-person", "Remote", "Hybrid"];
   const locations = LOCATIONS[tab];
   return (
-    <section style={{ padding: "24px 72px", borderTop: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.08)", background: "rgba(242,237,228,0.02)", position: "sticky", top: 76, zIndex: 40, backdropFilter: "blur(12px)" }}>
+    <section style={{ padding: "24px 72px", borderTop: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.08)", background: "rgba(11,14,12,0.55)", position: "sticky", top: 76, zIndex: 40, backdropFilter: "blur(14px)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
           {cats.map((c) => <button key={c} style={pill(cat === c)} onClick={() => setCat(c)}>{c}</button>)}
@@ -231,18 +249,18 @@ function Filters({ tab, cat, setCat, sort, setSort, format, setFormat, loc, setL
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             {tab === "Trainer" && (
               <>
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)", marginRight: 2, marginTop: 10 }}>Format</span>
+                <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)", marginRight: 2, marginTop: 10 }}>Format</span>
                 {formats.map((f) => <button key={f} style={small(format === f)} onClick={() => setFormat(f)}>{f}</button>)}
               </>
             )}
           </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 10 }}>
-            <select value={loc} onChange={(e) => setLoc(e.target.value)} style={{ padding: "9px 14px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.18)", background: PAPER, fontFamily: sans, fontSize: 12.5, color: INK, cursor: "pointer", minWidth: 140 }}>
-              {locations.map((l) => <option key={l}>{l}</option>)}
+            <select value={loc} onChange={(e) => setLoc(e.target.value)} style={{ padding: "9px 14px", borderRadius: 2, border: "1px solid rgba(242,237,228,0.18)", background: INK_DEEP, fontFamily: sans, fontSize: 12.5, color: INK, cursor: "pointer", minWidth: 140 }}>
+              {locations.map((l) => <option key={l} style={{ background: INK_DEEP }}>{l}</option>)}
             </select>
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name or specialty…" style={{ padding: "9px 14px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.18)", background: "transparent", fontFamily: sans, fontSize: 12.5, color: INK, minWidth: 220, outline: "none" }} />
-            <select value={sort} onChange={(e) => setSort(e.target.value)} style={{ padding: "9px 14px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.18)", background: PAPER, fontFamily: sans, fontSize: 12.5, color: INK, cursor: "pointer" }}>
-              {SORT_OPTS.map((s) => <option key={s}>{s}</option>)}
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name or specialty…" style={{ padding: "9px 14px", borderRadius: 2, border: "1px solid rgba(242,237,228,0.18)", background: "transparent", fontFamily: sans, fontSize: 12.5, color: INK, minWidth: 220, outline: "none" }} />
+            <select value={sort} onChange={(e) => setSort(e.target.value)} style={{ padding: "9px 14px", borderRadius: 2, border: "1px solid rgba(242,237,228,0.18)", background: INK_DEEP, fontFamily: sans, fontSize: 12.5, color: INK, cursor: "pointer" }}>
+              {SORT_OPTS.map((s) => <option key={s} style={{ background: INK_DEEP }}>{s}</option>)}
             </select>
           </div>
         </div>
@@ -251,25 +269,33 @@ function Filters({ tab, cat, setCat, sort, setSort, format, setFormat, loc, setL
 }
 
 function CoachCard({ c }) {
+  const ref = React.useRef(null);
+  const onMove = (e) => {
+    if (MK_RPR || !ref.current) return;
+    const b = ref.current.getBoundingClientRect();
+    const px = (e.clientX - b.left) / b.width - 0.5, py = (e.clientY - b.top) / b.height - 0.5;
+    ref.current.style.transform = `perspective(1100px) rotateY(${px * 4}deg) rotateX(${-py * 4}deg) translateZ(3px)`;
+  };
+  const onLeave = () => { if (ref.current) ref.current.style.transform = ""; };
   return (
-    <article style={{ background: "rgba(242,237,228,0.035)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, overflow: "hidden", display: "flex", flexDirection: "column", transition: "border-color 0.15s" }}>
+    <article ref={ref} onMouseMove={onMove} onMouseLeave={onLeave} style={{ background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 4, overflow: "hidden", display: "flex", flexDirection: "column", transition: "transform .12s ease-out, border-color .15s", willChange: "transform" }}>
       <div style={{ position: "relative" }}>
         <Ph label={`${c.name.split(' ')[0]}`} ratio="4/3" tone="light" style={{ borderRadius: 0 }} />
-        <span style={{ position: "absolute", top: 10, left: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, padding: "3px 7px", background: "rgba(26,22,18,0.85)", color: TEAL, borderRadius: 3, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}>{c.format}</span>
-        <span style={{ position: "absolute", top: 10, right: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, padding: "3px 7px", background: "rgba(26,22,18,0.85)", color: INK, borderRadius: 3 }}>★ {c.rating.toFixed(2)}</span>
+        <span style={{ position: "absolute", top: 10, left: 10, fontFamily: mono, fontSize: 9, padding: "3px 7px", background: "rgba(11,14,12,0.85)", color: TEAL, borderRadius: 3, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}>{c.format}</span>
+        <span style={{ position: "absolute", top: 10, right: 10, fontFamily: mono, fontSize: 10, padding: "3px 7px", background: "rgba(11,14,12,0.85)", color: INK, borderRadius: 3 }}>★ {c.rating.toFixed(2)}</span>
         {c.isLeadBoosted && (
-          <span style={{ position: "absolute", left: 10, bottom: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, padding: "4px 8px", background: "rgba(30,192,168,0.95)", color: PAPER, borderRadius: 3, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}>
+          <span style={{ position: "absolute", left: 10, bottom: 10, fontFamily: mono, fontSize: 9, padding: "4px 8px", background: "rgba(19,194,168,0.95)", color: PAPER, borderRadius: 3, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}>
             Lead Boost · {c.boostDays}d
           </span>
         )}
       </div>
       <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
-        <div style={{ fontFamily: sans, fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: TEAL }}>{c.city}</div>
+        <div style={{ fontFamily: mono, fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: TEAL }}>{c.city}</div>
         <h3 style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.02em", fontWeight: 400, margin: 0, color: INK, lineHeight: 1.1 }}>{c.name}</h3>
         <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.65)", margin: 0 }}>{c.role}</div>
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
           {c.specialties.slice(0, 2).map((s) =>
-            <span key={s} style={{ fontFamily: sans, fontSize: 10.5, padding: "3px 8px", borderRadius: 999, background: "rgba(30,192,168,0.1)", color: TEAL }}>{s}</span>
+            <span key={s} style={{ fontFamily: sans, fontSize: 10.5, padding: "3px 8px", borderRadius: 999, background: "rgba(19,194,168,0.1)", color: TEAL }}>{s}</span>
           )}
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "auto", paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.08)" }}>
@@ -277,9 +303,9 @@ function CoachCard({ c }) {
             <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.02em", color: INK, lineHeight: 1 }}>
               ${c.rate}<span style={{ fontSize: 11, color: "rgba(242,237,228,0.5)", fontFamily: sans, marginLeft: 4 }}>/session</span>
             </div>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(242,237,228,0.5)", marginTop: 2 }}>{c.sessions.toLocaleString()} sessions</div>
+            <div style={{ fontFamily: mono, fontSize: 10, color: "rgba(242,237,228,0.5)", marginTop: 2 }}>{c.sessions.toLocaleString()} sessions</div>
           </div>
-          <a href={c.tag === "Trainer" ? "TrainerPublic.html" : "NutritionistPublic.html"} style={{ padding: "8px 12px", borderRadius: 6, background: INK, color: PAPER, border: 0, fontFamily: sans, fontSize: 11.5, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap", textAlign: "center" }}>View →</a>
+          <a href={c.tag === "Trainer" ? "TrainerPublic.html" : "NutritionistPublic.html"} style={{ padding: "9px 14px", borderRadius: 2, background: TEAL, color: PAPER, border: 0, fontFamily: sans, fontSize: 11.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", textAlign: "center" }}>View →</a>
         </div>
       </div>
     </article>);
@@ -339,24 +365,24 @@ function Grid({ tab }) {
       <Filters {...{ tab, cat, setCat, sort, setSort, format, setFormat, loc, setLoc, query, setQuery }} />
       <section style={{ padding: "48px 72px" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 28 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 28, flexWrap: "wrap", gap: 12 }}>
             <div style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.65)" }}>
               {list.length} {list.length === 1 ? (tab === "Trainer" ? "trainer" : "nutritionist") : (tab === "Trainer" ? "trainers" : "nutritionists")}
               {cat !== "All Categories" ? ` · ${cat}` : ""}
               {tab === "Trainer" && format !== "All formats" ? ` · ${format}` : ""}
               {loc !== "Anywhere" ? ` · ${loc}` : ""}
-              {" · sorted by "}<b style={{ color: INK, fontWeight: 500 }}>{sort.toLowerCase()}</b>
+              {" · sorted by "}<b style={{ color: INK, fontWeight: 600 }}>{sort.toLowerCase()}</b>
             </div>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+            <div style={{ fontFamily: mono, fontSize: 11, color: "rgba(242,237,228,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
               Updated hourly
             </div>
           </div>
           {list.length > 0 ? (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18 }}>
+            <div className="mk-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18, perspective: "1600px" }}>
               {list.map((c, i) => <CoachCard key={i} c={c} />)}
             </div>
           ) : (
-            <div style={{ padding: 80, textAlign: "center", fontFamily: sans, color: "rgba(242,237,228,0.5)", border: "1px dashed rgba(242,237,228,0.1)", borderRadius: 12 }}>
+            <div style={{ padding: 80, textAlign: "center", fontFamily: sans, color: "rgba(242,237,228,0.5)", border: "1px dashed rgba(242,237,228,0.1)", borderRadius: 6 }}>
               No matches in this category. Try "All Categories" or widen filters.
             </div>
           )}
@@ -367,17 +393,17 @@ function Grid({ tab }) {
 
 function FeaturedCity() {
   return (
-    <section style={{ padding: "100px 72px", background: INK, color: PAPER }}>
-      <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 60, alignItems: "center" }}>
+    <section style={{ padding: "120px 72px", background: INK, color: PAPER }}>
+      <div className="mk-city" style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 60, alignItems: "center" }}>
         <div>
-          <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>This week</div>
-          <h2 style={{ fontFamily: serif, fontSize: 72, letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 20px", lineHeight: 0.95 }}>
-            Featured in <em style={{ fontStyle: "italic", color: TEAL }}>Brooklyn</em>.
+          <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>This week</div>
+          <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.4vw, 76px)", letterSpacing: "-0.04em", fontWeight: 300, margin: "0 0 20px", lineHeight: 0.95 }}>
+            Featured in <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>Brooklyn</em>.
           </h2>
           <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.55, color: "rgba(26,22,18,0.7)", maxWidth: 460 }}>
             Six new coaches live in Brooklyn this month — across strength, yoga, and sports nutrition. Book an intro; they have the hours, you bring the goals.
           </p>
-          <button style={{ marginTop: 28, padding: "14px 24px", borderRadius: 6, background: TEAL, color: PAPER, border: 0, fontFamily: sans, fontSize: 14, fontWeight: 500, cursor: "pointer" }}>Browse Brooklyn →</button>
+          <button style={{ marginTop: 28, padding: "15px 26px", borderRadius: 2, background: TEAL, color: PAPER, border: 0, fontFamily: sans, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Browse Brooklyn →</button>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
           {[0, 1, 2, 3, 4, 5].map((i) =>
@@ -392,9 +418,9 @@ function Marketplace() {
   const [tab, setTab] = useS("Trainer");
   const bgSrc = tab === "Trainer" ? "/Training%202.png" : "/Nutrition%203.png";
   return (
-    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
-      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: `url('${bgSrc}')`, backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none", transition: "background-image 0.4s ease" }} />
-      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "rgba(26,22,18,0.6)", pointerEvents: "none" }} />
+    <div style={{ background: INK_DEEP, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: `url('${bgSrc}')`, backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none", opacity: 0.9, transition: "background-image 0.4s ease" }} />
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", background: "radial-gradient(120% 90% at 50% 6%, rgba(26,24,19,0.28) 0%, rgba(11,14,12,0.52) 55%, rgba(11,14,12,0.74) 100%)" }} />
       <div style={{ position: "relative", zIndex: 1 }}>
         <Header active="Marketplace" />
         <MarketplaceHero tab={tab} setTab={setTab} />
@@ -403,6 +429,17 @@ function Marketplace() {
         <FeaturedCity />
         <Footer />
       </div>
+      <style>{`
+        @media (max-width: 980px) {
+          .mk-head { grid-template-columns: 1fr !important; gap: 24px !important; }
+          .mk-spot { grid-template-columns: 1fr !important; }
+          .mk-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .mk-city { grid-template-columns: 1fr !important; gap: 40px !important; }
+        }
+        @media (max-width: 560px) {
+          .mk-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </div>);
 }
 
