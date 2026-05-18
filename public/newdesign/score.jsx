@@ -214,7 +214,23 @@ function ScoreActivity() {
   );
 }
 
+const LEDGER_TABS = [["All", "all"], ["Sessions", "sessions"], ["Habits", "habits"], ["Nutrition", "nutrition"], ["Workouts", "workouts"]];
+const LEDGER_SLUG_K = { sessions: "session", habits: "habit", nutrition: "nutrition", workouts: "workout" };
+
 function ScoreLedger() {
+  const slugs = LEDGER_TABS.map(function (x) { return x[1]; });
+  const readHash = function () {
+    var h = (typeof location !== "undefined" ? location.hash || "" : "").replace(/^#/, "");
+    return slugs.indexOf(h) >= 0 ? h : "all";
+  };
+  const [active, setActive] = React.useState(readHash);
+  React.useEffect(function () {
+    var onHash = function () { setActive(readHash()); };
+    window.addEventListener("hashchange", onHash);
+    return function () { window.removeEventListener("hashchange", onHash); };
+  }, []);
+  const activeK = LEDGER_SLUG_K[active] || null;
+  const rows = activeK ? LEDGER.filter(function (r) { return r.k === activeK; }) : LEDGER;
   return (
     <section style={{ padding: "70px 72px" }}>
       <ScReveal>
@@ -224,21 +240,28 @@ function ScoreLedger() {
               <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL }}>Ledger</div>
               <h2 style={{ fontFamily: serif, fontSize: "clamp(34px, 4.4vw, 52px)", letterSpacing: "-0.035em", fontWeight: 300, margin: "14px 0 0", lineHeight: 1 }}>Recent earnings.</h2>
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              {["All", "Sessions", "Habits", "Nutrition", "Workouts"].map((t, i) => (
-                <button key={t} style={{ padding: "9px 16px", borderRadius: 2, border: "1px solid rgba(242,237,228,0.16)", background: i === 0 ? INK : "transparent", color: i === 0 ? PAPER : INK, fontFamily: sans, fontSize: 12, cursor: "pointer" }}>{t}</button>
-              ))}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {LEDGER_TABS.map(function (tab) {
+                var label = tab[0], slug = tab[1], on = active === slug;
+                return (
+                  <a key={slug} href={"#" + slug} aria-current={on ? "page" : undefined} style={{ padding: "9px 16px", borderRadius: 2, border: "1px solid rgba(242,237,228,0.16)", background: on ? INK : "transparent", color: on ? PAPER : INK, fontFamily: sans, fontSize: 12, cursor: "pointer", textDecoration: "none" }}>{label}</a>
+                );
+              })}
             </div>
           </div>
           <div style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, overflow: "hidden" }}>
-            {LEDGER.map((row, i) => (
-              <div key={i} style={{ display: "grid", gridTemplateColumns: "100px 86px 1fr auto", gap: 20, padding: "19px 26px", borderTop: i ? "1px solid rgba(242,237,228,0.06)" : "none", alignItems: "center" }}>
-                <div style={{ fontFamily: mono, fontSize: 11, color: "rgba(242,237,228,0.5)" }}>{row.d}</div>
-                <span style={{ fontFamily: mono, fontSize: 9, padding: "3px 8px", background: "rgba(19,194,168,0.1)", color: TEAL, borderRadius: 3, letterSpacing: "0.1em", textTransform: "uppercase", justifySelf: "start" }}>{row.k}</span>
-                <div style={{ fontFamily: serif, fontSize: 18, color: INK }}>{row.t}</div>
-                <div style={{ fontFamily: mono, fontSize: 14, color: TEAL, fontWeight: 500 }}>+{row.p}</div>
-              </div>
-            ))}
+            {rows.length === 0 ? (
+              <div style={{ padding: "28px 26px", fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.55)" }}>No entries in this category yet.</div>
+            ) : rows.map(function (row, i) {
+              return (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "100px 86px 1fr auto", gap: 20, padding: "19px 26px", borderTop: i ? "1px solid rgba(242,237,228,0.06)" : "none", alignItems: "center" }}>
+                  <div style={{ fontFamily: mono, fontSize: 11, color: "rgba(242,237,228,0.5)" }}>{row.d}</div>
+                  <span style={{ fontFamily: mono, fontSize: 9, padding: "3px 8px", background: "rgba(19,194,168,0.1)", color: TEAL, borderRadius: 3, letterSpacing: "0.1em", textTransform: "uppercase", justifySelf: "start" }}>{row.k}</span>
+                  <div style={{ fontFamily: serif, fontSize: 18, color: INK }}>{row.t}</div>
+                  <div style={{ fontFamily: mono, fontSize: 14, color: TEAL, fontWeight: 500 }}>+{row.p}</div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </ScReveal>
