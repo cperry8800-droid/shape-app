@@ -32,7 +32,7 @@
   .nav-cta{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;border:1px solid #fff;color:#fff;padding:9px 16px}
 
   /* HERO — pinned, parallax depth, pointer-tilt */
-  .hero{height:100vh;position:sticky;top:0;display:grid;place-items:center;overflow:hidden;
+  .hero{height:100vh;position:relative;display:grid;place-items:center;overflow:hidden;z-index:1;
     background:radial-gradient(120% 90% at 50% 10%,#1a1813 0%,#100f0c 60%,#0b0e0c 100%)}
   .depth{position:absolute;inset:0;display:grid;place-items:center;will-change:transform}
   .blob{position:absolute;border-radius:50%;filter:blur(60px);opacity:.5}
