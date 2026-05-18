@@ -46,4 +46,6 @@ next-env.d.ts
 /.claude/skills/*
 !/.claude/skills/front-end-design/
 !/.claude/skills/algorithmic-art/
+!/.claude/skills/theme-factory/
+!/.claude/skills/debugging/
 /skills-lock.json
