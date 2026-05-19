@@ -186,8 +186,10 @@ function ChatWidget(props) {
 
   const setDraft = (v) => setDraftByTab(prev => prev.map((d, i) => i === tabIdx ? v : d));
 
-  const send = () => {
-    const text = draft.trim();
+  const isSupport = !!tabs[tabIdx]?.support;
+
+  const send = (forceText) => {
+    const text = (typeof forceText === "string" ? forceText : draft).trim();
     if (!text) return;
     dirtyRef.current = true;
     const stamp = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -198,16 +200,18 @@ function ChatWidget(props) {
         return { ...t, last: `You: ${text}`, time: "now", unread: 0, messages: [...t.messages, { who: "You", t: text, time: stamp, me: true }] };
       });
     }));
-    setDraft("");
+    if (typeof forceText !== "string") setDraft("");
     setTyping(true);
-    const replyDelay = 1200 + Math.random() * 900;
+    const replyDelay = isSupport ? 600 : 1200 + Math.random() * 900;
     setTimeout(() => {
       setTyping(false);
       setThreadsByTab(prev => prev.map((ts, ti) => {
         if (ti !== tabIdx) return ts;
         return ts.map((t, i) => {
           if (i !== activeIdx) return t;
-          const { who, text: reply } = pickReply(t, text);
+          const { who, text: reply } = isSupport
+            ? { who: "Shape", text: supportReply(text) }
+            : pickReply(t, text);
           const stamp2 = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
           return { ...t, last: `${who}: ${reply}`, time: "now", messages: [...t.messages, { who, t: reply, time: stamp2, me: false }] };
         });
@@ -553,9 +557,6 @@ function ChatWidget(props) {
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                {pos && (
-                  <button onClick={resetPos} title="Reset position" style={{ background: "transparent", color: "rgba(242,237,228,0.5)", border: 0, fontSize: 11, padding: "4px 8px", cursor: "pointer", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em" }}>RESET</button>
-                )}
                 <button onClick={() => setOpen(false)} aria-label="Close" style={{ background: "transparent", color: "rgba(242,237,228,0.6)", border: 0, fontSize: 20, padding: "2px 6px", cursor: "pointer", lineHeight: 1 }}>×</button>
               </div>
             </div>
@@ -581,7 +582,19 @@ function ChatWidget(props) {
               ))}
               {typing && (
                 <div style={{ display: "flex", alignItems: "center", gap: 6, color: "rgba(242,237,228,0.5)", fontSize: 12, fontStyle: "italic" }}>
-                  <TypingDots />someone is typing…
+                  <TypingDots />{isSupport ? "Shape Support is typing…" : "someone is typing…"}
+                </div>
+              )}
+              {!typing && isSupport && active?.quick?.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 2 }}>
+                  {active.quick.map((label) => (
+                    <button key={label} onClick={() => send(label)}
+                      style={{
+                        border: `1px solid ${TEAL}`, background: "transparent", color: TEAL_BRIGHT,
+                        borderRadius: 999, padding: "7px 12px", fontFamily: sans, fontSize: 12,
+                        fontWeight: 500, cursor: "pointer",
+                      }}>{label}</button>
+                  ))}
                 </div>
               )}
             </div>
@@ -652,6 +665,20 @@ function DragDots() {
       ))}
     </span>
   );
+}
+
+// Customer-support replies for the Help tab.
+function supportReply(text) {
+  const low = String(text || "").toLowerCase();
+  if (/billing|price|cost|refund|charge|stripe|invoice|subscription/.test(low))
+    return "Got it — I'll route this to billing. What's the email on the account so we can pull it up?";
+  if (/coach|trainer|nutrition|marketplace|find a coach/.test(low))
+    return "Tell me your goal and city and I'll point you to the right coach or nutritionist on Shape.";
+  if (/app|bug|crash|android|iphone|ios|login|log in|password|account/.test(low))
+    return "Sorry about that. Send the device + what's happening and our support team can troubleshoot from there.";
+  if (/cancel|delete|close.*account/.test(low))
+    return "I can help with that. Confirm the account email and a teammate will follow up to finish it.";
+  return "Thanks — a Shape teammate will follow up here and by email shortly. Anything else I can help with?";
 }
 
 // Different replies for 1:1 vs group. For group chats, a random member responds.
