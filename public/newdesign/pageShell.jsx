@@ -159,9 +159,9 @@ function Header({ active }) {
     <header className="shape-header" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 50, background: "rgba(11,14,12,0.62)", backdropFilter: "blur(22px) saturate(1.05)", WebkitBackdropFilter: "blur(22px) saturate(1.05)", borderBottom: "1px solid rgba(242,237,228,0.07)" }}>
       <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 30%, ${RUST} 70%, transparent 100%)`, opacity: 0.5 }} />
       <ShapeMobileStyles />
-      <div className="shape-header-inner" style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "14px 36px", gap: 20 }}>
-        <a href="index.html" style={{ flex: "none", display: "inline-flex", alignItems: "center" }}><Logo variant="white" size={42} /></a>
-        <nav className="shape-nav-tabs" style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center", minWidth: 0 }}>
+      <div className="shape-header-inner" style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "16px 72px", gap: 32 }}>
+        <a href="index.html" style={{ flex: "none", display: "inline-flex", alignItems: "center" }}><Logo variant="white" size={37} /></a>
+        <nav className="shape-nav-tabs" style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center", minWidth: 0 }}>
           <NavDropdown label="Clients" active={active} activeMatch={["Clients", "My Profile", "Overview", "Dashboard", "Client Overview", "Client Dashboard"]} items={[["Overview", "Client.html"], ["Dashboard", "ClientDashboard.html"]]} />
           <NavDropdown label="Trainers" active={active} activeMatch={["Trainers", "Trainer Profile", "Trainer Overview", "Trainer Dashboard"]} items={[["Overview", "Coach.html"], ["Dashboard", "TrainerDashboard.html"]]} />
           <NavDropdown label="Nutritionists" active={active} activeMatch={["Nutritionists", "Nutritionist Profile", "Nutritionist Overview", "Nutritionist Dashboard"]} items={[["Overview", "Nutritionist.html"], ["Dashboard", "NutritionistDashboard.html"]]} />
@@ -171,7 +171,7 @@ function Header({ active }) {
           {link("App", "GetApp.html")}
           {link("Pricing", "Pricing.html")}
         </nav>
-        <div className="shape-nav-auth" style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+        <div className="shape-nav-auth" style={{ display: "flex", alignItems: "center", gap: 18, flexShrink: 0 }}>
           {authUser ? (
             <>
               <span style={{ fontSize: 12.5, color: INK, fontFamily: sans, fontWeight: 500, whiteSpace: "nowrap", maxWidth: 130, overflow: "hidden", textOverflow: "ellipsis", letterSpacing: "-0.005em" }}>Hi, {authUser.firstName || authUser.email}</span>
@@ -201,7 +201,7 @@ function Header({ active }) {
               <a href={dashboardHref(authUser.role)} style={{ fontSize: 11.5, letterSpacing: "0.13em", textTransform: "uppercase", color: "rgba(242,237,228,0.72)", fontFamily: sans, whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none" }}>Dashboard</a>
               <a href="#" onClick={handleLogout} style={{ background: INK, color: PAPER, border: 0, padding: "9px 16px", borderRadius: 6, fontWeight: 500, fontSize: 11.5, letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1 }}>Sign out</a>
               <a href="/newdesign/Radio.html" aria-label="Shape Radio" style={{ display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
-                <img src="/shape-radio-wordmark.svg?v=2" alt="Shape Radio" style={{ height: 24, width: "auto", display: "block" }} />
+                <img src="/shape-radio-wordmark-tight.svg?v=1" alt="Shape Radio" style={{ width: 170, height: "auto", maxWidth: "none", display: "block" }} />
               </a>
             </>
           ) : (
@@ -209,7 +209,7 @@ function Header({ active }) {
               <a href="/newdesign/Login.html" style={{ fontSize: 11.5, letterSpacing: "0.13em", textTransform: "uppercase", color: "rgba(242,237,228,0.72)", fontFamily: sans, whiteSpace: "nowrap", lineHeight: 1 }}>Log in</a>
               <a href="/newdesign/Landing.html" style={{ background: INK, color: PAPER, border: 0, padding: "9px 16px", borderRadius: 6, fontWeight: 500, fontSize: 11.5, letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1 }}>Get started</a>
               <a href="/newdesign/Radio.html" aria-label="Shape Radio" style={{ display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
-                <img src="/shape-radio-wordmark.svg?v=2" alt="Shape Radio" style={{ height: 24, width: "auto", display: "block" }} />
+                <img src="/shape-radio-wordmark-tight.svg?v=1" alt="Shape Radio" style={{ width: 170, height: "auto", maxWidth: "none", display: "block" }} />
               </a>
             </>
           )}
@@ -247,7 +247,7 @@ function Footer() {
         </div>
         <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 28, paddingTop: 30, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
           <div>
-            <Logo variant="white" size={46} />
+            <img src="/shape-logo-new-white.png?v=3" alt="Shape" style={{ height: 42, width: "auto", display: "block" }} />
             <p style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.5)", marginTop: 12, maxWidth: 280, lineHeight: 1.55 }}>Real coaches. One marketplace. One platform.</p>
           </div>
           {[
