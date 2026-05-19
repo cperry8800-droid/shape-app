@@ -80,7 +80,7 @@ function MobileDrawer({ open, onClose, active }) {
     <div role="dialog" aria-modal="true"
       style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(26,22,18,0.98)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", display: "flex", flexDirection: "column", padding: "20px 24px 32px", overflowY: "auto" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-        <a href="index.html" style={{ display: "inline-flex", alignItems: "center" }}><Logo variant="white" size={44} /></a>
+        <a href="index.html?home" style={{ display: "inline-flex", alignItems: "center" }}><Logo variant="white" size={44} /></a>
         <button onClick={onClose} aria-label="Close menu"
           style={{ background: "transparent", color: INK, border: 0, fontSize: 30, lineHeight: 1, padding: 8, cursor: "pointer", fontFamily: sans }}>×</button>
       </div>
@@ -160,7 +160,7 @@ function Header({ active }) {
       <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 30%, ${RUST} 70%, transparent 100%)`, opacity: 0.5 }} />
       <ShapeMobileStyles />
       <div className="shape-header-inner" style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "16px 72px", gap: 32 }}>
-        <a href="index.html" style={{ flex: "none", display: "inline-flex", alignItems: "center" }}><Logo variant="white" size={37} /></a>
+        <a href="index.html?home" style={{ flex: "none", display: "inline-flex", alignItems: "center" }}><Logo variant="white" size={37} /></a>
         <nav className="shape-nav-tabs" style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center", minWidth: 0 }}>
           <NavDropdown label="Clients" active={active} activeMatch={["Clients", "My Profile", "Overview", "Dashboard", "Client Overview", "Client Dashboard"]} items={[["Overview", "Client.html"], ["Dashboard", "ClientDashboard.html"]]} />
           <NavDropdown label="Trainers" active={active} activeMatch={["Trainers", "Trainer Profile", "Trainer Overview", "Trainer Dashboard"]} items={[["Overview", "Coach.html"], ["Dashboard", "TrainerDashboard.html"]]} />
