@@ -268,7 +268,7 @@ function TrainerFeatured() {
               <p style={{ fontFamily: serif, fontSize: 18, lineHeight: 1.5, color: "rgba(26,22,18,0.85)", margin: "0 0 24px", fontStyle: "italic" }}>"{t.quote}"</p>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 18, borderTop: "1px solid rgba(26,22,18,0.08)" }}>
                 <div style={{ fontFamily: mono, fontSize: 11, color: "rgba(26,22,18,0.55)" }}>{t.clients}</div>
-                <a href="TrainerPublic.html" style={{ fontFamily: sans, fontSize: 12.5, color: TEAL }}>View profile →</a>
+                <a href={"TrainerPublic.html?coach=" + t.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")} style={{ fontFamily: sans, fontSize: 12.5, color: TEAL }}>View profile →</a>
               </div>
             </div>
           ))}
