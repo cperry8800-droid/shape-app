@@ -1174,7 +1174,21 @@ function BackgroundMusicPlayer({ theme }) {
 }
 
 function PublicProfilePage({ kind }) {
-  const p = PROFILE[kind];
+  const base = PROFILE[kind];
+  const coachSlug = (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("coach")) || "";
+  const c = (coachSlug && typeof window !== "undefined" && window.coachBySlug) ? window.coachBySlug(coachSlug) : null;
+  const p = c ? Object.assign({}, base, {
+    name: c.name,
+    city: c.city,
+    eyebrow: c.tag + " · " + c.city + " · " + c.cert,
+    tagline: c.role,
+    specialties: (c.specialties && c.specialties.length) ? c.specialties : base.specialties,
+    rating: c.rating,
+    sessions: c.sessions,
+    years: c.years,
+    portrait: c.name.split(" ")[0] + " · portrait",
+    credentials: [[c.cert, c.role + " · " + c.years + " yrs experience"]].concat(base.credentials.slice(1)),
+  }) : base;
   const [bookOpen, setBookOpen] = React.useState(false);
   const [theme, patchTheme] = useProfileTheme(kind);
   const [tweaksVisible, setTweaksVisible] = React.useState(true);
