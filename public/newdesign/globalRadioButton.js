@@ -57,9 +57,12 @@
     return audio;
   }
 
+  var PLAY_SVG = '<svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><path d="M3 1.5v9l7-4.5z"/></svg>';
+  var PAUSE_SVG = '<svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><rect x="2.5" y="2" width="2.6" height="8"/><rect x="6.9" y="2" width="2.6" height="8"/></svg>';
+
   function setIcon(btn, playing) {
     var ic = btn.querySelector(".gr-ic");
-    if (ic) ic.textContent = playing ? "❚❚" : "▶";
+    if (ic) ic.innerHTML = playing ? PAUSE_SVG : PLAY_SVG;
     btn.setAttribute("aria-label", (playing ? "Pause" : "Play") + " Shape Radio");
   }
 
@@ -71,7 +74,7 @@
     btn.id = BTN_ID;
     btn.type = "button";
     btn.innerHTML =
-      '<span class="gr-ic">▶</span>' +
+      '<span class="gr-ic">' + PLAY_SVG + '</span>' +
       '<span class="gr-tx"><span class="gr-k">Shape Radio</span>' +
       '<span class="gr-n">' + TRACK + '</span></span>';
     document.body.appendChild(btn);
