@@ -43,7 +43,7 @@ function ChatWidget(props) {
   // Drag state ------------------------------------------------------------
   const POS_KEY = "shape.chatWidget.pos";
   const SIZE_KEY = "shape.chatWidget.size";
-  const DEFAULT_SIZE = { w: 960, h: 720 };
+  const DEFAULT_SIZE = { w: 1180, h: 860 };
   const [pos, setPos] = React.useState(() => {
     try { const s = localStorage.getItem(POS_KEY); return s ? JSON.parse(s) : null; } catch { return null; }
   });
@@ -90,13 +90,9 @@ function ChatWidget(props) {
   };
   const onDrag = (e) => {
     const d = dragRef.current; if (!d) return;
-    const minX = Math.min(8, PANEL_VISIBLE_GRAB - d.w);
-    const maxX = Math.max(8, window.innerWidth - PANEL_VISIBLE_GRAB);
-    const minY = Math.min(8, PANEL_VISIBLE_GRAB - d.h);
-    const maxY = Math.max(8, window.innerHeight - PANEL_VISIBLE_GRAB);
-    const x = Math.max(minX, Math.min(maxX, e.clientX - d.offX));
-    const y = Math.max(minY, Math.min(maxY, e.clientY - d.offY));
-    setPos({ x, y });
+    // Free drag — panel may go fully off-screen; the RESET button
+    // (resetPos) brings it back to the default position.
+    setPos({ x: e.clientX - d.offX, y: e.clientY - d.offY });
   };
   const endDrag = () => {
     dragRef.current = null;
