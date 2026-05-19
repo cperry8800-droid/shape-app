@@ -159,9 +159,9 @@ function Header({ active }) {
     <header className="shape-header" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 50, background: "rgba(11,14,12,0.62)", backdropFilter: "blur(22px) saturate(1.05)", WebkitBackdropFilter: "blur(22px) saturate(1.05)", borderBottom: "1px solid rgba(242,237,228,0.07)" }}>
       <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 30%, ${RUST} 70%, transparent 100%)`, opacity: 0.5 }} />
       <ShapeMobileStyles />
-      <div className="shape-header-inner" style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "14px 72px", gap: 32 }}>
+      <div className="shape-header-inner" style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "14px 36px", gap: 20 }}>
         <a href="index.html" style={{ flex: "none", display: "inline-flex", alignItems: "center" }}><Logo variant="white" size={42} /></a>
-        <nav className="shape-nav-tabs" style={{ display: "flex", gap: 22, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center" }}>
+        <nav className="shape-nav-tabs" style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center", minWidth: 0 }}>
           <NavDropdown label="Clients" active={active} activeMatch={["Clients", "My Profile", "Overview", "Dashboard", "Client Overview", "Client Dashboard"]} items={[["Overview", "Client.html"], ["Dashboard", "ClientDashboard.html"]]} />
           <NavDropdown label="Trainers" active={active} activeMatch={["Trainers", "Trainer Profile", "Trainer Overview", "Trainer Dashboard"]} items={[["Overview", "Coach.html"], ["Dashboard", "TrainerDashboard.html"]]} />
           <NavDropdown label="Nutritionists" active={active} activeMatch={["Nutritionists", "Nutritionist Profile", "Nutritionist Overview", "Nutritionist Dashboard"]} items={[["Overview", "Nutritionist.html"], ["Dashboard", "NutritionistDashboard.html"]]} />
@@ -171,10 +171,10 @@ function Header({ active }) {
           {link("App", "GetApp.html")}
           {link("Pricing", "Pricing.html")}
         </nav>
-        <div className="shape-nav-auth" style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>
+        <div className="shape-nav-auth" style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
           {authUser ? (
             <>
-              <span style={{ fontSize: 13, color: INK, fontFamily: sans, fontWeight: 500, whiteSpace: "nowrap", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", letterSpacing: "-0.005em" }}>Hi, {authUser.firstName || authUser.email}</span>
+              <span style={{ fontSize: 12.5, color: INK, fontFamily: sans, fontWeight: 500, whiteSpace: "nowrap", maxWidth: 130, overflow: "hidden", textOverflow: "ellipsis", letterSpacing: "-0.005em" }}>Hi, {authUser.firstName || authUser.email}</span>
               {authUser.roles && authUser.roles.length > 1 ? (
                 <div style={{ position: "relative" }} onMouseEnter={() => setRoleMenuOpen(true)} onMouseLeave={() => setRoleMenuOpen(false)}>
                   <button onClick={() => setRoleMenuOpen(v => !v)} style={{ background: "rgba(30,192,168,0.1)", border: `1px solid ${TEAL}`, color: TEAL, fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", fontFamily: "'JetBrains Mono', monospace", padding: "6px 12px", borderRadius: 999, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, lineHeight: 1, whiteSpace: "nowrap" }}>
