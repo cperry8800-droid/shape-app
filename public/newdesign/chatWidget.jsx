@@ -16,7 +16,18 @@ function ChatWidget(props) {
     }];
   }, [props.tabs, props.threads, props.title, props.eyebrow]);
 
-  const [open, setOpen] = React.useState(false);
+  // Open state persists across full page navigations (the newdesign pages
+  // are separate static HTML files, so React state resets on every load).
+  const OPEN_KEY = "shape.chat.open";
+  const [open, setOpen] = React.useState(() => {
+    try { return localStorage.getItem(OPEN_KEY) === "1"; } catch { return false; }
+  });
+  React.useEffect(() => {
+    try {
+      if (open) localStorage.setItem(OPEN_KEY, "1");
+      else localStorage.removeItem(OPEN_KEY);
+    } catch {}
+  }, [open]);
   const [tabIdx, setTabIdx] = React.useState(0);
   // threadsByTab: array of arrays of threads (mutable copy)
   const [threadsByTab, setThreadsByTab] = React.useState(() => tabs.map(t => t.threads));

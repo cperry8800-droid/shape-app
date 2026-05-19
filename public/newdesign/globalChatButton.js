@@ -370,6 +370,7 @@
 
     node.querySelector(".sgc-close").addEventListener("click", function () {
       node.classList.remove("open");
+      try { localStorage.removeItem("shape.chat.open"); } catch (e) {}
     });
     head.addEventListener("mousedown", function (event) { startPanelDrag(event, node); });
     input.addEventListener("input", function () { send.disabled = !input.value.trim() || state.ti == null; });
@@ -386,6 +387,7 @@
   function openFallbackPanel() {
     var node = panel();
     node.classList.add("open");
+    try { localStorage.setItem("shape.chat.open", "1"); } catch (e) {}
     restorePanelPosition(node);
     var input = document.querySelector("#" + PANEL_ID + " textarea");
     if (input) window.setTimeout(function () { input.focus(); }, 0);
@@ -476,6 +478,16 @@
     observer.observe(document.body, { childList: true, subtree: true });
 
     window.addEventListener("pageshow", function () { syncVisibility(button); });
+
+    // Keep the chat open across navigation. On pages that natively mount the
+    // rich widget (supportBubble.jsx / a non-injected chatWidget.jsx), it
+    // reopens itself from the persisted open state — don't double-mount here.
+    try {
+      if (localStorage.getItem("shape.chat.open") === "1" &&
+          !document.querySelector('script[src$="supportBubble.jsx"], script[src$="chatWidget.jsx"]:not([data-shape-chat])')) {
+        openRichChat();
+      }
+    } catch (e) {}
   }
 
   if (document.readyState === "loading") {
