@@ -189,9 +189,10 @@
 (function(){
   var el=document.getElementById('shape-intro');
   if(!el)return;
-  var rm=false;
+  var rm=false,skip=false;
   try{rm=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;}catch(e){}
-  if(rm){if(el.parentNode)el.parentNode.removeChild(el);return;}
+  try{skip=new URLSearchParams(location.search).has('home');}catch(e){}
+  if(rm||skip){if(el.parentNode)el.parentNode.removeChild(el);return;}
   document.body.classList.add('intro-lock');
   var done=false;
   function end(){
@@ -215,7 +216,7 @@
 
 <nav>
   <div class="wrap navr">
-    <a class="brand" href="index.html"><img src="/shape-logo-new-white.png?v=3" alt="Shape" /></a>
+    <a class="brand" href="index.html?home"><img src="/shape-logo-new-white.png?v=3" alt="Shape" /></a>
     <div class="nlinks">
       <div class="ndrop"><span>Clients</span><div class="ndmenu"><div>
         <a href="Client.html">Overview</a>
