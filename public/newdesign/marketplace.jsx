@@ -305,7 +305,7 @@ function CoachCard({ c }) {
             </div>
             <div style={{ fontFamily: mono, fontSize: 10, color: "rgba(242,237,228,0.5)", marginTop: 2 }}>{c.sessions.toLocaleString()} sessions</div>
           </div>
-          <a href={c.tag === "Trainer" ? "/trainers" : "/nutritionists"} style={{ padding: "9px 14px", borderRadius: 2, background: TEAL, color: PAPER, border: 0, fontFamily: sans, fontSize: 11.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", textAlign: "center" }}>View →</a>
+          <a href={c.tag === "Trainer" ? "TrainerPublic.html" : "NutritionistPublic.html"} style={{ padding: "9px 14px", borderRadius: 2, background: TEAL, color: PAPER, border: 0, fontFamily: sans, fontSize: 11.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", textAlign: "center" }}>View →</a>
         </div>
       </div>
     </article>);
