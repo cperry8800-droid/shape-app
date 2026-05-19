@@ -55,6 +55,20 @@
       "#shape-global-chat-panel textarea{flex:1;min-height:40px;max-height:110px;resize:none;border:1px solid rgba(242,237,228,.12);border-radius:12px;background:rgba(242,237,228,.045);color:#f2ede4;padding:11px 12px;font:13.5px 'Space Grotesk',Inter,Arial,sans-serif;outline:none}",
       "#shape-global-chat-panel .sgc-send{border:0;border-radius:999px;background:#f2ede4;color:#1a1612;padding:0 16px;font:700 13px 'Space Grotesk',Inter,Arial,sans-serif;cursor:pointer}",
       "#shape-global-chat-panel .sgc-send:disabled{opacity:.45;cursor:not-allowed}",
+      "#shape-global-chat-panel .sgc-tabs{display:flex;gap:4px;overflow-x:auto;padding:8px 10px;border-bottom:1px solid rgba(242,237,228,.09);-ms-overflow-style:none;scrollbar-width:none}",
+      "#shape-global-chat-panel .sgc-tabs::-webkit-scrollbar{display:none}",
+      "#shape-global-chat-panel .sgc-tab{flex:none;border:0;background:transparent;color:rgba(242,237,228,.6);font:600 12px 'Space Grotesk',Inter,Arial,sans-serif;padding:6px 10px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}",
+      "#shape-global-chat-panel .sgc-tab.active{background:rgba(30,192,168,.16);color:#2ee0c4}",
+      "#shape-global-chat-panel .sgc-bdg{min-width:16px;height:16px;padding:0 5px;border-radius:999px;background:#1ec0a8;color:#1a1612;font:700 9px 'JetBrains Mono',Consolas,monospace;display:inline-flex;align-items:center;justify-content:center}",
+      "#shape-global-chat-panel .sgc-list{flex:1;overflow:auto;display:flex;flex-direction:column}",
+      "#shape-global-chat-panel .sgc-row{display:grid;grid-template-columns:1fr auto;gap:3px 10px;padding:13px 16px;border:0;border-bottom:1px solid rgba(242,237,228,.06);cursor:pointer;text-align:left;background:transparent;color:inherit;font:inherit;width:100%}",
+      "#shape-global-chat-panel .sgc-row:hover{background:rgba(242,237,228,.04)}",
+      "#shape-global-chat-panel .sgc-row .nm{font-size:13.5px;font-weight:600}",
+      "#shape-global-chat-panel .sgc-row .rl{font-size:11px;color:rgba(242,237,228,.5);grid-column:1/2}",
+      "#shape-global-chat-panel .sgc-row .tm{font-family:'JetBrains Mono',Consolas,monospace;font-size:9.5px;color:rgba(242,237,228,.4)}",
+      "#shape-global-chat-panel .sgc-row .ls{font-size:12px;color:rgba(242,237,228,.6);grid-column:1/-1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+      "#shape-global-chat-panel .sgc-back{border:0;background:transparent;color:#2ee0c4;font:600 12px 'Space Grotesk',Inter,Arial,sans-serif;cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:0;margin-bottom:2px}",
+      "#shape-global-chat-panel .sgc-from{font-family:'JetBrains Mono',Consolas,monospace;font-size:9px;letter-spacing:.08em;color:rgba(242,237,228,.42);margin:-3px 0 -2px}",
       "@media (max-width:640px){#shape-global-chat-button{right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));padding:14px 19px 14px 16px;font-size:14px;gap:10px}#shape-global-chat-button .shape-global-chat-count{min-width:25px;height:22px;font-size:11px}#shape-global-chat-panel{right:16px;bottom:82px;width:calc(100vw - 32px);height:min(560px,calc(100vh - 104px));max-height:calc(100vh - 104px)}}"
     ].join("");
     document.head.appendChild(style);
@@ -128,95 +142,243 @@
     window.removeEventListener("mouseup", endPanelDrag);
   }
 
+  // Self-contained chat data — embedded so the panel is IDENTICAL on every
+  // page (independent of whatever page scripts are or aren't loaded).
+  function chatData() {
+    return [
+      { id:"circle", label:"Circle", eyebrow:"DIRECT CHAT", title:"Your coaches", threads:[
+        { who:"Maya Okafor", role:"Head trainer · Tempo + hybrid", last:"Stick with 185 for top set. Drop backoffs to 165.", time:"2m", unread:0, messages:[
+          { who:"Maya", t:"How'd the warmups feel this morning?", time:"8:48 AM", me:false },
+          { who:"You", t:"Squat 185 felt heavy — knee a bit grumpy.", time:"8:54 AM", me:true },
+          { who:"Maya", t:"Stick with 185 for top set. Drop backoffs to 165 — protect the knee.", time:"9:02 AM", me:false },
+          { who:"Maya", t:"Ice tonight and log sleep before Friday's call.", time:"9:02 AM", me:false } ] },
+        { who:"Rae Lindqvist", role:"Nutritionist", last:"30g whey + 60g carbs within 45 min.", time:"14m", unread:1, messages:[
+          { who:"Rae", t:"Post-run fueling template is live in your Nutri tab.", time:"Tue 6:14 PM", me:false },
+          { who:"You", t:"Saw it — trying the rice bowl tomorrow.", time:"Tue 7:02 PM", me:true },
+          { who:"Rae", t:"30g whey + 60g carbs within 45 min. Recovery window matters.", time:"14m", me:false } ] } ] },
+      { id:"clients", label:"Clients", eyebrow:"TRAINING PARTNERS", title:"Fellow clients", threads:[
+        { who:"Marcus J.", role:"Strength block 3 · NYC", last:"Still on for 6am tomorrow? Bringing coffee.", time:"31m", unread:2, messages:[
+          { who:"Marcus", t:"Hey — how's block 3 treating you?", time:"Yesterday 9:12 PM", me:false },
+          { who:"You", t:"Brutal but I'm loving it. You?", time:"Yesterday 9:40 PM", me:true },
+          { who:"Marcus", t:"Still on for 6am tomorrow? Bringing coffee.", time:"31m", me:false } ] },
+        { who:"Priya S.", role:"Hybrid · Austin", last:"That rice bowl recipe is elite.", time:"2h", unread:0, messages:[
+          { who:"Priya", t:"Did you try Rae's rice bowl?", time:"Mon 7:40 PM", me:false },
+          { who:"You", t:"Yeah last night — macros were spot on.", time:"Mon 8:02 PM", me:true },
+          { who:"Priya", t:"That rice bowl recipe is elite.", time:"2h", me:false } ] },
+        { who:"Tomás R.", role:"Powerlifting · Chicago", last:"Form check on my squat?", time:"Yesterday", unread:1, messages:[
+          { who:"Tomás", t:"Form check on my squat?", time:"Yesterday 4:18 PM", me:false } ] } ] },
+      { id:"trainers", label:"Trainers", eyebrow:"OTHER TRAINERS", title:"Trainers on Shape", threads:[
+        { who:"Jordan Reyes", role:"Olympic lifting specialist", last:"Happy to do a consult on your clean technique.", time:"3h", unread:0, messages:[
+          { who:"You", t:"Hi — Maya suggested I reach out. Working on clean form.", time:"Tue 11:02 AM", me:true },
+          { who:"Jordan", t:"Happy to do a consult on your clean technique. 30 min, no charge.", time:"3h", me:false } ] },
+        { who:"Alex Chen", role:"Mobility + recovery", last:"Here's a hip flow for before squat days.", time:"Yesterday", unread:1, messages:[
+          { who:"Alex", t:"Here's a hip flow for before squat days. 8 min.", time:"Yesterday 10:14 AM", me:false } ] } ] },
+      { id:"nutritionists", label:"Nutri", eyebrow:"OTHER NUTRITIONISTS", title:"Nutritionists on Shape", threads:[
+        { who:"Dr. Sam Huang", role:"Endurance fueling", last:"Pre-long-run intake should be ~80g carbs.", time:"5h", unread:0, messages:[
+          { who:"You", t:"Question on long run fueling — Rae suggested I ask you.", time:"Tue 2:40 PM", me:true },
+          { who:"Sam", t:"Pre-long-run intake should be ~80g carbs, 90 min out.", time:"5h", me:false } ] },
+        { who:"Lena Torres", role:"Plant-based performance", last:"Happy to share a template if useful.", time:"2d", unread:0, messages:[
+          { who:"Lena", t:"Happy to share a template if useful. Ping me.", time:"Sun 6:10 PM", me:false } ] } ] },
+      { id:"friends", label:"Friends", eyebrow:"DIRECT MESSAGES", title:"Your friends", threads:[
+        { who:"Jade Liu", role:"Active now · Brooklyn", last:"that sunrise run pic was unreal", time:"just now", unread:2, messages:[
+          { who:"Jade", t:"ok we HAVE to do Prospect Park saturday", time:"8:42 AM", me:false },
+          { who:"You", t:"down. bringing Priya too?", time:"8:45 AM", me:true },
+          { who:"Jade", t:"yes yes — 6am corral", time:"8:46 AM", me:false } ] },
+        { who:"Kenji Mori", role:"Active 12m ago · Queens", last:"thx for the squat cue!! pr tmrw", time:"12m", unread:0, messages:[
+          { who:"You", t:"breathe in at the top, brace HARD before the descent.", time:"Yesterday 5:18 PM", me:true },
+          { who:"Kenji", t:"thx for the squat cue!! pr tmrw", time:"12m", me:false } ] },
+        { who:"Sofia Reyes", role:"Active 40m ago · Lisbon", last:"bro the nutri plan is CLEAN", time:"40m", unread:1, messages:[
+          { who:"Sofia", t:"have you seen Rae's new recovery bowl?", time:"Tue 9:40 AM", me:false },
+          { who:"You", t:"made it last night. 10/10.", time:"Tue 10:02 AM", me:true },
+          { who:"Sofia", t:"bro the nutri plan is CLEAN", time:"40m", me:false } ] } ] },
+      { id:"community", label:"Community", eyebrow:"SHAPE COMMUNITY", title:"Channels", threads:[
+        { who:"# shape-community", role:"41,208 members · 2,104 online", last:"Nina O: drop your goal for the month", time:"4m", unread:12, messages:[
+          { who:"Nina O.", t:"welcome everyone — drop your goal for the month", time:"4m", me:false },
+          { who:"Marcus J.", t:"225 bench by end of month. locked in.", time:"3m", me:false },
+          { who:"Rae Lindqvist", t:"consistency > intensity this month. pick one thing and nail it daily.", time:"2m", me:false } ] },
+        { who:"# strength-block-3", role:"412 members · 34 online", last:"Marcus J: First time hitting 225 on bench.", time:"18m", unread:3, messages:[
+          { who:"Marcus J.", t:"First time hitting 225 on bench after 8 months. Maya's programming is unreal.", time:"18m", me:false },
+          { who:"You", t:"Starting tomorrow. Any tips on recovery?", time:"12m", me:true },
+          { who:"Priya S.", t:"Double your protein target and sleep 8+. Seriously.", time:"10m", me:false } ] },
+        { who:"# running-club", role:"1,204 members · 89 online", last:"Ava K: Long run Saturday 6am.", time:"31m", unread:1, messages:[
+          { who:"Ava K.", t:"Long run Saturday 6am — Prospect Park loop. Who's in?", time:"31m", me:false } ] },
+        { who:"# ask-a-coach", role:"5,214 members · 198 online", last:"Maya: Free live Q&A Thursday 7pm EST.", time:"2h", unread:0, messages:[
+          { who:"Maya Okafor", t:"Free live Q&A Thursday 7pm EST — drop your questions below.", time:"2h", me:false } ] } ] },
+      { id:"support", label:"Support", eyebrow:"CUSTOMER SUPPORT", title:"How can we help?", support:true, threads:[
+        { who:"Shape Support", role:"Coaches · billing · the app · your account", last:"How can we help?", time:"now", unread:0,
+          quick:["Find a coach","Billing help","App support"], messages:[
+          { who:"Shape", t:"Welcome to Shape. Send a question about coaches, billing, the app, or your account.", time:"now", me:false } ] } ] }
+    ];
+  }
+
   function panel() {
     var existing = document.getElementById(PANEL_ID);
     if (existing) return existing;
+
+    var DATA = chatData();
+    var state = { tab: DATA[0].id, ti: null };
+
+    function tabBy(id) { for (var i = 0; i < DATA.length; i++) if (DATA[i].id === id) return DATA[i]; return DATA[0]; }
+    function unreadFor(tab) { return (tab.threads || []).reduce(function (s, th) { return s + (Number(th.unread) || 0); }, 0); }
+    function stamp() { return new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); }
+    function supportReply(text) {
+      var low = String(text || "").toLowerCase();
+      if (/billing|price|cost|refund|stripe/.test(low)) return "Got it — we'll route this to billing. What's the email on the account?";
+      if (/coach|trainer|nutrition|marketplace|find a coach/.test(low)) return "Tell us your goal and location and we'll point you to the right coach or nutritionist.";
+      if (/app|bug|android|iphone|login|account|app support/.test(low)) return "Send the device and what's happening — support can troubleshoot the app from there.";
+      return "Thanks — a Shape teammate will follow up here or by email.";
+    }
 
     var node = document.createElement("section");
     node.id = PANEL_ID;
     node.setAttribute("role", "dialog");
     node.setAttribute("aria-label", "Shape chat");
-    node.innerHTML = [
-      '<div class="sgc-head">',
-      '<div><div class="sgc-kicker">Shape chat</div><div class="sgc-title">How can we help?</div></div>',
-      '<button class="sgc-close" type="button" aria-label="Close chat">&times;</button>',
-      "</div>",
-      '<div class="sgc-body">',
-      '<div class="sgc-msg them">Welcome to Shape. Send a question about coaches, billing, the app, or your account.</div>',
-      '<div class="sgc-time">SHAPE · NOW</div>',
-      '<div class="sgc-quick">',
-      '<button type="button" data-sgc-quick="Find a coach">Find a coach</button>',
-      '<button type="button" data-sgc-quick="Billing help">Billing help</button>',
-      '<button type="button" data-sgc-quick="App support">App support</button>',
-      "</div>",
-      "</div>",
-      '<div class="sgc-compose">',
-      '<textarea rows="1" placeholder="Message Shape..."></textarea>',
-      '<button class="sgc-send" type="button" disabled>Send</button>',
-      "</div>"
-    ].join("");
+    node.innerHTML =
+      '<div class="sgc-head"><div><div class="sgc-kicker"></div><div class="sgc-title"></div></div>' +
+      '<button class="sgc-close" type="button" aria-label="Close chat">&times;</button></div>' +
+      '<div class="sgc-tabs"></div>' +
+      '<div class="sgc-main"></div>' +
+      '<div class="sgc-compose"><textarea rows="1" placeholder="Message"></textarea>' +
+      '<button class="sgc-send" type="button" disabled>Send</button></div>';
 
-    var body = node.querySelector(".sgc-body");
     var head = node.querySelector(".sgc-head");
+    var kicker = node.querySelector(".sgc-kicker");
+    var title = node.querySelector(".sgc-title");
+    var tabsEl = node.querySelector(".sgc-tabs");
+    var mainEl = node.querySelector(".sgc-main");
     var input = node.querySelector("textarea");
     var send = node.querySelector(".sgc-send");
-    function stamp() {
-      return new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+    function activeThread() {
+      var tab = tabBy(state.tab);
+      return state.ti == null ? null : (tab.threads || [])[state.ti];
     }
 
-    function append(text, mine) {
-      var msg = document.createElement("div");
-      msg.className = "sgc-msg " + (mine ? "me" : "them");
-      msg.textContent = text;
-      var time = document.createElement("div");
-      time.className = "sgc-time";
-      time.textContent = (mine ? "YOU" : "SHAPE") + " · " + stamp();
-      body.appendChild(msg);
-      body.appendChild(time);
+    function renderTabs() {
+      tabsEl.innerHTML = "";
+      DATA.forEach(function (tab) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "sgc-tab" + (tab.id === state.tab ? " active" : "");
+        b.appendChild(document.createTextNode(tab.label));
+        var u = unreadFor(tab);
+        if (u) { var bd = document.createElement("span"); bd.className = "sgc-bdg"; bd.textContent = u; b.appendChild(bd); }
+        b.addEventListener("click", function () {
+          state.tab = tab.id;
+          state.ti = tab.support ? 0 : null;
+          render();
+        });
+        tabsEl.appendChild(b);
+      });
+    }
+
+    function renderMain() {
+      var tab = tabBy(state.tab);
+      kicker.textContent = tab.eyebrow || "Shape chat";
+      mainEl.innerHTML = "";
+      var th = activeThread();
+
+      if (!th) {
+        title.textContent = tab.title || "Chat";
+        var list = document.createElement("div");
+        list.className = "sgc-list";
+        (tab.threads || []).forEach(function (thread, idx) {
+          var row = document.createElement("button");
+          row.type = "button";
+          row.className = "sgc-row";
+          var nm = document.createElement("div"); nm.className = "nm"; nm.textContent = thread.who;
+          var tm = document.createElement("div"); tm.className = "tm"; tm.textContent = thread.time || "";
+          var rl = document.createElement("div"); rl.className = "rl"; rl.textContent = thread.role || "";
+          var ls = document.createElement("div"); ls.className = "ls"; ls.textContent = thread.last || "";
+          row.appendChild(nm); row.appendChild(tm); row.appendChild(rl); row.appendChild(ls);
+          row.addEventListener("click", function () { thread.unread = 0; state.ti = idx; render(); });
+          list.appendChild(row);
+        });
+        mainEl.appendChild(list);
+        send.disabled = true;
+        return;
+      }
+
+      title.textContent = th.who;
+      var body = document.createElement("div");
+      body.className = "sgc-body";
+
+      if (!tab.support) {
+        var back = document.createElement("button");
+        back.type = "button";
+        back.className = "sgc-back";
+        back.textContent = "‹ All " + (tab.label || "chats");
+        back.addEventListener("click", function () { state.ti = null; render(); });
+        body.appendChild(back);
+      }
+
+      (th.messages || []).forEach(function (m) {
+        if (!m.me) {
+          var from = document.createElement("div");
+          from.className = "sgc-from";
+          from.textContent = m.who || "";
+          body.appendChild(from);
+        }
+        var msg = document.createElement("div");
+        msg.className = "sgc-msg " + (m.me ? "me" : "them");
+        msg.textContent = m.t;
+        body.appendChild(msg);
+        var time = document.createElement("div");
+        time.className = "sgc-time";
+        time.textContent = (m.me ? "YOU" : (m.who || "").toUpperCase()) + " · " + (m.time || stamp());
+        body.appendChild(time);
+      });
+
+      if (th.quick && th.quick.length) {
+        var q = document.createElement("div");
+        q.className = "sgc-quick";
+        th.quick.forEach(function (label) {
+          var qb = document.createElement("button");
+          qb.type = "button";
+          qb.textContent = label;
+          qb.addEventListener("click", function () { submit(label); });
+          q.appendChild(qb);
+        });
+        body.appendChild(q);
+      }
+
+      mainEl.appendChild(body);
       body.scrollTop = body.scrollHeight;
+      send.disabled = !input.value.trim();
+      input.placeholder = "Message " + (th.who || "").split(" ")[0];
     }
 
-    function reply(text) {
-      var low = String(text || "").toLowerCase();
-      if (/billing|price|cost|refund|stripe/.test(low)) return "Got it. Send the email on the account and we will route this to billing.";
-      if (/coach|trainer|nutrition|marketplace/.test(low)) return "Send what you are looking for and we can point you to the right coach or nutritionist.";
-      if (/app|bug|android|iphone|login|account/.test(low)) return "Send the device and issue. Support can use that to troubleshoot the app.";
-      return "Received. A Shape teammate can follow up here or by email.";
-    }
+    function render() { renderTabs(); renderMain(); }
 
     function submit(text) {
+      var th = activeThread();
+      if (!th) return;
       var value = String(text || input.value || "").trim();
       if (!value) return;
-      append(value, true);
+      th.messages.push({ who: "You", t: value, time: stamp(), me: true });
       input.value = "";
       send.disabled = true;
-      window.setTimeout(function () {
-        append(reply(value), false);
-      }, 450);
+      var supportTab = tabBy(state.tab).support;
+      render();
+      if (supportTab) {
+        window.setTimeout(function () {
+          var cur = activeThread();
+          if (cur) { cur.messages.push({ who: "Shape", t: supportReply(value), time: stamp(), me: false }); render(); }
+        }, 480);
+      }
     }
 
     node.querySelector(".sgc-close").addEventListener("click", function () {
       node.classList.remove("open");
     });
-    head.addEventListener("mousedown", function (event) {
-      startPanelDrag(event, node);
-    });
-    input.addEventListener("input", function () {
-      send.disabled = !input.value.trim();
-    });
+    head.addEventListener("mousedown", function (event) { startPanelDrag(event, node); });
+    input.addEventListener("input", function () { send.disabled = !input.value.trim() || state.ti == null; });
     input.addEventListener("keydown", function (event) {
-      if (event.key === "Enter" && !event.shiftKey) {
-        event.preventDefault();
-        submit();
-      }
+      if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit(); }
     });
     send.addEventListener("click", function () { submit(); });
-    node.querySelectorAll("[data-sgc-quick]").forEach(function (quick) {
-      quick.addEventListener("click", function () {
-        submit(quick.getAttribute("data-sgc-quick"));
-      });
-    });
 
+    render();
     document.body.appendChild(node);
     return node;
   }
@@ -231,7 +393,8 @@
 
   function syncVisibility(button) {
     if (!button) return;
-    button.classList.toggle(HIDDEN_CLASS, nativeWidgetExists());
+    // Keep the chat bubble visible on every page for consistency.
+    button.classList.remove(HIDDEN_CLASS);
   }
 
   function mount() {
@@ -251,10 +414,8 @@
     ].join("");
 
     button.addEventListener("click", function () {
-      if (typeof window.__openChat === "function") {
-        window.__openChat();
-        return;
-      }
+      // Always open the self-contained panel so the chat bubble is
+      // identical on every page.
       openFallbackPanel();
     });
 
