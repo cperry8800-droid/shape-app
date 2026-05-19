@@ -47,14 +47,13 @@ function NutHero() {
 // ---------- Value strip ----------
 function NutStats() {
   const items = [
-    { k: "15%", v: "Platform fee on what clients pay you. No monthly dues, no listing fees." },
     { k: "Weekly", v: "Payouts direct to your bank, or instant any day." },
     { k: "Verified", v: "Every RD, RDN, CNS, and license checked on intake." },
     { k: "Yours", v: "Your practice, your pricing, your clients. No lock-in." },
   ];
   return (
     <section style={{ padding: "80px 72px", borderTop: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
-      <div className="nu-stats" style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}>
+      <div className="nu-stats" style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(3, 1fr)" }}>
         {items.map((it, i) => (
           <div key={i} style={{ padding: "12px 32px", borderLeft: i ? "1px solid rgba(242,237,228,0.1)" : "none" }}>
             <div style={{ fontFamily: serif, fontSize: it.k.length > 6 ? 42 : 58, letterSpacing: "-0.04em", fontWeight: 300, color: INK, lineHeight: 1 }}>{it.k}</div>
