@@ -4,7 +4,7 @@
 const ROLE_CONFIG = {
   client: {
     kicker: "Start training with Shape",
-    titleLeft: "Train with the best coaches - one platform.",
+    titleLeft: "Train with the best coaches - one marketplace - one platform.",
     perks: [
       "Access every trainer and nutritionist",
       "Workout + meal plans in one app",

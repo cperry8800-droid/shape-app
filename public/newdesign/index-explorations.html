@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Shape — Redesign Explorations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&family=Inter+Tight:wght@300;400;500;600;700&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
+
+<style>
+  :root {
+    --teal: #0ac5a8;
+    --teal-deep: #087a68;
+    --teal-soft: #c7f5ec;
+    --ink: #0a0d0c;
+    --paper: #fafaf7;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #0a0d0c; color: #fff; font-family: 'Inter Tight', sans-serif; -webkit-font-smoothing: antialiased; }
+  img { display: block; max-width: 100%; }
+  a { color: inherit; text-decoration: none; }
+
+  /* Top switcher */
+  .switcher {
+    position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
+    z-index: 9999; display: flex; gap: 4px;
+    background: rgba(20,22,21,0.72); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 999px; padding: 4px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.04em;
+  }
+  .switcher button { appearance: none; border: 0; background: transparent; color: rgba(255,255,255,0.6); padding: 8px 14px; border-radius: 999px; cursor: pointer; text-transform: uppercase; font-family: inherit; font-size: inherit; letter-spacing: inherit; transition: all .2s; }
+  .switcher button:hover { color: #fff; }
+  .switcher button.on { background: #fff; color: #0a0d0c; }
+
+  .direction { min-height: 100vh; }
+  .direction[hidden] { display: none; }
+
+  /* Stripe decorations */
+  ::selection { background: var(--teal); color: #0a0d0c; }
+
+  /* Shared placeholder pattern */
+  .ph-stripes {
+    background-image: repeating-linear-gradient(135deg, rgba(255,255,255,0.06) 0 1px, transparent 1px 8px);
+  }
+  .ph-stripes-dark {
+    background-image: repeating-linear-gradient(135deg, rgba(0,0,0,0.06) 0 1px, transparent 1px 8px);
+  }
+</style>
+</head>
+<body>
+
+<script>
+  // Mobile visitors land on the App page instead of the desktop explorer.
+  // ?desktop=1 (or having visited that way once) bypasses the redirect.
+  (function () {
+    try {
+      var params = new URLSearchParams(window.location.search);
+      if (params.has('desktop')) {
+        sessionStorage.setItem('shapeForceDesktop', '1');
+        return;
+      }
+      if (sessionStorage.getItem('shapeForceDesktop') === '1') return;
+      var isMobile = window.matchMedia('(max-width: 760px)').matches;
+      if (isMobile) {
+        window.location.replace('/newdesign/GetApp.html');
+      }
+    } catch (e) {}
+  })();
+</script>
+
+<main>
+  <section class="direction" id="dir-A" data-screen-label="A Performance"></section>
+  <section class="direction" id="dir-B" data-screen-label="B Editorial" hidden></section>
+  <section class="direction" id="dir-C" data-screen-label="C Platform" hidden></section>
+</main>
+
+<!-- Tweaks panel mount -->
+<div id="tweaks-root"></div>
+
+<script type="text/babel" data-presets="react" src="shared.jsx?v=20260501-2"></script>
+<script type="text/babel" data-presets="react" src="directionA.jsx?v=20260501-2"></script>
+<script type="text/babel" data-presets="react" src="directionB.jsx?v=20260501-2"></script>
+<script type="text/babel" data-presets="react" src="directionC.jsx?v=20260501-2"></script>
+<script type="text/babel" data-presets="react" src="app.jsx?v=20260501-2"></script>
+
+<script type="text/babel" data-presets="react" src="pageShell.jsx?v=20260501-2"></script>
+<script type="text/babel" data-presets="react" src="chatWidget.jsx?v=20260501-2"></script>
+<script type="text/babel" data-presets="react" src="clientChatThreads.jsx?v=20260501-2"></script>
+<script type="text/babel" data-presets="react" src="supportBubble.jsx?v=20260501-2"></script>
+<script src="globalChatButton.js" defer></script>
+</body>
+</html>

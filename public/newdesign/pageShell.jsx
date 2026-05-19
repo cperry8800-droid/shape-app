@@ -1,10 +1,14 @@
 // Shared Direction-B primitives for Marketplace + Community pages
-const PAPER = "#1a1612";
-const INK = "#f2ede4";
-const TEAL = "#1ec0a8";
+// Spatial Cinema design language — shared tokens
+const PAPER = "#1a1612";        // warm dark base (legacy name, kept: used site-wide)
+const INK = "#f2ede4";          // warm cream text
+const INK_DEEP = "#0b0e0c";     // true cinema base (footer / deep surfaces)
+const TEAL = "#13c2a8";         // refined cinema teal accent
 const TEAL_BRIGHT = "#2ee0c4";
+const RUST = "#d2693f";         // warm secondary accent
 const serif = "'Fraunces', 'Instrument Serif', serif";
 const sans = "'Space Grotesk', sans-serif";
+const mono = "'JetBrains Mono', monospace";
 
 function Ph({ label, ratio = "1/1", tone = "dark", style = {} }) {
   const bg = tone === "dark" ? "#0f1513" : "#efece6";
@@ -152,7 +156,8 @@ function Header({ active }) {
   );
   return (
     <>
-    <header className="shape-header" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 50, background: "rgba(26,22,18,0.45)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+    <header className="shape-header" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 50, background: "rgba(11,14,12,0.62)", backdropFilter: "blur(22px) saturate(1.05)", WebkitBackdropFilter: "blur(22px) saturate(1.05)", borderBottom: "1px solid rgba(242,237,228,0.07)" }}>
+      <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 30%, ${RUST} 70%, transparent 100%)`, opacity: 0.5 }} />
       <ShapeMobileStyles />
       <div className="shape-header-inner" style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "14px 72px", gap: 32 }}>
         <a href="index.html" style={{ flex: "none", display: "inline-flex", alignItems: "center" }}><Logo variant="white" size={42} /></a>
@@ -233,16 +238,17 @@ function HeroBg() {
 
 function Footer() {
   return (
-    <footer className="shape-footer" style={{ padding: "40px 72px 28px", background: INK, color: PAPER }}>
+    <footer className="shape-footer" style={{ position: "relative", padding: "56px 72px 36px", background: INK_DEEP, color: INK }}>
+      <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 30%, ${RUST} 70%, transparent 100%)`, opacity: 0.55 }} />
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
-        <div className="shape-footer-cta" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, paddingBottom: 28, textAlign: "center" }}>
-          <img src="/shape-logo-black.png" alt="Shape" style={{ height: 48, width: "auto", display: "block" }} />
-          <div style={{ fontFamily: serif, fontSize: 14, letterSpacing: "-0.01em", color: PAPER }}>Join the community</div>
+        <div className="shape-footer-cta" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, paddingBottom: 36, textAlign: "center" }}>
+          <img src="/shape-logo-new-white.png?v=3" alt="Shape" style={{ height: 56, width: "auto", display: "block" }} />
+          <div style={{ fontFamily: serif, fontSize: 20, fontStyle: "italic", letterSpacing: "-0.02em", color: INK }}>Join the community</div>
         </div>
-        <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 28, paddingTop: 22, borderTop: "1px solid rgba(26,22,18,0.12)" }}>
+        <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 28, paddingTop: 30, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
           <div>
-            <Logo variant="black" size={48} />
-            <p style={{ fontFamily: sans, fontSize: 12, color: "rgba(26,22,18,0.55)", marginTop: 10, maxWidth: 280 }}>Real coaches. One marketplace. One platform.</p>
+            <Logo variant="white" size={46} />
+            <p style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.5)", marginTop: 12, maxWidth: 280, lineHeight: 1.55 }}>Real coaches. One marketplace. One platform.</p>
           </div>
           {[
             ["Product",      [["Marketplace", "Marketplace.html"], ["Shape Score", "Score.html"], ["Radio", "Radio.html"], ["Dashboard", "ClientDashboard.html"]]],
@@ -251,12 +257,12 @@ function Footer() {
             ["Support",      [["Help", "/help.html"], ["Contact", "/contact.html"], ["Privacy", "/privacy.html"], ["Terms", "/terms.html"]]],
           ].map(([h, items]) => (
             <div key={h}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(26,22,18,0.5)", marginBottom: 10 }}>{h}</div>
-              {items.map(([label, href]) => <div key={label} style={{ marginBottom: 6 }}><a href={href} style={{ fontFamily: sans, fontSize: 12, color: "rgba(26,22,18,0.8)", textDecoration: "none" }}>{label}</a></div>)}
+              <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 14 }}>{h}</div>
+              {items.map(([label, href]) => <div key={label} style={{ marginBottom: 8 }}><a href={href} className="shape-foot-link" style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.72)", textDecoration: "none", transition: "color .15s ease" }}>{label}</a></div>)}
             </div>
           ))}
         </div>
-        <div className="shape-footer-base" style={{ marginTop: 28, paddingTop: 16, borderTop: "1px solid rgba(26,22,18,0.08)", display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", color: "rgba(26,22,18,0.5)" }}>
+        <div className="shape-footer-base" style={{ marginTop: 36, paddingTop: 18, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", justifyContent: "space-between", fontFamily: mono, fontSize: 10, letterSpacing: "0.16em", color: "rgba(242,237,228,0.42)" }}>
           <span>© 2026 SHAPE</span>
           <span>BROOKLYN · LISBON · MELBOURNE</span>
         </div>
@@ -269,6 +275,11 @@ function ShapeMobileStyles() {
   return (
     <style>{`
       html, body { overflow-x: hidden; }
+      /* Spatial Cinema chrome micro-interactions */
+      .shape-nav-link, .shape-foot-link { transition: color .16s ease, border-color .16s ease; }
+      .shape-foot-link:hover { color: ${TEAL_BRIGHT} !important; }
+      .shape-nav-link:hover { color: ${INK} !important; }
+      .shape-header { transition: background .25s ease; }
       /* Global scale-down for the newdesign pages — makes the whole UI feel
          less heavy without touching every typographic value individually.
          Applied only above 900px so the mobile media query below isn't
