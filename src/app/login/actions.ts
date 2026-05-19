@@ -14,10 +14,10 @@ export async function login(formData: FormData): Promise<{ error: string } | voi
     role === 'shape_radio'
       ? '/newdesign/Radio.html'
       : role === 'trainer'
-      ? '/newdesign/TrainerDashboard.html'
+      ? '/dashboard/trainer'
       : role === 'nutritionist'
-      ? '/newdesign/NutritionistDashboard.html'
-      : '/newdesign/ClientDashboard.html';
+      ? '/dashboard/nutritionist'
+      : '/dashboard/client';
   const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : roleDefaultNext;
 
   const supabase = await createClient();
@@ -54,7 +54,7 @@ export async function signup(
 
   if (!needsConfirm) {
     revalidatePath('/', 'layout');
-    redirect('/newdesign/ClientDashboard.html');
+    redirect('/dashboard/client');
   }
 
   return { ok: true, needsConfirm: true };
