@@ -43,9 +43,9 @@
 
   var audio = null;
   function ensureAudio() {
-    if (audio || !SRC) return audio;
+    if (audio) return audio;
     audio = document.createElement("audio");
-    audio.src = SRC;
+    if (SRC) audio.src = SRC;
     audio.loop = true;
     audio.preload = "none";
     audio.addEventListener("timeupdate", function () {
@@ -67,17 +67,14 @@
     if (document.getElementById(BTN_ID)) return;
     injectStyles();
 
-    var hasSrc = Boolean(SRC);
-    var btn = document.createElement(hasSrc ? "button" : "a");
+    var btn = document.createElement("button");
     btn.id = BTN_ID;
-    if (hasSrc) { btn.type = "button"; } else { btn.href = "/newdesign/Radio.html"; }
+    btn.type = "button";
     btn.innerHTML =
       '<span class="gr-ic">▶</span>' +
       '<span class="gr-tx"><span class="gr-k">Shape Radio</span>' +
       '<span class="gr-n">' + TRACK + '</span></span>';
     document.body.appendChild(btn);
-
-    if (!hasSrc) return; // persistent launcher only (no audio source configured)
 
     audio = ensureAudio();
     var sync = function () { setIcon(btn, !audio.paused); };
