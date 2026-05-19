@@ -275,3 +275,14 @@
     mount();
   }
 })();
+
+/* Also load the persistent Shape Radio mini-player on every page that
+   already includes this global chat button (site-wide, no per-page edits). */
+(function () {
+  if (window.__shapeGlobalRadioLoaded || document.getElementById("shape-global-radio-loader")) return;
+  var s = document.createElement("script");
+  s.id = "shape-global-radio-loader";
+  s.src = "/newdesign/globalRadioButton.js";
+  s.defer = true;
+  (document.body || document.documentElement).appendChild(s);
+})();
