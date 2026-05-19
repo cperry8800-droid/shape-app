@@ -246,9 +246,9 @@ function Footer() {
           <div style={{ fontFamily: serif, fontSize: 20, fontStyle: "italic", letterSpacing: "-0.02em", color: INK }}>Join the community</div>
         </div>
         <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 28, paddingTop: 30, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
-          <div>
-            <img src="/shape-logo-new-white.png?v=3" alt="Shape" style={{ height: 42, width: "auto", display: "block" }} />
-            <p style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.5)", marginTop: 12, maxWidth: 280, lineHeight: 1.55 }}>Real coaches. One marketplace. One platform.</p>
+          <div style={{ textAlign: "center" }}>
+            <img src="/shape-logo-new-white.png?v=3" alt="Shape" style={{ height: 42, width: "auto", display: "block", margin: "0 auto" }} />
+            <p style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.5)", margin: "12px auto 0", maxWidth: 280, lineHeight: 1.55 }}>Real coaches. One marketplace. One platform.</p>
           </div>
           {[
             ["Product",      [["Marketplace", "Marketplace.html"], ["Shape Score", "Score.html"], ["Radio", "Radio.html"], ["Dashboard", "ClientDashboard.html"]]],
