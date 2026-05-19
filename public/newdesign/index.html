@@ -350,26 +350,21 @@
   </div>
 </footer>
 
+<script src="/newdesign/coachDirectory.js"></script>
 <script>
 (function(){
   var still = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  var COACHES=[
-    {n:"Mara Quinn",r:"Strength · Hypertrophy",b:"Ex-national lifter. Dense, sustainable strength for busy professionals.",a:"12y",a2:"310"},
-    {n:"Devon Ils",r:"Endurance · Hybrid",b:"Marathon + threshold specialist. 'I can't run' becomes negative splits.",a:"9y",a2:"188"},
-    {n:"Sela R.",r:"Nutrition · Recomp",b:"RD. Macro plans that survive travel, kids, and a real social life.",a:"11y",a2:"402"},
-    {n:"Theo Marsh",r:"Mobility · Rehab",b:"DPT. Rebuilds what the gym broke. Pain-free pressing again.",a:"14y",a2:"256"},
-    {n:"Junia Park",r:"Women's strength",b:"Peri/post-partum and beyond. Strong is the point, not a phase.",a:"8y",a2:"221"},
-    {n:"Cas Boone",r:"Fat loss · Habit",b:"Behavior-first. Small tracked things compounded. No crash diets.",a:"10y",a2:"377"}
-  ];
   var hue=[["#0aa090","#13c2a8"],["#d2693f","#e79a52"],["#1f6f62","#13c2a8"],["#9a4f2c","#d2693f"],["#211c16","#3a3f3b"],["#127d70","#13c2a8"]];
+  var slugify=window.coachSlug||function(n){return String(n).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');};
+  var TRAINERS=(window.SHAPE_COACHES||[]).filter(function(c){return c.tag==='Trainer';}).slice(0,6);
   var gal=document.getElementById('gal');
-  COACHES.forEach(function(c,i){
-    var ini=c.n.split(' ').map(function(x){return x[0]}).join('').slice(0,2);
-    var el=document.createElement('a');el.href="Marketplace.html";el.className="c";
-    el.innerHTML='<div class="av" style="background:linear-gradient(135deg,'+hue[i][0]+','+hue[i][1]+')">'+ini+'</div>'+
-      '<h4>'+c.n+'</h4><div class="role">'+c.r+'</div><div class="bio">'+c.b+'</div>'+
-      '<div class="st"><span><b>'+c.a+'</b>Coaching</span><span><b>'+c.a2+'</b>Clients</span></div>';
+  TRAINERS.forEach(function(c,i){
+    var ini=c.name.split(' ').map(function(x){return x[0]}).join('').slice(0,2);
+    var el=document.createElement('a');el.href='TrainerPublic.html?coach='+slugify(c.name);el.className='c';
+    el.innerHTML='<div class="av" style="background:linear-gradient(135deg,'+hue[i%hue.length][0]+','+hue[i%hue.length][1]+')">'+ini+'</div>'+
+      '<h4>'+c.name+'</h4><div class="role">'+c.role+'</div><div class="bio">'+(c.specialties?c.specialties.join(' · '):c.city)+'</div>'+
+      '<div class="st"><span><b>'+c.years+'y</b>Coaching</span><span><b>'+c.sessions.toLocaleString()+'</b>Sessions</span></div>';
     gal.appendChild(el);
   });
 
