@@ -23,6 +23,58 @@ function ChatWidget(props) {
   const [activeByTab, setActiveByTab] = React.useState(() => tabs.map(() => 0));
   const [draftByTab, setDraftByTab] = React.useState(() => tabs.map(() => ""));
   const [typing, setTyping] = React.useState(false);
+
+  // ── Persistence ───────────────────────────────────────────────────────
+  // Sent messages / created channels survive navigation + reload, scoped to
+  // the authenticated Supabase user (falls back to "anon" when signed out).
+  // localStorage is shared across every /newdesign/* page (same origin), so
+  // the site-wide chat bubble stays in sync everywhere.
+  const STORE_VER = "v2";
+  const storeKeyRef = React.useRef(null);
+  const hydratedRef = React.useRef(false);
+  const dirtyRef = React.useRef(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      let uid = "anon";
+      try {
+        const r = await fetch("/api/me", { credentials: "same-origin" });
+        if (r.ok) {
+          const j = await r.json();
+          uid = (j && (j.user?.id || j.id || j.profile?.id)) || "anon";
+        }
+      } catch {}
+      if (cancelled) return;
+      const key = `shape.chat.${STORE_VER}.${uid}`;
+      storeKeyRef.current = key;
+      // Don't clobber a message the user typed before hydration finished.
+      if (!dirtyRef.current) {
+        try {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const saved = JSON.parse(raw);
+            if (saved && Array.isArray(saved.threadsByTab) && saved.threadsByTab.length === tabs.length) {
+              setThreadsByTab(saved.threadsByTab);
+              if (Array.isArray(saved.activeByTab) && saved.activeByTab.length === tabs.length) {
+                setActiveByTab(saved.activeByTab);
+              }
+            }
+          }
+        } catch {}
+      }
+      hydratedRef.current = true;
+    })();
+    return () => { cancelled = true; };
+  }, [tabs.length]);
+
+  React.useEffect(() => {
+    if (!hydratedRef.current || !storeKeyRef.current) return;
+    try {
+      localStorage.setItem(storeKeyRef.current, JSON.stringify({ threadsByTab, activeByTab }));
+    } catch {}
+  }, [threadsByTab, activeByTab]);
+
   const [creating, setCreating] = React.useState(false);
   const [newName, setNewName] = React.useState("");
   const [newDesc, setNewDesc] = React.useState("");
@@ -137,6 +189,7 @@ function ChatWidget(props) {
   const send = () => {
     const text = draft.trim();
     if (!text) return;
+    dirtyRef.current = true;
     const stamp = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
     setThreadsByTab(prev => prev.map((ts, ti) => {
       if (ti !== tabIdx) return ts;
@@ -181,6 +234,7 @@ function ChatWidget(props) {
   const createChannel = () => {
     const slug = newName.trim().replace(/^#\s*/, "").replace(/\s+/g, "-").toLowerCase();
     if (!slug) return;
+    dirtyRef.current = true;
     const newThread = {
       who: "# " + slug,
       role: newDesc.trim() ? "1 member · just now · " + newDesc.trim() : "1 member · just now",
