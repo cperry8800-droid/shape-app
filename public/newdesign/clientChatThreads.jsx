@@ -143,5 +143,18 @@ const clientChatTabs = [
       ]},
     ],
   },
+  {
+    id: "support",
+    label: "Help",
+    eyebrow: "CUSTOMER SUPPORT",
+    title: "How can we help?",
+    support: true,
+    threads: [
+      { who: "Shape Support", role: "Coaches · billing · the app · your account", last: "How can we help?", time: "now", unread: 0,
+        quick: ["Find a coach", "Billing help", "App support", "Something else"], messages: [
+        { who: "Shape", t: "Welcome to Shape Support. Ask about finding a coach, billing, the app, or your account and we'll help you out.", time: "now", me: false },
+      ]},
+    ],
+  },
 ];
 Object.assign(window, { clientChatTabs });
