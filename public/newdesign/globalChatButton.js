@@ -204,7 +204,7 @@
           { who:"Ava K.", t:"Long run Saturday 6am — Prospect Park loop. Who's in?", time:"31m", me:false } ] },
         { who:"# ask-a-coach", role:"5,214 members · 198 online", last:"Maya: Free live Q&A Thursday 7pm EST.", time:"2h", unread:0, messages:[
           { who:"Maya Okafor", t:"Free live Q&A Thursday 7pm EST — drop your questions below.", time:"2h", me:false } ] } ] },
-      { id:"support", label:"Support", eyebrow:"CUSTOMER SUPPORT", title:"How can we help?", support:true, threads:[
+      { id:"support", label:"Help", eyebrow:"CUSTOMER SUPPORT", title:"How can we help?", support:true, threads:[
         { who:"Shape Support", role:"Coaches · billing · the app · your account", last:"How can we help?", time:"now", unread:0,
           quick:["Find a coach","Billing help","App support"], messages:[
           { who:"Shape", t:"Welcome to Shape. Send a question about coaches, billing, the app, or your account.", time:"now", me:false } ] } ] }
