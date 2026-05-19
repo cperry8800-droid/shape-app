@@ -391,6 +391,54 @@
     if (input) window.setTimeout(function () { input.focus(); }, 0);
   }
 
+  // Open the full rich ChatWidget (big, all tabs, draggable). On pages
+  // that don't already have it, lazily load + mount it; if anything
+  // fails, gracefully fall back to the self-contained panel.
+  var chatBootStarted = false;
+  function waitAndOpen(tries) {
+    if (typeof window.__openChat === "function") { window.__openChat(); return; }
+    if (tries > 60) { openFallbackPanel(); return; }
+    window.setTimeout(function () { waitAndOpen(tries + 1); }, 80);
+  }
+  function openRichChat() {
+    if (typeof window.__openChat === "function") { window.__openChat(); return; }
+    if (chatBootStarted) { waitAndOpen(0); return; }
+    chatBootStarted = true;
+    if (!(window.Babel && window.Babel.transformScriptTags && window.React && window.ReactDOM)) {
+      openFallbackPanel();
+      return;
+    }
+    try {
+      if (!document.getElementById("shape-rich-chat-root")) {
+        var root = document.createElement("div");
+        root.id = "shape-rich-chat-root";
+        document.body.appendChild(root);
+      }
+      ["/newdesign/pageShell.jsx", "/newdesign/clientChatThreads.jsx", "/newdesign/chatWidget.jsx"].forEach(function (s) {
+        if (document.querySelector('script[data-shape-chat="' + s + '"]')) return;
+        var sc = document.createElement("script");
+        sc.type = "text/babel";
+        sc.setAttribute("data-presets", "react");
+        sc.setAttribute("data-shape-chat", s);
+        sc.src = s;
+        document.body.appendChild(sc);
+      });
+      if (!document.querySelector('script[data-shape-chat="mount"]')) {
+        var mountSc = document.createElement("script");
+        mountSc.type = "text/babel";
+        mountSc.setAttribute("data-presets", "react");
+        mountSc.setAttribute("data-shape-chat", "mount");
+        mountSc.text = "(function(){try{var r=document.getElementById('shape-rich-chat-root');if(r&&window.ChatWidget)ReactDOM.createRoot(r).render(React.createElement(window.ChatWidget,{tabs:window.clientChatTabs}));}catch(e){}})();";
+        document.body.appendChild(mountSc);
+      }
+      window.Babel.transformScriptTags();
+    } catch (e) {
+      openFallbackPanel();
+      return;
+    }
+    waitAndOpen(0);
+  }
+
   function syncVisibility(button) {
     if (!button) return;
     // Keep the chat bubble visible on every page for consistency.
@@ -414,9 +462,9 @@
     ].join("");
 
     button.addEventListener("click", function () {
-      // Always open the self-contained panel so the chat bubble is
-      // identical on every page.
-      openFallbackPanel();
+      // Open the full rich ChatWidget (loads it if the page doesn't
+      // have it yet); falls back to the self-contained panel on failure.
+      openRichChat();
     });
 
     document.body.appendChild(button);
