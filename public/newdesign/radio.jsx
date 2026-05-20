@@ -169,7 +169,7 @@ function RadioShapeSets() {
   return (
     <section style={{ padding: "80px 72px" }}>
       <RdReveal>
-        <div style={{ position: "relative", overflow: "hidden", maxWidth: 1480, margin: "0 auto", padding: 48, background: "rgba(11,14,12,0.88)", backdropFilter: "blur(14px) saturate(1.1)", WebkitBackdropFilter: "blur(14px) saturate(1.1)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, textAlign: "center" }}>
+        <div style={{ position: "relative", overflow: "hidden", maxWidth: 1480, margin: "0 auto", padding: 48, background: "rgba(11,14,12,0.68)", backdropFilter: "blur(14px) saturate(1.1)", WebkitBackdropFilter: "blur(14px) saturate(1.1)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, textAlign: "center" }}>
           <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${TEAL}, ${RUST})`, opacity: 0.75 }} />
           <div style={{ display: "inline-flex", alignItems: "center", gap: 8, fontFamily: mono, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>
             <span style={{ width: 6, height: 6, borderRadius: 999, background: TEAL_BRIGHT, animation: "pulse 1.6s ease-in-out infinite" }} />
