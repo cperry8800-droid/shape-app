@@ -39,7 +39,7 @@ function RadioHero() {
   return (
     <section style={{ padding: "clamp(24px,3.5vh,44px) clamp(24px,4vw,60px) clamp(56px,8vh,100px)", position: "relative", overflow: "hidden", minHeight: "calc(100vh - 109px)", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center", background: "transparent" }}>
       <div style={{ maxWidth: 1180, width: "100%", margin: "0 auto", position: "relative", display: "grid", gridTemplateColumns: "1.15fr 1fr", gap: "clamp(28px,4vw,72px)", alignItems: "center" }}>
-        <div style={{ position: "relative", overflow: "hidden", padding: "clamp(20px,2vw,30px)", background: "rgba(11,14,12,0.68)", backdropFilter: "blur(14px) saturate(1.1)", WebkitBackdropFilter: "blur(14px) saturate(1.1)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4 }}>
+        <div style={{ position: "relative", overflow: "hidden", padding: "clamp(20px,2vw,30px)", background: "rgba(11,14,12,0.88)", backdropFilter: "blur(14px) saturate(1.1)", WebkitBackdropFilter: "blur(14px) saturate(1.1)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4 }}>
           <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${TEAL}, ${RUST})`, opacity: 0.75 }} />
           <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.3em", textTransform: "uppercase", color: TEAL_BRIGHT, marginBottom: 16 }}>Shape Radio</div>
           <h1 style={{ fontFamily: serif, fontSize: "clamp(40px, 4.8vw, 76px)", letterSpacing: "-0.04em", fontWeight: 300, margin: 0, lineHeight: 0.95 }}>
@@ -52,7 +52,7 @@ function RadioHero() {
         </div>
 
         {/* Now playing card */}
-        <div style={{ position: "relative", overflow: "hidden", padding: "clamp(18px,1.8vw,28px)", background: "rgba(11,14,12,0.68)", backdropFilter: "blur(14px) saturate(1.1)", WebkitBackdropFilter: "blur(14px) saturate(1.1)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4 }}>
+        <div style={{ position: "relative", overflow: "hidden", padding: "clamp(18px,1.8vw,28px)", background: "rgba(11,14,12,0.88)", backdropFilter: "blur(14px) saturate(1.1)", WebkitBackdropFilter: "blur(14px) saturate(1.1)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4 }}>
           <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${TEAL}, ${RUST})`, opacity: 0.75 }} />
           <img src="/shape-radio-wordmark.svg?v=2" alt="Shape Radio" style={{ height: 44, width: "auto", display: "block", marginBottom: 18 }} />
           <div style={{ fontFamily: sans, fontSize: 10.5, letterSpacing: "0.12em", color: TEAL_BRIGHT, textTransform: "uppercase" }}>◉ Live · 1,284 listening</div>
@@ -169,7 +169,7 @@ function RadioShapeSets() {
   return (
     <section style={{ padding: "80px 72px" }}>
       <RdReveal>
-        <div style={{ position: "relative", overflow: "hidden", maxWidth: 1480, margin: "0 auto", padding: 48, background: "rgba(11,14,12,0.68)", backdropFilter: "blur(14px) saturate(1.1)", WebkitBackdropFilter: "blur(14px) saturate(1.1)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, textAlign: "center" }}>
+        <div style={{ position: "relative", overflow: "hidden", maxWidth: 1480, margin: "0 auto", padding: 48, background: "rgba(11,14,12,0.88)", backdropFilter: "blur(14px) saturate(1.1)", WebkitBackdropFilter: "blur(14px) saturate(1.1)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, textAlign: "center" }}>
           <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${TEAL}, ${RUST})`, opacity: 0.75 }} />
           <div style={{ display: "inline-flex", alignItems: "center", gap: 8, fontFamily: mono, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>
             <span style={{ width: 6, height: 6, borderRadius: 999, background: TEAL_BRIGHT, animation: "pulse 1.6s ease-in-out infinite" }} />
@@ -444,7 +444,7 @@ function RadioPage() {
         body { background: transparent !important; position: relative; min-height: 100vh; }
         body::before {
           content: ''; position: fixed; inset: 0; z-index: -1;
-          background: #050707 url('${RADIO_BG}') center 12% / clamp(1280px, 100vw, 1900px) auto no-repeat;
+          background: url('${RADIO_BG}') center 12% / cover no-repeat;
           filter: brightness(1.15) saturate(1.18) contrast(1.05);
         }
         .radio-page footer {
