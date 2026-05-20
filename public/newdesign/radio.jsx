@@ -464,9 +464,6 @@ function RadioPage() {
         }
         .radio-page footer .shape-footer-grid img.shape-brand-logo {
           content: url('/shape-logo-new-white.png?v=3');
-          height: 84px !important;
-          width: auto !important;
-          max-width: none !important;
         }
       `}</style>
     </div>
