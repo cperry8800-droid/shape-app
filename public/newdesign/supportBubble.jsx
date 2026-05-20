@@ -4,11 +4,17 @@
 (function () {
   if (window.__supportBubbleMounted) return;
 
+  function isMobileViewport() {
+    try { return window.matchMedia && window.matchMedia("(max-width: 760px)").matches; }
+    catch (e) { return false; }
+  }
+
   function mount() {
     if (window.__supportBubbleMounted) return;
     if (window.__openChat) return; // dashboard ChatWidget already mounted
     if (typeof window.ChatWidget !== "function") return;
     if (!window.clientChatTabs) return;
+    if (isMobileViewport()) return; // No chat bubble on mobile.
     const host = document.createElement("div");
     host.id = "shape-support-bubble";
     document.body.appendChild(host);
