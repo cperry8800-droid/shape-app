@@ -37,9 +37,9 @@ function RadioHero() {
   const bars = Array.from({ length: 48 }, () => Math.random());
   const [hearted, setHearted] = React.useState(false);
   return (
-    <section style={{ padding: "40px 72px 110px", position: "relative", overflow: "hidden", minHeight: "calc(100vh - 109px)", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center", background: "transparent" }}>
-      <div style={{ maxWidth: 1320, width: "100%", margin: "0 auto", position: "relative", display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 100, alignItems: "center" }}>
-        <div style={{ position: "relative", overflow: "hidden", padding: 36, background: "rgba(11,14,12,0.68)", backdropFilter: "blur(14px) saturate(1.1)", WebkitBackdropFilter: "blur(14px) saturate(1.1)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4 }}>
+    <section style={{ padding: "clamp(28px,4vh,52px) clamp(28px,5vw,72px) clamp(60px,9vh,120px)", position: "relative", overflow: "hidden", minHeight: "calc(100vh - 109px)", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center", background: "transparent" }}>
+      <div style={{ maxWidth: 1320, width: "100%", margin: "0 auto", position: "relative", display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: "clamp(36px,6vw,100px)", alignItems: "center" }}>
+        <div style={{ position: "relative", overflow: "hidden", padding: "clamp(22px,2.6vw,36px)", background: "rgba(11,14,12,0.68)", backdropFilter: "blur(14px) saturate(1.1)", WebkitBackdropFilter: "blur(14px) saturate(1.1)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4 }}>
           <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${TEAL}, ${RUST})`, opacity: 0.75 }} />
           <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.3em", textTransform: "uppercase", color: TEAL_BRIGHT, marginBottom: 22 }}>Shape Radio</div>
           <h1 style={{ fontFamily: serif, fontSize: "clamp(56px, 8vw, 112px)", letterSpacing: "-0.045em", fontWeight: 300, margin: 0, lineHeight: 0.88 }}>
@@ -52,7 +52,7 @@ function RadioHero() {
         </div>
 
         {/* Now playing card */}
-        <div style={{ position: "relative", overflow: "hidden", padding: 24, background: "rgba(11,14,12,0.68)", backdropFilter: "blur(14px) saturate(1.1)", WebkitBackdropFilter: "blur(14px) saturate(1.1)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4 }}>
+        <div style={{ position: "relative", overflow: "hidden", padding: "clamp(18px,1.8vw,28px)", background: "rgba(11,14,12,0.68)", backdropFilter: "blur(14px) saturate(1.1)", WebkitBackdropFilter: "blur(14px) saturate(1.1)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4 }}>
           <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${TEAL}, ${RUST})`, opacity: 0.75 }} />
           <img src="/shape-radio-wordmark.svg?v=2" alt="Shape Radio" style={{ height: 44, width: "auto", display: "block", marginBottom: 18 }} />
           <div style={{ fontFamily: sans, fontSize: 10.5, letterSpacing: "0.12em", color: TEAL_BRIGHT, textTransform: "uppercase" }}>◉ Live · 1,284 listening</div>
