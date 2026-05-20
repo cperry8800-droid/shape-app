@@ -444,7 +444,7 @@ function RadioPage() {
         body { background: transparent !important; position: relative; min-height: 100vh; }
         body::before {
           content: ''; position: fixed; inset: 0; z-index: -1;
-          background: #050707 url('${RADIO_BG}') center 12% / clamp(1280px, 100vw, 1900px) auto no-repeat;
+          background: url('${RADIO_BG}') center 12% / cover no-repeat;
           filter: brightness(1.15) saturate(1.18) contrast(1.05);
         }
         .radio-page footer {
