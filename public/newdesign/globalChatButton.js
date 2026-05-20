@@ -447,8 +447,15 @@
     button.classList.remove(HIDDEN_CLASS);
   }
 
+  function isMobileViewport() {
+    try { return window.matchMedia && window.matchMedia("(max-width: 760px)").matches; }
+    catch (e) { return false; }
+  }
+
   function mount() {
     if (document.getElementById(ID)) return;
+    // No chat bubble on mobile — matches the mobile-redirect breakpoint.
+    if (isMobileViewport()) return;
     injectStyles();
 
     var button = document.createElement("button");
