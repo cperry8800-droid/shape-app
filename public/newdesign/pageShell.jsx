@@ -247,7 +247,7 @@ function Footer() {
         </div>
         <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 28, paddingTop: 30, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
           <div style={{ textAlign: "center" }}>
-            <img src="/shape-logo-new-white.png?v=3" alt="Shape" style={{ height: 42, width: "auto", display: "block", margin: "0 auto" }} />
+            <img src="/shape-logo-new-white.png?v=3" alt="Shape" style={{ height: 84, width: "auto", display: "block", margin: "0 auto" }} />
             <p style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.5)", margin: "12px auto 0", maxWidth: 280, lineHeight: 1.55 }}>Real coaches. One marketplace. One platform.</p>
           </div>
           {[
