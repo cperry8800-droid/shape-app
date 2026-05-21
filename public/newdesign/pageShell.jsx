@@ -69,12 +69,52 @@ const SHAPE_NAV_GROUPS = [
   { kind: "link", label: "Pricing", href: "Pricing.html" },
 ];
 
-function MobileDrawer({ open, onClose, active }) {
+// Role-scoped portal nav — shown instead of the marketing nav once a user
+// is signed in, so each profile only sees tabs relevant to it.
+const PORTAL_NAV = {
+  client: [
+    { kind: "link", label: "Dashboard", href: "ClientDashboard.html" },
+    { kind: "link", label: "Train", href: "ClientTrain.html" },
+    { kind: "link", label: "Nutrition", href: "ClientNutri.html" },
+    { kind: "link", label: "Progress", href: "ClientProgress.html" },
+    { kind: "link", label: "Community", href: "ClientCommunity.html" },
+    { kind: "drop", label: "More", match: ["More", "Habits", "Goals", "Library", "Playlists", "My Team", "Shape Score"], items: [["Habits", "ClientHabits.html"], ["Goals", "ClientGoal.html"], ["Library", "ClientLibrary.html"], ["Playlists", "ClientPlaylists.html"], ["My Team", "ClientTeam.html"], ["Shape Score", "ClientScore.html"], ["My Profile", "ClientProfile.html"]] },
+    { kind: "link", label: "Radio", href: "Radio.html" },
+  ],
+  trainer: [
+    { kind: "link", label: "Dashboard", href: "TrainerDashboard.html" },
+    { kind: "link", label: "Clients", href: "TrainerClients.html" },
+    { kind: "link", label: "Programs", href: "TrainerPrograms.html" },
+    { kind: "link", label: "Messages", href: "TrainerMessages.html" },
+    { kind: "link", label: "Analytics", href: "TrainerAnalytics.html" },
+    { kind: "drop", label: "More", match: ["More", "Community", "Playlists", "Shape Score", "Public profile"], items: [["Community", "TrainerCommunity.html"], ["Playlists", "TrainerPlaylists.html"], ["Shape Score", "TrainerScore.html"], ["Public profile", "TrainerPublic.html"], ["My Profile", "TrainerProfile.html"]] },
+    { kind: "link", label: "Radio", href: "Radio.html" },
+  ],
+  nutritionist: [
+    { kind: "link", label: "Dashboard", href: "NutritionistDashboard.html" },
+    { kind: "link", label: "Clients", href: "NutritionistClients.html" },
+    { kind: "link", label: "Plans", href: "NutritionistPlans.html" },
+    { kind: "link", label: "Messages", href: "NutritionistMessages.html" },
+    { kind: "link", label: "Analytics", href: "NutritionistAnalytics.html" },
+    { kind: "drop", label: "More", match: ["More", "Community", "Playlists", "Shape Score", "Public profile"], items: [["Community", "NutritionistCommunity.html"], ["Playlists", "NutritionistPlaylists.html"], ["Shape Score", "NutritionistScore.html"], ["Public profile", "NutritionistPublic.html"], ["My Profile", "NutritionistProfile.html"]] },
+    { kind: "link", label: "Radio", href: "Radio.html" },
+  ],
+};
+
+// The nav groups to show: role-scoped portal nav when signed in, else marketing.
+function navGroupsFor(authUser) {
+  if (authUser && authUser.role && PORTAL_NAV[authUser.role]) return PORTAL_NAV[authUser.role];
+  if (authUser) return PORTAL_NAV.client;
+  return SHAPE_NAV_GROUPS;
+}
+
+function MobileDrawer({ open, onClose, active, authUser, onLogout }) {
   React.useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
   }, [open]);
   if (!open) return null;
+  const groups = navGroupsFor(authUser);
   const linkBase = { display: "block", padding: "18px 0", fontFamily: sans, fontSize: 22, letterSpacing: "0.02em", borderBottom: "1px solid rgba(242,237,228,0.08)", textDecoration: "none" };
   return (
     <div role="dialog" aria-modal="true"
@@ -85,7 +125,7 @@ function MobileDrawer({ open, onClose, active }) {
           style={{ background: "transparent", color: INK, border: 0, fontSize: 30, lineHeight: 1, padding: 8, cursor: "pointer", fontFamily: sans }}>×</button>
       </div>
       <nav style={{ flex: 1 }}>
-        {SHAPE_NAV_GROUPS.map(g => g.kind === "drop" ? (
+        {groups.map(g => g.kind === "drop" ? (
           <div key={g.label}>
             <div style={{ ...linkBase, color: g.match.includes(active) ? TEAL : INK, fontWeight: 500, borderBottom: "1px solid rgba(242,237,228,0.12)", paddingBottom: 10 }}>{g.label}</div>
             <div style={{ paddingLeft: 14, paddingBottom: 14, borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
@@ -99,8 +139,14 @@ function MobileDrawer({ open, onClose, active }) {
         ))}
       </nav>
       <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
-        <a href="Login.html" style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, border: "1px solid rgba(242,237,228,0.2)", color: INK, fontFamily: sans, fontSize: 14, letterSpacing: "0.08em", textTransform: "uppercase", textDecoration: "none" }}>Log in</a>
-        <a href="Landing.html" style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, background: INK, color: PAPER, fontFamily: sans, fontSize: 14, fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase", textDecoration: "none" }}>Get started</a>
+        {authUser ? (
+          <a href="#" onClick={onLogout} style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, border: "1px solid rgba(242,237,228,0.2)", color: INK, fontFamily: sans, fontSize: 14, letterSpacing: "0.08em", textTransform: "uppercase", textDecoration: "none" }}>Sign out</a>
+        ) : (
+          <>
+            <a href="Login.html" style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, border: "1px solid rgba(242,237,228,0.2)", color: INK, fontFamily: sans, fontSize: 14, letterSpacing: "0.08em", textTransform: "uppercase", textDecoration: "none" }}>Log in</a>
+            <a href="Landing.html" style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, background: INK, color: PAPER, fontFamily: sans, fontSize: 14, fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase", textDecoration: "none" }}>Get started</a>
+          </>
+        )}
       </div>
     </div>
   );
@@ -162,14 +208,10 @@ function Header({ active }) {
       <div className="shape-header-inner" style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "16px 72px", gap: 32 }}>
         <a href="index.html?home" style={{ flex: "none", display: "inline-flex", alignItems: "center" }}><Logo variant="white" size={42} /></a>
         <nav className="shape-nav-tabs" style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center", minWidth: 0 }}>
-          <NavDropdown label="Clients" active={active} activeMatch={["Clients", "My Profile", "Overview", "Dashboard", "Client Overview", "Client Dashboard"]} items={[["Overview", "Client.html"], ["Dashboard", "ClientDashboard.html"]]} />
-          <NavDropdown label="Trainers" active={active} activeMatch={["Trainers", "Trainer Profile", "Trainer Overview", "Trainer Dashboard"]} items={[["Overview", "Coach.html"], ["Dashboard", "TrainerDashboard.html"]]} />
-          <NavDropdown label="Nutritionists" active={active} activeMatch={["Nutritionists", "Nutritionist Profile", "Nutritionist Overview", "Nutritionist Dashboard"]} items={[["Overview", "Nutritionist.html"], ["Dashboard", "NutritionistDashboard.html"]]} />
-          {link("Marketplace", "Marketplace.html")}
-          {link("Community", "Community.html")}
-          <NavDropdown label="Rewards" active={active} activeMatch={["Rewards", "Shape Score", "Store"]} items={[["Shape Score", "Score.html"], ["Shape Store", "Store.html"]]} />
-          {link("App", "GetApp.html")}
-          {link("Pricing", "Pricing.html")}
+          {navGroupsFor(authUser).map(g => g.kind === "drop"
+            ? <NavDropdown key={g.label} label={g.label} active={active} activeMatch={g.match} items={g.items} />
+            : <React.Fragment key={g.label}>{link(g.label, g.href)}</React.Fragment>
+          )}
         </nav>
         <div className="shape-nav-auth" style={{ display: "flex", alignItems: "center", gap: 18, flexShrink: 0 }}>
           {authUser ? (
@@ -219,7 +261,7 @@ function Header({ active }) {
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
         </button>
       </div>
-      <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} active={active} />
+      <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} active={active} authUser={authUser} onLogout={handleLogout} />
     </header>
     <div aria-hidden className="shape-header-spacer" style={{ height: 85 }} />
     </>
