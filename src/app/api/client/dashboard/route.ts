@@ -81,6 +81,49 @@ export async function GET() {
   const lastDurationMin = last ? Math.round((last.duration_seconds ?? 0) / 60) : 0;
   const lastSessionAt = last ? sessionDate(last) : null;
 
+  // Upcoming booked sessions (consultations / check-ins with a coach).
+  const { data: booked } = await supabase
+    .from('sessions')
+    .select('scheduled_at, duration_min, type, status, topic, provider_id, provider_role')
+    .eq('client_id', user.id)
+    .in('status', ['requested', 'confirmed'])
+    .gte('scheduled_at', new Date().toISOString())
+    .order('scheduled_at', { ascending: true })
+    .limit(8);
+
+  const bookedRows = booked ?? [];
+  const trainerIds = [
+    ...new Set(bookedRows.filter((r) => r.provider_role === 'trainer').map((r) => r.provider_id)),
+  ];
+  const nutriIds = [
+    ...new Set(bookedRows.filter((r) => r.provider_role === 'nutritionist').map((r) => r.provider_id)),
+  ];
+  const trainerNames: Record<number, string> = {};
+  const nutriNames: Record<number, string> = {};
+  if (trainerIds.length) {
+    const { data } = await supabase.from('trainers').select('id, name').in('id', trainerIds);
+    (data ?? []).forEach((t: { id: number; name: string }) => {
+      trainerNames[t.id] = t.name;
+    });
+  }
+  if (nutriIds.length) {
+    const { data } = await supabase.from('nutritionists').select('id, name').in('id', nutriIds);
+    (data ?? []).forEach((n: { id: number; name: string }) => {
+      nutriNames[n.id] = n.name;
+    });
+  }
+
+  const upcoming = bookedRows.map((r) => ({
+    scheduledAt: r.scheduled_at,
+    durationMin: r.duration_min,
+    type: r.type,
+    status: r.status,
+    topic: r.topic,
+    providerRole: r.provider_role,
+    providerName:
+      (r.provider_role === 'trainer' ? trainerNames : nutriNames)[r.provider_id] ?? null,
+  }));
+
   return NextResponse.json({
     user: { firstName, fullName },
     kpis: {
@@ -90,5 +133,6 @@ export async function GET() {
       lastDurationMin,
       lastSessionAt,
     },
+    upcoming,
   });
 }

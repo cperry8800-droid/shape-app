@@ -52,32 +52,71 @@ const TRAINER_CAL_EVENTS = [
   { date: "2026-04-30", time: "15:00", kind: "ADMIN",   title: "Month close-out", sub: "Admin" },
 ];
 
+// Mock data — shown while the live dashboard API is loading, or when it's
+// unreachable / the viewer isn't a trainer (e.g. previewing signed out).
+const MOCK_TRAINER_KPIS = [
+  { k: "$2,847.50", l: "Current balance" },
+  { k: "Apr 21", l: "Next payout", sub: "in 3 days" },
+  { k: "$4,192.00", l: "This month" },
+  { k: "$38,420", l: "Lifetime" },
+];
+const MOCK_TRAINER_SCHEDULE = [
+  { time: "07:00", who: "Priya S.", sub: "Lower pull · remote", status: "DONE" },
+  { time: "09:30", who: "Deandre K.", sub: "Upper push · Brooklyn", status: "DONE" },
+  { time: "14:00", who: "Sam O.", sub: "Intake call · new", status: "NEXT" },
+  { time: "17:30", who: "Priya S.", sub: "Upper push · remote" },
+  { time: "19:00", who: "Jaya P.", sub: "Nutrition review" },
+];
+function tdFmtTime(iso) {
+  try { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }); }
+  catch (e) { return ""; }
+}
+
 function TrainerDashboardPage() {
+  const [live, setLive] = React.useState(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/trainer/dashboard', { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && d && d.isTrainer) setLive(d); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const firstName = live ? live.user.firstName : "Maya";
+  const kpis = live ? [
+    { k: String(live.kpis.activeClients), l: "Active clients" },
+    { k: String(live.kpis.sessionsThisWeek), l: "Sessions this week" },
+    { k: String(live.kpis.upcomingSessions), l: "Upcoming sessions" },
+    { k: String(live.kpis.totalSessions), l: "Total sessions", sub: "all time" },
+  ] : MOCK_TRAINER_KPIS;
+
+  const todayRows = live && Array.isArray(live.today) ? live.today : null;
+  const schedule = !todayRows
+    ? MOCK_TRAINER_SCHEDULE
+    : todayRows.length
+      ? todayRows.map((s, i) => ({
+          time: tdFmtTime(s.scheduledAt),
+          who: s.clientName || "Client",
+          sub: [s.topic, (s.durationMin || 15) + " min", s.type].filter(Boolean).join(" · "),
+          status: i === 0 ? (s.status === "confirmed" ? "NEXT" : "PENDING") : undefined,
+        }))
+      : [{ time: "—", who: "No sessions today", sub: "Your schedule is clear" }];
+
   return (
     <DashShell
       role="trainer"
-      userName="Maya"
+      userName={firstName}
       date="WEDNESDAY APR 18"
-      greeting="Good morning, Maya."
+      greeting={"Good morning, " + firstName + "."}
       primaryCta={["+ Program", "TrainerPrograms.html"]}
       secondaryCta={["New session", "TrainerClients.html"]}
       navItems={trainerNavItems("today")}
       payoutCard={trainerPayoutCard}
-      kpis={[
-        { k: "$2,847.50", l: "Current balance" },
-        { k: "Apr 21", l: "Next payout", sub: "in 3 days" },
-        { k: "$4,192.00", l: "This month" },
-        { k: "$38,420", l: "Lifetime" },
-      ]}
+      kpis={kpis}
       scheduleTitle="Today's schedule"
       calendarEvents={TRAINER_CAL_EVENTS}
-      schedule={[
-        { time: "07:00", who: "Priya S.", sub: "Lower pull · remote", status: "DONE" },
-        { time: "09:30", who: "Deandre K.", sub: "Upper push · Brooklyn", status: "DONE" },
-        { time: "14:00", who: "Sam O.", sub: "Intake call · new", status: "NEXT" },
-        { time: "17:30", who: "Priya S.", sub: "Upper push · remote" },
-        { time: "19:00", who: "Jaya P.", sub: "Nutrition review" },
-      ]}
+      schedule={schedule}
       pulseTitle="Client pulse"
       pulse={[
         { who: "Maya",   sub: "2 workouts · 4d streak",   trend: [0.2,0.4,0.3,0.5,0.4,0.6,0.5] },
