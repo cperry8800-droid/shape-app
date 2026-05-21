@@ -70,6 +70,19 @@ function cdFmtTime(iso) {
   try { return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); }
   catch (e) { return ""; }
 }
+function cdCalDate(iso) {
+  try { const d = new Date(iso); return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); }
+  catch (e) { return ""; }
+}
+function cdCalTime(iso) {
+  try { const d = new Date(iso); return String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); }
+  catch (e) { return ""; }
+}
+const CD_FLAT_TREND = [0.5,0.5,0.5,0.5,0.5,0.5,0.5];
+const MOCK_CLIENT_PULSE = [
+  { who: "Maya Okafor",   sub: "Trainer · replied 2m", trend: [0.3,0.5,0.4,0.7,0.6,0.8,0.7] },
+  { who: "Rae Lindqvist", sub: "Nutritionist · 14m",   trend: [0.4,0.3,0.5,0.4,0.6,0.5,0.7] },
+];
 
 function ClientDashboardPage() {
   const [live, setLive] = React.useState(null);
@@ -103,6 +116,16 @@ function ClientDashboardPage() {
       : [{ time: "—", who: "No upcoming sessions", sub: "Book a session with your coach" }];
   const scheduleTitle = upcoming ? "Upcoming sessions" : "This week";
 
+  const calendarEvents = live && Array.isArray(live.calendar)
+    ? live.calendar.map(e => ({ date: cdCalDate(e.at), time: cdCalTime(e.at), kind: e.kind, title: e.title, sub: e.sub }))
+    : CLIENT_CAL_EVENTS;
+  const team = live && Array.isArray(live.team) ? live.team : null;
+  const pulse = !team
+    ? MOCK_CLIENT_PULSE
+    : team.length
+      ? team.map(m => ({ who: m.name, sub: m.role, trend: CD_FLAT_TREND }))
+      : [{ who: "No coaches yet", sub: "Browse the marketplace", trend: CD_FLAT_TREND }];
+
   return (
     <DashShell
       role="client"
@@ -122,12 +145,9 @@ function ClientDashboardPage() {
         { time: "6:30 PM",  kind: "CHECK-IN", title: "Weekly with Marcus",   sub: "20 min · video call",                          cta: { label: "JOIN", href: "ClientTeam.html" } },
       ]}
       schedule={schedule}
-      calendarEvents={CLIENT_CAL_EVENTS}
+      calendarEvents={calendarEvents}
       pulseTitle="Your team"
-      pulse={[
-        { who: "Maya Okafor",    sub: "Trainer · replied 2m",   trend: [0.3,0.5,0.4,0.7,0.6,0.8,0.7] },
-        { who: "Rae Lindqvist",  sub: "Nutritionist · 14m",     trend: [0.4,0.3,0.5,0.4,0.6,0.5,0.7] },
-      ]}
+      pulse={pulse}
       extraSections={[
         {
           title: "Today's habits",
