@@ -609,7 +609,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
           <span className="bs-daily-shape" style={{ display: 'inline-block', marginLeft: 8, marginRight: 10, fontFamily: `'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif`, fontWeight: 300, fontStyle: 'normal', fontSize: 37, letterSpacing: '0.18em', textTransform: 'uppercase', transform: 'translateY(1px)' }}>SHAPE</span>
           <span className="bs-daily-daily" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>Daily.</span>
         </span>}
-        leftKicker="Thu · May 14 · 2026"
+        leftKicker="Thu · May 21 · 2026"
         rightKicker="Cut · W6 · D38"
         trailing={<BSAvatar init="A" size={32} onClick={onProfile} />}
       />
@@ -3766,8 +3766,8 @@ function BSClientChat({ onProfile, role = 'client' }) {
         { who: 'Shape', t: "Welcome to Shape. We're here whenever you need us — billing, bugs, feature requests, anything at all.", time: 'Welcome', me: false },
         { who: 'Shape', t: 'Avg reply time is 4 min. Real humans, no bots.', time: 'Welcome', me: false },
       ]},
-      { who: '# product-updates', role: "What's new in Shape · Weekly digest", last: 'May 14 · Calendar redesign + Shape Radio FX overlays.', time: '2d', unread: 1, group: true, bucket: 'SHAPE', messages: [
-        { who: 'Shape Product', t: 'May 14 · Calendar redesign is live. Tap any day from Home to drill in.', time: 'Mon 9:00 AM', me: false },
+      { who: '# product-updates', role: "What's new in Shape · Weekly digest", last: 'May 21 · Calendar redesign + Shape Radio FX overlays.', time: 'today', unread: 1, group: true, bucket: 'SHAPE', messages: [
+        { who: 'Shape Product', t: 'May 21 · Calendar redesign is live. Tap any day from Home to drill in.', time: 'Today 9:00 AM', me: false },
         { who: 'Shape Product', t: 'Shape Radio now has reactive FX overlays — try them in Settings → Light effects.', time: 'Mon 9:00 AM', me: false },
       ]},
       { who: '# release-notes', role: 'Beta channel · Opt-in via Me → Settings', last: 'v6.38 — Tweaks panel persists across sessions.', time: '4d', unread: 0, group: true, bucket: 'SHAPE', messages: [
@@ -4532,7 +4532,7 @@ function BSClientMe({ onProfile, onLogout }) {
     { l: 'Jordan - Strength + hybrid', r: '$220 / month', action: 'Manage' },
     { l: 'Maya - Performance fuel', r: '$180 / month', action: 'Manage' },
     { l: 'Total monthly', r: '$405' },
-    { l: 'Next charge', r: 'May 4, 2026' },
+    { l: 'Next charge', r: 'June 4, 2026' },
     { l: 'Payment method', r: 'Visa 4290', action: 'Update' },
   ];
   const connectedRows = [
@@ -5129,7 +5129,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
   ];
   const unlocked = [
     ['SHAPE-TEE-48F2', 'Shape Training Tee', 'Jun 30', 450],
-    ['NUTRI-PLAN-04F1', 'Grocery list buildout', 'May 20', 420],
+    ['NUTRI-PLAN-04F1', 'Grocery list buildout', 'May 21', 420],
     ['RADIO-3MO-BB7A', 'Shape Radio - Studio - 3 mo', 'Jul 15', 750],
   ];
   const visible = products.filter(p => {
@@ -6709,7 +6709,7 @@ function BSTermsPage({ onBack, onContact }) {
       />
 
       <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <BSEyebrow color={t.ACCENT}>Last updated - May 14, 2026</BSEyebrow>
+        <BSEyebrow color={t.ACCENT}>Last updated - May 21, 2026</BSEyebrow>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>
           These terms govern use of Shape, including memberships, coach services, marketplace activity, rewards, content, and account conduct.
         </div>
