@@ -61,8 +61,16 @@ export async function POST(request: Request) {
   const signature = request.headers.get('stripe-signature');
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
 
-  if (!signature || !secret) {
-    return NextResponse.json({ error: 'Missing signature or webhook secret.' }, { status: 400 });
+  if (!secret) {
+    // Server misconfiguration — every delivery fails until this is set.
+    // Logged loudly so it stands out in the deploy logs.
+    console.error(
+      '[shape-app] STRIPE_WEBHOOK_SECRET is not set — cannot verify Stripe webhooks.'
+    );
+    return NextResponse.json({ error: 'Webhook secret not configured.' }, { status: 500 });
+  }
+  if (!signature) {
+    return NextResponse.json({ error: 'Missing stripe-signature header.' }, { status: 400 });
   }
 
   const rawBody = await request.text();
@@ -272,8 +280,17 @@ export async function POST(request: Request) {
         break;
     }
   } catch (err) {
-    console.error('[shape-app] stripe webhook handler error:', err);
-    return NextResponse.json({ error: 'Handler error.' }, { status: 500 });
+    // The signature is already verified, so this is a genuine Stripe event —
+    // the failure is in our own processing. Returning 500 here makes Stripe
+    // retry the event for up to ~3 days and flags the endpoint as failing
+    // (the "your webhook is failing" email). A permanently broken event would
+    // retry forever. Acknowledge with 200 and log loudly instead, so one bad
+    // event can't drag the whole endpoint into a failing state.
+    console.error(
+      `[shape-app] stripe webhook handler error (event ${event.id}, type ${event.type}):`,
+      err
+    );
+    return NextResponse.json({ received: true, handlerError: true }, { status: 200 });
   }
 
   return NextResponse.json({ received: true });
