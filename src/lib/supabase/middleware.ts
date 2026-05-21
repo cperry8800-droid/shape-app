@@ -63,8 +63,10 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // ---- Portal route gating -------------------------------------------------
+  // A `?preview` query param bypasses the gate so the dashboard pages can be
+  // viewed signed-out for design review (they fall back to mock data).
   const requiredRole = portalRoleForPath(request.nextUrl.pathname);
-  if (requiredRole) {
+  if (requiredRole && !request.nextUrl.searchParams.has('preview')) {
     // Carry any refreshed auth cookies onto whatever response we return.
     const redirectTo = (pathname: string) => {
       const url = request.nextUrl.clone();
