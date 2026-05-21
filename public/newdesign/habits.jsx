@@ -47,13 +47,44 @@ function habitStreak(h) {
   return s;
 }
 
+// Per-day persistence of which habits are marked done today. Keyed by the
+// calendar date so it naturally resets each morning — matching habit-tracker
+// semantics — and shared by the dashboard widget and the full Habits page so
+// the two stay in sync. localStorage only; no backend.
+function habitsStoreKey() {
+  const d = new Date();
+  return "shape.habits." + d.getFullYear() + "-" +
+    String(d.getMonth() + 1).padStart(2, "0") + "-" +
+    String(d.getDate()).padStart(2, "0");
+}
+function loadHabitToday(seed) {
+  try {
+    const raw = localStorage.getItem(habitsStoreKey());
+    if (raw) {
+      const saved = JSON.parse(raw);
+      if (saved && typeof saved === "object") {
+        return seed.map(h => (h.id in saved ? { ...h, today: !!saved[h.id] } : h));
+      }
+    }
+  } catch (e) {}
+  return seed;
+}
+function saveHabitToday(habits) {
+  try {
+    const map = {};
+    (habits || []).forEach(h => { map[h.id] = !!h.today; });
+    localStorage.setItem(habitsStoreKey(), JSON.stringify(map));
+  } catch (e) {}
+}
+
 // Compact widget for the Today dashboard. Shows up to `max` habits with
 // inline checkboxes, a today-progress + Shape Score summary, and a link
-// to the full Habits page. State is local to the widget — refreshing
-// resets it (mock, no Supabase yet).
+// to the full Habits page. Today's checked state persists per-day in
+// localStorage (shared with the full Habits page).
 function HabitsWidget({ max = 5, items }) {
   const seed = (items || DEFAULT_HABITS).slice(0, max);
-  const [habits, setHabits] = React.useState(seed);
+  const [habits, setHabits] = React.useState(() => loadHabitToday(seed));
+  React.useEffect(() => { saveHabitToday(habits); }, [habits]);
   const toggle = (id) => setHabits(hs => hs.map(h => h.id === id ? { ...h, today: !h.today } : h));
 
   const doneCount = habits.filter(h => h.today).length;
@@ -109,4 +140,6 @@ if (typeof window !== "undefined") {
   window.HabitsWidget = HabitsWidget;
   window.DEFAULT_HABITS = DEFAULT_HABITS;
   window.habitStreak = habitStreak;
+  window.loadHabitToday = loadHabitToday;
+  window.saveHabitToday = saveHabitToday;
 }

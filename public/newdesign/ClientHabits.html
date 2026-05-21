@@ -58,8 +58,11 @@ function HabitRow({ h, onToggle, onRemove }) {
 }
 
 function ClientHabitsPage() {
-  const [habits, setHabits] = React.useState(SEED_HABITS);
+  const [habits, setHabits] = React.useState(() => loadHabitToday(SEED_HABITS));
   const [visibility, setVisibility] = React.useState("friends");
+
+  // Persist today's checked state per-day (shared with the dashboard widget).
+  React.useEffect(() => { saveHabitToday(habits); }, [habits]);
 
   const toggleToday = (id) => setHabits(hs => hs.map(h => h.id === id ? { ...h, today: !h.today } : h));
 
