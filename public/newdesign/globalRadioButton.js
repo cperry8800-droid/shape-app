@@ -36,7 +36,7 @@
       "#" + BTN_ID + " .gr-tx{display:flex;flex-direction:column;line-height:1.2;min-width:0;text-align:left}",
       "#" + BTN_ID + " .gr-k{font-family:'JetBrains Mono',Consolas,monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:#1ec0a8}",
       "#" + BTN_ID + " .gr-n{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}",
-      "@media (max-width:520px){#" + BTN_ID + " .gr-n{max-width:92px}}"
+      "@media (max-width:640px){#" + BTN_ID + "{display:none}}"
     ].join("");
     document.head.appendChild(st);
   }
