@@ -47,7 +47,7 @@ const CLIENT_CAL_EVENTS = [
   { date: "2026-04-30", time: "07:00", kind: "WORKOUT", title: "Strength test", sub: "Squat 1RM" },
 ];
 
-// Mock KPIs — shown while the live dashboard API is loading, or when it's
+// Mock data — shown while the live dashboard API is loading, or when it's
 // unreachable (e.g. previewing this page signed out).
 const MOCK_CLIENT_KPIS = [
   { k: "14d", l: "Current streak", sub: "best 22d" },
@@ -55,6 +55,21 @@ const MOCK_CLIENT_KPIS = [
   { k: "92%", l: "Plan adherence", sub: "last 30d" },
   { k: "+22", l: "Squat PR (lb)", sub: "since Feb" },
 ];
+const MOCK_CLIENT_SCHEDULE = [
+  { time: "TUE", who: "Upper push · Maya", sub: "Bench 4×6 · 185lb", status: "DONE" },
+  { time: "WED", who: "Intake call · Rae", sub: "Nutrition baseline", status: "NEXT" },
+  { time: "THU", who: "Lower pull · Maya", sub: "Remote · video review" },
+  { time: "FRI", who: "Rest day", sub: "Mobility 10 min" },
+  { time: "SAT", who: "Long run · Diego", sub: "Prospect Park 10k" },
+];
+function cdFmtDay(iso) {
+  try { return new Date(iso).toLocaleDateString([], { weekday: "short" }).toUpperCase(); }
+  catch (e) { return ""; }
+}
+function cdFmtTime(iso) {
+  try { return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); }
+  catch (e) { return ""; }
+}
 
 function ClientDashboardPage() {
   const [live, setLive] = React.useState(null);
@@ -75,6 +90,19 @@ function ClientDashboardPage() {
     { k: live.kpis.lastDurationMin ? live.kpis.lastDurationMin + "m" : "—", l: "Last session", sub: live.kpis.totalWorkouts ? "duration" : "none yet" },
   ] : MOCK_CLIENT_KPIS;
 
+  const upcoming = live && Array.isArray(live.upcoming) ? live.upcoming : null;
+  const schedule = !upcoming
+    ? MOCK_CLIENT_SCHEDULE
+    : upcoming.length
+      ? upcoming.map((u, i) => ({
+          time: cdFmtDay(u.scheduledAt),
+          who: u.topic || (u.providerName ? "Session · " + u.providerName : "Coaching session"),
+          sub: [cdFmtTime(u.scheduledAt), (u.durationMin || 15) + " min", u.type].filter(Boolean).join(" · "),
+          status: i === 0 ? (u.status === "confirmed" ? "NEXT" : "PENDING") : undefined,
+        }))
+      : [{ time: "—", who: "No upcoming sessions", sub: "Book a session with your coach" }];
+  const scheduleTitle = upcoming ? "Upcoming sessions" : "This week";
+
   return (
     <DashShell
       role="client"
@@ -86,20 +114,14 @@ function ClientDashboardPage() {
       navItems={clientNavItems("today")}
       payoutCard={clientPayoutCard}
       kpis={kpis}
-      scheduleTitle="This week"
+      scheduleTitle={scheduleTitle}
       todayItems={[
         { time: "9:00 AM",  kind: "WORKOUT",  title: "Upper Body Pull",      sub: "45 min · 6 exercises · programmed by Marcus", cta: { label: "START", primary: true, href: "ClientTrain.html" },
           playlist: { name: "Upper Pull — Peak", provider: "spotify", bpm: "95–130", tracks: 31, accent: "#6a8cff", cover: "linear-gradient(135deg, #2a3a6a 0%, #1a1612 70%)", note: "Builds across the session. Peaks at top sets.", author: "Marcus", href: "ClientPlaylists.html" } },
         { time: "12:30 PM", kind: "MEAL",     title: "Grilled chicken bowl", sub: "620 cal · 52g P · 68g C · 18g F",              cta: { label: "LOG MEAL", href: "ClientNutri.html" } },
         { time: "6:30 PM",  kind: "CHECK-IN", title: "Weekly with Marcus",   sub: "20 min · video call",                          cta: { label: "JOIN", href: "ClientTeam.html" } },
       ]}
-      schedule={[
-        { time: "TUE", who: "Upper push · Maya", sub: "Bench 4×6 · 185lb", status: "DONE" },
-        { time: "WED", who: "Intake call · Rae", sub: "Nutrition baseline", status: "NEXT" },
-        { time: "THU", who: "Lower pull · Maya", sub: "Remote · video review" },
-        { time: "FRI", who: "Rest day", sub: "Mobility 10 min" },
-        { time: "SAT", who: "Long run · Diego", sub: "Prospect Park 10k" },
-      ]}
+      schedule={schedule}
       calendarEvents={CLIENT_CAL_EVENTS}
       pulseTitle="Your team"
       pulse={[
