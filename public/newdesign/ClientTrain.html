@@ -21,139 +21,104 @@
 <script type="text/babel" src="trainerDashboard.jsx"></script>
 <script type="text/babel" src="clientNav.jsx"></script>
 <script type="text/babel">
+function trainDate(iso) {
+  if (!iso) return "—";
+  try { return new Date(iso).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }); }
+  catch (e) { return "—"; }
+}
+
+// Mock data — shown while the API loads, or when the viewer is signed out.
+const MOCK_TRAIN = {
+  assignedWorkouts: [
+    { id: "w1", title: "Lower strength — Block 3", description: "Squat-focused session, 5 exercises, ~52 min.", kind: "custom" },
+    { id: "w2", title: "Upper pull", description: "Row and vertical-pull volume.", kind: "template" },
+    { id: "w3", title: "Long run prep", description: "Zone 2 base with closing strides.", kind: "template" },
+  ],
+  stats: { completedCount: 42, thisWeekCount: 3, totalVolumeLb: 38450, volume7dLb: 9120, avgRpe: 7.6, lastSessionAt: new Date(Date.now() - 86400000).toISOString() },
+  recentSessions: [
+    { title: "Upper push", at: new Date(Date.now() - 86400000).toISOString(), durationMin: 48 },
+    { title: "Lower power", at: new Date(Date.now() - 3 * 86400000).toISOString(), durationMin: 54 },
+    { title: "Upper pull", at: new Date(Date.now() - 5 * 86400000).toISOString(), durationMin: 46 },
+  ],
+};
+
 function ClientTrainPage() {
-  const today = [
-    ["A", "Back squat", "4 × 6 @ 195 lb",   "RPE 8 · 3 min rest",  "NEXT"],
-    ["B1","Romanian DL", "3 × 10 @ 155 lb", "paired with B2",       null],
-    ["B2","Walking lunge","3 × 12 each",    "bodyweight + 20s",     null],
-    ["C", "Hanging leg raise","3 × 12",     "slow eccentric",       null],
-    ["D", "Cooldown · foam roll","8 min",   "quads, adductors, TFL",null],
+  const [data, setData] = React.useState(MOCK_TRAIN);
+  const [live, setLive] = React.useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/client/train', { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && d && d.ok) { setData(d); setLive(true); } })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const stats = data.stats || {};
+  const assigned = data.assignedWorkouts || [];
+  const recent = data.recentSessions || [];
+
+  const cards = [
+    { k: String(stats.completedCount ?? 0), l: "Workouts logged" },
+    { k: String(stats.thisWeekCount ?? 0), l: "This week" },
+    { k: (stats.totalVolumeLb ?? 0).toLocaleString() + " lb", l: "Total volume" },
+    { k: stats.avgRpe != null ? String(stats.avgRpe) : "—", l: "Avg RPE" },
   ];
-  const week = [
-    { d: "MON", t: "Upper push",  sub: "Bench + vertical press", status: "DONE" },
-    { d: "TUE", t: "Lower power", sub: "Squat + plyos",           status: "DONE" },
-    { d: "WED", t: "Lower strength", sub: "Today's session",      status: "NEXT" },
-    { d: "THU", t: "Upper pull",  sub: "Row + vertical pull",     status: null },
-    { d: "FRI", t: "Rest",        sub: "Mobility 10 min",         status: null },
-    { d: "SAT", t: "Long run",    sub: "10k Prospect loop",       status: null },
-    { d: "SUN", t: "Rest",        sub: "",                         status: null },
-  ];
+
   return (
     <DashPage
       navItems={clientNavItems("train")}
       payoutCard={clientPayoutCard}
-      eyebrow="WEDNESDAY · LOWER STRENGTH · WK 10 / 12"
-      title="Lower strength — Block 3"
-      subtitle="Built by Maya Okafor. Log sets as you go; RPE goes back to Maya for autoregulation."
-      actions={<>
-        <a href="ClientTeam.html" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Ask Maya</a>
-        <a href="#today" style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Start session</a>
-      </>}
+      eyebrow="ASSIGNED WORKOUTS · TRAINING HISTORY"
+      title="Train"
+      subtitle="Your assigned workouts and the sessions you've logged. Volume and RPE roll up from your set logs."
     >
-      <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 20 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* Coach-attached playlist — hero note card */}
-          <Card style={{ padding: 0, overflow: "hidden", background: "linear-gradient(135deg, #2a3a6a 0%, #1a1612 75%)", border: "1px solid rgba(106,140,255,0.25)" }}>
-            <div style={{ padding: "20px 22px", display: "grid", gridTemplateColumns: "1fr auto", gap: 20, alignItems: "center" }}>
-              <div>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: "rgba(255,255,255,0.7)", marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: 999, background: "#1DB954" }}/> SPOTIFY · FROM MAYA · ATTACHED TO THIS SESSION
-                </div>
-                <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.015em", color: "#fff", marginBottom: 6, textWrap: "pretty" }}>
-                  <span style={{ color: "#6a8cff", fontSize: 28, lineHeight: 0, verticalAlign: "-0.1em", marginRight: 2 }}>"</span>
-                  Builds across the session. Peaks at your top sets — don't pussyfoot that row.
-                </div>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(255,255,255,0.65)", letterSpacing: "0.06em" }}>UPPER PULL — PEAK · 95–130 BPM · 31 TRACKS · 1H 48M</div>
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <a href="ClientLibrary.html" style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", width: 40, height: 40, borderRadius: 999, cursor: "pointer", fontSize: 16, textDecoration: "none", display: "inline-flex", alignItems: "center", justifyContent: "center" }} title="Save to library">♡</a>
-                <a href="ClientCommunity.html" style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", width: 40, height: 40, borderRadius: 999, cursor: "pointer", fontSize: 14, textDecoration: "none", display: "inline-flex", alignItems: "center", justifyContent: "center" }} title="Send to a friend">↗</a>
-                <a href="ClientPlaylists.html" style={{ background: "#fff", border: 0, color: PAPER, padding: "0 22px", height: 40, borderRadius: 999, cursor: "pointer", fontFamily: sans, fontSize: 13, fontWeight: 500, display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none" }}>▶ Play</a>
-              </div>
-            </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 20 }}>
+        {cards.map((c, i) => (
+          <Card key={i} style={{ padding: "22px 22px 20px" }}>
+            <div style={{ fontFamily: serif, fontSize: 40, letterSpacing: "-0.02em", lineHeight: 1 }}>{c.k}</div>
+            <div style={{ fontSize: 13, marginTop: 12 }}>{c.l}</div>
           </Card>
-
-          <Card>
-          <a id="today" />
-          <SectionTitle right="5 EXERCISES · ~52 MIN">Today</SectionTitle>
-          {today.map((row, i) => (
-            <div key={i} style={{ display: "grid", gridTemplateColumns: "28px 1fr auto", gap: 14, alignItems: "center", padding: "16px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)" }}>{row[0]}</div>
-              <div>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-                  <div style={{ fontSize: 14, fontWeight: 500 }}>{row[1]}</div>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.65)" }}>{row[2]}</div>
-                </div>
-                <div style={{ fontSize: 12, color: "rgba(242,237,228,0.5)", marginTop: 3 }}>{row[3]}</div>
-              </div>
-              {row[4] && <Pill tone={row[4] === "NEXT" ? "teal" : "done"}>{row[4]}</Pill>}
-            </div>
-          ))}
-        </Card>
-        </div>
-
-        <Card>
-          <SectionTitle right="APR 14 – APR 20">This week</SectionTitle>
-          {week.map((w, i) => (
-            <div key={i} style={{ display: "grid", gridTemplateColumns: "46px 1fr auto", gap: 12, alignItems: "center", padding: "12px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)" }}>{w.d}</div>
-              <div>
-                <div style={{ fontSize: 13.5, fontWeight: w.status === "NEXT" ? 500 : 400 }}>{w.t}</div>
-                {w.sub && <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginTop: 1 }}>{w.sub}</div>}
-              </div>
-              {w.status && <Pill tone={w.status === "NEXT" ? "teal" : "done"}>{w.status}</Pill>}
-            </div>
-          ))}
-        </Card>
-      </div>
-
-      <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20 }}>
-        <Card>
-          <SectionTitle>Volume this block</SectionTitle>
-          <div style={{ fontFamily: serif, fontSize: 40, letterSpacing: "-0.02em", lineHeight: 1 }}>38,450 lb</div>
-          <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>Week 10/12 · +6% vs last block</div>
-        </Card>
-        <Card>
-          <SectionTitle>RPE trend</SectionTitle>
-          <div style={{ fontFamily: serif, fontSize: 40, letterSpacing: "-0.02em", lineHeight: 1 }}>7.6</div>
-          <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>Target 7.5–8.5 · on track</div>
-        </Card>
-        <Card style={{ background: "rgba(30,192,168,0.06)", border: "1px solid rgba(30,192,168,0.25)" }}>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>FROM MAYA · 9:02</div>
-          <div style={{ fontSize: 14, lineHeight: 1.5, color: "rgba(242,237,228,0.85)" }}>Push 185 today on squat, deload next week. Ice shoulder tonight and log sleep before we talk Friday.</div>
-        </Card>
-      </div>
-
-      {/* Shape Radio — stations */}
-      <div style={{ marginTop: 32, display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 16 }}>
-        <div>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ width: 6, height: 6, borderRadius: 999, background: TEAL_BRIGHT }}/> SHAPE RADIO · 3,472 LISTENING
-          </div>
-          <div style={{ fontFamily: serif, fontSize: 28, letterSpacing: "-0.02em" }}>Music built for training.</div>
-          <div style={{ fontSize: 13, color: "rgba(242,237,228,0.55)", marginTop: 4 }}>Ad-free mixes by BPM. Included with your $5/mo.</div>
-        </div>
-        <a href="Radio.html" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", color: TEAL_BRIGHT, textDecoration: "none", whiteSpace: "nowrap" }}>BROWSE ALL →</a>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
-        {[
-          { name: "Heavy Day",   bpm: 132, listeners: 1284, tag: "Lifts · power · grit",      color: "#2ee0c4", live: true },
-          { name: "Tempo Run",   bpm: 172, listeners: 842,  tag: "Steady state · zone 3",     color: "#e89b4a" },
-          { name: "Intervals",   bpm: 168, listeners: 624,  tag: "HIIT · 30/30 · 40/20",      color: "#c978d8" },
-          { name: "Cooldown",    bpm: 90,  listeners: 302,  tag: "Zone 2 · mobility",         color: "#a3c98c" },
-        ].map((s, i) => (
-          <a key={i} href="Radio.html" style={{ position: "relative", padding: 18, background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, overflow: "hidden", cursor: "pointer", textDecoration: "none", color: "inherit", display: "block" }}>
-            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: s.color }}/>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 14 }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.12em", color: s.color }}>{s.live ? "◉ LIVE" : "ON DEMAND"}</div>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.08em", color: "rgba(242,237,228,0.45)" }}>{s.listeners.toLocaleString()}</div>
-            </div>
-            <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.02em", lineHeight: 1.05 }}>{s.name}</div>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 15, color: s.color, marginTop: 4 }}>{s.bpm}<span style={{ fontSize: 10, opacity: 0.7 }}> BPM</span></div>
-            <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.6)", marginTop: 10, lineHeight: 1.45 }}>{s.tag}</div>
-            <span style={{ display: "inline-block", marginTop: 14, padding: "7px 14px", borderRadius: 999, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.2)", fontFamily: sans, fontSize: 11.5 }}>▶ Tune in</span>
-          </a>
         ))}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 20 }}>
+        <Card>
+          <SectionTitle right={assigned.length + " ASSIGNED"}>Your workouts</SectionTitle>
+          {assigned.length === 0 && (
+            <div style={{ padding: "26px 4px", color: "rgba(242,237,228,0.5)", fontSize: 13 }}>
+              No workouts assigned yet. Your coach's workouts will appear here.
+            </div>
+          )}
+          {assigned.map((w, i) => (
+            <div key={w.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 14, alignItems: "center", padding: "16px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 500 }}>{w.title}</div>
+                {w.description && <div style={{ fontSize: 12, color: "rgba(242,237,228,0.5)", marginTop: 3 }}>{w.description}</div>}
+              </div>
+              <Pill tone={w.kind === "custom" ? "teal" : undefined}>{String(w.kind || "").toUpperCase()}</Pill>
+            </div>
+          ))}
+        </Card>
+
+        <Card>
+          <SectionTitle right="MOST RECENT">Recent sessions</SectionTitle>
+          {recent.length === 0 && (
+            <div style={{ padding: "26px 4px", color: "rgba(242,237,228,0.5)", fontSize: 13 }}>
+              No completed sessions yet.
+            </div>
+          )}
+          {recent.map((s, i) => (
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center", padding: "13px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+              <div>
+                <div style={{ fontSize: 13.5, fontWeight: 500 }}>{s.title}</div>
+                <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginTop: 1 }}>{trainDate(s.at)}</div>
+              </div>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "rgba(242,237,228,0.7)" }}>{s.durationMin} min</span>
+            </div>
+          ))}
+        </Card>
       </div>
     </DashPage>
   );
