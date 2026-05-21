@@ -39,16 +39,13 @@ function RadioHero() {
   return (
     <section style={{ padding: "clamp(24px,3.5vh,44px) clamp(24px,4vw,60px) clamp(56px,8vh,100px)", position: "relative", overflow: "hidden", minHeight: "calc(100vh - 109px)", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center", background: "transparent" }}>
       <div style={{ maxWidth: 1040, width: "100%", margin: "0 auto", position: "relative", display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: "clamp(40px,4vw,84px)", alignItems: "center" }}>
-        <div style={{ position: "relative", overflow: "hidden", padding: "clamp(14px,1.2vw,20px)", background: "rgba(26,22,18,0.38)", backdropFilter: "blur(16px) saturate(1.1)", WebkitBackdropFilter: "blur(16px) saturate(1.1)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4 }}>
+        <div style={{ position: "relative", overflow: "hidden", padding: "clamp(12px,1vw,16px)", background: "rgba(26,22,18,0.38)", backdropFilter: "blur(16px) saturate(1.1)", WebkitBackdropFilter: "blur(16px) saturate(1.1)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4 }}>
           <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${TEAL}, ${RUST})`, opacity: 0.75 }} />
-          <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.3em", textTransform: "uppercase", color: TEAL_BRIGHT, marginBottom: 14 }}>Shape Radio</div>
-          <h1 style={{ fontFamily: serif, fontSize: "clamp(32px, 3.6vw, 56px)", letterSpacing: "-0.035em", fontWeight: 300, margin: 0, lineHeight: 1.0 }}>
+          <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.3em", textTransform: "uppercase", color: TEAL_BRIGHT, marginBottom: 10 }}>Shape Radio</div>
+          <h1 style={{ fontFamily: serif, fontSize: "clamp(26px, 2.7vw, 40px)", letterSpacing: "-0.035em", fontWeight: 300, margin: 0, lineHeight: 1.0 }}>
             Music<br />built for<br /><em style={{ fontStyle: "italic", fontWeight: 600, color: "transparent", WebkitTextStroke: `1.4px ${INK}` }}>movement.</em>
           </h1>
-          <p style={{ fontFamily: sans, fontSize: 16, fontWeight: 500, color: "rgba(242,237,228,0.95)", margin: "22px 0 0", maxWidth: 480, lineHeight: 1.5 }}>Ad-free workout mixes, curated stations by BPM, live DJ sets from residents who lift. Plus: your coach can attach a Spotify or Apple Music playlist to any workout or meal — it plays on the card, in your kitchen, or on the treadmill. Send good ones to friends. Included with every Shape membership.</p>
-          <div style={{ display: "flex", gap: 10, marginTop: 28 }}>
-            <a href="/radio.html" style={{ background: TEAL, color: PAPER, border: 0, padding: "12px 22px", borderRadius: 6, fontWeight: 500, fontSize: 13.5, fontFamily: sans, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>▶ Play Shape Radio Station</a>
-          </div>
+          <p style={{ fontFamily: sans, fontSize: 14, fontWeight: 500, color: "rgba(242,237,228,0.95)", margin: "14px 0 0", maxWidth: 440, lineHeight: 1.45 }}>Ad-free workout mixes, curated stations by BPM, live DJ sets from residents who lift. Plus: your coach can attach a Spotify or Apple Music playlist to any workout or meal — it plays on the card, in your kitchen, or on the treadmill. Send good ones to friends. Included with every Shape membership.</p>
         </div>
 
         {/* Now playing card */}
