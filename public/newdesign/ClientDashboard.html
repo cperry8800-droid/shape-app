@@ -47,23 +47,45 @@ const CLIENT_CAL_EVENTS = [
   { date: "2026-04-30", time: "07:00", kind: "WORKOUT", title: "Strength test", sub: "Squat 1RM" },
 ];
 
+// Mock KPIs — shown while the live dashboard API is loading, or when it's
+// unreachable (e.g. previewing this page signed out).
+const MOCK_CLIENT_KPIS = [
+  { k: "14d", l: "Current streak", sub: "best 22d" },
+  { k: "4/6", l: "Workouts this week", sub: "on track" },
+  { k: "92%", l: "Plan adherence", sub: "last 30d" },
+  { k: "+22", l: "Squat PR (lb)", sub: "since Feb" },
+];
+
 function ClientDashboardPage() {
+  const [live, setLive] = React.useState(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/client/dashboard', { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && d && d.kpis) setLive(d); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const firstName = live ? live.user.firstName : "Priya";
+  const kpis = live ? [
+    { k: live.kpis.streak + "d", l: "Current streak", sub: live.kpis.streak ? "keep it going" : "start today" },
+    { k: String(live.kpis.workoutsThisWeek), l: "Workouts this week", sub: "logged" },
+    { k: String(live.kpis.totalWorkouts), l: "Total workouts", sub: "all time" },
+    { k: live.kpis.lastDurationMin ? live.kpis.lastDurationMin + "m" : "—", l: "Last session", sub: live.kpis.totalWorkouts ? "duration" : "none yet" },
+  ] : MOCK_CLIENT_KPIS;
+
   return (
     <DashShell
       role="client"
-      userName="Priya"
+      userName={firstName}
       date="WEDNESDAY APR 18"
-      greeting="Welcome back, Priya."
+      greeting={"Welcome back, " + firstName + "."}
       primaryCta={["Log workout", "ClientTrain.html"]}
       secondaryCta={["Book session", "ClientTeam.html"]}
       navItems={clientNavItems("today")}
       payoutCard={clientPayoutCard}
-      kpis={[
-        { k: "14d", l: "Current streak", sub: "best 22d" },
-        { k: "4/6", l: "Workouts this week", sub: "on track" },
-        { k: "92%", l: "Plan adherence", sub: "last 30d" },
-        { k: "+22", l: "Squat PR (lb)", sub: "since Feb" },
-      ]}
+      kpis={kpis}
       scheduleTitle="This week"
       todayItems={[
         { time: "9:00 AM",  kind: "WORKOUT",  title: "Upper Body Pull",      sub: "45 min · 6 exercises · programmed by Marcus", cta: { label: "START", primary: true, href: "ClientTrain.html" },
