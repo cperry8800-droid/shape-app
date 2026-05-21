@@ -63,10 +63,11 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // ---- Portal route gating -------------------------------------------------
-  // A `?preview` query param bypasses the gate so the dashboard pages can be
-  // viewed signed-out for design review (they fall back to mock data).
+  // Signed-out visitors can preview every page freely (dashboards fall back
+  // to mock data). Once signed in, the private portal pages are role-gated:
+  // opening a page for a role you don't own redirects to a dashboard you do.
   const requiredRole = portalRoleForPath(request.nextUrl.pathname);
-  if (requiredRole && !request.nextUrl.searchParams.has('preview')) {
+  if (requiredRole && user) {
     // Carry any refreshed auth cookies onto whatever response we return.
     const redirectTo = (pathname: string) => {
       const url = request.nextUrl.clone();
@@ -76,11 +77,6 @@ export async function updateSession(request: NextRequest) {
       response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
       return redirect;
     };
-
-    if (!user) {
-      // Not signed in — send to the login page.
-      return redirectTo('/newdesign/Login.html');
-    }
 
     const { data: profile } = await supabase
       .from('profiles')
