@@ -629,22 +629,9 @@ function BSSubscribeBanner({ onJoin, onClose }) {
 // Browse-mode chrome — gated on radio prompt visibility so it doesn't flash
 // over the "Music while you move?" overlay on first entry.
 function BSBrowseChrome({ noticeDismissed, bannerDismissed, onCloseNotice, onCloseBanner, onJoin, onSignIn }) {
-  const r = useBSRadio();
-  const [activeTab, setActiveTab] = useStateBSM(() => window.__shapeActiveTab || 'home');
-
-  useEffectBSM(() => {
-    const onTabChanged = (event) => setActiveTab(event.detail?.tab || window.__shapeActiveTab || 'home');
-    window.addEventListener?.('shape:activeTabChanged', onTabChanged);
-    return () => window.removeEventListener?.('shape:activeTabChanged', onTabChanged);
-  }, []);
-
-  if (r.showPrompt) return null;
-  if (activeTab === 'chat') return null;
-  return (
-    <>
-      {!bannerDismissed && <BSSubscribeBanner onJoin={onJoin} onClose={onCloseBanner} />}
-    </>
-  );
+  // Mobile app hotfix: disable browse overlays so chat composer and thread UI
+  // are never occluded by preview chrome.
+  return null;
 }
 
 function BSAppShell({ tweaks, setTweak }) {
