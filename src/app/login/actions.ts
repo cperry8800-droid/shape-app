@@ -10,14 +10,16 @@ export async function login(formData: FormData): Promise<{ error: string } | voi
   const role = String(formData.get('role') ?? 'client');
   const rawNext = String(formData.get('next') ?? '');
   // Only allow internal paths to avoid open-redirect.
+  // Land the user inside the newdesign portal (matches the in-app role
+  // switcher, which also points at /newdesign/...Dashboard.html).
   const roleDefaultNext =
     role === 'shape_radio'
       ? '/newdesign/Radio.html'
       : role === 'trainer'
-      ? '/dashboard/trainer'
+      ? '/newdesign/TrainerDashboard.html'
       : role === 'nutritionist'
-      ? '/dashboard/nutritionist'
-      : '/dashboard/client';
+      ? '/newdesign/NutritionistDashboard.html'
+      : '/newdesign/ClientDashboard.html';
   const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : roleDefaultNext;
 
   const supabase = await createClient();
@@ -54,7 +56,7 @@ export async function signup(
 
   if (!needsConfirm) {
     revalidatePath('/', 'layout');
-    redirect('/dashboard/client');
+    redirect('/newdesign/ClientDashboard.html');
   }
 
   return { ok: true, needsConfirm: true };
