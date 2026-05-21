@@ -18,6 +18,16 @@ function startOfWeek(d: Date): number {
   return x.getTime();
 }
 
+type SessionRow = {
+  scheduled_at: string;
+  duration_min: number;
+  type: string;
+  status: string;
+  topic: string | null;
+  client_name: string | null;
+  client_id: string | null;
+};
+
 export async function GET() {
   const supabase = await createClient();
   const {
@@ -48,36 +58,39 @@ export async function GET() {
   const providerId: number | null = nutriRow?.id ?? null;
 
   let activeClients = 0;
+  let monthlyNetCents = 0;
   let consultsThisWeek = 0;
   let upcomingConsults = 0;
   let totalConsults = 0;
-  let today: Array<{
-    scheduledAt: string;
-    durationMin: number;
-    type: string;
-    status: string;
-    topic: string | null;
-    clientName: string | null;
-  }> = [];
+  let today: Array<Record<string, unknown>> = [];
+  let calendar: Array<Record<string, unknown>> = [];
+  let pulse: Array<Record<string, unknown>> = [];
 
   if (providerId != null) {
-    const { count: clientCount } = await supabase
+    // Active subscribers + monthly recurring revenue, net of Shape's 15% fee.
+    const { data: subRows } = await supabase
       .from('subscriptions')
-      .select('id', { count: 'exact', head: true })
+      .select('price_cents, status')
       .eq('provider_role', 'nutritionist')
       .eq('provider_id', providerId)
       .in('status', ['active', 'trialing']);
-    activeClients = clientCount ?? 0;
+    const subs = subRows ?? [];
+    activeClients = subs.length;
+    const grossCents = subs.reduce(
+      (sum: number, r: { price_cents: number | null }) => sum + (r.price_cents ?? 0),
+      0
+    );
+    monthlyNetCents = Math.round(grossCents * 0.85);
 
     const { data: sessions } = await supabase
       .from('sessions')
-      .select('scheduled_at, duration_min, type, status, topic, client_name')
+      .select('scheduled_at, duration_min, type, status, topic, client_name, client_id')
       .eq('provider_role', 'nutritionist')
       .eq('provider_id', providerId)
       .order('scheduled_at', { ascending: true })
-      .limit(400);
+      .limit(500);
 
-    const rows = sessions ?? [];
+    const rows = (sessions ?? []) as SessionRow[];
     totalConsults = rows.length;
 
     const now = Date.now();
@@ -107,12 +120,41 @@ export async function GET() {
         topic: r.topic,
         clientName: r.client_name,
       }));
+
+    calendar = rows.map((r) => ({
+      at: r.scheduled_at,
+      kind: 'SESSION',
+      title: r.client_name || 'Client consult',
+      sub: [r.topic, `${r.duration_min} min`, r.type].filter(Boolean).join(' · '),
+    }));
+
+    const byClient = new Map<
+      string,
+      { name: string; sessions: number; lastAt: number }
+    >();
+    for (const r of rows) {
+      const key = r.client_id || r.client_name || 'unknown';
+      const t = new Date(r.scheduled_at).getTime();
+      const existing = byClient.get(key);
+      if (existing) {
+        existing.sessions += 1;
+        if (t > existing.lastAt) existing.lastAt = t;
+      } else {
+        byClient.set(key, { name: r.client_name || 'Client', sessions: 1, lastAt: t });
+      }
+    }
+    pulse = [...byClient.values()]
+      .sort((a, b) => b.lastAt - a.lastAt)
+      .slice(0, 8)
+      .map((c) => ({ name: c.name, sessions: c.sessions, lastAt: new Date(c.lastAt).toISOString() }));
   }
 
   return NextResponse.json({
     user: { firstName, fullName },
     isNutritionist: providerId != null,
-    kpis: { activeClients, consultsThisWeek, upcomingConsults, totalConsults },
+    kpis: { activeClients, monthlyNetCents, consultsThisWeek, upcomingConsults, totalConsults },
     today,
+    calendar,
+    pulse,
   });
 }

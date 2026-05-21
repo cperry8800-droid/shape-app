@@ -71,6 +71,26 @@ function tdFmtTime(iso) {
   try { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }); }
   catch (e) { return ""; }
 }
+function tdCalDate(iso) {
+  try { const d = new Date(iso); return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); }
+  catch (e) { return ""; }
+}
+function tdCalTime(iso) {
+  try { const d = new Date(iso); return String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); }
+  catch (e) { return ""; }
+}
+function tdMoney(cents) {
+  try { return "$" + Math.round((cents || 0) / 100).toLocaleString(); }
+  catch (e) { return "$0"; }
+}
+const TD_FLAT_TREND = [0.5,0.5,0.5,0.5,0.5,0.5,0.5];
+const MOCK_TRAINER_PULSE = [
+  { who: "Maya",   sub: "2 workouts · 4d streak",   trend: [0.2,0.4,0.3,0.5,0.4,0.6,0.5] },
+  { who: "Diego",  sub: "4 workouts · 7d streak",   trend: [0.3,0.5,0.4,0.7,0.6,0.8,0.7] },
+  { who: "Rae",    sub: "6 workouts · 10d streak",  trend: [0.4,0.6,0.5,0.8,0.7,0.9,0.85] },
+  { who: "Jordan", sub: "8 workouts · 13d streak",  trend: [0.5,0.4,0.6,0.5,0.7,0.6,0.65] },
+  { who: "Nadia",  sub: "10 workouts · 16d streak", trend: [0.6,0.7,0.65,0.8,0.75,0.9,0.88] },
+];
 
 function TrainerDashboardPage() {
   const [live, setLive] = React.useState(null);
@@ -86,9 +106,9 @@ function TrainerDashboardPage() {
   const firstName = live ? live.user.firstName : "Maya";
   const kpis = live ? [
     { k: String(live.kpis.activeClients), l: "Active clients" },
+    { k: tdMoney(live.kpis.monthlyNetCents), l: "Monthly (net)", sub: "after 15% fee" },
     { k: String(live.kpis.sessionsThisWeek), l: "Sessions this week" },
     { k: String(live.kpis.upcomingSessions), l: "Upcoming sessions" },
-    { k: String(live.kpis.totalSessions), l: "Total sessions", sub: "all time" },
   ] : MOCK_TRAINER_KPIS;
 
   const todayRows = live && Array.isArray(live.today) ? live.today : null;
@@ -103,6 +123,16 @@ function TrainerDashboardPage() {
         }))
       : [{ time: "—", who: "No sessions today", sub: "Your schedule is clear" }];
 
+  const calendarEvents = live && Array.isArray(live.calendar)
+    ? live.calendar.map(e => ({ date: tdCalDate(e.at), time: tdCalTime(e.at), kind: e.kind, title: e.title, sub: e.sub }))
+    : TRAINER_CAL_EVENTS;
+  const pulseRows = live && Array.isArray(live.pulse) ? live.pulse : null;
+  const pulse = !pulseRows
+    ? MOCK_TRAINER_PULSE
+    : pulseRows.length
+      ? pulseRows.map(c => ({ who: c.name, sub: c.sessions + (c.sessions === 1 ? " session" : " sessions"), trend: TD_FLAT_TREND }))
+      : [{ who: "No clients yet", sub: "Sessions will appear here", trend: TD_FLAT_TREND }];
+
   return (
     <DashShell
       role="trainer"
@@ -115,16 +145,10 @@ function TrainerDashboardPage() {
       payoutCard={trainerPayoutCard}
       kpis={kpis}
       scheduleTitle="Today's schedule"
-      calendarEvents={TRAINER_CAL_EVENTS}
+      calendarEvents={calendarEvents}
       schedule={schedule}
       pulseTitle="Client pulse"
-      pulse={[
-        { who: "Maya",   sub: "2 workouts · 4d streak",   trend: [0.2,0.4,0.3,0.5,0.4,0.6,0.5] },
-        { who: "Diego",  sub: "4 workouts · 7d streak",   trend: [0.3,0.5,0.4,0.7,0.6,0.8,0.7] },
-        { who: "Rae",    sub: "6 workouts · 10d streak",  trend: [0.4,0.6,0.5,0.8,0.7,0.9,0.85] },
-        { who: "Jordan", sub: "8 workouts · 13d streak",  trend: [0.5,0.4,0.6,0.5,0.7,0.6,0.65] },
-        { who: "Nadia",  sub: "10 workouts · 16d streak", trend: [0.6,0.7,0.65,0.8,0.75,0.9,0.88] },
-      ]}
+      pulse={pulse}
       extraSections={[{
         title: "Recent payouts",
         render: () => <RecentPayouts rows={[

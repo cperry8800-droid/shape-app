@@ -62,6 +62,26 @@ function ndFmtTime(iso) {
   try { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }); }
   catch (e) { return ""; }
 }
+function ndCalDate(iso) {
+  try { const d = new Date(iso); return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); }
+  catch (e) { return ""; }
+}
+function ndCalTime(iso) {
+  try { const d = new Date(iso); return String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); }
+  catch (e) { return ""; }
+}
+function ndMoney(cents) {
+  try { return "$" + Math.round((cents || 0) / 100).toLocaleString(); }
+  catch (e) { return "$0"; }
+}
+const ND_FLAT_TREND = [0.5,0.5,0.5,0.5,0.5,0.5,0.5];
+const MOCK_NUTRI_PULSE = [
+  { who: "Elena R.",  sub: "7 days logged · −14% BF",  trend: [0.3,0.4,0.5,0.4,0.6,0.7,0.8] },
+  { who: "Marcus L.", sub: "5 days · protein short",    trend: [0.5,0.4,0.6,0.5,0.4,0.5,0.45] },
+  { who: "Priya S.",  sub: "Flagged: sleep low",        trend: [0.7,0.6,0.5,0.4,0.5,0.4,0.3] },
+  { who: "Jonah W.",  sub: "Long-run carbs missed",     trend: [0.4,0.5,0.45,0.6,0.5,0.7,0.6] },
+  { who: "Ana P.",    sub: "On plan · no flags",        trend: [0.5,0.6,0.55,0.7,0.65,0.8,0.75] },
+];
 
 function NutritionistDashboardPage() {
   const [live, setLive] = React.useState(null);
@@ -77,9 +97,9 @@ function NutritionistDashboardPage() {
   const firstName = live ? live.user.firstName : "Rae";
   const kpis = live ? [
     { k: String(live.kpis.activeClients), l: "Active clients" },
+    { k: ndMoney(live.kpis.monthlyNetCents), l: "Monthly (net)", sub: "after 15% fee" },
     { k: String(live.kpis.consultsThisWeek), l: "Consults this week" },
     { k: String(live.kpis.upcomingConsults), l: "Upcoming consults" },
-    { k: String(live.kpis.totalConsults), l: "Total consults", sub: "all time" },
   ] : MOCK_NUTRI_KPIS;
 
   const todayRows = live && Array.isArray(live.today) ? live.today : null;
@@ -94,6 +114,16 @@ function NutritionistDashboardPage() {
         }))
       : [{ time: "—", who: "No consults today", sub: "Your schedule is clear" }];
 
+  const calendarEvents = live && Array.isArray(live.calendar)
+    ? live.calendar.map(e => ({ date: ndCalDate(e.at), time: ndCalTime(e.at), kind: e.kind, title: e.title, sub: e.sub }))
+    : NUTRI_CAL_EVENTS;
+  const pulseRows = live && Array.isArray(live.pulse) ? live.pulse : null;
+  const pulse = !pulseRows
+    ? MOCK_NUTRI_PULSE
+    : pulseRows.length
+      ? pulseRows.map(c => ({ who: c.name, sub: c.sessions + (c.sessions === 1 ? " consult" : " consults"), trend: ND_FLAT_TREND }))
+      : [{ who: "No clients yet", sub: "Consults will appear here", trend: ND_FLAT_TREND }];
+
   return (
     <DashShell
       role="nutritionist"
@@ -106,16 +136,10 @@ function NutritionistDashboardPage() {
       payoutCard={nutriPayoutCard}
       kpis={kpis}
       scheduleTitle="Today's consults"
-      calendarEvents={NUTRI_CAL_EVENTS}
+      calendarEvents={calendarEvents}
       schedule={schedule}
-      pulseTitle="Logs needing review"
-      pulse={[
-        { who: "Elena R.",  sub: "7 days logged · −14% BF",  trend: [0.3,0.4,0.5,0.4,0.6,0.7,0.8] },
-        { who: "Marcus L.", sub: "5 days · protein short",    trend: [0.5,0.4,0.6,0.5,0.4,0.5,0.45] },
-        { who: "Priya S.",  sub: "Flagged: sleep low",        trend: [0.7,0.6,0.5,0.4,0.5,0.4,0.3] },
-        { who: "Jonah W.",  sub: "Long-run carbs missed",     trend: [0.4,0.5,0.45,0.6,0.5,0.7,0.6] },
-        { who: "Ana P.",    sub: "On plan · no flags",        trend: [0.5,0.6,0.55,0.7,0.65,0.8,0.75] },
-      ]}
+      pulseTitle="Client pulse"
+      pulse={pulse}
       extraSections={[{
         title: "Recent payouts",
         render: () => <RecentPayouts rows={[
