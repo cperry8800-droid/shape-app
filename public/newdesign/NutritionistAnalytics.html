@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8" />
-<title>Nutritionist Analytics · Shape</title>
+<title>Analytics · Shape</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -19,95 +19,107 @@
 <script type="text/babel" src="trainerDashboard.jsx"></script>
 <script type="text/babel" src="coachNav.jsx"></script>
 <script type="text/babel">
-function atRiskParam(){ try { return (new URLSearchParams(location.search).get("client") || "").toLowerCase(); } catch(e){ return ""; } }
-function titleCaseSlug(slug){ return slug.split("-").filter(Boolean).map(function(w){ return w.charAt(0).toUpperCase()+w.slice(1); }).join(" "); }
+function anMoney(cents) {
+  if (cents == null) return "—";
+  try { return "$" + Math.round(cents / 100).toLocaleString(); }
+  catch (e) { return "$0"; }
+}
+function anDate(ms) {
+  if (!ms) return "—";
+  try { return new Date(ms).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }); }
+  catch (e) { return "—"; }
+}
 
-var CLIENT_RISK = {
-  "marcus-larson": {
-    name: "Marcus Larson", adherence: "78%", streak: "5d", level: "FLAG", flagged: "Today",
-    drivers: [
-      { tag: "MACRO", title: "Protein under target", detail: "Averaging 31% below the protein goal across the last 3 days.", status: "FLAG" },
-      { tag: "LOGS",  title: "Inconsistent meal logs", detail: "2 of the last 4 days missing dinner and post-training logs.", status: "WATCH" },
-      { tag: "TIMING", title: "Late first meal", detail: "First meal averaging 1pm on training days — under-fuels AM sessions.", status: "WATCH" },
+// Mock data — shown while the API loads, or when the viewer isn't a
+// signed-in nutritionist.
+const MOCK_ANALYTICS = {
+  metrics: { mrrGrossCents: 532000, mrrNetCents: 452200, activeClients: 28, totalSessions: 214, completedSessions: 186, upcomingSessions: 9 },
+  stripe: {
+    connected: true, status: "connected", balanceCents: 96400,
+    payouts: [
+      { id: "po_1", amountCents: 241000, currency: "usd", status: "paid", arrivalDate: Date.now() - 5 * 86400000, created: Date.now() - 7 * 86400000 },
+      { id: "po_2", amountCents: 228500, currency: "usd", status: "paid", arrivalDate: Date.now() - 35 * 86400000, created: Date.now() - 37 * 86400000 },
+      { id: "po_3", amountCents: 233900, currency: "usd", status: "paid", arrivalDate: Date.now() - 65 * 86400000, created: Date.now() - 67 * 86400000 },
     ],
-    action: "Send a short protein-anchor reminder, lock in a fixed high-protein breakfast, and re-check in 48h.",
   },
 };
 
-function riskFor(slug){
-  if (CLIENT_RISK[slug]) return CLIENT_RISK[slug];
-  var name = titleCaseSlug(slug) || "This client";
-  return {
-    name: name, adherence: "—", streak: "—", level: "WATCH", flagged: "Today",
-    drivers: [
-      { tag: "MACRO", title: "Macro adherence below target", detail: name + " has been under macro targets for most of the last 7 days.", status: "FLAG" },
-      { tag: "LOGS",  title: "Inconsistent logging", detail: "Several meals unlogged; harder to coach without the data.", status: "WATCH" },
-      { tag: "TIMING", title: "Fueling timing off", detail: "Meal timing drifting relative to training and sleep.", status: "WATCH" },
-    ],
-    action: "Reach out with a simple plan adjustment, reduce logging friction, and reassess in 48h.",
-  };
-}
-
 function NutritionistAnalyticsPage() {
-  var slug = atRiskParam();
-  var f = slug ? riskFor(slug) : null;
+  const [data, setData] = React.useState(MOCK_ANALYTICS);
+  const [live, setLive] = React.useState(false);
 
-  var kpis = f
-    ? [ { k: f.adherence, l: "Macro adherence" }, { k: f.streak, l: "Streak" }, { k: f.level, l: "Risk" }, { k: f.flagged, l: "Flagged" } ]
-    : [ { k: "89%", l: "Macro adherence" }, { k: "74%", l: "Sleep target hit" }, { k: "5", l: "Reviews pending" }, { k: "2", l: "At-risk today" } ];
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/nutritionist/analytics', { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && d && d.isNutritionist) { setData(d); setLive(true); } })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
-  var scheduleTitle = f ? ("Why " + f.name + " is at risk") : "At-risk clients";
-  var schedule = f
-    ? f.drivers.map(function(d){ return { time: d.tag, who: d.title, sub: d.detail, status: d.status }; })
-    : [
-        { time: "NOW", who: "Marcus Larson", sub: "Protein under target · 3 days", status: "FLAG" },
-        { time: "NOW", who: "Casey Lee",     sub: "Skipped meal logs · 4 days", status: "FLAG" },
-      ];
+  const m = data.metrics || {};
+  const s = data.stripe || { connected: false, payouts: [] };
+  const payouts = s.payouts || [];
 
-  var extraSections = [];
-  if (f) extraSections.push({
-    title: "Recommended action",
-    render: function(){ return (
-      <div style={{ padding: 20, border: "1px solid rgba(242,237,228,0.12)", borderRadius: 12 }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.7)", marginBottom: 10 }}>FOR {f.name.toUpperCase()}</div>
-        <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, lineHeight: 1.25, color: "#f2ede4", marginBottom: 12 }}>{f.action}</div>
-        <a href="NutritionistClients.html" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: "#2ee0c4" }}>&#8592; BACK TO CLIENTS</a>
-      </div>
-    ); },
-  });
-  extraSections.push({
-    title: "Correlations",
-    render: function(){ return (
-      <div style={{ padding: 20, border: "1px solid rgba(242,237,228,0.12)", borderRadius: 12 }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.7)", marginBottom: 10 }}>ANALYTICS PRO · LIVE</div>
-        <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, lineHeight: 1.2, color: "#f2ede4", marginBottom: 8 }}>Clients with consistent sleep and hydration hit macro targets 1.6&#215; more often in the last 30 days.</div>
-        <div style={{ fontFamily: "Space Grotesk, sans-serif", fontSize: 14, color: "rgba(242,237,228,0.72)" }}>Prioritize outreach to low-sleep clients before high-volume training days.</div>
-      </div>
-    ); },
-  });
+  const cards = [
+    { k: anMoney(m.mrrNetCents), l: "Net monthly revenue" },
+    { k: String(m.activeClients ?? 0), l: "Active clients" },
+    { k: String(m.completedSessions ?? 0), l: "Sessions completed" },
+    { k: String(m.upcomingSessions ?? 0), l: "Upcoming sessions" },
+  ];
 
   return (
-    <DashShell
-      role="nutritionist"
-      userName="Rae"
-      date="WEDNESDAY APR 18"
-      greeting={f ? ("Analytics — " + f.name) : "Analytics."}
-      primaryCta={["Clients", "NutritionistClients.html"]}
-      secondaryCta={["Plans", "NutritionistPlans.html"]}
+    <DashPage
       navItems={nutriNavItems("analytics")}
       payoutCard={nutriPayoutCard}
-      kpis={kpis}
-      scheduleTitle={scheduleTitle}
-      schedule={schedule}
-      pulseTitle="Compliance signals"
-      pulse={[
-        { who: "Macro adherence", sub: "89% · up 6% vs prior 30d", trend: [0.38,0.42,0.5,0.54,0.58,0.62,0.67] },
-        { who: "Meal timing consistency", sub: "81% · stable", trend: [0.44,0.46,0.48,0.5,0.52,0.53,0.55] },
-        { who: "Hydration goal", sub: "76% · needs follow-up", trend: [0.3,0.34,0.39,0.42,0.4,0.45,0.47] },
-        { who: "Recovery + intake alignment", sub: "72%", trend: [0.35,0.4,0.44,0.47,0.5,0.56,0.6] },
-      ]}
-      extraSections={extraSections}
-    />
+      eyebrow="REVENUE · ROSTER · SESSIONS"
+      title="Analytics"
+      subtitle="Your real numbers — recurring revenue, active roster, sessions, and Stripe payouts."
+    >
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 20 }}>
+        {cards.map((c, i) => (
+          <Card key={i} style={{ padding: "22px 22px 20px" }}>
+            <div style={{ fontFamily: serif, fontSize: 38, letterSpacing: "-0.02em", lineHeight: 1 }}>{c.k}</div>
+            <div style={{ fontSize: 13, marginTop: 12 }}>{c.l}</div>
+          </Card>
+        ))}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1.25fr", gap: 20 }}>
+        <Card>
+          <SectionTitle right="MONTHLY">Recurring revenue</SectionTitle>
+          <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", lineHeight: 1, marginTop: 4 }}>{anMoney(m.mrrNetCents)}</div>
+          <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>
+            net to you · gross {anMoney(m.mrrGrossCents)} less 15% Shape fee
+          </div>
+          <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", justifyContent: "space-between", fontSize: 12.5 }}>
+            <span style={{ color: "rgba(242,237,228,0.6)" }}>Stripe available balance</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", color: TEAL_BRIGHT }}>{s.connected ? anMoney(s.balanceCents) : "—"}</span>
+          </div>
+        </Card>
+
+        <Card>
+          <SectionTitle right={s.connected ? "STRIPE CONNECT" : "NOT CONNECTED"}>Recent payouts</SectionTitle>
+          {!s.connected && (
+            <div style={{ padding: "26px 4px", color: "rgba(242,237,228,0.55)", fontSize: 13 }}>
+              Connect a Stripe account to receive and track payouts.
+            </div>
+          )}
+          {s.connected && payouts.length === 0 && (
+            <div style={{ padding: "26px 4px", color: "rgba(242,237,228,0.55)", fontSize: 13 }}>
+              No payouts yet. They'll appear here once Stripe sends your first transfer.
+            </div>
+          )}
+          {s.connected && payouts.length > 0 && (
+            <RecentPayouts rows={payouts.map((p) => ({
+              date: anDate(p.arrivalDate || p.created),
+              mid: String(p.status || "").toUpperCase(),
+              amount: anMoney(p.amountCents),
+            }))} />
+          )}
+        </Card>
+      </div>
+    </DashPage>
   );
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<NutritionistAnalyticsPage />);

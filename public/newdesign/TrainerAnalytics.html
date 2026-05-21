@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8" />
-<title>Trainer Analytics · Shape</title>
+<title>Analytics · Shape</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -19,96 +19,107 @@
 <script type="text/babel" src="trainerDashboard.jsx"></script>
 <script type="text/babel" src="coachNav.jsx"></script>
 <script type="text/babel">
-function atRiskParam(){ try { return (new URLSearchParams(location.search).get("client") || "").toLowerCase(); } catch(e){ return ""; } }
-function titleCaseSlug(slug){ return slug.split("-").filter(Boolean).map(function(w){ return w.charAt(0).toUpperCase()+w.slice(1); }).join(" "); }
+function anMoney(cents) {
+  if (cents == null) return "—";
+  try { return "$" + Math.round(cents / 100).toLocaleString(); }
+  catch (e) { return "$0"; }
+}
+function anDate(ms) {
+  if (!ms) return "—";
+  try { return new Date(ms).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }); }
+  catch (e) { return "—"; }
+}
 
-var CLIENT_RISK = {
-  "priya-shah": {
-    name: "Priya Shah", adherence: "92%", streak: "14d", level: "FLAG", flagged: "Today",
-    drivers: [
-      { tag: "ADHR",  title: "Adherence slipped mid-block", detail: "92% overall, but 3 of the last 5 sessions only partially logged — volume completion down to 74%.", status: "FLAG" },
-      { tag: "ENGMT", title: "Check-in unanswered", detail: "Last coach message read but no reply for 4 days.", status: "FLAG" },
-      { tag: "RECOV", title: "Load tolerance trending down", detail: "Reported RPE up ~1.5 at the same loads; sleep under 6h on 4 of 7 nights.", status: "WATCH" },
+// Mock data — shown while the API loads, or when the viewer isn't a
+// signed-in trainer.
+const MOCK_ANALYTICS = {
+  metrics: { mrrGrossCents: 898000, mrrNetCents: 763300, activeClients: 34, totalSessions: 286, completedSessions: 248, upcomingSessions: 12 },
+  stripe: {
+    connected: true, status: "connected", balanceCents: 184200,
+    payouts: [
+      { id: "po_1", amountCents: 412000, currency: "usd", status: "paid", arrivalDate: Date.now() - 5 * 86400000, created: Date.now() - 7 * 86400000 },
+      { id: "po_2", amountCents: 388500, currency: "usd", status: "paid", arrivalDate: Date.now() - 35 * 86400000, created: Date.now() - 37 * 86400000 },
+      { id: "po_3", amountCents: 401200, currency: "usd", status: "paid", arrivalDate: Date.now() - 65 * 86400000, created: Date.now() - 67 * 86400000 },
     ],
-    action: "Send a short personal check-in today, hold week-4 progression, and keep load flat until sleep stabilizes 3+ nights.",
   },
 };
 
-function riskFor(slug){
-  if (CLIENT_RISK[slug]) return CLIENT_RISK[slug];
-  var name = titleCaseSlug(slug) || "This client";
-  return {
-    name: name, adherence: "—", streak: "—", level: "WATCH", flagged: "Today",
-    drivers: [
-      { tag: "ADHR",  title: "Adherence below threshold", detail: name + " has dropped under the 85% adherence line across the last 7 days.", status: "FLAG" },
-      { tag: "ENGMT", title: "Reduced engagement", detail: "Fewer logged sessions and slower replies to coach messages.", status: "WATCH" },
-      { tag: "RECOV", title: "Recovery signals soft", detail: "Sleep and readiness trending below personal baseline.", status: "WATCH" },
-    ],
-    action: "Reach out with a personal check-in, ease this week's progression, and reassess in 3 days.",
-  };
-}
-
 function TrainerAnalyticsPage() {
-  var slug = atRiskParam();
-  var f = slug ? riskFor(slug) : null;
+  const [data, setData] = React.useState(MOCK_ANALYTICS);
+  const [live, setLive] = React.useState(false);
 
-  var kpis = f
-    ? [ { k: f.adherence, l: "Adherence" }, { k: f.streak, l: "Streak" }, { k: f.level, l: "Risk" }, { k: f.flagged, l: "Flagged" } ]
-    : [ { k: "92%", l: "Avg adherence" }, { k: "18d", l: "Avg streak" }, { k: "$7,640", l: "MRR" }, { k: "3", l: "At-risk today" } ];
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/trainer/analytics', { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && d && d.isTrainer) { setData(d); setLive(true); } })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
-  var scheduleTitle = f ? ("Why " + f.name + " is at risk") : "At-risk clients";
-  var schedule = f
-    ? f.drivers.map(function(d){ return { time: d.tag, who: d.title, sub: d.detail, status: d.status }; })
-    : [
-        { time: "NOW", who: "Casey Lee",   sub: "Macros 31% under target · 2 days", status: "FLAG" },
-        { time: "NOW", who: "Drew Park",   sub: "Missed last session · no message 8d", status: "FLAG" },
-        { time: "NOW", who: "Jonah Weiss", sub: "Sleep + recovery trend down", status: "WATCH" },
-      ];
+  const m = data.metrics || {};
+  const s = data.stripe || { connected: false, payouts: [] };
+  const payouts = s.payouts || [];
 
-  var extraSections = [];
-  if (f) extraSections.push({
-    title: "Recommended action",
-    render: function(){ return (
-      <div style={{ padding: 20, border: "1px solid rgba(242,237,228,0.12)", borderRadius: 12 }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.7)", marginBottom: 10 }}>FOR {f.name.toUpperCase()}</div>
-        <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, lineHeight: 1.25, color: "#f2ede4", marginBottom: 12 }}>{f.action}</div>
-        <a href="TrainerClients.html" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: "#2ee0c4" }}>← BACK TO CLIENTS</a>
-      </div>
-    ); },
-  });
-  extraSections.push({
-    title: "Correlations",
-    render: function(){ return (
-      <div style={{ padding: 20, border: "1px solid rgba(242,237,228,0.12)", borderRadius: 12 }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.7)", marginBottom: 10 }}>ANALYTICS PRO · LIVE</div>
-        <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, lineHeight: 1.2, color: "#f2ede4", marginBottom: 8 }}>Sleep <span style={{ color: "#1ec0a8" }}>&#8593;</span> and macro adherence <span style={{ color: "#1ec0a8" }}>&#8593;</span> correlate with PR rate in 12 of 14 active clients.</div>
-        <div style={{ fontFamily: "Space Grotesk, sans-serif", fontSize: 14, color: "rgba(242,237,228,0.72)" }}>Focus outreach on the flagged clients first, then push week-4 progression only where sleep is stable.</div>
-      </div>
-    ); },
-  });
+  const cards = [
+    { k: anMoney(m.mrrNetCents), l: "Net monthly revenue" },
+    { k: String(m.activeClients ?? 0), l: "Active clients" },
+    { k: String(m.completedSessions ?? 0), l: "Sessions completed" },
+    { k: String(m.upcomingSessions ?? 0), l: "Upcoming sessions" },
+  ];
 
   return (
-    <DashShell
-      role="trainer"
-      userName="Maya"
-      date="WEDNESDAY APR 18"
-      greeting={f ? ("Analytics — " + f.name) : "Analytics."}
-      primaryCta={["Clients", "TrainerClients.html"]}
-      secondaryCta={["Programs", "TrainerPrograms.html"]}
+    <DashPage
       navItems={trainerNavItems("analytics")}
       payoutCard={trainerPayoutCard}
-      kpis={kpis}
-      scheduleTitle={scheduleTitle}
-      schedule={schedule}
-      pulseTitle="Compliance signals"
-      pulse={[
-        { who: "Workout compliance", sub: "88% · vs 82% prior 30d", trend: [0.4,0.5,0.6,0.55,0.62,0.7,0.74] },
-        { who: "Nutrition compliance", sub: "84% · vs 79% prior 30d", trend: [0.35,0.38,0.45,0.5,0.56,0.6,0.65] },
-        { who: "Sleep target hit", sub: "71% · 7h+ goal", trend: [0.3,0.36,0.4,0.35,0.44,0.5,0.48] },
-        { who: "Recovery readiness", sub: "Avg 67%", trend: [0.45,0.5,0.48,0.52,0.58,0.61,0.66] },
-      ]}
-      extraSections={extraSections}
-    />
+      eyebrow="REVENUE · ROSTER · SESSIONS"
+      title="Analytics"
+      subtitle="Your real numbers — recurring revenue, active roster, sessions, and Stripe payouts."
+    >
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 20 }}>
+        {cards.map((c, i) => (
+          <Card key={i} style={{ padding: "22px 22px 20px" }}>
+            <div style={{ fontFamily: serif, fontSize: 38, letterSpacing: "-0.02em", lineHeight: 1 }}>{c.k}</div>
+            <div style={{ fontSize: 13, marginTop: 12 }}>{c.l}</div>
+          </Card>
+        ))}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1.25fr", gap: 20 }}>
+        <Card>
+          <SectionTitle right="MONTHLY">Recurring revenue</SectionTitle>
+          <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", lineHeight: 1, marginTop: 4 }}>{anMoney(m.mrrNetCents)}</div>
+          <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>
+            net to you · gross {anMoney(m.mrrGrossCents)} less 15% Shape fee
+          </div>
+          <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", justifyContent: "space-between", fontSize: 12.5 }}>
+            <span style={{ color: "rgba(242,237,228,0.6)" }}>Stripe available balance</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", color: TEAL_BRIGHT }}>{s.connected ? anMoney(s.balanceCents) : "—"}</span>
+          </div>
+        </Card>
+
+        <Card>
+          <SectionTitle right={s.connected ? "STRIPE CONNECT" : "NOT CONNECTED"}>Recent payouts</SectionTitle>
+          {!s.connected && (
+            <div style={{ padding: "26px 4px", color: "rgba(242,237,228,0.55)", fontSize: 13 }}>
+              Connect a Stripe account to receive and track payouts.
+            </div>
+          )}
+          {s.connected && payouts.length === 0 && (
+            <div style={{ padding: "26px 4px", color: "rgba(242,237,228,0.55)", fontSize: 13 }}>
+              No payouts yet. They'll appear here once Stripe sends your first transfer.
+            </div>
+          )}
+          {s.connected && payouts.length > 0 && (
+            <RecentPayouts rows={payouts.map((p) => ({
+              date: anDate(p.arrivalDate || p.created),
+              mid: String(p.status || "").toUpperCase(),
+              amount: anMoney(p.amountCents),
+            }))} />
+          )}
+        </Card>
+      </div>
+    </DashPage>
   );
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<TrainerAnalyticsPage />);
