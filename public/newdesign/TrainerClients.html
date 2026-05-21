@@ -19,139 +19,95 @@ function clientProfileHref(name) {
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
   return `ClientProfile.html?client=${encodeURIComponent(slug)}`;
 }
-function clientAnalyticsHref(name) {
-  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-  return `TrainerAnalytics.html?client=${encodeURIComponent(slug)}`;
+function tcMoney(cents) {
+  try { return "$" + Math.round((cents || 0) / 100).toLocaleString(); }
+  catch (e) { return "$0"; }
+}
+function tcLast(iso) {
+  if (!iso) return "—";
+  try { return new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" }); }
+  catch (e) { return "—"; }
 }
 
+// Mock roster — shown while the API loads, or when the viewer isn't a
+// signed-in trainer (e.g. previewing the page).
+const MOCK_TRAINER_CLIENTS = [
+  { name: "Priya Shah",     sessions: 18, mrrCents: 22000, lastAt: null, isNew: false },
+  { name: "Deandre Kim",    sessions: 32, mrrCents: 26000, lastAt: null, isNew: false },
+  { name: "Sam Okafor",     sessions: 1,  mrrCents: 20000, lastAt: null, isNew: true  },
+  { name: "Jaya Patel",     sessions: 12, mrrCents: 20000, lastAt: null, isNew: false },
+  { name: "Marcus Johnson", sessions: 21, mrrCents: 24000, lastAt: null, isNew: false },
+  { name: "Elena Rivera",   sessions: 30, mrrCents: 24000, lastAt: null, isNew: false },
+];
+
+const TC_COLS = "2fr 96px 110px 116px 64px";
+
 function TrainerClientsPage() {
-  const [previewClient, setPreviewClient] = React.useState(null);
-  const clients = [
-    ["Priya Shah",       "Strength + hybrid", "Tempo · 1,284",  "14d", "92%", "$220", "$1,540", "Remote", [0.3,0.5,0.4,0.7,0.6,0.8,0.7], "FLAG"],
-    ["Deandre Kim",      "Strength",          "Peak · 1,820",   "22d", "96%", "$260", "$4,160", "Brooklyn", [0.4,0.6,0.5,0.8,0.7,0.9,0.85], ""],
-    ["Sam Okafor",       "Intake · new",      "Raw · 40",       "1d",  "—",   "$200", "$200",   "Remote", [0.1,0.1,0.1,0.2,0.1,0.1,0.2], "NEW"],
-    ["Jaya Patel",       "Hybrid",            "Tempo · 1,102",  "9d",  "89%", "$200", "$1,800", "Brooklyn", [0.3,0.4,0.5,0.4,0.6,0.5,0.6], ""],
-    ["Marcus Johnson",   "Strength",          "Tempo · 1,412",  "18d", "94%", "$240", "$2,880", "Remote", [0.4,0.5,0.6,0.5,0.7,0.8,0.75], ""],
-    ["Elena Rivera",     "Hybrid · cut",      "Peak · 2,108",   "30d", "98%", "$240", "$5,760", "Brooklyn", [0.5,0.6,0.7,0.6,0.8,0.85,0.9], ""],
-    ["Jonah Weiss",      "Running",           "Tempo · 980",    "7d",  "85%", "$180", "$900",   "Remote", [0.3,0.3,0.5,0.4,0.5,0.6,0.55], ""],
-    ["Ana Park",         "Strength · beginner","Raw · 412",     "12d", "90%", "$200", "$1,200", "Remote", [0.2,0.3,0.3,0.4,0.5,0.5,0.6], ""],
-  ];
-  const atRisk = clients.filter((c) => c[9] === "FLAG" || Number.parseInt(c[4], 10) < 85).slice(0, 3);
-  const avgAdherence = Math.round(
-    clients.reduce((sum, c) => {
-      const n = Number.parseInt(c[4], 10);
-      return Number.isFinite(n) ? sum + n : sum;
-    }, 0) / clients.filter((c) => Number.isFinite(Number.parseInt(c[4], 10))).length
-  );
-  const totalRevenue = clients.reduce((sum, c) => sum + Number((c[6] || "$0").toString().replace(/[^0-9.-]/g, "")), 0);
-  const avgRevenuePerClient = Math.round(totalRevenue / clients.length);
-  const prioBand = avgAdherence >= 92 ? "Stable" : avgAdherence >= 85 ? "Watch" : "Review";
+  const [live, setLive] = React.useState(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/trainer/clients', { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && d && d.isTrainer) setLive(d); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const clients = live ? live.clients : MOCK_TRAINER_CLIENTS;
+  const activeCount = live ? live.totals.active : clients.length;
+  const mrrCents = live ? live.totals.mrrCents : clients.reduce((s, c) => s + c.mrrCents, 0);
+  const avgCents = clients.length ? Math.round(mrrCents / clients.length) : 0;
+
   return (
     <DashPage
       navItems={trainerNavItems("clients")}
       payoutCard={trainerPayoutCard}
-      eyebrow="34 ACTIVE · 2 IN INTAKE · 1 FLAGGED"
+      eyebrow={activeCount + " ACTIVE CLIENT" + (activeCount === 1 ? "" : "S")}
       title="Clients"
-      subtitle="Everyone you're coaching. Sort by streak, adherence, or revenue — or jump to anyone's program and logs."
-      actions={<>
-        <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Filter</button>
+      subtitle="Everyone you're coaching — jump to anyone's profile, program, and logs."
+      actions={
         <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Invite client</button>
-      </>}
+      }
     >
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 20 }}>
-        {[{k:"34",l:"Active"},{k:"92%",l:"Avg adherence"},{k:"18d",l:"Avg streak"},{k:"$7,640",l:"MRR"}].map((x,i)=>(
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16, marginBottom: 20 }}>
+        {[
+          { k: String(activeCount), l: "Active clients" },
+          { k: tcMoney(mrrCents), l: "Monthly recurring" },
+          { k: tcMoney(avgCents), l: "Avg / client" },
+        ].map((x, i) => (
           <Card key={i} style={{ padding: "22px 22px 20px" }}>
             <div style={{ fontFamily: serif, fontSize: 40, letterSpacing: "-0.02em", lineHeight: 1 }}>{x.k}</div>
             <div style={{ fontSize: 13, marginTop: 12 }}>{x.l}</div>
           </Card>
         ))}
       </div>
-      <Card style={{ marginBottom: 20 }}>
-        <SectionTitle right="ANALYTICS PRO · LIVE">At-risk and correlation surface</SectionTitle>
-        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 16 }}>
-          <div style={{ border: "1px solid rgba(242,237,228,0.1)", borderRadius: 10, padding: 14 }}>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", color: TEAL_BRIGHT, marginBottom: 8 }}>AT-RISK TODAY</div>
-            {atRisk.map((c, i) => (
-              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, padding: "10px 0", borderTop: i ? "1px solid rgba(242,237,228,0.07)" : "none" }}>
-                <div>
-                  <div style={{ fontSize: 13.5, fontWeight: 500 }}>{c[0]}</div>
-                  <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.6)" }}>{c[1]} · {c[4]} adherence</div>
-                </div>
-                <a href={clientAnalyticsHref(c[0])} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: TEAL_BRIGHT, alignSelf: "center", letterSpacing: "0.1em" }}>OPEN →</a>
-              </div>
-            ))}
-          </div>
-          <div style={{ border: "1px solid rgba(242,237,228,0.1)", borderRadius: 10, padding: 14, display: "grid", gap: 10, alignContent: "start" }}>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", color: TEAL_BRIGHT }}>PATTERNS</div>
-            <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.7)" }}>Revenue/client</div>
-            <div style={{ fontFamily: serif, fontSize: 34, lineHeight: 1 }}>${avgRevenuePerClient}</div>
-            <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.7)" }}>Adherence correlation</div>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>{avgAdherence}% avg · {prioBand}</div>
-            <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.55)" }}>
-              Low adherence + missed streaks is currently correlated with lower client revenue velocity.
-            </div>
-          </div>
-        </div>
-      </Card>
       <Card>
-        <div style={{ display: "grid", gridTemplateColumns: "1.35fr 1.15fr .95fr 64px 74px 72px 86px 82px 76px 58px", gap: 12, padding: "6px 4px 14px", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
-          <span>CLIENT</span><span>PROGRAM</span><span>TIER</span><span>STREAK</span><span>ADHERENCE</span><span>MRR</span><span>REVENUE</span><span>LOCATION</span><span>30D TREND</span><span></span>
+        <div style={{ display: "grid", gridTemplateColumns: TC_COLS, gap: 12, padding: "6px 4px 14px", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+          <span>CLIENT</span><span>SESSIONS</span><span>MRR</span><span>LAST SESSION</span><span></span>
         </div>
+        {clients.length === 0 && (
+          <div style={{ padding: "34px 4px", textAlign: "center", color: "rgba(242,237,228,0.55)", fontSize: 13.5 }}>
+            No clients yet. Share your public profile to start getting subscribers.
+          </div>
+        )}
         {clients.map((c, i) => (
           <a
             key={i}
-            href={clientProfileHref(c[0])}
-            aria-label={`Open ${c[0]} profile`}
-            onClick={(e) => { e.preventDefault(); setPreviewClient(c); }}
-            style={{ display: "grid", gridTemplateColumns: "1.35fr 1.15fr .95fr 64px 74px 72px 86px 82px 76px 58px", gap: 12, padding: "14px 4px", alignItems: "center", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.05)", color: "inherit", textDecoration: "none", cursor: "pointer" }}
+            href={clientProfileHref(c.name)}
+            aria-label={`Open ${c.name} profile`}
+            style={{ display: "grid", gridTemplateColumns: TC_COLS, gap: 12, padding: "14px 4px", alignItems: "center", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.05)", color: "inherit", textDecoration: "none", cursor: "pointer" }}
           >
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
               <div style={{ width: 28, height: 28, borderRadius: 999, background: "#efece6" }} />
-              <span style={{ fontSize: 13.5, fontWeight: 500 }}>{c[0]}</span>
+              <span style={{ fontSize: 13.5, fontWeight: 500 }}>{c.name}</span>
             </div>
-            <span style={{ fontSize: 12.5, color: "rgba(242,237,228,0.65)" }}>{c[1]}</span>
-            <span style={{ fontSize: 12, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace" }}>{c[2]}</span>
-            <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }}>{c[3]}</span>
-            <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: c[4] === "—" ? "rgba(242,237,228,0.4)" : INK }}>{c[4]}</span>
-            <span style={{ fontSize: 12.5, fontFamily: "'JetBrains Mono', monospace" }}>{c[5]}</span>
-            <span style={{ fontSize: 12.5, fontFamily: "'JetBrains Mono', monospace", color: TEAL_BRIGHT }}>{c[6]}</span>
-            <span style={{ fontSize: 12, color: "rgba(242,237,228,0.6)" }}>{c[7]}</span>
-            <Sparkline data={c[8]} />
-            {c[9] && <Pill tone={c[9] === "FLAG" ? "done" : "teal"}>{c[9]}</Pill>}
+            <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }}>{c.sessions}</span>
+            <span style={{ fontSize: 12.5, fontFamily: "'JetBrains Mono', monospace", color: TEAL_BRIGHT }}>{tcMoney(c.mrrCents)}</span>
+            <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: "rgba(242,237,228,0.7)" }}>{tcLast(c.lastAt)}</span>
+            <span>{c.isNew && <Pill tone="teal">NEW</Pill>}</span>
           </a>
         ))}
       </Card>
-      {previewClient && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setPreviewClient(null)}
-          style={{ position: "fixed", inset: 0, background: "rgba(26,22,18,0.72)", backdropFilter: "blur(4px)", zIndex: 120, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{ width: "min(560px, 94vw)", background: "rgba(26,22,18,0.98)", border: "1px solid rgba(242,237,228,0.14)", borderRadius: 12, padding: 18 }}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", color: TEAL_BRIGHT }}>CLIENT PREVIEW</div>
-              <button onClick={() => setPreviewClient(null)} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.2)", borderRadius: 999, width: 28, height: 28, cursor: "pointer" }}>×</button>
-            </div>
-            <div style={{ display: "grid", gap: 8 }}>
-              <div style={{ fontFamily: serif, fontSize: 32, letterSpacing: "-0.02em", lineHeight: 1 }}>{previewClient[0]}</div>
-              <div style={{ fontSize: 13, color: "rgba(242,237,228,0.7)" }}>{previewClient[1]} · {previewClient[2]}</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginTop: 6 }}>
-                <div style={{ border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: 10 }}><div style={{ fontSize: 10, color: "rgba(242,237,228,0.5)" }}>STREAK</div><div style={{ marginTop: 4 }}>{previewClient[3]}</div></div>
-                <div style={{ border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: 10 }}><div style={{ fontSize: 10, color: "rgba(242,237,228,0.5)" }}>ADHERENCE</div><div style={{ marginTop: 4 }}>{previewClient[4]}</div></div>
-                <div style={{ border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: 10 }}><div style={{ fontSize: 10, color: "rgba(242,237,228,0.5)" }}>MRR</div><div style={{ marginTop: 4 }}>{previewClient[5]}</div></div>
-                <div style={{ border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: 10 }}><div style={{ fontSize: 10, color: "rgba(242,237,228,0.5)" }}>REVENUE</div><div style={{ marginTop: 4, color: TEAL_BRIGHT }}>{previewClient[6]}</div></div>
-              </div>
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
-              <a href={clientProfileHref(previewClient[0])} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, letterSpacing: "0.1em", color: TEAL_BRIGHT }}>VIEW FULL PROFILE →</a>
-            </div>
-          </div>
-        </div>
-      )}
     </DashPage>
   );
 }
