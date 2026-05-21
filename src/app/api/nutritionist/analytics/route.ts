@@ -35,7 +35,7 @@ async function loadStripe(
   }
   try {
     const [balance, payoutList] = await Promise.all([
-      stripe.balance.retrieve({ stripeAccount: accountId }),
+      stripe.balance.retrieve({}, { stripeAccount: accountId }),
       stripe.payouts.list({ limit: 12 }, { stripeAccount: accountId }),
     ]);
     const balanceCents = (balance.available ?? []).reduce((sum, b) => sum + b.amount, 0);
