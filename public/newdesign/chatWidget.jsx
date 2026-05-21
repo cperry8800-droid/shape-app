@@ -16,6 +16,10 @@ function ChatWidget(props) {
     }];
   }, [props.tabs, props.threads, props.title, props.eyebrow]);
 
+  // When `docked`, the widget runs inside its own popped-out OS window:
+  // always open, fills the window, no bubble / drag / resize.
+  const docked = !!props.docked;
+
   // Open state persists across full page navigations (the newdesign pages
   // are separate static HTML files, so React state resets on every load).
   const OPEN_KEY = "shape.chat.open";
@@ -142,6 +146,7 @@ function ChatWidget(props) {
   const resetSize = () => { setSize(DEFAULT_SIZE); try { localStorage.removeItem(SIZE_KEY); } catch {} };
 
   const startDrag = (e) => {
+    if (docked) return;
     if (e.target.closest("button, input, textarea")) return;
     e.preventDefault();
     const panel = e.currentTarget.closest("[data-chat-panel]");
@@ -165,6 +170,18 @@ function ChatWidget(props) {
     setPos(p => { if (p) { try { localStorage.setItem(POS_KEY, JSON.stringify(p)); } catch {} } return p; });
   };
   const resetPos = () => { setPos(null); try { localStorage.removeItem(POS_KEY); } catch {} };
+
+  const isOpen = docked || open;
+  const closePanel = () => {
+    if (docked) { try { window.close(); } catch {} }
+    else setOpen(false);
+  };
+  // Pop the chat out into its own OS window — drag it anywhere on the desktop,
+  // onto a second monitor, etc. localStorage keeps the threads in sync.
+  const popOut = () => {
+    const w = window.open('/newdesign/chatPopout.html', 'shapeChatPopout', 'popup,width=960,height=720');
+    if (w) { try { w.focus(); } catch {} setOpen(false); }
+  };
 
   // Global opener: window.__openChat(whoName, tabId?) ---------------------
   React.useEffect(() => {
@@ -282,7 +299,7 @@ function ChatWidget(props) {
           .chw-bubble svg { width: 18px !important; height: 18px !important; }
         }
       `}</style>
-      {!open && (
+      {!docked && !open && (
         <button
           className="chw-bubble"
           onClick={() => setOpen(true)}
@@ -307,11 +324,16 @@ function ChatWidget(props) {
         </button>
       )}
 
-      {open && (
+      {isOpen && (
         <div
           role="dialog"
           data-chat-panel
-          style={{
+          style={docked ? {
+            position: "fixed", inset: 0,
+            background: "#1a1612", color: INK,
+            display: "flex", flexDirection: "column",
+            fontFamily: sans, overflow: "hidden",
+          } : {
             position: "fixed",
             ...(pos ? { left: pos.x, top: pos.y } : { right: 28, bottom: 28 }),
             zIndex: 180,
@@ -342,10 +364,18 @@ function ChatWidget(props) {
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 2, flex: "none" }}>
-              {pos && (
+              {!docked && pos && (
                 <button onClick={resetPos} title="Reset position" style={{ background: "transparent", color: "rgba(242,237,228,0.5)", border: 0, fontSize: 11, padding: "4px 8px", cursor: "pointer", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em" }}>RESET</button>
               )}
-              <button onClick={() => setOpen(false)} aria-label="Close" style={{ background: "transparent", color: "rgba(242,237,228,0.6)", border: 0, fontSize: 22, padding: "2px 10px", cursor: "pointer", lineHeight: 1 }}>×</button>
+              {!docked && (
+                <button onClick={popOut} title="Pop out into its own window" aria-label="Pop out chat"
+                  style={{ background: "transparent", color: "rgba(242,237,228,0.6)", border: 0, padding: "4px 8px", cursor: "pointer", display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                    <path d="M9 3h4v4M13 3 7.4 8.6M11 9.6V12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h2.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+              )}
+              <button onClick={closePanel} aria-label="Close" style={{ background: "transparent", color: "rgba(242,237,228,0.6)", border: 0, fontSize: 22, padding: "2px 10px", cursor: "pointer", lineHeight: 1 }}>×</button>
             </div>
           </div>
 
@@ -568,7 +598,7 @@ function ChatWidget(props) {
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <button onClick={() => setOpen(false)} aria-label="Close" style={{ background: "transparent", color: "rgba(242,237,228,0.6)", border: 0, fontSize: 20, padding: "2px 6px", cursor: "pointer", lineHeight: 1 }}>×</button>
+                <button onClick={closePanel} aria-label="Close" style={{ background: "transparent", color: "rgba(242,237,228,0.6)", border: 0, fontSize: 20, padding: "2px 6px", cursor: "pointer", lineHeight: 1 }}>×</button>
               </div>
             </div>
 
@@ -635,18 +665,20 @@ function ChatWidget(props) {
             </div>
           </div>
           </div>
-          {/* Resize handle (bottom-right corner) */}
-          <div
-            onMouseDown={startResize}
-            onDoubleClick={resetSize}
-            title="Drag to resize · double-click to reset"
-            style={{
-              position: "absolute", right: 0, bottom: 0, width: 18, height: 18,
-              cursor: "nwse-resize",
-              background: "linear-gradient(135deg, transparent 50%, rgba(30,192,168,0.55) 50%, rgba(30,192,168,0.55) 62%, transparent 62%, transparent 72%, rgba(30,192,168,0.35) 72%, rgba(30,192,168,0.35) 84%, transparent 84%)",
-              borderBottomRightRadius: 14,
-            }}
-          />
+          {/* Resize handle (bottom-right corner) — not shown when popped out */}
+          {!docked && (
+            <div
+              onMouseDown={startResize}
+              onDoubleClick={resetSize}
+              title="Drag to resize · double-click to reset"
+              style={{
+                position: "absolute", right: 0, bottom: 0, width: 18, height: 18,
+                cursor: "nwse-resize",
+                background: "linear-gradient(135deg, transparent 50%, rgba(30,192,168,0.55) 50%, rgba(30,192,168,0.55) 62%, transparent 62%, transparent 72%, rgba(30,192,168,0.35) 72%, rgba(30,192,168,0.35) 84%, transparent 84%)",
+                borderBottomRightRadius: 14,
+              }}
+            />
+          )}
         </div>
       )}
     </React.Fragment>
