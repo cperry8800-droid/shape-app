@@ -638,8 +638,9 @@ function BSBrowseChrome({ noticeDismissed, bannerDismissed, onCloseNotice, onClo
     return () => window.removeEventListener?.('shape:activeTabChanged', onTabChanged);
   }, []);
 
+  const currentTab = window.__shapeActiveTab || activeTab || 'home';
   if (r.showPrompt) return null;
-  if (activeTab === 'chat') return null;
+  if (currentTab !== 'home') return null;
   return (
     <>
       {!bannerDismissed && <BSSubscribeBanner onJoin={onJoin} onClose={onCloseBanner} />}
