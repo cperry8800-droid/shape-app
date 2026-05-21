@@ -4233,12 +4233,7 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
 
   return (
     <div style={{
-      position: 'fixed',
-      left: t.padX,
-      right: t.padX,
-      bottom: 'calc(84px + env(safe-area-inset-bottom, 0px))',
-      zIndex: 80,
-      margin: '0 0 16px',
+      margin: `0 ${t.padX}px 16px`,
       display: 'grid',
       gridTemplateColumns: '1fr 58px',
       gap: 8,
@@ -4250,7 +4245,6 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
       boxShadow: `0 18px 38px ${t.isLight ? 'rgba(15,14,12,0.16)' : 'rgba(0,0,0,0.42)'}`,
       WebkitBackdropFilter: 'blur(18px) saturate(140%)',
       backdropFilter: 'blur(18px) saturate(140%)',
-      pointerEvents: 'auto',
     }}>
       <input
         value={value}
