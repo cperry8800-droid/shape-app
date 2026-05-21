@@ -630,7 +630,16 @@ function BSSubscribeBanner({ onJoin, onClose }) {
 // over the "Music while you move?" overlay on first entry.
 function BSBrowseChrome({ noticeDismissed, bannerDismissed, onCloseNotice, onCloseBanner, onJoin, onSignIn }) {
   const r = useBSRadio();
+  const [activeTab, setActiveTab] = useStateBSM(() => window.__shapeActiveTab || 'home');
+
+  useEffectBSM(() => {
+    const onTabChanged = (event) => setActiveTab(event.detail?.tab || window.__shapeActiveTab || 'home');
+    window.addEventListener?.('shape:activeTabChanged', onTabChanged);
+    return () => window.removeEventListener?.('shape:activeTabChanged', onTabChanged);
+  }, []);
+
   if (r.showPrompt) return null;
+  if (activeTab === 'chat') return null;
   return (
     <>
       {!bannerDismissed && <BSSubscribeBanner onJoin={onJoin} onClose={onCloseBanner} />}

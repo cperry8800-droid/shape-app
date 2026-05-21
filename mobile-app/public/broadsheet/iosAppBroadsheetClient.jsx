@@ -332,6 +332,12 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const goTrain    = () => setTab('train');
   const goMarket   = () => setTab('market');
   const goScore    = () => { setStoreView('score'); setTab('store'); };
+
+  React.useEffect(() => {
+    window.__shapeActiveTab = tab;
+    window.dispatchEvent?.(new CustomEvent('shape:activeTabChanged', { detail: { tab } }));
+  }, [tab]);
+
   if (showSettings) {
     return (
       <BSSettings
@@ -3998,7 +4004,6 @@ function BSClientChat({ onProfile, role = 'client' }) {
       })}
     </div>
   );
-
   if (view === 'feed') {
     return (
       <BSPage>
@@ -4033,7 +4038,6 @@ function BSClientChat({ onProfile, role = 'client' }) {
       />
 
       {modeTabs}
-
       {/* Sub-tab row — buckets within the active view */}
       <div className="bs-scroll" style={{
         display: 'flex', gap: 8, overflowX: 'auto',
@@ -4175,7 +4179,7 @@ function BSClientChat({ onProfile, role = 'client' }) {
             Feed mode is active. Messages post directly to {activeBucket?.label || 'this stream'}.
           </div>
         )}
-        {isFeedBucket && <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '0 0 90px' }}>
+        {isFeedBucket && <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '0 0 138px' }}>
           {filteredFeedMessages.map((m, i) => {
             const me = m.me;
             const tagColor = bucketColor[m._bucket] || (m.coach ? t.AMBER : t.ACCENT);
@@ -4208,51 +4212,81 @@ function BSClientChat({ onProfile, role = 'client' }) {
             </div>
           )}
         </div>}
-        {isFeedBucket && <div style={{
-          position: 'sticky',
-          bottom: 10,
-          zIndex: 3,
-          marginTop: 4,
-          display: 'grid',
-          gridTemplateColumns: '1fr 62px',
-          gap: 8,
-          padding: 8,
-          border: `1px solid ${t.SURFACE_BORDER}`,
-          borderRadius: 999,
-          background: t.SURFACE,
-          boxShadow: t.ELEVATION_SOFT,
-        }}>
-          <input
+        {isFeedBucket && (
+          <BSMessageComposer
             value={feedDraft}
-            onChange={(e) => setFeedDraft(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') sendFeedMessage(); }}
+            onChange={setFeedDraft}
+            onSend={sendFeedMessage}
             placeholder={`Message ${activeBucket?.label?.toLowerCase() || 'feed'}...`}
-            style={{
-              minWidth: 0,
-              border: 0,
-              outline: 'none',
-              background: 'transparent',
-              color: t.INK,
-              padding: '10px 8px 10px 12px',
-              fontFamily: t.BODY,
-              fontSize: 14,
-            }}
           />
-          <button onClick={sendFeedMessage} style={{
-            border: 0,
-            borderRadius: 999,
-            background: feedDraft.trim() ? t.ACCENT : t.PAPER2,
-            color: feedDraft.trim() ? t.INK : t.INK50,
-            fontFamily: t.BODY,
-            fontSize: 12.5,
-            fontWeight: 760,
-            cursor: 'pointer',
-          }}>Send</button>
-        </div>}
+        )}
       </div>
 
       <BSFooter right={`Pg 4 of 5 · ${view === 'direct' ? 'Direct' : 'Community'} · ${activeBucket?.label || ''}`} />
     </BSPage>
+  );
+}
+
+function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...' }) {
+  const t = useBS();
+  const canSend = value.trim().length > 0;
+
+  return (
+    <div style={{
+      position: 'sticky',
+      bottom: 'calc(96px + env(safe-area-inset-bottom, 0px))',
+      zIndex: 48,
+      margin: `0 ${t.padX}px 16px`,
+      display: 'grid',
+      gridTemplateColumns: '1fr 58px',
+      gap: 8,
+      alignItems: 'center',
+      padding: 7,
+      border: `1px solid ${t.SURFACE_BORDER}`,
+      borderRadius: 999,
+      background: t.PAPER2,
+      boxShadow: `0 18px 38px ${t.isLight ? 'rgba(15,14,12,0.16)' : 'rgba(0,0,0,0.42)'}`,
+      WebkitBackdropFilter: 'blur(18px) saturate(140%)',
+      backdropFilter: 'blur(18px) saturate(140%)',
+    }}>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') onSend(); }}
+        placeholder={placeholder}
+        style={{
+          minWidth: 0,
+          height: 38,
+          background: t.PAPER,
+          border: `1px solid ${t.SURFACE_BORDER}`,
+          borderRadius: 999,
+          padding: '0 14px',
+          fontFamily: t.BODY,
+          fontSize: 14,
+          color: t.INK,
+          outline: 'none',
+          letterSpacing: '-0.005em',
+        }}
+      />
+      <button
+        onClick={onSend}
+        disabled={!canSend}
+        style={{
+          height: 38,
+          border: 0,
+          borderRadius: 999,
+          background: canSend ? t.ACCENT : t.SURFACE,
+          color: canSend ? '#031f1c' : t.INK50,
+          fontFamily: t.BODY,
+          fontSize: 12.5,
+          fontWeight: 760,
+          cursor: canSend ? 'pointer' : 'default',
+          opacity: canSend ? 1 : 0.86,
+        }}
+      >
+        Send
+      </button>
+    </div>
   );
 }
 
@@ -4298,7 +4332,7 @@ function BSChatThread({ thread, eyebrow, onBack }) {
         flexDirection: 'column',
       }}>
       {/* Messages */}
-      <div style={{ flex: '1 1 auto', padding: `16px ${t.padX}px 18px`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ flex: '1 1 auto', padding: `16px ${t.padX}px 138px`, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {allMessages.map((m, i) => {
           const me = m.me;
           return (
@@ -4327,38 +4361,7 @@ function BSChatThread({ thread, eyebrow, onBack }) {
       </div>
 
       {/* Composer */}
-      <div style={{
-        position: 'sticky',
-        bottom: 10,
-        zIndex: 3,
-        margin: `0 ${t.padX}px 18px`,
-        display: 'grid',
-        gridTemplateColumns: '1fr 60px',
-        gap: 8,
-        padding: 8,
-        border: `1px solid ${t.SURFACE_BORDER}`,
-        borderRadius: 999,
-        background: t.SURFACE,
-        boxShadow: t.ELEVATION_SOFT,
-      }}>
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') send(); }}
-          placeholder="Message..."
-          style={{ borderRadius: 999,
-            minWidth: 0, background: 'transparent', border: 0, padding: '10px 8px 10px 12px',
-            fontFamily: t.BODY, fontSize: 14, color: t.INK, outline: 'none',
-            letterSpacing: '-0.005em',
-          }}
-        />
-        <button onClick={send} style={{ borderRadius: 999,
-          background: text.trim() ? t.ACCENT : t.PAPER2,
-          color: text.trim() ? '#031f1c' : t.INK50,
-          border: 0, padding: '10px 12px', cursor: 'pointer',
-          fontFamily: t.BODY, fontSize: 13, fontWeight: 760,
-        }}>Send</button>
-      </div>
+      <BSMessageComposer value={text} onChange={setText} onSend={send} />
       </div>
     </BSPage>
   );

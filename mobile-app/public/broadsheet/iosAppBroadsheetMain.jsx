@@ -1,11 +1,42 @@
+import React from 'react';
+import * as ReactDOM from 'react-dom/client';
 // iosAppBroadsheetMain.jsx — App entry: splash, login, role-dispatched app, Tweaks panel.
 
 const { useState: useStateBSM, useEffect: useEffectBSM } = React;
 const {
   useBS, BSProvider, BSPhone, BSLogo,
-  BSClientApp, BSTrainerApp, BSNutritionistApp,
   BSRadioProvider, useBSRadio,
 } = window;
+
+let _clientBundlePromise = null;
+let _prosBundlePromise = null;
+
+function loadClientBundle() {
+  if (_clientBundlePromise) return _clientBundlePromise;
+  _clientBundlePromise = Promise.all([
+    import('./iosAppBroadsheetCalendar.jsx'),
+    import('./iosAppBroadsheetProviderApply.jsx'),
+    import('./iosAppBroadsheetMarketplace.jsx'),
+    import('./iosAppBroadsheetWidgets.jsx'),
+    import('./iosAppBroadsheetHabits.jsx'),
+    import('./iosAppBroadsheetClient.jsx'),
+  ]).then(() => true);
+  return _clientBundlePromise;
+}
+
+function loadProsBundle() {
+  if (_prosBundlePromise) return _prosBundlePromise;
+  _prosBundlePromise = import('./iosAppBroadsheetPros.jsx').then(() => true);
+  return _prosBundlePromise;
+}
+
+async function ensureRoleBundle(role) {
+  if (role === 'trainer' || role === 'nutritionist') {
+    await loadProsBundle();
+    return;
+  }
+  await loadClientBundle();
+}
 
 // Hex → "r,g,b" string for rgba(), local copy so this file can use it
 // without a window roundtrip. Returns null on bad input.
@@ -103,8 +134,9 @@ function SplashBackdrop({ bg = 'newsprint', inkRgb, t }) {
   );
 }
 
-function BSSplash({ onDone, style, bg = 'newsprint', bgColor }) {
+function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
   const t = useBS();
+  const SPLASH_FACE = "'Saira', 'Arial Narrow', 'Helvetica Neue', sans-serif";
   // Classified is interactive: user must tap "Step inside" — no auto-advance.
   useEffectBSM(() => {
     if (style === 'classified') return;
@@ -118,18 +150,15 @@ function BSSplash({ onDone, style, bg = 'newsprint', bgColor }) {
       <div style={{ position: 'absolute', inset: 0, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '54px 20px 40px' }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${t.INK}`, paddingBottom: 10 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><BSLogo size={22} color={t.INK} /> Vol. 6 · No. 38</span>
-          <span>Tue · Apr 21 · 2026</span>
+          <span>Thu · May 14 · 2026</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div style={{ textAlign: 'center', lineHeight: 0.92 }}>
-            <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 56, letterSpacing: '-0.035em', display: 'block' }}>The</span>
-            <span style={{
-              fontFamily: `'Italiana', 'DM Serif Display', serif`,
-              fontWeight: 400, fontSize: 96, letterSpacing: '-0.02em',
-              display: 'block', marginTop: 2, marginBottom: 2,
-              lineHeight: 1.0,
-            }}>Shape</span>
-            <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 56, letterSpacing: '-0.035em', display: 'block' }}>Daily.</span>
+          <div className="bs-splash-title" style={{ textAlign: 'center', lineHeight: 1, width: '100%', margin: '0 auto', paddingBottom: 16, borderBottom: `3px solid ${t.INK}` }}>
+            <span style={{ display: 'block', textAlign: 'center', lineHeight: 1, whiteSpace: 'nowrap' }}>
+              <span className="bs-splash-the" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>The</span>
+              <span className="bs-splash-shape" style={{ display: 'inline-block', marginLeft: 8, marginRight: 10, fontFamily: `'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif`, fontWeight: 300, fontStyle: 'normal', fontSize: 37, letterSpacing: '0.18em', textTransform: 'uppercase', transform: 'translateY(1px)' }}>SHAPE</span>
+              <span className="bs-splash-daily" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>Daily.</span>
+            </span>
           </div>
         </div>
         <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center', borderTop: `1px solid ${t.RULE}`, paddingTop: 14 }}>
@@ -166,7 +195,7 @@ function BSSplash({ onDone, style, bg = 'newsprint', bgColor }) {
       <div style={{ position: 'absolute', inset: 0, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '50px 18px 8px' }}>
           <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, display: 'flex', justifyContent: 'space-between', borderBottom: `1px solid ${t.RULE}`, paddingBottom: 6 }}>
-            <span>Vol. 6 · No. 38</span><span>Apr 21 · 2026</span><span>$0 · Daily</span>
+            <span>Vol. 6 · No. 38</span><span>May 14 · 2026</span><span>$0 · Daily</span>
           </div>
           <div style={{ borderBottom: `3px double ${t.INK}`, padding: '12px 0 14px', display: 'flex', justifyContent: 'center' }}>
             <BSWordmark size={42} full color={t.INK} />
@@ -243,7 +272,7 @@ function BSSplash({ onDone, style, bg = 'newsprint', bgColor }) {
     const inkRgbCl = _bgRGB || t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
     return (
       <div style={{ position: 'absolute', inset: 0, background: t.PAPER, color: t.INK, padding: '50px 18px 24px', display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden' }}>
-        <SplashBackdrop bg={bg} inkRgb={inkRgbCl} t={t} />
+        <SplashBackdrop bg="plain" inkRgb={inkRgbCl} t={t} />
 
         <div style={{ position: 'relative', zIndex: 1, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, display: 'flex', justifyContent: 'space-between', borderBottom: `2px solid ${t.INK}`, paddingBottom: 8 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><BSLogo size={16} color={t.INK} /> Classifieds</span>
@@ -253,13 +282,12 @@ function BSSplash({ onDone, style, bg = 'newsprint', bgColor }) {
         <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', paddingTop: 6 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.32em', color: t.INK50, textTransform: 'uppercase' }}>★ Featured</div>
           <div style={{ marginTop: 8, paddingTop: 12, paddingBottom: 12, borderTop: `1px solid ${t.INK}`, borderBottom: `1px solid ${t.INK}` }}>
-            <div style={{ lineHeight: 0.92 }}>
-              <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 42, letterSpacing: '-0.04em', display: 'inline' }}>The </span>
-              <span style={{
-                fontFamily: `'Italiana', 'DM Serif Display', serif`,
-                fontWeight: 400, fontSize: 68, letterSpacing: '-0.02em',
-              }}>Shape</span>
-              <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 42, letterSpacing: '-0.04em', display: 'inline', marginLeft: 6 }}>Daily</span>
+            <div className="bs-splash-title" style={{ lineHeight: 1, width: '100%', margin: '0 auto', textAlign: 'center', paddingBottom: 12, borderBottom: `3px solid ${t.INK}` }}>
+              <span style={{ display: 'block', whiteSpace: 'nowrap', width: '100%', lineHeight: 1 }}>
+                <span className="bs-splash-the" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>The</span>
+                <span className="bs-splash-shape" style={{ display: 'inline-block', marginLeft: 8, marginRight: 10, fontFamily: `'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif`, fontWeight: 300, fontStyle: 'normal', fontSize: 37, letterSpacing: '0.18em', textTransform: 'uppercase', transform: 'translateY(1px)' }}>SHAPE</span>
+                <span className="bs-splash-daily" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>Daily.</span>
+              </span>
             </div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, marginTop: 18 }}>Today's edition · 6 sections</div>
           </div>
@@ -301,7 +329,7 @@ function BSSplash({ onDone, style, bg = 'newsprint', bgColor }) {
           cursor: 'pointer',
           display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 14,
         }}>
-          <span>Enter</span>
+          <span>Step inside</span>
           <span style={{ letterSpacing: 0 }}>→</span>
         </button>
 
@@ -388,10 +416,33 @@ function BSSplash({ onDone, style, bg = 'newsprint', bgColor }) {
 function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
   const t = useBS();
   const [mode, setMode] = useStateBSM(initialMode || 'signin'); // 'signin' | 'create'
+  const [fullName, setFullName] = useStateBSM('');
+  const [email, setEmail] = useStateBSM('');
+  const [password, setPassword] = useStateBSM('');
+  const [authError, setAuthError] = useStateBSM('');
+  const [busy, setBusy] = useStateBSM(false);
   const isCreate = mode === 'create';
-  const handlePrimary = () => {
-    if (isCreate) onLogin();
-    else onBrowse();
+  const submitAuth = async () => {
+    setAuthError('');
+    const auth = window.ShapeAuth;
+    const trimmedEmail = email.trim();
+    if (auth?.configured && (!trimmedEmail || !password)) {
+      setAuthError('Enter your email and password.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = isCreate
+        ? await auth.signUp({ email: trimmedEmail, password, fullName: fullName.trim(), role })
+        : await auth.signIn({ email: trimmedEmail, password, role });
+      const nextRole = result?.profile?.role;
+      if (nextRole && nextRole !== role) setRole(nextRole);
+      onLogin(result);
+    } catch (error) {
+      setAuthError(error?.message || 'Unable to sign in.');
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <div style={{ position: 'absolute', inset: 0, background: t.PAPER, color: t.INK, padding: '40px 20px 32px', display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -400,11 +451,15 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
         <span>{isCreate ? 'Time to Shape' : '$5 / mo'}</span>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 18 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 18, transform: 'translateY(-56px)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
           <BSLogo size={40} color={t.INK} />
-          <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 48, lineHeight: 0.9, letterSpacing: '-0.045em', color: t.INK, textAlign: 'center' }}>
-            {isCreate ? <>Join the<br/>community.</> : <>Welcome<br/>to Shape.</>}
+          <div style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 500, fontSize: 50, lineHeight: 0.88, letterSpacing: '-0.055em', color: t.INK, textAlign: 'center' }}>
+            {isCreate ? (
+              <>Join the<br/><span style={{ fontWeight: 400, fontStyle: 'italic', letterSpacing: '-0.065em' }}>community.</span></>
+            ) : (
+              <>Welcome<br/>to <span style={{ display: 'inline-block', fontFamily: `'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif`, fontWeight: 300, fontStyle: 'normal', fontSize: 50, letterSpacing: '0.16em', textTransform: 'uppercase', transform: 'translateY(2px)' }}>SHAPE</span>.</>
+            )}
           </div>
         </div>
 
@@ -422,16 +477,21 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 2 }}>
         {isCreate && (
-          <input placeholder="Full name" style={{ borderRadius: t.RADIUS_SM, background: 'transparent', border: 0, borderBottom: `1px solid ${t.INK}`, padding: '12px 0', fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, outline: 'none' }} />
+          <input placeholder="Full name" value={fullName} onChange={(e) => setFullName(e.target.value)} style={{ borderRadius: t.RADIUS_SM, background: 'transparent', border: 0, borderBottom: `1px solid ${t.INK}`, padding: '12px 0', fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, outline: 'none' }} />
         )}
-        <input placeholder="Email" style={{ borderRadius: t.RADIUS_SM, background: 'transparent', border: 0, borderBottom: `1px solid ${t.INK}`, padding: '12px 0', fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, outline: 'none' }} />
-        <input placeholder="Password" type="password" style={{ borderRadius: t.RADIUS_SM, background: 'transparent', border: 0, borderBottom: `1px solid ${t.INK}`, padding: '12px 0', fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, outline: 'none' }} />
+        <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" style={{ borderRadius: t.RADIUS_SM, background: 'transparent', border: 0, borderBottom: `1px solid ${t.INK}`, padding: '12px 0', fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, outline: 'none' }} />
+        <input placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={isCreate ? 'new-password' : 'current-password'} style={{ borderRadius: t.RADIUS_SM, background: 'transparent', border: 0, borderBottom: `1px solid ${t.INK}`, padding: '12px 0', fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, outline: 'none' }} />
+        {authError && (
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.RUST, lineHeight: 1.35 }}>
+            {authError}
+          </div>
+        )}
       </div>
 
       <div>
         <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8 }}>I am a…</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-          {[['client','Client'],['trainer','Trainer'],['nutritionist','Nutri']].map(([k, l]) => {
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+          {[['client','Client'],['trainer','Trainer'],['nutritionist','Nutri'],['shape_radio','Radio']].map(([k, l]) => {
             const on = role === k;
             return <button key={k} onClick={() => setRole(k)} style={{ borderRadius: t.RADIUS_SM, padding: 12, border: `1px solid ${t.INK}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>{l}</button>;
           })}
@@ -439,10 +499,10 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
       </div>
 
       {isCreate ? (
-        <button onClick={onLogin} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: t.INK, color: t.PAPER, border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: 'pointer' }}>Time to Shape →</button>
+        <button onClick={submitAuth} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Creating...' : 'Time to Shape →'}</button>
       ) : (
         <>
-          <button onClick={onLogin} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: t.INK, color: t.PAPER, border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: 'pointer' }}>Sign in →</button>
+          <button onClick={submitAuth} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: t.INK, color: t.PAPER, border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Signing in...' : 'Sign in →'}</button>
 
           {/* Curious-reader path for non-members */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
@@ -477,36 +537,36 @@ function BSPreviewNotice({ onClose, onSignIn }) {
   return (
     <div style={{ borderRadius: t.RADIUS_SM,
       position: 'absolute',
-      top: 48, left: 12, right: 12,
+      top: 24, left: 18, right: 18,
       zIndex: 60,
       background: t.PAPER,
       color: t.INK,
       border: `1.5px solid ${t.INK}`,
       boxShadow: '0 6px 18px rgba(0,0,0,0.10)',
-      padding: '10px 12px',
-      display: 'flex', alignItems: 'flex-start', gap: 10,
+      padding: '7px 9px',
+      display: 'flex', alignItems: 'center', gap: 8,
     }}>
       <div style={{
-        flex: '0 0 auto', marginTop: 1,
+        flex: '0 0 auto',
         background: t.ACCENT, color: t.INK,
-        fontFamily: t.MONO, fontSize: 9, fontWeight: 800,
+        fontFamily: t.MONO, fontSize: 8, fontWeight: 800,
         letterSpacing: '0.18em', textTransform: 'uppercase',
-        padding: '3px 6px',
+        padding: '3px 5px',
       }}>Preview</div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontWeight: 600, fontSize: 12.5, letterSpacing: '-0.005em', color: t.INK, lineHeight: 1.25 }}>
-          You're browsing without an account.
+        <div style={{ fontFamily: t.DISPLAY, fontWeight: 600, fontSize: 11.5, letterSpacing: '-0.005em', color: t.INK, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          Browsing without an account
         </div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginTop: 3, lineHeight: 1.35 }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 7.4, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, marginTop: 2, lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           Stats &amp; activity are AI-generated for preview · Marketplace data is live.
         </div>
         {onSignIn && (
           <button onClick={onSignIn} style={{ borderRadius: t.RADIUS_SM,
-            marginTop: 6, padding: '4px 8px', cursor: 'pointer',
+            marginTop: 3, padding: '3px 7px', cursor: 'pointer',
             background: 'transparent', color: t.INK,
             border: `1px solid ${t.INK}`,
-            fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700,
+            fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700,
           }}>Sign in →</button>
         )}
       </div>
@@ -534,7 +594,7 @@ function BSSubscribeBanner({ onJoin, onClose }) {
     <div style={{ borderRadius: t.RADIUS_SM,
       position: 'absolute',
       // Sit above the tab bar (~58–66px tall depending on safe-area).
-      left: 16, right: 16, bottom: 90,
+      left: 18, right: 18, bottom: 92,
       zIndex: 60,
       background: surface,
       WebkitBackdropFilter: 'blur(14px) saturate(140%)',
@@ -542,20 +602,20 @@ function BSSubscribeBanner({ onJoin, onClose }) {
       color: fg,
       border: `1px solid ${borderC}`,
       boxShadow: '0 6px 18px rgba(0,0,0,0.16)',
-      padding: '8px 10px',
+      padding: '7px 9px',
       display: 'flex', alignItems: 'center', gap: 10,
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.15, color: fg }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.05, color: fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           Join the Shape community
         </div>
-        <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: fgMuted, marginTop: 2 }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 7.2, letterSpacing: '0.13em', textTransform: 'uppercase', color: fgMuted, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           $5 / mo · cancel anytime
         </div>
       </div>
       <button onClick={onJoin} style={{ borderRadius: t.RADIUS_SM,
-        padding: '7px 11px', background: btnBg, color: btnFg, border: 0,
-        fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em',
+        padding: '6px 10px', background: btnBg, color: btnFg, border: 0,
+        fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.15em',
         textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap',
       }}>Join →</button>
       <button onClick={onClose} aria-label="Dismiss" style={{ borderRadius: t.RADIUS_SM,
@@ -570,22 +630,34 @@ function BSSubscribeBanner({ onJoin, onClose }) {
 // over the "Music while you move?" overlay on first entry.
 function BSBrowseChrome({ noticeDismissed, bannerDismissed, onCloseNotice, onCloseBanner, onJoin, onSignIn }) {
   const r = useBSRadio();
+  const [activeTab, setActiveTab] = useStateBSM(() => window.__shapeActiveTab || 'home');
+
+  useEffectBSM(() => {
+    const onTabChanged = (event) => setActiveTab(event.detail?.tab || window.__shapeActiveTab || 'home');
+    window.addEventListener?.('shape:activeTabChanged', onTabChanged);
+    return () => window.removeEventListener?.('shape:activeTabChanged', onTabChanged);
+  }, []);
+
   if (r.showPrompt) return null;
+  if (activeTab === 'chat') return null;
   return (
     <>
-      {!noticeDismissed && <BSPreviewNotice onClose={onCloseNotice} onSignIn={onSignIn} />}
       {!bannerDismissed && <BSSubscribeBanner onJoin={onJoin} onClose={onCloseBanner} />}
     </>
   );
 }
 
 function BSAppShell({ tweaks, setTweak }) {
-  const [stage, setStage] = useStateBSM(tweaks.startLoggedIn ? 'app' : 'splash');
+  const authConfigured = Boolean(window.ShapeAuth?.configured);
+  const [stage, setStage] = useStateBSM(tweaks.startLoggedIn && !authConfigured ? 'app' : 'splash');
   const [role, setRole] = useStateBSM(tweaks.role || 'client');
+  const [authState, setAuthState] = useStateBSM(() => window.ShapeAuth?.getCachedState?.() || {});
   const [browseMode, setBrowseMode] = useStateBSM(false);
   const [bannerDismissed, setBannerDismissed] = useStateBSM(false);
   const [noticeDismissed, setNoticeDismissed] = useStateBSM(false);
   const [loginMode, setLoginMode] = useStateBSM('signin'); // initial tab on next login mount
+  const [bundleLoading, setBundleLoading] = useStateBSM(false);
+  const [bundleError, setBundleError] = useStateBSM('');
   const t = useBS();
 
   useEffectBSM(() => { setRole(tweaks.role || 'client'); }, [tweaks.role]);
@@ -597,7 +669,57 @@ function BSAppShell({ tweaks, setTweak }) {
     return () => window.removeEventListener('bs-replay-splash', onReplay);
   }, []);
 
-  const App = { client: BSClientApp, trainer: BSTrainerApp, nutritionist: BSNutritionistApp }[role];
+  useEffectBSM(() => {
+    let cancelled = false;
+    setBundleError('');
+    setBundleLoading(true);
+    ensureRoleBundle(role)
+      .catch((err) => {
+        if (!cancelled) setBundleError(err?.message || 'Failed loading app module.');
+      })
+      .finally(() => {
+        if (!cancelled) setBundleLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [role]);
+
+  const appByRole = {
+    client: window.BSClientApp,
+    trainer: window.BSTrainerApp,
+    nutritionist: window.BSNutritionistApp,
+    shape_radio: window.BSClientApp,
+  };
+  const App = appByRole[role] || window.BSClientApp;
+  const appProps = role === 'shape_radio' ? { initialTab: 'radio' } : {};
+
+  useEffectBSM(() => {
+    let cancelled = false;
+    if (!authConfigured) return () => {};
+    window.ShapeAuth.getCurrentSession()
+      .then((next) => {
+        if (cancelled) return;
+        setAuthState(next);
+        if (next?.profile?.role && next.profile.role !== role) setRole(next.profile.role);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [authConfigured]);
+
+  const handleLogin = (nextAuthState) => {
+    setAuthState(nextAuthState || window.ShapeAuth?.getCachedState?.() || {});
+    setBrowseMode(false);
+    setBannerDismissed(false);
+    setNoticeDismissed(false);
+    setLoginMode('signin');
+    setStage('app');
+  };
+
+  const handleLogout = async () => {
+    await window.ShapeAuth?.signOut?.();
+    setAuthState({});
+    setBrowseMode(false);
+    setStage('login');
+  };
 
   // BSRadioProvider hoisted ABOVE the stage switch so radio state
   // (radioOn, askedPrompt, fxMode) survives logout → re-login. Without
@@ -606,19 +728,49 @@ function BSAppShell({ tweaks, setTweak }) {
   return (
     <BSRadioProvider>
       <BSPhone>
-        {stage === 'splash' && <BSSplash style={tweaks.splashStyle} bg={tweaks.splashBg || 'newsprint'} bgColor={tweaks.splashBgColor || 'auto'} onDone={() => setStage(tweaks.startLoggedIn ? 'app' : 'login')} />}
+        {stage === 'splash' && <BSSplash style={tweaks.splashStyle} bg={tweaks.splashBg || 'plain'} bgColor={tweaks.splashBgColor || 'auto'} onDone={() => setStage(tweaks.startLoggedIn && !authConfigured ? 'app' : 'login')} />}
         {stage === 'login'  && <BSLogin
           key={loginMode}
           initialMode={loginMode}
           role={role}
           setRole={(r) => { setRole(r); setTweak('role', r); }}
-          onLogin={() => { setBrowseMode(false); setBannerDismissed(false); setNoticeDismissed(false); setLoginMode('signin'); setStage('app'); }}
+          onLogin={handleLogin}
           onBrowse={() => { setBrowseMode(true); setBannerDismissed(false); setNoticeDismissed(false); setLoginMode('signin'); setStage('app'); }}
         />}
-        {stage === 'app'    && <App onLogout={() => setStage('login')} tweaks={tweaks} setTweak={setTweak} />}
+        {stage === 'app' && !!bundleError && (
+          <div style={{
+            margin: 18,
+            padding: 14,
+            border: `1px solid ${t.RULE}`,
+            background: t.PAPER2,
+            color: t.INK,
+            fontFamily: t.MONO,
+            fontSize: 10,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+          }}>
+            {bundleError}
+          </div>
+        )}
+        {stage === 'app' && !bundleError && !App && (
+          <div style={{
+            margin: 18,
+            padding: 14,
+            border: `1px solid ${t.RULE}`,
+            background: t.PAPER2,
+            color: t.INK,
+            fontFamily: t.MONO,
+            fontSize: 10,
+            letterSpacing: '0.16em',
+            textTransform: 'uppercase',
+          }}>
+            Loading app...
+          </div>
+        )}
+        {stage === 'app' && !!App && <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />}
 
         {/* Browse-mode chrome (preview banner + subscribe CTA) — gated below */}
-        {stage === 'app' && browseMode && !tweaks.startLoggedIn && (
+        {stage === 'app' && !!App && !bundleLoading && browseMode && !tweaks.startLoggedIn && (
           <BSBrowseChrome
             noticeDismissed={noticeDismissed}
             bannerDismissed={bannerDismissed}
@@ -657,8 +809,8 @@ function BSTweaksPanel({ tweaks, setTweak, onClose }) {
       </div>
 
       <Section label="Role">
-        <div style={{ display: 'flex', gap: 4 }}>
-          {[['client','Client'],['trainer','Trainer'],['nutritionist','Nutri']].map(([k, l]) => <Btn key={k} on={tweaks.role === k} onClick={() => setTweak('role', k)}>{l}</Btn>)}
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          {[['client','Client'],['trainer','Trainer'],['nutritionist','Nutri'],['shape_radio','Radio']].map(([k, l]) => <Btn key={k} on={tweaks.role === k} onClick={() => setTweak('role', k)}>{l}</Btn>)}
         </div>
       </Section>
 
@@ -817,9 +969,9 @@ function BSTweaksPanel({ tweaks, setTweak, onClose }) {
 function BSApp() {
   const initial = window.__TWEAKS || {};
   const [tweaks, setTweaks] = useStateBSM({
-    role: 'client', paperMode: 'light', accentKey: 'blue',
+    role: 'client', paperMode: 'dark', accentKey: 'blue',
     weightKey: 'bold', borderKey: 'hairlines', textureKey: 'none', textureColor: 'auto',
-    splashStyle: 'masthead', splashBg: 'newsprint', splashBgColor: 'auto',
+    splashStyle: 'masthead', splashBg: 'plain', splashBgColor: 'auto',
     fxGrain: false, fxHalftone: false, fxSepia: false, fxVignette: false, fxScanlines: false, fxInkBleed: false,
     startLoggedIn: true, ...initial,
   });
