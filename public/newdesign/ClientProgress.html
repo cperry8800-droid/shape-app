@@ -50,36 +50,63 @@ function BigChart({ points, height = 260 }) {
   );
 }
 
+function fmtWeightChange(c) {
+  if (c == null) return "—";
+  const r = Math.round(c);
+  return (r > 0 ? "+" : r < 0 ? "−" : "") + Math.abs(r) + " lb";
+}
+function prDate(iso) {
+  if (!iso) return "";
+  try { return new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" }); }
+  catch (e) { return ""; }
+}
+
+// Mock data — shown while the API loads, or when the viewer is signed out.
+const MOCK_PROGRESS = {
+  weightSeries: [184,183,184,182,181,181,180,179,178,178,177,177,176,175,176,174,173,173,172,171].map((v) => ({ value: v })),
+  kpis: { weightChange: -13, weightLatest: 171, bodyFatLatest: 22.1, bodyFatFirst: 26.4, restingHr: 58, restingHrDelta: -6, sleepAvg: 7.4 },
+  prs: [
+    { move: "Back squat", best: 265, bestReps: 5, unit: "lb", bestAt: "2026-04-16" },
+    { move: "Deadlift", best: 345, bestReps: 2, unit: "lb", bestAt: "2026-04-14" },
+    { move: "Bench press", best: 200, bestReps: 3, unit: "lb", bestAt: "2026-04-09" },
+    { move: "Overhead press", best: 135, bestReps: 5, unit: "lb", bestAt: "2026-04-02" },
+  ],
+};
+
 function ClientProgressPage() {
-  const weight = [184,183,184,182,181,181,180,179,178,178,177,177,176,175,176,174,173,173,172,171];
-  const prs = [
-    ["Back squat",   "245 → 265", "+8.2%", "Feb 4 → Apr 16"],
-    ["Bench press",  "185 → 200", "+8.1%", "Feb 11 → Apr 9"],
-    ["Deadlift",     "315 → 345", "+9.5%", "Feb 18 → Apr 14"],
-    ["Pull-ups",     "8 → 13",    "+62%",  "bodyweight, strict"],
-    ["5k time",      "26:14 → 23:41", "−9.8%", "Prospect Park loop"],
-    ["Resting HR",   "64 → 58",   "−9.4%", "7-day avg"],
+  const [data, setData] = React.useState(MOCK_PROGRESS);
+  const [live, setLive] = React.useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/client/progress', { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && d && d.ok) { setData(d); setLive(true); } })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const kpis = data.kpis || {};
+  const points = (data.weightSeries || []).map(s => s.value);
+  const prs = data.prs || [];
+
+  const kpiCards = [
+    { k: fmtWeightChange(kpis.weightChange), l: "Bodyweight change", sub: kpis.weightLatest != null ? `now ${Math.round(kpis.weightLatest)} lb` : "no weigh-ins yet" },
+    { k: kpis.bodyFatLatest != null ? kpis.bodyFatLatest.toFixed(1) + "%" : "—", l: "Body fat", sub: kpis.bodyFatFirst != null ? `from ${kpis.bodyFatFirst.toFixed(1)}%` : "latest reading" },
+    { k: kpis.restingHr != null ? kpis.restingHr + " bpm" : "—", l: "Resting HR", sub: kpis.restingHrDelta != null ? `${kpis.restingHrDelta > 0 ? "+" : kpis.restingHrDelta < 0 ? "−" : ""}${Math.abs(kpis.restingHrDelta)} vs prior week` : "7-day average" },
+    { k: kpis.sleepAvg != null ? kpis.sleepAvg + " h" : "—", l: "Sleep", sub: "30-day average" },
   ];
+
   return (
     <DashPage
       navItems={clientNavItems("progress")}
       payoutCard={clientPayoutCard}
-      eyebrow="LAST 12 WEEKS"
+      eyebrow="STRENGTH · BODY · RECOVERY"
       title="Progress"
-      subtitle="Everything your team tracks — strength, body comp, cardio, sleep. Rolls up from workouts, weigh-ins, wearables and logs."
-      actions={<>
-        <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Export CSV</button>
-        <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>New weigh-in</button>
-      </>}
+      subtitle="Everything your team tracks — rolled up from your workouts, weigh-ins, wearables and logs."
     >
-      {/* KPI row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 20 }}>
-        {[
-          { k: "−13 lb", l: "Since Feb 4", sub: "trailing 12w" },
-          { k: "22.1%", l: "Body fat", sub: "from 26.4%" },
-          { k: "58 bpm", l: "Resting HR", sub: "7d avg, −6" },
-          { k: "7.4 h", l: "Sleep", sub: "30d avg" },
-        ].map((k, i) => (
+        {kpiCards.map((k, i) => (
           <Card key={i} style={{ padding: "22px 22px 20px" }}>
             <div style={{ fontFamily: serif, fontSize: 42, fontWeight: 400, letterSpacing: "-0.02em", lineHeight: 1 }}>{k.k}</div>
             <div style={{ fontSize: 13, marginTop: 12 }}>{k.l}</div>
@@ -88,37 +115,43 @@ function ClientProgressPage() {
         ))}
       </div>
 
-      {/* Chart card */}
       <Card style={{ marginBottom: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
           <div>
             <div style={{ fontSize: 14, fontWeight: 500 }}>Bodyweight</div>
-            <div style={{ fontSize: 12, color: "rgba(242,237,228,0.5)", marginTop: 2 }}>lb · daily · last 12 weeks</div>
-          </div>
-          <div style={{ display: "flex", gap: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em" }}>
-            {["4W","12W","6M","1Y","ALL"].map((t, i) => (
-              <span key={t} style={{ padding: "4px 10px", borderRadius: 4, background: i === 1 ? "rgba(30,192,168,0.16)" : "transparent", color: i === 1 ? TEAL_BRIGHT : "rgba(242,237,228,0.5)" }}>{t}</span>
-            ))}
+            <div style={{ fontSize: 12, color: "rgba(242,237,228,0.5)", marginTop: 2 }}>lb · from your weigh-ins</div>
           </div>
         </div>
-        <BigChart points={weight} />
+        {points.length >= 2 ? (
+          <BigChart points={points} />
+        ) : (
+          <div style={{ padding: "48px 4px", textAlign: "center", color: "rgba(242,237,228,0.5)", fontSize: 13 }}>
+            {live ? "Log a couple of weigh-ins to see your trend here." : "Not enough data yet."}
+          </div>
+        )}
       </Card>
 
-      {/* Strength PRs */}
       <Card>
-        <SectionTitle right="APR 16 · AUTOPULLED FROM TRAIN">Personal records</SectionTitle>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 0 }}>
-          {prs.map((p, i) => (
-            <div key={i} style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 70px", gap: 16, alignItems: "center", padding: "16px 4px", borderTop: i < 2 ? "none" : "1px solid rgba(242,237,228,0.06)", borderLeft: i % 2 === 1 ? "1px solid rgba(242,237,228,0.06)" : "none", paddingLeft: i % 2 === 1 ? 24 : 4 }}>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 500 }}>{p[0]}</div>
-                <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginTop: 2 }}>{p[3]}</div>
+        <SectionTitle right="FROM YOUR LOGGED SETS">Personal records</SectionTitle>
+        {prs.length === 0 && (
+          <div style={{ padding: "26px 4px", color: "rgba(242,237,228,0.5)", fontSize: 13 }}>
+            No logged sets yet. Your heaviest lifts will appear here once you start training.
+          </div>
+        )}
+        {prs.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 0 }}>
+            {prs.map((p, i) => (
+              <div key={i} style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 70px", gap: 16, alignItems: "center", padding: "16px 4px", borderTop: i < 2 ? "none" : "1px solid rgba(242,237,228,0.06)", borderLeft: i % 2 === 1 ? "1px solid rgba(242,237,228,0.06)" : "none", paddingLeft: i % 2 === 1 ? 24 : 4 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 500 }}>{p.move}</div>
+                  <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginTop: 2 }}>{prDate(p.bestAt)}</div>
+                </div>
+                <div style={{ fontFamily: serif, fontSize: 20, letterSpacing: "-0.01em" }}>{Math.round(p.best)} {p.unit}</div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: TEAL_BRIGHT, textAlign: "right" }}>{p.bestReps != null ? "× " + p.bestReps : ""}</div>
               </div>
-              <div style={{ fontFamily: serif, fontSize: 20, letterSpacing: "-0.01em" }}>{p[1]}</div>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: TEAL_BRIGHT, textAlign: "right" }}>{p[2]}</div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </Card>
     </DashPage>
   );
