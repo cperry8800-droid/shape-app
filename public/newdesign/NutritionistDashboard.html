@@ -44,31 +44,70 @@ const NUTRI_CAL_EVENTS = [
   { date: "2026-04-30", time: "11:00", kind: "ADMIN",   title: "Month close-out", sub: "Admin" },
 ];
 
+// Mock data — shown while the live dashboard API is loading, or when it's
+// unreachable / the viewer isn't a nutritionist (e.g. previewing signed out).
+const MOCK_NUTRI_KPIS = [
+  { k: "$1,864.00", l: "Current balance" },
+  { k: "Apr 21", l: "Next payout", sub: "in 3 days" },
+  { k: "$2,948.00", l: "This month" },
+  { k: "$24,160", l: "Lifetime" },
+];
+const MOCK_NUTRI_SCHEDULE = [
+  { time: "08:30", who: "Elena R.", sub: "Weekly check · remote", status: "DONE" },
+  { time: "11:00", who: "Marcus L.", sub: "Meal plan refresh", status: "DONE" },
+  { time: "13:30", who: "Priya S.", sub: "Sleep + macros", status: "NEXT" },
+  { time: "16:00", who: "Jonah W.", sub: "Race fueling" },
+];
+function ndFmtTime(iso) {
+  try { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }); }
+  catch (e) { return ""; }
+}
+
 function NutritionistDashboardPage() {
+  const [live, setLive] = React.useState(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/nutritionist/dashboard', { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && d && d.isNutritionist) setLive(d); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const firstName = live ? live.user.firstName : "Rae";
+  const kpis = live ? [
+    { k: String(live.kpis.activeClients), l: "Active clients" },
+    { k: String(live.kpis.consultsThisWeek), l: "Consults this week" },
+    { k: String(live.kpis.upcomingConsults), l: "Upcoming consults" },
+    { k: String(live.kpis.totalConsults), l: "Total consults", sub: "all time" },
+  ] : MOCK_NUTRI_KPIS;
+
+  const todayRows = live && Array.isArray(live.today) ? live.today : null;
+  const schedule = !todayRows
+    ? MOCK_NUTRI_SCHEDULE
+    : todayRows.length
+      ? todayRows.map((s, i) => ({
+          time: ndFmtTime(s.scheduledAt),
+          who: s.clientName || "Client",
+          sub: [s.topic, (s.durationMin || 15) + " min", s.type].filter(Boolean).join(" · "),
+          status: i === 0 ? (s.status === "confirmed" ? "NEXT" : "PENDING") : undefined,
+        }))
+      : [{ time: "—", who: "No consults today", sub: "Your schedule is clear" }];
+
   return (
     <DashShell
       role="nutritionist"
-      userName="Rae"
+      userName={firstName}
       date="WEDNESDAY APR 18"
-      greeting="Good morning, Rae."
+      greeting={"Good morning, " + firstName + "."}
       primaryCta={["+ Meal plan", "NutritionistPlans.html"]}
       secondaryCta={["New consult", "NutritionistClients.html"]}
       navItems={nutriNavItems("today")}
       payoutCard={nutriPayoutCard}
-      kpis={[
-        { k: "$1,864.00", l: "Current balance" },
-        { k: "Apr 21", l: "Next payout", sub: "in 3 days" },
-        { k: "$2,948.00", l: "This month" },
-        { k: "$24,160", l: "Lifetime" },
-      ]}
+      kpis={kpis}
       scheduleTitle="Today's consults"
       calendarEvents={NUTRI_CAL_EVENTS}
-      schedule={[
-        { time: "08:30", who: "Elena R.", sub: "Weekly check · remote", status: "DONE" },
-        { time: "11:00", who: "Marcus L.", sub: "Meal plan refresh", status: "DONE" },
-        { time: "13:30", who: "Priya S.", sub: "Sleep + macros", status: "NEXT" },
-        { time: "16:00", who: "Jonah W.", sub: "Race fueling" },
-      ]}
+      schedule={schedule}
       pulseTitle="Logs needing review"
       pulse={[
         { who: "Elena R.",  sub: "7 days logged · −14% BF",  trend: [0.3,0.4,0.5,0.4,0.6,0.7,0.8] },
