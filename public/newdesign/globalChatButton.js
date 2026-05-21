@@ -119,20 +119,19 @@
 
   function onPanelDrag(event) {
     if (!panelDrag) return;
-    var pos = clampPanelPosition(
-      event.clientX - panelDrag.offX,
-      event.clientY - panelDrag.offY,
-      panelDrag.w,
-      panelDrag.h
-    );
-    setPanelPosition(panelDrag.node, pos);
+    // Free drag — the panel may go fully off-screen. It's clamped back into
+    // view on the next open (restorePanelPosition), so it can't get lost.
+    setPanelPosition(panelDrag.node, {
+      x: event.clientX - panelDrag.offX,
+      y: event.clientY - panelDrag.offY
+    });
   }
 
   function endPanelDrag() {
     if (!panelDrag) return;
     var node = panelDrag.node;
     var rect = node.getBoundingClientRect();
-    var pos = clampPanelPosition(rect.left, rect.top, rect.width, rect.height);
+    var pos = { x: rect.left, y: rect.top };
     setPanelPosition(node, pos);
     try { localStorage.setItem(PANEL_POS_KEY, JSON.stringify(pos)); } catch (err) {}
     node.classList.remove("dragging");
