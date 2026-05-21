@@ -38,7 +38,7 @@ function RadioHero() {
   const [hearted, setHearted] = React.useState(false);
   return (
     <section style={{ padding: "clamp(24px,3.5vh,44px) clamp(24px,4vw,60px) clamp(56px,8vh,100px)", position: "relative", overflow: "hidden", minHeight: "calc(100vh - 109px)", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center", background: "transparent" }}>
-      <div style={{ maxWidth: 1040, width: "100%", margin: "0 auto", position: "relative", display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: "clamp(40px,4vw,84px)", alignItems: "center" }}>
+      <div style={{ maxWidth: 1040, width: "100%", margin: "0 auto", position: "relative", display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: "clamp(40px,4vw,84px)", alignItems: "stretch" }}>
         <div style={{ position: "relative", overflow: "hidden", padding: "clamp(12px,1vw,16px)", background: "rgba(26,22,18,0.38)", backdropFilter: "blur(16px) saturate(1.1)", WebkitBackdropFilter: "blur(16px) saturate(1.1)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4 }}>
           <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${TEAL}, ${RUST})`, opacity: 0.75 }} />
           <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.3em", textTransform: "uppercase", color: TEAL_BRIGHT, marginBottom: 10 }}>Shape Radio</div>
