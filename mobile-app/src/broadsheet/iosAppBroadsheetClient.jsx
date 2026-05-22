@@ -4331,13 +4331,11 @@ function BSChatThread({ thread, eyebrow, onBack }) {
         </div>
       </div>
 
-      <div style={{
-        minHeight: 'calc(100dvh - 210px)',
-        display: 'flex',
-        flexDirection: 'column',
-      }}>
-      {/* Messages */}
-      <div style={{ flex: '1 1 auto', padding: `16px ${t.padX}px 138px`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* Messages — bottom padding is derived from the composer's own box
+          (38px input + 14px padding + 2px border + 16px lift) plus a 24px
+          gap, so the last message always clears the pinned composer
+          regardless of device size. */}
+      <div style={{ padding: `16px ${t.padX}px calc(94px + env(safe-area-inset-bottom, 0px))`, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {allMessages.map((m, i) => {
           const me = m.me;
           return (
@@ -4367,7 +4365,6 @@ function BSChatThread({ thread, eyebrow, onBack }) {
 
       {/* Composer — pinned to the bottom of the screen, iMessage-style */}
       <BSMessageComposer value={text} onChange={setText} onSend={send} pinned />
-      </div>
     </BSPage>
   );
 }
