@@ -17,6 +17,7 @@ export const dynamic = 'force-dynamic';
 
 const ROLE = 'trainer' as const;
 const KIND = 'exercise' as const;
+const RECENT_CLIENT_MS = 60 * 86_400_000; // 60 days = "current"
 
 type PushedItemRow = {
   id: string;
@@ -24,6 +25,13 @@ type PushedItemRow = {
   kind: string;
   payload: Record<string, unknown>;
   sent_at: string;
+};
+
+type ConsoleClient = {
+  id: string;
+  name: string;
+  status: 'current' | 'past';
+  lastAt: string | null;
 };
 
 async function getProviderId(
@@ -38,6 +46,54 @@ async function getProviderId(
   return (data?.id as number | undefined) ?? null;
 }
 
+// Fetches the trainer's client roster from subscriptions + sessions, grouped
+// by client_id with a "current" / "past" status the dropdown groups by.
+// "current" = active/trialing subscription OR a session in the last 60 days.
+async function fetchClientsForProvider(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  providerId: number,
+): Promise<ConsoleClient[]> {
+  const [subRes, sessRes] = await Promise.all([
+    supabase
+      .from('subscriptions')
+      .select('client_id, status')
+      .eq('provider_role', ROLE)
+      .eq('provider_id', providerId),
+    supabase
+      .from('sessions')
+      .select('client_id, client_name, scheduled_at')
+      .eq('provider_role', ROLE)
+      .eq('provider_id', providerId)
+      .order('scheduled_at', { ascending: false })
+      .limit(1000),
+  ]);
+
+  type Entry = { id: string; name: string; status: 'current' | 'past'; lastAt: number | null };
+  const byId = new Map<string, Entry>();
+
+  for (const sub of subRes.data ?? []) {
+    if (!sub.client_id) continue;
+    const e: Entry = byId.get(sub.client_id) ?? { id: sub.client_id, name: 'Client', status: 'past', lastAt: null };
+    if (sub.status === 'active' || sub.status === 'trialing') e.status = 'current';
+    byId.set(sub.client_id, e);
+  }
+
+  const now = Date.now();
+  for (const s of sessRes.data ?? []) {
+    if (!s.client_id) continue;
+    const e: Entry = byId.get(s.client_id) ?? { id: s.client_id, name: 'Client', status: 'past', lastAt: null };
+    if (s.client_name && e.name === 'Client') e.name = s.client_name;
+    const t = new Date(s.scheduled_at).getTime();
+    if (e.lastAt == null || t > e.lastAt) e.lastAt = t;
+    if (now - t < RECENT_CLIENT_MS && e.status !== 'current') e.status = 'current';
+    byId.set(s.client_id, e);
+  }
+
+  return [...byId.values()]
+    .sort((a, b) => (b.lastAt ?? 0) - (a.lastAt ?? 0))
+    .map((e) => ({ id: e.id, name: e.name, status: e.status, lastAt: e.lastAt ? new Date(e.lastAt).toISOString() : null }));
+}
+
 export async function GET() {
   const supabase = await createClient();
   const {
@@ -50,8 +106,10 @@ export async function GET() {
 
   const providerId = await getProviderId(supabase, user.id);
   if (providerId == null) {
-    return NextResponse.json({ isTrainer: false, focusByClient: {}, itemsByClient: {} });
+    return NextResponse.json({ isTrainer: false, clients: [], focusByClient: {}, itemsByClient: {} });
   }
+
+  const clients = await fetchClientsForProvider(supabase, providerId);
 
   const { data: bannerRows } = await supabase
     .from('coach_focus_banners')
@@ -81,7 +139,7 @@ export async function GET() {
     itemsByClient[r.client_id] = list;
   }
 
-  return NextResponse.json({ isTrainer: true, focusByClient, itemsByClient });
+  return NextResponse.json({ isTrainer: true, clients, focusByClient, itemsByClient });
 }
 
 export async function POST(req: Request) {
