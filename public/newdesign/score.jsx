@@ -40,7 +40,7 @@ const TIERS = [
   { name: "Tempo",  min: 750,   color: "rgba(242,237,228,0.85)", current: true, desc: "2× redemption value" },
   { name: "Form",   min: 2000,  color: "#e89740",                desc: "Early access drops + streak boosts" },
   { name: "Peak",   min: 5000,  color: "#0a7463",                desc: "Priority booking + 1 free intro / mo" },
-  { name: "Legend", min: 15000, color: "#1ec0a8",                desc: "Annual Shape merch + service credit" },
+  { name: "Legend", min: 15000, color: "#0ac5a8",                desc: "Annual Shape merch + service credit" },
 ];
 
 const SC_RPR = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -134,7 +134,7 @@ function ScoreTiers() {
                   <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
                     <div style={{ fontFamily: mono, fontSize: 11, color: "rgba(242,237,228,0.55)" }}>{t.min.toLocaleString()}</div>
                     <div style={{ height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <div style={{ width: current ? 28 : 18, height: current ? 28 : 18, borderRadius: 999, background: reached ? (current ? TEAL : t.color) : INK_DEEP, border: `2px solid ${reached ? t.color : "rgba(242,237,228,0.2)"}`, boxShadow: current ? `0 0 0 6px rgba(30,192,168,0.18)` : "none" }} />
+                      <div style={{ width: current ? 28 : 18, height: current ? 28 : 18, borderRadius: 999, background: reached ? (current ? TEAL : t.color) : INK_DEEP, border: `2px solid ${reached ? t.color : "rgba(242,237,228,0.2)"}`, boxShadow: current ? `0 0 0 6px rgba(10,197,168,0.18)` : "none" }} />
                     </div>
                     <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.01em", color: reached ? INK : "rgba(242,237,228,0.45)" }}>{t.name}</div>
                     <div style={{ fontFamily: sans, fontSize: 11, color: "rgba(242,237,228,0.5)", textAlign: "center", maxWidth: 160 }}>{t.desc}</div>
@@ -153,9 +153,9 @@ function ScoreActivity() {
   const weeks = 12;
   const shade = (v) => {
     if (v === 0) return "rgba(242,237,228,0.05)";
-    if (v === 1) return "rgba(30,192,168,0.25)";
-    if (v === 2) return "rgba(30,192,168,0.5)";
-    if (v === 3) return "rgba(30,192,168,0.75)";
+    if (v === 1) return "rgba(10,197,168,0.25)";
+    if (v === 2) return "rgba(10,197,168,0.5)";
+    if (v === 3) return "rgba(10,197,168,0.75)";
     return TEAL;
   };
   return (
@@ -256,7 +256,7 @@ function ScoreLedger() {
               return (
                 <div key={i} style={{ display: "grid", gridTemplateColumns: "100px 86px 1fr auto", gap: 20, padding: "19px 26px", borderTop: i ? "1px solid rgba(242,237,228,0.06)" : "none", alignItems: "center" }}>
                   <div style={{ fontFamily: mono, fontSize: 11, color: "rgba(242,237,228,0.5)" }}>{row.d}</div>
-                  <span style={{ fontFamily: mono, fontSize: 9, padding: "3px 8px", background: "rgba(30,192,168,0.1)", color: TEAL, borderRadius: 3, letterSpacing: "0.1em", textTransform: "uppercase", justifySelf: "start" }}>{row.k}</span>
+                  <span style={{ fontFamily: mono, fontSize: 9, padding: "3px 8px", background: "rgba(10,197,168,0.1)", color: TEAL, borderRadius: 3, letterSpacing: "0.1em", textTransform: "uppercase", justifySelf: "start" }}>{row.k}</span>
                   <div style={{ fontFamily: serif, fontSize: 18, color: INK }}>{row.t}</div>
                   <div style={{ fontFamily: mono, fontSize: 14, color: TEAL, fontWeight: 500 }}>+{row.p}</div>
                 </div>

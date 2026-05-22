@@ -56,7 +56,7 @@ export default function GlobalChatButton() {
           role="dialog"
           className="fixed bottom-[92px] right-6 z-[2147483000] flex h-[540px] max-h-[calc(100vh-116px)] w-[390px] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-[18px] border border-white/15 bg-[#1a1612] text-[#f2ede4] shadow-[0_28px_80px_rgba(0,0,0,0.62)] max-sm:bottom-[82px] max-sm:right-4 max-sm:h-[min(560px,calc(100vh-104px))] max-sm:w-[calc(100vw-32px)]"
         >
-          <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-gradient-to-b from-[#1ec0a8]/10 to-transparent px-[18px] py-4">
+          <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-gradient-to-b from-[#0ac5a8]/10 to-transparent px-[18px] py-4">
             <div>
               <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.18em] text-[#2ee0c4]">
                 Shape chat
@@ -79,7 +79,7 @@ export default function GlobalChatButton() {
                 key={`${message.from}-${index}`}
                 className={
                   message.from === 'you'
-                    ? 'max-w-[84%] self-end rounded-[14px] rounded-tr bg-[#1ec0a8] px-3.5 py-2.5 text-[13.5px] leading-snug text-[#1a1612]'
+                    ? 'max-w-[84%] self-end rounded-[14px] rounded-tr bg-[#0ac5a8] px-3.5 py-2.5 text-[13.5px] leading-snug text-[#1a1612]'
                     : 'max-w-[84%] self-start rounded-[14px] rounded-tl bg-white/10 px-3.5 py-2.5 text-[13.5px] leading-snug'
                 }
               >
@@ -93,7 +93,7 @@ export default function GlobalChatButton() {
                     key={item}
                     type="button"
                     onClick={() => send(item)}
-                    className="rounded-full border border-[#1ec0a8]/45 bg-transparent px-3 py-2 text-xs font-semibold text-[#2ee0c4]"
+                    className="rounded-full border border-[#0ac5a8]/45 bg-transparent px-3 py-2 text-xs font-semibold text-[#2ee0c4]"
                   >
                     {item}
                   </button>
@@ -132,7 +132,7 @@ export default function GlobalChatButton() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Open Shape chat"
-        className="fixed bottom-6 right-6 z-[2147483000] inline-flex items-center gap-3 rounded-full border-0 bg-[#1ec0a8] px-6 py-4 text-[15px] font-bold text-[#1a1612] shadow-[0_18px_44px_rgba(0,0,0,0.38),0_4px_14px_rgba(30,192,168,0.35)] transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-white/80 max-sm:bottom-4 max-sm:right-4 max-sm:px-5 max-sm:py-3.5 max-sm:text-sm"
+        className="fixed bottom-6 right-6 z-[2147483000] inline-flex items-center gap-3 rounded-full border-0 bg-[#0ac5a8] px-6 py-4 text-[15px] font-bold text-[#1a1612] shadow-[0_18px_44px_rgba(0,0,0,0.38),0_4px_14px_rgba(10,197,168,0.35)] transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-white/80 max-sm:bottom-4 max-sm:right-4 max-sm:px-5 max-sm:py-3.5 max-sm:text-sm"
       >
         <svg width="19" height="19" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <path
@@ -143,7 +143,7 @@ export default function GlobalChatButton() {
           />
         </svg>
         <span>Chat</span>
-        <span className="inline-flex h-6 min-w-7 items-center justify-center rounded-full bg-[#1a1612] px-2 font-mono text-xs font-bold leading-none text-[#1ec0a8]">
+        <span className="inline-flex h-6 min-w-7 items-center justify-center rounded-full bg-[#1a1612] px-2 font-mono text-xs font-bold leading-none text-[#0ac5a8]">
           24
         </span>
       </button>

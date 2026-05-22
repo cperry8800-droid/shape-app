@@ -258,7 +258,7 @@ function TodayView({ radioOn, setRadioOn, onRadio, onWorkout, onPreview, onLogMe
           borderRadius: 18, padding: '16px 16px 14px', cursor: 'pointer',
           border: `1px solid ${radioOn ? TEAL + '44' : HAIR}`,
           background: radioOn
-            ? `linear-gradient(135deg, rgba(30,192,168,0.12), rgba(30,192,168,0.02))`
+            ? `linear-gradient(135deg, rgba(10,197,168,0.12), rgba(10,197,168,0.02))`
             : 'transparent',
           display: 'flex', alignItems: 'center', gap: 14,
         }}>
@@ -421,7 +421,7 @@ function WeekView({ onWorkout, onPreview }) {
           return (
             <button key={i} onClick={() => setSel(i)} style={{
               border: `1px solid ${on ? TEAL : (day.today ? TEAL + '55' : HAIR)}`,
-              background: on ? 'rgba(30,192,168,0.10)' : 'rgba(242,237,228,0.025)',
+              background: on ? 'rgba(10,197,168,0.10)' : 'rgba(242,237,228,0.025)',
               borderRadius: 12, padding: '10px 4px 8px', cursor: 'pointer',
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
             }}>
@@ -631,7 +631,7 @@ function MonthView({ onWorkout, onPreview }) {
           return (
             <button key={i} onClick={() => setSel(d)} style={{
               border: `1px solid ${on ? TEAL : (isToday ? TEAL + '55' : HAIR)}`,
-              background: on ? 'rgba(30,192,168,0.10)' : 'rgba(242,237,228,0.025)',
+              background: on ? 'rgba(10,197,168,0.10)' : 'rgba(242,237,228,0.025)',
               borderRadius: 9, padding: '7px 2px 5px', cursor: 'pointer',
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
               aspectRatio: '1 / 1.05', minHeight: 0,
@@ -824,7 +824,7 @@ function WorkoutPreview({ title, meta, coachInit, coachColor = CORAL, coachName,
 function FoodPreview({ kcal, pro, count, hero, note, onPreview }) {
   const clickable = !!onPreview;
   return (
-    <EdCard pad={16} tint="linear-gradient(155deg, rgba(30,192,168,0.08), rgba(30,192,168,0.01))" style={{ border: `1px solid rgba(30,192,168,0.20)`, cursor: clickable ? 'pointer' : 'default' }} onClick={clickable ? onPreview : undefined}>
+    <EdCard pad={16} tint="linear-gradient(155deg, rgba(10,197,168,0.08), rgba(10,197,168,0.01))" style={{ border: `1px solid rgba(10,197,168,0.20)`, cursor: clickable ? 'pointer' : 'default' }} onClick={clickable ? onPreview : undefined}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <MLabel color={TEAL}>Meals</MLabel>
         <MLabel>{count} planned</MLabel>
@@ -1038,7 +1038,7 @@ function LogMealSheet({ meal, onBack }) {
           <div style={{ marginTop: 8, fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.14em', color: INK_60, textTransform: 'uppercase' }}>
             {Math.round(totals.kcal)} kcal · {Math.round(totals.p)}P · {meal.time}
           </div>
-          <div style={{ marginTop: 24, padding: 16, borderRadius: 14, background: 'rgba(30,192,168,0.08)', border: `1px solid ${TEAL}33`, textAlign: 'left' }}>
+          <div style={{ marginTop: 24, padding: 16, borderRadius: 14, background: 'rgba(10,197,168,0.08)', border: `1px solid ${TEAL}33`, textAlign: 'left' }}>
             <MLabel color={TEAL}>Day so far</MLabel>
             <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <DayStat label="Calories" v={Math.round(dayAfter.kcal)} t={dayTarget.kcal} color={TEAL} />
@@ -1433,7 +1433,7 @@ function ActiveWorkout({ onBack }) {
           <div style={{
             borderRadius: 18, padding: '18px 18px 14px',
             border: `1px solid ${TEAL}55`,
-            background: `linear-gradient(135deg, rgba(30,192,168,0.14), rgba(30,192,168,0.02))`,
+            background: `linear-gradient(135deg, rgba(10,197,168,0.14), rgba(10,197,168,0.02))`,
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <MLabel color={TEAL}>Rest</MLabel>
@@ -1512,7 +1512,7 @@ function ActiveWorkout({ onBack }) {
                 display: 'grid', gridTemplateColumns: '28px 1fr 1fr 1fr 28px', gap: 8,
                 alignItems: 'center', padding: '10px 2px',
                 borderTop: `1px solid ${HAIR_S}`,
-                background: active ? 'rgba(30,192,168,0.06)' : 'transparent',
+                background: active ? 'rgba(10,197,168,0.06)' : 'transparent',
                 borderRadius: active ? 10 : 0,
               }}>
                 <span style={{ fontFamily: MONO, fontSize: 11, color: s.done ? INK_45 : (active ? TEAL : INK_60), letterSpacing: '0.08em' }}>
@@ -1617,7 +1617,7 @@ function SetCell({ v, unit, active, done, accent }) {
     <div style={{
       padding: '9px 10px', borderRadius: 10,
       border: `1px solid ${active ? TEAL : HAIR_S}`,
-      background: active ? 'rgba(30,192,168,0.04)' : 'transparent',
+      background: active ? 'rgba(10,197,168,0.04)' : 'transparent',
       display: 'flex', alignItems: 'baseline', gap: 3,
       opacity: done ? 0.85 : 1,
     }}>
@@ -1693,7 +1693,7 @@ function ClientDiscover({ onBack }) {
           <div key={p} style={{
             flexShrink: 0, padding: '8px 14px', borderRadius: 16,
             border: i === 0 ? `1px solid ${TEAL}` : `1px solid ${HAIR}`,
-            background: i === 0 ? 'rgba(30,192,168,0.08)' : 'transparent',
+            background: i === 0 ? 'rgba(10,197,168,0.08)' : 'transparent',
             color: i === 0 ? TEAL : INK, fontFamily: MONO, fontSize: 10.5,
             letterSpacing: '0.14em', textTransform: 'uppercase',
           }}>{p}</div>
@@ -1786,7 +1786,7 @@ function DayStrip({ days, active, onPick }) {
             style={{
               flex: 1, aspectRatio: '0.66 / 1', borderRadius: 12, padding: 0,
               border: isActive ? `1px solid ${TEAL}` : `1px solid ${HAIR}`,
-              background: isActive ? 'rgba(30,192,168,0.08)' : 'transparent',
+              background: isActive ? 'rgba(10,197,168,0.08)' : 'transparent',
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
               cursor: 'pointer', fontFamily: 'inherit',
               transition: 'background 0.15s ease, border-color 0.15s ease',
@@ -1812,8 +1812,8 @@ function ClientTrain({ onRadio, onWorkout }) {
       card: { eyebrow: 'Completed · Mon 9:12 am', wd: 'W6 · D3',
         name: 'Upper Push —', emph: 'Done.',
         stats: ['48 min', '5 moves', 'RPE 8', '~380 kcal'],
-        cta: '✓', tint: 'linear-gradient(155deg, rgba(30,192,168,0.10), rgba(30,192,168,0.02))',
-        border: 'rgba(30,192,168,0.20)' },
+        cta: '✓', tint: 'linear-gradient(155deg, rgba(10,197,168,0.10), rgba(10,197,168,0.02))',
+        border: 'rgba(10,197,168,0.20)' },
       movesTitle: '5 moves', movesAction: 'Recap',
       moves: [
         { t: 'Bench press', s: '4 × 6 · 3 min rest', v: '185 lb', state: 'done' },
@@ -1831,8 +1831,8 @@ function ClientTrain({ onRadio, onWorkout }) {
       card: { eyebrow: 'Today · 9 am', wd: 'W6 · D4',
         name: 'Upper Pull —', emph: 'Peak.',
         stats: ['52 min', '6 moves', 'RPE 8', '~420 kcal'],
-        cta: '▶', tint: 'linear-gradient(155deg, rgba(30,192,168,0.16), rgba(30,192,168,0.03))',
-        border: 'rgba(30,192,168,0.25)' },
+        cta: '▶', tint: 'linear-gradient(155deg, rgba(10,197,168,0.16), rgba(10,197,168,0.03))',
+        border: 'rgba(10,197,168,0.25)' },
       movesTitle: '6 moves', movesAction: 'Swap',
       moves: [
         { t: 'Pull-up', s: '4 × 6-8 · 3 min rest', v: '42 lb +' },
@@ -1851,8 +1851,8 @@ function ClientTrain({ onRadio, onWorkout }) {
       card: { eyebrow: 'Wed · 7 am', wd: 'W6 · D5',
         name: 'Conditioning —', emph: 'Z2.',
         stats: ['25 min', '1 move', 'HR 140', '~260 kcal'],
-        cta: '▶', tint: 'linear-gradient(155deg, rgba(30,192,168,0.12), rgba(30,192,168,0.02))',
-        border: 'rgba(30,192,168,0.22)' },
+        cta: '▶', tint: 'linear-gradient(155deg, rgba(10,197,168,0.12), rgba(10,197,168,0.02))',
+        border: 'rgba(10,197,168,0.22)' },
       movesTitle: '1 block', movesAction: 'Swap',
       moves: [
         { t: 'Rower — steady', s: '25 min · Z2 · nasal breathing', v: 'HR 135-145' },
@@ -1866,8 +1866,8 @@ function ClientTrain({ onRadio, onWorkout }) {
       card: { eyebrow: 'Thu · 9 am', wd: 'W6 · D6',
         name: 'Pull — ', emph: 'Deload.',
         stats: ['42 min', '5 moves', 'RPE 6', '~300 kcal'],
-        cta: '▶', tint: 'linear-gradient(155deg, rgba(30,192,168,0.14), rgba(30,192,168,0.02))',
-        border: 'rgba(30,192,168,0.22)' },
+        cta: '▶', tint: 'linear-gradient(155deg, rgba(10,197,168,0.14), rgba(10,197,168,0.02))',
+        border: 'rgba(10,197,168,0.22)' },
       movesTitle: '5 moves', movesAction: 'Swap',
       moves: [
         { t: 'Pull-up', s: '3 × 5 · 2 min rest', v: 'BW' },
@@ -1885,8 +1885,8 @@ function ClientTrain({ onRadio, onWorkout }) {
       card: { eyebrow: 'Fri · 9 am', wd: 'W6 · D7',
         name: 'Lower —', emph: 'Peak.',
         stats: ['58 min', '5 moves', 'RPE 9', '~480 kcal'],
-        cta: '▶', tint: 'linear-gradient(155deg, rgba(30,192,168,0.16), rgba(30,192,168,0.03))',
-        border: 'rgba(30,192,168,0.25)' },
+        cta: '▶', tint: 'linear-gradient(155deg, rgba(10,197,168,0.16), rgba(10,197,168,0.03))',
+        border: 'rgba(10,197,168,0.25)' },
       movesTitle: '5 moves', movesAction: 'Swap',
       moves: [
         { t: 'Back squat', s: '4 × 5 · 3 min rest', v: '225 lb' },
@@ -1904,8 +1904,8 @@ function ClientTrain({ onRadio, onWorkout }) {
       card: { eyebrow: 'Sat · open window', wd: 'W6 · Rest',
         name: 'Active rest —', emph: 'Walk.',
         stats: ['40 min', 'mobility', 'HR 110', '~180 kcal'],
-        cta: '▶', tint: 'linear-gradient(155deg, rgba(30,192,168,0.08), rgba(30,192,168,0.02))',
-        border: 'rgba(30,192,168,0.18)' },
+        cta: '▶', tint: 'linear-gradient(155deg, rgba(10,197,168,0.08), rgba(10,197,168,0.02))',
+        border: 'rgba(10,197,168,0.18)' },
       movesTitle: '2 blocks', movesAction: 'Open',
       moves: [
         { t: 'Easy walk', s: '30 min · outdoors · conversational', v: 'HR 105-115' },
@@ -1920,8 +1920,8 @@ function ClientTrain({ onRadio, onWorkout }) {
       card: { eyebrow: 'Sun · 8 am', wd: 'W6 · Bonus',
         name: 'Long Z2 —', emph: 'Riverside.',
         stats: ['1h 50m', '10 km', 'HR 145', '~680 kcal'],
-        cta: '▶', tint: 'linear-gradient(155deg, rgba(30,192,168,0.14), rgba(30,192,168,0.03))',
-        border: 'rgba(30,192,168,0.22)' },
+        cta: '▶', tint: 'linear-gradient(155deg, rgba(10,197,168,0.14), rgba(10,197,168,0.03))',
+        border: 'rgba(10,197,168,0.22)' },
       movesTitle: '1 block', movesAction: 'Route',
       moves: [
         { t: 'Riverside run', s: '1h 50m · Z2 · nasal if possible', v: 'HR 140-150' },
@@ -2300,7 +2300,7 @@ function ClientMe({ onLogout, onCommunity, onDiscover }) {
 
       {/* Shape score — big serif number */}
       <div style={{ padding: '0 24px' }}>
-        <EdCard pad={22} tint="linear-gradient(145deg, rgba(217,178,106,0.14), rgba(30,192,168,0.04))" style={{ border: `1px solid rgba(217,178,106,0.22)` }}>
+        <EdCard pad={22} tint="linear-gradient(145deg, rgba(217,178,106,0.14), rgba(10,197,168,0.04))" style={{ border: `1px solid rgba(217,178,106,0.22)` }}>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
             <div>
               <MLabel color={GOLD}>Shape Score</MLabel>

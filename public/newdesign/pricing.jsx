@@ -32,9 +32,9 @@ const PLATFORM_FEATURES = [
 ];
 
 const EXAMPLE_COACHES = [
-  { role: "Trainer", name: "Maya Okafor", city: "Brooklyn", price: 120, cadence: "/mo", note: "Strength · hypertrophy", avg: "$60–$150 / session average", hue: ["#1ec0a8", "#1ec0a8"] },
+  { role: "Trainer", name: "Maya Okafor", city: "Brooklyn", price: 120, cadence: "/mo", note: "Strength · hypertrophy", avg: "$60–$150 / session average", hue: ["#0ac5a8", "#0ac5a8"] },
   { role: "Nutritionist", name: "Rae Lindqvist", city: "Lisbon", price: 180, cadence: "/mo", note: "Endurance · plant-based", avg: "$120–$250 / consult average", hue: ["#d2693f", "#e79a52"] },
-  { role: "Trainer", name: "Diego Alvarez", city: "Mexico City", price: 95, cadence: "/mo", note: "Run coaching · mobility", avg: "$60–$150 / session average", hue: ["#1f6f62", "#1ec0a8"] },
+  { role: "Trainer", name: "Diego Alvarez", city: "Mexico City", price: 95, cadence: "/mo", note: "Run coaching · mobility", avg: "$60–$150 / session average", hue: ["#1f6f62", "#0ac5a8"] },
 ];
 
 const PRICING_FAQ = [
@@ -186,7 +186,7 @@ function PricingFAQ() {
 function PricingCTA() {
   return (
     <section style={{ padding: "60px 72px 120px" }}>
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "60px", background: "rgba(30,192,168,0.07)", border: "1px solid rgba(30,192,168,0.28)", borderRadius: 6, display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 40, alignItems: "center", position: "relative", overflow: "hidden" }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "60px", background: "rgba(10,197,168,0.07)", border: "1px solid rgba(10,197,168,0.28)", borderRadius: 6, display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 40, alignItems: "center", position: "relative", overflow: "hidden" }}>
         <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${TEAL}, ${RUST})`, opacity: 0.7 }} />
         <div>
           <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.2em", textTransform: "uppercase", color: TEAL_BRIGHT, marginBottom: 16 }}>One platform fee · one marketplace</div>

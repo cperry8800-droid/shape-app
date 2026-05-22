@@ -244,7 +244,7 @@ function RadioCoachPlaylists() {
         </div>
 
         {/* sub-row — send to a friend */}
-        <div style={{ marginTop: 32, padding: "28px 32px", background: "rgba(30,192,168,0.06)", border: "1px solid rgba(30,192,168,0.2)", borderRadius: 12, display: "grid", gridTemplateColumns: "1fr auto", gap: 40, alignItems: "center" }}>
+        <div style={{ marginTop: 32, padding: "28px 32px", background: "rgba(10,197,168,0.06)", border: "1px solid rgba(10,197,168,0.2)", borderRadius: 12, display: "grid", gridTemplateColumns: "1fr auto", gap: 40, alignItems: "center" }}>
           <div>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 8 }}>AND · SOCIAL LOOP</div>
             <div style={{ fontFamily: serif, fontSize: 28, letterSpacing: "-0.018em", lineHeight: 1.15 }}>Good playlists travel. Pass them to lifting partners, running buddies, or community groups — Shape tracks the chain back to the coach.</div>
@@ -262,7 +262,7 @@ function RadioInClientApp() {
   // PAPER/INK constants used elsewhere in this file.
   const PAPER_LIGHT = "#efe5cd";
   const INK_DARK = "#0a0d0c";
-  const TEAL_ACCENT = "#1ec0a8";
+  const TEAL_ACCENT = "#0ac5a8";
   const HAIRLINE = "rgba(10,13,12,0.08)";
   const HAIRLINE_2 = "rgba(10,13,12,0.06)";
 

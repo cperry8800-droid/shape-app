@@ -11,7 +11,7 @@ function ClientOvHero() {
     <section style={{ padding: "120px 72px 100px", position: "relative", overflow: "hidden", minHeight: "88vh", display: "flex", alignItems: "center", color: LIGHT }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", width: "100%", position: "relative", display: "grid", gridTemplateColumns: "1.25fr 1fr", gap: 80, alignItems: "center" }}>
         <div>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "7px 14px", borderRadius: 999, background: "rgba(30,192,168,0.12)", border: "1px solid rgba(30,192,168,0.35)", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 40 }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "7px 14px", borderRadius: 999, background: "rgba(10,197,168,0.12)", border: "1px solid rgba(10,197,168,0.35)", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 40 }}>
             <span style={{ width: 6, height: 6, borderRadius: 999, background: TEAL }}></span>
             For members
           </div>
@@ -304,7 +304,7 @@ function ClientOvFAQ() {
 function ClientOvCTA() {
   return (
     <section style={{ padding: "140px 72px", background: DARK, color: LIGHT, position: "relative", overflow: "hidden" }}>
-      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(800px 500px at 50% 100%, rgba(30,192,168,0.14), transparent 70%)" }} />
+      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(800px 500px at 50% 100%, rgba(10,197,168,0.14), transparent 70%)" }} />
       <div style={{ maxWidth: 1100, margin: "0 auto", position: "relative", textAlign: "center" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 28 }}>Find your coach</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(60px, 8vw, 132px)", letterSpacing: "-0.04em", fontWeight: 400, lineHeight: 0.92, margin: "0 0 48px" }}>

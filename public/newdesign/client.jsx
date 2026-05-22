@@ -205,7 +205,7 @@ function ClientDashboard() {
           </div>
           {TODAY.map((t, i) => <TodayRow key={i} t={t} />)}
 
-          <div style={{ marginTop: 32, padding: 24, background: "rgba(30,192,168,0.06)", borderRadius: 10 }}>
+          <div style={{ marginTop: 32, padding: 24, background: "rgba(10,197,168,0.06)", borderRadius: 10 }}>
             <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 8 }}>Note from Maya · 2h ago</div>
             <p style={{ fontFamily: serif, fontSize: 17, fontStyle: "italic", lineHeight: 1.4, color: INK, margin: 0 }}>"Form check on the incline press last session was clean. Push to 60 lb today if bar speed stays crisp."</p>
           </div>
@@ -236,7 +236,7 @@ function ClientDashboard() {
                   <div style={{ fontFamily: sans, fontSize: 14, fontWeight: 500, color: INK }}>{n}</div>
                   <div style={{ fontFamily: sans, fontSize: 12, color: "rgba(242,237,228,0.55)" }}>{r} · {next}</div>
                 </div>
-                <button style={{ padding: "6px 12px", borderRadius: 999, background: "rgba(30,192,168,0.1)", color: TEAL, border: 0, fontFamily: sans, fontSize: 11, fontWeight: 500, cursor: "pointer" }}>Message</button>
+                <button style={{ padding: "6px 12px", borderRadius: 999, background: "rgba(10,197,168,0.1)", color: TEAL, border: 0, fontFamily: sans, fontSize: 11, fontWeight: 500, cursor: "pointer" }}>Message</button>
               </div>
             ))}
           </div>

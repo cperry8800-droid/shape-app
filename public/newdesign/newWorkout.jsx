@@ -192,7 +192,7 @@ function NewWorkoutPage() {
                 </div>
               ))}
             </div>
-            <button onClick={addBlock} style={{ marginTop: 14, background: "transparent", color: TEAL_BRIGHT, border: "1px dashed rgba(30,192,168,0.35)", padding: "10px 14px", borderRadius: 8, fontFamily: sans, fontSize: 13, cursor: "pointer", width: "100%" }}>+ Add block</button>
+            <button onClick={addBlock} style={{ marginTop: 14, background: "transparent", color: TEAL_BRIGHT, border: "1px dashed rgba(10,197,168,0.35)", padding: "10px 14px", borderRadius: 8, fontFamily: sans, fontSize: 13, cursor: "pointer", width: "100%" }}>+ Add block</button>
           </Card>
 
           <Card>
@@ -244,13 +244,13 @@ function NewWorkoutPage() {
                 ))}
               </div>
             )}
-            <button onClick={() => setPickerOpen(true)} style={{ width: "100%", background: "transparent", color: TEAL_BRIGHT, border: "1px dashed rgba(30,192,168,0.35)", padding: "10px 14px", borderRadius: 8, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>+ Add client</button>
+            <button onClick={() => setPickerOpen(true)} style={{ width: "100%", background: "transparent", color: TEAL_BRIGHT, border: "1px dashed rgba(10,197,168,0.35)", padding: "10px 14px", borderRadius: 8, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>+ Add client</button>
           </Card>
 
           <Card>
             <SectionTitle>Preview</SectionTitle>
             <div style={{ background: "rgba(242,237,228,0.02)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: 18 }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, padding: "5px 10px", background: "rgba(30,192,168,0.1)", color: TEAL, borderRadius: 4, letterSpacing: "0.06em", textTransform: "uppercase", display: "inline-block" }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, padding: "5px 10px", background: "rgba(10,197,168,0.1)", color: TEAL, borderRadius: 4, letterSpacing: "0.06em", textTransform: "uppercase", display: "inline-block" }}>
                 {tag} · {minutes} min
               </div>
               <div style={{ fontFamily: serif, fontSize: 22, marginTop: 12, letterSpacing: "-0.01em" }}>{title || "Untitled workout"}</div>
@@ -280,7 +280,7 @@ function NewWorkoutPage() {
 
 function Avatar({ initials }) {
   return (
-    <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(30,192,168,0.15)", color: TEAL_BRIGHT, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 500, flex: "none" }}>
+    <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(10,197,168,0.15)", color: TEAL_BRIGHT, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 500, flex: "none" }}>
       {initials}
     </div>
   );
@@ -302,7 +302,7 @@ function ClientPicker({ clients, selectedIds, onToggle, onClose }) {
           {filtered.map(c => {
             const checked = selectedIds.includes(c.id);
             return (
-              <label key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 24px", cursor: "pointer", background: checked ? "rgba(30,192,168,0.06)" : "transparent" }}>
+              <label key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 24px", cursor: "pointer", background: checked ? "rgba(10,197,168,0.06)" : "transparent" }}>
                 <input type="checkbox" checked={checked} onChange={() => onToggle(c.id)} style={{ accentColor: TEAL, width: 16, height: 16 }} />
                 <Avatar initials={c.avatar} />
                 <div style={{ flex: 1 }}>

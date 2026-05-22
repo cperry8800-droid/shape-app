@@ -7,7 +7,7 @@
   --ink-70: rgba(242, 237, 228, 0.7);
   --ink-50: rgba(242, 237, 228, 0.5);
   --hair: rgba(242, 237, 228, 0.1);
-  --teal: #1ec0a8;
+  --teal: #0ac5a8;
   --gold: #d9b26a;
   --coral: #e37a5a;
   --serif: "Fraunces", Georgia, serif;
@@ -46,7 +46,7 @@ button {
   max-width: 520px;
   margin: 0 auto;
   background:
-    radial-gradient(circle at 50% 0%, rgba(30, 192, 168, 0.12), transparent 34%),
+    radial-gradient(circle at 50% 0%, rgba(10, 197, 168, 0.12), transparent 34%),
     var(--paper);
   position: relative;
   overflow: hidden;
@@ -296,8 +296,8 @@ button {
 }
 
 .schedule-item.active {
-  border-color: rgba(30, 192, 168, 0.45);
-  background: rgba(30, 192, 168, 0.07);
+  border-color: rgba(10, 197, 168, 0.45);
+  background: rgba(10, 197, 168, 0.07);
 }
 
 .schedule-item time {
@@ -376,7 +376,7 @@ button {
 }
 
 .coach-card.selected {
-  border-color: rgba(30, 192, 168, 0.5);
+  border-color: rgba(10, 197, 168, 0.5);
 }
 
 .coach-image {
@@ -424,7 +424,7 @@ button {
 .score-badge {
   padding: 8px 10px;
   border-radius: 999px;
-  background: rgba(30, 192, 168, 0.14);
+  background: rgba(10, 197, 168, 0.14);
   color: var(--teal);
   font-family: var(--mono);
   font-size: 11px;
@@ -456,7 +456,7 @@ button {
 
 .rings span:nth-child(2) {
   inset: 10px;
-  border-color: rgba(30, 192, 168, 0.58);
+  border-color: rgba(10, 197, 168, 0.58);
 }
 
 .rings span:nth-child(3) {
@@ -619,7 +619,7 @@ button {
 
 .tabbar button.active {
   color: var(--teal);
-  background: rgba(30, 192, 168, 0.08);
+  background: rgba(10, 197, 168, 0.08);
 }
 
 .tabbar span {

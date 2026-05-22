@@ -153,7 +153,7 @@ function PricingFAQ() {
 function PricingCTA() {
   return (
     <section style={{ padding: "60px 40px 100px" }}>
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "56px 56px", background: "rgba(30,192,168,0.08)", border: "1px solid rgba(30,192,168,0.25)", borderRadius: 14, display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 40, alignItems: "center" }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "56px 56px", background: "rgba(10,197,168,0.08)", border: "1px solid rgba(10,197,168,0.25)", borderRadius: 14, display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 40, alignItems: "center" }}>
         <div>
           <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL_BRIGHT, marginBottom: 14 }}>One platform fee. One marketplace.</div>
           <h2 style={{ fontFamily: serif, fontSize: 56, letterSpacing: "-0.03em", fontWeight: 400, margin: 0, lineHeight: 0.95 }}>$5 a month. <em style={{ fontStyle: "italic", color: TEAL }}>Cancel any time.</em></h2>

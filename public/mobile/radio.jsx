@@ -208,7 +208,7 @@ function RadioCoachPlaylists() {
         </div>
 
         {/* sub-row — send to a friend */}
-        <div style={{ marginTop: 32, padding: "28px 32px", background: "rgba(30,192,168,0.06)", border: "1px solid rgba(30,192,168,0.2)", borderRadius: 12, display: "grid", gridTemplateColumns: "1fr auto", gap: 40, alignItems: "center" }}>
+        <div style={{ marginTop: 32, padding: "28px 32px", background: "rgba(10,197,168,0.06)", border: "1px solid rgba(10,197,168,0.2)", borderRadius: 12, display: "grid", gridTemplateColumns: "1fr auto", gap: 40, alignItems: "center" }}>
           <div>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 8 }}>AND · SOCIAL LOOP</div>
             <div style={{ fontFamily: serif, fontSize: 28, letterSpacing: "-0.018em", lineHeight: 1.15 }}>Good playlists travel. Pass them to lifting partners, running buddies, or community groups — Shape tracks the chain back to the coach.</div>

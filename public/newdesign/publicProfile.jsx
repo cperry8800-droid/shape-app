@@ -202,7 +202,7 @@ const PROFILE = {
 
 function Pill({ children, tone = "default" }) {
   const styles = {
-    default: { background: "rgba(30,192,168,0.1)", color: TEAL },
+    default: { background: "rgba(10,197,168,0.1)", color: TEAL },
     muted: { background: "rgba(242,237,228,0.06)", color: "rgba(242,237,228,0.7)" },
   };
   return <span style={{ fontFamily: sans, fontSize: 11.5, padding: "5px 11px", borderRadius: 999, letterSpacing: "0.02em", ...styles[tone] }}>{children}</span>;
@@ -224,7 +224,7 @@ function PublicHero({ p, kind }) {
 
       {/* Hero body */}
       <div style={{ padding: "0 40px 56px", position: "relative" }}>
-        <div style={{ position: "absolute", inset: 0, background: "radial-gradient(circle at 20% 30%, rgba(30,192,168,0.08) 0%, transparent 50%)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", inset: 0, background: "radial-gradient(circle at 20% 30%, rgba(10,197,168,0.08) 0%, transparent 50%)", pointerEvents: "none" }} />
         <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
           <div style={{ display: "grid", gridTemplateColumns: "220px 1fr 320px", gap: 48, alignItems: "start", marginTop: -110 }}>
           <div>
@@ -367,7 +367,7 @@ function SamplesSection({ p, kind }) {
               <div style={{ fontFamily: serif, fontSize: 32, letterSpacing: "-0.02em", color: INK, lineHeight: 1.1 }}>{s.title}</div>
               <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)", marginTop: 6 }}>{s.meta}</div>
             </div>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, padding: "6px 12px", background: "rgba(30,192,168,0.1)", color: TEAL, borderRadius: 4, letterSpacing: "0.06em", textTransform: "uppercase" }}>{s.tag}</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, padding: "6px 12px", background: "rgba(10,197,168,0.1)", color: TEAL, borderRadius: 4, letterSpacing: "0.06em", textTransform: "uppercase" }}>{s.tag}</span>
           </div>
           <div>
             {s.blocks.map((b, i) => (
@@ -401,7 +401,7 @@ function PackageCard({ pk, kind, samples }) {
   const canPreview = pk.kind === "one-time" && Array.isArray(samples) && samples.length > 0;
   return (
     <div style={{
-      background: pk.featured ? "rgba(30,192,168,0.08)" : "rgba(242,237,228,0.04)",
+      background: pk.featured ? "rgba(10,197,168,0.08)" : "rgba(242,237,228,0.04)",
       color: INK,
       border: pk.featured ? `1px solid ${TEAL}` : "1px solid rgba(242,237,228,0.1)",
       borderRadius: 12,
@@ -413,7 +413,7 @@ function PackageCard({ pk, kind, samples }) {
       {pk.featured && <span style={{ position: "absolute", top: -12, left: 28, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: PAPER, background: TEAL, padding: "5px 10px", borderRadius: 4, fontWeight: 600 }}>Most popular</span>}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.12em", textTransform: "uppercase", color: TEAL }}>{pk.name}</div>
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", padding: "3px 7px", borderRadius: 3, background: pk.kind === "subscription" ? "rgba(30,192,168,0.12)" : "rgba(242,237,228,0.06)", color: pk.kind === "subscription" ? TEAL : "rgba(242,237,228,0.55)" }}>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", padding: "3px 7px", borderRadius: 3, background: pk.kind === "subscription" ? "rgba(10,197,168,0.12)" : "rgba(242,237,228,0.06)", color: pk.kind === "subscription" ? TEAL : "rgba(242,237,228,0.55)" }}>
           {pk.kind === "subscription" ? "Subscription" : "One-time"}
         </span>
       </div>
@@ -494,7 +494,7 @@ function SamplePreviewModal({ samples, kind, pkName, onClose }) {
           </div>
         )}
         <div style={{ padding: "10px 0 18px" }}>
-          <span style={{ display: "inline-block", margin: "6px 30px 16px", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, padding: "5px 10px", background: "rgba(30,192,168,0.1)", color: TEAL, borderRadius: 4, letterSpacing: "0.06em", textTransform: "uppercase" }}>{s.tag}</span>
+          <span style={{ display: "inline-block", margin: "6px 30px 16px", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, padding: "5px 10px", background: "rgba(10,197,168,0.1)", color: TEAL, borderRadius: 4, letterSpacing: "0.06em", textTransform: "uppercase" }}>{s.tag}</span>
           {s.blocks.map((b, i) => (
             <div key={i} style={{ display: "grid", gridTemplateColumns: "72px 1fr 1.2fr 1.4fr", gap: 16, padding: "14px 30px", borderTop: "1px solid rgba(242,237,228,0.06)", alignItems: "center" }}>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: TEAL, letterSpacing: "0.06em" }}>{b.label}</div>
@@ -570,7 +570,7 @@ function AvailabilitySection({ p }) {
                 {s.times.map((t, j) => (
                   t === "—"
                     ? <div key={j} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.25)" }}>—</div>
-                    : <button key={j} style={{ padding: "8px 10px", borderRadius: 6, background: "rgba(30,192,168,0.1)", color: TEAL, border: "1px solid rgba(30,192,168,0.25)", fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, cursor: "pointer", textAlign: "center", letterSpacing: "0.04em" }}>{t}</button>
+                    : <button key={j} style={{ padding: "8px 10px", borderRadius: 6, background: "rgba(10,197,168,0.1)", color: TEAL, border: "1px solid rgba(10,197,168,0.25)", fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, cursor: "pointer", textAlign: "center", letterSpacing: "0.04em" }}>{t}</button>
                 ))}
               </div>
             </div>
@@ -755,7 +755,7 @@ const COVER_PRESETS = {
 };
 
 const ACCENT_PRESETS = [
-  { label: "Shape teal",   value: "#1ec0a8" },
+  { label: "Shape teal",   value: "#0ac5a8" },
   { label: "Ember",        value: "#e86b3a" },
   { label: "Electric",     value: "#7ab8ff" },
   { label: "Bloom",        value: "#e06bb0" },
@@ -784,7 +784,7 @@ const MUSIC_PRESETS = {
 const THEME_DEFAULTS = /*EDITMODE-BEGIN*/{
   "coverKey": "gym-floor",
   "coverUrl": "",
-  "accent": "#1ec0a8",
+  "accent": "#0ac5a8",
   "mode": "dark",
   "paperShade": 12,
   "widgetOpacity": 4,
@@ -1083,7 +1083,7 @@ function ThemeTweaksPanel({ theme, onChange, onUploadCover, onReset, hostVisible
             return (
               <button key={key} onClick={() => onChange({ bgMusicKey: key, bgMusicUrl: "", bgMusicLabel: m.label, bgMusicEnabled: true })} style={{
                 textAlign: "left", padding: "8px 10px", borderRadius: 6,
-                background: active ? "rgba(30,192,168,0.14)" : "rgba(242,237,228,0.04)",
+                background: active ? "rgba(10,197,168,0.14)" : "rgba(242,237,228,0.04)",
                 color: "#f2ede4",
                 border: active ? `1px solid ${theme.accent}` : "1px solid rgba(242,237,228,0.1)",
                 fontSize: 11.5, fontFamily: "'Space Grotesk', sans-serif", cursor: "pointer", lineHeight: 1.25,
@@ -1118,7 +1118,7 @@ function TweakSlider({ label, value, min, max, onChange, suffix }) {
       <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase", marginBottom: 6 }}>
         <span>{label}</span><span>{value}{suffix}</span>
       </div>
-      <input type="range" min={min} max={max} value={value} onChange={(e) => onChange(+e.target.value)} style={{ width: "100%", accentColor: "#1ec0a8" }}/>
+      <input type="range" min={min} max={max} value={value} onChange={(e) => onChange(+e.target.value)} style={{ width: "100%", accentColor: "#0ac5a8" }}/>
     </div>
   );
 }

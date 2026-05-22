@@ -4,7 +4,7 @@
 
 const CP_PAPER = "#1a1612";
 const CP_INK = "#f2ede4";
-const CP_TEAL = "#1ec0a8";
+const CP_TEAL = "#0ac5a8";
 const CP_TEAL_BRIGHT = "#2ee0c4";
 const cpSerif = "'Fraunces', serif";
 const cpSans = "'Space Grotesk', sans-serif";

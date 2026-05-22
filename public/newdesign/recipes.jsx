@@ -123,7 +123,7 @@ function RecipeModal({ recipe, onClose }) {
         </div>
         <div style={{ padding: "22px 28px", overflowY: "auto" }}>
           <div style={{ display: "flex", gap: 18, marginBottom: 18, flexWrap: "wrap" }}>
-            <Macro label="P" value={recipe.macros.p} color="#1ec0a8" />
+            <Macro label="P" value={recipe.macros.p} color="#0ac5a8" />
             <Macro label="C" value={recipe.macros.c} color="#f4b860" />
             <Macro label="F" value={recipe.macros.f} color="#e07856" />
           </div>
@@ -183,7 +183,7 @@ function RecipeOfTheDayWidget({ recipe }) {
         <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.02em", lineHeight: 1.1, marginBottom: 8 }}>{r.title}</div>
         <div style={{ fontSize: 13, color: "rgba(242,237,228,0.7)", marginBottom: 10, lineHeight: 1.5 }}>{r.note}</div>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
-          <Macro label="P" value={r.macros.p} color="#1ec0a8" />
+          <Macro label="P" value={r.macros.p} color="#0ac5a8" />
           <Macro label="C" value={r.macros.c} color="#f4b860" />
           <Macro label="F" value={r.macros.f} color="#e07856" />
           <div style={{ display: "flex", gap: 6, marginLeft: 4 }}>

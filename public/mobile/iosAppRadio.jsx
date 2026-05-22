@@ -12,7 +12,7 @@ const LIVE_STATION = {
   bpm: 132,
   listeners: 3472,
   nextUp: 'Live mix all day',
-  color: '#1ec0a8',
+  color: '#0ac5a8',
   // mock track ticker
   tracks: [
     { t: '— now —', a: 'Roots of the Machine', b: 'MERIT · 132 BPM' },
@@ -226,7 +226,7 @@ function RadioScreen({ onBack }) {
 
           {/* Up next */}
           <div style={{ padding: '22px 24px 0' }}>
-            <EdCard pad={16} tint="linear-gradient(135deg, rgba(30,192,168,0.08), rgba(30,192,168,0.02))" style={{ border: `1px solid rgba(30,192,168,0.2)` }}>
+            <EdCard pad={16} tint="linear-gradient(135deg, rgba(10,197,168,0.08), rgba(10,197,168,0.02))" style={{ border: `1px solid rgba(10,197,168,0.2)` }}>
               <MLabel color={accent}>Up next</MLabel>
               <div style={{ marginTop: 8, fontFamily: SERIF, fontSize: 20, letterSpacing: '-0.02em', color: INK, lineHeight: 1.15 }}>
                 {LIVE_STATION.nextUp}
@@ -321,7 +321,7 @@ function RadioScreen({ onBack }) {
 
       {/* Info */}
       <div style={{ padding: '22px 24px 0' }}>
-        <EdCard pad={14} tint="linear-gradient(145deg, rgba(30,192,168,0.06), rgba(30,192,168,0.01))" style={{ border: `1px solid rgba(30,192,168,0.15)` }}>
+        <EdCard pad={14} tint="linear-gradient(145deg, rgba(10,197,168,0.06), rgba(10,197,168,0.01))" style={{ border: `1px solid rgba(10,197,168,0.15)` }}>
           <MLabel color={LIVE_STATION.color}>How Radio works</MLabel>
           <div style={{ marginTop: 8, fontFamily: SANS, fontSize: 13, color: INK_60, letterSpacing: -0.1, lineHeight: 1.5 }}>
             One live stream, curated by Shape residents. Your coach and nutritionist can send you playlists tied to specific workouts or meal preps — those show up here. No ads, ever. Free with your membership.
@@ -385,10 +385,10 @@ function ChannelRow({ active, accent, onClick, left, eyebrow, eyebrowColor, titl
 // accent: TEAL (client), CORAL (trainer), GOLD (nutri)
 // ─────────────────────────────────────────────────────────────
 function HomeRadioCard({ onRadio, radioOn, setRadioOn, accent = TEAL, track = 'Roots of the Machine', meta = 'MERIT · 132 BPM · 3,472 ON' }) {
-  const accentTint = accent === TEAL  ? 'rgba(30,192,168,0.12)' :
+  const accentTint = accent === TEAL  ? 'rgba(10,197,168,0.12)' :
                      accent === CORAL ? 'rgba(227,122,90,0.12)'  :
                      accent === GOLD  ? 'rgba(217,178,106,0.14)' :
-                                        'rgba(30,192,168,0.12)';
+                                        'rgba(10,197,168,0.12)';
   const accentDark = accent === TEAL  ? '#14806f' :
                      accent === CORAL ? '#a8553c' :
                      accent === GOLD  ? '#a8874a' : '#14806f';

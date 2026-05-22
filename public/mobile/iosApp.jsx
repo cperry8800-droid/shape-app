@@ -8,12 +8,12 @@ const { useState, useEffect, useRef } = React;
 // Shape brand tokens (iOS app palette — warmer, more vibrant than marketing site)
 // ─────────────────────────────────────────────────────────────
 // Shape brand palette
-//   PAPER = #1a1612 (warm near-black) · INK = #f2ede4 (cream) · TEAL = #1ec0a8
+//   PAPER = #1a1612 (warm near-black) · INK = #f2ede4 (cream) · TEAL = #0ac5a8
 // Light mode in the app = cream paper on dark ink text.
 // Dark mode = true Shape Paper (#1a1612) background.
 const SHAPE = {
   // brand
-  accent: '#1ec0a8',      // Shape teal
+  accent: '#0ac5a8',      // Shape teal
   accentBright: '#2ee0c4',
   accentDark: '#168f7f',
   paper: '#1a1612',       // warm near-black

@@ -235,7 +235,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
 
   // ── 4. VAULT: ink background with hairline frame, monogram
   if (style === 'vault') {
-    const TEAL = '#1ec0a8';
+    const TEAL = '#0ac5a8';
     return (
       <div style={{ position: 'absolute', inset: 0, background: t.INK, color: t.PAPER, padding: 18 }}>
         <div style={{ position: 'absolute', inset: 18, border: `1px solid ${t.PAPER}`, opacity: 0.35 }} />

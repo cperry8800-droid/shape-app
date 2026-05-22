@@ -318,7 +318,7 @@ async function sendApplicationEmails(ctx: EmailContext): Promise<void> {
       <table style="width:100%;border-collapse:collapse;font-size:14px;">
         ${adminRows.map(([k, v]) => `<tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;width:160px;vertical-align:top;">${escapeHtml(k)}</td><td style="padding:8px 12px;border-bottom:1px solid #eee;">${escapeHtml(v)}</td></tr>`).join('')}
       </table>
-      <p style="margin:20px 0 0;"><a href="${escapeHtml(siteUrl)}/dashboard/applications" style="display:inline-block;background:#1ec0a8;color:#06100e;text-decoration:none;padding:10px 14px;border-radius:999px;font-size:13px;font-weight:600;">Open application review</a></p>
+      <p style="margin:20px 0 0;"><a href="${escapeHtml(siteUrl)}/dashboard/applications" style="display:inline-block;background:#0ac5a8;color:#06100e;text-decoration:none;padding:10px 14px;border-radius:999px;font-size:13px;font-weight:600;">Open application review</a></p>
       ${ctx.applicationId ? `<p style="margin:20px 0 0;color:#999;font-size:12px;">Application ID: ${escapeHtml(ctx.applicationId)}</p>` : ''}
     </div>
   `;
@@ -349,7 +349,7 @@ async function sendApplicationEmails(ctx: EmailContext): Promise<void> {
       </ol>
       <p style="margin:0 0 16px;line-height:1.55;">Reminder on pricing: there's no monthly fee to be on Shape. We take a <strong>15% platform fee</strong> on everything your clients pay you — so you only pay Shape when you earn.</p>
       <p style="margin:0 0 16px;line-height:1.55;">Questions in the meantime? Just reply to this email.</p>
-      <p style="margin:24px 0 0;color:#666;font-size:13px;">— The Shape team<br/><a href="https://theshapecommunity.com" style="color:#1ec0a8;">theshapecommunity.com</a></p>
+      <p style="margin:24px 0 0;color:#666;font-size:13px;">— The Shape team<br/><a href="https://theshapecommunity.com" style="color:#0ac5a8;">theshapecommunity.com</a></p>
     </div>
   `;
   const applicantText = [

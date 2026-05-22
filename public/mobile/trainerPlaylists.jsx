@@ -35,7 +35,7 @@ const TRAINER_PLAYLISTS = [
     trackCount: 42,
     duration: "2h 58m",
     cover: "linear-gradient(135deg, #1c5a4a 0%, #1a1612 70%)",
-    accent: "#1EC0A8",
+    accent: "#0ac5a8",
     attachedTo: ["tpl-zone2", "tpl-marathon-base"],
     shared: true,
     updated: "6d ago",

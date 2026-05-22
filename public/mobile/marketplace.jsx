@@ -209,7 +209,7 @@ function MarketplaceHero({ tab, setTab }) {
 
 function Filters({ tab, cat, setCat, sort, setSort, format, setFormat, loc, setLoc, query, setQuery }) {
   const pill = (on) => ({ padding: "8px 14px", borderRadius: 999, border: on ? `1px solid ${INK}` : "1px solid rgba(242,237,228,0.18)", background: on ? INK : "transparent", color: on ? PAPER : INK, fontFamily: sans, fontSize: 12.5, cursor: "pointer", fontWeight: on ? 500 : 400, whiteSpace: "nowrap" });
-  const small = (on) => ({ padding: "7px 11px", borderRadius: 999, border: on ? `1px solid ${TEAL}` : "1px solid rgba(242,237,228,0.18)", background: on ? "rgba(30,192,168,0.12)" : "transparent", color: on ? TEAL : "rgba(242,237,228,0.75)", fontFamily: sans, fontSize: 11.5, cursor: "pointer", fontWeight: on ? 500 : 400, whiteSpace: "nowrap", letterSpacing: "0.02em" });
+  const small = (on) => ({ padding: "7px 11px", borderRadius: 999, border: on ? `1px solid ${TEAL}` : "1px solid rgba(242,237,228,0.18)", background: on ? "rgba(10,197,168,0.12)" : "transparent", color: on ? TEAL : "rgba(242,237,228,0.75)", fontFamily: sans, fontSize: 11.5, cursor: "pointer", fontWeight: on ? 500 : 400, whiteSpace: "nowrap", letterSpacing: "0.02em" });
   const cats = CATEGORIES[tab];
   const formats = ["All formats", "In-person", "Remote", "Hybrid"];
   const locations = LOCATIONS[tab];
@@ -256,7 +256,7 @@ function CoachCard({ c }) {
         <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.65)", margin: 0 }}>{c.role}</div>
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
           {c.specialties.slice(0, 2).map((s) =>
-            <span key={s} style={{ fontFamily: sans, fontSize: 10.5, padding: "3px 8px", borderRadius: 999, background: "rgba(30,192,168,0.1)", color: TEAL }}>{s}</span>
+            <span key={s} style={{ fontFamily: sans, fontSize: 10.5, padding: "3px 8px", borderRadius: 999, background: "rgba(10,197,168,0.1)", color: TEAL }}>{s}</span>
           )}
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "auto", paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.08)" }}>

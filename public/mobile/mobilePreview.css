@@ -220,7 +220,7 @@ html.mobile-preview-active footer > div > div:last-child {
   font-size: 10px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: #1ec0a8;
+  color: #0ac5a8;
   margin-bottom: 10px;
 }
 #__mobile-preview-panel label {
@@ -254,7 +254,7 @@ html.mobile-preview-active footer > div > div:last-child {
   transition: transform 0.2s;
 }
 #__mobile-preview-panel input[type="checkbox"]:checked {
-  background: #1ec0a8;
+  background: #0ac5a8;
 }
 #__mobile-preview-panel input[type="checkbox"]:checked::after {
   transform: translateX(14px);
