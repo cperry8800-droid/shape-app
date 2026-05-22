@@ -445,6 +445,52 @@
   });
 })();
 </script>
+<script>
+/* Reflect signed-in state in the top nav: swap Log in / Get started for the
+   user's name, a Dashboard link, and Sign out. Mirrors the React portal
+   Header used on the other newdesign pages. */
+(function(){
+  fetch('/api/me',{credentials:'same-origin'})
+    .then(function(r){return r.ok?r.json():null;})
+    .then(function(d){
+      if(!d||!d.user)return;
+      var nauth=document.querySelector('nav .nauth');
+      if(!nauth)return;
+      var u=d.user;
+      var role=u.role||'client';
+      var dash=role==='trainer'?'TrainerDashboard.html'
+        :role==='nutritionist'?'NutritionistDashboard.html'
+        :'ClientDashboard.html';
+      var login=nauth.querySelector('.login');
+      var cta=nauth.querySelector('.ncta');
+      var radio=nauth.querySelector('.nradio');
+      if(login)login.remove();
+      if(cta)cta.remove();
+      var hi=document.createElement('span');
+      hi.className='login';
+      hi.style.color='var(--cream)';
+      hi.textContent='Hi, '+(u.firstName||u.email||'there');
+      var dashLink=document.createElement('a');
+      dashLink.className='login';
+      dashLink.href=dash;
+      dashLink.textContent='Dashboard';
+      var out=document.createElement('a');
+      out.className='ncta';
+      out.href='#';
+      out.textContent='Sign out';
+      out.addEventListener('click',function(e){
+        e.preventDefault();
+        fetch('/api/auth/signout',{method:'POST',credentials:'same-origin'})
+          .catch(function(){})
+          .then(function(){window.location.href='index.html?home';});
+      });
+      nauth.insertBefore(hi,radio);
+      nauth.insertBefore(dashLink,radio);
+      nauth.insertBefore(out,radio);
+    })
+    .catch(function(){});
+})();
+</script>
 <script src="globalChatButton.js" defer></script>
 </body>
 </html>
