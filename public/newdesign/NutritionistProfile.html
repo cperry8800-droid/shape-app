@@ -24,7 +24,59 @@ function Row({ label, value, action }) {
     </div>
   );
 }
+
+function formatBytes(b) {
+  if (!b) return "";
+  const units = ["B", "KB", "MB", "GB"];
+  let i = 0, n = b;
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  return n.toFixed(n < 10 && i > 0 ? 1 : 0) + " " + units[i];
+}
+
+function VideoUpload({ video, onPick, onClear, hint }) {
+  const inputRef = React.useRef(null);
+  const open = () => inputRef.current && inputRef.current.click();
+  const onInputChange = (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (f) onPick(f);
+    e.target.value = "";
+  };
+  const ghostBtn = { background: "transparent", color: "rgba(242,237,228,0.78)", border: "1px solid rgba(242,237,228,0.18)", padding: "6px 12px", borderRadius: 999, fontFamily: sans, fontSize: 12, cursor: "pointer" };
+  return (
+    <div>
+      <input ref={inputRef} type="file" accept="video/*" style={{ display: "none" }} onChange={onInputChange} />
+      {!video && (
+        <button type="button" onClick={open} style={{ width: "100%", background: "transparent", color: TEAL_BRIGHT, border: "1px dashed rgba(10,197,168,0.35)", padding: "22px 14px", borderRadius: 10, fontFamily: sans, fontSize: 13.5, cursor: "pointer" }}>
+          + Upload a demo video
+        </button>
+      )}
+      {video && (
+        <div>
+          <video src={video.url} controls style={{ width: "100%", borderRadius: 10, display: "block", background: "#000", maxHeight: 320 }} />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, gap: 10 }}>
+            <div style={{ fontSize: 12, color: "rgba(242,237,228,0.7)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{video.name} · {video.size}</div>
+            <div style={{ display: "flex", gap: 8, flex: "none" }}>
+              <button type="button" onClick={open} style={ghostBtn}>Replace</button>
+              <button type="button" onClick={onClear} style={ghostBtn}>Remove</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {hint && !video && <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", lineHeight: 1.5, marginTop: 10 }}>{hint}</div>}
+    </div>
+  );
+}
+
 function NutritionistProfilePage() {
+  const [video, setVideo] = React.useState(null);
+  const pickVideo = (file) => {
+    if (video && video.url) URL.revokeObjectURL(video.url);
+    setVideo({ name: file.name, size: formatBytes(file.size), url: URL.createObjectURL(file) });
+  };
+  const clearVideo = () => {
+    if (video && video.url) URL.revokeObjectURL(video.url);
+    setVideo(null);
+  };
   return (
     <DashPage
       navItems={nutriNavItems("profile")}
@@ -160,6 +212,12 @@ function NutritionistProfilePage() {
           <Row label="Background check" value="Checkr · cleared Mar '24" action="VIEW" />
         </Card>
       </div>
+
+      <Card style={{ marginTop: 20 }}>
+        <SectionTitle>Intro / demo video</SectionTitle>
+        <VideoUpload video={video} onPick={pickVideo} onClear={clearVideo} hint="A short clip clients see on your profile before they book — how you approach nutrition, what your plans look like, what to expect from working together." />
+      </Card>
+
       <Card style={{ marginTop: 20 }}>
         <SectionTitle>Social &amp; links</SectionTitle>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 32px" }}>
