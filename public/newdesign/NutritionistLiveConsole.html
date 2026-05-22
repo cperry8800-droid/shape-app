@@ -244,7 +244,7 @@ function NutritionistLiveConsolePage() {
 
   const setFocus = (v) => setFocusById({ ...focusById, [clientId]: v });
   const sendFocus = () => {
-    if (!focus.trim()) return;
+    if (!focus.trim()) { flash("Add a focus first"); return; }
     flash("Sent to " + firstName(client.name) + "'s phone");
     if (live) {
       fetch('/api/nutritionist/console', {
@@ -256,7 +256,7 @@ function NutritionistLiveConsolePage() {
     }
   };
   const addMeal = () => {
-    if (!meal.name.trim()) return;
+    if (!meal.name.trim()) { flash("Add a meal name first"); return; }
     const payload = {
       name: meal.name.trim(),
       time: meal.time.trim() || "—",
@@ -447,12 +447,12 @@ function NutritionistLiveConsolePage() {
             />
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, gap: 12 }}>
               <div style={{ fontSize: 12, color: "rgba(242,237,228,0.5)", lineHeight: 1.45 }}>Shows as a banner at the top of {firstName(client.name)}'s app.</div>
-              <button onClick={sendFocus} disabled={!focus.trim()} style={{
-                background: focus.trim() ? TEAL : "rgba(242,237,228,0.08)",
-                color: focus.trim() ? PAPER : "rgba(242,237,228,0.4)",
+              <button onClick={sendFocus} style={{
+                background: TEAL,
+                color: PAPER,
                 border: 0, padding: "10px 20px", borderRadius: 999,
                 fontFamily: sans, fontSize: 13, fontWeight: 500,
-                cursor: focus.trim() ? "pointer" : "default", flex: "none",
+                cursor: "pointer", flex: "none",
               }}>Send</button>
             </div>
 
@@ -479,13 +479,13 @@ function NutritionistLiveConsolePage() {
               <FieldLabel>Notes (optional)</FieldLabel>
               <ConsoleInput value={meal.note} onChange={(v) => setMeal({ ...meal, note: v })} placeholder="e.g. Within 30 min of your run" />
             </div>
-            <button onClick={addMeal} disabled={!meal.name.trim()} style={{
+            <button onClick={addMeal} style={{
               marginTop: 16, width: "100%",
-              background: meal.name.trim() ? TEAL : "rgba(242,237,228,0.06)",
-              color: meal.name.trim() ? PAPER : "rgba(242,237,228,0.4)",
+              background: TEAL,
+              color: PAPER,
               border: 0, padding: "12px 18px", borderRadius: 10,
               fontFamily: sans, fontSize: 13.5, fontWeight: 500,
-              cursor: meal.name.trim() ? "pointer" : "default",
+              cursor: "pointer",
             }}>+ Add to today's plan</button>
           </Card>
 
