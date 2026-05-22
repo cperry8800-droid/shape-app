@@ -3,6 +3,7 @@ function trainerNavItems(active) {
   const items = [
     { label: "Today",     href: "TrainerDashboard.html" },
     { label: "Clients",   href: "TrainerClients.html", count: 34 },
+    { label: "Console",   href: "TrainerLiveConsole.html" },
     { label: "Programs",  href: "TrainerPrograms.html" },
     { label: "Playlists", href: "TrainerPlaylists.html" },
     { label: "Community", href: "TrainerCommunity.html" },

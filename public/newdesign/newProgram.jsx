@@ -133,6 +133,7 @@ function NewProgramPage() {
   ]);
   const [assignedIds, setAssignedIds] = React.useState([]);
   const [pickerOpen, setPickerOpen] = React.useState(false);
+  const [video, setVideo] = React.useState(null);
 
   const addWorkout = () => setWorkouts([...workouts, { week: 1, day: "Mon", title: "", ref: "" }]);
   const setWorkout = (i, patch) => setWorkouts(workouts.map((w, j) => j === i ? { ...w, ...patch } : w));
@@ -145,6 +146,14 @@ function NewProgramPage() {
     const names = TRAINER_CLIENTS.filter(c => assignedIds.includes(c.id)).map(c => c.name.split(" ")[0]).join(", ");
     alert(`Sent to ${assignedIds.length} client${assignedIds.length === 1 ? "" : "s"}: ${names}`);
     window.location.href = "TrainerPrograms.html";
+  };
+  const pickVideo = (file) => {
+    if (video && video.url) URL.revokeObjectURL(video.url);
+    setVideo({ name: file.name, size: formatBytes(file.size), url: URL.createObjectURL(file) });
+  };
+  const clearVideo = () => {
+    if (video && video.url) URL.revokeObjectURL(video.url);
+    setVideo(null);
   };
 
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -264,6 +273,11 @@ function NewProgramPage() {
               Tip — leave workouts empty to fill in later, or link to ones already in your library.
               <a href="TrainerNewWorkout.html" style={{ color: TEAL_BRIGHT, marginLeft: 6 }}>Build a new workout →</a>
             </div>
+          </Card>
+
+          <Card>
+            <SectionTitle>Demo video (optional)</SectionTitle>
+            <VideoUpload video={video} onPick={pickVideo} onClear={clearVideo} hint="Upload an overview clip showing what the program is about and how to run it. Clients see it when they preview or start the program." />
           </Card>
         </div>
 
@@ -410,5 +424,47 @@ function Select({ value, onChange, options, compact }) {
     <select value={value} onChange={(e) => onChange(e.target.value)} style={{ width: "100%", background: compact ? "transparent" : "rgba(242,237,228,0.04)", color: INK, border: compact ? 0 : "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: compact ? "6px 6px" : "10px 12px", fontSize: 14, outline: "none", appearance: "none" }}>
       {options.map(o => <option key={o} value={o} style={{ background: "#14110e" }}>{o}</option>)}
     </select>
+  );
+}
+
+function formatBytes(b) {
+  if (!b) return "";
+  const units = ["B", "KB", "MB", "GB"];
+  let i = 0, n = b;
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  return n.toFixed(n < 10 && i > 0 ? 1 : 0) + " " + units[i];
+}
+
+function VideoUpload({ video, onPick, onClear, hint }) {
+  const inputRef = React.useRef(null);
+  const open = () => inputRef.current && inputRef.current.click();
+  const onInputChange = (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (f) onPick(f);
+    e.target.value = "";
+  };
+  const ghostBtn = { background: "transparent", color: "rgba(242,237,228,0.78)", border: "1px solid rgba(242,237,228,0.18)", padding: "6px 12px", borderRadius: 999, fontFamily: sans, fontSize: 12, cursor: "pointer" };
+  return (
+    <div>
+      <input ref={inputRef} type="file" accept="video/*" style={{ display: "none" }} onChange={onInputChange} />
+      {!video && (
+        <button type="button" onClick={open} style={{ width: "100%", background: "transparent", color: TEAL_BRIGHT, border: "1px dashed rgba(10,197,168,0.35)", padding: "22px 14px", borderRadius: 10, fontFamily: sans, fontSize: 13.5, cursor: "pointer" }}>
+          + Upload a demo video
+        </button>
+      )}
+      {video && (
+        <div>
+          <video src={video.url} controls style={{ width: "100%", borderRadius: 10, display: "block", background: "#000", maxHeight: 260 }} />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, gap: 10 }}>
+            <div style={{ fontSize: 12, color: "rgba(242,237,228,0.7)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{video.name} · {video.size}</div>
+            <div style={{ display: "flex", gap: 8, flex: "none" }}>
+              <button type="button" onClick={open} style={ghostBtn}>Replace</button>
+              <button type="button" onClick={onClear} style={ghostBtn}>Remove</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {hint && !video && <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", lineHeight: 1.5, marginTop: 10 }}>{hint}</div>}
+    </div>
   );
 }

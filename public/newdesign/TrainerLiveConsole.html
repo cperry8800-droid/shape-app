@@ -1,0 +1,358 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Console · Shape</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>html,body{margin:0;padding:0;background:#1a1612}*{box-sizing:border-box}a{text-decoration:none;color:inherit}</style>
+</head>
+<body><div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="pageShell.jsx"></script>
+<script type="text/babel" src="trainerDashboard.jsx"></script>
+<script type="text/babel" src="coachNav.jsx"></script>
+<script type="text/babel">
+// Demo data — replace with /api/trainer/console when the live telemetry
+// backend exists. Right now the console is fully interactive locally:
+// switching clients re-renders, the "send to phone" and "add exercise"
+// controls update the on-screen session list and show a confirmation toast.
+const CONSOLE_CLIENTS = [
+  {
+    id: "charlie",
+    name: "Charlie Perry",
+    age: 28,
+    weight: "184.2 lbs",
+    height: "5'11\"",
+    focus: "Connective tissue & joint health",
+    workout: { done: 0, total: 3, note: "Patellar connective work" },
+    nutrition: { kcal: 1060, protein: 83 },
+    recovery: { restingHR: 55, sleep: 7.8, stress: 3 },
+    recoveryNote: "Resting heart rate is down 6.5% this month — a good sign their body is handling the training load well.",
+    focusBanner: "Control the eccentric phase. Slow on the way down.",
+    session: [
+      { id: "e1", name: "Slow-lowering eccentric leg press", sets: "3 sets", reps: "10–12 reps", tempo: "4-0-1-0" },
+      { id: "e2", name: "Spanish squats (core iso-tension)",  sets: "4 sets", reps: "45s hold",   tempo: "Isometric" },
+      { id: "e3", name: "Single-leg hamstring slider curls",  sets: "3 sets", reps: "12 / leg",   tempo: "2-0-2-0" },
+    ],
+  },
+  {
+    id: "priya",
+    name: "Priya Shah",
+    age: 34,
+    weight: "138.6 lbs",
+    height: "5'5\"",
+    focus: "Marathon base building",
+    workout: { done: 2, total: 4, note: "Zone 2 long run" },
+    nutrition: { kcal: 1740, protein: 96 },
+    recovery: { restingHR: 49, sleep: 8.1, stress: 2 },
+    recoveryNote: "Sleep is averaging over 8 hours and resting HR is steady — recovery looks strong heading into peak week.",
+    focusBanner: "Keep the long run easy. Nose-breathing pace.",
+    session: [
+      { id: "e1", name: "Easy long run", sets: "1", reps: "90 min", tempo: "Z2" },
+      { id: "e2", name: "Core circuit",  sets: "3 rounds", reps: "—", tempo: "Tempo" },
+    ],
+  },
+  {
+    id: "deandre",
+    name: "Deandre Kim",
+    age: 41,
+    weight: "201.0 lbs",
+    height: "6'1\"",
+    focus: "Strength after shoulder rehab",
+    workout: { done: 1, total: 3, note: "Landmine press progression" },
+    nutrition: { kcal: 980, protein: 71 },
+    recovery: { restingHR: 61, sleep: 6.4, stress: 6 },
+    recoveryNote: "Sleep has dipped below 6.5 hours this week and stress is up. Consider pulling back volume or shifting to mobility today.",
+    focusBanner: "Quality over weight this week. Stop a rep shy.",
+    session: [
+      { id: "e1", name: "Landmine press", sets: "4 sets", reps: "8 / side",  tempo: "2-0-1-0" },
+      { id: "e2", name: "Half-kneel cable row", sets: "3 sets", reps: "12",  tempo: "Controlled" },
+    ],
+  },
+];
+
+function newId() { return "e" + Math.random().toString(36).slice(2, 9); }
+function firstName(name) { return (name || "").split(" ")[0]; }
+
+function TrainerLiveConsolePage() {
+  const [clientId, setClientId] = React.useState(CONSOLE_CLIENTS[0].id);
+  // Per-client editable state (focus banner + today's session list)
+  const [focusById, setFocusById] = React.useState(() => Object.fromEntries(CONSOLE_CLIENTS.map(c => [c.id, c.focusBanner])));
+  const [sessionsById, setSessionsById] = React.useState(() => Object.fromEntries(CONSOLE_CLIENTS.map(c => [c.id, c.session])));
+  // Add-exercise form
+  const [ex, setEx] = React.useState({ name: "", sets: "", reps: "", tempo: "", cue: "" });
+  // Transient toast
+  const [toast, setToast] = React.useState("");
+  const toastTimer = React.useRef(null);
+  const flash = (msg) => {
+    setToast(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(""), 2400);
+  };
+
+  const client = CONSOLE_CLIENTS.find(c => c.id === clientId);
+  const session = sessionsById[clientId] || [];
+  const focus = focusById[clientId] || "";
+
+  const setFocus = (v) => setFocusById({ ...focusById, [clientId]: v });
+  const sendFocus = () => {
+    if (!focus.trim()) return;
+    flash("Sent to " + firstName(client.name) + "'s phone");
+  };
+  const addExercise = () => {
+    if (!ex.name.trim()) return;
+    const next = {
+      id: newId(),
+      name: ex.name.trim(),
+      sets: ex.sets.trim() || "—",
+      reps: ex.reps.trim() || "—",
+      tempo: ex.tempo.trim() || "—",
+      cue: ex.cue.trim(),
+    };
+    setSessionsById({ ...sessionsById, [clientId]: [...session, next] });
+    setEx({ name: "", sets: "", reps: "", tempo: "", cue: "" });
+    flash("Added to " + firstName(client.name) + "'s session");
+  };
+  const removeExercise = (id) => setSessionsById({ ...sessionsById, [clientId]: session.filter(e => e.id !== id) });
+
+  const progressPct = client.workout.total ? Math.round((client.workout.done / client.workout.total) * 100) : 0;
+
+  return (
+    <DashPage
+      navItems={trainerNavItems("console")}
+      payoutCard={trainerPayoutCard}
+      eyebrow={<span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><LiveDot /> LIVE COACHING</span>}
+      title="Console"
+      subtitle="See what a client is doing right now — and coach them in the moment."
+    >
+      {/* Client picker */}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 20 }}>
+        {CONSOLE_CLIENTS.map(c => {
+          const on = c.id === clientId;
+          return (
+            <button key={c.id} onClick={() => setClientId(c.id)} style={{
+              padding: "9px 14px", borderRadius: 999, cursor: "pointer",
+              background: on ? TEAL : "rgba(242,237,228,0.04)",
+              color: on ? PAPER : "rgba(242,237,228,0.78)",
+              border: on ? "none" : "1px solid rgba(242,237,228,0.12)",
+              fontFamily: sans, fontSize: 13, fontWeight: on ? 500 : 400,
+            }}>{c.name}</button>
+          );
+        })}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+        {/* LEFT — client snapshot + recovery */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <Card>
+            <SectionTitle right="LIVE">Client right now</SectionTitle>
+            <div style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", lineHeight: 1, marginTop: 4 }}>{client.name}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.08em", color: "rgba(242,237,228,0.55)", marginTop: 8 }}>
+              {client.age} YRS · {client.weight} · {client.height}
+            </div>
+            <div style={{ fontSize: 13.5, color: "rgba(242,237,228,0.8)", marginTop: 14, lineHeight: 1.5 }}>
+              <span style={{ color: "rgba(242,237,228,0.5)" }}>Focus:</span> {client.focus}
+            </div>
+
+            <div style={{ marginTop: 22, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <InsetBox label="Workout today">
+                <div style={{ fontFamily: serif, fontSize: 26, lineHeight: 1 }}>{client.workout.done} / {client.workout.total} <span style={{ fontSize: 13, color: "rgba(242,237,228,0.55)", fontFamily: sans }}>done</span></div>
+                <ProgressBar pct={progressPct} />
+                <div style={{ fontSize: 12, color: TEAL_BRIGHT, marginTop: 8 }}>{client.workout.note}</div>
+              </InsetBox>
+              <InsetBox label="Logged today">
+                <div style={{ fontFamily: serif, fontSize: 26, lineHeight: 1 }}>{client.nutrition.kcal.toLocaleString()} <span style={{ fontSize: 13, color: "rgba(242,237,228,0.55)", fontFamily: sans }}>kcal</span></div>
+                <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 10 }}>Protein logged: <span style={{ color: INK, fontWeight: 500 }}>{client.nutrition.protein}g</span></div>
+              </InsetBox>
+            </div>
+          </Card>
+
+          <Card>
+            <SectionTitle>Recovery signals</SectionTitle>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+              <StatBox icon={<HeartIcon />} label="Resting HR" value={client.recovery.restingHR} unit="bpm" />
+              <StatBox icon={<MoonIcon />}  label="Sleep avg"  value={client.recovery.sleep}     unit="hrs" />
+              <StatBox icon={<PulseIcon />} label="Stress"     value={client.recovery.stress}    unit="/10" />
+            </div>
+            <div style={{ marginTop: 16, padding: "12px 14px", background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, fontSize: 13, color: "rgba(242,237,228,0.78)", lineHeight: 1.55 }}>
+              {client.recoveryNote}
+            </div>
+          </Card>
+        </div>
+
+        {/* RIGHT — send-to-phone + today's session */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <Card>
+            <SectionTitle right={firstName(client.name).toUpperCase() + "'S PHONE"}>Send to their phone</SectionTitle>
+
+            <FieldLabel>This week's focus</FieldLabel>
+            <textarea
+              value={focus}
+              onChange={(e) => setFocus(e.target.value)}
+              rows={2}
+              placeholder="A short cue your client will see at the top of their app."
+              style={{ width: "100%", background: "rgba(242,237,228,0.04)", color: INK, border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", resize: "vertical", fontFamily: sans }}
+            />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, gap: 12 }}>
+              <div style={{ fontSize: 12, color: "rgba(242,237,228,0.5)", lineHeight: 1.45 }}>Shows as a banner at the top of {firstName(client.name)}'s app.</div>
+              <button onClick={sendFocus} disabled={!focus.trim()} style={{
+                background: focus.trim() ? TEAL : "rgba(242,237,228,0.08)",
+                color: focus.trim() ? PAPER : "rgba(242,237,228,0.4)",
+                border: 0, padding: "10px 20px", borderRadius: 999,
+                fontFamily: sans, fontSize: 13, fontWeight: 500,
+                cursor: focus.trim() ? "pointer" : "default", flex: "none",
+              }}>Send</button>
+            </div>
+
+            <div style={{ height: 1, background: "rgba(242,237,228,0.08)", margin: "22px 0" }} />
+
+            <SectionTitle>Add an exercise</SectionTitle>
+            <FieldLabel>Exercise name</FieldLabel>
+            <ConsoleInput value={ex.name} onChange={(v) => setEx({ ...ex, name: v })} placeholder="e.g. Hex bar deadlift" />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 12 }}>
+              <div>
+                <FieldLabel>Sets</FieldLabel>
+                <ConsoleInput value={ex.sets} onChange={(v) => setEx({ ...ex, sets: v })} placeholder="3 sets" />
+              </div>
+              <div>
+                <FieldLabel>Reps</FieldLabel>
+                <ConsoleInput value={ex.reps} onChange={(v) => setEx({ ...ex, reps: v })} placeholder="10–12 reps" />
+              </div>
+              <div>
+                <FieldLabel title="Eccentric — Pause — Concentric — Pause">Tempo</FieldLabel>
+                <ConsoleInput value={ex.tempo} onChange={(v) => setEx({ ...ex, tempo: v })} placeholder="2-0-1-0" />
+              </div>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <FieldLabel>Coaching cue</FieldLabel>
+              <ConsoleInput value={ex.cue} onChange={(v) => setEx({ ...ex, cue: v })} placeholder="e.g. Keep spine neutral, push feet down" />
+            </div>
+            <button onClick={addExercise} disabled={!ex.name.trim()} style={{
+              marginTop: 16, width: "100%",
+              background: ex.name.trim() ? TEAL : "rgba(242,237,228,0.06)",
+              color: ex.name.trim() ? PAPER : "rgba(242,237,228,0.4)",
+              border: 0, padding: "12px 18px", borderRadius: 10,
+              fontFamily: sans, fontSize: 13.5, fontWeight: 500,
+              cursor: ex.name.trim() ? "pointer" : "default",
+            }}>+ Add to today's session</button>
+          </Card>
+
+          <Card>
+            <SectionTitle right={session.length + " EXERCISE" + (session.length === 1 ? "" : "S")}>Today's session</SectionTitle>
+            {session.length === 0 && (
+              <div style={{ padding: "18px 4px", color: "rgba(242,237,228,0.5)", fontSize: 13 }}>No exercises yet. Add one above to push it to {firstName(client.name)}'s phone.</div>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {session.map((e) => (
+                <div key={e.id} style={{ display: "grid", gridTemplateColumns: "1fr 28px", gap: 10, alignItems: "center", padding: "12px 14px", background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 13.5, fontWeight: 500 }}>{e.name}</div>
+                    <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.55)", marginTop: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>
+                      {e.sets} · {e.reps} · Tempo {e.tempo}
+                    </div>
+                    {e.cue && <div style={{ fontSize: 12, color: "rgba(242,237,228,0.65)", marginTop: 6, fontStyle: "italic" }}>"{e.cue}"</div>}
+                  </div>
+                  <button onClick={() => removeExercise(e.id)} aria-label="Remove" style={{ background: "transparent", border: 0, color: "rgba(242,237,228,0.5)", fontSize: 18, cursor: "pointer", lineHeight: 1 }}>×</button>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      </div>
+
+      {/* Demo-only banner */}
+      <div style={{ marginTop: 24, padding: "12px 16px", border: "1px dashed rgba(242,237,228,0.16)", borderRadius: 10, fontSize: 12, color: "rgba(242,237,228,0.55)", lineHeight: 1.55 }}>
+        Demo preview — the live telemetry and "send to phone" actions show how the Console will behave once the real-time backend is wired up. Switching clients, adding exercises, and sending focus banners all work locally on this page.
+      </div>
+
+      {/* Toast */}
+      {toast && (
+        <div style={{
+          position: "fixed", right: 28, bottom: 28, zIndex: 80,
+          background: TEAL, color: PAPER, padding: "12px 18px",
+          borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500,
+          boxShadow: "0 16px 40px rgba(0,0,0,0.45)",
+        }}>{toast}</div>
+      )}
+    </DashPage>
+  );
+}
+
+// ─── small UI primitives ─────────────────────────────────────
+function InsetBox({ label, children }) {
+  return (
+    <div style={{ background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 12, padding: "14px 16px" }}>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)", marginBottom: 10 }}>{label}</div>
+      {children}
+    </div>
+  );
+}
+
+function StatBox({ icon, label, value, unit }) {
+  return (
+    <div style={{ background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 12, padding: "14px 16px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <span style={{ color: TEAL_BRIGHT, display: "inline-flex" }}>{icon}</span>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)" }}>{label}</div>
+      </div>
+      <div style={{ fontFamily: serif, fontSize: 24, lineHeight: 1 }}>{value} <span style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", fontFamily: sans }}>{unit}</span></div>
+    </div>
+  );
+}
+
+function ProgressBar({ pct }) {
+  return (
+    <div style={{ height: 4, background: "rgba(242,237,228,0.08)", borderRadius: 3, marginTop: 10, overflow: "hidden" }}>
+      <div style={{ width: pct + "%", height: "100%", background: TEAL, transition: "width .3s" }} />
+    </div>
+  );
+}
+
+function FieldLabel({ children, title }) {
+  return (
+    <div title={title} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)", marginBottom: 6 }}>{children}</div>
+  );
+}
+
+function ConsoleInput({ value, onChange, placeholder }) {
+  return (
+    <input
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      style={{ width: "100%", background: "rgba(242,237,228,0.04)", color: INK, border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", fontFamily: sans }}
+    />
+  );
+}
+
+function LiveDot() {
+  return (
+    <span style={{ width: 7, height: 7, borderRadius: "50%", background: TEAL_BRIGHT, display: "inline-block", boxShadow: "0 0 0 4px rgba(46,224,196,0.18)" }} />
+  );
+}
+
+// Minimal inline icons (teal, 16x16)
+function HeartIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+  );
+}
+function MoonIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+  );
+}
+function PulseIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<TrainerLiveConsolePage />);
+</script>
+<script src="globalChatButton.js" defer></script>
+</body>
+</html>
