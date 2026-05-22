@@ -239,7 +239,7 @@ function TrainerLiveConsolePage() {
 
   const setFocus = (v) => setFocusById({ ...focusById, [clientId]: v });
   const sendFocus = () => {
-    if (!focus.trim()) return;
+    if (!focus.trim()) { flash("Add a focus first"); return; }
     flash("Sent to " + firstName(client.name) + "'s phone");
     if (live) {
       fetch('/api/trainer/console', {
@@ -251,7 +251,7 @@ function TrainerLiveConsolePage() {
     }
   };
   const addExercise = () => {
-    if (!ex.name.trim()) return;
+    if (!ex.name.trim()) { flash("Add an exercise name first"); return; }
     const payload = {
       name: ex.name.trim(),
       sets: ex.sets.trim() || "—",
@@ -442,12 +442,12 @@ function TrainerLiveConsolePage() {
             />
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, gap: 12 }}>
               <div style={{ fontSize: 12, color: "rgba(242,237,228,0.5)", lineHeight: 1.45 }}>Shows as a banner at the top of {firstName(client.name)}'s app.</div>
-              <button onClick={sendFocus} disabled={!focus.trim()} style={{
-                background: focus.trim() ? TEAL : "rgba(242,237,228,0.08)",
-                color: focus.trim() ? PAPER : "rgba(242,237,228,0.4)",
+              <button onClick={sendFocus} style={{
+                background: TEAL,
+                color: PAPER,
                 border: 0, padding: "10px 20px", borderRadius: 999,
                 fontFamily: sans, fontSize: 13, fontWeight: 500,
-                cursor: focus.trim() ? "pointer" : "default", flex: "none",
+                cursor: "pointer", flex: "none",
               }}>Send</button>
             </div>
 
@@ -474,13 +474,13 @@ function TrainerLiveConsolePage() {
               <FieldLabel>Coaching cue</FieldLabel>
               <ConsoleInput value={ex.cue} onChange={(v) => setEx({ ...ex, cue: v })} placeholder="e.g. Keep spine neutral, push feet down" />
             </div>
-            <button onClick={addExercise} disabled={!ex.name.trim()} style={{
+            <button onClick={addExercise} style={{
               marginTop: 16, width: "100%",
-              background: ex.name.trim() ? TEAL : "rgba(242,237,228,0.06)",
-              color: ex.name.trim() ? PAPER : "rgba(242,237,228,0.4)",
+              background: TEAL,
+              color: PAPER,
               border: 0, padding: "12px 18px", borderRadius: 10,
               fontFamily: sans, fontSize: 13.5, fontWeight: 500,
-              cursor: ex.name.trim() ? "pointer" : "default",
+              cursor: "pointer",
             }}>+ Add to today's session</button>
           </Card>
 
