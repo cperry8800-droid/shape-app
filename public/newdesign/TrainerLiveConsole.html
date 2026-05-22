@@ -191,6 +191,7 @@ function TrainerLiveConsolePage() {
   const [metric, setMetric] = React.useState("score");
   const [customStart, setCustomStart] = React.useState(DEFAULT_START_ISO);
   const [customEnd, setCustomEnd] = React.useState(TODAY_ISO);
+  const [live, setLive] = React.useState(false);
   // Per-client editable state (focus banner + today's session list)
   const [focusById, setFocusById] = React.useState(() => Object.fromEntries(CONSOLE_CLIENTS.map(c => [c.id, c.focusBanner])));
   const [sessionsById, setSessionsById] = React.useState(() => Object.fromEntries(CONSOLE_CLIENTS.map(c => [c.id, c.session])));
@@ -205,6 +206,33 @@ function TrainerLiveConsolePage() {
     toastTimer.current = setTimeout(() => setToast(""), 2400);
   };
 
+  // Hydrate from /api/trainer/console on mount; if the viewer is a real
+  // signed-in trainer, the API response overlays the mock state and
+  // sets live=true so subsequent send/add/remove also POST through.
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/trainer/console', { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (cancelled || !d || !d.isTrainer) return;
+        setLive(true);
+        if (d.focusByClient && Object.keys(d.focusByClient).length) {
+          setFocusById(prev => ({ ...prev, ...d.focusByClient }));
+        }
+        if (d.itemsByClient && Object.keys(d.itemsByClient).length) {
+          setSessionsById(prev => {
+            const next = { ...prev };
+            for (const [cid, items] of Object.entries(d.itemsByClient)) {
+              next[cid] = items;
+            }
+            return next;
+          });
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
   const client = CONSOLE_CLIENTS.find(c => c.id === clientId);
   const session = sessionsById[clientId] || [];
   const focus = focusById[clientId] || "";
@@ -213,22 +241,57 @@ function TrainerLiveConsolePage() {
   const sendFocus = () => {
     if (!focus.trim()) return;
     flash("Sent to " + firstName(client.name) + "'s phone");
+    if (live) {
+      fetch('/api/trainer/console', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, action: 'focus', text: focus }),
+      }).catch(() => {});
+    }
   };
   const addExercise = () => {
     if (!ex.name.trim()) return;
-    const next = {
-      id: newId(),
+    const payload = {
       name: ex.name.trim(),
       sets: ex.sets.trim() || "—",
       reps: ex.reps.trim() || "—",
       tempo: ex.tempo.trim() || "—",
       cue: ex.cue.trim(),
     };
-    setSessionsById({ ...sessionsById, [clientId]: [...session, next] });
+    const tempId = newId();
+    setSessionsById({ ...sessionsById, [clientId]: [...session, { id: tempId, ...payload }] });
     setEx({ name: "", sets: "", reps: "", tempo: "", cue: "" });
     flash("Added to " + firstName(client.name) + "'s session");
+    if (live) {
+      fetch('/api/trainer/console', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, action: 'addItem', payload }),
+      })
+        .then(r => (r.ok ? r.json() : null))
+        .then(d => {
+          if (!d || !d.id) return;
+          setSessionsById(prev => ({
+            ...prev,
+            [clientId]: (prev[clientId] || []).map(it => it.id === tempId ? { ...it, id: d.id } : it),
+          }));
+        })
+        .catch(() => {});
+    }
   };
-  const removeExercise = (id) => setSessionsById({ ...sessionsById, [clientId]: session.filter(e => e.id !== id) });
+  const removeExercise = (id) => {
+    setSessionsById({ ...sessionsById, [clientId]: session.filter(e => e.id !== id) });
+    if (live) {
+      fetch('/api/trainer/console', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, action: 'removeItem', itemId: id }),
+      }).catch(() => {});
+    }
+  };
 
   const progressPct = client.workout.total ? Math.round((client.workout.done / client.workout.total) * 100) : 0;
   const traj = TRAJECTORY_PARAMS[clientId] || TRAJECTORY_PARAMS.charlie;
@@ -489,10 +552,12 @@ function TrainerLiveConsolePage() {
         })()}
       </Card>
 
-      {/* Demo-only banner */}
-      <div style={{ marginTop: 24, padding: "12px 16px", border: "1px dashed rgba(242,237,228,0.16)", borderRadius: 10, fontSize: 12, color: "rgba(242,237,228,0.55)", lineHeight: 1.55 }}>
-        Demo preview — the live telemetry and "send to phone" actions show how the Console will behave once the real-time backend is wired up. Switching clients, adding exercises, and sending focus banners all work locally on this page.
-      </div>
+      {/* Demo-only banner — hidden once /api/trainer/console responds as signed-in */}
+      {!live && (
+        <div style={{ marginTop: 24, padding: "12px 16px", border: "1px dashed rgba(242,237,228,0.16)", borderRadius: 10, fontSize: 12, color: "rgba(242,237,228,0.55)", lineHeight: 1.55 }}>
+          Demo preview — sign in as a trainer to persist focus banners and pushed exercises through /api/trainer/console. For now, switching clients, adding exercises, and sending focus banners work locally on this page.
+        </div>
+      )}
 
       {/* Toast */}
       {toast && (
