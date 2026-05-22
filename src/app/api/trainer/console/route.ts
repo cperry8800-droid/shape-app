@@ -106,10 +106,29 @@ export async function GET() {
 
   const providerId = await getProviderId(supabase, user.id);
   if (providerId == null) {
-    return NextResponse.json({ isTrainer: false, clients: [], focusByClient: {}, itemsByClient: {} });
+    return NextResponse.json({ isTrainer: false, clients: [], focusByClient: {}, itemsByClient: {}, snapshotByClient: {} });
   }
 
   const clients = await fetchClientsForProvider(supabase, providerId);
+
+  // Latest daily_health_snapshot per client — RLS already permits a trainer
+  // to read snapshots for their active/trialing subscribers, so we just
+  // SELECT and the policy filters down.
+  const snapshotByClient: Record<string, Record<string, unknown>> = {};
+  if (clients.length > 0) {
+    const clientIds = clients.map((c) => c.id);
+    const since = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+    const { data: snapRows } = await supabase
+      .from('daily_health_snapshot')
+      .select('user_id, snapshot_date, weight_lb, sleep_hours, resting_hr, stress, calories, protein_g, hrv_ms, recovery_score')
+      .in('user_id', clientIds)
+      .gte('snapshot_date', since)
+      .order('snapshot_date', { ascending: false });
+    for (const row of snapRows ?? []) {
+      const uid = row.user_id as string;
+      if (!snapshotByClient[uid]) snapshotByClient[uid] = row as Record<string, unknown>;
+    }
+  }
 
   const { data: bannerRows } = await supabase
     .from('coach_focus_banners')
@@ -139,7 +158,7 @@ export async function GET() {
     itemsByClient[r.client_id] = list;
   }
 
-  return NextResponse.json({ isTrainer: true, clients, focusByClient, itemsByClient });
+  return NextResponse.json({ isTrainer: true, clients, focusByClient, itemsByClient, snapshotByClient });
 }
 
 export async function POST(req: Request) {
