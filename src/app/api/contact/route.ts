@@ -103,7 +103,7 @@ async function sendContactEmails(c: {
       <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:20px;">
         ${rows.map(([k, v]) => `<tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;width:120px;">${escapeHtml(k)}</td><td style="padding:8px 12px;border-bottom:1px solid #eee;">${escapeHtml(v)}</td></tr>`).join('')}
       </table>
-      <div style="border-left:3px solid #0ac5a8;padding:12px 16px;background:#f7fafa;white-space:pre-wrap;font-size:14px;line-height:1.55;">${escapeHtml(c.message)}</div>
+      <div style="border-left:3px solid #1ec0a8;padding:12px 16px;background:#f7fafa;white-space:pre-wrap;font-size:14px;line-height:1.55;">${escapeHtml(c.message)}</div>
     </div>
   `;
   const adminText = [
@@ -126,8 +126,8 @@ async function sendContactEmails(c: {
       <h2 style="margin:0 0 16px;font-size:22px;font-weight:500;">Thanks, ${escapeHtml(c.firstName)}.</h2>
       <p style="margin:0 0 16px;line-height:1.55;">We got your message and someone from the Shape team will get back to you within 1–2 business days.</p>
       <p style="margin:0 0 16px;line-height:1.55;">For reference, here's what you sent:</p>
-      <div style="border-left:3px solid #0ac5a8;padding:12px 16px;background:#f7fafa;white-space:pre-wrap;font-size:14px;line-height:1.55;color:#333;">${escapeHtml(c.message)}</div>
-      <p style="margin:24px 0 0;color:#666;font-size:13px;">— The Shape team<br/><a href="https://theshapecommunity.com" style="color:#0ac5a8;">theshapecommunity.com</a></p>
+      <div style="border-left:3px solid #1ec0a8;padding:12px 16px;background:#f7fafa;white-space:pre-wrap;font-size:14px;line-height:1.55;color:#333;">${escapeHtml(c.message)}</div>
+      <p style="margin:24px 0 0;color:#666;font-size:13px;">— The Shape team<br/><a href="https://theshapecommunity.com" style="color:#1ec0a8;">theshapecommunity.com</a></p>
     </div>
   `;
   const replyText = [

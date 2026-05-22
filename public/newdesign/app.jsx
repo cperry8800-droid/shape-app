@@ -34,7 +34,7 @@ if (switcherEl) {
 
 // ---- Tweaks ----
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
-  "accent": "#0ac5a8",
+  "accent": "#1ec0a8",
   "showFloatingChips": true,
   "heroCopy": "default"
 }/*EDITMODE-END*/;
@@ -68,7 +68,7 @@ function TweaksPanel() {
   if (!open) return null;
 
   const accents = [
-    ["Signal teal", "#0ac5a8"],
+    ["Signal teal", "#1ec0a8"],
     ["Deep teal", "#068a75"],
     ["Spring", "#7de3a8"],
     ["Cobalt", "#2e7dff"],
@@ -112,7 +112,7 @@ function TweaksPanel() {
         <div style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", marginBottom: 8 }}>Hero headline</div>
         <div style={{ display: "grid", gap: 4 }}>
           {["default", "performance", "community"].map(v => (
-            <button key={v} onClick={() => update({ heroCopy: v })} style={{ padding: "8px 10px", textAlign: "left", borderRadius: 6, border: "1px solid rgba(255,255,255,0.1)", background: state.heroCopy === v ? "rgba(10,197,168,0.18)" : "transparent", color: "#fff", fontSize: 12, fontFamily: "inherit", cursor: "pointer" }}>
+            <button key={v} onClick={() => update({ heroCopy: v })} style={{ padding: "8px 10px", textAlign: "left", borderRadius: 6, border: "1px solid rgba(255,255,255,0.1)", background: state.heroCopy === v ? "rgba(30,192,168,0.18)" : "transparent", color: "#fff", fontSize: 12, fontFamily: "inherit", cursor: "pointer" }}>
               {v === "default" && "Train with a human. Not an app."}
               {v === "performance" && "Your performance. Handled."}
               {v === "community" && "Real coaches. Real community."}
