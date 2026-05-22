@@ -219,8 +219,12 @@ function TrainerLiveConsolePage() {
         setLive(true);
         if (Array.isArray(d.clients) && d.clients.length) {
           const snapByClient = d.snapshotByClient || {};
+          const profByClient = d.profileByClient || {};
+          const seriesByClient = d.seriesByClient || {};
           const mapped = d.clients.map(c => {
             const s = snapByClient[c.id] || {};
+            const p = profByClient[c.id] || {};
+            const series = seriesByClient[c.id] || null;
             const fmt1 = (v) => (v == null ? '—' : Number(v).toFixed(1));
             return {
               id: c.id,
@@ -228,10 +232,10 @@ function TrainerLiveConsolePage() {
               status: c.status || 'current',
               lastAt: c.lastAt || null,
               name: c.name || 'Client',
-              age: '—',
+              age: p.age != null ? p.age : '—',
               weight: s.weight_lb != null ? Number(s.weight_lb).toFixed(1) + ' lbs' : '—',
               height: '—',
-              focus: '—',
+              focus: p.focus || '—',
               workout: { done: 0, total: 0, note: s.snapshot_date ? 'Last log ' + s.snapshot_date : '—' },
               nutrition: {
                 kcal: s.calories != null ? Number(s.calories) : 0,
@@ -247,6 +251,7 @@ function TrainerLiveConsolePage() {
                 : 'Recovery signals will appear once a wearable connects or the client logs a daily snapshot.',
               focusBanner: '',
               session: [],
+              realSeries: series,
             };
           });
           setServerClients(mapped);
@@ -335,6 +340,17 @@ function TrainerLiveConsolePage() {
   const progressPct = client.workout.total ? Math.round((client.workout.done / client.workout.total) * 100) : 0;
   const traj = TRAJECTORY_PARAMS[clientId] || TRAJECTORY_PARAMS.charlie;
   const sliceFor = (key) => {
+    // Real clients: pull from realSeries (server-fetched daily_health_snapshot
+    // for this client) and slice by range. Demo clients fall through to the
+    // sin/cos-generated series below.
+    if (client.isReal) {
+      const series = client.realSeries && client.realSeries[key];
+      if (!series) return [];
+      const raw = series.filter(v => v != null);
+      if (raw.length === 0) return [];
+      if (range === "custom") return raw.slice(-Math.min(28, raw.length));
+      return raw.slice(-Math.min(RANGE_DAYS[range], raw.length));
+    }
     const full = trajSeries(traj[key], SERIES_DAYS);
     if (range !== "custom") return full.slice(-RANGE_DAYS[range]);
     const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -351,6 +367,12 @@ function TrainerLiveConsolePage() {
     hr:     sliceFor("hr"),
     weight: sliceFor("weight"),
   };
+  // Real clients don't have Shape Score data yet, and may not have every
+  // other metric either. Filter the tab list down to metrics with data.
+  const metricsForView = client.isReal
+    ? METRICS.filter(m => (trajData[m.key] || []).length > 0)
+    : METRICS;
+  const activeMetric = metricsForView.find(m => m.key === metric) || metricsForView[0];
   const windowLabel = range === "custom"
     ? shortDate(customStart) + " → " + shortDate(customEnd)
     : range.toUpperCase() + " WINDOW";
@@ -561,9 +583,9 @@ function TrainerLiveConsolePage() {
             ))}
           </div>
         }>Trajectory</SectionTitle>
-        {client.isReal ? (
+        {(client.isReal && metricsForView.length === 0) ? (
           <div style={{ padding: "26px 4px", color: "rgba(242,237,228,0.55)", fontSize: 13, lineHeight: 1.55 }}>
-            Trajectory appears after a few weeks of logged metrics. Score, stress, resting HR, and bodyweight populate here once {firstName(client.name)}'s connected sources come online.
+            Trajectory appears once {firstName(client.name)}'s daily_health_snapshot rows start landing (WHOOP / Strava sync, workout log, or manual nutrition entry).
           </div>
         ) : (<>
         {range === "custom" && (
@@ -575,8 +597,8 @@ function TrainerLiveConsolePage() {
           </div>
         )}
         <div style={{ display: "flex", gap: 4, marginBottom: 22, borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
-          {METRICS.map(m => {
-            const on = m.key === metric;
+          {metricsForView.map(m => {
+            const on = activeMetric && m.key === activeMetric.key;
             return (
               <button key={m.key} onClick={() => setMetric(m.key)} style={{
                 padding: "12px 16px", cursor: "pointer",
@@ -590,10 +612,9 @@ function TrainerLiveConsolePage() {
             );
           })}
         </div>
-        {(() => {
-          const m = METRICS.find(x => x.key === metric) || METRICS[0];
-          return <TrajChart label={m.label} data={trajData[m.key]} unit={m.unit} goodWhen={m.goodWhen} windowLabel={windowLabel} />;
-        })()}
+        {activeMetric && (
+          <TrajChart label={activeMetric.label} data={trajData[activeMetric.key]} unit={activeMetric.unit} goodWhen={activeMetric.goodWhen} windowLabel={windowLabel} />
+        )}
         </>)}
       </Card>
 

@@ -18,6 +18,16 @@ export const dynamic = 'force-dynamic';
 const ROLE = 'trainer' as const;
 const KIND = 'exercise' as const;
 const RECENT_CLIENT_MS = 60 * 86_400_000; // 60 days = "current"
+const TRAJECTORY_DAYS = 90;
+
+function ageFromDob(dob: unknown): number | null {
+  if (typeof dob !== 'string' || !dob) return null;
+  const t = new Date(dob).getTime();
+  if (!Number.isFinite(t)) return null;
+  const years = (Date.now() - t) / (365.25 * 86_400_000);
+  if (years < 0 || years > 130) return null;
+  return Math.floor(years);
+}
 
 type PushedItemRow = {
   id: string;
@@ -111,22 +121,51 @@ export async function GET() {
 
   const clients = await fetchClientsForProvider(supabase, providerId);
 
-  // Latest daily_health_snapshot per client — RLS already permits a trainer
-  // to read snapshots for their active/trialing subscribers, so we just
-  // SELECT and the policy filters down.
+  // Pull the supporting data for each client in parallel.
+  // RLS does the gating: providers_read_subscriber_snapshots covers
+  // daily_health_snapshot, providers_read_subscriber_profiles covers
+  // client_profiles (added in 2026-05-22-client-profiles-provider-read).
   const snapshotByClient: Record<string, Record<string, unknown>> = {};
+  const seriesByClient: Record<string, Record<string, Array<number | null>>> = {};
+  const profileByClient: Record<string, { age: number | null; focus: string | null }> = {};
+
   if (clients.length > 0) {
     const clientIds = clients.map((c) => c.id);
-    const since = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
-    const { data: snapRows } = await supabase
-      .from('daily_health_snapshot')
-      .select('user_id, snapshot_date, weight_lb, sleep_hours, resting_hr, stress, calories, protein_g, hrv_ms, recovery_score')
-      .in('user_id', clientIds)
-      .gte('snapshot_date', since)
-      .order('snapshot_date', { ascending: false });
-    for (const row of snapRows ?? []) {
+    const since = new Date(Date.now() - TRAJECTORY_DAYS * 86_400_000).toISOString().slice(0, 10);
+
+    const [snapRes, profRes] = await Promise.all([
+      supabase
+        .from('daily_health_snapshot')
+        .select('user_id, snapshot_date, weight_lb, sleep_hours, resting_hr, stress, calories, protein_g, hrv_ms, recovery_score')
+        .in('user_id', clientIds)
+        .gte('snapshot_date', since)
+        .order('snapshot_date', { ascending: true }),
+      supabase
+        .from('client_profiles')
+        .select('user_id, data')
+        .in('user_id', clientIds),
+    ]);
+
+    // daily_health_snapshot: walk ascending so the LAST row per client is
+    // the latest snapshot. Also accumulate per-metric series for trajectory.
+    for (const row of snapRes.data ?? []) {
       const uid = row.user_id as string;
-      if (!snapshotByClient[uid]) snapshotByClient[uid] = row as Record<string, unknown>;
+      snapshotByClient[uid] = row as Record<string, unknown>;
+      const s = (seriesByClient[uid] ??= { weight: [], sleep: [], hr: [], stress: [], protein: [] });
+      s.weight.push(row.weight_lb != null ? Number(row.weight_lb) : null);
+      s.sleep.push(row.sleep_hours != null ? Number(row.sleep_hours) : null);
+      s.hr.push(row.resting_hr != null ? Number(row.resting_hr) : null);
+      s.stress.push(row.stress != null ? Number(row.stress) : null);
+      s.protein.push(row.protein_g != null ? Number(row.protein_g) : null);
+    }
+
+    for (const row of profRes.data ?? []) {
+      const uid = row.user_id as string;
+      const data = (row.data ?? {}) as Record<string, unknown>;
+      profileByClient[uid] = {
+        age: ageFromDob(data.dob),
+        focus: typeof data.goal === 'string' && data.goal ? data.goal : null,
+      };
     }
   }
 
@@ -158,7 +197,15 @@ export async function GET() {
     itemsByClient[r.client_id] = list;
   }
 
-  return NextResponse.json({ isTrainer: true, clients, focusByClient, itemsByClient, snapshotByClient });
+  return NextResponse.json({
+    isTrainer: true,
+    clients,
+    focusByClient,
+    itemsByClient,
+    snapshotByClient,
+    seriesByClient,
+    profileByClient,
+  });
 }
 
 export async function POST(req: Request) {
