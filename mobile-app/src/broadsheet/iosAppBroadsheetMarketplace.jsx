@@ -394,7 +394,7 @@ function BSMarketplaceScreen({ onBack, onProfile }) {
           Browse certified trainers and nutritionists. Direct booking. No agency in the middle.
         </div>
         {(providersLoading || providersError) && (
-          <div style={{ position: 'relative', zIndex: 1, marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: providersError ? t.RED : t.INK50, fontWeight: 700 }}>
+          <div style={{ position: 'relative', zIndex: 1, marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: providersError ? t.RED : t.INK50, fontWeight: 700 }}>
             {providersLoading ? 'Syncing live providers...' : `Demo fallback - ${providersError}`}
           </div>
         )}
@@ -419,7 +419,7 @@ function BSMarketplaceScreen({ onBack, onProfile }) {
               padding: '8px 6px',
             }}>
               <div style={{ fontFamily: t.DISPLAY, fontSize: 20, lineHeight: 1, color: t.INK, letterSpacing: '-0.04em' }}>{value}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800, marginTop: 4 }}>{label}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800, marginTop: 4 }}>{label}</div>
             </div>
           ))}
         </div>
@@ -489,7 +489,7 @@ function BSMarketplaceScreen({ onBack, onProfile }) {
         borderRight: `1px solid ${t.INK}`,
         background: t.PAPER2,
       }}>
-        <div style={{ flexBasis: '100%', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
+        <div style={{ flexBasis: '100%', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
           Goals
         </div>
         {categories.map(f => {
@@ -515,7 +515,7 @@ function BSMarketplaceScreen({ onBack, onProfile }) {
         borderRight: `1px solid ${t.INK}`,
         background: t.PAPER2,
       }}>
-        <div style={{ flexBasis: '100%', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
+        <div style={{ flexBasis: '100%', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
           Certifications
         </div>
         {certificationOptions.map(cert => {
@@ -536,7 +536,7 @@ function BSMarketplaceScreen({ onBack, onProfile }) {
       <div style={{ padding: `0 ${t.padX}px 12px`, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER }}>
         {tab === 'Trainer' && (
           <div style={{ display: filtersOpen ? 'grid' : 'none', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
-            <div style={{ gridColumn: '1 / -1', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
+            <div style={{ gridColumn: '1 / -1', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
               Format
             </div>
             {BSM_MARKETPLACE_FORMATS.map(f => {
@@ -547,7 +547,7 @@ function BSMarketplaceScreen({ onBack, onProfile }) {
                   background: on ? t.INK : t.PAPER2,
                   color: on ? t.PAPER : t.INK,
                   border: `1px solid ${on ? t.INK : t.RULE}`,
-                  fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700,
+                  fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700,
                 }}>{on && f !== 'All formats' ? '[x] ' : ''}{f}</button>
               );
             })}
@@ -628,7 +628,7 @@ function BSMarketplaceScreen({ onBack, onProfile }) {
               <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                 {getCoachCertifications(featured).map(cert => (
                   <span key={cert} style={{ borderRadius: t.RADIUS_SM,
-                    fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase',
+                    fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
                     padding: '3px 6px', background: t.INK, color: t.PAPER, fontWeight: 700,
                   }}>{cert}</span>
                 ))}
@@ -636,7 +636,7 @@ function BSMarketplaceScreen({ onBack, onProfile }) {
               <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                 {featured.spec.map(s => (
                   <span key={s} style={{ borderRadius: t.RADIUS_SM,
-                    fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase',
+                    fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
                     padding: '3px 6px', border: `1px solid ${t.RULE}`, color: t.INK70, fontWeight: 600,
                   }}>{s}</span>
                 ))}
@@ -661,7 +661,7 @@ function BSMarketplaceScreen({ onBack, onProfile }) {
               ['MATCH', `${featured.match}%`],
             ].map(([l, v], i) => (
               <div key={l} style={{ borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0, paddingLeft: i > 0 ? 10 : 0 }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
                 <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 18, color: t.INK, marginTop: 3, letterSpacing: '-0.02em' }}>{v}</div>
               </div>
             ))}
@@ -694,7 +694,7 @@ function BSMarketplaceScreen({ onBack, onProfile }) {
         <div style={{
           display: 'grid', gridTemplateColumns: '24px 1fr 60px 64px',
           padding: '6px 0', borderTop: `2px solid ${t.INK}`, borderBottom: `1px solid ${t.RULE}`,
-          fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700,
+          fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700,
         }}>
           <span>#</span><span>Coach · Specialty</span><span style={{ textAlign: 'right' }}>Rate</span><span style={{ textAlign: 'right' }}>Match</span>
         </div>
@@ -727,7 +727,7 @@ function BSMarketplaceScreen({ onBack, onProfile }) {
           { eye: 'GROUP · WED', title: 'Tempo run, 6PM', body: '5-7k · 5:00/km pace · Prospect Pk', accent: t.GREEN },
         ].map((p, i) => (
           <BSCell key={i} accent={p.accent}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: p.accent, fontWeight: 700 }}>{p.eye}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: p.accent, fontWeight: 700 }}>{p.eye}</div>
             <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 16, color: t.INK, marginTop: 8, letterSpacing: '-0.02em', lineHeight: 1.05 }}>{p.title}</div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK70, letterSpacing: '0.1em', marginTop: 6, fontWeight: 600 }}>{p.body}</div>
           </BSCell>
@@ -776,13 +776,13 @@ function ListingRow({ c, onOpen, last }) {
       <div style={{ minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
           <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 18, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.05 }}>{c.name}</span>
-          {c.tag && <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>· {c.tag}</span>}
+          {c.tag && <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>· {c.tag}</span>}
         </div>
         <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{c.cred} · {c.loc}</div>
         <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
           {getCoachCertifications(c).map(cert => (
             <span key={cert} style={{ borderRadius: t.RADIUS_SM,
-              fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase',
+              fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
               padding: '2px 5px', background: t.INK, color: t.PAPER, fontWeight: 700,
             }}>{cert}</span>
           ))}
@@ -791,7 +791,7 @@ function ListingRow({ c, onOpen, last }) {
         <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
           {c.spec.slice(0, 3).map(s => (
             <span key={s} style={{ borderRadius: t.RADIUS_SM,
-              fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase',
+              fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
               padding: '2px 5px', border: `1px solid ${t.HAIR}`, color: t.INK70, fontWeight: 600,
             }}>{s}</span>
           ))}
@@ -799,7 +799,7 @@ function ListingRow({ c, onOpen, last }) {
       </div>
       <div style={{ textAlign: 'right', flexShrink: 0 }}>
         <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 22, color: t.INK, letterSpacing: '-0.025em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>${c.rate}</div>
-        <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: 3, fontWeight: 600 }}>per session</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: 3, fontWeight: 600 }}>per session</div>
         <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: c.match >= 90 ? t.ACCENT : t.INK70, fontWeight: 700 }}>{c.match}% MATCH</div>
         <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK70, fontWeight: 600 }}>★ {formatCoachRating10(c)}</div>
       </div>
@@ -985,7 +985,7 @@ function BSProfileMiniStat({ value, label }) {
   return (
     <div style={{ minWidth: 0 }}>
       <div style={{ fontFamily: t.DISPLAY, fontSize: 27, lineHeight: 1, color: t.INK, letterSpacing: '-0.04em' }}>{value}</div>
-      <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.13em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{label}</div>
+      <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.13em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{label}</div>
     </div>
   );
 }
@@ -1096,7 +1096,7 @@ function BSPublicActionPanel({ action, coach, onClose, onConfirm, onMessageSent 
               display: 'grid',
               gap: 8,
               fontFamily: t.MONO,
-              fontSize: 8.5,
+              fontSize: 9,
               letterSpacing: '0.18em',
               textTransform: 'uppercase',
               color: t.INK50,
@@ -1356,7 +1356,7 @@ function BSCoachDetailPublic({ coach, onBack }) {
               <BSEyebrow color={t.ACCENT}>{p.eyebrow}</BSEyebrow>
               <BSTag color={t.PAPER} dark={false}>{p.tier}</BSTag>
             </div>
-            <div style={{ marginTop: 26, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(245,240,230,0.58)', fontWeight: 800 }}>
+            <div style={{ marginTop: 26, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(245,240,230,0.58)', fontWeight: 800 }}>
               Client view - customizable public profile
             </div>
           </div>
@@ -1422,7 +1422,7 @@ function BSCoachDetailPublic({ coach, onBack }) {
               boxShadow: on ? `2px 2px 0 0 ${t.INK}` : 'none',
               color: on ? t.PAPER : t.INK70,
               fontFamily: t.MONO,
-              fontSize: 8.5,
+              fontSize: 9,
               lineHeight: 1.1,
               letterSpacing: '0.12em',
               textTransform: 'uppercase',
@@ -1449,7 +1449,7 @@ function BSCoachDetailPublic({ coach, onBack }) {
                     border: `1px solid ${t.RULE}`,
                     padding: '7px 9px',
                     fontFamily: t.MONO,
-                    fontSize: 8.5,
+                    fontSize: 9,
                     letterSpacing: '0.11em',
                     textTransform: 'uppercase',
                     color: t.INK70,
@@ -1483,14 +1483,14 @@ function BSCoachDetailPublic({ coach, onBack }) {
           <div style={{ padding: `0 ${t.padX}px 16px`, display: 'grid', gridTemplateColumns: 'repeat(7, minmax(54px, 1fr))', gap: 5, overflowX: 'auto' }}>
             {p.availability.map(([day, date, times]) => (
               <div key={day} style={{ minWidth: 54, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '9px 6px', borderRadius: t.RADIUS_SM }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{day}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{day}</div>
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 22, color: t.INK, letterSpacing: '-0.04em', lineHeight: 1, marginTop: 4 }}>{date}</div>
                 <div style={{ marginTop: 8, display: 'grid', gap: 5 }}>
                   {times.map((time, i) => (
                     <button key={`${time}-${i}`} onClick={() => selectSlot(day, date, time)} disabled={time === '--'} style={{ borderRadius: t.RADIUS_SM,
                       padding: '6px 4px', background: time === '--' ? 'transparent' : t.PAPER3,
                       color: time === '--' ? t.INK30 : t.ACCENT, border: `1px solid ${time === '--' ? t.HAIR : t.RULE}`,
-                      fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', fontWeight: 800,
+                      fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', fontWeight: 800,
                       cursor: time === '--' ? 'default' : 'pointer',
                       opacity: time === '--' ? 0.7 : 1,
                     }}>{time}</button>
@@ -1510,7 +1510,7 @@ function BSCoachDetailPublic({ coach, onBack }) {
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'baseline', paddingBottom: 12, borderBottom: `1px solid ${t.HAIR}` }}>
                 <div>
                   <div style={{ fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 21, color: t.INK, letterSpacing: '-0.04em' }}>{p.sampleTitle}</div>
-                  <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{p.sampleMeta}</div>
+                  <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{p.sampleMeta}</div>
                 </div>
                 <BSTag color={t.ACCENT} dark={!t.isLight}>Preview</BSTag>
               </div>
@@ -1521,7 +1521,7 @@ function BSCoachDetailPublic({ coach, onBack }) {
                     <div>
                       <div style={{ fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 15, color: t.INK, letterSpacing: '-0.02em' }}>{name}</div>
                       <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.35 }}>{detail}</div>
-                      <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{note}</div>
+                      <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{note}</div>
                     </div>
                   </div>
                 ))}
@@ -1612,7 +1612,7 @@ function BSCoachDetail({ coach, onBack }) {
             <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
               {getCoachCertifications(coach).map(cert => (
                 <span key={cert} style={{ borderRadius: t.RADIUS_SM,
-                  fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase',
+                  fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
                   padding: '3px 6px', background: t.INK, color: t.PAPER, fontWeight: 700,
                 }}>{cert}</span>
               ))}
@@ -1620,7 +1620,7 @@ function BSCoachDetail({ coach, onBack }) {
             <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
               {coach.spec.map(s => (
                 <span key={s} style={{ borderRadius: t.RADIUS_SM,
-                  fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase',
+                  fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
                   padding: '3px 6px', border: `1px solid ${t.RULE}`, color: t.INK70, fontWeight: 600,
                 }}>{s}</span>
               ))}

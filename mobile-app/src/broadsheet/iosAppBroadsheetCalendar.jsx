@@ -291,7 +291,7 @@ function BSCalendarWeek({ events, selDay, setSelDay, sheet, role }) {
               padding: '8px 0 6px', cursor: 'pointer',
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
             }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', fontWeight: 600, opacity: 0.7 }}>{dowLabels[i]}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', fontWeight: 600, opacity: 0.7 }}>{dowLabels[i]}</span>
               <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 22, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{d}</span>
               <span style={{ display: 'flex', gap: 2, height: 4, marginTop: 2 }}>
                 {[...Array(Math.min(c, 4))].map((_, k) => (
@@ -337,14 +337,14 @@ function BSDayTimeline({ events, sheet, role }) {
           }}>
             <div style={{ fontFamily: t.MONO, fontSize: 11, color: now ? t.ACCENT : (done ? t.INK50 : t.INK), letterSpacing: '0.06em', fontWeight: now ? 700 : 600, fontVariantNumeric: 'tabular-nums' }}>
               {e.time}
-              {e.dur > 0 && <div style={{ fontSize: 8.5, color: t.INK50, marginTop: 2, letterSpacing: '0.16em' }}>{e.dur}m</div>}
+              {e.dur > 0 && <div style={{ fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.16em' }}>{e.dur}m</div>}
             </div>
             <div style={{ minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                 <BSTagCal color={e.accent}>{e.kind}</BSTagCal>
-                {now  && <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.ACCENT, letterSpacing: '0.22em', fontWeight: 700, textTransform: 'uppercase' }}>● Now</span>}
-                {next && <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK70, letterSpacing: '0.22em', fontWeight: 700, textTransform: 'uppercase' }}>Up next</span>}
-                {done && <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.22em', fontWeight: 700, textTransform: 'uppercase' }}>✓ Done</span>}
+                {now  && <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.ACCENT, letterSpacing: '0.22em', fontWeight: 700, textTransform: 'uppercase' }}>● Now</span>}
+                {next && <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK70, letterSpacing: '0.22em', fontWeight: 700, textTransform: 'uppercase' }}>Up next</span>}
+                {done && <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.22em', fontWeight: 700, textTransform: 'uppercase' }}>✓ Done</span>}
               </div>
               <div style={{ fontFamily: t.DISPLAY, fontWeight: 600, fontSize: 16, color: done ? t.INK50 : t.INK, letterSpacing: '-0.015em', textDecoration: done ? 'line-through' : 'none' }}>{e.title}</div>
               <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 2, letterSpacing: '0.06em' }}>{e.sub}</div>
@@ -399,7 +399,7 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
       {/* DOW header */}
       <div style={{ padding: `8px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0, borderBottom: `1px solid ${t.RULE}` }}>
         {['MON','TUE','WED','THU','FRI','SAT','SUN'].map(d => (
-          <div key={d} style={{ padding: '4px 0 6px', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', color: t.INK50, fontWeight: 600, textAlign: 'center' }}>{d}</div>
+          <div key={d} style={{ padding: '4px 0 6px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', color: t.INK50, fontWeight: 600, textAlign: 'center' }}>{d}</div>
         ))}
       </div>
 
@@ -425,7 +425,7 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={{ fontWeight: t.W.display, fontSize: 16, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums', color: isSel ? t.PAPER : (isToday ? t.ACCENT : t.INK) }}>{d}</span>
-                    {dayEv.length > 0 && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, color: isSel ? t.PAPER : t.INK50, letterSpacing: '0.1em' }}>{dayEv.length}</span>}
+                    {dayEv.length > 0 && <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: isSel ? t.PAPER : t.INK50, letterSpacing: '0.1em' }}>{dayEv.length}</span>}
                   </div>
                   <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                     {dotsAccents.map((c, k) => (
@@ -468,12 +468,12 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
                   }}>
                     <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK, letterSpacing: '0.05em' }}>
                       {e.time}
-                      <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, fontWeight: 600, letterSpacing: '0.1em', marginTop: 2 }}>{e.dur ? `${e.dur}m` : ''}</div>
+                      <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, fontWeight: 600, letterSpacing: '0.1em', marginTop: 2 }}>{e.dur ? `${e.dur}m` : ''}</div>
                     </div>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                        <span style={{ background: e.accent, color: e.kind === 'REST' ? t.PAPER : (e.accent === t.AMBER ? t.INK : t.PAPER), padding: '2px 6px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.15em' }}>{e.kind}</span>
-                        {e.state === 'done' && <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.18em', fontWeight: 700 }}>· DONE</span>}
+                        <span style={{ background: e.accent, color: e.kind === 'REST' ? t.PAPER : (e.accent === t.AMBER ? t.INK : t.PAPER), padding: '2px 6px', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.15em' }}>{e.kind}</span>
+                        {e.state === 'done' && <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.18em', fontWeight: 700 }}>· DONE</span>}
                       </div>
                       <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 17, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.15 }}>{e.title}</div>
                       <div style={{ fontFamily: t.DISPLAY, fontSize: 12, color: t.INK50, marginTop: 2 }}>{e.sub}</div>
@@ -557,7 +557,7 @@ function BSEventWorkoutBody({ event, role }) {
       <div style={{ padding: `18px ${t.padX}px 14px`, borderBottom: `1px solid ${t.RULE}`, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
         {[['DUR', `${event.dur}m`], ['MOVES', '6'], ['RPE', '8'], ['VOL', '1900LB']].map(([l, v], i) => (
           <div key={l} style={{ borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0, paddingLeft: i > 0 ? 10 : 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
             <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 20, color: t.INK, marginTop: 4, letterSpacing: '-0.03em' }}>{v}</div>
           </div>
         ))}
@@ -599,7 +599,7 @@ function BSEventMealBody({ event }) {
       <div style={{ padding: `18px ${t.padX}px 16px`, borderBottom: `1px solid ${t.RULE}`, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
         {[['KCAL', '620'], ['PRO', '48g'], ['CARB', '72g'], ['FAT', '14g']].map(([l, v], i) => (
           <div key={l} style={{ borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0, paddingLeft: i > 0 ? 10 : 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
             <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 20, color: t.INK, marginTop: 4, letterSpacing: '-0.03em' }}>{v}</div>
           </div>
         ))}

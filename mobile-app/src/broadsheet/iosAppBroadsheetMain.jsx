@@ -194,13 +194,13 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
     return (
       <div style={{ position: 'absolute', inset: 0, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '50px 18px 8px' }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, display: 'flex', justifyContent: 'space-between', borderBottom: `1px solid ${t.RULE}`, paddingBottom: 6 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, display: 'flex', justifyContent: 'space-between', borderBottom: `1px solid ${t.RULE}`, paddingBottom: 6 }}>
             <span>Vol. 6 · No. 38</span><span>May 21 · 2026</span><span>$0 · Daily</span>
           </div>
           <div style={{ borderBottom: `3px double ${t.INK}`, padding: '12px 0 14px', display: 'flex', justifyContent: 'center' }}>
             <BSWordmark size={42} full color={t.INK} />
           </div>
-          <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center', padding: '4px 0' }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center', padding: '4px 0' }}>
             Train · Eat · Recover · Repeat
           </div>
         </div>
@@ -218,9 +218,9 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
 
         {/* Headline */}
         <div style={{ padding: '14px 18px 6px' }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.AMBER, fontWeight: 700, marginBottom: 6 }}>▍ Today's edition</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.AMBER, fontWeight: 700, marginBottom: 6 }}>▍ Today's edition</div>
           <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 30, lineHeight: 0.92, letterSpacing: '-0.035em' }}>Pull day. Peak week. Tempo wins.</div>
-          <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: 8 }}>By Jordan Chen · Coach</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: 8 }}>By Jordan Chen · Coach</div>
         </div>
 
         {/* Footer ticker */}
@@ -308,9 +308,9 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
                                   : t.INK;
                   return (
                     <div key={i}>
-                      <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: tagColor, fontWeight: 700, marginBottom: 3 }}>{it.tag}</div>
+                      <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', color: tagColor, fontWeight: 700, marginBottom: 3 }}>{it.tag}</div>
                       <div style={{ fontFamily: t.DISPLAY, fontWeight: 600, fontSize: 15, letterSpacing: '-0.012em', color: t.INK, lineHeight: 1.15 }}>{it.title}</div>
-                      <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', color: t.INK50, marginTop: 3, textTransform: 'uppercase' }}>{it.meta}</div>
+                      <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, marginTop: 3, textTransform: 'uppercase' }}>{it.meta}</div>
                     </div>
                   );
                 })}
@@ -333,7 +333,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
           <span style={{ letterSpacing: 0 }}>→</span>
         </button>
 
-        <div style={{ position: 'relative', zIndex: 1, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>
+        <div style={{ position: 'relative', zIndex: 1, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>
           ★ A daily for the body & mind ★
         </div>
       </div>
@@ -507,7 +507,7 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
           {/* Curious-reader path for non-members */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
             <div style={{ flex: 1, height: 1, background: t.RULE }} />
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.28em', textTransform: 'uppercase', color: t.INK50 }}>or</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.28em', textTransform: 'uppercase', color: t.INK50 }}>or</div>
             <div style={{ flex: 1, height: 1, background: t.RULE }} />
           </div>
 
@@ -515,7 +515,7 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
             <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, color: t.INK, lineHeight: 1.25 }}>
               Not yet a member, but curious?
             </div>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginTop: 3 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginTop: 3 }}>
               Take a look around — no account needed.
             </div>
           </div>
@@ -549,7 +549,7 @@ function BSPreviewNotice({ onClose, onSignIn }) {
       <div style={{
         flex: '0 0 auto',
         background: t.ACCENT, color: t.INK,
-        fontFamily: t.MONO, fontSize: 8, fontWeight: 800,
+        fontFamily: t.MONO, fontSize: 9, fontWeight: 800,
         letterSpacing: '0.18em', textTransform: 'uppercase',
         padding: '3px 5px',
       }}>Preview</div>
@@ -558,7 +558,7 @@ function BSPreviewNotice({ onClose, onSignIn }) {
         <div style={{ fontFamily: t.DISPLAY, fontWeight: 600, fontSize: 11.5, letterSpacing: '-0.005em', color: t.INK, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           Browsing without an account
         </div>
-        <div style={{ fontFamily: t.MONO, fontSize: 7.4, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, marginTop: 2, lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, marginTop: 2, lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           Stats &amp; activity are AI-generated for preview · Marketplace data is live.
         </div>
         {onSignIn && (
@@ -566,7 +566,7 @@ function BSPreviewNotice({ onClose, onSignIn }) {
             marginTop: 3, padding: '3px 7px', cursor: 'pointer',
             background: 'transparent', color: t.INK,
             border: `1px solid ${t.INK}`,
-            fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700,
+            fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700,
           }}>Sign in →</button>
         )}
       </div>
@@ -609,13 +609,13 @@ function BSSubscribeBanner({ onJoin, onClose }) {
         <div style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.05, color: fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           Join the Shape community
         </div>
-        <div style={{ fontFamily: t.MONO, fontSize: 7.2, letterSpacing: '0.13em', textTransform: 'uppercase', color: fgMuted, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.13em', textTransform: 'uppercase', color: fgMuted, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           $5 / mo · cancel anytime
         </div>
       </div>
       <button onClick={onJoin} style={{ borderRadius: t.RADIUS_SM,
         padding: '6px 10px', background: btnBg, color: btnFg, border: 0,
-        fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.15em',
+        fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.15em',
         textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap',
       }}>Join →</button>
       <button onClick={onClose} aria-label="Dismiss" style={{ borderRadius: t.RADIUS_SM,
