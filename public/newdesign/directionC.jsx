@@ -3,7 +3,7 @@
 const DirC = (() => {
   const BG = "#fbfbfa";
   const INK = "#0a1f1b";
-  const TEAL = "#0ac5a8";
+  const TEAL = "#1ec0a8";
   const TEAL_DEEP = "#068a75";
 
   const sans = "'Inter Tight', sans-serif";
@@ -28,7 +28,7 @@ const DirC = (() => {
           </defs>
           <g filter="url(#blurMe)">
             <path d="M-100,80 C200,-40 600,150 900,60 C1200,-30 1500,180 1600,120 L1600,0 L-100,0 Z" fill="url(#aurora-g1)" />
-            <ellipse cx="1100" cy="260" rx="560" ry="260" fill="#0ac5a8" opacity="0.18" />
+            <ellipse cx="1100" cy="260" rx="560" ry="260" fill="#1ec0a8" opacity="0.18" />
             <ellipse cx="200" cy="380" rx="480" ry="220" fill="#7de3c8" opacity="0.22" />
           </g>
         </svg>
@@ -244,7 +244,7 @@ const DirC = (() => {
             {p > 0 ? <div style={{ height: 6, background: "rgba(10,31,27,0.06)", borderRadius: 999, overflow: "hidden" }}><div style={{ width: `${p}%`, height: "100%", background: p === 100 ? TEAL_DEEP : TEAL }} /></div> : <div style={{ fontFamily: mono, fontSize: 10, color: "rgba(10,31,27,0.35)", textAlign: "right" }}>—</div>}
           </div>
         ))}
-        <div style={{ marginTop: 16, padding: 12, background: "rgba(10,197,168,0.08)", borderRadius: 10, fontFamily: sans, fontSize: 13 }}>
+        <div style={{ marginTop: 16, padding: 12, background: "rgba(30,192,168,0.08)", borderRadius: 10, fontFamily: sans, fontSize: 13 }}>
           <span style={{ color: TEAL_DEEP, fontWeight: 500 }}>Maya · 8:12</span><br/>
           <span style={{ color: "rgba(10,31,27,0.75)" }}>"Good recovery — push through today. Add 5 lb on the RDL."</span>
         </div>
@@ -260,7 +260,7 @@ const DirC = (() => {
             <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.1em", color: "rgba(10,31,27,0.5)" }}>MONTH TO DATE</div>
             <div style={{ fontFamily: sans, fontSize: 34, fontWeight: 500, letterSpacing: "-0.02em", color: INK, marginTop: 4 }}>$14,820.00</div>
           </div>
-          <div style={{ padding: "4px 10px", background: "rgba(10,197,168,0.12)", color: TEAL_DEEP, fontFamily: mono, fontSize: 11, borderRadius: 999 }}>+18%</div>
+          <div style={{ padding: "4px 10px", background: "rgba(30,192,168,0.12)", color: TEAL_DEEP, fontFamily: mono, fontSize: 11, borderRadius: 999 }}>+18%</div>
         </div>
         <svg viewBox="0 0 400 120" style={{ width: "100%", height: 120 }}>
           <defs>
@@ -294,7 +294,7 @@ const DirC = (() => {
             <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(10,31,27,0.55)" }}>Priya · meal plan · today</div>
             <div style={{ fontFamily: sans, fontSize: 18, fontWeight: 500, color: INK, marginTop: 2 }}>1,820 / 2,100 kcal</div>
           </div>
-          <div style={{ fontFamily: mono, fontSize: 11, color: TEAL_DEEP, padding: "3px 8px", background: "rgba(10,197,168,0.1)", borderRadius: 4 }}>89%</div>
+          <div style={{ fontFamily: mono, fontSize: 11, color: TEAL_DEEP, padding: "3px 8px", background: "rgba(30,192,168,0.1)", borderRadius: 4 }}>89%</div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 18 }}>
           {[["P", 168, 180], ["C", 204, 260], ["F", 72, 75]].map(([l, v, t]) => (
@@ -323,7 +323,7 @@ const DirC = (() => {
   function Marketplace() {
     return (
       <section style={{ padding: "100px 72px", position: "relative", overflow: "hidden" }}>
-        <div aria-hidden style={{ position: "absolute", top: "-100px", right: "-200px", width: 600, height: 600, background: "radial-gradient(circle, rgba(10,197,168,0.15), transparent 60%)", filter: "blur(40px)" }} />
+        <div aria-hidden style={{ position: "absolute", top: "-100px", right: "-200px", width: 600, height: 600, background: "radial-gradient(circle, rgba(30,192,168,0.15), transparent 60%)", filter: "blur(40px)" }} />
         <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
           <div style={{ textAlign: "center", marginBottom: 56 }}>
             <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.14em", color: TEAL_DEEP, textTransform: "uppercase" }}>Marketplace</div>
@@ -393,11 +393,11 @@ const DirC = (() => {
             <div style={{ fontFamily: mono, fontSize: 11, color: "rgba(10,31,27,0.55)", letterSpacing: "0.12em", textTransform: "uppercase" }}>Last 14 days</div>
             <div style={{ fontFamily: sans, fontSize: 56, fontWeight: 500, letterSpacing: "-0.03em", color: INK, lineHeight: 1, marginTop: 4 }}>1,284<span style={{ fontSize: 18, color: "rgba(10,31,27,0.55)", marginLeft: 6 }}>pts</span></div>
           </div>
-          <div style={{ fontFamily: mono, fontSize: 11, color: TEAL_DEEP, padding: "4px 10px", background: "rgba(10,197,168,0.15)", borderRadius: 999 }}>▲ +312</div>
+          <div style={{ fontFamily: mono, fontSize: 11, color: TEAL_DEEP, padding: "4px 10px", background: "rgba(30,192,168,0.15)", borderRadius: 999 }}>▲ +312</div>
         </div>
         <div style={{ display: "flex", alignItems: "end", gap: 5, height: 140 }}>
           {bars.map((h, i) => (
-            <div key={i} style={{ flex: 1, height: `${h}%`, background: i === 13 ? TEAL_DEEP : "rgba(10,197,168,0.35)", borderRadius: 4, transition: "height .4s" }} />
+            <div key={i} style={{ flex: 1, height: `${h}%`, background: i === 13 ? TEAL_DEEP : "rgba(30,192,168,0.35)", borderRadius: 4, transition: "height .4s" }} />
           ))}
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", fontFamily: mono, fontSize: 10, color: "rgba(10,31,27,0.4)", letterSpacing: "0.08em", marginTop: 10 }}>
@@ -448,7 +448,7 @@ const DirC = (() => {
           <ShapeWord color={INK} size={15} />
           <div style={{ marginTop: 24 }}>
             {[["Today", true], ["Clients", false, "34"], ["Programs"], ["Schedule"], ["Messages", false, "3"], ["Payouts"], ["Settings"]].map(([l, on, b]) => (
-              <div key={l} style={{ padding: "9px 12px", borderRadius: 8, fontSize: 13, color: on ? INK : "rgba(10,31,27,0.65)", background: on ? "rgba(10,197,168,0.12)" : "transparent", fontWeight: on ? 500 : 400, display: "flex", justifyContent: "space-between" }}>
+              <div key={l} style={{ padding: "9px 12px", borderRadius: 8, fontSize: 13, color: on ? INK : "rgba(10,31,27,0.65)", background: on ? "rgba(30,192,168,0.12)" : "transparent", fontWeight: on ? 500 : 400, display: "flex", justifyContent: "space-between" }}>
                 {l}
                 {b && <span style={{ fontSize: 10, padding: "1px 6px", background: on ? TEAL_DEEP : "rgba(10,31,27,0.08)", color: on ? "#fff" : "rgba(10,31,27,0.6)", borderRadius: 999 }}>{b}</span>}
               </div>
@@ -527,7 +527,7 @@ const DirC = (() => {
     useEffect(() => { const id = setInterval(() => setBars(Array.from({length: 40}, () => Math.random())), 220); return () => clearInterval(id); }, []);
     return (
       <section style={{ padding: "100px 72px", background: INK, color: "#fff", position: "relative", overflow: "hidden" }}>
-        <div aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(800px 400px at 30% 20%, rgba(10,197,168,0.25), transparent 60%)" }} />
+        <div aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(800px 400px at 30% 20%, rgba(30,192,168,0.25), transparent 60%)" }} />
         <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "center" }}>
           <div>
             <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.14em", color: TEAL, textTransform: "uppercase" }}>Shape Radio</div>
@@ -572,7 +572,7 @@ const DirC = (() => {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20 }}>
             {TESTIMONIALS.map((t, i) => (
               <figure key={i} style={{ margin: 0, padding: 28, background: BG, borderRadius: 18, border: "1px solid rgba(10,31,27,0.06)", display: "flex", flexDirection: "column" }}>
-                <div style={{ fontFamily: mono, fontSize: 11, color: TEAL_DEEP, padding: "4px 10px", background: "rgba(10,197,168,0.1)", borderRadius: 999, display: "inline-block", alignSelf: "start" }}>{t.metric}</div>
+                <div style={{ fontFamily: mono, fontSize: 11, color: TEAL_DEEP, padding: "4px 10px", background: "rgba(30,192,168,0.1)", borderRadius: 999, display: "inline-block", alignSelf: "start" }}>{t.metric}</div>
                 <blockquote style={{ margin: "20px 0 0", fontFamily: sans, fontSize: 17, lineHeight: 1.5, color: INK, letterSpacing: "-0.005em", flex: 1 }}>"{t.quote}"</blockquote>
                 <figcaption style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid rgba(10,31,27,0.08)", display: "flex", alignItems: "center", gap: 12 }}>
                   <Placeholder label="" ratio="1/1" tone="light" style={{ width: 40, height: 40, borderRadius: 999 }} />
@@ -618,7 +618,7 @@ const DirC = (() => {
     return (
       <section style={{ position: "relative", overflow: "hidden" }}>
         <section style={{ padding: "100px 72px", background: "linear-gradient(135deg, #0a1f1b 0%, #083d34 50%, #0a7463 100%)", color: "#fff", position: "relative", overflow: "hidden" }}>
-          <div aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(600px 400px at 80% 50%, rgba(10,197,168,0.4), transparent 60%)" }} />
+          <div aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(600px 400px at 80% 50%, rgba(30,192,168,0.4), transparent 60%)" }} />
           <div style={{ maxWidth: 1000, margin: "0 auto", textAlign: "center", position: "relative" }}>
             <h2 style={{ fontFamily: sans, fontSize: 96, letterSpacing: "-0.035em", fontWeight: 500, lineHeight: 1, margin: "0 0 24px" }}>Start with a human.</h2>
             <p style={{ fontFamily: sans, fontSize: 18, color: "rgba(255,255,255,0.75)", maxWidth: 540, marginInline: "auto" }}>Free 15-minute intro with any coach on Shape. Subscribe only if it clicks.</p>

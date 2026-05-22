@@ -15,12 +15,12 @@
 </head><body>
 <template id="__bundler_thumbnail">
 <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-  <rect width="200" height="200" fill="#0a8f80"/>
+  <rect width="200" height="200" fill="#068a75"/>
   <g transform="translate(100 110)">
     <ellipse cx="0" cy="28" rx="72" ry="4" fill="rgba(0,0,0,0.25)"/>
     <path d="M -60 22 Q 0 52 60 22 Q 60 32 55 34 Q 0 58 -55 34 Q -60 32 -60 22 Z" fill="#111214"/>
     <path d="M -48 22 Q -56 -30 -16 -48 Q 0 -56 16 -48 Q 56 -30 48 22 Q 0 36 -48 22 Z" fill="#1a1a1c"/>
-    <path d="M -2 -20 L 10 -2 L -14 -2 Z" fill="#0fb8a5"/>
+    <path d="M -2 -20 L 10 -2 L -14 -2 Z" fill="#1ec0a8"/>
     <path d="M 14 -24 L 24 -8 L 4 -8 Z" fill="#efece6"/>
   </g>
 </svg>
@@ -40,14 +40,14 @@ const INK = '#1a1a1c';
 const INK60 = 'rgba(26,26,28,0.6)';
 const INK35 = 'rgba(26,26,28,0.35)';
 const HAIR = 'rgba(26,26,28,0.14)';
-const TEAL = '#0fb8a5';
-const TEAL_DEEP = '#0a8f80';
+const TEAL = '#1ec0a8';
+const TEAL_DEEP = '#068a75';
 
 // ─── palettes ───────────────────────────────────────────
 const CROWN_COLORS = [
   { id: 'black',   name: 'Carbon',      hex: '#111214', ink: '#fff' },
   { id: 'cream',   name: 'Chalk',       hex: '#e8e3d5', ink: '#1a1a1c' },
-  { id: 'teal',    name: 'Teal',        hex: '#0a8f80', ink: '#fff' },
+  { id: 'teal',    name: 'Teal',        hex: '#068a75', ink: '#fff' },
   { id: 'sand',    name: 'Sand',        hex: '#c9b58b', ink: '#1a1a1c' },
   { id: 'navy',    name: 'Ink',         hex: '#1c2a44', ink: '#fff' },
   { id: 'olive',   name: 'Olive',       hex: '#5b6440', ink: '#fff' },
@@ -61,8 +61,8 @@ const LOGO_TREATMENTS = [
   { id: 'color-black', name: 'Black + Teal', src: 'assets/shape-logo-new-black.png',   tone: 'color' },
   { id: 'mono-white',  name: 'All white',    src: 'assets/shape-logo-new-white.png',   tone: 'mono',  mono: '#ffffff' },
   { id: 'mono-black',  name: 'All black',    src: 'assets/shape-logo-new-black.png',   tone: 'mono',  mono: '#111214' },
-  { id: 'teal',        name: 'All teal',     src: 'assets/shape-logo-teal-deep.png',   tone: 'mono',  mono: '#0a8f80' },
-  { id: 'glow',        name: 'Bright teal',  src: 'assets/shape-logo-teal-bright.png', tone: 'mono',  mono: '#0fb8a5' },
+  { id: 'teal',        name: 'All teal',     src: 'assets/shape-logo-teal-deep.png',   tone: 'mono',  mono: '#068a75' },
+  { id: 'glow',        name: 'Bright teal',  src: 'assets/shape-logo-teal-bright.png', tone: 'mono',  mono: '#1ec0a8' },
 ];
 
 const MARK_VARIANTS = [
@@ -732,7 +732,7 @@ function TileBtn({ active, onClick, children }) {
       textAlign: 'left', padding: '12px 12px', borderRadius: 8,
       border: `1px solid ${active ? INK : HAIR}`,
       background: active ? '#fff' : 'rgba(255,255,255,0.5)',
-      boxShadow: active ? '0 0 0 2px rgba(10,143,128,0.2)' : 'none',
+      boxShadow: active ? '0 0 0 2px rgba(6,138,117,0.2)' : 'none',
       cursor: 'pointer',
     }}>
       {children}

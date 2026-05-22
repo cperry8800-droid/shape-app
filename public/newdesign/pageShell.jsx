@@ -3,7 +3,7 @@
 const PAPER = "#1a1612";        // warm dark base (legacy name, kept: used site-wide)
 const INK = "#f2ede4";          // warm cream text
 const INK_DEEP = "#0b0e0c";     // true cinema base (footer / deep surfaces)
-const TEAL = "#13c2a8";         // refined cinema teal accent
+const TEAL = "#1ec0a8";         // refined cinema teal accent
 const TEAL_BRIGHT = "#2ee0c4";
 const RUST = "#d2693f";         // warm secondary accent
 const serif = "'Fraunces', 'Instrument Serif', serif";

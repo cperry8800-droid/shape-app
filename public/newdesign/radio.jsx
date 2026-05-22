@@ -262,7 +262,7 @@ function RadioInClientApp() {
   // PAPER/INK constants used elsewhere in this file.
   const PAPER_LIGHT = "#efe5cd";
   const INK_DARK = "#0a0d0c";
-  const TEAL_ACCENT = "#0aa090";
+  const TEAL_ACCENT = "#1ec0a8";
   const HAIRLINE = "rgba(10,13,12,0.08)";
   const HAIRLINE_2 = "rgba(10,13,12,0.06)";
 

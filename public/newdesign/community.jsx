@@ -343,7 +343,7 @@ function Events() {
               <article style={{ padding: 30, background: "rgba(11,14,12,0.62)", borderRadius: 6, border: "1px solid rgba(242,237,228,0.1)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 18 }}>
                   <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.03em", color: INK, lineHeight: 1, fontWeight: 300 }}>{e.when}</div>
-                  <span style={{ fontFamily: mono, fontSize: 10, padding: "4px 10px", borderRadius: 999, background: "rgba(19,194,168,0.1)", color: TEAL, letterSpacing: "0.08em", textTransform: "uppercase" }}>{e.tag}</span>
+                  <span style={{ fontFamily: mono, fontSize: 10, padding: "4px 10px", borderRadius: 999, background: "rgba(30,192,168,0.1)", color: TEAL, letterSpacing: "0.08em", textTransform: "uppercase" }}>{e.tag}</span>
                 </div>
                 <h3 style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.015em", fontWeight: 400, color: INK, margin: "0 0 8px", lineHeight: 1.15 }}>{e.title}</h3>
                 <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)", marginBottom: 18 }}>{e.city} · hosted by {e.host}</div>
@@ -558,7 +558,7 @@ function Chat() {
           <aside className="cm-chat-aside" style={{ borderRight: "1px solid rgba(242,237,228,0.08)", padding: "24px 0", background: "rgba(242,237,228,0.02)" }}>
             <div style={{ padding: "0 20px", fontFamily: mono, fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.5)", marginBottom: 14 }}>{r.sub.toUpperCase()}</div>
             {r.channels.map((c, i) => (
-              <div key={i} style={{ padding: "10px 20px", background: c.active ? "rgba(19,194,168,0.08)" : "transparent", borderLeft: c.active ? `2px solid ${TEAL}` : "2px solid transparent", display: "flex", gap: 10, alignItems: "center", cursor: "pointer" }}>
+              <div key={i} style={{ padding: "10px 20px", background: c.active ? "rgba(30,192,168,0.08)" : "transparent", borderLeft: c.active ? `2px solid ${TEAL}` : "2px solid transparent", display: "flex", gap: 10, alignItems: "center", cursor: "pointer" }}>
                 {c.dm && <div style={{ width: 26, height: 26, borderRadius: 999, background: c.warn ? "rgba(237,106,94,0.25)" : "rgba(242,237,228,0.08)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 600, color: INK, flexShrink: 0 }}>{c.name.split(" ").map(x=>x[0]).slice(0,2).join("")}</div>}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: sans, fontSize: 13, color: INK, fontWeight: c.active ? 600 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</div>
@@ -575,12 +575,12 @@ function Chat() {
             </div>
             <div style={{ padding: 24, flex: 1, display: "flex", flexDirection: "column", gap: 14 }}>
               {r.messages.map((m, i) => (
-                <div key={i} style={{ display: "grid", gridTemplateColumns: "36px 1fr", gap: 12, alignItems: "start", padding: m.highlight ? "12px 14px" : 0, background: m.highlight ? "rgba(19,194,168,0.07)" : "transparent", borderRadius: 6, border: m.highlight ? `1px solid rgba(19,194,168,0.25)` : "none" }}>
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "36px 1fr", gap: 12, alignItems: "start", padding: m.highlight ? "12px 14px" : 0, background: m.highlight ? "rgba(30,192,168,0.07)" : "transparent", borderRadius: 6, border: m.highlight ? `1px solid rgba(30,192,168,0.25)` : "none" }}>
                   <div style={{ width: 36, height: 36, borderRadius: 999, background: m.role === "Coach" ? TEAL : "rgba(242,237,228,0.12)", color: m.role === "Coach" ? PAPER : INK, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: sans, fontSize: 12, fontWeight: 600 }}>{m.init}</div>
                   <div>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
                       <span style={{ fontFamily: sans, fontSize: 13, fontWeight: 600, color: INK }}>{m.who}</span>
-                      {m.role === "Coach" && <span style={{ fontFamily: sans, fontSize: 10, padding: "2px 7px", borderRadius: 999, background: "rgba(19,194,168,0.12)", color: TEAL, letterSpacing: "0.06em" }}>COACH</span>}
+                      {m.role === "Coach" && <span style={{ fontFamily: sans, fontSize: 10, padding: "2px 7px", borderRadius: 999, background: "rgba(30,192,168,0.12)", color: TEAL, letterSpacing: "0.06em" }}>COACH</span>}
                       <span style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(242,237,228,0.45)" }}>{m.time}</span>
                       {m.pin && <span style={{ fontFamily: mono, fontSize: 10, color: TEAL }}>📌 PINNED</span>}
                     </div>

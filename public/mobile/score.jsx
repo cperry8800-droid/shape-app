@@ -39,7 +39,7 @@ const TIERS = [
   { name: "Raw", min: 0, color: "rgba(242,237,228,0.35)" },
   { name: "Tempo", min: 1000, color: "rgba(242,237,228,0.85)", current: true },
   { name: "Peak", min: 1500, color: "#0a7463" },
-  { name: "Legend", min: 3000, color: "#0ac5a8" },
+  { name: "Legend", min: 3000, color: "#1ec0a8" },
 ];
 
 function RewardsHeroBg() {

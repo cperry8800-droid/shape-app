@@ -334,7 +334,7 @@ const DirB = (() => {
                   <div style={{ width: 36, height: 36, borderRadius: 999, background: "#1a1f1d", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, letterSpacing: "0.04em" }}>MJ</div>
                 </div>
                 {/* coach note */}
-                <div style={{ marginTop: 20, padding: 16, background: "rgba(30,192,168,0.18)", border: "1px solid rgba(10,197,168,0.25)", borderRadius: 14 }}>
+                <div style={{ marginTop: 20, padding: 16, background: "rgba(30,192,168,0.18)", border: "1px solid rgba(30,192,168,0.25)", borderRadius: 14 }}>
                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                     <div style={{ width: 30, height: 30, borderRadius: 999, background: "#2a332f", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 600 }}>MJ</div>
                     <div style={{ flex: 1 }}>
@@ -635,7 +635,7 @@ const DirB = (() => {
                   <div style={{ width: 36, height: 36, borderRadius: 999, background: "#1a1f1d", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, letterSpacing: "0.04em" }}>RL</div>
                 </div>
                 {/* nutritionist note */}
-                <div style={{ marginTop: 20, padding: 16, background: "rgba(30,192,168,0.18)", border: "1px solid rgba(10,197,168,0.25)", borderRadius: 14 }}>
+                <div style={{ marginTop: 20, padding: 16, background: "rgba(30,192,168,0.18)", border: "1px solid rgba(30,192,168,0.25)", borderRadius: 14 }}>
                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                     <div style={{ width: 30, height: 30, borderRadius: 999, background: "#2a332f", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 600 }}>RL</div>
                     <div style={{ flex: 1 }}>

@@ -197,7 +197,7 @@ async function publishProviderRow(
     bio: typeof details.bio === 'string'
       ? details.bio.slice(0, 1000)
       : `${fullName} is a verified Shape ${application.provider_type} specializing in ${specialty}.`,
-    color: application.provider_type === 'trainer' ? '#0ac5a8' : '#d39b28',
+    color: application.provider_type === 'trainer' ? '#1ec0a8' : '#d39b28',
     tags: [specialty, category, application.location].filter(Boolean),
     featured: false,
     at_capacity: false,
