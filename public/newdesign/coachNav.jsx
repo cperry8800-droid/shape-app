@@ -21,6 +21,7 @@ function nutriNavItems(active) {
   const items = [
     { label: "Today",     href: "NutritionistDashboard.html" },
     { label: "Clients",   href: "NutritionistClients.html", count: 28 },
+    { label: "Console",   href: "NutritionistLiveConsole.html" },
     { label: "Plans",     href: "NutritionistPlans.html" },
     { label: "Playlists", href: "NutritionistPlaylists.html" },
     { label: "Community", href: "NutritionistCommunity.html" },
