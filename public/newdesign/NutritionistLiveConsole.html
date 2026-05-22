@@ -77,6 +77,36 @@ const CONSOLE_CLIENTS = [
       { id: "m3", name: "Trail mix + green tea",           time: "3:30 pm",  kcal: 240, protein: 8,  note: "" },
     ],
   },
+  {
+    id: "mia",
+    status: "past",
+    name: "Mia Reyes",
+    age: 31,
+    weight: "146.0 lbs",
+    height: "5'7\"",
+    focus: "Endurance-fueling protocol complete · self-managed",
+    meals: { done: 0, total: 0, note: "Wrapped plan · Dec '25" },
+    nutrition: { kcal: 0, protein: 0 },
+    recovery: { restingHR: 53, sleep: 7.2, stress: 3 },
+    recoveryNote: "Mia finished her endurance-fueling protocol in December and now manages on her own. Records here are read-only.",
+    focusBanner: "",
+    plan: [],
+  },
+  {
+    id: "tomas",
+    status: "past",
+    name: "Tomás Becker",
+    age: 47,
+    weight: "176.4 lbs",
+    height: "5'10\"",
+    focus: "Anti-inflammatory plan complete",
+    meals: { done: 0, total: 0, note: "Self-coached since Nov '25" },
+    nutrition: { kcal: 0, protein: 0 },
+    recovery: { restingHR: 57, sleep: 7.0, stress: 4 },
+    recoveryNote: "Tomás completed his anti-inflammatory rehab nutrition plan last fall. He no longer logs through Shape; this profile is read-only.",
+    focusBanner: "",
+    plan: [],
+  },
 ];
 
 function newId() { return "m" + Math.random().toString(36).slice(2, 9); }
@@ -116,6 +146,18 @@ const TRAJECTORY_PARAMS = {
     protein: { start: 130,  end: 105,   noise: 7,   decimals: 0 },
     sleep:   { start: 7.0,  end: 6.4,   noise: 0.3, decimals: 1 },
   },
+  mia: {
+    score:   { start: 1620, end: 1620, noise: 12,  decimals: 0 },
+    weight:  { start: 146,  end: 146,  noise: 0.3, decimals: 1 },
+    protein: { start: 110,  end: 110,  noise: 5,   decimals: 0 },
+    sleep:   { start: 7.2,  end: 7.2,  noise: 0.3, decimals: 1 },
+  },
+  tomas: {
+    score:   { start: 1700, end: 1700, noise: 12,  decimals: 0 },
+    weight:  { start: 176,  end: 176,  noise: 0.4, decimals: 1 },
+    protein: { start: 120,  end: 120,  noise: 5,   decimals: 0 },
+    sleep:   { start: 7.0,  end: 7.0,  noise: 0.3, decimals: 1 },
+  },
 };
 
 function trajSeries(p, n) {
@@ -149,6 +191,7 @@ const METRICS = [
 
 function NutritionistLiveConsolePage() {
   const [clientId, setClientId] = React.useState(CONSOLE_CLIENTS[0].id);
+  const [clientMenuOpen, setClientMenuOpen] = React.useState(false);
   const [range, setRange] = React.useState("12w");
   const [metric, setMetric] = React.useState("score");
   const [customStart, setCustomStart] = React.useState(DEFAULT_START_ISO);
@@ -223,20 +266,68 @@ function NutritionistLiveConsolePage() {
       title="Console"
       subtitle="See what a client is eating and recovering from right now — and coach them in the moment."
     >
-      {/* Client picker */}
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 20 }}>
-        {CONSOLE_CLIENTS.map(c => {
-          const on = c.id === clientId;
-          return (
-            <button key={c.id} onClick={() => setClientId(c.id)} style={{
-              padding: "9px 14px", borderRadius: 999, cursor: "pointer",
-              background: on ? TEAL : "rgba(242,237,228,0.04)",
-              color: on ? PAPER : "rgba(242,237,228,0.78)",
-              border: on ? "none" : "1px solid rgba(242,237,228,0.12)",
-              fontFamily: sans, fontSize: 13, fontWeight: on ? 500 : 400,
-            }}>{c.name}</button>
-          );
-        })}
+      {/* Client picker — dropdown grouped by Current / Past */}
+      <div style={{ position: "relative", display: "inline-block", marginBottom: 20 }}>
+        <button
+          onClick={() => setClientMenuOpen(o => !o)}
+          style={{
+            display: "flex", alignItems: "center", gap: 12,
+            padding: "10px 18px", borderRadius: 999, cursor: "pointer",
+            background: "rgba(242,237,228,0.04)",
+            color: INK,
+            border: "1px solid rgba(242,237,228,0.16)",
+            fontFamily: sans, fontSize: 14, fontWeight: 500,
+            minWidth: 260,
+          }}
+        >
+          <span style={{ flex: 1, textAlign: "left" }}>{client.name}</span>
+          {(client.status || "current") === "past" && (
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.12em", color: "rgba(242,237,228,0.5)", padding: "2px 6px", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4 }}>PAST</span>
+          )}
+          <span style={{ fontSize: 10, color: "rgba(242,237,228,0.5)", transform: clientMenuOpen ? "rotate(180deg)" : "none", transition: "transform .15s" }}>▾</span>
+        </button>
+        {clientMenuOpen && (
+          <React.Fragment>
+            <div onClick={() => setClientMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
+            <div style={{
+              position: "absolute", top: "calc(100% + 6px)", left: 0,
+              background: "#14110e", border: "1px solid rgba(242,237,228,0.12)",
+              borderRadius: 12, minWidth: 280, maxWidth: 340,
+              boxShadow: "0 18px 48px rgba(0,0,0,0.55)",
+              zIndex: 50, padding: "6px 0", overflow: "hidden",
+            }}>
+              {[["current", "Current"], ["past", "Past"]].map(([status, label]) => {
+                const group = CONSOLE_CLIENTS.filter(c => (c.status || "current") === status);
+                if (group.length === 0) return null;
+                return (
+                  <div key={status}>
+                    <div style={{
+                      fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em",
+                      textTransform: "uppercase", color: "rgba(242,237,228,0.45)",
+                      padding: "10px 18px 6px",
+                    }}>{label}</div>
+                    {group.map(c => {
+                      const on = c.id === clientId;
+                      return (
+                        <button
+                          key={c.id}
+                          onClick={() => { setClientId(c.id); setClientMenuOpen(false); }}
+                          style={{
+                            display: "block", width: "100%", textAlign: "left",
+                            background: on ? "rgba(10,197,168,0.1)" : "transparent",
+                            color: on ? TEAL_BRIGHT : INK,
+                            border: 0, padding: "10px 18px", cursor: "pointer",
+                            fontFamily: sans, fontSize: 13.5, fontWeight: on ? 500 : 400,
+                          }}
+                        >{c.name}</button>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          </React.Fragment>
+        )}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
