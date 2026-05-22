@@ -196,6 +196,7 @@ function NutritionistLiveConsolePage() {
   const [metric, setMetric] = React.useState("score");
   const [customStart, setCustomStart] = React.useState(DEFAULT_START_ISO);
   const [customEnd, setCustomEnd] = React.useState(TODAY_ISO);
+  const [live, setLive] = React.useState(false);
   // Per-client editable state (focus banner + today's meal plan)
   const [focusById, setFocusById] = React.useState(() => Object.fromEntries(CONSOLE_CLIENTS.map(c => [c.id, c.focusBanner])));
   const [plansById, setPlansById] = React.useState(() => Object.fromEntries(CONSOLE_CLIENTS.map(c => [c.id, c.plan])));
@@ -210,6 +211,33 @@ function NutritionistLiveConsolePage() {
     toastTimer.current = setTimeout(() => setToast(""), 2400);
   };
 
+  // Hydrate from /api/nutritionist/console on mount; if the viewer is a
+  // real signed-in nutritionist, the API response overlays the mock state
+  // and sets live=true so subsequent send/add/remove also POST through.
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/nutritionist/console', { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (cancelled || !d || !d.isNutritionist) return;
+        setLive(true);
+        if (d.focusByClient && Object.keys(d.focusByClient).length) {
+          setFocusById(prev => ({ ...prev, ...d.focusByClient }));
+        }
+        if (d.itemsByClient && Object.keys(d.itemsByClient).length) {
+          setPlansById(prev => {
+            const next = { ...prev };
+            for (const [cid, items] of Object.entries(d.itemsByClient)) {
+              next[cid] = items;
+            }
+            return next;
+          });
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
   const client = CONSOLE_CLIENTS.find(c => c.id === clientId);
   const plan = plansById[clientId] || [];
   const focus = focusById[clientId] || "";
@@ -218,22 +246,57 @@ function NutritionistLiveConsolePage() {
   const sendFocus = () => {
     if (!focus.trim()) return;
     flash("Sent to " + firstName(client.name) + "'s phone");
+    if (live) {
+      fetch('/api/nutritionist/console', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, action: 'focus', text: focus }),
+      }).catch(() => {});
+    }
   };
   const addMeal = () => {
     if (!meal.name.trim()) return;
-    const next = {
-      id: newId(),
+    const payload = {
       name: meal.name.trim(),
       time: meal.time.trim() || "—",
       kcal: meal.kcal ? Number(meal.kcal) : null,
       protein: meal.protein ? Number(meal.protein) : null,
       note: meal.note.trim(),
     };
-    setPlansById({ ...plansById, [clientId]: [...plan, next] });
+    const tempId = newId();
+    setPlansById({ ...plansById, [clientId]: [...plan, { id: tempId, ...payload }] });
     setMeal({ name: "", time: "", kcal: "", protein: "", note: "" });
     flash("Added to " + firstName(client.name) + "'s plan");
+    if (live) {
+      fetch('/api/nutritionist/console', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, action: 'addItem', payload }),
+      })
+        .then(r => (r.ok ? r.json() : null))
+        .then(d => {
+          if (!d || !d.id) return;
+          setPlansById(prev => ({
+            ...prev,
+            [clientId]: (prev[clientId] || []).map(it => it.id === tempId ? { ...it, id: d.id } : it),
+          }));
+        })
+        .catch(() => {});
+    }
   };
-  const removeMeal = (id) => setPlansById({ ...plansById, [clientId]: plan.filter(m => m.id !== id) });
+  const removeMeal = (id) => {
+    setPlansById({ ...plansById, [clientId]: plan.filter(m => m.id !== id) });
+    if (live) {
+      fetch('/api/nutritionist/console', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, action: 'removeItem', itemId: id }),
+      }).catch(() => {});
+    }
+  };
 
   const progressPct = client.meals.total ? Math.round((client.meals.done / client.meals.total) * 100) : 0;
   const traj = TRAJECTORY_PARAMS[clientId] || TRAJECTORY_PARAMS.charlie;
@@ -499,10 +562,12 @@ function NutritionistLiveConsolePage() {
         })()}
       </Card>
 
-      {/* Demo-only banner */}
-      <div style={{ marginTop: 24, padding: "12px 16px", border: "1px dashed rgba(242,237,228,0.16)", borderRadius: 10, fontSize: 12, color: "rgba(242,237,228,0.55)", lineHeight: 1.55 }}>
-        Demo preview — the live logging feed and "send to phone" actions show how the Console will behave once the real-time backend is wired up. Switching clients, adding meals, and sending focus banners all work locally on this page.
-      </div>
+      {/* Demo-only banner — hidden once /api/nutritionist/console responds as signed-in */}
+      {!live && (
+        <div style={{ marginTop: 24, padding: "12px 16px", border: "1px dashed rgba(242,237,228,0.16)", borderRadius: 10, fontSize: 12, color: "rgba(242,237,228,0.55)", lineHeight: 1.55 }}>
+          Demo preview — sign in as a nutritionist to persist focus banners and pushed meals through /api/nutritionist/console. For now, switching clients, adding meals, and sending focus banners work locally on this page.
+        </div>
+      )}
 
       {/* Toast */}
       {toast && (
