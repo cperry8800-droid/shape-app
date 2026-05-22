@@ -218,23 +218,37 @@ function TrainerLiveConsolePage() {
         if (cancelled || !d || !d.isTrainer) return;
         setLive(true);
         if (Array.isArray(d.clients) && d.clients.length) {
-          const mapped = d.clients.map(c => ({
-            id: c.id,
-            isReal: true,
-            status: c.status || 'current',
-            lastAt: c.lastAt || null,
-            name: c.name || 'Client',
-            age: '—',
-            weight: '—',
-            height: '—',
-            focus: '—',
-            workout: { done: 0, total: 0, note: '—' },
-            nutrition: { kcal: 0, protein: 0 },
-            recovery: { restingHR: '—', sleep: '—', stress: '—' },
-            recoveryNote: '',
-            focusBanner: '',
-            session: [],
-          }));
+          const snapByClient = d.snapshotByClient || {};
+          const mapped = d.clients.map(c => {
+            const s = snapByClient[c.id] || {};
+            const fmt1 = (v) => (v == null ? '—' : Number(v).toFixed(1));
+            return {
+              id: c.id,
+              isReal: true,
+              status: c.status || 'current',
+              lastAt: c.lastAt || null,
+              name: c.name || 'Client',
+              age: '—',
+              weight: s.weight_lb != null ? Number(s.weight_lb).toFixed(1) + ' lbs' : '—',
+              height: '—',
+              focus: '—',
+              workout: { done: 0, total: 0, note: s.snapshot_date ? 'Last log ' + s.snapshot_date : '—' },
+              nutrition: {
+                kcal: s.calories != null ? Number(s.calories) : 0,
+                protein: s.protein_g != null ? Number(s.protein_g) : 0,
+              },
+              recovery: {
+                restingHR: s.resting_hr != null ? Math.round(Number(s.resting_hr)) : '—',
+                sleep: s.sleep_hours != null ? fmt1(s.sleep_hours) : '—',
+                stress: s.stress != null ? Number(s.stress) : '—',
+              },
+              recoveryNote: s.snapshot_date
+                ? 'Latest snapshot ' + s.snapshot_date + '. Resting HR, sleep, and stress refresh as new wearable / check-in data syncs.'
+                : 'Recovery signals will appear once a wearable connects or the client logs a daily snapshot.',
+              focusBanner: '',
+              session: [],
+            };
+          });
           setServerClients(mapped);
           if (mapped.length && !mapped.find(c => c.id === clientId)) {
             setClientId(mapped[0].id);
