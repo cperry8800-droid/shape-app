@@ -94,7 +94,7 @@ function BSHealthIntegrationsCard({ onOpenSettings }) {
     color: t.INK,
     padding: '10px 9px',
     fontFamily: t.MONO,
-    fontSize: 8.5,
+    fontSize: 9,
     fontWeight: 800,
     letterSpacing: '0.16em',
     textTransform: 'uppercase',
@@ -138,7 +138,7 @@ function BSHealthIntegrationsCard({ onOpenSettings }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', borderTop: `1px solid ${t.RULE}` }}>
             {stats.map(([label, value], i) => (
               <div key={label} style={{ padding: '9px 5px', borderLeft: i ? `1px solid ${t.RULE}` : 0, textAlign: 'center' }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', color: t.INK50 }}>{label}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', color: t.INK50 }}>{label}</div>
                 <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 17, lineHeight: 1, fontWeight: 700, color: t.INK }}>{value}</div>
               </div>
             ))}
@@ -304,7 +304,7 @@ function BSConnectedDataSummary({ onOpenSettings }) {
             <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
               {metrics.map(({ label, value }) => (
                 <span key={label} style={{ padding: '8px 5px', borderRadius: t.RADIUS_SM, background: 'rgba(255,255,255,0.035)', textAlign: 'center' }}>
-                  <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', color: t.INK50 }}>{label}</span>
+                  <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', color: t.INK50 }}>{label}</span>
                   <span style={{ display: 'block', marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 750, color: t.INK, lineHeight: 1 }}>{value}</span>
                 </span>
               ))}
@@ -682,7 +682,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                 display: 'block',
                 marginTop: 4,
                 fontFamily: t.MONO,
-                fontSize: 8,
+                fontSize: 9,
                 fontWeight: 800,
                 letterSpacing: '0.12em',
                 textTransform: 'uppercase',
@@ -721,7 +721,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                 padding: '8px 0 6px', cursor: 'pointer',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
               }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', fontWeight: 600, opacity: today && !on ? 1 : 0.7 }}>{day.l}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', fontWeight: 600, opacity: today && !on ? 1 : 0.7 }}>{day.l}</span>
                 <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 22, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{day.d}</span>
                 <span style={{ display: 'flex', gap: 3, height: 4, marginTop: 2 }}>
                   {dots.slice(0, 3).map((c, k) => <span key={k} style={{ width: 4, height: 4, borderRadius: '50%', background: c }} />)}
@@ -765,7 +765,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                   opacity: on ? 1 : (today ? 1 : 0.5),
                 }} />
                 <span style={{
-                  fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em',
+                  fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em',
                   color: on ? t.INK : (today ? t.ACCENT : t.INK50),
                   fontWeight: on || today ? 700 : 400,
                 }}>
@@ -825,7 +825,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                   {row.tag ? (
                     <span style={{
                       fontFamily: t.MONO,
-                      fontSize: 8.5,
+                      fontSize: 9,
                       letterSpacing: '0.16em',
                       color: t.PAPER,
                       background: row.tagColor || t.INK,
@@ -873,7 +873,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                       borderRadius: t.RADIUS_SM,
                       padding: '6px 7px',
                       fontFamily: t.MONO,
-                      fontSize: 8,
+                      fontSize: 9,
                       fontWeight: 900,
                       letterSpacing: '0.16em',
                       textTransform: 'uppercase',
@@ -974,7 +974,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
               <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderTop: `1px solid ${t.RULE}`, borderBottom: `1px solid ${t.RULE}` }}>
                 {activeDayLogDetails.metrics.map(([label, value], i) => (
                   <div key={label} style={{ padding: '12px 8px', borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0 }}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase', fontWeight: 800 }}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase', fontWeight: 800 }}>
                       {label}
                     </div>
                     <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.1, color: t.INK }}>
@@ -1027,7 +1027,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${t.RULE}`, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
           {[['MOVES', '6'], ['VOL', '1900LB'], ['BLOCK', 'W6/D4'], ['LAST', '+2.5%']].map(([l, v], i) => (
             <div key={l} style={{ borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0, paddingLeft: i > 0 ? 10 : 0 }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
               <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 18, color: t.INK, marginTop: 3, letterSpacing: '-0.02em' }}>{v}</div>
             </div>
           ))}
@@ -1069,7 +1069,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
           <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${t.RULE}`, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
             {[['KCAL', '620'], ['PRO', '48g'], ['CARB', '72g'], ['FAT', '14g']].map(([l, v], i) => (
               <div key={l} style={{ borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0, paddingLeft: i > 0 ? 10 : 0 }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
                 <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 18, color: t.INK, marginTop: 3, letterSpacing: '-0.02em' }}>{v}</div>
               </div>
             ))}
@@ -1444,7 +1444,7 @@ function BSClientTrain({ onProfile }) {
             <div style={{
               display: 'grid', gridTemplateColumns: '24px 1fr 70px',
               padding: '6px 0', borderTop: `2px solid ${t.INK}`, borderBottom: `1px solid ${t.RULE}`,
-              fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50,
+              fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50,
             }}>
               <span>#</span><span>Move · Sets / Reps</span><span style={{ textAlign: 'right' }}>Load</span>
             </div>
@@ -1550,7 +1550,7 @@ function BSMealPreview({ meal, onBack }) {
           { l: 'FAT',     v: meal.f + 'g' },
         ].map((s, i) => (
           <div key={i} style={{ borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0, paddingLeft: i > 0 ? 10 : 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase' }}>{s.l}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase' }}>{s.l}</div>
             <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 22, color: t.INK, marginTop: 4, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{s.v}</div>
           </div>
         ))}
@@ -1699,7 +1699,7 @@ function BSRecipePreview({ recipe, dayLabel, onBack, onAddGrocery, groceryAdded 
           { l: 'FAT',     v: r.f + 'g' },
         ].map((s, i) => (
           <div key={i} style={{ borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0, paddingLeft: i > 0 ? 10 : 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase' }}>{s.l}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase' }}>{s.l}</div>
             <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 22, color: t.INK, marginTop: 4, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{s.v}</div>
           </div>
         ))}
@@ -1875,7 +1875,7 @@ function BSDayBriefPreview({ day, onBack, onMealClick, onRecipeClick }) {
           <div key={m.l} style={{ borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0, paddingLeft: i > 0 ? 10 : 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ display: 'inline-block', width: 8, height: 8, background: m.c }} />
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase', fontWeight: 700 }}>{m.l}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase', fontWeight: 700 }}>{m.l}</span>
             </div>
             <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 24, color: t.INK, marginTop: 6, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{m.v}<span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50, fontWeight: 600, marginLeft: 2 }}>g</span></div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 3, letterSpacing: '0.06em' }}>{m.s}</div>
@@ -2012,7 +2012,7 @@ function BSRecipeArchivePage({ recipes, recipeLists, onOpenRecipe, onAddGrocery,
                 <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.ACCENT, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700 }}>{entry.date}</span>
                 <span>
                   <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, fontWeight: 700, letterSpacing: '-0.02em' }}>{entry.title}</span>
-                  <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.1em', marginTop: 2, textTransform: 'uppercase' }}>{entry.meta}</span>
+                  <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.1em', marginTop: 2, textTransform: 'uppercase' }}>{entry.meta}</span>
                 </span>
                 <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Open</span>
               </button>
@@ -2922,7 +2922,7 @@ function BSClientEat({ onProfile }) {
                 <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.ACCENT, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700 }}>{entry.date}</span>
                 <span>
                   <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 17, color: t.INK, fontWeight: 700, letterSpacing: '-0.02em' }}>{entry.title}</span>
-                  <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.1em', marginTop: 2, textTransform: 'uppercase' }}>{entry.meta}</span>
+                  <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.1em', marginTop: 2, textTransform: 'uppercase' }}>{entry.meta}</span>
                 </span>
                 <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Open</span>
               </button>
@@ -3004,7 +3004,7 @@ function BSClientEat({ onProfile }) {
           { l: 'FAT',   v: cur.totals.f,   s: `/${cur.totals.target.f}g`  },
         ].map((m, i) => (
           <div key={m.l} style={{ borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0, paddingLeft: i > 0 ? 10 : 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase' }}>{m.l}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase' }}>{m.l}</div>
             <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 28, color: t.INK, marginTop: 4, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{m.v}</div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.08em' }}>{m.s}</div>
           </div>
@@ -3248,7 +3248,7 @@ function BSActivityRoutePreview({ route }) {
         padding: 10,
       }}>
         <div>
-          <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 900 }}>{provider ? `${provider} - ${route.kind}` : route.kind}</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 900 }}>{provider ? `${provider} - ${route.kind}` : route.kind}</div>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, lineHeight: 1.05, letterSpacing: '-0.03em', marginTop: 4 }}>{route.area}</div>
         </div>
         <div style={{
@@ -3257,7 +3257,7 @@ function BSActivityRoutePreview({ route }) {
           background: t.PAPER2,
           padding: '5px 6px',
           fontFamily: t.MONO,
-          fontSize: 7.5,
+          fontSize: 9,
           letterSpacing: '0.14em',
           textTransform: 'uppercase',
           color: t.INK,
@@ -3275,7 +3275,7 @@ function BSActivityRoutePreview({ route }) {
         justifyContent: 'space-between',
         gap: 8,
         fontFamily: t.MONO,
-        fontSize: 8,
+        fontSize: 9,
         letterSpacing: '0.16em',
         textTransform: 'uppercase',
         color: t.INK70,
@@ -3320,7 +3320,7 @@ function BSFeedActivityCard({
             <span style={{ fontFamily: t.BODY, fontSize: 15, fontWeight: 750, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{post.name}</span>
             {post.live && <span style={{ width: 7, height: 7, borderRadius: 7, background: '#df3f33', flex: '0 0 auto' }} />}
           </div>
-          <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>
+          <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>
             {post.role} - {post.time}
           </div>
         </div>
@@ -3330,7 +3330,7 @@ function BSFeedActivityCard({
           borderRadius: 999,
           padding: '5px 8px',
           fontFamily: t.MONO,
-          fontSize: 8,
+          fontSize: 9,
           letterSpacing: '0.14em',
           textTransform: 'uppercase',
           fontWeight: 900,
@@ -3350,7 +3350,7 @@ function BSFeedActivityCard({
               borderRadius: 999,
               padding: '4px 7px',
               fontFamily: t.MONO,
-              fontSize: 7.5,
+              fontSize: 9,
               letterSpacing: '0.13em',
               textTransform: 'uppercase',
               fontWeight: 900,
@@ -3369,7 +3369,7 @@ function BSFeedActivityCard({
           <BSActivityRoutePreview route={post.route} />
         </div>
         {post.route?.imported && providerLabel && (
-          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>
+          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>
             Imported route - start and finish can be masked
           </div>
         )}
@@ -3387,7 +3387,7 @@ function BSFeedActivityCard({
           {[post.statA, post.statB, post.statC].map((stat, i) => (
             <div key={i} style={{ minWidth: 0 }}>
               <div style={{ fontFamily: t.BODY, fontSize: 18, fontWeight: 720, color: t.INK, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{stat}</div>
-              <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, color: t.INK50, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{labels[i]}</div>
+              <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{labels[i]}</div>
             </div>
           ))}
         </div>
@@ -3401,7 +3401,7 @@ function BSFeedActivityCard({
               borderRadius: 999,
               padding: '5px 8px',
               fontFamily: t.MONO,
-              fontSize: 8,
+              fontSize: 9,
               letterSpacing: '0.12em',
               textTransform: 'uppercase',
               fontWeight: 800,
@@ -3636,7 +3636,7 @@ function BSCommunityLiveFeed({ role = 'client' }) {
                     color: active ? t.PAPER : t.INK,
                     padding: '8px 12px',
                     fontFamily: t.MONO,
-                    fontSize: 8,
+                    fontSize: 9,
                     letterSpacing: '0.16em',
                     textTransform: 'uppercase',
                     fontWeight: 800,
@@ -3987,7 +3987,7 @@ function BSClientChat({ onProfile, role = 'client' }) {
           }}>
             <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
               <span style={{ fontFamily: t.BODY, fontWeight: 760, fontSize: 13, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.label}</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 7, letterSpacing: '0.14em', textTransform: 'uppercase', opacity: 0.6, fontWeight: 700, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.sub}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', opacity: 0.6, fontWeight: 700, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.sub}</span>
             </div>
             <span style={{
               flex: '0 0 auto',
@@ -4145,7 +4145,7 @@ function BSClientChat({ onProfile, role = 'client' }) {
                   <BSAvatar init={(th.who.match(/[A-Z#]/) || ['S'])[0]} size={36} fill={tagColor} />
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontFamily: t.BODY, fontSize: 14, fontWeight: 760, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{th.who}</div>
-                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{th.role}</div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{th.role}</div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     {!!th.unread && (
@@ -4196,11 +4196,11 @@ function BSClientChat({ onProfile, role = 'client' }) {
                   <BSAvatar init={me ? 'A' : (m.who.match(/[A-Z#]/) || ['S'])[0]} size={34} fill={tagColor} />
                   <div>
                     <div style={{ fontFamily: t.BODY, fontSize: 14, fontWeight: 760 }}>{me ? 'You' : m.who}</div>
-                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: me ? 'rgba(244,237,224,0.62)' : t.INK50 }}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: me ? 'rgba(244,237,224,0.62)' : t.INK50 }}>
                       {(m._thread || activeBucket?.label || '').slice(0, 32)}
                     </div>
                   </div>
-                  <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: me ? 'rgba(244,237,224,0.62)' : t.INK50 }}>{m.time || 'now'}</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: me ? 'rgba(244,237,224,0.62)' : t.INK50 }}>{m.time || 'now'}</div>
                 </div>
                 <div style={{ marginTop: 10, fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.42 }}>{m.t}</div>
               </div>
@@ -4344,7 +4344,7 @@ function BSChatThread({ thread, eyebrow, onBack }) {
               maxWidth: '82%',
             }}>
               {!me && (
-                <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: m.coach ? t.AMBER : t.INK50, fontWeight: 700, marginBottom: 4 }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: m.coach ? t.AMBER : t.INK50, fontWeight: 700, marginBottom: 4 }}>
                   {m.who}{m.coach ? ' · Coach' : ''}
                 </div>
               )}
@@ -4357,7 +4357,7 @@ function BSChatThread({ thread, eyebrow, onBack }) {
                 boxShadow: me ? 'none' : t.ELEVATION_SOFT,
                 padding: '11px 13px',
               }}>{m.t}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginTop: 4, textAlign: me ? 'right' : 'left' }}>{m.time}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginTop: 4, textAlign: me ? 'right' : 'left' }}>{m.time}</div>
             </div>
           );
         })}
@@ -4616,7 +4616,7 @@ function BSClientMe({ onProfile, onLogout }) {
             { k: 'SPEND',       v: scoreProfile.spendRatio, n: scoreProfile.available.toLocaleString(), c: t.BLUE },
           ].map(r => (
             <div key={r.k} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 86, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK70, fontWeight: 600 }}>{r.k}</div>
+              <div style={{ width: 86, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', color: t.INK70, fontWeight: 600 }}>{r.k}</div>
               <div style={{ flex: 1, height: 4, background: t.HAIR, position: 'relative' }}>
                 <div style={{ width: `${r.v * 100}%`, height: '100%', background: r.c }} />
               </div>
@@ -4678,7 +4678,7 @@ function BSClientMe({ onProfile, onLogout }) {
             <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK70, fontWeight: 700 }}>{time}</span>
             <span>
               <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 650, color: t.INK }}>{what}</span>
-              <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{owner}</span>
+              <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{owner}</span>
             </span>
             <BSEyebrow color={t.ACCENT}>Open</BSEyebrow>
           </button>
@@ -4694,7 +4694,7 @@ function BSClientMe({ onProfile, onLogout }) {
         ].map(([v, l]) => (
           <div key={l}>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, letterSpacing: '-0.05em', color: t.INK, lineHeight: 1 }}>{v}</div>
-            <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{l}</div>
+            <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{l}</div>
           </div>
         ))}
       </div>
@@ -4852,7 +4852,7 @@ function BSIntegrationsPage({ onBack }) {
           border: `1px solid ${status === 'Connected' ? t.ACCENT : t.RULE}`,
           color: status === 'Connected' ? t.ACCENT : t.INK50,
           fontFamily: t.MONO,
-          fontSize: 8.5,
+          fontSize: 9,
           fontWeight: 800,
           letterSpacing: '0.16em',
           textTransform: 'uppercase',
@@ -4923,7 +4923,7 @@ function BSIntegrationsPage({ onBack }) {
           <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderTop: `2px solid ${t.INK}`, borderBottom: `1px solid ${t.RULE}` }}>
             {statCards.map(([label, value], i) => (
               <div key={label} style={{ padding: '10px 8px', borderLeft: i ? `1px solid ${t.RULE}` : 0 }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{label}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{label}</div>
                 <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.04em', color: t.INK }}>{value}</div>
               </div>
             ))}
@@ -5020,12 +5020,12 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
             padding: '12px 0', borderBottom: i === tiers.length - 1 ? 0 : `1px solid ${t.HAIR}`,
           }}>
             <div>
-              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>PTS</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>PTS</div>
               <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.08em', color: t.INK, fontWeight: 700 }}>{tier.range}</div>
             </div>
             <div>
               <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{tier.name}</div>
-              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tier.perk}</div>
+              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tier.perk}</div>
             </div>
           </div>
         ))}
@@ -5043,9 +5043,9 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
             ['TIER', tier, `${pointsToNext.toLocaleString()} to ${nextTier}`],
           ].map(([label, value, note], i) => (
             <div key={label} style={{ padding: '10px 8px', borderLeft: i ? `1px solid ${t.RULE}` : 0 }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{label}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{label}</div>
               <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>{value}</div>
-              <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', color: t.INK50, textTransform: 'uppercase' }}>{note}</div>
+              <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', color: t.INK50, textTransform: 'uppercase' }}>{note}</div>
             </div>
           ))}
         </div>
@@ -5061,7 +5061,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
           }}>
             <div>
               <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{title}</div>
-              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{sub}</div>
+              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{sub}</div>
             </div>
             <div style={{ alignSelf: 'center', textAlign: 'right', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', color: t.ACCENT }}>{cost}</div>
           </div>
@@ -5077,7 +5077,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
           }}>
             <div>
               <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{a.name}</div>
-              <div style={{ marginTop: 3, display: 'flex', gap: 8, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
+              <div style={{ marginTop: 3, display: 'flex', gap: 8, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
                 <span>{a.cap}</span>
                 <span>-</span>
                 <span>{a.note}</span>
@@ -5156,7 +5156,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
         title={<>Spend<br/>points.</>}
         trailing={<button onClick={onOpenScore} style={{ borderRadius: t.RADIUS_SM,
           border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
-          padding: '8px 10px', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700,
+          padding: '8px 10px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700,
         }}>Score</button>}
       />
 
@@ -5173,7 +5173,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
           {[[lifetime.toLocaleString(), 'Lifetime earned'], [redeemedCount, 'Items redeemed'], [profile.tier, 'Current tier']].map(([value, label], i) => (
             <div key={label} style={{ padding: '10px 8px 0', borderLeft: i ? `1px solid ${storeHeroHair}` : 0 }}>
               <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.PAPER, letterSpacing: '-0.035em' }}>{value}</div>
-              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: storeHeroFaint }}>{label}</div>
+              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: storeHeroFaint }}>{label}</div>
             </div>
           ))}
         </div>
@@ -5193,7 +5193,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
             border: `1px solid ${cat === c ? t.INK : t.RULE}`,
             background: cat === c ? t.INK : 'transparent',
             color: cat === c ? t.PAPER : t.INK,
-            fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700,
+            fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700,
             whiteSpace: 'normal',
             lineHeight: 1.15,
           }}>{c}</button>
@@ -5204,7 +5204,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
           border: `1px solid ${affordable ? t.ACCENT : t.RULE}`,
           background: affordable ? t.ACCENT : 'transparent',
           color: affordable ? t.PAPER : t.INK,
-          fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700,
+          fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700,
           whiteSpace: 'normal',
           lineHeight: 1.15,
         }}>Within balance</button>
@@ -5225,13 +5225,13 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
                   <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{p.name}</div>
                   {p.tag && <BSTag color={p.locked ? t.RUST : t.ACCENT}>{p.tag}</BSTag>}
                 </div>
-                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
+                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
                   {p.brand} - {p.stock} - ~${p.retail} retail
                 </div>
               </div>
               <div style={{ textAlign: 'right', alignSelf: 'center' }}>
                 <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: canAfford ? t.ACCENT : t.INK50 }}>{p.cost.toLocaleString()} pts</div>
-                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: canAfford ? t.GREEN : t.INK50 }}>
+                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: canAfford ? t.GREEN : t.INK50 }}>
                   {p.locked ? 'Tier locked' : canAfford ? 'Redeem' : `+${(p.cost - balance).toLocaleString()}`}
                 </div>
               </div>
@@ -5251,7 +5251,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
               <div style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', color: t.ACCENT }}>{code}</div>
               <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK }}>{name}</div>
             </div>
-            <div style={{ textAlign: 'right', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>
+            <div style={{ textAlign: 'right', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>
               {cost} pts<br/>Exp {expires}
             </div>
           </div>
@@ -5379,7 +5379,7 @@ function BSWorkoutPreview({ program, onBack, onStart }) {
           ]),
         ].map((s, i) => (
           <div key={i} style={{ borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0, paddingLeft: i > 0 ? 10 : 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase' }}>{s.l}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase' }}>{s.l}</div>
             <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 22, color: t.INK, marginTop: 4, letterSpacing: '-0.03em', lineHeight: 1 }}>{s.v}</div>
           </div>
         ))}
@@ -5647,13 +5647,13 @@ function BSSession({ moves, onBack }) {
             ['AVG REST', avgRestSeconds ? fmt(avgRestSeconds) : '--'],
           ].map(([label, value], i) => (
             <div key={label} style={{ padding: '10px 6px', textAlign: 'center', borderLeft: i ? `1px solid ${t.RULE}` : 0 }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.18em', color: t.INK50, fontWeight: 800 }}>{label}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', color: t.INK50, fontWeight: 800 }}>{label}</div>
               <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
             </div>
           ))}
         </div>
         {logStatus && (
-          <div style={{ padding: '9px 12px', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', color: t.INK50, lineHeight: 1.45 }}>
+          <div style={{ padding: '9px 12px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50, lineHeight: 1.45 }}>
             {logStatus}
           </div>
         )}
@@ -5668,7 +5668,7 @@ function BSSession({ moves, onBack }) {
         <div style={{
           display: 'grid', gridTemplateColumns: '40px 1fr 62px 62px 86px',
           padding: '6px 0', borderTop: `2px solid ${t.INK}`, borderBottom: `1px solid ${t.RULE}`,
-          fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50,
+          fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50,
         }}>
           <span>Set</span><span>Actual reps / load</span><span style={{ textAlign: 'right' }}>Set</span><span style={{ textAlign: 'right' }}>Rest</span><span style={{ textAlign: 'right' }}> </span>
         </div>
@@ -6022,7 +6022,7 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [] }) {
                       <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK70, fontWeight: 700, letterSpacing: '0.06em' }}>{it.q}</span>
                       <span>
                         <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, fontWeight: 700, letterSpacing: '-0.01em' }}>{it.n}</span>
-                        <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.08em', marginTop: 2, textTransform: 'uppercase' }}>{it.meals}</span>
+                        <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.08em', marginTop: 2, textTransform: 'uppercase' }}>{it.meals}</span>
                       </span>
                     </div>
                   ))}
@@ -6457,7 +6457,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontFamily: t.MONO, fontSize: 16, color: t.INK }}>{m.glyph}</span>
                   {active && (
-                    <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.ACCENT }}>● ON</span>
+                    <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.ACCENT }}>● ON</span>
                   )}
                 </div>
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', marginTop: 2 }}>
@@ -6538,7 +6538,7 @@ function BSContactPage({ onBack }) {
   const labelStyle = {
     display: 'block',
     fontFamily: t.MONO,
-    fontSize: 8.5,
+    fontSize: 9,
     fontWeight: 800,
     letterSpacing: '0.22em',
     textTransform: 'uppercase',

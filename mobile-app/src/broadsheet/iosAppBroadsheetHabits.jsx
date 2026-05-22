@@ -207,7 +207,7 @@ function BSHabitInsights({ habits, accent, onOpenScore }) {
             {model.days.map((d, i) => (
               <div key={`${d}_${i}`} style={{
                 fontFamily: t.MONO,
-                fontSize: 8,
+                fontSize: 9,
                 fontWeight: 800,
                 letterSpacing: '0.18em',
                 textAlign: 'center',
@@ -228,7 +228,7 @@ function BSHabitInsights({ habits, accent, onOpenScore }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
                 <span style={{
                   fontFamily: t.MONO,
-                  fontSize: 8,
+                  fontSize: 9,
                   fontWeight: 900,
                   letterSpacing: '0.12em',
                   color: row.type === 'avoid' ? '#ff6a5c' : hot,
@@ -403,7 +403,7 @@ function BSHabitRowLegacy({ habit, onToggle, onEdit, last }) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 6, flexWrap: 'wrap' }}>
           <span style={{
-            fontFamily: t.MONO, fontSize: 8, fontWeight: 900,
+            fontFamily: t.MONO, fontSize: 9, fontWeight: 900,
             letterSpacing: '0.16em', textTransform: 'uppercase',
             color: accent,
           }}>
@@ -427,7 +427,7 @@ function BSHabitRowLegacy({ habit, onToggle, onEdit, last }) {
           )}
           {habit.visibility !== 'private' && (
             <span style={{
-              fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800,
+              fontFamily: t.MONO, fontSize: 9, fontWeight: 800,
               letterSpacing: '0.2em', textTransform: 'uppercase',
               color: '#07100d', background: '#d3a133',
               padding: '1px 6px',
@@ -454,7 +454,7 @@ function BSHabitRowLegacy({ habit, onToggle, onEdit, last }) {
                   borderRadius: 2,
                 }} />
                 <span style={{
-                  fontFamily: t.MONO, fontSize: 7.5,
+                  fontFamily: t.MONO, fontSize: 9,
                   letterSpacing: '0.1em',
                   color: isToday ? darkPaper : darkMuted,
                   fontWeight: isToday ? 800 : 500,
@@ -551,7 +551,7 @@ function BSHabitRowCurrentLegacy({ habit, onToggle, onEdit, last }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 6, flexWrap: 'wrap' }}>
           <span style={{
             fontFamily: t.MONO,
-            fontSize: 8,
+            fontSize: 9,
             fontWeight: 900,
             letterSpacing: '0.16em',
             textTransform: 'uppercase',
@@ -562,7 +562,7 @@ function BSHabitRowCurrentLegacy({ habit, onToggle, onEdit, last }) {
           {habit.remindAt && (
             <span style={{
               fontFamily: t.MONO,
-              fontSize: 8,
+              fontSize: 9,
               color: muted,
               letterSpacing: '0.12em',
               fontVariantNumeric: 'tabular-nums',
@@ -573,7 +573,7 @@ function BSHabitRowCurrentLegacy({ habit, onToggle, onEdit, last }) {
           {streak > 0 && (
             <span style={{
               fontFamily: t.MONO,
-              fontSize: 8,
+              fontSize: 9,
               color: '#d3a133',
               letterSpacing: '0.12em',
               fontWeight: 800,
@@ -584,7 +584,7 @@ function BSHabitRowCurrentLegacy({ habit, onToggle, onEdit, last }) {
           {habit.visibility !== 'private' && (
             <span style={{
               fontFamily: t.MONO,
-              fontSize: 7.5,
+              fontSize: 9,
               fontWeight: 900,
               letterSpacing: '0.16em',
               textTransform: 'uppercase',
@@ -619,7 +619,7 @@ function BSHabitRowCurrentLegacy({ habit, onToggle, onEdit, last }) {
                 }} />
                 <span style={{
                   fontFamily: t.MONO,
-                  fontSize: 7,
+                  fontSize: 9,
                   letterSpacing: '0.1em',
                   color: isToday ? ink : muted,
                   fontWeight: isToday ? 800 : 500,
@@ -737,7 +737,7 @@ function BSHabitRow({ habit, onToggle, onEdit, last }) {
             <span style={{
               flexShrink: 0,
               fontFamily: t.MONO,
-              fontSize: 7,
+              fontSize: 9,
               fontWeight: 900,
               letterSpacing: '0.13em',
               textTransform: 'uppercase',
@@ -754,7 +754,7 @@ function BSHabitRow({ habit, onToggle, onEdit, last }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 5, flexWrap: 'wrap' }}>
           <span style={{
             fontFamily: t.MONO,
-            fontSize: 7.5,
+            fontSize: 9,
             fontWeight: 900,
             letterSpacing: '0.16em',
             textTransform: 'uppercase',
@@ -765,7 +765,7 @@ function BSHabitRow({ habit, onToggle, onEdit, last }) {
           {habit.remindAt && (
             <span style={{
               fontFamily: t.MONO,
-              fontSize: 7.5,
+              fontSize: 9,
               color: muted,
               letterSpacing: '0.12em',
               fontVariantNumeric: 'tabular-nums',
@@ -776,7 +776,7 @@ function BSHabitRow({ habit, onToggle, onEdit, last }) {
           {streak > 0 && (
             <span style={{
               fontFamily: t.MONO,
-              fontSize: 7.5,
+              fontSize: 9,
               color: '#d3a133',
               letterSpacing: '0.12em',
               fontWeight: 800,
@@ -787,7 +787,7 @@ function BSHabitRow({ habit, onToggle, onEdit, last }) {
           {habit.visibility !== 'private' && (
             <span style={{
               fontFamily: t.MONO,
-              fontSize: 7,
+              fontSize: 9,
               fontWeight: 900,
               letterSpacing: '0.14em',
               textTransform: 'uppercase',
@@ -822,7 +822,7 @@ function BSHabitRow({ habit, onToggle, onEdit, last }) {
                 }} />
                 <span style={{
                   fontFamily: t.MONO,
-                  fontSize: 6.5,
+                  fontSize: 9,
                   letterSpacing: '0.1em',
                   color: isToday ? ink : muted,
                   fontWeight: isToday ? 800 : 500,
@@ -939,7 +939,7 @@ function BSHabitGridCard({ habit, onToggle, onEdit }) {
         <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
           <span style={{
             fontFamily: t.MONO,
-            fontSize: 8,
+            fontSize: 9,
             fontWeight: 900,
             letterSpacing: '0.18em',
             textTransform: 'uppercase',
@@ -948,12 +948,12 @@ function BSHabitGridCard({ habit, onToggle, onEdit }) {
             {isAvoid ? 'Avoid' : 'Daily'}
           </span>
           {streak > 0 && (
-            <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 900, letterSpacing: '0.12em', color: '#d3a133' }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 900, letterSpacing: '0.12em', color: '#d3a133' }}>
               {streak}d
             </span>
           )}
           {habit.visibility !== 'private' && (
-            <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 900, letterSpacing: '0.14em', color: '#07100d', background: '#d3a133', padding: '2px 5px', textTransform: 'uppercase' }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 900, letterSpacing: '0.14em', color: '#07100d', background: '#d3a133', padding: '2px 5px', textTransform: 'uppercase' }}>
               {habit.visibility === 'friends' ? 'Friends' : 'Public'}
             </span>
           )}
@@ -975,7 +975,7 @@ function BSHabitGridCard({ habit, onToggle, onEdit }) {
               }} />
               <span style={{
                 fontFamily: t.MONO,
-                fontSize: 7,
+                fontSize: 9,
                 color: isToday ? darkPaper : darkMuted,
                 fontWeight: isToday ? 900 : 600,
               }}>
@@ -1293,7 +1293,7 @@ function BSHabitTracker({ tweaks, setTweak, accent, mode = 'full', onOpen }) {
           >
             <div style={{ padding: '14px 14px 10px', borderBottom: `1px solid ${checklistRule}`, display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'start', gap: 12 }}>
               <div>
-                <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 900, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.ACCENT }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 900, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.ACCENT }}>
                   Daily habits
                 </div>
                 <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: t.W.display, letterSpacing: '-0.035em', color: checklistInk }}>
@@ -1346,7 +1346,7 @@ function BSHabitTracker({ tweaks, setTweak, accent, mode = 'full', onOpen }) {
                       fontWeight: 900,
                     }}>{did ? '✓' : (isAvoid ? '×' : '')}</span>
                     <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: did && !isAvoid ? 'line-through' : 'none', textDecorationColor: checklistMuted, opacity: did && !isAvoid ? 0.68 : 1 }}>{h.name}</span>
-                    <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 900, letterSpacing: '0.18em', color: isAvoid ? avoidLabel : t.ACCENT, textTransform: 'uppercase' }}>{isAvoid ? "Don't" : 'Do'}</span>
+                    <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 900, letterSpacing: '0.18em', color: isAvoid ? avoidLabel : t.ACCENT, textTransform: 'uppercase' }}>{isAvoid ? "Don't" : 'Do'}</span>
                   </span>
                 );
               })}
@@ -1438,7 +1438,7 @@ function BSHabitTracker({ tweaks, setTweak, accent, mode = 'full', onOpen }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
               <span style={{
                 fontFamily: t.MONO,
-                fontSize: 8.5,
+                fontSize: 9,
                 color: '#07100d',
                 background: '#f7f1e6',
                 borderRadius: 999,
@@ -1520,7 +1520,7 @@ function BSHabitTracker({ tweaks, setTweak, accent, mode = 'full', onOpen }) {
             <div style={{
               textAlign: 'right',
               fontFamily: t.MONO,
-              fontSize: 8.5,
+              fontSize: 9,
               fontWeight: 900,
               letterSpacing: '0.14em',
               textTransform: 'uppercase',
@@ -1666,7 +1666,7 @@ function BSHabitTracker({ tweaks, setTweak, accent, mode = 'full', onOpen }) {
               <div style={{
                 textAlign: 'right',
                 fontFamily: t.MONO,
-                fontSize: 8,
+                fontSize: 9,
                 fontWeight: 800,
                 letterSpacing: '0.16em',
                 textTransform: 'uppercase',
@@ -1757,7 +1757,7 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
             ['Shared',  String(sharedCount)],
           ].map(([l, v], i) => (
             <div key={l} style={{ borderLeft: i > 0 ? '1px solid rgba(247,241,230,0.10)' : 0, paddingLeft: i > 0 ? 12 : 0 }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', color: 'rgba(247,241,230,0.52)', textTransform: 'uppercase' }}>{l}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', color: 'rgba(247,241,230,0.52)', textTransform: 'uppercase' }}>{l}</div>
               <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 26, color: '#f7f1e6', marginTop: 4, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
             </div>
           ))}

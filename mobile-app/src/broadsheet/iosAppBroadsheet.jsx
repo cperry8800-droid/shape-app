@@ -722,7 +722,7 @@ function BSRow({ time, tag, tagColor, title, sub, state, onClick, last }) {
       }}>{time}</span>
       {tag && (
         <span style={{
-          fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em',
+          fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em',
           color: t.PAPER, background: tagColor || t.INK,
           padding: '2px 4px', textTransform: 'uppercase', fontWeight: 700,
           textAlign: 'center', justifySelf: 'start',
@@ -853,7 +853,7 @@ function BSTabBar({ tabs, active, onChange }) {
               fontVariantNumeric: 'tabular-nums',
             }}>{String(i + 1).padStart(2, '0')}</span>
             <span style={{
-              fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600,
+              fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600,
             }}>{tab.label}</span>
           </button>
         );

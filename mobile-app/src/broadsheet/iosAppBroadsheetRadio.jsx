@@ -503,7 +503,7 @@ function PromptChoice({ on, onClick, eyebrow, title, meta, icon, accent }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, opacity: 0.65, marginBottom: 4 }}>{eyebrow}</div>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.05 }}>{title}</div>
-        <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', opacity: 0.6, marginTop: 6 }}>{meta}</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', opacity: 0.6, marginTop: 6 }}>{meta}</div>
       </div>
       <div style={{
         width: 18, height: 18, flexShrink: 0,
@@ -551,7 +551,7 @@ function BSNowPlaying({ onOpen }) {
         {/* Eyebrow */}
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase',
+          fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase',
           fontWeight: 900, color: t.INK70,
         }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: t.ACCENT }}>
@@ -571,7 +571,7 @@ function BSNowPlaying({ onOpen }) {
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}>{tr.a}</div>
             <div style={{
-              fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase',
+              fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
               color: t.INK70, marginTop: 2, fontWeight: 900,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}>{tr.b} · {tr.bpm} BPM</div>
@@ -642,7 +642,7 @@ function BSNowPlayingMuted({ onTurnOn, onPrompt, onOpen }) {
         {/* Eyebrow — static (no blinking dot, no pulsing rings) */}
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase',
+          fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase',
           fontWeight: 700, color: t.INK50,
         }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -666,7 +666,7 @@ function BSNowPlayingMuted({ onTurnOn, onPrompt, onOpen }) {
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}>{tr.a}</div>
             <div style={{
-              fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase',
+              fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
               color: t.INK50, marginTop: 2, fontWeight: 600,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}>{tr.b} · {tr.bpm} BPM</div>
@@ -728,8 +728,8 @@ function BSRadioFeedbackPanel({ track, cream, cream70, cream50, rule, accent, da
   return (
     <div style={{ marginTop: 14, border: `1px solid ${line}`, background: bg, padding: 12, borderRadius: t.RADIUS_SM }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent, fontWeight: 800 }}>Song feedback</div>
-        <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: faint, fontWeight: 700 }}>{(feedback.comments || []).length} comments</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent, fontWeight: 800 }}>Song feedback</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: faint, fontWeight: 700 }}>{(feedback.comments || []).length} comments</div>
       </div>
 
       <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
@@ -778,7 +778,7 @@ function BSRadioFeedbackPanel({ track, cream, cream70, cream50, rule, accent, da
         <div style={{ marginTop: 10, borderTop: `1px solid ${line}`, paddingTop: 8, display: 'grid', gap: 7 }}>
           {(feedback.comments || []).slice(0, 3).map((item, i) => (
             <div key={i} style={{ fontFamily: t.DISPLAY, fontSize: 12.5, color: sub, lineHeight: 1.35 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: accent, fontWeight: 800 }}>{item.who}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: accent, fontWeight: 800 }}>{item.who}</span>
               <span> - {item.text}</span>
             </div>
           ))}
@@ -837,7 +837,7 @@ function BSRadioInlineFeedback({ track, cream, cream50, accent }) {
       </div>
       <div style={{
         fontFamily: t.MONO,
-        fontSize: 8.5,
+        fontSize: 9,
         letterSpacing: '0.18em',
         textTransform: 'uppercase',
         color: cream50,
@@ -1021,7 +1021,7 @@ function BSRadioScreen({ onBack }) {
               }}>{r.LIVE.listeners.toLocaleString()}</span>
               <span style={{
                 fontFamily: t.MONO,
-                fontSize: 8.5,
+                fontSize: 9,
                 letterSpacing: '0.18em',
                 textTransform: 'uppercase',
                 color: TEAL,
@@ -1044,7 +1044,7 @@ function BSRadioScreen({ onBack }) {
               marginBottom: 12,
             }}>
               <div>
-                <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEAL, fontWeight: 800 }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEAL, fontWeight: 800 }}>
                   HRM sync
                 </div>
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 18, color: CREAM, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 3 }}>
@@ -1054,7 +1054,7 @@ function BSRadioScreen({ onBack }) {
               <span style={{
                 flexShrink: 0,
                 fontFamily: t.MONO,
-                fontSize: 8,
+                fontSize: 9,
                 letterSpacing: '0.18em',
                 textTransform: 'uppercase',
                 fontWeight: 800,
@@ -1081,9 +1081,9 @@ function BSRadioScreen({ onBack }) {
                 }}>
                   <BSBeatRing bpm={Number(item.value) || trackBpm} color={item.color} size={48} paused={r.paused || !hrmConnected && item.label === 'Your HR'} />
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: TEAL, fontWeight: 900 }}>{item.label}</div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: TEAL, fontWeight: 900 }}>{item.label}</div>
                     <div style={{ fontFamily: t.DISPLAY, fontSize: 22, color: CREAM, lineHeight: 1, fontWeight: 800 }}>{item.value}</div>
-                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: isLight ? 'rgba(10,82,78,0.72)' : 'rgba(118,232,220,0.68)', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.sub}</div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: isLight ? 'rgba(10,82,78,0.72)' : 'rgba(118,232,220,0.68)', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.sub}</div>
                   </div>
                 </div>
               ))}
@@ -1096,7 +1096,7 @@ function BSRadioScreen({ onBack }) {
                 color: hrmConnected ? '#050707' : CREAM,
                 padding: '8px 5px',
                 fontFamily: t.MONO,
-                fontSize: 8,
+                fontSize: 9,
                 letterSpacing: '0.14em',
                 textTransform: 'uppercase',
                 fontWeight: 800,
@@ -1107,7 +1107,7 @@ function BSRadioScreen({ onBack }) {
                 color: CREAM,
                 padding: '8px 5px',
                 fontFamily: t.MONO,
-                fontSize: 8,
+                fontSize: 9,
                 letterSpacing: '0.14em',
                 textTransform: 'uppercase',
                 fontWeight: 800,
@@ -1118,7 +1118,7 @@ function BSRadioScreen({ onBack }) {
                 color: '#050707',
                 padding: '8px 5px',
                 fontFamily: t.MONO,
-                fontSize: 8,
+                fontSize: 9,
                 letterSpacing: '0.14em',
                 textTransform: 'uppercase',
                 fontWeight: 800,
@@ -1128,7 +1128,7 @@ function BSRadioScreen({ onBack }) {
 
           {/* Track headline */}
           <div style={{ marginTop: 14 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: CREAM50, fontWeight: 700, marginBottom: 4 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: CREAM50, fontWeight: 700, marginBottom: 4 }}>
               {onLive ? `▍ ${tr.t === 'NOW' ? 'Now Playing' : tr.t}` : `▍ ${playlist.attached}`}
             </div>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 0.98, color: CREAM }}>

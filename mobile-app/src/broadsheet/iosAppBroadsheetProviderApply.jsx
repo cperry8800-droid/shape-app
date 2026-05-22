@@ -57,7 +57,7 @@ function BSApplyInput({ label, value, onChange, type = 'text', placeholder = '',
   };
   return (
     <label style={{ display: 'grid', gap: 7 }}>
-      <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{label}</span>
+      <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{label}</span>
       {multiline ? (
         <textarea value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={4} style={{ ...base, resize: 'vertical', lineHeight: 1.35 }} />
       ) : (
@@ -71,7 +71,7 @@ function BSApplySelect({ label, value, onChange, options }) {
   const t = useBS();
   return (
     <label style={{ display: 'grid', gap: 7 }}>
-      <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{label}</span>
+      <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{label}</span>
       <select value={value || options[0]} onChange={(e) => onChange(e.target.value)} style={{
         width: '100%',
         minWidth: 0,
@@ -96,7 +96,7 @@ function BSApplyChips({ label, options, values = [], onToggle }) {
   const t = useBS();
   return (
     <div style={{ display: 'grid', gap: 8 }}>
-      <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{label}</span>
+      <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{label}</span>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {options.map(opt => {
           const on = values.includes(opt);
@@ -108,7 +108,7 @@ function BSApplyChips({ label, options, values = [], onToggle }) {
               background: on ? t.ACCENT : 'transparent',
               color: on ? '#07100d' : t.INK,
               fontFamily: t.MONO,
-              fontSize: 8.5,
+              fontSize: 9,
               letterSpacing: '0.12em',
               textTransform: 'uppercase',
               fontWeight: 800,
@@ -152,7 +152,7 @@ function BSApplyFile({ label, file, onChange, helper }) {
   const t = useBS();
   return (
     <label style={{ display: 'grid', gap: 7 }}>
-      <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{label}</span>
+      <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{label}</span>
       <input
         type="file"
         accept={PROVIDER_APPLICATION_FILE_ACCEPT}
