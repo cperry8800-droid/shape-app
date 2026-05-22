@@ -1,5 +1,5 @@
 // Signup — multi-role. Reads ?role= from query, defaults to "client".
-// Roles: client, trainer, nutritionist, radio
+// Roles: client, trainer, nutritionist
 
 const ROLE_CONFIG = {
   client: {
@@ -52,23 +52,6 @@ const ROLE_CONFIG = {
     doneTitle: "Application submitted.",
     doneBody: "Our team will review your credentials and reach out within 2–3 business days.",
     doneCta: { label: "Back to home", href: "Landing.html" },
-  },
-  radio: {
-    kicker: "Shape Radio",
-    titleLeft: "Here for the vibes. Ad-free workout mixes, BPM-tagged, built for training.",
-    perks: [
-      "Ad-free workout mixes",
-      "BPM-tagged stations",
-      "Offline downloads",
-      "Live DJ sets from residents",
-      "Included free with Shape membership",
-    ],
-    formTitle: "Start listening",
-    steps: ["Create account", "Your vibe"],
-    submitLabel: "Start listening",
-    doneTitle: "Tuned in.",
-    doneBody: "Your Radio account is ready. Press play.",
-    doneCta: { label: "Open Radio", href: "Radio.html" },
   },
 };
 
@@ -328,38 +311,6 @@ function ProAvailability({ v, set, kind }) {
   );
 }
 
-function RadioAccount({ v, set }) {
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
-      <Field label="First name"><TextInput value={v.firstName || ""} onChange={e => set({ firstName: e.target.value })} /></Field>
-      <Field label="Last name"><TextInput value={v.lastName || ""} onChange={e => set({ lastName: e.target.value })} /></Field>
-      <Field label="Email" span={2}><TextInput type="email" value={v.email || ""} onChange={e => set({ email: e.target.value })} /></Field>
-      <Field label="Password" span={2}><TextInput type="password" value={v.password || ""} onChange={e => set({ password: e.target.value })} /></Field>
-    </div>
-  );
-}
-
-function RadioVibe({ v, set }) {
-  const vibes = ["High-BPM cardio", "Strength lifts", "Hip-hop", "House & techno", "Indie & alt", "Ambient & focus", "Latin", "Afrobeat"];
-  const toggle = (x) => {
-    const cur = v.vibes || [];
-    set({ vibes: cur.includes(x) ? cur.filter(y => y !== x) : [...cur, x] });
-  };
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
-      <Field label="Pick a few stations to start">
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {vibes.map(x => <Chip key={x} on={(v.vibes || []).includes(x)} onClick={() => toggle(x)}>{x}</Chip>)}
-        </div>
-      </Field>
-      <Check on={v.tos} onClick={() => set({ tos: !v.tos })}>I agree to the <a href="#" style={{ color: TEAL }}>Terms of Service</a> and <a href="#" style={{ color: TEAL }}>Privacy Policy</a>.</Check>
-      <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)", lineHeight: 1.55 }}>
-        Radio is free with a <span style={{ color: INK, fontWeight: 500 }}>Shape membership ($5/mo)</span>. You can upgrade anytime from settings.
-      </div>
-    </div>
-  );
-}
-
 // -------------- Main form --------------
 
 function SignupForm({ role }) {
@@ -389,12 +340,6 @@ function SignupForm({ role }) {
         <ProCredentials v={values} set={set} kind={role} />,
         <ProSpecialty v={values} set={set} kind={role} />,
         <ProAvailability v={values} set={set} kind={role} />,
-      ][step];
-    }
-    if (role === "radio") {
-      return [
-        <RadioAccount v={values} set={set} />,
-        <RadioVibe v={values} set={set} />,
       ][step];
     }
     return null;
