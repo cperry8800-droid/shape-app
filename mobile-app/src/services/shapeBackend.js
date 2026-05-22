@@ -2233,3 +2233,38 @@ window.ShapeIntegrations = {
   getStatus: getIntegrationStatus,
   disconnect: disconnectIntegration,
 };
+
+// ─── Coach Console feed (banner + pushed items the coach sent to this client) ───
+// Backed by the coach_focus_banners + coach_pushed_items tables (2026-05-22
+// migration). RLS lets the signed-in client SELECT their own rows where
+// client_id = auth.uid()::text. Returns { banners, items }, ready for direct
+// rendering in the client broadsheet's Home view.
+async function fetchCoachConsoleFeed() {
+  if (!state.user?.id || !supabase) return { banners: [], items: [] };
+  const userId = state.user.id;
+  try {
+    const [bannersRes, itemsRes] = await Promise.all([
+      supabase
+        .from('coach_focus_banners')
+        .select('id, provider_role, provider_id, text, sent_at')
+        .eq('client_id', userId)
+        .order('sent_at', { ascending: false }),
+      supabase
+        .from('coach_pushed_items')
+        .select('id, provider_role, provider_id, kind, payload, sent_at')
+        .eq('client_id', userId)
+        .is('removed_at', null)
+        .order('sent_at', { ascending: true }),
+    ]);
+    return {
+      banners: bannersRes.data ?? [],
+      items: itemsRes.data ?? [],
+    };
+  } catch {
+    return { banners: [], items: [] };
+  }
+}
+
+window.ShapeCoachFeed = {
+  fetch: fetchCoachConsoleFeed,
+};

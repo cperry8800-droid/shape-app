@@ -442,6 +442,22 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   const [habitsPage, setHabitsPage] = useStateBSC(false);
   const [activeDayLogKey, setActiveDayLogKey] = useStateBSC(null);
   const [quickLoggedItems, setQuickLoggedItems] = useStateBSC({});
+  const [coachFeed, setCoachFeed] = useStateBSC({ banners: [], items: [] });
+
+  // Live focus banner + pushed items the coach sent. Reads from
+  // window.ShapeCoachFeed (shapeBackend.js -> coach_focus_banners /
+  // coach_pushed_items via Supabase RLS, scoped to this user's uid).
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!window.ShapeCoachFeed || typeof window.ShapeCoachFeed.fetch !== 'function') return;
+        const feed = await window.ShapeCoachFeed.fetch();
+        if (!cancelled && feed) setCoachFeed(feed);
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // Home-page lunch record (fed to BSMealPreview when user taps the slab).
   // Mirrors the shape of meals in BSClientEat — same preview component.
@@ -637,6 +653,57 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         { label: 'RHR',  value: '54BPM',     note: 'ELEV +2',      color: '#ffc56a' },
         { label: 'WGT',  value: '178.2LB',   note: '-0.4 7D' },
       ]} />
+
+      {/* From your coach — live focus banner + pushed items pulled from the */}
+      {/* coach_focus_banners + coach_pushed_items tables (RLS-scoped to me). */}
+      {(coachFeed.banners.length > 0 || coachFeed.items.length > 0) && (
+        <div style={{ padding: `12px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: t.ACCENT, marginBottom: 10 }}>
+            From your coach
+          </div>
+          {coachFeed.banners.map(b => (
+            <div key={b.id} style={{
+              padding: '10px 12px',
+              background: t.PAPER,
+              border: `1px solid ${t.RULE}`,
+              borderRadius: t.RADIUS_SM,
+              marginBottom: 8,
+            }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginBottom: 4 }}>
+                {b.provider_role === 'trainer' ? 'YOUR TRAINER' : 'YOUR NUTRITIONIST'}
+              </div>
+              <div style={{ fontSize: 14, lineHeight: 1.45, color: t.INK }}>{b.text}</div>
+            </div>
+          ))}
+          {coachFeed.items.length > 0 && (
+            <div style={{ marginTop: coachFeed.banners.length > 0 ? 6 : 0 }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginBottom: 6 }}>
+                For today
+              </div>
+              {coachFeed.items.map(it => {
+                const p = it.payload || {};
+                const isMeal = it.kind === 'meal';
+                const meta = isMeal
+                  ? [p.time, p.kcal != null ? p.kcal + ' kcal' : null, p.protein != null ? p.protein + 'g P' : null].filter(Boolean).join(' · ')
+                  : [p.sets, p.reps, p.tempo && ('Tempo ' + p.tempo)].filter(Boolean).join(' · ');
+                return (
+                  <div key={it.id} style={{
+                    padding: '10px 12px',
+                    background: t.PAPER,
+                    border: `1px solid ${t.RULE}`,
+                    borderRadius: t.RADIUS_SM,
+                    marginBottom: 6,
+                  }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 500, color: t.INK }}>{p.name}</div>
+                    {meta && <div style={{ fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.06em', color: t.INK50, marginTop: 2 }}>{meta}</div>}
+                    {(p.cue || p.note) && <div style={{ fontSize: 12, color: t.INK50, marginTop: 4, fontStyle: 'italic' }}>"{p.cue || p.note}"</div>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={{
         padding: `10px ${t.padX}px 12px`,
