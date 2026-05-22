@@ -4227,7 +4227,7 @@ function BSClientChat({ onProfile, role = 'client' }) {
   );
 }
 
-function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...' }) {
+function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...', pinned = false }) {
   const t = useBS();
   const canSend = value.trim().length > 0;
 
@@ -4245,6 +4245,14 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
       boxShadow: `0 18px 38px ${t.isLight ? 'rgba(15,14,12,0.16)' : 'rgba(0,0,0,0.42)'}`,
       WebkitBackdropFilter: 'blur(18px) saturate(140%)',
       backdropFilter: 'blur(18px) saturate(140%)',
+      ...(pinned && {
+        position: 'fixed',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 30,
+        marginBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
+      }),
     }}>
       <input
         value={value}
@@ -4301,8 +4309,8 @@ function BSChatThread({ thread, eyebrow, onBack }) {
   };
 
   return (
-    <BSPage>
-      {/* Custom header with back chevron */}
+    <BSPage tabBarHeight={0}>
+      {/* Custom header with back chevron — no tab bar on the thread screen */}
       <div style={{ padding: '54px 18px 14px', borderBottom: `1px solid ${t.SURFACE_BORDER}`, background: t.PAPER, position: 'sticky', top: 0, zIndex: 2 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <button onClick={onBack} style={{ borderRadius: t.RADIUS_SM,
@@ -4357,8 +4365,8 @@ function BSChatThread({ thread, eyebrow, onBack }) {
         })}
       </div>
 
-      {/* Composer */}
-      <BSMessageComposer value={text} onChange={setText} onSend={send} />
+      {/* Composer — pinned to the bottom of the screen, iMessage-style */}
+      <BSMessageComposer value={text} onChange={setText} onSend={send} pinned />
       </div>
     </BSPage>
   );
