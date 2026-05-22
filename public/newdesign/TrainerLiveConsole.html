@@ -113,9 +113,17 @@ function trajSeries(p, n) {
   return out;
 }
 
+const METRICS = [
+  { key: "score",  label: "Shape Score", unit: "",     goodWhen: "up"   },
+  { key: "stress", label: "Stress",      unit: "/10",  goodWhen: "down" },
+  { key: "hr",     label: "Resting HR",  unit: " bpm", goodWhen: "down" },
+  { key: "weight", label: "Bodyweight",  unit: " lb",  goodWhen: "down" },
+];
+
 function TrainerLiveConsolePage() {
   const [clientId, setClientId] = React.useState(CONSOLE_CLIENTS[0].id);
   const [range, setRange] = React.useState("12w");
+  const [metric, setMetric] = React.useState("score");
   // Per-client editable state (focus banner + today's session list)
   const [focusById, setFocusById] = React.useState(() => Object.fromEntries(CONSOLE_CLIENTS.map(c => [c.id, c.focusBanner])));
   const [sessionsById, setSessionsById] = React.useState(() => Object.fromEntries(CONSOLE_CLIENTS.map(c => [c.id, c.session])));
@@ -322,12 +330,26 @@ function TrainerLiveConsolePage() {
             ))}
           </div>
         }>Trajectory</SectionTitle>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
-          <MiniChart idx={0} label="Shape Score" data={trajData.score}  unit=""     goodWhen="up"   />
-          <MiniChart idx={1} label="Stress"      data={trajData.stress} unit="/10"  goodWhen="down" />
-          <MiniChart idx={2} label="Resting HR"  data={trajData.hr}     unit=" bpm" goodWhen="down" />
-          <MiniChart idx={3} label="Bodyweight"  data={trajData.weight} unit=" lb"  goodWhen="down" />
+        <div style={{ display: "flex", gap: 4, marginBottom: 22, borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+          {METRICS.map(m => {
+            const on = m.key === metric;
+            return (
+              <button key={m.key} onClick={() => setMetric(m.key)} style={{
+                padding: "12px 16px", cursor: "pointer",
+                background: "transparent",
+                color: on ? INK : "rgba(242,237,228,0.55)",
+                border: 0,
+                borderBottom: on ? "2px solid " + TEAL : "2px solid transparent",
+                marginBottom: -1,
+                fontFamily: sans, fontSize: 13.5, fontWeight: on ? 500 : 400,
+              }}>{m.label}</button>
+            );
+          })}
         </div>
+        {(() => {
+          const m = METRICS.find(x => x.key === metric) || METRICS[0];
+          return <TrajChart label={m.label} data={trajData[m.key]} unit={m.unit} goodWhen={m.goodWhen} />;
+        })()}
       </Card>
 
       {/* Demo-only banner */}
@@ -418,7 +440,7 @@ function PulseIcon() {
   );
 }
 
-function MiniChart({ label, data, unit, goodWhen, idx }) {
+function TrajChart({ label, data, unit, goodWhen }) {
   if (!data || data.length === 0) return null;
   const w = 100, h = 40;
   const min = Math.min.apply(null, data);
@@ -429,8 +451,8 @@ function MiniChart({ label, data, unit, goodWhen, idx }) {
     const y = h - ((v - min) / span) * h;
     return [x, y];
   });
-  const line = pts.map(([x, y], i) => (i === 0 ? "M" : "L") + x.toFixed(1) + "," + y.toFixed(1)).join(" ");
-  const area = "M0," + h + " " + pts.map(([x, y]) => "L" + x.toFixed(1) + "," + y.toFixed(1)).join(" ") + " L" + w + "," + h + " Z";
+  const line = pts.map(([x, y], i) => (i === 0 ? "M" : "L") + x.toFixed(2) + "," + y.toFixed(2)).join(" ");
+  const area = "M0," + h + " " + pts.map(([x, y]) => "L" + x.toFixed(2) + "," + y.toFixed(2)).join(" ") + " L" + w + "," + h + " Z";
   const latest = data[data.length - 1];
   const first  = data[0];
   const delta  = latest - first;
@@ -443,29 +465,37 @@ function MiniChart({ label, data, unit, goodWhen, idx }) {
     return v.toFixed(1);
   };
   const sign = delta > 0 ? "+" : "";
-  const gradId = "trajGrad-" + idx;
   return (
-    <div style={{ background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 12, padding: "12px 14px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)" }}>{label}</div>
-        <div style={{ fontFamily: serif, fontSize: 18, lineHeight: 1 }}>
-          {fmt(latest)}<span style={{ fontSize: 10, color: "rgba(242,237,228,0.55)", fontFamily: sans, marginLeft: 3 }}>{unit}</span>
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 18 }}>
+        <div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)" }}>{label}</div>
+          <div style={{ fontFamily: serif, fontSize: 40, lineHeight: 1, letterSpacing: "-0.02em", marginTop: 6 }}>
+            {fmt(latest)}<span style={{ fontSize: 16, color: "rgba(242,237,228,0.55)", fontFamily: sans, marginLeft: 4 }}>{unit}</span>
+          </div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: "0.06em", color: deltaColor, fontWeight: 500 }}>
+            {sign}{fmt(delta)}{unit}
+          </div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(242,237,228,0.4)", marginTop: 4, letterSpacing: "0.08em" }}>
+            {data.length}W WINDOW
+          </div>
         </div>
       </div>
-      <svg viewBox={"0 0 " + w + " " + h} preserveAspectRatio="none" style={{ width: "100%", height: 56, display: "block" }}>
+      <svg viewBox={"0 0 " + w + " " + h} preserveAspectRatio="none" style={{ width: "100%", height: 200, display: "block" }}>
         <defs>
-          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%"  stopColor={TEAL} stopOpacity="0.22" />
+          <linearGradient id="trajGradBig" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"  stopColor={TEAL} stopOpacity="0.25" />
             <stop offset="100%" stopColor={TEAL} stopOpacity="0" />
           </linearGradient>
         </defs>
-        <path d={area} fill={"url(#" + gradId + ")"} />
-        <path d={line} fill="none" stroke={TEAL} strokeWidth="1.2" strokeLinejoin="round" strokeLinecap="round" />
-        <circle cx={pts[pts.length - 1][0]} cy={pts[pts.length - 1][1]} r="1.8" fill={TEAL_BRIGHT} />
+        <path d={area} fill="url(#trajGradBig)" />
+        <path d={line} fill="none" stroke={TEAL} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
       </svg>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.06em" }}>
-        <span style={{ color: "rgba(242,237,228,0.4)" }}>{data.length}w window</span>
-        <span style={{ color: deltaColor }}>{sign}{fmt(delta)}{unit}</span>
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "rgba(242,237,228,0.45)" }}>
+        <span>LOW {fmt(min)}{unit}</span>
+        <span>HIGH {fmt(max)}{unit}</span>
       </div>
     </div>
   );
