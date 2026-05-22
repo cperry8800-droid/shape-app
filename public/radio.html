@@ -269,6 +269,25 @@
     .radio-content { display: none; }
     .radio-content.active { display: block; }
 
+    /* Free preview bar — shown to logged-out listeners */
+    .radio-preview-bar {
+      display: flex; align-items: center; justify-content: center;
+      gap: 16px; flex-wrap: wrap;
+      max-width: 600px; margin: 16px auto 0; padding: 12px 24px;
+      border: 1px solid rgba(45,212,191,0.25);
+      background: rgba(45,212,191,0.06); border-radius: 12px;
+      font-size: 0.82rem; color: rgba(255,255,255,0.7); font-weight: 300;
+    }
+    .radio-preview-bar strong { font-weight: 600; color: #2DD4BF; font-variant-numeric: tabular-nums; }
+    .radio-preview-bar button {
+      background: #2DD4BF; color: #0a0a0a; border: none;
+      padding: 9px 16px; border-radius: 8px;
+      font-size: 0.74rem; font-weight: 600; font-family: 'Inter', sans-serif;
+      cursor: pointer; text-transform: uppercase; letter-spacing: 0.05em;
+      transition: background 0.3s;
+    }
+    .radio-preview-bar button:hover { background: #14B8A6; }
+
     @media (max-width: 768px) {
       .radio-nav { padding: 24px; }
       .radio-hero { padding: 60px 24px 40px; }
@@ -296,12 +315,12 @@
     <a href="/newdesign/index.html" class="back-link">Back to Shape</a>
   </nav>
 
-  <!-- Login Gate -->
-  <div class="radio-gate" id="radioGate">
+  <!-- Login / preview-ended gate (hidden while previewing) -->
+  <div class="radio-gate" id="radioGate" style="display:none;">
     <div class="radio-gate-box">
       <div class="radio-logo" style="margin-bottom:24px;"><img src="/shape-radio-logo.png?v=2" alt="Shape Radio" /></div>
-      <h2>Welcome back</h2>
-      <p class="subtitle">Shape Radio is included with every Shape account.</p>
+      <h2 id="radioGateTitle">Welcome back</h2>
+      <p class="subtitle" id="radioGateSubtitle">Shape Radio is included with every Shape account.</p>
       <button class="btn-radio-login" onclick="radioGoLogin()">Log In to Your Shape Account</button>
       <div class="gate-divider">or</div>
       <button class="btn-radio-subscribe" onclick="radioSubscribe()">Create an Account</button>
@@ -309,12 +328,17 @@
     </div>
   </div>
 
-  <!-- Radio Content (hidden until login) -->
-  <div class="radio-content" id="radioContent">
+  <!-- Radio Content — shown by default; logged-out listeners get a timed preview -->
+  <div class="radio-content active" id="radioContent">
   <section class="radio-hero">
     <div class="radio-logo"><img src="/shape-radio-logo.png?v=2" alt="Shape Radio" /></div>
     <p class="radio-tagline">Live music to fuel your workout.</p>
   </section>
+
+  <div class="radio-preview-bar" id="previewBar" style="display:none;">
+    <span>Free preview — <strong id="previewBarTime">10:00</strong> of listening left</span>
+    <button onclick="radioSubscribe()">Create a free account</button>
+  </div>
 
   <div class="radio-player">
     <div class="now-playing paused" id="nowPlaying">
@@ -655,11 +679,27 @@
       } catch (e) {}
     }
 
-    // ===== Auth gate =====
+    // ===== Auth gate + free preview =====
+    // Logged-in Shape members listen with no limit. Logged-out visitors get
+    // a 10-minute listening preview, then the gate asks them to make an
+    // account. Consumed preview time is persisted so a refresh can't reset it.
+    var PREVIEW_LIMIT = 600; // seconds of actual playback
+    var PREVIEW_KEY = 'shapeRadioPreviewConsumed';
+    var previewMode = false;
+    var previewConsumed = 0;
+
+    function readConsumed() {
+      var v = parseFloat(localStorage.getItem(PREVIEW_KEY) || '0');
+      return isFinite(v) && v > 0 ? v : 0;
+    }
+    function writeConsumed(v) {
+      try { localStorage.setItem(PREVIEW_KEY, String(Math.round(v))); } catch (e) {}
+    }
+
     function openRadio(autoPlay) {
       document.getElementById('radioGate').style.display = 'none';
       document.getElementById('radioContent').classList.add('active');
-      loadTrack(0);
+      if (!audio.src) loadTrack(0);
       if (autoPlay) {
         var p = audio.play();
         if (p && typeof p.catch === 'function') {
@@ -667,6 +707,46 @@
         }
       }
     }
+
+    function updatePreviewBar() {
+      var remain = Math.max(0, PREVIEW_LIMIT - previewConsumed);
+      var m = Math.floor(remain / 60), s = remain % 60;
+      var el = document.getElementById('previewBarTime');
+      if (el) el.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    function startPreview() {
+      previewConsumed = readConsumed();
+      if (previewConsumed >= PREVIEW_LIMIT) { showPreviewEnded(); return; }
+      previewMode = true;
+      openRadio(false);
+      var bar = document.getElementById('previewBar');
+      if (bar) bar.style.display = '';
+      updatePreviewBar();
+    }
+
+    function showPreviewEnded() {
+      previewMode = false;
+      if (!audio.paused) audio.pause();
+      var bar = document.getElementById('previewBar');
+      if (bar) bar.style.display = 'none';
+      document.getElementById('radioContent').classList.remove('active');
+      var gate = document.getElementById('radioGate');
+      gate.style.display = 'flex';
+      var title = document.getElementById('radioGateTitle');
+      var sub = document.getElementById('radioGateSubtitle');
+      if (title) title.textContent = 'Your free preview has ended';
+      if (sub) sub.textContent = 'Create a free account to keep listening — Shape Radio is included with every Shape membership.';
+    }
+
+    // Count one second of preview for every second of actual playback.
+    setInterval(function () {
+      if (!previewMode || audio.paused || audio.ended) return;
+      previewConsumed += 1;
+      writeConsumed(previewConsumed);
+      updatePreviewBar();
+      if (previewConsumed >= PREVIEW_LIMIT) showPreviewEnded();
+    }, 1000);
 
     function radioGoLogin() {
       window.location.href = '/newdesign/Login.html?next=/radio.html';
@@ -676,16 +756,19 @@
       window.location.href = '/newdesign/SignupClient.html?next=/radio.html';
     }
 
-    // Only a real Shape (Supabase) session unlocks radio.
+    // A real Shape (Supabase) session = unlimited listening. Otherwise the
+    // visitor gets the timed free preview.
     (async function () {
       try {
         for (var i = 0; i < 40 && !window.shapeDb; i++) {
           await new Promise(function (r) { setTimeout(r, 50); });
         }
-        if (!window.shapeDb) return;
-        var session = await window.shapeDb.getSession();
-        if (session) openRadio(false);
+        if (window.shapeDb) {
+          var session = await window.shapeDb.getSession();
+          if (session) { openRadio(false); return; }
+        }
       } catch (e) {}
+      startPreview();
     })();
   </script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

@@ -38,7 +38,7 @@ const ROLES = [
     title: "Shape Radio",
     blurb: "Stream curated, BPM-tagged workout mixes. Ad-free. And when your coach sends you a playlist for a specific workout or meal prep — it plays right here. Included free with Shape membership.",
     cta: "Start listening",
-    href: "SignupRadio.html",
+    href: "Radio.html",
     meta: "Free with membership",
     perks: ["Ad-free mixes", "BPM-tagged stations", "Offline downloads"],
   },
