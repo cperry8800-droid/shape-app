@@ -13,7 +13,7 @@ function ProfileSheet({ onBack, onLogout, radioOn, setRadioOn, fxMode, setFxMode
       {/* HERO */}
       <div style={{
         padding: '58px 24px 24px',
-        background: `linear-gradient(160deg, rgba(227,122,90,0.14), rgba(30,192,168,0.04) 50%, transparent)`,
+        background: `linear-gradient(160deg, rgba(227,122,90,0.14), rgba(10,197,168,0.04) 50%, transparent)`,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
           <button onClick={onBack} style={{

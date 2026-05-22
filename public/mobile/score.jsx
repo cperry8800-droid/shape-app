@@ -39,7 +39,7 @@ const TIERS = [
   { name: "Raw", min: 0, color: "rgba(242,237,228,0.35)" },
   { name: "Tempo", min: 1000, color: "rgba(242,237,228,0.85)", current: true },
   { name: "Peak", min: 1500, color: "#0a7463" },
-  { name: "Legend", min: 3000, color: "#1ec0a8" },
+  { name: "Legend", min: 3000, color: "#0ac5a8" },
 ];
 
 function RewardsHeroBg() {
@@ -136,7 +136,7 @@ function ScoreTiers() {
                 <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
                   <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)" }}>{t.min.toLocaleString()}</div>
                   <div style={{ height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <div style={{ width: current ? 28 : 18, height: current ? 28 : 18, borderRadius: 999, background: reached ? (current ? TEAL : t.color) : "#fff", border: `2px solid ${reached ? t.color : "rgba(242,237,228,0.2)"}`, boxShadow: current ? `0 0 0 6px rgba(30,192,168,0.15)` : "none" }} />
+                    <div style={{ width: current ? 28 : 18, height: current ? 28 : 18, borderRadius: 999, background: reached ? (current ? TEAL : t.color) : "#fff", border: `2px solid ${reached ? t.color : "rgba(242,237,228,0.2)"}`, boxShadow: current ? `0 0 0 6px rgba(10,197,168,0.15)` : "none" }} />
                   </div>
                   <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.01em", color: reached ? INK : "rgba(242,237,228,0.45)" }}>{t.name}</div>
                   <div style={{ fontFamily: sans, fontSize: 11, color: "rgba(242,237,228,0.5)", textAlign: "center", maxWidth: 160 }}>
@@ -159,9 +159,9 @@ function ScoreActivity() {
   const weeks = 12;
   const shade = (v) => {
     if (v === 0) return "rgba(242,237,228,0.05)";
-    if (v === 1) return "rgba(30,192,168,0.25)";
-    if (v === 2) return "rgba(30,192,168,0.5)";
-    if (v === 3) return "rgba(30,192,168,0.75)";
+    if (v === 1) return "rgba(10,197,168,0.25)";
+    if (v === 2) return "rgba(10,197,168,0.5)";
+    if (v === 3) return "rgba(10,197,168,0.75)";
     return TEAL;
   };
   return (
@@ -237,7 +237,7 @@ function ScoreLedger() {
           {LEDGER.map((row, i) => (
             <div key={i} style={{ display: "grid", gridTemplateColumns: "100px 80px 1fr auto", gap: 20, padding: "18px 24px", borderTop: i ? "1px solid rgba(242,237,228,0.06)" : "none", alignItems: "center" }}>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)" }}>{row.d}</div>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, padding: "3px 8px", background: "rgba(30,192,168,0.08)", color: TEAL, borderRadius: 4, letterSpacing: "0.1em", textTransform: "uppercase", justifySelf: "start" }}>{row.k}</span>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, padding: "3px 8px", background: "rgba(10,197,168,0.08)", color: TEAL, borderRadius: 4, letterSpacing: "0.1em", textTransform: "uppercase", justifySelf: "start" }}>{row.k}</span>
               <div style={{ fontFamily: serif, fontSize: 17, color: INK }}>{row.t}</div>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, color: TEAL, fontWeight: 500 }}>+{row.p}</div>
             </div>

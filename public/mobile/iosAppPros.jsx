@@ -177,7 +177,7 @@ function TrainerClients() {
           <div key={p} style={{
             flexShrink: 0, padding: '8px 14px', borderRadius: 16,
             border: i === 0 ? `1px solid ${TEAL}` : `1px solid ${HAIR}`,
-            background: i === 0 ? 'rgba(30,192,168,0.08)' : 'transparent',
+            background: i === 0 ? 'rgba(10,197,168,0.08)' : 'transparent',
             color: i === 0 ? TEAL : INK, fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.14em', textTransform: 'uppercase',
           }}>{p}</div>
         ))}
@@ -218,7 +218,7 @@ function TrainerPrograms() {
 
       {/* Top seller hero */}
       <div style={{ padding: '0 24px' }}>
-        <EdCard active pad={20} tint="linear-gradient(155deg, rgba(30,192,168,0.14), rgba(30,192,168,0.02))">
+        <EdCard active pad={20} tint="linear-gradient(155deg, rgba(10,197,168,0.14), rgba(10,197,168,0.02))">
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <MLabel color={TEAL}>Top seller</MLabel>
             <MLabel>$120/mo</MLabel>

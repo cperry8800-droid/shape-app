@@ -110,8 +110,8 @@ function HabitsWidget({ max = 5, items }) {
         {habits.map((h) => (
           <div key={h.id} style={{
             display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 12, alignItems: "center",
-            padding: "12px 14px", background: h.today ? "rgba(30,192,168,0.06)" : "rgba(242,237,228,0.04)",
-            border: `1px solid ${h.today ? "rgba(30,192,168,0.2)" : "rgba(242,237,228,0.08)"}`,
+            padding: "12px 14px", background: h.today ? "rgba(10,197,168,0.06)" : "rgba(242,237,228,0.04)",
+            border: `1px solid ${h.today ? "rgba(10,197,168,0.2)" : "rgba(242,237,228,0.08)"}`,
             borderRadius: 8,
           }}>
             <HabitCheckbox checked={h.today} onClick={() => toggle(h.id)} type={h.type} size={22}

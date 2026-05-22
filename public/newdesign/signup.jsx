@@ -98,7 +98,7 @@ function Select({ options, ...rest }) {
 
 function Chip({ on, onClick, children }) {
   return (
-    <button type="button" onClick={onClick} style={{ padding: "10px 16px", borderRadius: 999, border: `1px solid ${on ? TEAL : "rgba(242,237,228,0.15)"}`, background: on ? "rgba(30,192,168,0.12)" : "transparent", color: on ? INK : "rgba(242,237,228,0.75)", fontFamily: sans, fontSize: 13, cursor: "pointer", fontWeight: on ? 500 : 400 }}>{children}</button>
+    <button type="button" onClick={onClick} style={{ padding: "10px 16px", borderRadius: 999, border: `1px solid ${on ? TEAL : "rgba(242,237,228,0.15)"}`, background: on ? "rgba(10,197,168,0.12)" : "transparent", color: on ? INK : "rgba(242,237,228,0.75)", fontFamily: sans, fontSize: 13, cursor: "pointer", fontWeight: on ? 500 : 400 }}>{children}</button>
   );
 }
 

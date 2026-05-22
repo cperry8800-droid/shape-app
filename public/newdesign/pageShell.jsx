@@ -3,7 +3,7 @@
 const PAPER = "#1a1612";        // warm dark base (legacy name, kept: used site-wide)
 const INK = "#f2ede4";          // warm cream text
 const INK_DEEP = "#0b0e0c";     // true cinema base (footer / deep surfaces)
-const TEAL = "#1ec0a8";         // refined cinema teal accent
+const TEAL = "#0ac5a8";         // refined cinema teal accent
 const TEAL_BRIGHT = "#2ee0c4";
 const RUST = "#d2693f";         // warm secondary accent
 const serif = "'Fraunces', 'Instrument Serif', serif";
@@ -46,7 +46,7 @@ function NavDropdown({ label, items, active, activeMatch }) {
           <div style={{ background: "rgba(26,22,18,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: 10, boxShadow: "0 20px 50px rgba(0,0,0,0.5)" }}>
           {items.map(([n, href]) => (
             <a key={n} href={href} style={{ display: "block", padding: "10px 14px", fontSize: 13, color: "rgba(242,237,228,0.85)", fontFamily: sans, borderRadius: 4, whiteSpace: "nowrap" }}
-              onMouseEnter={e => { e.currentTarget.style.background = "rgba(30,192,168,0.12)"; e.currentTarget.style.color = INK; }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(10,197,168,0.12)"; e.currentTarget.style.color = INK; }}
               onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(242,237,228,0.85)"; }}
             >{n}</a>
           ))}
@@ -219,7 +219,7 @@ function Header({ active }) {
               <span style={{ fontSize: 12.5, color: INK, fontFamily: sans, fontWeight: 500, whiteSpace: "nowrap", maxWidth: 130, overflow: "hidden", textOverflow: "ellipsis", letterSpacing: "-0.005em" }}>Hi, {authUser.firstName || authUser.email}</span>
               {authUser.roles && authUser.roles.length > 1 ? (
                 <div style={{ position: "relative" }} onMouseEnter={() => setRoleMenuOpen(true)} onMouseLeave={() => setRoleMenuOpen(false)}>
-                  <button onClick={() => setRoleMenuOpen(v => !v)} style={{ background: "rgba(30,192,168,0.1)", border: `1px solid ${TEAL}`, color: TEAL, fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", fontFamily: "'JetBrains Mono', monospace", padding: "6px 12px", borderRadius: 999, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, lineHeight: 1, whiteSpace: "nowrap" }}>
+                  <button onClick={() => setRoleMenuOpen(v => !v)} style={{ background: "rgba(10,197,168,0.1)", border: `1px solid ${TEAL}`, color: TEAL, fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", fontFamily: "'JetBrains Mono', monospace", padding: "6px 12px", borderRadius: 999, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, lineHeight: 1, whiteSpace: "nowrap" }}>
                     {roleLabel(authUser.role)} <span style={{ fontSize: 8, opacity: 0.7 }}>▾</span>
                   </button>
                   {roleMenuOpen && (
@@ -227,8 +227,8 @@ function Header({ active }) {
                       <div style={{ background: "rgba(26,22,18,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: 6, boxShadow: "0 20px 50px rgba(0,0,0,0.5)" }}>
                         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)", padding: "8px 12px 4px" }}>Switch profile</div>
                         {authUser.roles.map(r => (
-                          <button key={r} onClick={() => switchRole(r)} disabled={r === authUser.role} style={{ width: "100%", textAlign: "left", background: r === authUser.role ? "rgba(30,192,168,0.12)" : "transparent", border: 0, padding: "9px 12px", fontFamily: sans, fontSize: 13, color: r === authUser.role ? TEAL : "rgba(242,237,228,0.85)", cursor: r === authUser.role ? "default" : "pointer", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "space-between", lineHeight: 1 }}
-                            onMouseEnter={e => { if (r !== authUser.role) { e.currentTarget.style.background = "rgba(30,192,168,0.08)"; e.currentTarget.style.color = INK; } }}
+                          <button key={r} onClick={() => switchRole(r)} disabled={r === authUser.role} style={{ width: "100%", textAlign: "left", background: r === authUser.role ? "rgba(10,197,168,0.12)" : "transparent", border: 0, padding: "9px 12px", fontFamily: sans, fontSize: 13, color: r === authUser.role ? TEAL : "rgba(242,237,228,0.85)", cursor: r === authUser.role ? "default" : "pointer", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "space-between", lineHeight: 1 }}
+                            onMouseEnter={e => { if (r !== authUser.role) { e.currentTarget.style.background = "rgba(10,197,168,0.08)"; e.currentTarget.style.color = INK; } }}
                             onMouseLeave={e => { if (r !== authUser.role) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(242,237,228,0.85)"; } }}
                           >
                             <span>{roleLabel(r)}</span>
@@ -418,8 +418,8 @@ function useCalendarOverlay() {
 }
 
 const KIND_COLORS = {
-  WORKOUT:  "#1ec0a8",
-  SESSION:  "#1ec0a8",
+  WORKOUT:  "#0ac5a8",
+  SESSION:  "#0ac5a8",
   MEAL:     "#e8b54a",
   PLAN:     "#e8b54a",
   CONSULT:  "#c084e8",
@@ -535,7 +535,7 @@ function WeekView({ start, byDate, today, onSelect }) {
         {days.map(d => {
           const isToday = ymd(d) === ymd(today);
           return (
-            <div key={d.toString()} style={{ padding: "14px 12px", borderRight: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.08)", background: isToday ? "rgba(30,192,168,0.06)" : "transparent" }}>
+            <div key={d.toString()} style={{ padding: "14px 12px", borderRight: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.08)", background: isToday ? "rgba(10,197,168,0.06)" : "transparent" }}>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: isToday ? TEAL_BRIGHT : "rgba(242,237,228,0.55)" }}>{d.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase()}</div>
               <div style={{ fontFamily: serif, fontSize: 22, marginTop: 4, color: isToday ? INK : "rgba(242,237,228,0.8)" }}>{d.getDate()}</div>
             </div>
@@ -603,7 +603,7 @@ function MonthView({ cursor, byDate, today, onSelect }) {
           const isToday = ymd(d) === ymd(today);
           const list = byDate[ymd(d)] || [];
           return (
-            <div key={i} style={{ minHeight: 112, borderRight: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.08)", padding: 8, background: isToday ? "rgba(30,192,168,0.06)" : "transparent", opacity: inMonth ? 1 : 0.35 }}>
+            <div key={i} style={{ minHeight: 112, borderRight: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.08)", padding: 8, background: isToday ? "rgba(10,197,168,0.06)" : "transparent", opacity: inMonth ? 1 : 0.35 }}>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: isToday ? TEAL_BRIGHT : "rgba(242,237,228,0.7)", marginBottom: 4 }}>{d.getDate()}</div>
               {list.slice(0,3).map((e, j) => <EventChip key={j} e={e} compact onSelect={onSelect} />)}
               {list.length > 3 && <div style={{ fontSize: 10.5, color: "rgba(242,237,228,0.5)", paddingLeft: 4, marginTop: 2 }}>+{list.length-3} more</div>}

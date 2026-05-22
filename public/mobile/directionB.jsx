@@ -3,7 +3,7 @@
 const DirB = (() => {
   const PAPER = "#1a1612";
   const INK = "#f2ede4";
-  const TEAL = "#1ec0a8";
+  const TEAL = "#0ac5a8";
   const TEAL_BRIGHT = "#2ee0c4";
 
   const serif = "'Fraunces', 'Instrument Serif', serif";
@@ -22,7 +22,7 @@ const DirB = (() => {
           <div style={{ position: "absolute", top: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)", background: "rgba(26,22,18,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: 8, minWidth: 180, boxShadow: "0 20px 50px rgba(0,0,0,0.5)", zIndex: 60 }}>
             {items.map(([n, h]) => (
               <a key={n} href={h} style={{ display: "block", padding: "10px 14px", fontSize: 13, color: "rgba(242,237,228,0.85)", fontFamily: sans, borderRadius: 4, whiteSpace: "nowrap" }}
-                onMouseEnter={e => { e.currentTarget.style.background = "rgba(30,192,168,0.12)"; e.currentTarget.style.color = INK; }}
+                onMouseEnter={e => { e.currentTarget.style.background = "rgba(10,197,168,0.12)"; e.currentTarget.style.color = INK; }}
                 onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(242,237,228,0.85)"; }}
               >{n}</a>
             ))}
@@ -107,7 +107,7 @@ const DirB = (() => {
         <aside style={{ padding: 20, borderRight: "1px solid rgba(242,237,228,0.06)", fontFamily: sans }}>
           <div style={{ fontSize: 11, color: "rgba(242,237,228,0.5)", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12 }}>My Coaches</div>
           {COACHES.slice(0, 3).map((c, i) => (
-            <div key={i} style={{ display: "flex", gap: 10, padding: "10px 8px", borderRadius: 8, background: i === 0 ? "rgba(30,192,168,0.08)" : "transparent", marginBottom: 4, alignItems: "center" }}>
+            <div key={i} style={{ display: "flex", gap: 10, padding: "10px 8px", borderRadius: 8, background: i === 0 ? "rgba(10,197,168,0.08)" : "transparent", marginBottom: 4, alignItems: "center" }}>
               <Placeholder label="" ratio="1/1" tone="light" style={{ width: 32, height: 32, borderRadius: 999 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 500, color: INK }}>{c.name.split(' ')[0]} {c.name.split(' ')[1][0]}.</div>
@@ -319,7 +319,7 @@ const DirB = (() => {
 
           {/* Phone */}
           <div style={{ position: "relative", width: 380, margin: "0 auto" }}>
-            <div style={{ position: "absolute", inset: "-40px -60px -40px -60px", background: "radial-gradient(ellipse at center, rgba(30,192,168,0.12), transparent 70%)", filter: "blur(20px)", zIndex: 0 }} />
+            <div style={{ position: "absolute", inset: "-40px -60px -40px -60px", background: "radial-gradient(ellipse at center, rgba(10,197,168,0.12), transparent 70%)", filter: "blur(20px)", zIndex: 0 }} />
             <div style={{ position: "relative", zIndex: 1, background: "#000", borderRadius: 48, padding: 10, boxShadow: "0 40px 80px -30px rgba(242,237,228,0.35), 0 0 0 1px rgba(242,237,228,0.08)" }}>
               <div style={{ background: "#0a0d0c", borderRadius: 40, overflow: "hidden", padding: "14px 22px 28px", color: "#fff", fontFamily: sans, minHeight: 720, position: "relative" }}>
                 {/* status bar */}
@@ -337,7 +337,7 @@ const DirB = (() => {
                   <div style={{ width: 36, height: 36, borderRadius: 999, background: "#1a1f1d", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, letterSpacing: "0.04em" }}>MJ</div>
                 </div>
                 {/* coach note */}
-                <div style={{ marginTop: 20, padding: 16, background: "rgba(30,192,168,0.18)", border: "1px solid rgba(30,192,168,0.25)", borderRadius: 14 }}>
+                <div style={{ marginTop: 20, padding: 16, background: "rgba(10,197,168,0.18)", border: "1px solid rgba(10,197,168,0.25)", borderRadius: 14 }}>
                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                     <div style={{ width: 30, height: 30, borderRadius: 999, background: "#2a332f", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 600 }}>MJ</div>
                     <div style={{ flex: 1 }}>
@@ -356,7 +356,7 @@ const DirB = (() => {
                 {/* exercises */}
                 <div style={{ marginTop: 14, display: "grid", gap: 8 }}>
                   {exercises.map(e => (
-                    <div key={e.n} style={{ display: "grid", gridTemplateColumns: "40px 1fr auto", gap: 12, alignItems: "center", padding: "12px 14px", background: e.active ? "rgba(30,192,168,0.28)" : "rgba(255,255,255,0.04)", border: e.active ? `1px solid ${TEAL_BRIGHT}` : "1px solid rgba(255,255,255,0.06)", borderRadius: 12 }}>
+                    <div key={e.n} style={{ display: "grid", gridTemplateColumns: "40px 1fr auto", gap: 12, alignItems: "center", padding: "12px 14px", background: e.active ? "rgba(10,197,168,0.28)" : "rgba(255,255,255,0.04)", border: e.active ? `1px solid ${TEAL_BRIGHT}` : "1px solid rgba(255,255,255,0.06)", borderRadius: 12 }}>
                       <div style={{ width: 30, height: 30, borderRadius: 8, background: e.done ? TEAL_BRIGHT : e.active ? TEAL_BRIGHT : "rgba(255,255,255,0.08)", color: e.done || e.active ? "#0a0d0c" : "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>{e.done ? "✓" : e.n}</div>
                       <div>
                         <div style={{ fontSize: 14, fontWeight: 600 }}>{e.name}</div>
@@ -397,7 +397,7 @@ const DirB = (() => {
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "380px 1fr", gap: 100, alignItems: "center" }}>
           {/* Phone - left side this time for rhythm */}
           <div style={{ position: "relative", width: 380, margin: "0 auto" }}>
-            <div style={{ position: "absolute", inset: "-40px -60px -40px -60px", background: "radial-gradient(ellipse at center, rgba(30,192,168,0.12), transparent 70%)", filter: "blur(20px)", zIndex: 0 }} />
+            <div style={{ position: "absolute", inset: "-40px -60px -40px -60px", background: "radial-gradient(ellipse at center, rgba(10,197,168,0.12), transparent 70%)", filter: "blur(20px)", zIndex: 0 }} />
             <div style={{ position: "relative", zIndex: 1, background: "#000", borderRadius: 48, padding: 10, boxShadow: "0 40px 80px -30px rgba(242,237,228,0.35), 0 0 0 1px rgba(242,237,228,0.08)" }}>
               <div style={{ background: "#0a0d0c", borderRadius: 40, overflow: "hidden", padding: "14px 22px 28px", color: "#fff", fontFamily: sans, minHeight: 720, position: "relative" }}>
                 {/* status bar */}
@@ -415,7 +415,7 @@ const DirB = (() => {
                   <div style={{ width: 36, height: 36, borderRadius: 999, background: "#1a1f1d", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, letterSpacing: "0.04em" }}>RL</div>
                 </div>
                 {/* nutritionist note */}
-                <div style={{ marginTop: 20, padding: 16, background: "rgba(30,192,168,0.18)", border: "1px solid rgba(30,192,168,0.25)", borderRadius: 14 }}>
+                <div style={{ marginTop: 20, padding: 16, background: "rgba(10,197,168,0.18)", border: "1px solid rgba(10,197,168,0.25)", borderRadius: 14 }}>
                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                     <div style={{ width: 30, height: 30, borderRadius: 999, background: "#2a332f", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 600 }}>RL</div>
                     <div style={{ flex: 1 }}>
@@ -445,7 +445,7 @@ const DirB = (() => {
                 </div>
                 <div style={{ marginTop: 12, display: "grid", gap: 7 }}>
                   {meals.map(m => (
-                    <div key={m.n} style={{ display: "grid", gridTemplateColumns: "44px 1fr auto", gap: 10, alignItems: "center", padding: "10px 12px", background: m.active ? "rgba(30,192,168,0.28)" : "rgba(255,255,255,0.04)", border: m.active ? `1px solid ${TEAL_BRIGHT}` : "1px solid rgba(255,255,255,0.06)", borderRadius: 12 }}>
+                    <div key={m.n} style={{ display: "grid", gridTemplateColumns: "44px 1fr auto", gap: 10, alignItems: "center", padding: "10px 12px", background: m.active ? "rgba(10,197,168,0.28)" : "rgba(255,255,255,0.04)", border: m.active ? `1px solid ${TEAL_BRIGHT}` : "1px solid rgba(255,255,255,0.06)", borderRadius: 12 }}>
                       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(255,255,255,0.55)" }}>{m.time}</div>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.2 }}>{m.name}</div>
@@ -589,13 +589,13 @@ const DirB = (() => {
           <ShapeWord variant="white" size={15} />
           <div style={{ marginTop: 24 }}>
             {[["Today", true], ["Clients", false, "34"], ["Programs"], ["Schedule"], ["Messages", false, "3"], ["Payouts"], ["Settings"]].map(([l, on, b]) => (
-              <div key={l} style={{ padding: "9px 12px", borderRadius: 8, fontSize: 13, color: on ? INK : "rgba(242,237,228,0.65)", background: on ? "rgba(30,192,168,0.12)" : "transparent", fontWeight: on ? 500 : 400, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div key={l} style={{ padding: "9px 12px", borderRadius: 8, fontSize: 13, color: on ? INK : "rgba(242,237,228,0.65)", background: on ? "rgba(10,197,168,0.12)" : "transparent", fontWeight: on ? 500 : 400, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 {l}
                 {b && <span style={{ fontSize: 10, padding: "1px 6px", background: on ? TEAL : "rgba(242,237,228,0.08)", color: on ? "#fff" : "rgba(242,237,228,0.6)", borderRadius: 999 }}>{b}</span>}
               </div>
             ))}
           </div>
-          <div style={{ marginTop: 40, padding: 14, background: "rgba(30,192,168,0.12)", color: INK, border: "1px solid rgba(30,192,168,0.25)", borderRadius: 12 }}>
+          <div style={{ marginTop: 40, padding: 14, background: "rgba(10,197,168,0.12)", color: INK, border: "1px solid rgba(10,197,168,0.25)", borderRadius: 12 }}>
             <div style={{ fontFamily: mono, fontSize: 9, color: TEAL_BRIGHT, letterSpacing: "0.12em" }}>PAYOUT APR 30</div>
             <div style={{ fontSize: 22, fontWeight: 500, marginTop: 4, letterSpacing: "-0.02em" }}>$14,820</div>
             <div style={{ fontSize: 11, color: "rgba(255,255,255,0.55)" }}>Month to date · +18%</div>

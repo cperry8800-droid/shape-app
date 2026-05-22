@@ -255,7 +255,7 @@ function ChatWidget(props) {
             background: TEAL, color: PAPER, border: 0,
             padding: "14px 20px 14px 18px", borderRadius: 999,
             fontFamily: sans, fontSize: 13.5, fontWeight: 500, letterSpacing: "0.01em",
-            cursor: "grab", boxShadow: "0 12px 32px rgba(0,0,0,0.35), 0 2px 8px rgba(30,192,168,0.35)",
+            cursor: "grab", boxShadow: "0 12px 32px rgba(0,0,0,0.35), 0 2px 8px rgba(10,197,168,0.35)",
             display: "inline-flex", alignItems: "center", gap: 10,
           }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -290,7 +290,7 @@ function ChatWidget(props) {
             title="Drag to move"
             style={{
               padding: "16px 20px 14px",
-              background: "linear-gradient(180deg, rgba(30,192,168,0.06), rgba(30,192,168,0))",
+              background: "linear-gradient(180deg, rgba(10,197,168,0.06), rgba(10,197,168,0))",
               borderBottom: "1px solid rgba(242,237,228,0.06)",
               cursor: "grab", userSelect: "none",
               display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
@@ -322,7 +322,7 @@ function ChatWidget(props) {
                 return (
                   <button key={t.id} onClick={() => selectTab(i)}
                     style={{
-                      flex: 1, padding: "12px 10px", border: 0, background: isActive ? "rgba(30,192,168,0.08)" : "transparent",
+                      flex: 1, padding: "12px 10px", border: 0, background: isActive ? "rgba(10,197,168,0.08)" : "transparent",
                       color: isActive ? INK : "rgba(242,237,228,0.6)",
                       fontFamily: sans, fontSize: 12, fontWeight: isActive ? 500 : 400,
                       cursor: "pointer",
@@ -409,7 +409,7 @@ function ChatWidget(props) {
                   style={{
                     position: "relative",
                     display: "block", width: "100%", textAlign: "left",
-                    padding: "12px 18px", border: 0, background: origIdx === activeIdx ? "rgba(30,192,168,0.10)" : "transparent",
+                    padding: "12px 18px", border: 0, background: origIdx === activeIdx ? "rgba(10,197,168,0.10)" : "transparent",
                     borderLeft: origIdx === activeIdx ? `2px solid ${TEAL}` : "2px solid transparent",
                     borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.05)",
                     cursor: "pointer", color: "inherit", fontFamily: "inherit",
@@ -420,7 +420,7 @@ function ChatWidget(props) {
                         {t.online && <span style={{ flex: "none", width: 7, height: 7, borderRadius: 999, background: "#3ddc84", boxShadow: "0 0 0 2px rgba(61,220,132,0.2)" }} />}
                         {t.who}
                       </span>
-                      {t.pinned && <span style={{ flex: "none", fontSize: 8.5, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", background: "rgba(30,192,168,0.12)", padding: "1px 5px", borderRadius: 3 }}>PINNED</span>}
+                      {t.pinned && <span style={{ flex: "none", fontSize: 8.5, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", background: "rgba(10,197,168,0.12)", padding: "1px 5px", borderRadius: 3 }}>PINNED</span>}
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, flex: "none" }}>
                       <button
@@ -470,7 +470,7 @@ function ChatWidget(props) {
               )}
 
               {currentTab.canCreate && creating && (
-                <div style={{ padding: "14px 18px", borderTop: "1px solid rgba(242,237,228,0.08)", background: "rgba(30,192,168,0.04)" }}>
+                <div style={{ padding: "14px 18px", borderTop: "1px solid rgba(242,237,228,0.08)", background: "rgba(10,197,168,0.04)" }}>
                   <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", color: TEAL_BRIGHT, marginBottom: 8 }}>NEW CHANNEL</div>
                   <input
                     value={newName}
@@ -595,7 +595,7 @@ function ChatWidget(props) {
             style={{
               position: "absolute", right: 0, bottom: 0, width: 18, height: 18,
               cursor: "nwse-resize",
-              background: "linear-gradient(135deg, transparent 50%, rgba(30,192,168,0.55) 50%, rgba(30,192,168,0.55) 62%, transparent 62%, transparent 72%, rgba(30,192,168,0.35) 72%, rgba(30,192,168,0.35) 84%, transparent 84%)",
+              background: "linear-gradient(135deg, transparent 50%, rgba(10,197,168,0.55) 50%, rgba(10,197,168,0.55) 62%, transparent 62%, transparent 72%, rgba(10,197,168,0.35) 72%, rgba(10,197,168,0.35) 84%, transparent 84%)",
               borderBottomRightRadius: 14,
             }}
           />

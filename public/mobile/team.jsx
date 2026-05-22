@@ -107,7 +107,7 @@ function TeamRoster() {
                 </div>
                 <div style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.7)" }}>{m.role}</div>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)", marginTop: 4, letterSpacing: "0.08em" }}>{m.cert} · WORKING TOGETHER {m.with.toUpperCase()}</div>
-                <div style={{ marginTop: 16, padding: "12px 16px", background: "rgba(30,192,168,0.06)", borderRadius: 8, borderLeft: `2px solid ${TEAL}` }}>
+                <div style={{ marginTop: 16, padding: "12px 16px", background: "rgba(10,197,168,0.06)", borderRadius: 8, borderLeft: `2px solid ${TEAL}` }}>
                   <div style={{ fontFamily: sans, fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 6 }}>Latest · {m.msgTime}</div>
                   <p style={{ fontFamily: serif, fontSize: 15, fontStyle: "italic", lineHeight: 1.4, color: INK, margin: 0 }}>"{m.msg}"</p>
                 </div>
@@ -161,7 +161,7 @@ function TeamSchedule() {
                 {u.who && <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.55)", marginTop: 4 }}>with {u.who} · {u.kind}</div>}
                 {!u.who && <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.55)", marginTop: 4 }}>{u.kind}</div>}
               </div>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, padding: "3px 8px", background: u.tag === "session" ? "rgba(30,192,168,0.1)" : "rgba(242,237,228,0.06)", color: u.tag === "session" ? TEAL : "rgba(242,237,228,0.6)", borderRadius: 4, letterSpacing: "0.1em", textTransform: "uppercase" }}>{u.tag}</span>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, padding: "3px 8px", background: u.tag === "session" ? "rgba(10,197,168,0.1)" : "rgba(242,237,228,0.06)", color: u.tag === "session" ? TEAL : "rgba(242,237,228,0.6)", borderRadius: 4, letterSpacing: "0.1em", textTransform: "uppercase" }}>{u.tag}</span>
             </div>
           ))}
         </div>

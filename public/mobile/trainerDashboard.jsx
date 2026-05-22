@@ -13,19 +13,19 @@ function DashSidebar({ navItems, payoutCard, homeHref = "Shape Redesign.html" })
         <a key={i} href={n.href || "#"} style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "10px 14px", borderRadius: 6,
-          background: n.active ? "rgba(30,192,168,0.12)" : "transparent",
+          background: n.active ? "rgba(10,197,168,0.12)" : "transparent",
           color: n.active ? INK : "rgba(242,237,228,0.7)",
           fontSize: 14, fontWeight: n.active ? 500 : 400,
           borderLeft: n.active ? `2px solid ${TEAL}` : "2px solid transparent",
         }}>
           <span>{n.label}</span>
           {n.count != null && (
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)", background: n.active ? "rgba(30,192,168,0.18)" : "rgba(242,237,228,0.06)", padding: "2px 7px", borderRadius: 4 }}>{n.count}</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)", background: n.active ? "rgba(10,197,168,0.18)" : "rgba(242,237,228,0.06)", padding: "2px 7px", borderRadius: 4 }}>{n.count}</span>
           )}
         </a>
       ))}
       {payoutCard && (
-        <div style={{ marginTop: "auto", padding: 16, background: "rgba(30,192,168,0.08)", border: "1px solid rgba(30,192,168,0.25)", borderRadius: 8 }}>
+        <div style={{ marginTop: "auto", padding: 16, background: "rgba(10,197,168,0.08)", border: "1px solid rgba(10,197,168,0.25)", borderRadius: 8 }}>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>{payoutCard.label}</div>
           <div style={{ fontFamily: serif, fontSize: 26, fontWeight: 400, marginTop: 6, letterSpacing: "-0.01em" }}>{payoutCard.amount}</div>
           <div style={{ fontSize: 11, color: "rgba(242,237,228,0.55)", marginTop: 2 }}>{payoutCard.sub}</div>
@@ -300,7 +300,7 @@ function ProfileHero({ eyebrow, name, headline, pills, score, scoreLabel = "COAC
   // Gradient fallback for cover if no image is supplied. Teal→deep-brown diagonal, subtle noise via layered gradients.
   const coverBg = cover
     ? `url(${cover}) center/cover no-repeat`
-    : `linear-gradient(135deg, rgba(30,192,168,0.45) 0%, rgba(30,192,168,0.08) 40%, rgba(26,22,18,0.9) 100%), radial-gradient(1200px 400px at 20% 20%, rgba(242,237,228,0.12), transparent 60%), #221d18`;
+    : `linear-gradient(135deg, rgba(10,197,168,0.45) 0%, rgba(10,197,168,0.08) 40%, rgba(26,22,18,0.9) 100%), radial-gradient(1200px 400px at 20% 20%, rgba(242,237,228,0.12), transparent 60%), #221d18`;
   const avatarBg = avatar ? `url(${avatar}) center/cover no-repeat` : "#efece6";
   return (
     <div style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, marginBottom: 20 }}>

@@ -103,7 +103,7 @@ const NUTRI_PLAYLISTS = [
     trackCount: 20,
     duration: "1h 22m",
     cover: "linear-gradient(135deg, #1c5a4a 0%, #1a1612 70%)",
-    accent: "#1EC0A8",
+    accent: "#0ac5a8",
     attachedTo: ["plan-intuitive", "plan-stress-eating"],
     shared: true,
     updated: "2w ago",

@@ -144,7 +144,7 @@ function RadioRoomScheduler({ open, role, onClose, onSave }) {
           width: "min(560px, 100%)",
           background: "#1a1612",
           color: INK,
-          border: "1px solid rgba(30,192,168,0.35)",
+          border: "1px solid rgba(10,197,168,0.35)",
           borderRadius: 24,
           boxShadow: "0 24px 80px rgba(0,0,0,0.45)",
           padding: 24,
@@ -203,7 +203,7 @@ function RadioRoomScheduler({ open, role, onClose, onSave }) {
 
 function ScheduledRadioRoomCard({ room }) {
   return (
-    <Card style={{ padding: 18, border: "1px solid rgba(30,192,168,0.22)", background: "rgba(30,192,168,0.045)" }}>
+    <Card style={{ padding: 18, border: "1px solid rgba(10,197,168,0.22)", background: "rgba(10,197,168,0.045)" }}>
       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 8, textTransform: "uppercase" }}>Scheduled room</div>
       <div style={{ fontFamily: serif, fontSize: 20, letterSpacing: "-0.01em", marginBottom: 6 }}>{room.topic}</div>
       <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.66)", lineHeight: 1.45 }}>{formatRadioRoomWhen(room)} - {radioAudienceLabel(room.audience)}</div>

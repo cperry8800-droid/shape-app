@@ -93,7 +93,7 @@ function RoleCard({ role, index, total }) {
         display: "flex",
         flexDirection: "column",
         background: hover ? "rgba(242,237,228,0.06)" : "rgba(242,237,228,0.025)",
-        border: `1px solid ${hover ? "rgba(30,192,168,0.4)" : "rgba(242,237,228,0.1)"}`,
+        border: `1px solid ${hover ? "rgba(10,197,168,0.4)" : "rgba(242,237,228,0.1)"}`,
         borderRadius: 14,
         padding: "36px 32px 30px",
         position: "relative",

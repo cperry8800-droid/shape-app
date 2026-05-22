@@ -227,7 +227,7 @@ function StoreGrid() {
       <section style={{ padding: "48px 72px 40px" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
           {!!notice && (
-            <div style={{ marginBottom: 20, padding: "12px 14px", borderRadius: 8, border: "1px solid rgba(30,192,168,0.35)", background: "rgba(30,192,168,0.08)", color: INK, fontFamily: sans, fontSize: 13 }}>
+            <div style={{ marginBottom: 20, padding: "12px 14px", borderRadius: 8, border: "1px solid rgba(10,197,168,0.35)", background: "rgba(10,197,168,0.08)", color: INK, fontFamily: sans, fontSize: 13 }}>
               {notice}
             </div>
           )}
@@ -268,7 +268,7 @@ function UnlockedCoupons() {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
           {UNLOCKED.map((u, i) => (
-            <div key={i} style={{ border: "1px dashed rgba(30,192,168,0.35)", borderRadius: 10, padding: "22px 24px", background: "rgba(30,192,168,0.04)", display: "grid", gridTemplateColumns: "1fr auto", gap: 20, alignItems: "center" }}>
+            <div key={i} style={{ border: "1px dashed rgba(10,197,168,0.35)", borderRadius: 10, padding: "22px 24px", background: "rgba(10,197,168,0.04)", display: "grid", gridTemplateColumns: "1fr auto", gap: 20, alignItems: "center" }}>
               <div>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: TEAL, letterSpacing: "0.14em" }}>{u.code}</div>
                 <div style={{ fontFamily: serif, fontSize: 20, letterSpacing: "-0.015em", color: INK, marginTop: 6 }}>{u.name}</div>

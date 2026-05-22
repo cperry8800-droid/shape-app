@@ -3,7 +3,7 @@
 //   serif = Fraunces (large titles, editorial headlines)
 //   sans  = Space Grotesk (body, buttons)
 //   mono  = JetBrains Mono (micro-labels, times, slash-macros)
-//   PAPER = #1a1612   INK = #f2ede4   TEAL = #1ec0a8
+//   PAPER = #1a1612   INK = #f2ede4   TEAL = #0ac5a8
 
 const { useState: useStateS, useEffect: useEffectS } = React;
 
@@ -22,7 +22,7 @@ const INK_45 = 'rgba(242,237,228,0.45)';
 const INK_30 = 'rgba(242,237,228,0.30)';
 const HAIR   = 'rgba(242,237,228,0.09)';
 const HAIR_S = 'rgba(242,237,228,0.05)';
-const TEAL   = '#1ec0a8';
+const TEAL   = '#0ac5a8';
 const GOLD   = '#d9b26a';
 const CORAL  = '#e37a5a';
 const PLUM   = '#8c6fa8';
@@ -90,7 +90,7 @@ function IconBtn({ children, onClick }) {
 // ─────────────────────────────────────────────────────────────
 function EdCard({ children, active, style, onClick, tint, pad = 16 }) {
   const border = active ? `1px solid ${TEAL}` : `1px solid ${HAIR}`;
-  const bg = tint ? tint : (active ? 'rgba(30,192,168,0.06)' : 'rgba(242,237,228,0.025)');
+  const bg = tint ? tint : (active ? 'rgba(10,197,168,0.06)' : 'rgba(242,237,228,0.025)');
   return (
     <div onClick={onClick} style={{
       borderRadius: 18, border, background: bg, padding: pad,

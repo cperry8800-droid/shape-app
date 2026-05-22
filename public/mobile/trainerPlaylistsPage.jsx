@@ -113,9 +113,9 @@ function NewPlaylistCard() {
     <React.Fragment>
       <button onClick={() => setOpen(true)}
         style={{ all: "unset", cursor: "pointer", border: "1.5px dashed rgba(242,237,228,0.2)", borderRadius: 12, padding: 18, height: 344, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, fontFamily: sans, background: "rgba(242,237,228,0.02)", transition: "all 0.2s" }}
-        onMouseEnter={e => { e.currentTarget.style.borderColor = TEAL; e.currentTarget.style.background = "rgba(30,192,168,0.04)"; }}
+        onMouseEnter={e => { e.currentTarget.style.borderColor = TEAL; e.currentTarget.style.background = "rgba(10,197,168,0.04)"; }}
         onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(242,237,228,0.2)"; e.currentTarget.style.background = "rgba(242,237,228,0.02)"; }}>
-        <div style={{ width: 56, height: 56, borderRadius: 999, background: "rgba(30,192,168,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: 56, height: 56, borderRadius: 999, background: "rgba(10,197,168,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={TEAL_BRIGHT} strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
         </div>
         <div style={{ textAlign: "center" }}>
@@ -175,7 +175,7 @@ function PlaylistDetail({ p, onClose }) {
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {p.attachedTo.map(tid => {
                 const w = ctx.attachTargets.find(x => x.id === tid);
-                return <span key={tid} style={{ background: "rgba(30,192,168,0.1)", border: "1px solid rgba(30,192,168,0.25)", padding: "6px 12px", borderRadius: 999, fontSize: 12, fontFamily: sans, color: TEAL_BRIGHT }}>{w?.name}</span>;
+                return <span key={tid} style={{ background: "rgba(10,197,168,0.1)", border: "1px solid rgba(10,197,168,0.25)", padding: "6px 12px", borderRadius: 999, fontSize: 12, fontFamily: sans, color: TEAL_BRIGHT }}>{w?.name}</span>;
               })}
               <span style={{ border: "1px dashed rgba(242,237,228,0.25)", padding: "6px 12px", borderRadius: 999, fontSize: 12, fontFamily: sans, color: "rgba(242,237,228,0.55)", cursor: "pointer" }}>+ Attach {ctx.attachmentUnit}</span>
             </div>
@@ -294,8 +294,8 @@ function BuilderDrawer({ query, setQuery, items }) {
         <div>
           <SearchBar query={query} setQuery={setQuery} placeholder="Search your playlists…" compact />
           <div style={{ border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, overflow: "hidden" }}>
-            <button style={{ all: "unset", display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", width: "100%", boxSizing: "border-box", cursor: "pointer", background: "rgba(30,192,168,0.05)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
-              <div style={{ width: 30, height: 30, borderRadius: 999, background: "rgba(30,192,168,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <button style={{ all: "unset", display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", width: "100%", boxSizing: "border-box", cursor: "pointer", background: "rgba(10,197,168,0.05)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+              <div style={{ width: 30, height: 30, borderRadius: 999, background: "rgba(10,197,168,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={TEAL_BRIGHT} strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
               </div>
               <span style={{ fontSize: 13.5, color: TEAL_BRIGHT, fontWeight: 500 }}>New playlist</span>
@@ -353,7 +353,7 @@ function BuilderDetailPane({ p }) {
               {targets.map(w => {
                 const on = p.attachedTo.includes(w.id);
                 return (
-                  <label key={w.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: `1px solid ${on ? "rgba(30,192,168,0.3)" : "rgba(242,237,228,0.08)"}`, background: on ? "rgba(30,192,168,0.06)" : "transparent", borderRadius: 8, cursor: "pointer" }}>
+                  <label key={w.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: `1px solid ${on ? "rgba(10,197,168,0.3)" : "rgba(242,237,228,0.08)"}`, background: on ? "rgba(10,197,168,0.06)" : "transparent", borderRadius: 8, cursor: "pointer" }}>
                     <div style={{ width: 16, height: 16, borderRadius: 4, border: `1.5px solid ${on ? p.accent : "rgba(242,237,228,0.2)"}`, background: on ? p.accent : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
                       {on && <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#1a1612" strokeWidth="3"><path d="M3 8.5l3 3 7-7"/></svg>}
                     </div>
@@ -441,7 +441,7 @@ function TabIcon({ kind, on }) {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8">
       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-      <path d="m18.5 2.5 3 3L12 15l-4 1 1-4 9.5-9.5z" fill={on ? "rgba(30,192,168,0.12)" : "transparent"}/>
+      <path d="m18.5 2.5 3 3L12 15l-4 1 1-4 9.5-9.5z" fill={on ? "rgba(10,197,168,0.12)" : "transparent"}/>
     </svg>
   );
 }

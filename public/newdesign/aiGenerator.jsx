@@ -101,7 +101,7 @@ function AIGeneratorCard({ kind = "workout", role = "trainer", onApply }) {
   }));
 
   return (
-    <Card style={{ borderColor: "rgba(30,192,168,0.28)", boxShadow: "0 18px 50px rgba(30,192,168,0.06)" }}>
+    <Card style={{ borderColor: "rgba(10,197,168,0.28)", boxShadow: "0 18px 50px rgba(10,197,168,0.06)" }}>
       <SectionTitle right={draft ? "EDITABLE DRAFT" : "COACH REVIEW REQUIRED"}>{isMeal ? "AI meal-plan generator" : isProgram ? "AI program generator" : "AI workout generator"}</SectionTitle>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 12 }}>
         {field("Goal", goal, setGoal)}
@@ -138,7 +138,7 @@ function AIGeneratorCard({ kind = "workout", role = "trainer", onApply }) {
               </div>
             ))}
           </div>
-          <button onClick={addDraftBlock} style={{ marginTop: 10, width: "100%", background: "transparent", color: TEAL_BRIGHT, border: "1px dashed rgba(30,192,168,0.35)", padding: "10px 14px", borderRadius: 8, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>+ Add editable block</button>
+          <button onClick={addDraftBlock} style={{ marginTop: 10, width: "100%", background: "transparent", color: TEAL_BRIGHT, border: "1px dashed rgba(10,197,168,0.35)", padding: "10px 14px", borderRadius: 8, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>+ Add editable block</button>
         </div>
       )}
     </Card>

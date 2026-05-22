@@ -63,7 +63,7 @@ function ClientNutriPage() {
   const maxCal = Math.max(1, ...week.map(d => d.calories || 0));
 
   const macros = today ? [
-    { l: "Protein", v: nutriNum(today.protein, "g"), color: "#1ec0a8" },
+    { l: "Protein", v: nutriNum(today.protein, "g"), color: "#0ac5a8" },
     { l: "Carbs", v: nutriNum(today.carbs, "g"), color: "#f4b860" },
     { l: "Fat", v: nutriNum(today.fat, "g"), color: "#e07856" },
     { l: "Water", v: today.hydration != null ? today.hydration + " L" : "—", color: "#6a8cff" },

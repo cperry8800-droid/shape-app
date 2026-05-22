@@ -51,10 +51,10 @@ function useBeat(on = true) {
   return { beat: beatPhase, pulse, t, bass, mid: Math.max(0, mid), treble: Math.max(0, treble) };
 }
 
-const FX_COLORS = ['#1ec0a8', '#e37a5a', '#d9b26a', '#8c6fa8'];
+const FX_COLORS = ['#0ac5a8', '#e37a5a', '#d9b26a', '#8c6fa8'];
 
 function mixHex(a, b, t) {
-  if (!a || !b) return a || b || '#1ec0a8';
+  if (!a || !b) return a || b || '#0ac5a8';
   const pa = [1,3,5].map(i => parseInt(a.slice(i, i+2), 16));
   const pb = [1,3,5].map(i => parseInt(b.slice(i, i+2), 16));
   const m = pa.map((c, i) => Math.round(c + (pb[i] - c) * t));
@@ -71,7 +71,7 @@ function cycleColor(tSec, period = 18) {
   return mixHex(FX_COLORS[i], FX_COLORS[(i + 1) % n], frac);
 }
 
-function RadioEdgeGlow({ color = '#1ec0a8', enabled = true }) {
+function RadioEdgeGlow({ color = '#0ac5a8', enabled = true }) {
   const { bass } = useBeat(enabled);
   if (!enabled) return null;
   const intensity = 0.3 + bass * 0.5;
@@ -85,7 +85,7 @@ function RadioEdgeGlow({ color = '#1ec0a8', enabled = true }) {
   );
 }
 
-function RadioBgBloom({ color = '#1ec0a8', enabled = true }) {
+function RadioBgBloom({ color = '#0ac5a8', enabled = true }) {
   const { bass, t } = useBeat(enabled);
   if (!enabled) return null;
   const x = 50 + Math.sin(t * 0.3) * 15;
@@ -101,7 +101,7 @@ function RadioBgBloom({ color = '#1ec0a8', enabled = true }) {
   );
 }
 
-function RadioDynamicIsland({ enabled = true, color = '#1ec0a8', label = 'Heavy Day · 132' }) {
+function RadioDynamicIsland({ enabled = true, color = '#0ac5a8', label = 'Heavy Day · 132' }) {
   const { bass, mid, treble, t } = useBeat(enabled);
   if (!enabled) return null;
   const bars = Array.from({ length: 7 }).map((_, i) => {
@@ -136,7 +136,7 @@ function RadioDynamicIsland({ enabled = true, color = '#1ec0a8', label = 'Heavy 
   );
 }
 
-function Halo({ color = '#1ec0a8', enabled = true, radius = 22, children, style }) {
+function Halo({ color = '#0ac5a8', enabled = true, radius = 22, children, style }) {
   const { bass } = useBeat(enabled);
   return (
     <div style={{ position: 'relative', display: 'inline-block', ...style }}>
@@ -153,7 +153,7 @@ function Halo({ color = '#1ec0a8', enabled = true, radius = 22, children, style 
   );
 }
 
-function RadioHologramDJ({ enabled = true, color = '#1ec0a8' }) {
+function RadioHologramDJ({ enabled = true, color = '#0ac5a8' }) {
   const { bass, mid, t } = useBeat(enabled);
   if (!enabled) return null;
 

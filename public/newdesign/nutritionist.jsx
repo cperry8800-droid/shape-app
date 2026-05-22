@@ -233,7 +233,7 @@ function NutTools() {
             ))}
           </div>
           <div style={{ marginTop: 48, textAlign: "center" }}>
-            <a href="NutritionistDashboard.html" style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.12em", textTransform: "uppercase", color: TEAL, borderBottom: "1px solid rgba(30,192,168,0.3)", paddingBottom: 3 }}>See the full dashboard →</a>
+            <a href="NutritionistDashboard.html" style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.12em", textTransform: "uppercase", color: TEAL, borderBottom: "1px solid rgba(10,197,168,0.3)", paddingBottom: 3 }}>See the full dashboard →</a>
           </div>
         </div>
       </NuReveal>
