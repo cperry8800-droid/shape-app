@@ -1,0 +1,517 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Console · Shape</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>html,body{margin:0;padding:0;background:#1a1612}*{box-sizing:border-box}a{text-decoration:none;color:inherit}</style>
+</head>
+<body><div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="pageShell.jsx"></script>
+<script type="text/babel" src="trainerDashboard.jsx"></script>
+<script type="text/babel" src="coachNav.jsx"></script>
+<script type="text/babel">
+// Demo data — replace with /api/nutritionist/console when the live logging
+// backend exists. Right now the console is fully interactive locally:
+// switching clients re-renders, the "send to phone" and "add a meal"
+// controls update the on-screen plan and show a confirmation toast.
+const CONSOLE_CLIENTS = [
+  {
+    id: "charlie",
+    name: "Charlie Perry",
+    age: 28,
+    weight: "184.2 lbs",
+    height: "5'11\"",
+    focus: "Higher protein + collagen support for joint recovery",
+    meals: { done: 2, total: 4, note: "Recovery-focused day" },
+    nutrition: { kcal: 1060, protein: 83 },
+    recovery: { restingHR: 55, sleep: 7.8, stress: 3 },
+    recoveryNote: "Sleep is holding above 7 hours and resting HR is steady — the higher-protein week is showing in the recovery markers.",
+    focusBanner: "Get 30g protein within 45 minutes of your lift.",
+    plan: [
+      { id: "m1", name: "Greek yogurt + chia + berries",   time: "8:00 am",  kcal: 320, protein: 38, note: "" },
+      { id: "m2", name: "Salmon, rice, asparagus",         time: "12:30 pm", kcal: 540, protein: 42, note: "" },
+      { id: "m3", name: "Bone broth + collagen",           time: "3:00 pm",  kcal: 90,  protein: 14, note: "Pre-lift" },
+      { id: "m4", name: "Steak, sweet potato, greens",     time: "7:00 pm",  kcal: 640, protein: 48, note: "" },
+    ],
+  },
+  {
+    id: "priya",
+    name: "Priya Shah",
+    age: 34,
+    weight: "138.6 lbs",
+    height: "5'5\"",
+    focus: "Race-week fueling and carb loading",
+    meals: { done: 3, total: 5, note: "Long-run carb prep" },
+    nutrition: { kcal: 1740, protein: 96 },
+    recovery: { restingHR: 49, sleep: 8.1, stress: 2 },
+    recoveryNote: "Recovery markers are excellent heading into race week. Stay the course on carb loading — no last-minute experiments.",
+    focusBanner: "Familiar foods only this week. No experiments.",
+    plan: [
+      { id: "m1", name: "Banana + dates + coffee",          time: "6:00 am",  kcal: 340, protein: 4,  note: "Pre-run" },
+      { id: "m2", name: "Sport drink + gels (en route)",    time: "7:30 am",  kcal: 380, protein: 0,  note: "Long run" },
+      { id: "m3", name: "Recovery shake",                   time: "9:30 am",  kcal: 360, protein: 32, note: "Within 30 min" },
+      { id: "m4", name: "Rice bowl + tofu + edamame",       time: "1:00 pm",  kcal: 620, protein: 28, note: "" },
+      { id: "m5", name: "Pasta + olive oil + parmesan",     time: "7:30 pm",  kcal: 720, protein: 26, note: "Carb load" },
+    ],
+  },
+  {
+    id: "deandre",
+    name: "Deandre Kim",
+    age: 41,
+    weight: "201.0 lbs",
+    height: "6'1\"",
+    focus: "Anti-inflammatory nutrition during shoulder rehab",
+    meals: { done: 1, total: 3, note: "Adherence slipping" },
+    nutrition: { kcal: 980, protein: 71 },
+    recovery: { restingHR: 61, sleep: 6.4, stress: 6 },
+    recoveryNote: "Sleep dipped below 6.5 hours this week, stress is up, and protein logging has slipped to ~105g. Pull back the cut, prioritize sleep.",
+    focusBanner: "One real meal per sitting. No skipping protein.",
+    plan: [
+      { id: "m1", name: "Oats + walnuts + berries",        time: "7:30 am",  kcal: 380, protein: 12, note: "" },
+      { id: "m2", name: "Turmeric chicken + quinoa",       time: "12:00 pm", kcal: 580, protein: 38, note: "Anti-inflammatory" },
+      { id: "m3", name: "Trail mix + green tea",           time: "3:30 pm",  kcal: 240, protein: 8,  note: "" },
+    ],
+  },
+];
+
+function newId() { return "m" + Math.random().toString(36).slice(2, 9); }
+function firstName(name) { return (name || "").split(" ")[0]; }
+
+// Trajectory series — per-client params drive a deterministic 26-week series
+// (sin/cos wiggle around a start->end baseline) sliced by the range toggle.
+const RANGE_COUNTS = { "4w": 4, "12w": 12, "6m": 26 };
+const TRAJECTORY_PARAMS = {
+  charlie: {
+    score:   { start: 1200, end: 1480,  noise: 18,  decimals: 0 },
+    weight:  { start: 188,  end: 184.2, noise: 0.4, decimals: 1 },
+    protein: { start: 100,  end: 135,   noise: 6,   decimals: 0 },
+    sleep:   { start: 6.5,  end: 7.4,   noise: 0.3, decimals: 1 },
+  },
+  priya: {
+    score:   { start: 1700, end: 1880,  noise: 14,  decimals: 0 },
+    weight:  { start: 142,  end: 138.6, noise: 0.4, decimals: 1 },
+    protein: { start: 105,  end: 115,   noise: 5,   decimals: 0 },
+    sleep:   { start: 7.6,  end: 8.1,   noise: 0.3, decimals: 1 },
+  },
+  deandre: {
+    score:   { start: 1500, end: 1380,  noise: 14,  decimals: 0 },
+    weight:  { start: 198,  end: 201,   noise: 0.4, decimals: 1 },
+    protein: { start: 130,  end: 105,   noise: 7,   decimals: 0 },
+    sleep:   { start: 7.0,  end: 6.4,   noise: 0.3, decimals: 1 },
+  },
+};
+
+function trajSeries(p, n) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const t = n === 1 ? 1 : i / (n - 1);
+    const base = p.start + (p.end - p.start) * t;
+    const wiggle = (Math.sin(i * 1.3) + Math.cos(i * 0.7)) * (p.noise || 0);
+    const v = base + wiggle;
+    out.push(p.decimals ? +v.toFixed(p.decimals) : Math.round(v));
+  }
+  return out;
+}
+
+const METRICS = [
+  { key: "score",   label: "Shape Score", unit: "",     goodWhen: "up"   },
+  { key: "weight",  label: "Bodyweight",  unit: " lb",  goodWhen: "down" },
+  { key: "protein", label: "Protein avg", unit: " g",   goodWhen: "up"   },
+  { key: "sleep",   label: "Sleep avg",   unit: " hrs", goodWhen: "up"   },
+];
+
+function NutritionistLiveConsolePage() {
+  const [clientId, setClientId] = React.useState(CONSOLE_CLIENTS[0].id);
+  const [range, setRange] = React.useState("12w");
+  const [metric, setMetric] = React.useState("score");
+  // Per-client editable state (focus banner + today's meal plan)
+  const [focusById, setFocusById] = React.useState(() => Object.fromEntries(CONSOLE_CLIENTS.map(c => [c.id, c.focusBanner])));
+  const [plansById, setPlansById] = React.useState(() => Object.fromEntries(CONSOLE_CLIENTS.map(c => [c.id, c.plan])));
+  // Add-meal form
+  const [meal, setMeal] = React.useState({ name: "", time: "", kcal: "", protein: "", note: "" });
+  // Transient toast
+  const [toast, setToast] = React.useState("");
+  const toastTimer = React.useRef(null);
+  const flash = (msg) => {
+    setToast(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(""), 2400);
+  };
+
+  const client = CONSOLE_CLIENTS.find(c => c.id === clientId);
+  const plan = plansById[clientId] || [];
+  const focus = focusById[clientId] || "";
+
+  const setFocus = (v) => setFocusById({ ...focusById, [clientId]: v });
+  const sendFocus = () => {
+    if (!focus.trim()) return;
+    flash("Sent to " + firstName(client.name) + "'s phone");
+  };
+  const addMeal = () => {
+    if (!meal.name.trim()) return;
+    const next = {
+      id: newId(),
+      name: meal.name.trim(),
+      time: meal.time.trim() || "—",
+      kcal: meal.kcal ? Number(meal.kcal) : null,
+      protein: meal.protein ? Number(meal.protein) : null,
+      note: meal.note.trim(),
+    };
+    setPlansById({ ...plansById, [clientId]: [...plan, next] });
+    setMeal({ name: "", time: "", kcal: "", protein: "", note: "" });
+    flash("Added to " + firstName(client.name) + "'s plan");
+  };
+  const removeMeal = (id) => setPlansById({ ...plansById, [clientId]: plan.filter(m => m.id !== id) });
+
+  const progressPct = client.meals.total ? Math.round((client.meals.done / client.meals.total) * 100) : 0;
+  const traj = TRAJECTORY_PARAMS[clientId] || TRAJECTORY_PARAMS.charlie;
+  const trajData = {
+    score:   trajSeries(traj.score,   26).slice(-RANGE_COUNTS[range]),
+    weight:  trajSeries(traj.weight,  26).slice(-RANGE_COUNTS[range]),
+    protein: trajSeries(traj.protein, 26).slice(-RANGE_COUNTS[range]),
+    sleep:   trajSeries(traj.sleep,   26).slice(-RANGE_COUNTS[range]),
+  };
+
+  return (
+    <DashPage
+      navItems={nutriNavItems("console")}
+      payoutCard={nutriPayoutCard}
+      eyebrow={<span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><LiveDot /> LIVE COACHING</span>}
+      title="Console"
+      subtitle="See what a client is eating and recovering from right now — and coach them in the moment."
+    >
+      {/* Client picker */}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 20 }}>
+        {CONSOLE_CLIENTS.map(c => {
+          const on = c.id === clientId;
+          return (
+            <button key={c.id} onClick={() => setClientId(c.id)} style={{
+              padding: "9px 14px", borderRadius: 999, cursor: "pointer",
+              background: on ? TEAL : "rgba(242,237,228,0.04)",
+              color: on ? PAPER : "rgba(242,237,228,0.78)",
+              border: on ? "none" : "1px solid rgba(242,237,228,0.12)",
+              fontFamily: sans, fontSize: 13, fontWeight: on ? 500 : 400,
+            }}>{c.name}</button>
+          );
+        })}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+        {/* LEFT — client snapshot + recovery */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <Card>
+            <SectionTitle right="LIVE">Client right now</SectionTitle>
+            <div style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", lineHeight: 1, marginTop: 4 }}>{client.name}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.08em", color: "rgba(242,237,228,0.55)", marginTop: 8 }}>
+              {client.age} YRS · {client.weight} · {client.height}
+            </div>
+            <div style={{ fontSize: 13.5, color: "rgba(242,237,228,0.8)", marginTop: 14, lineHeight: 1.5 }}>
+              <span style={{ color: "rgba(242,237,228,0.5)" }}>Focus:</span> {client.focus}
+            </div>
+
+            <div style={{ marginTop: 22, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <InsetBox label="Meals today">
+                <div style={{ fontFamily: serif, fontSize: 26, lineHeight: 1 }}>{client.meals.done} / {client.meals.total} <span style={{ fontSize: 13, color: "rgba(242,237,228,0.55)", fontFamily: sans }}>logged</span></div>
+                <ProgressBar pct={progressPct} />
+                <div style={{ fontSize: 12, color: TEAL_BRIGHT, marginTop: 8 }}>{client.meals.note}</div>
+              </InsetBox>
+              <InsetBox label="Logged today">
+                <div style={{ fontFamily: serif, fontSize: 26, lineHeight: 1 }}>{client.nutrition.kcal.toLocaleString()} <span style={{ fontSize: 13, color: "rgba(242,237,228,0.55)", fontFamily: sans }}>kcal</span></div>
+                <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 10 }}>Protein: <span style={{ color: INK, fontWeight: 500 }}>{client.nutrition.protein}g</span></div>
+              </InsetBox>
+            </div>
+          </Card>
+
+          <Card>
+            <SectionTitle>Recovery signals</SectionTitle>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+              <StatBox icon={<HeartIcon />} label="Resting HR" value={client.recovery.restingHR} unit="bpm" />
+              <StatBox icon={<MoonIcon />}  label="Sleep avg"  value={client.recovery.sleep}     unit="hrs" />
+              <StatBox icon={<PulseIcon />} label="Stress"     value={client.recovery.stress}    unit="/10" />
+            </div>
+            <div style={{ marginTop: 16, padding: "12px 14px", background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, fontSize: 13, color: "rgba(242,237,228,0.78)", lineHeight: 1.55 }}>
+              {client.recoveryNote}
+            </div>
+          </Card>
+        </div>
+
+        {/* RIGHT — send-to-phone + today's plan */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <Card>
+            <SectionTitle right={firstName(client.name).toUpperCase() + "'S PHONE"}>Send to their phone</SectionTitle>
+
+            <FieldLabel>This week's focus</FieldLabel>
+            <textarea
+              value={focus}
+              onChange={(e) => setFocus(e.target.value)}
+              rows={2}
+              placeholder="A short cue your client will see at the top of their app."
+              style={{ width: "100%", background: "rgba(242,237,228,0.04)", color: INK, border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", resize: "vertical", fontFamily: sans }}
+            />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, gap: 12 }}>
+              <div style={{ fontSize: 12, color: "rgba(242,237,228,0.5)", lineHeight: 1.45 }}>Shows as a banner at the top of {firstName(client.name)}'s app.</div>
+              <button onClick={sendFocus} disabled={!focus.trim()} style={{
+                background: focus.trim() ? TEAL : "rgba(242,237,228,0.08)",
+                color: focus.trim() ? PAPER : "rgba(242,237,228,0.4)",
+                border: 0, padding: "10px 20px", borderRadius: 999,
+                fontFamily: sans, fontSize: 13, fontWeight: 500,
+                cursor: focus.trim() ? "pointer" : "default", flex: "none",
+              }}>Send</button>
+            </div>
+
+            <div style={{ height: 1, background: "rgba(242,237,228,0.08)", margin: "22px 0" }} />
+
+            <SectionTitle>Add a meal</SectionTitle>
+            <FieldLabel>Meal name</FieldLabel>
+            <ConsoleInput value={meal.name} onChange={(v) => setMeal({ ...meal, name: v })} placeholder="e.g. Salmon bowl + greens" />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 12 }}>
+              <div>
+                <FieldLabel>Time</FieldLabel>
+                <ConsoleInput value={meal.time} onChange={(v) => setMeal({ ...meal, time: v })} placeholder="12:30 pm" />
+              </div>
+              <div>
+                <FieldLabel>Kcal</FieldLabel>
+                <ConsoleInput value={meal.kcal} onChange={(v) => setMeal({ ...meal, kcal: v.replace(/[^0-9]/g, "") })} placeholder="540" />
+              </div>
+              <div>
+                <FieldLabel>Protein (g)</FieldLabel>
+                <ConsoleInput value={meal.protein} onChange={(v) => setMeal({ ...meal, protein: v.replace(/[^0-9]/g, "") })} placeholder="42" />
+              </div>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <FieldLabel>Notes (optional)</FieldLabel>
+              <ConsoleInput value={meal.note} onChange={(v) => setMeal({ ...meal, note: v })} placeholder="e.g. Within 30 min of your run" />
+            </div>
+            <button onClick={addMeal} disabled={!meal.name.trim()} style={{
+              marginTop: 16, width: "100%",
+              background: meal.name.trim() ? TEAL : "rgba(242,237,228,0.06)",
+              color: meal.name.trim() ? PAPER : "rgba(242,237,228,0.4)",
+              border: 0, padding: "12px 18px", borderRadius: 10,
+              fontFamily: sans, fontSize: 13.5, fontWeight: 500,
+              cursor: meal.name.trim() ? "pointer" : "default",
+            }}>+ Add to today's plan</button>
+          </Card>
+
+          <Card>
+            <SectionTitle right={plan.length + " MEAL" + (plan.length === 1 ? "" : "S")}>Today's plan</SectionTitle>
+            {plan.length === 0 && (
+              <div style={{ padding: "18px 4px", color: "rgba(242,237,228,0.5)", fontSize: 13 }}>No meals yet. Add one above to push it to {firstName(client.name)}'s phone.</div>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {plan.map((m) => {
+                const macros = [];
+                if (m.kcal != null && !isNaN(m.kcal))      macros.push(m.kcal + " kcal");
+                if (m.protein != null && !isNaN(m.protein)) macros.push(m.protein + "g P");
+                return (
+                  <div key={m.id} style={{ display: "grid", gridTemplateColumns: "1fr 28px", gap: 10, alignItems: "center", padding: "12px 14px", background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 13.5, fontWeight: 500 }}>{m.name}</div>
+                      <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.55)", marginTop: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>
+                        {[m.time, ...macros].filter(Boolean).join(" · ")}
+                      </div>
+                      {m.note && <div style={{ fontSize: 12, color: "rgba(242,237,228,0.65)", marginTop: 6, fontStyle: "italic" }}>"{m.note}"</div>}
+                    </div>
+                    <button onClick={() => removeMeal(m.id)} aria-label="Remove" style={{ background: "transparent", border: 0, color: "rgba(242,237,228,0.5)", fontSize: 18, cursor: "pointer", lineHeight: 1 }}>×</button>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        </div>
+      </div>
+
+      <Card style={{ marginTop: 20 }}>
+        <SectionTitle right={
+          <div style={{ display: "inline-flex", gap: 4 }}>
+            {["4w", "12w", "6m"].map(r => (
+              <button key={r} onClick={() => setRange(r)} style={{
+                padding: "4px 10px", borderRadius: 999, cursor: "pointer",
+                background: range === r ? TEAL : "transparent",
+                color: range === r ? PAPER : "rgba(242,237,228,0.55)",
+                border: range === r ? "none" : "1px solid rgba(242,237,228,0.12)",
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em",
+                textTransform: "uppercase",
+              }}>{r}</button>
+            ))}
+          </div>
+        }>Trajectory</SectionTitle>
+        <div style={{ display: "flex", gap: 4, marginBottom: 22, borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+          {METRICS.map(m => {
+            const on = m.key === metric;
+            return (
+              <button key={m.key} onClick={() => setMetric(m.key)} style={{
+                padding: "12px 16px", cursor: "pointer",
+                background: "transparent",
+                color: on ? INK : "rgba(242,237,228,0.55)",
+                border: 0,
+                borderBottom: on ? "2px solid " + TEAL : "2px solid transparent",
+                marginBottom: -1,
+                fontFamily: sans, fontSize: 13.5, fontWeight: on ? 500 : 400,
+              }}>{m.label}</button>
+            );
+          })}
+        </div>
+        {(() => {
+          const m = METRICS.find(x => x.key === metric) || METRICS[0];
+          return <TrajChart label={m.label} data={trajData[m.key]} unit={m.unit} goodWhen={m.goodWhen} />;
+        })()}
+      </Card>
+
+      {/* Demo-only banner */}
+      <div style={{ marginTop: 24, padding: "12px 16px", border: "1px dashed rgba(242,237,228,0.16)", borderRadius: 10, fontSize: 12, color: "rgba(242,237,228,0.55)", lineHeight: 1.55 }}>
+        Demo preview — the live logging feed and "send to phone" actions show how the Console will behave once the real-time backend is wired up. Switching clients, adding meals, and sending focus banners all work locally on this page.
+      </div>
+
+      {/* Toast */}
+      {toast && (
+        <div style={{
+          position: "fixed", right: 28, bottom: 28, zIndex: 80,
+          background: TEAL, color: PAPER, padding: "12px 18px",
+          borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500,
+          boxShadow: "0 16px 40px rgba(0,0,0,0.45)",
+        }}>{toast}</div>
+      )}
+    </DashPage>
+  );
+}
+
+// ─── small UI primitives ─────────────────────────────────────
+function InsetBox({ label, children }) {
+  return (
+    <div style={{ background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 12, padding: "14px 16px" }}>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)", marginBottom: 10 }}>{label}</div>
+      {children}
+    </div>
+  );
+}
+
+function StatBox({ icon, label, value, unit }) {
+  return (
+    <div style={{ background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 12, padding: "14px 16px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <span style={{ color: TEAL_BRIGHT, display: "inline-flex" }}>{icon}</span>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)" }}>{label}</div>
+      </div>
+      <div style={{ fontFamily: serif, fontSize: 24, lineHeight: 1 }}>{value} <span style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", fontFamily: sans }}>{unit}</span></div>
+    </div>
+  );
+}
+
+function ProgressBar({ pct }) {
+  return (
+    <div style={{ height: 4, background: "rgba(242,237,228,0.08)", borderRadius: 3, marginTop: 10, overflow: "hidden" }}>
+      <div style={{ width: pct + "%", height: "100%", background: TEAL, transition: "width .3s" }} />
+    </div>
+  );
+}
+
+function FieldLabel({ children, title }) {
+  return (
+    <div title={title} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)", marginBottom: 6 }}>{children}</div>
+  );
+}
+
+function ConsoleInput({ value, onChange, placeholder }) {
+  return (
+    <input
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      style={{ width: "100%", background: "rgba(242,237,228,0.04)", color: INK, border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", fontFamily: sans }}
+    />
+  );
+}
+
+function LiveDot() {
+  return (
+    <span style={{ width: 7, height: 7, borderRadius: "50%", background: TEAL_BRIGHT, display: "inline-block", boxShadow: "0 0 0 4px rgba(46,224,196,0.18)" }} />
+  );
+}
+
+function HeartIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+  );
+}
+function MoonIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+  );
+}
+function PulseIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+  );
+}
+
+function TrajChart({ label, data, unit, goodWhen }) {
+  if (!data || data.length === 0) return null;
+  const w = 100, h = 40;
+  const min = Math.min.apply(null, data);
+  const max = Math.max.apply(null, data);
+  const span = max - min || 1;
+  const pts = data.map((v, i) => {
+    const x = data.length === 1 ? w / 2 : (i / (data.length - 1)) * w;
+    const y = h - ((v - min) / span) * h;
+    return [x, y];
+  });
+  const line = pts.map(([x, y], i) => (i === 0 ? "M" : "L") + x.toFixed(2) + "," + y.toFixed(2)).join(" ");
+  const area = "M0," + h + " " + pts.map(([x, y]) => "L" + x.toFixed(2) + "," + y.toFixed(2)).join(" ") + " L" + w + "," + h + " Z";
+  const latest = data[data.length - 1];
+  const first  = data[0];
+  const delta  = latest - first;
+  const tiny   = Math.abs(delta) < Math.max(Math.abs(first) * 0.005, 0.5);
+  const good   = goodWhen === "up" ? delta > 0 : delta < 0;
+  const deltaColor = tiny ? "rgba(242,237,228,0.55)" : good ? TEAL_BRIGHT : "#e07856";
+  const fmt = (v) => {
+    if (Math.abs(v) >= 100) return Math.round(v).toLocaleString();
+    if (Math.abs(v) >= 10)  return v.toFixed(1).replace(/\.0$/, "");
+    return v.toFixed(1);
+  };
+  const sign = delta > 0 ? "+" : "";
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 18 }}>
+        <div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)" }}>{label}</div>
+          <div style={{ fontFamily: serif, fontSize: 40, lineHeight: 1, letterSpacing: "-0.02em", marginTop: 6 }}>
+            {fmt(latest)}<span style={{ fontSize: 16, color: "rgba(242,237,228,0.55)", fontFamily: sans, marginLeft: 4 }}>{unit}</span>
+          </div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: "0.06em", color: deltaColor, fontWeight: 500 }}>
+            {sign}{fmt(delta)}{unit}
+          </div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(242,237,228,0.4)", marginTop: 4, letterSpacing: "0.08em" }}>
+            {data.length}W WINDOW
+          </div>
+        </div>
+      </div>
+      <svg viewBox={"0 0 " + w + " " + h} preserveAspectRatio="none" style={{ width: "100%", height: 200, display: "block" }}>
+        <defs>
+          <linearGradient id="trajGradBig" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"  stopColor={TEAL} stopOpacity="0.25" />
+            <stop offset="100%" stopColor={TEAL} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={area} fill="url(#trajGradBig)" />
+        <path d={line} fill="none" stroke={TEAL} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+      </svg>
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "rgba(242,237,228,0.45)" }}>
+        <span>LOW {fmt(min)}{unit}</span>
+        <span>HIGH {fmt(max)}{unit}</span>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<NutritionistLiveConsolePage />);
+</script>
+<script src="globalChatButton.js" defer></script>
+</body>
+</html>
