@@ -4285,6 +4285,7 @@ function BSClientChat({ onProfile, role = 'client' }) {
             onChange={setFeedDraft}
             onSend={sendFeedMessage}
             placeholder={`Message ${activeBucket?.label?.toLowerCase() || 'feed'}...`}
+            pinned
           />
         )}
       </div>
@@ -4316,9 +4317,12 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
         position: 'fixed',
         left: 0,
         right: 0,
-        bottom: 0,
-        zIndex: 30,
-        marginBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
+        // Tab bar (BSTabBar in iosAppBroadsheet.jsx) sits at bottom:0 with
+        // height 88 and zIndex 55. Pin the composer just above it so it isn't
+        // hidden behind the tab bar regardless of which screen pins it.
+        bottom: 'calc(88px + env(safe-area-inset-bottom, 0px))',
+        zIndex: 60,
+        marginBottom: 12,
       }),
     }}>
       <input
@@ -4398,11 +4402,10 @@ function BSChatThread({ thread, eyebrow, onBack }) {
         </div>
       </div>
 
-      {/* Messages — bottom padding is derived from the composer's own box
-          (38px input + 14px padding + 2px border + 16px lift) plus a 24px
-          gap, so the last message always clears the pinned composer
-          regardless of device size. */}
-      <div style={{ padding: `16px ${t.padX}px calc(94px + env(safe-area-inset-bottom, 0px))`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* Messages — bottom padding clears the pinned composer, which now
+          sits above the 88px tab bar (composer box ~54px + 12px lift +
+          88px tab bar + 24px breathing = 178px). */}
+      <div style={{ padding: `16px ${t.padX}px calc(178px + env(safe-area-inset-bottom, 0px))`, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {allMessages.map((m, i) => {
           const me = m.me;
           return (
