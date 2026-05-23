@@ -2265,6 +2265,32 @@ async function fetchCoachConsoleFeed() {
   }
 }
 
+// Live subscription on the same two tables. The 2026-05-23 migration adds
+// them to the supabase_realtime publication so postgres_changes fires INSERT
+// / UPDATE / DELETE events; RLS scopes them to this user's own rows. Returns
+// an unsubscribe function the caller invokes on unmount.
+function subscribeCoachConsoleFeed(onChange) {
+  if (!state.user?.id || !supabase) return () => {};
+  const userId = state.user.id;
+  const channel = supabase
+    .channel(`coach-feed:${userId}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'coach_focus_banners', filter: `client_id=eq.${userId}` },
+      onChange,
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'coach_pushed_items', filter: `client_id=eq.${userId}` },
+      onChange,
+    )
+    .subscribe();
+  return () => {
+    try { supabase.removeChannel(channel); } catch {}
+  };
+}
+
 window.ShapeCoachFeed = {
   fetch: fetchCoachConsoleFeed,
+  subscribe: subscribeCoachConsoleFeed,
 };

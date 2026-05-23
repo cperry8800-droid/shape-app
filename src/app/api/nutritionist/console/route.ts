@@ -21,6 +21,18 @@ function ageFromDob(dob: unknown): number | null {
   return Math.floor(years);
 }
 
+// Lightweight Shape Score: per-day increment from daily_health_snapshot
+// signals. Cumulative across the trajectory window so the chart renders a
+// monotonically growing total per client. Mirrors /api/trainer/console.
+function dailyShapeScore(row: Record<string, unknown>): number {
+  let s = 0;
+  if (Number(row.workout_minutes ?? 0) >= 30) s += 10;
+  if (Number(row.protein_g ?? 0) >= 100) s += 5;
+  if (Number(row.sleep_hours ?? 0) >= 7) s += 3;
+  if (Number(row.calories ?? 0) > 0) s += 2;
+  return s;
+}
+
 type PushedItemRow = {
   id: string;
   client_id: string;
@@ -139,16 +151,20 @@ export async function GET() {
     ]);
 
     // daily_health_snapshot: walk ascending so the LAST row per client is
-    // the latest snapshot. Also accumulate per-metric series for trajectory.
+    // the latest snapshot. Also accumulate per-metric series for trajectory,
+    // including a cumulative Shape Score derived per-day.
+    const cumScoreByClient: Record<string, number> = {};
     for (const row of snapRes.data ?? []) {
       const uid = row.user_id as string;
       snapshotByClient[uid] = row as Record<string, unknown>;
-      const s = (seriesByClient[uid] ??= { weight: [], sleep: [], hr: [], stress: [], protein: [] });
+      const s = (seriesByClient[uid] ??= { weight: [], sleep: [], hr: [], stress: [], protein: [], score: [] });
       s.weight.push(row.weight_lb != null ? Number(row.weight_lb) : null);
       s.sleep.push(row.sleep_hours != null ? Number(row.sleep_hours) : null);
       s.hr.push(row.resting_hr != null ? Number(row.resting_hr) : null);
       s.stress.push(row.stress != null ? Number(row.stress) : null);
       s.protein.push(row.protein_g != null ? Number(row.protein_g) : null);
+      cumScoreByClient[uid] = (cumScoreByClient[uid] ?? 0) + dailyShapeScore(row as Record<string, unknown>);
+      s.score.push(cumScoreByClient[uid]);
     }
 
     for (const row of profRes.data ?? []) {
