@@ -444,19 +444,27 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   const [quickLoggedItems, setQuickLoggedItems] = useStateBSC({});
   const [coachFeed, setCoachFeed] = useStateBSC({ banners: [], items: [] });
 
-  // Live focus banner + pushed items the coach sent. Reads from
-  // window.ShapeCoachFeed (shapeBackend.js -> coach_focus_banners /
-  // coach_pushed_items via Supabase RLS, scoped to this user's uid).
+  // Live focus banner + pushed items the coach sent. Initial pull, then a
+  // Supabase Realtime subscription on coach_focus_banners / coach_pushed_items
+  // (filtered to this user's rows via RLS) re-fetches the moment the coach
+  // hits Send / Add — banner / today's list update without a pull-to-refresh.
   React.useEffect(() => {
     let cancelled = false;
-    (async () => {
+    const load = async () => {
       try {
         if (!window.ShapeCoachFeed || typeof window.ShapeCoachFeed.fetch !== 'function') return;
         const feed = await window.ShapeCoachFeed.fetch();
         if (!cancelled && feed) setCoachFeed(feed);
       } catch {}
-    })();
-    return () => { cancelled = true; };
+    };
+    load();
+    const unsubscribe = (window.ShapeCoachFeed && typeof window.ShapeCoachFeed.subscribe === 'function')
+      ? window.ShapeCoachFeed.subscribe(() => { if (!cancelled) load(); })
+      : () => {};
+    return () => {
+      cancelled = true;
+      try { unsubscribe(); } catch {}
+    };
   }, []);
 
   // Home-page lunch record (fed to BSMealPreview when user taps the slab).
