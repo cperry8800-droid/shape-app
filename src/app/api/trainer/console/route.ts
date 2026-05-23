@@ -11,7 +11,33 @@
 // trainer can only see / write rows for their own provider id.
 
 import { NextResponse } from 'next/server';
+import { createClient as createAnonClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
+
+async function clientForRequest(request: Request) {
+  const auth = request.headers.get('authorization') ?? '';
+  const m = auth.match(/^Bearer\s+(.+)$/i);
+  if (m) {
+    return createAnonClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { global: { headers: { Authorization: `Bearer ${m[1]}` } } },
+    );
+  }
+  return createClient();
+}
+
+async function userForRequest(request: Request) {
+  const auth = request.headers.get('authorization') ?? '';
+  const m = auth.match(/^Bearer\s+(.+)$/i);
+  const supabase = await clientForRequest(request);
+  if (m) {
+    const { data } = await supabase.auth.getUser(m[1]);
+    return { user: data?.user ?? null, supabase };
+  }
+  const { data: { user } } = await supabase.auth.getUser();
+  return { user, supabase };
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -116,11 +142,8 @@ async function fetchClientsForProvider(
     .map((e) => ({ id: e.id, name: e.name, status: e.status, lastAt: e.lastAt ? new Date(e.lastAt).toISOString() : null }));
 }
 
-export async function GET() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+export async function GET(request: Request) {
+  const { user, supabase } = await userForRequest(request);
 
   if (!user) {
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
@@ -225,10 +248,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user, supabase } = await userForRequest(req);
 
   if (!user) {
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
