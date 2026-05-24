@@ -133,11 +133,10 @@ function ClientGroceryPage() {
         <button onClick={() => window.print()} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap" }}>Print</button>
       </>}
     >
-      {/* Tab strip — Nutrition + Habits + Grocery (active) */}
+      {/* Tab strip — Nutrition + Grocery (active) */}
       <div style={{ display: "flex", gap: 6, marginBottom: 20, borderBottom: "1px solid rgba(242,237,228,0.08)", paddingBottom: 1 }}>
         {[
           { label: "Nutrition", href: "ClientNutri.html" },
-          { label: "Habits",    href: "ClientHabits.html" },
           { label: "Grocery",   href: null, active: true },
         ].map(t => {
           const baseStyle = {

@@ -164,11 +164,10 @@ function ClientNutriPage() {
       title="Nutrition"
       subtitle="Today's macros, the week's logged meals, what's coming next, and your grocery list — all in one place."
     >
-      {/* Tab strip — Nutrition (active) + Habits + Grocery sub-pages */}
+      {/* Tab strip — Nutrition (active) + Grocery sub-page */}
       <div style={{ display: "flex", gap: 6, marginBottom: 20, borderBottom: "1px solid rgba(242,237,228,0.08)", paddingBottom: 1 }}>
         {[
           { label: "Nutrition", href: null, active: true },
-          { label: "Habits",    href: "ClientHabits.html" },
           { label: "Grocery",   href: "ClientGrocery.html" },
         ].map(t => {
           const baseStyle = {
