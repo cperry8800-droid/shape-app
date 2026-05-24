@@ -490,6 +490,17 @@ function CalendarOverlay({ open, onClose, role = "client", events = [], anchorDa
               ))}
             </div>
             <button onClick={goToday} style={{ background: "transparent", color: "rgba(242,237,228,0.8)", border: "1px solid rgba(242,237,228,0.15)", padding: "7px 14px", borderRadius: 999, fontFamily: sans, fontSize: 12, cursor: "pointer" }}>Today</button>
+            <input
+              type="date"
+              value={ymd(cursor)}
+              onChange={(e) => {
+                if (!e.target.value) return;
+                setSelected(null);
+                setCursor(new Date(e.target.value + "T00:00:00"));
+              }}
+              aria-label="Jump to date"
+              style={{ background: "transparent", color: "rgba(242,237,228,0.8)", border: "1px solid rgba(242,237,228,0.15)", padding: "6px 12px", borderRadius: 999, fontFamily: sans, fontSize: 12, cursor: "pointer", colorScheme: "dark" }}
+            />
             <div style={{ display: "inline-flex", gap: 2 }}>
               <button onClick={() => shift(-1)} style={navArrowStyle}>‹</button>
               <button onClick={() => shift(1)} style={navArrowStyle}>›</button>
