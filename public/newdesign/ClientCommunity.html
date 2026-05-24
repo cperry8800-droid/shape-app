@@ -247,10 +247,106 @@ function ClientCommunityPage() {
       </Card>
     );
   }
-  const events = [
-    ["SAT 6:30am", "Prospect Park Long Run", "24 going · 12 from your borough"],
-    ["TUE 7pm",   "Form check drop-in (Zoom)","with Maya Okafor"],
-    ["APR 27",    "Brooklyn Half",           "8 Shape runners confirmed"],
+
+  function ChannelsCard({ channels }) {
+    const [query, setQuery] = React.useState("");
+    const [filter, setFilter] = React.useState("all"); // all | joined | trending
+    const [joinedMap, setJoinedMap] = React.useState(() => {
+      const m = {};
+      channels.forEach(c => { m[c.name] = c.joined; });
+      return m;
+    });
+    const toggle = (name) => setJoinedMap(prev => ({ ...prev, [name]: !prev[name] }));
+
+    const q = query.trim().toLowerCase();
+    const filtered = channels.filter(c => {
+      if (q && !(c.name.includes(q) || c.lastMsg.toLowerCase().includes(q))) return false;
+      if (filter === "joined" && !joinedMap[c.name]) return false;
+      if (filter === "trending" && !c.trending) return false;
+      return true;
+    });
+    const joinedCount = channels.filter(c => joinedMap[c.name]).length;
+    const FilterPill = ({ k, label, count }) => {
+      const active = filter === k;
+      return (
+        <button onClick={() => setFilter(k)} style={{
+          fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.1em",
+          padding: "5px 10px", borderRadius: 999,
+          background: active ? INK : "rgba(242,237,228,0.04)",
+          color: active ? PAPER : "rgba(242,237,228,0.7)",
+          border: active ? "none" : "1px solid rgba(242,237,228,0.12)",
+          cursor: "pointer",
+        }}>{label}{count != null ? ` · ${count}` : ""}</button>
+      );
+    };
+
+    return (
+      <Card>
+        <SectionTitle right={`${channels.length} CHANNELS`}>Channels</SectionTitle>
+        <input
+          type="search"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Search channels…"
+          style={{ width: "100%", padding: "10px 14px", borderRadius: 8, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", color: INK, fontFamily: sans, fontSize: 13, outline: "none", marginBottom: 12 }}
+        />
+        <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+          <FilterPill k="all" label="ALL" count={channels.length} />
+          <FilterPill k="joined" label="JOINED" count={joinedCount} />
+          <FilterPill k="trending" label="TRENDING" />
+        </div>
+
+        {filtered.length === 0 && (
+          <div style={{ padding: "26px 4px", color: "rgba(242,237,228,0.5)", fontSize: 13, textAlign: "center" }}>
+            No channels match.
+          </div>
+        )}
+        {filtered.map((c, i) => {
+          const joined = !!joinedMap[c.name];
+          return (
+            <div key={c.name} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "12px 0", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+              <a href={`Community.html?channel=${encodeURIComponent(c.name)}`} style={{ minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", color: TEAL_BRIGHT, fontSize: 13, fontWeight: 500 }}>#</span>
+                  <span style={{ fontSize: 13.5, fontWeight: 500, color: INK }}>{c.name}</span>
+                  {c.trending && <Pill tone="teal">TRENDING</Pill>}
+                  {c.unread > 0 && joined && (
+                    <span style={{ background: TEAL, color: PAPER, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.04em", padding: "2px 7px", borderRadius: 999 }}>{c.unread}</span>
+                  )}
+                </div>
+                <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.55)", marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.lastMsg}</div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(242,237,228,0.4)", letterSpacing: "0.08em", marginTop: 3 }}>{c.members.toLocaleString()} members · {c.at}</div>
+              </a>
+              <button onClick={() => toggle(c.name)} style={{
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.1em",
+                padding: "6px 12px", borderRadius: 999, cursor: "pointer",
+                background: joined ? "rgba(242,237,228,0.04)" : TEAL,
+                color: joined ? "rgba(242,237,228,0.7)" : PAPER,
+                border: joined ? "1px solid rgba(242,237,228,0.18)" : "none",
+                whiteSpace: "nowrap",
+              }}>{joined ? "JOINED" : "JOIN"}</button>
+            </div>
+          );
+        })}
+
+        <div style={{ paddingTop: 14, marginTop: 6, borderTop: "1px solid rgba(242,237,228,0.08)" }}>
+          <a href="Community.html?new-channel=1" style={{ display: "block", textAlign: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>+ NEW CHANNEL</a>
+        </div>
+      </Card>
+    );
+  }
+
+  const channels = [
+    { name: "running",          members: 842, lastMsg: "anyone hitting the half this weekend?",       at: "2m",   joined: true,  unread: 4,  trending: true  },
+    { name: "powerlifting",     members: 526, lastMsg: "265 squat PR today — programming worked",     at: "14m",  joined: true,  unread: 1                  },
+    { name: "form-check",       members: 1304, lastMsg: "video posted — RDL hip hinge",               at: "1h",   joined: true,  unread: 0                  },
+    { name: "nutrition-talk",   members: 678, lastMsg: "best protein bars under 200 cal?",            at: "2h",   joined: true,  unread: 12                 },
+    { name: "marathon-training",members: 412, lastMsg: "week 8 of Pfitz 18/55 — heel strike fix",     at: "3h",   joined: false, unread: 0,  trending: true  },
+    { name: "hypertrophy",      members: 891, lastMsg: "high-frequency chest split, worth it?",      at: "5h",   joined: false, unread: 0                  },
+    { name: "recovery",         members: 384, lastMsg: "sauna + cold plunge protocol",                at: "6h",   joined: false, unread: 0                  },
+    { name: "newbie",           members: 1567, lastMsg: "first squat day — terrified",                at: "8h",   joined: false, unread: 0                  },
+    { name: "meal-prep",        members: 920, lastMsg: "sunday batch cook → 12 meals",                at: "yest", joined: false, unread: 0                  },
+    { name: "shape-radio",      members: 234, lastMsg: "live show in 20: deload weeks explained",     at: "9h",   joined: false, unread: 0                  },
   ];
   return (
     <DashPage
@@ -303,16 +399,7 @@ function ClientCommunityPage() {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <Card>
-            <SectionTitle>Upcoming meetups</SectionTitle>
-            {events.map((e, i) => (
-              <div key={i} style={{ padding: "14px 0", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.1em", color: TEAL_BRIGHT, marginBottom: 4 }}>{e[0]}</div>
-                <div style={{ fontSize: 14, fontWeight: 500 }}>{e[1]}</div>
-                <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.55)", marginTop: 2 }}>{e[2]}</div>
-              </div>
-            ))}
-          </Card>
+          <ChannelsCard channels={channels} />
         </div>
       </div>
       <ChatWidget tabs={clientChatTabs} />
