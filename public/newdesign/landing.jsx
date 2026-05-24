@@ -109,7 +109,7 @@ function CinemaHero() {
       <div ref={setLayer(2)} style={{ position: "relative", zIndex: 3, textAlign: "center", maxWidth: 1100, willChange: "transform" }}>
         <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.34em", textTransform: "uppercase", color: TEAL }}>Welcome to Shape</div>
         <h1 style={{ fontFamily: serif, fontSize: "clamp(52px, 9.4vw, 142px)", letterSpacing: "-0.045em", fontWeight: 300, margin: "26px 0 0", lineHeight: 0.9 }}>
-          How will you<br /><em style={{ fontStyle: "italic", fontWeight: 600, color: "transparent", WebkitTextStroke: `1.4px ${INK}` }}>Shape</em> your move?
+          How will you <em style={{ fontStyle: "italic", fontWeight: 600, color: "transparent", WebkitTextStroke: `1.4px ${INK}` }}>Shape</em>?
         </h1>
         <p style={{ fontFamily: sans, fontSize: 18, color: "rgba(242,237,228,0.66)", margin: "32px auto 0", maxWidth: 560, lineHeight: 1.6 }}>
           Four doors. One Shape. Pick the path that fits who you are — the whole experience tailors to it.
