@@ -176,6 +176,7 @@ function DashShell({
   navItems,     // [{ label, count, active }]
   payoutCard,   // { label, amount, sub } or null
   kpis,         // [{ k, l, sub }]
+  topSection,   // optional { title, render } — rendered immediately after KPI strip, before todayItems
   todayItems,   // optional [{ time, kind, title, sub, cta }]
   scheduleTitle,
   schedule,     // [{ time, who, sub, status }]
@@ -237,6 +238,16 @@ function DashShell({
             </div>
           ))}
         </div>
+
+        {topSection && (
+          <div style={{
+            background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)",
+            borderRadius: 10, padding: "22px 24px", marginBottom: 20,
+          }}>
+            <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 16 }}>{topSection.title}</div>
+            {topSection.render()}
+          </div>
+        )}
 
         {/* Today */}
         {todayItems && todayItems.length > 0 && (

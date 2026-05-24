@@ -235,6 +235,10 @@ function ClientDashboardPage() {
       navItems={clientNavItems("today")}
       payoutCard={clientPayoutCard}
       kpis={kpis}
+      topSection={{
+        title: "Nutrition today",
+        render: () => <NutritionTodayWidget />,
+      }}
       scheduleTitle={scheduleTitle}
       todayItems={[
         { time: "9:00 AM",  kind: "WORKOUT",  title: "Upper Body Pull",      sub: "45 min · 6 exercises · programmed by Marcus", cta: { label: "START", primary: true, href: "ClientTrain.html" },
@@ -247,10 +251,6 @@ function ClientDashboardPage() {
       pulseTitle="Your team"
       pulse={pulse}
       extraSections={[
-        {
-          title: "Nutrition today",
-          render: () => <NutritionTodayWidget />,
-        },
         {
           title: "Today's habits",
           render: () => <HabitsWidget max={6} />,
