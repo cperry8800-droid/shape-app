@@ -519,34 +519,122 @@ function ClientGroceryPage() {
 
       {/* Send to Instacart — appears for every grocery list */}
       <InstacartSendCard
-        listLabel={activeLabel}
-        items={rawItems.filter(it => !it.checked)}
+        activeListId={activeListId}
+        activeLabel={activeLabel}
+        userLists={lists}
+        planGroups={planByMeal}
+        allPlanItems={visiblePlanItems}
       />
     </DashPage>
   );
 }
 
-// Instacart hand-off. The official partner flow is a recipe-page widget;
-// for arbitrary grocery lists we open the Instacart search experience
-// with the list pre-loaded as a comma-joined query and copy the full list
-// to the clipboard so the user can paste it into Instacart's search.
-function InstacartSendCard({ listLabel, items }) {
+// Instacart hand-off. Defaults to the currently active list but lets the
+// user combine multiple grocery lists in one batch — picks deduped items
+// from every selected list, copies them all to clipboard, and opens an
+// Instacart search prefilled with the first few item names. The full
+// list is on the clipboard so the user can paste directly into Instacart's
+// search to add each item.
+function InstacartSendCard({ activeListId, activeLabel, userLists, planGroups, allPlanItems }) {
+  // Pre-select the currently active list as the default selection.
+  const [selectedIds, setSelectedIds] = React.useState(() => new Set([activeListId]));
+  const [pickerOpen, setPickerOpen] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
-  const count = items.length;
+
+  // Reset selection to follow the active list when the user switches lists.
+  React.useEffect(() => {
+    setSelectedIds(new Set([activeListId]));
+  }, [activeListId]);
+
+  // Resolve every selected list id to its items.
+  const itemsForListId = (id) => {
+    if (id === "__plan__") return allPlanItems;
+    if ((id || "").startsWith("__plan__:")) {
+      const mealId = id.slice("__plan__:".length);
+      const group = planGroups.find(g => g.mealId === mealId);
+      return group ? group.items : [];
+    }
+    const list = userLists.find(l => l.id === id);
+    return list ? list.items : [];
+  };
+  const labelForListId = (id) => {
+    if (id === "__plan__") return "All from your nutritionist";
+    if ((id || "").startsWith("__plan__:")) {
+      const mealId = id.slice("__plan__:".length);
+      const g = planGroups.find(x => x.mealId === mealId);
+      return g ? g.mealName : "Plan list";
+    }
+    const l = userLists.find(x => x.id === id);
+    return l ? l.name : "List";
+  };
+
+  // Dedupe unchecked items across every selected list — case-insensitive on
+  // item name. Quantity from the first occurrence wins.
+  const merged = React.useMemo(() => {
+    const seen = new Map();
+    for (const id of selectedIds) {
+      for (const it of itemsForListId(id)) {
+        if (it.checked) continue;
+        const key = String(it.item || "").trim().toLowerCase();
+        if (!key || seen.has(key)) continue;
+        seen.set(key, { item: it.item, qty: it.qty || "" });
+      }
+    }
+    return [...seen.values()];
+  }, [selectedIds, userLists, planGroups, allPlanItems]);
+
+  const count = merged.length;
+  const selectedCount = selectedIds.size;
+
+  const toggle = (id) => setSelectedIds(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
   const sendToInstacart = () => {
     if (count === 0) return;
-    const lines = items.map(it => it.qty ? `${it.item} (${it.qty})` : it.item);
-    const text = lines.join("\n");
-    try {
-      if (navigator.clipboard) navigator.clipboard.writeText(text);
-    } catch (e) {}
+    const lines = merged.map(it => it.qty ? `${it.item} (${it.qty})` : it.item);
+    try { if (navigator.clipboard) navigator.clipboard.writeText(lines.join("\n")); } catch (e) {}
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
     const q = encodeURIComponent(lines.slice(0, 8).map(l => l.split(" (")[0]).join(", "));
     window.open(`https://www.instacart.com/store/s?k=${q}`, "_blank", "noopener");
   };
+
+  // Render one checkbox row for the list picker.
+  const PickRow = ({ id, label, isPlan, count: lineCount }) => {
+    const on = selectedIds.has(id);
+    return (
+      <button onClick={() => toggle(id)} style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
+        width: "100%", padding: "10px 14px", textAlign: "left", cursor: "pointer",
+        background: on ? "rgba(67,176,42,0.10)" : "transparent",
+        border: "none", borderBottom: "1px solid rgba(242,237,228,0.05)",
+        color: INK, fontFamily: sans, fontSize: 13,
+      }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+          <span style={{
+            width: 16, height: 16, borderRadius: 4, flex: "none",
+            border: `1px solid ${on ? "rgba(67,176,42,0.7)" : "rgba(242,237,228,0.3)"}`,
+            background: on ? "#43B02A" : "transparent",
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            color: "#fff", fontSize: 11,
+          }}>{on && "✓"}</span>
+          {isPlan && <span style={{ width: 7, height: 7, borderRadius: 999, background: "#f4b860", flex: "none" }} />}
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+        </span>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(242,237,228,0.55)", flex: "none" }}>{lineCount}</span>
+      </button>
+    );
+  };
+
+  const summaryText = selectedCount === 1
+    ? `${count} item${count === 1 ? "" : "s"} from ${labelForListId([...selectedIds][0]) || activeLabel}`
+    : `${count} item${count === 1 ? "" : "s"} from ${selectedCount} lists`;
+
   return (
-    <Card style={{ marginTop: 20, background: "linear-gradient(135deg, rgba(67,176,42,0.10), rgba(67,176,42,0.03))", border: "1px solid rgba(67,176,42,0.32)" }}>
+    <Card style={{ marginTop: 20, background: "linear-gradient(135deg, rgba(67,176,42,0.10), rgba(67,176,42,0.03))", border: "1px solid rgba(67,176,42,0.32)", position: "relative", overflow: "visible" }}>
       <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 18, alignItems: "center" }}>
         <div style={{
           width: 48, height: 48, borderRadius: 12, background: "#43B02A",
@@ -563,10 +651,19 @@ function InstacartSendCard({ listLabel, items }) {
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: "#67c64a", fontWeight: 600 }}>SEND TO INSTACART</div>
           <div style={{ fontFamily: serif, fontSize: 18, letterSpacing: "-0.01em", color: INK, marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {count > 0 ? `${count} item${count === 1 ? "" : "s"} from ${listLabel}` : `Nothing to send from ${listLabel}`}
+            {count > 0 ? summaryText : "Nothing to send — every item is checked off"}
           </div>
-          <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.55)", marginTop: 3 }}>
-            {count > 0 ? "Opens Instacart and copies your list to the clipboard." : "Add items to send them to Instacart."}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 6, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11.5, color: "rgba(242,237,228,0.55)" }}>
+              {count > 0 ? "Opens Instacart and copies the combined list to clipboard." : "Add items or pick another list to send."}
+            </span>
+            <button onClick={() => setPickerOpen(o => !o)} style={{
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em",
+              padding: "4px 10px", borderRadius: 999, cursor: "pointer",
+              background: pickerOpen ? "rgba(67,176,42,0.18)" : "rgba(242,237,228,0.04)",
+              color: pickerOpen ? "#67c64a" : "rgba(242,237,228,0.7)",
+              border: "1px solid " + (pickerOpen ? "rgba(67,176,42,0.4)" : "rgba(242,237,228,0.18)"),
+            }}>{pickerOpen ? "HIDE LISTS" : "+ COMBINE LISTS"}</button>
           </div>
         </div>
         <button onClick={sendToInstacart} disabled={count === 0} style={{
@@ -577,6 +674,38 @@ function InstacartSendCard({ listLabel, items }) {
           cursor: count > 0 ? "pointer" : "default", whiteSpace: "nowrap",
         }}>{copied ? "✓ Copied · opening…" : "Send to Instacart"}</button>
       </div>
+
+      {pickerOpen && (
+        <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(67,176,42,0.18)" }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "rgba(242,237,228,0.7)", marginBottom: 10 }}>
+            PICK LISTS TO COMBINE · {selectedCount} SELECTED
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
+            <div>
+              <div style={{ padding: "6px 14px", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", color: TEAL_BRIGHT }}>CUSTOM</div>
+              {userLists.length === 0 && (
+                <div style={{ padding: "10px 14px", fontSize: 12, color: "rgba(242,237,228,0.5)" }}>No custom lists.</div>
+              )}
+              {userLists.map(l => (
+                <PickRow key={l.id} id={l.id} label={l.name} isPlan={false} count={l.items.filter(it => !it.checked).length} />
+              ))}
+            </div>
+            <div>
+              <div style={{ padding: "6px 14px", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", color: "#f4b860" }}>NUTRITIONIST</div>
+              {planGroups.length === 0 ? (
+                <div style={{ padding: "10px 14px", fontSize: 12, color: "rgba(242,237,228,0.5)" }}>No meals pushed yet.</div>
+              ) : (
+                <>
+                  <PickRow id="__plan__" label="All from your nutritionist" isPlan={true} count={allPlanItems.filter(it => !it.checked).length} />
+                  {planGroups.map(g => (
+                    <PickRow key={g.mealId} id={`__plan__:${g.mealId}`} label={g.mealName} isPlan={true} count={g.items.filter(it => !it.checked).length} />
+                  ))}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }
