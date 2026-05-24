@@ -242,9 +242,9 @@ function DashShell({
         {topSection && (
           <div style={{
             background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)",
-            borderRadius: 10, padding: "22px 24px", marginBottom: 20,
+            borderRadius: 10, padding: "14px 16px", marginBottom: 16,
           }}>
-            <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 16 }}>{topSection.title}</div>
+            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 10 }}>{topSection.title}</div>
             {topSection.render()}
           </div>
         )}
