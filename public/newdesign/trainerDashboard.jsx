@@ -7,7 +7,7 @@ function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
   return (
     <aside style={{ borderRight: "1px solid rgba(242,237,228,0.08)", padding: "20px 20px", display: "flex", flexDirection: "column", gap: 6, position: "sticky", top: 0, alignSelf: "start", background: "linear-gradient(180deg, rgba(242,237,228,0.025), rgba(242,237,228,0.01))" }}>
       <div style={{ padding: "4px 10px 24px" }}>
-        <a href={homeHref} style={{ flex: "none", display: "inline-flex" }}><Logo variant="white" size={40} /></a>
+        <a href={homeHref} style={{ flex: "none", display: "inline-flex" }}><Logo variant="white" size={28} /></a>
       </div>
       {navItems.map((n, i) => (
         <a key={i} href={n.href || "#"} style={{
