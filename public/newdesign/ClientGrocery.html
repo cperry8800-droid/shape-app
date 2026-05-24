@@ -121,8 +121,10 @@ function ClientGroceryPage() {
     return () => { cancelled = true; };
   }, []);
 
-  const isPlanList = activeListId === "__plan__";
-  const activeList = lists.find(l => l.id === activeListId) || lists[0] || null;
+  const isPlanList = (activeListId || "").startsWith("__plan__");
+  const activePlanMealId = isPlanList ? (activeListId.split(":")[1] || "") : "";
+  const activeList = lists.find(l => l.id === activeListId) || (!isPlanList ? lists[0] : null);
+  const [dropdownOpen, setDropdownOpen] = React.useState(false);
 
   // ── List management ──────────────────────────────────────────────────
   const addList = () => {
@@ -195,7 +197,25 @@ function ClientGroceryPage() {
     checked: !!planChecks[p.id],
     fromPlan: true,
   }));
-  const rawItems = isPlanList ? visiblePlanItems : (activeList?.items || []);
+  // Group plan items by source meal so each pushed meal becomes its own
+  // nutritionist grocery list in the dropdown.
+  const planByMeal = React.useMemo(() => {
+    const map = new Map();
+    for (const p of visiblePlanItems) {
+      const key = p.mealId || "_unknown";
+      if (!map.has(key)) map.set(key, { mealId: key, mealName: p.mealName || "Untitled meal", items: [] });
+      map.get(key).items.push(p);
+    }
+    return [...map.values()].sort((a, b) => (a.mealName || "").localeCompare(b.mealName || ""));
+  }, [visiblePlanItems]);
+
+  const activePlanGroup = isPlanList
+    ? (activePlanMealId ? planByMeal.find(m => m.mealId === activePlanMealId) : null)
+    : null;
+  const planVisibleForActive = isPlanList
+    ? (activePlanGroup ? activePlanGroup.items : visiblePlanItems)
+    : [];
+  const rawItems = isPlanList ? planVisibleForActive : (activeList?.items || []);
   const q = search.trim().toLowerCase();
   const visible = rawItems.filter(it => {
     if (filter === "buy" && it.checked) return false;
@@ -210,27 +230,14 @@ function ClientGroceryPage() {
 
   const toBuyCount = rawItems.filter(it => !it.checked).length;
   const haveCount = rawItems.filter(it => it.checked).length;
-  const planCount = visiblePlanItems.filter(p => !p.checked).length;
 
-  // ── List switcher pills ──────────────────────────────────────────────
-  const switcherPill = (id, label, count, isPlan) => {
-    const on = id === activeListId;
-    return (
-      <button key={id} onClick={() => setActiveListId(id)} style={{
-        fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.1em",
-        padding: "8px 16px", borderRadius: 999, cursor: "pointer",
-        background: on ? (isPlan ? "rgba(244,184,96,0.16)" : "rgba(10,197,168,0.16)") : "rgba(242,237,228,0.04)",
-        color: on ? (isPlan ? "#f4b860" : TEAL_BRIGHT) : "rgba(242,237,228,0.7)",
-        border: "1px solid " + (on ? (isPlan ? "rgba(244,184,96,0.4)" : "rgba(10,197,168,0.3)") : "rgba(242,237,228,0.12)"),
-        whiteSpace: "nowrap",
-        display: "inline-flex", alignItems: "center", gap: 8,
-      }}>
-        {isPlan && <span style={{ width: 7, height: 7, borderRadius: 999, background: "#f4b860" }} />}
-        <span>{label}</span>
-        <span style={{ opacity: 0.7 }}>{count}</span>
-      </button>
-    );
-  };
+  // ── Active list label for the dropdown trigger ───────────────────────
+  const activeLabel = isPlanList
+    ? (activePlanGroup ? activePlanGroup.mealName : "All from your nutritionist")
+    : (activeList?.name || "Choose a list");
+  const activeCount = isPlanList
+    ? planVisibleForActive.length
+    : (activeList?.items?.length || 0);
 
   const FilterPill = ({ k, label, count }) => {
     const active = filter === k;
@@ -278,33 +285,127 @@ function ClientGroceryPage() {
         })}
       </div>
 
-      {/* List switcher row */}
-      <Card style={{ marginBottom: 20 }}>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
-          {planCount > 0 && switcherPill("__plan__", "From your plan", planCount, true)}
-          {lists.map(l => switcherPill(l.id, l.name, l.items.length, false))}
-          <button onClick={addList} style={{
-            fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.1em",
-            padding: "8px 16px", borderRadius: 999,
-            background: INK, color: PAPER, border: 0, cursor: "pointer", whiteSpace: "nowrap",
-          }}>+ NEW LIST</button>
+      {/* List switcher dropdown + actions */}
+      <Card style={{ marginBottom: 20, overflow: "visible" }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          {/* Dropdown */}
+          <div style={{ position: "relative", flex: "0 1 360px", minWidth: 240 }}>
+            <button onClick={() => setDropdownOpen(o => !o)} style={{
+              width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12,
+              padding: "11px 16px", borderRadius: 10,
+              background: "rgba(242,237,228,0.04)", color: INK, border: "1px solid rgba(242,237,228,0.18)",
+              cursor: "pointer", fontFamily: sans, fontSize: 14,
+            }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                {isPlanList && <span style={{ width: 8, height: 8, borderRadius: 999, background: "#f4b860", flex: "none" }} />}
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activeLabel}</span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)", flex: "none" }}>{activeCount}</span>
+              </span>
+              <span style={{ fontSize: 10, color: "rgba(242,237,228,0.55)" }}>{dropdownOpen ? "▲" : "▼"}</span>
+            </button>
+            {dropdownOpen && (
+              <div style={{
+                position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 30,
+                background: "#1f1a16", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 10,
+                boxShadow: "0 24px 60px rgba(0,0,0,0.55)", maxHeight: 380, overflowY: "auto",
+              }}>
+                {/* Custom section */}
+                <div style={{ padding: "10px 14px 6px", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", color: TEAL_BRIGHT, borderBottom: "1px solid rgba(242,237,228,0.06)" }}>CUSTOM LISTS</div>
+                {lists.length === 0 && (
+                  <div style={{ padding: "12px 14px", fontSize: 12, color: "rgba(242,237,228,0.5)" }}>No custom lists yet.</div>
+                )}
+                {lists.map(l => {
+                  const on = l.id === activeListId;
+                  return (
+                    <button key={l.id} onClick={() => { setActiveListId(l.id); setDropdownOpen(false); }} style={{
+                      display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
+                      width: "100%", padding: "11px 14px", textAlign: "left", cursor: "pointer",
+                      background: on ? "rgba(10,197,168,0.12)" : "transparent",
+                      border: "none", borderBottom: "1px solid rgba(242,237,228,0.04)",
+                      color: on ? TEAL_BRIGHT : INK, fontFamily: sans, fontSize: 13.5,
+                    }}>
+                      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.name}</span>
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(242,237,228,0.55)", flex: "none" }}>{l.items.length}</span>
+                    </button>
+                  );
+                })}
+                <button onClick={() => { setDropdownOpen(false); addList(); }} style={{
+                  display: "block", width: "100%", padding: "11px 14px", textAlign: "left", cursor: "pointer",
+                  background: "transparent", border: "none", borderBottom: "1px solid rgba(242,237,228,0.04)",
+                  color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em",
+                }}>+ NEW CUSTOM LIST</button>
+
+                {/* Nutritionist section */}
+                <div style={{ padding: "12px 14px 6px", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", color: "#f4b860", borderTop: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.06)" }}>NUTRITIONIST LISTS</div>
+                {planByMeal.length === 0 ? (
+                  <div style={{ padding: "12px 14px", fontSize: 12, color: "rgba(242,237,228,0.5)" }}>No meals pushed yet. Your nutritionist's meal-plan ingredients will appear here.</div>
+                ) : (
+                  <>
+                    {(() => {
+                      const id = "__plan__";
+                      const on = id === activeListId;
+                      return (
+                        <button onClick={() => { setActiveListId(id); setDropdownOpen(false); }} style={{
+                          display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
+                          width: "100%", padding: "11px 14px", textAlign: "left", cursor: "pointer",
+                          background: on ? "rgba(244,184,96,0.14)" : "transparent",
+                          border: "none", borderBottom: "1px solid rgba(242,237,228,0.04)",
+                          color: on ? "#f4b860" : INK, fontFamily: sans, fontSize: 13.5,
+                          fontWeight: 500,
+                        }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ width: 7, height: 7, borderRadius: 999, background: "#f4b860" }} />
+                            All from your nutritionist
+                          </span>
+                          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(242,237,228,0.55)", flex: "none" }}>{visiblePlanItems.length}</span>
+                        </button>
+                      );
+                    })()}
+                    {planByMeal.map(g => {
+                      const id = `__plan__:${g.mealId}`;
+                      const on = id === activeListId;
+                      return (
+                        <button key={g.mealId} onClick={() => { setActiveListId(id); setDropdownOpen(false); }} style={{
+                          display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
+                          width: "100%", padding: "10px 14px 10px 28px", textAlign: "left", cursor: "pointer",
+                          background: on ? "rgba(244,184,96,0.12)" : "transparent",
+                          border: "none", borderBottom: "1px solid rgba(242,237,228,0.04)",
+                          color: on ? "#f4b860" : "rgba(242,237,228,0.82)", fontFamily: sans, fontSize: 13,
+                        }}>
+                          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.mealName}</span>
+                          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(242,237,228,0.55)", flex: "none" }}>{g.items.length}</span>
+                        </button>
+                      );
+                    })}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Inline actions */}
           {!isPlanList && activeList && (
             <>
               <button onClick={renameList} style={{
-                marginLeft: "auto",
                 fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.1em",
-                padding: "8px 14px", borderRadius: 999,
+                padding: "9px 14px", borderRadius: 999,
                 background: "transparent", color: "rgba(242,237,228,0.7)",
                 border: "1px solid rgba(242,237,228,0.18)", cursor: "pointer", whiteSpace: "nowrap",
               }}>RENAME</button>
               <button onClick={deleteList} style={{
                 fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.1em",
-                padding: "8px 14px", borderRadius: 999,
+                padding: "9px 14px", borderRadius: 999,
                 background: "rgba(255,107,93,0.08)", color: "#ff6b5d",
                 border: "1px solid rgba(255,107,93,0.3)", cursor: "pointer", whiteSpace: "nowrap",
               }}>DELETE LIST</button>
             </>
           )}
+          <button onClick={addList} style={{
+            marginLeft: "auto",
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.1em",
+            padding: "9px 16px", borderRadius: 999,
+            background: INK, color: PAPER, border: 0, cursor: "pointer", whiteSpace: "nowrap",
+          }}>+ NEW LIST</button>
         </div>
       </Card>
 
