@@ -516,9 +516,71 @@ function ClientGroceryPage() {
           ))}
         </div>
       )}
+
+      {/* Send to Instacart — appears for every grocery list */}
+      <InstacartSendCard
+        listLabel={activeLabel}
+        items={rawItems.filter(it => !it.checked)}
+      />
     </DashPage>
   );
 }
+
+// Instacart hand-off. The official partner flow is a recipe-page widget;
+// for arbitrary grocery lists we open the Instacart search experience
+// with the list pre-loaded as a comma-joined query and copy the full list
+// to the clipboard so the user can paste it into Instacart's search.
+function InstacartSendCard({ listLabel, items }) {
+  const [copied, setCopied] = React.useState(false);
+  const count = items.length;
+  const sendToInstacart = () => {
+    if (count === 0) return;
+    const lines = items.map(it => it.qty ? `${it.item} (${it.qty})` : it.item);
+    const text = lines.join("\n");
+    try {
+      if (navigator.clipboard) navigator.clipboard.writeText(text);
+    } catch (e) {}
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+    const q = encodeURIComponent(lines.slice(0, 8).map(l => l.split(" (")[0]).join(", "));
+    window.open(`https://www.instacart.com/store/s?k=${q}`, "_blank", "noopener");
+  };
+  return (
+    <Card style={{ marginTop: 20, background: "linear-gradient(135deg, rgba(67,176,42,0.10), rgba(67,176,42,0.03))", border: "1px solid rgba(67,176,42,0.32)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 18, alignItems: "center" }}>
+        <div style={{
+          width: 48, height: 48, borderRadius: 12, background: "#43B02A",
+          display: "flex", alignItems: "center", justifyContent: "center", flex: "none",
+          boxShadow: "0 6px 18px rgba(67,176,42,0.35)",
+        }}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M6 6h13l-1.5 9h-10L6 6Z" stroke="#fff" strokeWidth="2" strokeLinejoin="round"/>
+            <circle cx="9" cy="19" r="1.4" fill="#fff"/>
+            <circle cx="16" cy="19" r="1.4" fill="#fff"/>
+            <path d="M3 4h2.5l.5 2" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: "#67c64a", fontWeight: 600 }}>SEND TO INSTACART</div>
+          <div style={{ fontFamily: serif, fontSize: 18, letterSpacing: "-0.01em", color: INK, marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {count > 0 ? `${count} item${count === 1 ? "" : "s"} from ${listLabel}` : `Nothing to send from ${listLabel}`}
+          </div>
+          <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.55)", marginTop: 3 }}>
+            {count > 0 ? "Opens Instacart and copies your list to the clipboard." : "Add items to send them to Instacart."}
+          </div>
+        </div>
+        <button onClick={sendToInstacart} disabled={count === 0} style={{
+          padding: "12px 22px", borderRadius: 999,
+          background: count > 0 ? "#43B02A" : "rgba(67,176,42,0.18)",
+          color: count > 0 ? "#fff" : "rgba(255,255,255,0.6)",
+          border: 0, fontFamily: sans, fontSize: 13, fontWeight: 600,
+          cursor: count > 0 ? "pointer" : "default", whiteSpace: "nowrap",
+        }}>{copied ? "✓ Copied · opening…" : "Send to Instacart"}</button>
+      </div>
+    </Card>
+  );
+}
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.Fragment>
     <ClientGroceryPage />
