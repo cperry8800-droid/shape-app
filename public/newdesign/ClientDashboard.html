@@ -53,8 +53,106 @@ const MOCK_CLIENT_KPIS = [
   { k: "14d", l: "Current streak", sub: "best 22d" },
   { k: "4/6", l: "Workouts this week", sub: "on track" },
   { k: "92%", l: "Plan adherence", sub: "last 30d" },
-  { k: "+22", l: "Squat PR (lb)", sub: "since Feb" },
+  { k: "168g", l: "Avg protein / day", sub: "target 175g" },
 ];
+
+// Lightweight today-nutrition snapshot for the dashboard. Reads from
+// localStorage so quick-logs persist across reloads; falls back to a
+// reasonable demo set when nothing has been logged yet.
+const NUTRI_DEFAULTS = {
+  consumedKcal: 1340, targetKcal: 2200,
+  protein: { g: 96, target: 175 },
+  carbs:   { g: 142, target: 240 },
+  fat:     { g: 48, target: 70 },
+  water: 5, waterTarget: 8,
+  upNext: { name: "Grilled chicken bowl", time: "12:30 PM", kcal: 620 },
+};
+function loadNutriToday() {
+  try {
+    const raw = window.localStorage.getItem("shape.nutriToday");
+    if (raw) return { ...NUTRI_DEFAULTS, ...JSON.parse(raw) };
+  } catch (e) {}
+  return NUTRI_DEFAULTS;
+}
+function saveNutriToday(d) {
+  try { window.localStorage.setItem("shape.nutriToday", JSON.stringify(d)); } catch (e) {}
+}
+
+function NutritionTodayWidget() {
+  const [n, setN] = React.useState(loadNutriToday);
+  React.useEffect(() => { saveNutriToday(n); }, [n]);
+  const addWater = () => setN(p => ({ ...p, water: Math.min(p.waterTarget + 4, p.water + 1) }));
+  const logMeal = () => setN(p => ({
+    ...p,
+    consumedKcal: p.consumedKcal + (p.upNext?.kcal || 0),
+    protein: { ...p.protein, g: p.protein.g + 35 },
+    carbs:   { ...p.carbs,   g: p.carbs.g   + 50 },
+    fat:     { ...p.fat,     g: p.fat.g     + 14 },
+  }));
+  const remaining = Math.max(0, n.targetKcal - n.consumedKcal);
+  const pct = Math.min(100, Math.round((n.consumedKcal / n.targetKcal) * 100));
+  const macroRow = (label, color, m) => {
+    const p = Math.min(100, Math.round((m.g / m.target) * 100));
+    return (
+      <div style={{ display: "grid", gridTemplateColumns: "70px 1fr auto", gap: 12, alignItems: "center" }}>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "rgba(242,237,228,0.65)" }}>{label}</span>
+        <div style={{ position: "relative", height: 6, background: "rgba(242,237,228,0.08)", borderRadius: 999 }}>
+          <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: p + "%", background: color, borderRadius: 999 }} />
+        </div>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: INK, whiteSpace: "nowrap" }}>{m.g}<span style={{ color: "rgba(242,237,228,0.45)" }}>/{m.target}g</span></span>
+      </div>
+    );
+  };
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 1fr) 2fr", gap: 24 }}>
+      {/* Calories card */}
+      <div style={{ padding: 18, background: "rgba(10,197,168,0.06)", border: "1px solid rgba(10,197,168,0.2)", borderRadius: 8, display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 16 }}>
+        <div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: TEAL_BRIGHT }}>CALORIES TODAY</div>
+          <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", lineHeight: 1, marginTop: 8 }}>
+            {n.consumedKcal.toLocaleString()}
+            <span style={{ fontSize: 18, color: "rgba(242,237,228,0.45)", marginLeft: 6 }}>/ {n.targetKcal.toLocaleString()}</span>
+          </div>
+          <div style={{ fontSize: 12, color: "rgba(242,237,228,0.65)", marginTop: 6 }}>{remaining} kcal remaining · {pct}% of target</div>
+        </div>
+        <div style={{ position: "relative", height: 8, background: "rgba(242,237,228,0.08)", borderRadius: 999 }}>
+          <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: pct + "%", background: TEAL_BRIGHT, borderRadius: 999 }} />
+        </div>
+      </div>
+
+      {/* Macros + water + actions */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {macroRow("PROTEIN", "#7ed4ff", n.protein)}
+          {macroRow("CARBS",   "#f6c177", n.carbs)}
+          {macroRow("FAT",     "#ff8a6d", n.fat)}
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 10, borderTop: "1px solid rgba(242,237,228,0.08)" }}>
+          <div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "rgba(242,237,228,0.65)" }}>WATER</div>
+            <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
+              {Array.from({ length: n.waterTarget }).map((_, i) => (
+                <span key={i} style={{ width: 16, height: 22, borderRadius: 3, border: "1px solid rgba(126,212,255,0.4)", background: i < n.water ? "rgba(126,212,255,0.5)" : "transparent" }} />
+              ))}
+            </div>
+            <div style={{ fontSize: 11, color: "rgba(242,237,228,0.55)", marginTop: 6 }}>{n.water} / {n.waterTarget} glasses</div>
+          </div>
+          <button onClick={addWater} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "#7ed4ff", background: "rgba(126,212,255,0.08)", border: "1px solid rgba(126,212,255,0.3)", borderRadius: 6, padding: "8px 14px", cursor: "pointer" }}>+ GLASS</button>
+        </div>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "space-between", paddingTop: 10, borderTop: "1px solid rgba(242,237,228,0.08)" }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: TEAL_BRIGHT }}>UP NEXT</div>
+            <div style={{ fontSize: 13, color: INK, marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{n.upNext?.name} · {n.upNext?.time} · {n.upNext?.kcal} kcal</div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={logMeal} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: TEAL_BRIGHT, background: "rgba(10,197,168,0.08)", border: "1px solid rgba(10,197,168,0.3)", borderRadius: 6, padding: "8px 14px", cursor: "pointer", whiteSpace: "nowrap" }}>LOG MEAL</button>
+            <a href="ClientNutri.html" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 6, padding: "8px 14px", textDecoration: "none", whiteSpace: "nowrap" }}>OPEN NUTRI →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 const MOCK_CLIENT_SCHEDULE = [
   { time: "TUE", who: "Upper push · Maya", sub: "Bench 4×6 · 185lb", status: "DONE" },
   { time: "WED", who: "Intake call · Rae", sub: "Nutrition baseline", status: "NEXT" },
@@ -149,6 +247,10 @@ function ClientDashboardPage() {
       pulseTitle="Your team"
       pulse={pulse}
       extraSections={[
+        {
+          title: "Nutrition today",
+          render: () => <NutritionTodayWidget />,
+        },
         {
           title: "Today's habits",
           render: () => <HabitsWidget max={6} />,
