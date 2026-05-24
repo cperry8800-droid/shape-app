@@ -87,7 +87,9 @@ const MOCK_NUTRI = {
   ],
   hydration7d: [1.4, 2.6, 2.2, 3.1, 0, 2.8, 1.8],
   coachNotes: {
-    text: "30g whey + 60g carbs within 45 min of every lift. Front-load protein at breakfast — aim for 40g before noon.",
+    plan: "Week 3 · Lean recomp",
+    dish: "Tonight: Sheet-pan salmon + sweet potato + asparagus",
+    text: "We're holding 2,200 kcal and pushing protein to 175g this week. Tonight's salmon hits 48g protein and front-loads your weekend carbs — eat it within 2 hours of training.",
     coach: "Rae · Nutritionist",
     at: "yesterday",
   },
@@ -193,13 +195,21 @@ function ClientNutriPage() {
         ))}
       </div>
 
-      {/* Coach's note banner */}
+      {/* Coach's note banner — current meal plan + tonight's dish */}
       {coachNote && (
         <Card style={{ marginBottom: 20, background: "linear-gradient(180deg, rgba(244,184,96,0.10), rgba(244,184,96,0.04))", border: "1px solid rgba(244,184,96,0.28)" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 20, alignItems: "center" }}>
             <div>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "#f4b860", marginBottom: 8 }}>FROM YOUR NUTRITIONIST</div>
-              <div style={{ fontSize: 14, color: "rgba(242,237,228,0.85)", lineHeight: 1.5 }}>{coachNote.text}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "#f4b860" }}>FROM YOUR NUTRITIONIST</span>
+                {coachNote.plan && (
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.12em", color: "rgba(244,184,96,0.85)", padding: "3px 9px", borderRadius: 999, background: "rgba(244,184,96,0.10)", border: "1px solid rgba(244,184,96,0.3)" }}>{coachNote.plan.toUpperCase()}</span>
+                )}
+              </div>
+              {coachNote.dish && (
+                <div style={{ fontFamily: serif, fontSize: 18, letterSpacing: "-0.01em", color: INK, marginBottom: 6 }}>{coachNote.dish}</div>
+              )}
+              <div style={{ fontSize: 13.5, color: "rgba(242,237,228,0.78)", lineHeight: 1.5 }}>{coachNote.text}</div>
             </div>
             <div style={{ textAlign: "right", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.1em", color: "rgba(242,237,228,0.55)" }}>{coachNote.coach.toUpperCase()} · {coachNote.at.toUpperCase()}</div>
           </div>
