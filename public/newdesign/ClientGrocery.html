@@ -304,11 +304,15 @@ function ClientGroceryPage() {
               <span style={{ fontSize: 10, color: "rgba(242,237,228,0.55)" }}>{dropdownOpen ? "▲" : "▼"}</span>
             </button>
             {dropdownOpen && (
-              <div style={{
-                position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 30,
-                background: "#1f1a16", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 10,
-                boxShadow: "0 24px 60px rgba(0,0,0,0.55)", maxHeight: 380, overflowY: "auto",
-              }}>
+              <>
+                <div onClick={() => setDropdownOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 999, background: "transparent" }} />
+                <div style={{
+                  position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 1000,
+                  background: "#15110d", border: "1px solid rgba(242,237,228,0.22)", borderRadius: 10,
+                  boxShadow: "0 24px 60px rgba(0,0,0,0.75), 0 0 0 1px rgba(0,0,0,0.4)",
+                  maxHeight: 380, overflowY: "auto",
+                  backdropFilter: "none", WebkitBackdropFilter: "none",
+                }}>
                 {/* Custom section */}
                 <div style={{ padding: "10px 14px 6px", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", color: TEAL_BRIGHT, borderBottom: "1px solid rgba(242,237,228,0.06)" }}>CUSTOM LISTS</div>
                 {lists.length === 0 && (
@@ -379,7 +383,8 @@ function ClientGroceryPage() {
                     })}
                   </>
                 )}
-              </div>
+                </div>
+              </>
             )}
           </div>
 
