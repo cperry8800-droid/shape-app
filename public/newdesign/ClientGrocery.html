@@ -28,78 +28,209 @@ const CATEGORIES = [
   { key: "other",   label: "Other",    color: "rgba(242,237,228,0.6)" },
 ];
 
-const SEED_GROCERY = [
-  { id: "g1", item: "Chicken breast",       qty: "3 lb",     category: "protein", checked: false, fromPlan: true },
-  { id: "g2", item: "Salmon fillets",        qty: "2",        category: "protein", checked: false, fromPlan: true },
-  { id: "g3", item: "Greek yogurt",          qty: "32 oz",    category: "dairy",   checked: false, fromPlan: true },
-  { id: "g4", item: "Whey protein",          qty: "1 tub",    category: "pantry",  checked: false, fromPlan: true },
-  { id: "g5", item: "Sweet potatoes",        qty: "5",        category: "produce", checked: false, fromPlan: true },
-  { id: "g6", item: "Broccoli",              qty: "2 heads",  category: "produce", checked: false, fromPlan: true },
-  { id: "g7", item: "Avocados",              qty: "4",        category: "produce", checked: false, fromPlan: false },
-  { id: "g8", item: "Brown rice",            qty: "2 lb",     category: "pantry",  checked: false, fromPlan: true },
-  { id: "g9", item: "Oats (rolled)",         qty: "1 box",    category: "pantry",  checked: false, fromPlan: false },
-  { id: "g10", item: "Almond milk",          qty: "64 oz",    category: "dairy",   checked: true,  fromPlan: false },
-  { id: "g11", item: "Frozen mixed berries", qty: "2 bags",   category: "frozen",  checked: true,  fromPlan: false },
-  { id: "g12", item: "Eggs",                 qty: "18 ct",    category: "dairy",   checked: false, fromPlan: true },
-  { id: "g13", item: "Spinach",              qty: "1 bag",    category: "produce", checked: false, fromPlan: true },
-  { id: "g14", item: "Olive oil",            qty: "1 btl",    category: "pantry",  checked: true,  fromPlan: false },
-  { id: "g15", item: "Almonds (raw)",        qty: "1 lb",     category: "pantry",  checked: false, fromPlan: false },
-  { id: "g16", item: "Cottage cheese",       qty: "16 oz",    category: "dairy",   checked: false, fromPlan: false },
-];
+// Heuristic category guesser based on item name keywords. Keeps the
+// nutritionist's pushed ingredients tidy when they don't tag categories.
+function guessCategory(name) {
+  const s = (name || "").toLowerCase();
+  if (/chicken|beef|pork|turkey|salmon|tuna|fish|shrimp|tofu|tempeh|steak|lamb|bacon|sausage|egg/.test(s)) return "protein";
+  if (/spinach|kale|broccoli|carrot|tomato|cucumber|pepper|onion|garlic|lettuce|berries|apple|banana|orange|potato|avocado|lemon|lime|herb|cilantro|parsley|fruit|vegetable|veggie/.test(s)) return "produce";
+  if (/yogurt|milk|cheese|butter|cream|kefir/.test(s)) return "dairy";
+  if (/rice|oat|pasta|bread|quinoa|flour|sugar|salt|oil|vinegar|sauce|spice|nut|seed|bean|lentil|whey|protein\s*powder|honey|syrup/.test(s)) return "pantry";
+  if (/frozen|ice/.test(s)) return "frozen";
+  return "other";
+}
 
-function loadGrocery() {
+// Storage helpers — versioned key so we can evolve schema later.
+const STORE_KEY = "shape.grocery.lists.v1";
+const ACTIVE_KEY = "shape.grocery.activeListId.v1";
+const HIDE_KEY = "shape.grocery.hiddenPlanItems.v1";
+const CHECK_KEY = "shape.grocery.planItemChecks.v1";
+
+function defaultLists() {
+  return [{
+    id: "default",
+    name: "My groceries",
+    items: [
+      { id: "g1",  item: "Avocados",       qty: "4",       category: "produce", checked: false },
+      { id: "g2",  item: "Almond milk",    qty: "64 oz",   category: "dairy",   checked: true  },
+      { id: "g3",  item: "Olive oil",      qty: "1 btl",   category: "pantry",  checked: true  },
+    ],
+  }];
+}
+
+function loadLists() {
   try {
-    const raw = window.localStorage.getItem("shape.grocery");
-    if (raw) return JSON.parse(raw);
+    const raw = window.localStorage.getItem(STORE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
   } catch (e) {}
-  return SEED_GROCERY;
+  // Migrate from old single-list storage if present
+  try {
+    const legacy = window.localStorage.getItem("shape.grocery");
+    if (legacy) {
+      const items = JSON.parse(legacy);
+      if (Array.isArray(items) && items.length > 0) {
+        return [{ id: "default", name: "My groceries", items: items.map(it => ({ id: it.id, item: it.item, qty: it.qty || "", category: it.category || guessCategory(it.item), checked: !!it.checked })) }];
+      }
+    }
+  } catch (e) {}
+  return defaultLists();
 }
-function saveGrocery(list) {
-  try { window.localStorage.setItem("shape.grocery", JSON.stringify(list)); } catch (e) {}
+function saveLists(lists) {
+  try { window.localStorage.setItem(STORE_KEY, JSON.stringify(lists)); } catch (e) {}
 }
+function loadActiveId(lists) {
+  try {
+    const v = window.localStorage.getItem(ACTIVE_KEY);
+    if (v && lists.some(l => l.id === v)) return v;
+  } catch (e) {}
+  return lists[0]?.id || null;
+}
+function saveActiveId(id) { try { window.localStorage.setItem(ACTIVE_KEY, id); } catch (e) {} }
+function loadHidden() { try { return new Set(JSON.parse(window.localStorage.getItem(HIDE_KEY) || "[]")); } catch (e) { return new Set(); } }
+function saveHidden(set) { try { window.localStorage.setItem(HIDE_KEY, JSON.stringify([...set])); } catch (e) {} }
+function loadChecks() { try { return JSON.parse(window.localStorage.getItem(CHECK_KEY) || "{}"); } catch (e) { return {}; } }
+function saveChecks(map) { try { window.localStorage.setItem(CHECK_KEY, JSON.stringify(map)); } catch (e) {} }
 
 function ClientGroceryPage() {
-  const [items, setItems] = React.useState(loadGrocery);
-  const [filter, setFilter] = React.useState("buy"); // buy | have | all
+  const [lists, setLists] = React.useState(loadLists);
+  const [activeListId, setActiveListId] = React.useState(() => loadActiveId(loadLists()));
+  const [filter, setFilter] = React.useState("buy");
   const [search, setSearch] = React.useState("");
   const [newItem, setNewItem] = React.useState("");
   const [newQty, setNewQty] = React.useState("");
   const [newCat, setNewCat] = React.useState("other");
+  const [planItems, setPlanItems] = React.useState([]); // [{id, item, qty, category, mealName, mealId}]
+  const [hidden, setHidden] = React.useState(loadHidden);
+  const [planChecks, setPlanChecks] = React.useState(loadChecks);
 
-  React.useEffect(() => { saveGrocery(items); }, [items]);
+  React.useEffect(() => { saveLists(lists); }, [lists]);
+  React.useEffect(() => { if (activeListId) saveActiveId(activeListId); }, [activeListId]);
+  React.useEffect(() => { saveHidden(hidden); }, [hidden]);
+  React.useEffect(() => { saveChecks(planChecks); }, [planChecks]);
 
-  const toggle = (id) => setItems(prev => prev.map(it => it.id === id ? { ...it, checked: !it.checked } : it));
-  const remove = (id) => setItems(prev => prev.filter(it => it.id !== id));
-  const addItem = () => {
+  // Fetch grocery-from-plan items (pushed meals from your nutritionist).
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/client/grocery', { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && d && Array.isArray(d.items)) setPlanItems(d.items); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const isPlanList = activeListId === "__plan__";
+  const activeList = lists.find(l => l.id === activeListId) || lists[0] || null;
+
+  // ── List management ──────────────────────────────────────────────────
+  const addList = () => {
+    const name = prompt("New list name", "Costco trip");
+    if (!name || !name.trim()) return;
+    const id = "list-" + Date.now();
+    setLists(prev => [...prev, { id, name: name.trim(), items: [] }]);
+    setActiveListId(id);
+  };
+  const renameList = () => {
+    if (!activeList || isPlanList) return;
+    const name = prompt("Rename list", activeList.name);
+    if (!name || !name.trim()) return;
+    setLists(prev => prev.map(l => l.id === activeListId ? { ...l, name: name.trim() } : l));
+  };
+  const deleteList = () => {
+    if (!activeList || isPlanList) return;
+    if (lists.length === 1) { alert("Can't delete your last list. Create a new one first."); return; }
+    if (!confirm(`Delete "${activeList.name}" and all ${activeList.items.length} items?`)) return;
+    setLists(prev => {
+      const next = prev.filter(l => l.id !== activeListId);
+      setActiveListId(next[0]?.id || null);
+      return next;
+    });
+  };
+
+  // ── Item management (user-created list only) ─────────────────────────
+  const toggleItem = (id) => {
+    if (isPlanList) {
+      setPlanChecks(prev => ({ ...prev, [id]: !prev[id] }));
+      return;
+    }
+    setLists(prev => prev.map(l => l.id === activeListId ? {
+      ...l, items: l.items.map(it => it.id === id ? { ...it, checked: !it.checked } : it),
+    } : l));
+  };
+  const removeItem = (id) => {
+    if (isPlanList) {
+      setHidden(prev => { const n = new Set(prev); n.add(id); return n; });
+      return;
+    }
+    setLists(prev => prev.map(l => l.id === activeListId ? {
+      ...l, items: l.items.filter(it => it.id !== id),
+    } : l));
+  };
+  const addItemToActive = () => {
+    if (isPlanList) { alert("This list is auto-synced from your nutritionist. Switch to one of your own lists to add items."); return; }
     const name = newItem.trim();
     if (!name) return;
     const id = "u" + Date.now();
-    setItems(prev => [{ id, item: name, qty: newQty.trim() || "1", category: newCat, checked: false, fromPlan: false }, ...prev]);
+    setLists(prev => prev.map(l => l.id === activeListId ? {
+      ...l, items: [{ id, item: name, qty: newQty.trim() || "1", category: newCat, checked: false }, ...l.items],
+    } : l));
     setNewItem(""); setNewQty(""); setNewCat("other");
   };
-  const clearChecked = () => {
-    if (!confirm("Clear all checked items?")) return;
-    setItems(prev => prev.filter(it => !it.checked));
+  const copyFromPlanToActive = (planItem) => {
+    if (lists.length === 0) return;
+    // Move to first user list (or the active list if it's not the plan list)
+    const targetId = isPlanList ? lists[0].id : activeListId;
+    const id = "u" + Date.now();
+    setLists(prev => prev.map(l => l.id === targetId ? {
+      ...l, items: [{ id, item: planItem.item, qty: planItem.qty || "1", category: planItem.category || "other", checked: false }, ...l.items],
+    } : l));
+    setHidden(prev => { const n = new Set(prev); n.add(planItem.id); return n; });
   };
-  const checkAll = () => setItems(prev => prev.map(it => ({ ...it, checked: true })));
-  const uncheckAll = () => setItems(prev => prev.map(it => ({ ...it, checked: false })));
 
+  // ── Derive the list of items to render ───────────────────────────────
+  const visiblePlanItems = planItems.filter(p => !hidden.has(p.id)).map(p => ({
+    ...p,
+    checked: !!planChecks[p.id],
+    fromPlan: true,
+  }));
+  const rawItems = isPlanList ? visiblePlanItems : (activeList?.items || []);
   const q = search.trim().toLowerCase();
-  const visible = items.filter(it => {
+  const visible = rawItems.filter(it => {
     if (filter === "buy" && it.checked) return false;
     if (filter === "have" && !it.checked) return false;
     if (q && !it.item.toLowerCase().includes(q)) return false;
     return true;
   });
-
   const grouped = CATEGORIES.map(cat => ({
     ...cat,
     items: visible.filter(it => it.category === cat.key),
   })).filter(g => g.items.length > 0);
 
-  const toBuyCount = items.filter(it => !it.checked).length;
-  const haveCount = items.filter(it => it.checked).length;
-  const fromPlanCount = items.filter(it => it.fromPlan && !it.checked).length;
+  const toBuyCount = rawItems.filter(it => !it.checked).length;
+  const haveCount = rawItems.filter(it => it.checked).length;
+  const planCount = visiblePlanItems.filter(p => !p.checked).length;
+
+  // ── List switcher pills ──────────────────────────────────────────────
+  const switcherPill = (id, label, count, isPlan) => {
+    const on = id === activeListId;
+    return (
+      <button key={id} onClick={() => setActiveListId(id)} style={{
+        fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.1em",
+        padding: "8px 16px", borderRadius: 999, cursor: "pointer",
+        background: on ? (isPlan ? "rgba(244,184,96,0.16)" : "rgba(10,197,168,0.16)") : "rgba(242,237,228,0.04)",
+        color: on ? (isPlan ? "#f4b860" : TEAL_BRIGHT) : "rgba(242,237,228,0.7)",
+        border: "1px solid " + (on ? (isPlan ? "rgba(244,184,96,0.4)" : "rgba(10,197,168,0.3)") : "rgba(242,237,228,0.12)"),
+        whiteSpace: "nowrap",
+        display: "inline-flex", alignItems: "center", gap: 8,
+      }}>
+        {isPlan && <span style={{ width: 7, height: 7, borderRadius: 999, background: "#f4b860" }} />}
+        <span>{label}</span>
+        <span style={{ opacity: 0.7 }}>{count}</span>
+      </button>
+    );
+  };
 
   const FilterPill = ({ k, label, count }) => {
     const active = filter === k;
@@ -115,22 +246,18 @@ function ClientGroceryPage() {
     );
   };
 
-  const cards = [
-    { k: String(toBuyCount), l: "To buy" },
-    { k: String(fromPlanCount), l: "From your plan" },
-    { k: String(haveCount), l: "Have" },
-    { k: String(items.length), l: "Total" },
-  ];
-
   return (
     <DashPage
       navItems={clientNavItems("nutri")}
       payoutCard={clientPayoutCard}
-      eyebrow="WHAT TO BUY · FROM YOUR MEAL PLAN"
-      title="Grocery list"
-      subtitle="Pulled from your nutritionist's plan plus anything you've added. Saved to your device — check items off as you shop."
+      eyebrow={isPlanList ? "AUTO-SYNCED FROM YOUR NUTRITIONIST" : "YOUR GROCERY LISTS"}
+      title="Grocery"
+      subtitle={isPlanList
+        ? "Ingredients from every meal your nutritionist has pushed. Tap to copy items to one of your own lists."
+        : "Make as many lists as you want — weekly groceries, a Costco run, party prep. Saved to your device."}
       actions={<>
-        <button onClick={() => window.print()} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap" }}>Print</button>
+        <a href="ClientNutri.html" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}>← Back to Nutri</a>
+        <button onClick={() => window.print()} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}>Print</button>
       </>}
     >
       {/* Tab strip — Nutrition + Grocery (active) */}
@@ -151,54 +278,77 @@ function ClientGroceryPage() {
         })}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 20 }}>
-        {cards.map((c, i) => (
-          <Card key={i} style={{ padding: "20px 22px 18px" }}>
-            <div style={{ fontFamily: serif, fontSize: 36, letterSpacing: "-0.02em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{c.k}</div>
-            <div style={{ fontSize: 12, marginTop: 10, color: "rgba(242,237,228,0.7)" }}>{c.l}</div>
-          </Card>
-        ))}
-      </div>
-
-      {/* Add item row */}
+      {/* List switcher row */}
       <Card style={{ marginBottom: 20 }}>
-        <SectionTitle>Add item</SectionTitle>
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1.2fr auto", gap: 10 }}>
-          <input
-            value={newItem}
-            onChange={e => setNewItem(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") addItem(); }}
-            placeholder="e.g. Almond butter"
-            style={{ padding: "10px 14px", borderRadius: 8, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", color: INK, fontFamily: sans, fontSize: 13.5, outline: "none" }}
-          />
-          <input
-            value={newQty}
-            onChange={e => setNewQty(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") addItem(); }}
-            placeholder="qty (1 jar, 2 lb…)"
-            style={{ padding: "10px 14px", borderRadius: 8, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", color: INK, fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, outline: "none" }}
-          />
-          <select
-            value={newCat}
-            onChange={e => setNewCat(e.target.value)}
-            style={{ padding: "10px 14px", borderRadius: 8, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", color: INK, fontFamily: sans, fontSize: 13, outline: "none", colorScheme: "dark" }}
-          >
-            {CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
-          </select>
-          <button onClick={addItem} disabled={!newItem.trim()} style={{
-            padding: "10px 22px", borderRadius: 8, background: newItem.trim() ? TEAL : "rgba(242,237,228,0.08)",
-            color: newItem.trim() ? PAPER : "rgba(242,237,228,0.4)",
-            border: 0, fontFamily: sans, fontSize: 13, fontWeight: 500,
-            cursor: newItem.trim() ? "pointer" : "default", whiteSpace: "nowrap",
-          }}>+ Add</button>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+          {planCount > 0 && switcherPill("__plan__", "From your plan", planCount, true)}
+          {lists.map(l => switcherPill(l.id, l.name, l.items.length, false))}
+          <button onClick={addList} style={{
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.1em",
+            padding: "8px 16px", borderRadius: 999,
+            background: INK, color: PAPER, border: 0, cursor: "pointer", whiteSpace: "nowrap",
+          }}>+ NEW LIST</button>
+          {!isPlanList && activeList && (
+            <>
+              <button onClick={renameList} style={{
+                marginLeft: "auto",
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.1em",
+                padding: "8px 14px", borderRadius: 999,
+                background: "transparent", color: "rgba(242,237,228,0.7)",
+                border: "1px solid rgba(242,237,228,0.18)", cursor: "pointer", whiteSpace: "nowrap",
+              }}>RENAME</button>
+              <button onClick={deleteList} style={{
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.1em",
+                padding: "8px 14px", borderRadius: 999,
+                background: "rgba(255,107,93,0.08)", color: "#ff6b5d",
+                border: "1px solid rgba(255,107,93,0.3)", cursor: "pointer", whiteSpace: "nowrap",
+              }}>DELETE LIST</button>
+            </>
+          )}
         </div>
       </Card>
 
-      {/* Filters + actions */}
+      {/* Add item row — only for user lists */}
+      {!isPlanList && (
+        <Card style={{ marginBottom: 20 }}>
+          <SectionTitle right={activeList ? activeList.name.toUpperCase() : ""}>Add item</SectionTitle>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1.2fr auto", gap: 10 }}>
+            <input
+              value={newItem}
+              onChange={e => setNewItem(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") addItemToActive(); }}
+              placeholder="e.g. Almond butter"
+              style={{ padding: "10px 14px", borderRadius: 8, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", color: INK, fontFamily: sans, fontSize: 13.5, outline: "none" }}
+            />
+            <input
+              value={newQty}
+              onChange={e => setNewQty(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") addItemToActive(); }}
+              placeholder="qty (1 jar, 2 lb…)"
+              style={{ padding: "10px 14px", borderRadius: 8, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", color: INK, fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, outline: "none" }}
+            />
+            <select
+              value={newCat}
+              onChange={e => setNewCat(e.target.value)}
+              style={{ padding: "10px 14px", borderRadius: 8, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", color: INK, fontFamily: sans, fontSize: 13, outline: "none", colorScheme: "dark" }}
+            >
+              {CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+            </select>
+            <button onClick={addItemToActive} disabled={!newItem.trim()} style={{
+              padding: "10px 22px", borderRadius: 8, background: newItem.trim() ? TEAL : "rgba(242,237,228,0.08)",
+              color: newItem.trim() ? PAPER : "rgba(242,237,228,0.4)",
+              border: 0, fontFamily: sans, fontSize: 13, fontWeight: 500,
+              cursor: newItem.trim() ? "pointer" : "default", whiteSpace: "nowrap",
+            }}>+ Add</button>
+          </div>
+        </Card>
+      )}
+
+      {/* Filters + search */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 16 }}>
         <FilterPill k="buy" label="TO BUY" count={toBuyCount} />
         <FilterPill k="have" label="HAVE" count={haveCount} />
-        <FilterPill k="all" label="ALL" count={items.length} />
+        <FilterPill k="all" label="ALL" count={rawItems.length} />
         <input
           type="search"
           value={search}
@@ -206,27 +356,16 @@ function ClientGroceryPage() {
           placeholder="Search items…"
           style={{ flex: 1, minWidth: 200, padding: "8px 14px", borderRadius: 999, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", color: INK, fontFamily: sans, fontSize: 13, outline: "none" }}
         />
-        <button onClick={haveCount === items.length ? uncheckAll : checkAll} style={{
-          fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.1em",
-          padding: "8px 14px", borderRadius: 999, background: "rgba(242,237,228,0.04)",
-          color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.12)", cursor: "pointer",
-        }}>{haveCount === items.length ? "UNCHECK ALL" : "CHECK ALL"}</button>
-        {haveCount > 0 && (
-          <button onClick={clearChecked} style={{
-            fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.1em",
-            padding: "8px 14px", borderRadius: 999, background: "rgba(255,107,93,0.08)",
-            color: "#ff6b5d", border: "1px solid rgba(255,107,93,0.3)", cursor: "pointer",
-          }}>CLEAR CHECKED</button>
-        )}
       </div>
 
       {/* Grouped list */}
       {grouped.length === 0 ? (
         <Card>
           <div style={{ padding: "32px 4px", color: "rgba(242,237,228,0.55)", fontSize: 14, textAlign: "center" }}>
-            {filter === "buy" ? "Nothing to buy — your list is clear." :
-             filter === "have" ? "Nothing checked off yet." :
-             "List is empty. Add an item above to get started."}
+            {isPlanList ? "Your nutritionist hasn't pushed any meals yet." :
+             rawItems.length === 0 ? "List is empty. Add an item above to get started." :
+             filter === "buy" ? "Nothing to buy in this list." :
+             "Nothing checked off yet."}
           </div>
         </Card>
       ) : (
@@ -241,7 +380,7 @@ function ClientGroceryPage() {
               </SectionTitle>
               {group.items.map((it, i) => (
                 <div key={it.id} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto auto", gap: 10, alignItems: "center", padding: "11px 0", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
-                  <button onClick={() => toggle(it.id)} aria-label={it.checked ? "Uncheck" : "Check"} style={{
+                  <button onClick={() => toggleItem(it.id)} aria-label={it.checked ? "Uncheck" : "Check"} style={{
                     width: 20, height: 20, borderRadius: 5, padding: 0,
                     border: `1px solid ${it.checked ? "rgba(10,197,168,0.5)" : "rgba(242,237,228,0.3)"}`,
                     background: it.checked ? "rgba(10,197,168,0.25)" : "transparent",
@@ -250,15 +389,22 @@ function ClientGroceryPage() {
                   }}>{it.checked && "✓"}</button>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 13.5, color: it.checked ? "rgba(242,237,228,0.5)" : INK, textDecoration: it.checked ? "line-through" : "none" }}>{it.item}</div>
-                    {it.fromPlan && (
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(242,237,228,0.4)", marginTop: 2 }}>FROM PLAN</div>
+                    {it.fromPlan && it.mealName && (
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(244,184,96,0.7)", marginTop: 2 }}>FROM · {it.mealName.toUpperCase()}</div>
                     )}
                   </div>
                   <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: "rgba(242,237,228,0.65)" }}>{it.qty}</span>
-                  <button onClick={() => remove(it.id)} aria-label="Remove" style={{
-                    background: "transparent", border: 0, padding: 2, cursor: "pointer",
-                    color: "rgba(242,237,228,0.4)", fontSize: 16, lineHeight: 1,
-                  }}>×</button>
+                  {isPlanList ? (
+                    <button onClick={() => copyFromPlanToActive(it)} aria-label="Copy to my list" title="Copy to my list" style={{
+                      background: "rgba(10,197,168,0.08)", color: TEAL_BRIGHT, border: "1px solid rgba(10,197,168,0.28)",
+                      padding: "3px 8px", borderRadius: 999, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.08em", cursor: "pointer",
+                    }}>COPY</button>
+                  ) : (
+                    <button onClick={() => removeItem(it.id)} aria-label="Remove" style={{
+                      background: "transparent", border: 0, padding: 2, cursor: "pointer",
+                      color: "rgba(242,237,228,0.4)", fontSize: 16, lineHeight: 1,
+                    }}>×</button>
+                  )}
                 </div>
               ))}
             </Card>
