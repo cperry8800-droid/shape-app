@@ -2294,3 +2294,33 @@ window.ShapeCoachFeed = {
   fetch: fetchCoachConsoleFeed,
   subscribe: subscribeCoachConsoleFeed,
 };
+
+// ─── Pro Console API (trainer / nutritionist side) ───────────────────────────
+// These call the Next.js /api/{role}/console endpoints with Bearer auth so the
+// mobile app can read + write the console state without a cookie session bridge.
+
+async function fetchProConsole(role) {
+  if (!apiBaseUrl || !state.session?.access_token) return null;
+  const res = await fetch(`${apiBaseUrl}/api/${role}/console`, {
+    headers: { Authorization: `Bearer ${state.session.access_token}` },
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Console fetch failed.');
+  return res.json();
+}
+
+async function postProConsole(role, body) {
+  if (!apiBaseUrl || !state.session?.access_token) throw new Error('Not authenticated.');
+  const res = await fetch(`${apiBaseUrl}/api/${role}/console`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${state.session.access_token}`,
+    },
+    body: JSON.stringify(body),
+  });
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(payload.error || 'Console action failed.');
+  return payload;
+}
+
+window.ShapeProConsole = { fetch: fetchProConsole, post: postProConsole };

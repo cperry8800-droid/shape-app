@@ -552,6 +552,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   const screens = {
     today:    <BSTrainerToday onProfile={goSettings} sheet={sheet} goCalendar={() => setShowCalendar(true)} goRadio={goRadio} onOpenReviews={() => setShowReviews(true)} onWidgetOpen={openHomeWidget} onOpenHabits={() => setShowHabits(true)} onOpenScore={() => { setStoreView('score'); setTab('store'); }} tweaks={tweaks} setTweak={setTweak} />,
     clients:  <BSTrainerClients sheet={sheet} />,
+    console:  <BSProConsoleScreen role="trainer" />,
     programs: <BSTrainerPrograms sheet={sheet} initialTab={programInitialTab} />,
     chat:     <BSClientChat onProfile={goSettings} sheet={sheet} role="trainer" />,
     radio:    <BSRadioScreen onBack={() => setTab('today')} />,
@@ -566,6 +567,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
       <BSTabBar active={tab} onChange={setTab} tabs={[
         { key: 'today',    label: 'Today' },
         { key: 'clients',  label: 'Clients' },
+        { key: 'console',  label: 'Console' },
         { key: 'programs', label: 'Plans' },
         { key: 'chat',     label: 'Chat' },
         { key: 'store',    label: 'Store' },
@@ -1408,6 +1410,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   const screens = {
     today:    <BSNutriToday onProfile={goSettings} sheet={sheet} goCalendar={() => setShowCalendar(true)} goRadio={goRadio} onOpenReviews={() => setShowReviews(true)} onWidgetOpen={openHomeWidget} onOpenHabits={() => setShowHabits(true)} onOpenScore={() => { setStoreView('score'); setTab('store'); }} tweaks={tweaks} setTweak={setTweak} />,
     clients:  <BSNutriClients sheet={sheet} />,
+    console:  <BSProConsoleScreen role="nutritionist" />,
     plans:    <BSNutriPlans sheet={sheet} />,
     chat:     <BSClientChat onProfile={goSettings} sheet={sheet} role="nutritionist" />,
     radio:    <BSRadioScreen onBack={() => setTab('today')} />,
@@ -1422,6 +1425,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
       <BSTabBar active={tab} onChange={setTab} tabs={[
         { key: 'today',    label: 'Today' },
         { key: 'clients',  label: 'Clients' },
+        { key: 'console',  label: 'Console' },
         { key: 'plans',    label: 'Plans' },
         { key: 'chat',     label: 'Chat' },
         { key: 'store',    label: 'Store' },
@@ -2141,6 +2145,284 @@ function BSCoachGoalPlan({ role = 'trainer' }) {
         </div>
       </div>
     </>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// PRO CONSOLE SCREEN (shared by trainer + nutritionist)
+// ═══════════════════════════════════════════════════════════
+function BSProConsoleScreen({ role = 'trainer' }) {
+  const t = useBS();
+  const isNutri = role === 'nutritionist';
+  const accent = isNutri ? t.RUST : t.AMBER;
+
+  const [loading, setLoading] = useStateBSP(true);
+  const [clients, setClients] = useStateBSP([]);
+  const [focusByClient, setFocusByClient] = useStateBSP({});
+  const [itemsByClient, setItemsByClient] = useStateBSP({});
+  const [snapshotByClient, setSnapshotByClient] = useStateBSP({});
+  const [profileByClient, setProfileByClient] = useStateBSP({});
+  const [selClientId, setSelClientId] = useStateBSP(null);
+  const [dropdownOpen, setDropdownOpen] = useStateBSP(false);
+  const [focusText, setFocusText] = useStateBSP('');
+  const [itemName, setItemName] = useStateBSP('');
+  const [itemNote, setItemNote] = useStateBSP('');
+  const [busy, setBusy] = useStateBSP(false);
+  const [err, setErr] = useStateBSP('');
+
+  const load = async () => {
+    setLoading(true);
+    setErr('');
+    try {
+      const data = await window.ShapeProConsole?.fetch(role);
+      if (!data) { setLoading(false); return; }
+      const cl = data.clients ?? [];
+      setClients(cl);
+      setFocusByClient(data.focusByClient ?? {});
+      setItemsByClient(data.itemsByClient ?? {});
+      setSnapshotByClient(data.snapshotByClient ?? {});
+      setProfileByClient(data.profileByClient ?? {});
+      if (cl.length && !selClientId) setSelClientId(cl[0].id);
+    } catch (e) {
+      setErr(e.message || 'Failed to load console.');
+    }
+    setLoading(false);
+  };
+
+  useEffectBSP(() => { load(); }, [role]);
+
+  useEffectBSP(() => {
+    if (selClientId && focusByClient[selClientId] != null) {
+      setFocusText(focusByClient[selClientId]);
+    } else {
+      setFocusText('');
+    }
+  }, [selClientId]);
+
+  const currentGroup = clients.filter(c => c.status === 'current');
+  const pastGroup = clients.filter(c => c.status === 'past');
+  const client = clients.find(c => c.id === selClientId) ?? null;
+  const snap = selClientId ? (snapshotByClient[selClientId] ?? null) : null;
+  const items = selClientId ? (itemsByClient[selClientId] ?? []) : [];
+  const profile = selClientId ? (profileByClient[selClientId] ?? null) : null;
+
+  const sendFocus = async () => {
+    if (!selClientId || !focusText.trim() || busy) return;
+    setBusy(true); setErr('');
+    try {
+      await window.ShapeProConsole.post(role, { action: 'focus', clientId: selClientId, text: focusText.trim() });
+      setFocusByClient(prev => ({ ...prev, [selClientId]: focusText.trim() }));
+    } catch (e) { setErr(e.message); }
+    setBusy(false);
+  };
+
+  const addItem = async () => {
+    const name = itemName.trim();
+    if (!selClientId || !name || busy) return;
+    setBusy(true); setErr('');
+    try {
+      const res = await window.ShapeProConsole.post(role, {
+        action: 'addItem',
+        clientId: selClientId,
+        payload: { name, ...(itemNote.trim() ? { note: itemNote.trim() } : {}) },
+      });
+      const newItem = { id: res.id, name, ...(itemNote.trim() ? { note: itemNote.trim() } : {}) };
+      setItemsByClient(prev => ({ ...prev, [selClientId]: [...(prev[selClientId] ?? []), newItem] }));
+      setItemName(''); setItemNote('');
+    } catch (e) { setErr(e.message); }
+    setBusy(false);
+  };
+
+  const removeItem = async (itemId) => {
+    if (!selClientId || busy) return;
+    setBusy(true); setErr('');
+    try {
+      await window.ShapeProConsole.post(role, { action: 'removeItem', clientId: selClientId, itemId });
+      setItemsByClient(prev => ({ ...prev, [selClientId]: (prev[selClientId] ?? []).filter(i => i.id !== itemId) }));
+    } catch (e) { setErr(e.message); }
+    setBusy(false);
+  };
+
+  const inputStyle = {
+    width: '100%', boxSizing: 'border-box',
+    background: t.PAPER2, border: `1px solid ${t.RULE}`, borderRadius: 10,
+    padding: '10px 12px', fontFamily: t.MONO, fontSize: 12, color: t.INK,
+    outline: 'none', resize: 'none',
+  };
+  const btnStyle = (col = accent) => ({
+    padding: '10px 16px', borderRadius: 10, border: 'none', cursor: busy ? 'default' : 'pointer',
+    background: col, color: t.PAPER, fontFamily: t.MONO, fontWeight: 700,
+    fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: busy ? 0.6 : 1,
+  });
+
+  return (
+    <BSPage>
+      {/* Header */}
+      <div style={{ padding: `54px ${t.padX}px 14px`, borderBottom: `2px solid ${t.INK}` }}>
+        <BSEyebrow color={accent}>{isNutri ? 'Nutritionist Console' : 'Trainer Console'}</BSEyebrow>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: t.W.display, letterSpacing: '-0.04em', color: t.INK, marginTop: 4, lineHeight: 1 }}>
+          {isNutri ? 'Meal & Focus Hub' : 'Workout & Focus Hub'}
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ padding: `40px ${t.padX}px`, textAlign: 'center', fontFamily: t.MONO, fontSize: 11, color: t.INK50, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+          Loading…
+        </div>
+      ) : clients.length === 0 ? (
+        <div style={{ padding: `40px ${t.padX}px` }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>No clients yet</div>
+          <div style={{ fontFamily: t.SERIF || t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.5 }}>
+            Clients appear here once they book a session or subscribe.
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Client selector */}
+          <div style={{ padding: `14px ${t.padX}px 0` }}>
+            <BSEyebrow>Select client</BSEyebrow>
+            <button type="button" onClick={() => setDropdownOpen(o => !o)} style={{
+              marginTop: 6, width: '100%', background: t.PAPER2, border: `1px solid ${t.RULE}`,
+              borderRadius: 10, padding: '10px 14px', display: 'flex', justifyContent: 'space-between',
+              alignItems: 'center', cursor: 'pointer', color: t.INK,
+            }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em' }}>
+                {client?.name ?? 'Choose a client'}
+              </span>
+              <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, letterSpacing: '0.1em' }}>
+                {dropdownOpen ? '▲' : '▼'}
+              </span>
+            </button>
+            {dropdownOpen && (
+              <div style={{ border: `1px solid ${t.RULE}`, borderRadius: 10, marginTop: 4, overflow: 'hidden', background: t.PAPER }}>
+                {currentGroup.length > 0 && (
+                  <>
+                    <div style={{ padding: '6px 14px 4px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent, borderBottom: `1px solid ${t.RULE}` }}>Current</div>
+                    {currentGroup.map(c => (
+                      <button key={c.id} type="button" onClick={() => { setSelClientId(c.id); setDropdownOpen(false); }} style={{
+                        width: '100%', textAlign: 'left', padding: '10px 14px', borderBottom: `1px solid ${t.RULE}`,
+                        background: c.id === selClientId ? `${accent}18` : t.PAPER, border: 'none', cursor: 'pointer',
+                        fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK,
+                      }}>{c.name}</button>
+                    ))}
+                  </>
+                )}
+                {pastGroup.length > 0 && (
+                  <>
+                    <div style={{ padding: '6px 14px 4px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, borderBottom: `1px solid ${t.RULE}`, borderTop: currentGroup.length ? `1px solid ${t.RULE}` : 'none' }}>Past</div>
+                    {pastGroup.map(c => (
+                      <button key={c.id} type="button" onClick={() => { setSelClientId(c.id); setDropdownOpen(false); }} style={{
+                        width: '100%', textAlign: 'left', padding: '10px 14px', borderBottom: `1px solid ${t.RULE}`,
+                        background: c.id === selClientId ? `${t.INK}12` : t.PAPER, border: 'none', cursor: 'pointer',
+                        fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK70,
+                      }}>{c.name}</button>
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Snapshot stats */}
+          {snap && (
+            <div style={{ margin: `12px ${t.padX}px 0`, padding: 14, border: `1px solid ${t.RULE}`, borderRadius: 12, background: t.PAPER2 }}>
+              <BSEyebrow color={accent}>Latest snapshot</BSEyebrow>
+              <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px' }}>
+                {[
+                  { l: 'Weight', v: snap.weight_lb != null ? `${Number(snap.weight_lb).toFixed(1)} lb` : '—' },
+                  { l: 'Sleep', v: snap.sleep_hours != null ? `${Number(snap.sleep_hours).toFixed(1)} h` : '—' },
+                  { l: isNutri ? 'Protein' : 'Calories', v: isNutri
+                      ? (snap.protein_g != null ? `${Math.round(snap.protein_g)} g` : '—')
+                      : (snap.calories != null ? `${Math.round(snap.calories)} kcal` : '—') },
+                  { l: isNutri ? 'Calories' : 'Resting HR', v: isNutri
+                      ? (snap.calories != null ? `${Math.round(snap.calories)} kcal` : '—')
+                      : (snap.resting_hr != null ? `${snap.resting_hr} bpm` : '—') },
+                  ...(profile?.age != null ? [{ l: 'Age', v: String(profile.age) }] : []),
+                  ...(profile?.focus ? [{ l: 'Goal', v: String(profile.focus).slice(0, 24) }] : []),
+                ].map(m => (
+                  <div key={m.l}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{m.l}</div>
+                    <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: t.W.display, letterSpacing: '-0.03em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{m.v}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Focus banner */}
+          <div style={{ padding: `14px ${t.padX}px 0` }}>
+            <BSEyebrow>Focus message</BSEyebrow>
+            <textarea
+              rows={3}
+              value={focusText}
+              onChange={e => setFocusText(e.target.value)}
+              placeholder={isNutri ? 'e.g. Hit 140 g protein every day this week' : 'e.g. Focus on hip hinge pattern this week'}
+              style={{ ...inputStyle, marginTop: 6 }}
+            />
+            <button type="button" onClick={sendFocus} disabled={busy || !focusText.trim()} style={{ ...btnStyle(), marginTop: 8 }}>
+              Send focus
+            </button>
+          </div>
+
+          {/* Pushed items */}
+          <div style={{ padding: `14px ${t.padX}px 0` }}>
+            <BSEyebrow>{isNutri ? 'Pushed meals' : 'Pushed exercises'}</BSEyebrow>
+            {items.length === 0 ? (
+              <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 11, color: t.INK50, letterSpacing: '0.08em' }}>
+                {isNutri ? 'No meals pushed yet.' : 'No exercises pushed yet.'}
+              </div>
+            ) : (
+              <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {items.map(item => (
+                  <div key={item.id} style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+                    padding: '10px 12px', background: t.PAPER2, border: `1px solid ${t.RULE}`, borderRadius: 10,
+                  }}>
+                    <div>
+                      <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{item.name}</div>
+                      {item.note && <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 10, color: t.INK50, letterSpacing: '0.06em' }}>{item.note}</div>}
+                    </div>
+                    <button type="button" onClick={() => removeItem(item.id)} style={{
+                      border: 'none', background: 'none', cursor: 'pointer', padding: 4,
+                      fontFamily: t.MONO, fontSize: 10, color: t.RUST, letterSpacing: '0.1em', textTransform: 'uppercase',
+                    }}>Remove</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add item form */}
+            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <input
+                type="text"
+                value={itemName}
+                onChange={e => setItemName(e.target.value)}
+                placeholder={isNutri ? 'Meal name…' : 'Exercise name…'}
+                style={{ ...inputStyle }}
+              />
+              <input
+                type="text"
+                value={itemNote}
+                onChange={e => setItemNote(e.target.value)}
+                placeholder={isNutri ? 'Notes (optional)' : 'Sets / reps / cues (optional)'}
+                style={{ ...inputStyle }}
+              />
+              <button type="button" onClick={addItem} disabled={busy || !itemName.trim()} style={btnStyle()}>
+                {isNutri ? 'Push meal' : 'Push exercise'}
+              </button>
+            </div>
+          </div>
+
+          {err ? (
+            <div style={{ margin: `10px ${t.padX}px 0`, padding: '10px 12px', background: `${t.RUST}18`, border: `1px solid ${t.RUST}55`, borderRadius: 10, fontFamily: t.MONO, fontSize: 11, color: t.RUST }}>
+              {err}
+            </div>
+          ) : null}
+
+          <div style={{ height: 100 }} />
+        </>
+      )}
+    </BSPage>
   );
 }
 
