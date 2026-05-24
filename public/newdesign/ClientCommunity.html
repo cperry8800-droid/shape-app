@@ -252,7 +252,7 @@ function ClientCommunityPage() {
     );
   }
 
-  function ChannelsCard({ channels }) {
+  function ChannelsCard({ channels, meetups }) {
     const [query, setQuery] = React.useState("");
     const [filter, setFilter] = React.useState("all"); // all | joined | trending
     const [joinedMap, setJoinedMap] = React.useState(() => {
@@ -286,7 +286,7 @@ function ClientCommunityPage() {
 
     return (
       <Card>
-        <SectionTitle right={`${channels.length} CHANNELS`}>Channels</SectionTitle>
+        <SectionTitle right={`${channels.length} CH · ${(meetups || []).length} MTG`}>Channels & meetups</SectionTitle>
         <input
           type="search"
           value={query}
@@ -336,6 +336,33 @@ function ClientCommunityPage() {
         <div style={{ paddingTop: 14, marginTop: 6, borderTop: "1px solid rgba(242,237,228,0.08)" }}>
           <a href="Community.html?new-channel=1" style={{ display: "block", textAlign: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>+ NEW CHANNEL</a>
         </div>
+
+        {meetups && meetups.length > 0 && (
+          <div style={{ marginTop: 22, paddingTop: 20, borderTop: "1px solid rgba(242,237,228,0.12)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 500 }}>Upcoming meetups</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.1em", color: "rgba(242,237,228,0.55)" }}>{meetups.length} SCHEDULED</div>
+            </div>
+            {meetups.map((m, i) => (
+              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "11px 0", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.12em", color: TEAL_BRIGHT, marginBottom: 3 }}>{m.when}</div>
+                  <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.title}</div>
+                  <div style={{ fontSize: 11, color: "rgba(242,237,228,0.55)", marginTop: 2 }}>{m.sub}</div>
+                </div>
+                <button style={{
+                  fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.1em",
+                  padding: "6px 11px", borderRadius: 999, cursor: "pointer",
+                  background: m.rsvp ? "rgba(10,197,168,0.16)" : "rgba(242,237,228,0.04)",
+                  color: m.rsvp ? TEAL_BRIGHT : "rgba(242,237,228,0.7)",
+                  border: "1px solid " + (m.rsvp ? "rgba(10,197,168,0.3)" : "rgba(242,237,228,0.12)"),
+                  whiteSpace: "nowrap",
+                }}>{m.rsvp ? "GOING" : "RSVP"}</button>
+              </div>
+            ))}
+            <a href="Community.html?meetups=1" style={{ display: "block", textAlign: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginTop: 12, paddingTop: 10, borderTop: "1px solid rgba(242,237,228,0.08)" }}>VIEW ALL MEETUPS →</a>
+          </div>
+        )}
       </Card>
     );
   }
@@ -351,6 +378,11 @@ function ClientCommunityPage() {
     { name: "newbie",           members: 1567, lastMsg: "first squat day — terrified",                at: "8h",   joined: false, unread: 0                  },
     { name: "meal-prep",        members: 920, lastMsg: "sunday batch cook → 12 meals",                at: "yest", joined: false, unread: 0                  },
     { name: "shape-radio",      members: 234, lastMsg: "live show in 20: deload weeks explained",     at: "9h",   joined: false, unread: 0                  },
+  ];
+  const meetups = [
+    { when: "SAT 6:30AM", title: "Prospect Park Long Run",      sub: "24 going · 12 from your borough",  rsvp: true  },
+    { when: "TUE 7:00PM", title: "Form check drop-in (Zoom)",   sub: "with Maya Okafor",                  rsvp: false },
+    { when: "APR 27",     title: "Brooklyn Half",               sub: "8 Shape runners confirmed",         rsvp: false },
   ];
   return (
     <DashPage
@@ -412,7 +444,7 @@ function ClientCommunityPage() {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <ChannelsCard channels={channels} />
+          <ChannelsCard channels={channels} meetups={meetups} />
         </div>
       </div>
       <ChatWidget tabs={clientChatTabs} />
