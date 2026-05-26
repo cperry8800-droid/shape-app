@@ -15,7 +15,7 @@ function AboutHero() {
           for <em style={{ fontStyle: "italic", fontWeight: 600, color: "transparent", WebkitTextStroke: `1.4px ${INK}` }}>shaping</em> a lifestyle.
         </h1>
         <p style={{ fontFamily: sans, fontSize: 19, color: "rgba(242,237,228,0.74)", margin: "36px auto 0", maxWidth: 720, lineHeight: 1.65 }}>
-          Shape isn't just a fitness app or platform. It's a place to shape your lifestyle — your routines, your meals, your music, your mindset, your community. The workouts are part of it. So are the people you cook beside, the playlists that get you out the door, the habits you finally make stick, and the coach who picks up the phone when you need one.
+          Shape isn't just a fitness app or platform. It's a place to shape — your routines, your meals, your music, your mindset, your community. The workouts are part of it. So are the people you cook beside, the playlists that get you out the door, the habits you finally make stick, and the coach who picks up the phone when you need one.
         </p>
       </div>
     </section>
