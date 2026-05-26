@@ -173,12 +173,21 @@ function AboutCTA() {
 
 function AboutPage() {
   return (
-    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh" }}>
-      <Header active="About" />
-      <AboutHero />
-      <AboutLetter />
-      <Footer />
-    </div>
+    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative", overflow: "hidden" }}>
+      {/* Spotlight gradient — soft cream glow behind the letter column. */}
+      <div aria-hidden style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 0,
+        background: `radial-gradient(ellipse 46% 70% at 50% 40%, rgba(242,237,228,0.08) 0%, rgba(242,237,228,0.04) 35%, transparent 70%)`,
+        pointerEvents: "none",
+      }} />
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <Header active="About" />
+        <AboutHero />
+        <AboutLetter />
+        <Footer />
+      </div>
   );
 }
 
