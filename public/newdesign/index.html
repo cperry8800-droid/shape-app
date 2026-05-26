@@ -50,7 +50,30 @@
   @media(prefers-reduced-motion:reduce){
     .site-bg .sb{animation:none!important}
   }
-  body > *:not(.site-bg){position:relative;z-index:1}
+  body > *:not(.site-bg):not(.site-contours){position:relative;z-index:1}
+
+  /* Topographic contour layer — thin teal route-map lines drifting slowly
+     over the gradient blobs. Stays well behind content. */
+  .site-contours{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:0.18;mix-blend-mode:screen}
+  .site-contours svg{width:100%;height:100%;display:block}
+  .site-contours .c1{animation:contour-a 60s linear infinite}
+  .site-contours .c2{animation:contour-b 80s linear infinite}
+  .site-contours .c3{animation:contour-c 70s linear infinite}
+  @keyframes contour-a{
+    from{transform:translate(0,0)}
+    to{transform:translate(40px,-30px)}
+  }
+  @keyframes contour-b{
+    from{transform:translate(0,0)}
+    to{transform:translate(-50px,40px)}
+  }
+  @keyframes contour-c{
+    from{transform:translate(0,0)}
+    to{transform:translate(30px,50px)}
+  }
+  @media(prefers-reduced-motion:reduce){
+    .site-contours .c1,.site-contours .c2,.site-contours .c3{animation:none!important}
+  }
   a{color:inherit;text-decoration:none}img{display:block;max-width:100%}
   button{font-family:inherit;cursor:pointer;border:0;background:none}
   ::selection{background:var(--teal);color:var(--ink-d)}
@@ -252,6 +275,25 @@
   <span class="sb sb1"></span>
   <span class="sb sb2"></span>
   <span class="sb sb3"></span>
+</div>
+<div class="site-contours" aria-hidden="true">
+  <svg viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
+    <g class="c1" fill="none" stroke="#0ac5a8" stroke-width="1.2">
+      <path d="M -50,200 C 200,160 400,260 650,220 S 1100,170 1350,240 S 1700,210 1700,210"/>
+      <path d="M -50,260 C 220,220 420,320 670,280 S 1120,230 1370,300 S 1700,270 1700,270"/>
+      <path d="M -50,320 C 240,280 440,380 690,340 S 1140,290 1390,360 S 1700,330 1700,330"/>
+      <path d="M -50,380 C 260,340 460,440 710,400 S 1160,350 1410,420 S 1700,390 1700,390"/>
+    </g>
+    <g class="c2" fill="none" stroke="#2ee0c4" stroke-width="1">
+      <path d="M -50,720 C 220,680 460,780 720,740 S 1180,690 1420,760 S 1700,730 1700,730"/>
+      <path d="M -50,780 C 240,740 480,840 740,800 S 1200,750 1440,820 S 1700,790 1700,790"/>
+      <path d="M -50,840 C 260,800 500,900 760,860 S 1220,810 1460,880 S 1700,850 1700,850"/>
+    </g>
+    <g class="c3" fill="none" stroke="#d2693f" stroke-width="0.9" opacity="0.6">
+      <path d="M -50,500 C 200,460 460,560 700,520 S 1140,470 1380,540 S 1700,510 1700,510"/>
+      <path d="M -50,560 C 220,520 480,620 720,580 S 1160,530 1400,600 S 1700,570 1700,570"/>
+    </g>
+  </svg>
 </div>
 <div id="shape-intro" aria-hidden="true">
   <span class="ib t"></span><span class="ib r"></span>
