@@ -132,7 +132,7 @@ function Spotlight({ tab }) {
   const s = SPOTLIGHT[tab];
   const activeBoost = useActiveLeadBoost(tab === "Trainer" ? "trainer" : "nutritionist");
   return (
-    <section style={{ padding: "80px 72px 24px" }}>
+    <section style={{ padding: "40px 72px 24px" }}>
       <MkReveal>
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 30, flexWrap: "wrap", gap: 16 }}>
