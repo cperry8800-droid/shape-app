@@ -219,10 +219,10 @@ function Reassurance() {
   return (
     <section style={{ padding: "20px 72px 130px", position: "relative", zIndex: 2 }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", borderTop: "1px solid rgba(242,237,228,0.1)", paddingTop: 56 }}>
-        <div className="shape-reassure-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 40 }}>
+        <div className="shape-reassure-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 40, justifyItems: "center", textAlign: "center" }}>
           {items.map((it) => (
-            <div key={it.k}>
-              <div style={{ fontFamily: serif, fontSize: it.k.length > 8 ? 38 : 56, letterSpacing: "-0.035em", fontWeight: 300, lineHeight: 1 }}>{it.k}</div>
+            <div key={it.k} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+              <div style={{ fontFamily: serif, fontSize: 48, letterSpacing: "-0.035em", fontWeight: 300, lineHeight: 1 }}>{it.k}</div>
               <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.56)", marginTop: 12, lineHeight: 1.5, maxWidth: 220 }}>{it.v}</div>
             </div>
           ))}
