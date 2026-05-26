@@ -56,7 +56,7 @@ function AboutLetter() {
     <section style={{ background: PAPER, color: INK, position: "relative", padding: "0 24px 140px" }}>
       <div style={{ maxWidth: 720, margin: "0 auto", position: "relative" }}>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(26px, 3vw, 38px)", letterSpacing: "-0.02em", fontWeight: 400, margin: "0 0 8px", lineHeight: 1.15, color: INK, textAlign: "center", fontStyle: "italic" }}>
-          Not just fitness — a way to <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>shape</em> a <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>lifestyle</em> you want.
+          <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>Fitness</em> is the entry point. Your <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>lifestyle</em> is the goal.
         </h2>
         <div style={{ display: "flex", justifyContent: "center", marginTop: 18, marginBottom: 48 }}>
           <span style={{ width: 24, height: 1, background: "rgba(242,237,228,0.25)" }} />
