@@ -32,16 +32,6 @@ const ROLES = [
     meta: "15% platform fee",
     perks: ["Plans + consults + subs", "Built-in macro tracking", "Weekly payouts"],
   },
-  {
-    key: "radio",
-    kicker: "Here for the vibes",
-    title: "Shape Radio",
-    blurb: "Stream curated, BPM-tagged workout mixes. Ad-free. When your coach sends a playlist for a workout or meal prep — it plays right here. Free with membership.",
-    cta: "Start listening",
-    href: "SignupClient.html",
-    meta: "Free with membership",
-    perks: ["Ad-free mixes", "BPM-tagged stations", "Offline downloads"],
-  },
 ];
 
 const REDUCED = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
