@@ -3,12 +3,12 @@
 
 function AboutHero() {
   return (
-    <section style={{ padding: "40px 72px 100px", position: "relative", overflow: "hidden", minHeight: "72vh", display: "flex", alignItems: "center" }}>
+    <section style={{ padding: "40px 72px 30px", position: "relative", overflow: "hidden", minHeight: "62vh", display: "flex", alignItems: "center" }}>
       <div aria-hidden style={{ position: "absolute", width: 620, height: 620, top: "-20%", right: "-8%", borderRadius: "50%", filter: "blur(85px)", opacity: 0.3, background: `radial-gradient(circle, ${TEAL}, transparent 70%)`, pointerEvents: "none" }} />
       <div style={{ maxWidth: 1100, margin: "0 auto", position: "relative", width: "100%", textAlign: "center" }}>
         <h1 style={{ fontFamily: serif, fontSize: "clamp(48px, 7vw, 104px)", letterSpacing: "-0.04em", fontWeight: 300, margin: 0, lineHeight: 0.94, color: INK }}>
           A community<br />
-          for <em style={{ fontStyle: "italic", fontWeight: 600, color: "transparent", WebkitTextStroke: `1.4px ${INK}` }}>shaping</em> a lifestyle.
+          for <em style={{ fontStyle: "italic", fontWeight: 600, color: "transparent", WebkitTextStroke: `1.4px ${TEAL}` }}>shaping</em> a lifestyle.
         </h1>
         <p style={{ fontFamily: sans, fontSize: 19, color: "rgba(242,237,228,0.74)", margin: "36px auto 0", maxWidth: 720, lineHeight: 1.65 }}>
           Shape isn't just a fitness app or platform. It's where your trainer loads tomorrow's workout tonight, your nutritionist's meal plan turns into a grocery list, and the playlist attached to leg day starts playing the moment you open the card. Every workout you complete, every habit you build or stop, every day you show up — your Shape Score is keeping track. The more consistent you are, the higher your status climbs. The community isn't a forum — it's the people in your loop. Shape is where your lifestyle actually takes shape.
@@ -48,7 +48,7 @@ function AboutLetter() {
     padding: "10px 0",
   };
   return (
-    <section style={{ background: PAPER, color: INK, position: "relative", padding: "120px 24px 140px" }}>
+    <section style={{ background: PAPER, color: INK, position: "relative", padding: "40px 24px 140px" }}>
       <div style={{ maxWidth: 720, margin: "0 auto", position: "relative" }}>
         <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL_BRIGHT, marginBottom: 18, textAlign: "center" }}>Why Shape exists</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(38px, 5.6vw, 76px)", letterSpacing: "-0.03em", fontWeight: 300, margin: "0 0 8px", lineHeight: 1.0, color: INK, textAlign: "center" }}>
@@ -173,12 +173,21 @@ function AboutCTA() {
 
 function AboutPage() {
   return (
-    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh" }}>
-      <Header active="About" />
-      <AboutHero />
-      <AboutLetter />
-      <Footer />
-    </div>
+    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative", overflow: "hidden" }}>
+      {/* Spotlight gradient — soft cream glow behind the letter column. */}
+      <div aria-hidden style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 0,
+        background: `radial-gradient(ellipse 46% 70% at 50% 40%, rgba(242,237,228,0.08) 0%, rgba(242,237,228,0.04) 35%, transparent 70%)`,
+        pointerEvents: "none",
+      }} />
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <Header active="About" />
+        <AboutHero />
+        <AboutLetter />
+        <Footer />
+      </div>
   );
 }
 
