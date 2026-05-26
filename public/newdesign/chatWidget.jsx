@@ -251,6 +251,12 @@ function ChatWidget(props) {
     if (!text) return;
     dirtyRef.current = true;
     const stamp = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+    // Snapshot the conversationId from the active thread BEFORE mutation, so
+    // we know whether to round-trip through the API.
+    const activeThread = (threadsByTab[tabIdx] || [])[activeIdx];
+    const convId = activeThread && activeThread.conversationId;
+
     setThreadsByTab(prev => prev.map((ts, ti) => {
       if (ti !== tabIdx) return ts;
       return ts.map((t, i) => {
@@ -259,6 +265,19 @@ function ChatWidget(props) {
       });
     }));
     if (typeof forceText !== "string") setDraft("");
+
+    // DB-backed thread: POST the message and skip the fake-reply timer. The
+    // poll loop below will surface anything the other side sends back.
+    if (convId) {
+      fetch(`/api/conversations/${encodeURIComponent(convId)}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ body: text }),
+      }).catch(() => {});
+      return;
+    }
+
     setTyping(true);
     const replyDelay = isSupport ? 600 : 1200 + Math.random() * 900;
     setTimeout(() => {
@@ -276,6 +295,59 @@ function ChatWidget(props) {
       }));
     }, replyDelay);
   };
+
+  // Poll new messages for the active DB-backed thread while the widget is
+  // open. Cheap (≤500 row GET keyed by `since=`); only the active thread
+  // polls so background threads stay quiet.
+  const lastSeenRef = React.useRef({}); // { [conversationId]: ISOstring }
+  const myUserIdRef = React.useRef(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch("/api/me", { credentials: "same-origin" })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled) myUserIdRef.current = d && d.user ? d.user.id : null; })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  React.useEffect(() => {
+    if (!open) return;
+    const activeThread = (threadsByTab[tabIdx] || [])[activeIdx];
+    const convId = activeThread && activeThread.conversationId;
+    if (!convId) return;
+    let cancelled = false;
+    const fetchOnce = async () => {
+      const since = lastSeenRef.current[convId];
+      const url = `/api/conversations/${encodeURIComponent(convId)}/messages${since ? `?since=${encodeURIComponent(since)}` : ""}`;
+      try {
+        const res = await fetch(url, { credentials: "same-origin" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        if (data && data.me && !myUserIdRef.current) myUserIdRef.current = data.me;
+        const newRows = Array.isArray(data && data.messages) ? data.messages : [];
+        if (!newRows.length) return;
+        lastSeenRef.current[convId] = newRows[newRows.length - 1].created_at;
+        setThreadsByTab(prev => prev.map((ts, ti) => {
+          if (ti !== tabIdx) return ts;
+          return ts.map((t, i) => {
+            if (i !== activeIdx) return t;
+            const me = myUserIdRef.current;
+            const mapped = newRows.map(m => {
+              const ts2 = new Date(m.created_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+              const mine = m.sender_id === me;
+              return { who: mine ? "You" : t.who, t: m.body, time: ts2, me: mine };
+            });
+            const merged = since ? [...t.messages, ...mapped] : mapped;
+            const last = mapped[mapped.length - 1];
+            return { ...t, messages: merged, last: last ? `${last.me ? "You" : t.who}: ${last.t}` : t.last, time: "now" };
+          });
+        }));
+      } catch {}
+    };
+    fetchOnce();
+    const id = setInterval(fetchOnce, 8000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [open, tabIdx, activeIdx, threadsByTab]);
 
   const selectThread = (i) => {
     setActiveByTab(prev => prev.map((v, ti) => ti === tabIdx ? i : v));

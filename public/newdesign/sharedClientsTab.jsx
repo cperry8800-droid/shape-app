@@ -115,10 +115,11 @@ function SharedClientsTab({ role, onCountChange }) {
         const isAckBusy = busy[k] === 'ack';
         return (
           <div key={k} style={{ display: "grid", gridTemplateColumns: COLS, gap: 12, padding: "14px 4px", alignItems: "center", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.05)" }}>
-            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <a href={`${role === 'nutritionist' ? 'NutritionistClient' : 'TrainerClient'}.html?id=${encodeURIComponent(r.clientId)}`}
+               style={{ display: "flex", gap: 10, alignItems: "center", textDecoration: "none", color: "inherit", cursor: "pointer" }}>
               <div style={{ width: 28, height: 28, borderRadius: 999, background: "#efece6" }} />
               <span style={{ fontSize: 13.5, fontWeight: 500 }}>{r.clientName}</span>
-            </div>
+            </a>
             <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 0 }}>
               <div style={{ width: 24, height: 24, borderRadius: 999, background: "rgba(46,224,196,0.18)", border: "1px solid rgba(46,224,196,0.35)", flex: "none", overflow: "hidden" }}>
                 {r.counterpart.avatarUrl ? <img src={r.counterpart.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}
