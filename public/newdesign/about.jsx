@@ -72,21 +72,27 @@ function AboutLetter() {
 
   React.useEffect(() => {
     let raf;
-    const tick = () => {
+    const compute = () => {
       const el = wrapRef.current;
-      if (el) {
-        const r = el.getBoundingClientRect();
-        if (r.top <= 0 && r.bottom >= window.innerHeight) {
-          const prog = -r.top / (el.offsetHeight - window.innerHeight);
-          const idx = Math.min(
-            ABOUT_BEATS.length - 1,
-            Math.max(0, Math.floor(prog * ABOUT_BEATS.length))
-          );
-          setActive((cur) => (cur !== idx ? idx : cur));
-        }
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      // Clamp before / within / after the pinned stage.
+      let idx;
+      if (r.top > 0) {
+        idx = 0; // not reached yet — show the first beat
+      } else if (r.bottom < window.innerHeight) {
+        idx = ABOUT_BEATS.length - 1; // scrolled past — hold the last
+      } else {
+        const prog = -r.top / Math.max(1, el.offsetHeight - window.innerHeight);
+        idx = Math.min(
+          ABOUT_BEATS.length - 1,
+          Math.max(0, Math.floor(prog * ABOUT_BEATS.length))
+        );
       }
-      raf = requestAnimationFrame(tick);
+      setActive((cur) => (cur !== idx ? idx : cur));
     };
+    const tick = () => { compute(); raf = requestAnimationFrame(tick); };
+    compute(); // initial pass so beat 0 is correctly chosen on first paint
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, []);
@@ -195,7 +201,6 @@ function AboutPage() {
   return (
     <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh" }}>
       <Header active="About" />
-      <AboutHero />
       <AboutLetter />
       <AboutCTA />
       <Footer />
