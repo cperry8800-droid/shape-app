@@ -210,7 +210,6 @@ function LoginCard() {
               ["client", "Client"],
               ["trainer", "Trainer"],
               ["nutritionist", "Nutritionist"],
-              ["shape_radio", "Shape Radio"],
             ].map(([v, l]) => (
               <button key={v} type="button" onClick={() => setRole(v)} style={{
                 flex: 1,
