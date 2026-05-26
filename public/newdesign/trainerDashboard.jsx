@@ -4,11 +4,11 @@
 // Reusable sidebar. Renders a dashboard home href + nav items with active states.
 // navItems items: { label, count, active, href }
 // Note: the marketing top nav (Header from pageShell.jsx) is rendered above
-// this sidebar by DashPage/DashShell, so the sidebar starts below a fixed
-// 85px header. `top: 85` keeps the sticky position aligned with that header.
+// this sidebar by DashPage/DashShell. The fixed header is ~56px tall so the
+// sticky sidebar offsets by that amount to sit just below it.
 function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
   return (
-    <aside style={{ borderRight: "1px solid rgba(242,237,228,0.08)", padding: "20px 20px", display: "flex", flexDirection: "column", gap: 6, position: "sticky", top: 85, alignSelf: "start", background: "linear-gradient(180deg, rgba(242,237,228,0.025), rgba(242,237,228,0.01))" }}>
+    <aside style={{ borderRight: "1px solid rgba(242,237,228,0.08)", padding: "20px 20px", display: "flex", flexDirection: "column", gap: 6, position: "sticky", top: 56, alignSelf: "start", background: "linear-gradient(180deg, rgba(242,237,228,0.025), rgba(242,237,228,0.01))" }}>
       {navItems.map((n, i) => (
         <a key={i} href={n.href || "#"} style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",

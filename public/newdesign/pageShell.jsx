@@ -205,7 +205,9 @@ function Header({ active }) {
       <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 30%, ${RUST} 70%, transparent 100%)`, opacity: 0.5 }} />
       <ShapeMobileStyles />
       <div className="shape-header-inner" style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "10px 72px 10px 44px", gap: 32 }}>
-        <a href="index.html?home" style={{ flex: "none", display: "inline-flex", alignItems: "center" }}><Logo variant="white" size={64} /></a>
+        <a href="index.html?home" style={{ flex: "none", display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
+          <img src="/shape-logo-new-white.png?v=3" alt="Shape" style={{ height: 32, width: "auto", display: "block", objectFit: "contain" }} />
+        </a>
         <nav className="shape-nav-tabs" style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center", minWidth: 0 }}>
           {navGroupsFor(authUser).map(g => g.kind === "drop"
             ? <NavDropdown key={g.label} label={g.label} active={active} activeMatch={g.match} items={g.items} />
@@ -262,7 +264,7 @@ function Header({ active }) {
       </div>
       <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} active={active} authUser={authUser} onLogout={handleLogout} />
     </header>
-    <div aria-hidden className="shape-header-spacer" style={{ height: 85 }} />
+    <div aria-hidden className="shape-header-spacer" style={{ height: 56 }} />
     </>
   );
 }
@@ -340,7 +342,7 @@ function ShapeMobileStyles() {
       @media (max-width: 900px) {
         /* Header */
         .shape-header-inner { padding: 12px 18px !important; gap: 12px !important; }
-        .shape-header-spacer { height: 68px !important; }
+        .shape-header-spacer { height: 56px !important; }
         .shape-nav-tabs { display: none !important; }
         .shape-nav-auth { display: none !important; }
         .shape-nav-burger { display: inline-flex !important; }
