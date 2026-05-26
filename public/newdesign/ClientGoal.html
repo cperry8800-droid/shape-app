@@ -5,7 +5,7 @@
 <title>Goal · Shape</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>html,body{margin:0;padding:0;background:#1a1612}*{box-sizing:border-box}a{text-decoration:none;color:inherit}</style>
+<style>html,body{margin:0;padding:0;background:#1a1612}*{box-sizing:border-box}a{text-decoration:none;color:inherit}.cg-modal-scroll::-webkit-scrollbar{display:none}.cg-tpl-scroll::-webkit-scrollbar{display:none}</style>
 <script defer src="/_vercel/insights/script.js"></script></head>
 <body><div id="root"></div>
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
@@ -50,7 +50,7 @@ function Chip({ children, onClick, danger }) {
 function ModalShell({ title, eyebrow, onClose, children, footer }) {
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,8,6,0.7)", backdropFilter: "blur(6px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: PAPER, border: "1px solid rgba(242,237,228,0.1)", borderRadius: 14, padding: 28, width: "100%", maxWidth: 560, maxHeight: "90vh", overflowY: "auto" }}>
+      <div className="cg-modal-scroll" onClick={e => e.stopPropagation()} style={{ background: PAPER, border: "1px solid rgba(242,237,228,0.1)", borderRadius: 14, padding: 28, width: "100%", maxWidth: 560, maxHeight: "90vh", overflowY: "auto", scrollbarWidth: "none" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>{eyebrow}</div>
         <div style={{ fontFamily: serif, fontSize: 28, letterSpacing: "-0.02em", margin: "6px 0 20px", color: INK }}>{title}</div>
         {children}
@@ -170,13 +170,16 @@ function GoalEditModal({ goal, onClose, onSave, onDelete }) {
                   <button key={c.id} onClick={() => setActiveCat(c.id)} style={chipStyle(activeCat === c.id)}>{c.label}</button>
                 ))}
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, maxHeight: 220, overflowY: "auto" }}>
+              <div className="cg-tpl-scroll" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, maxHeight: 220, overflowY: "auto", scrollbarWidth: "none" }}>
                 {GOAL_TEMPLATES.filter(t => t.cat === activeCat).map((tpl, i) => (
                   <button key={i} onClick={() => pickTemplate(tpl)} style={{ textAlign: "left", background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", padding: "10px 12px", borderRadius: 8, cursor: "pointer", color: INK, fontFamily: sans }}>
                     <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>{tpl.t}</div>
                     <div style={{ fontSize: 11, color: "rgba(242,237,228,0.55)" }}>{tpl.sub} · ~{tpl.weeksOut} wks</div>
                   </button>
                 ))}
+                <button onClick={() => setShowTemplates(false)} style={{ gridColumn: "1 / -1", textAlign: "center", background: "rgba(10,197,168,0.08)", border: "1px dashed rgba(10,197,168,0.4)", padding: "12px 12px", borderRadius: 8, cursor: "pointer", color: "#2ee0c4", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase" }}>
+                  + Write a custom goal
+                </button>
               </div>
             </div>
           )}
