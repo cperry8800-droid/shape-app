@@ -235,12 +235,18 @@
 (function(){
   var el=document.getElementById('shape-intro');
   if(!el)return;
-  var rm=false,skip=false,seen=false;
+  var rm=false,skip=false,internal=false;
   try{rm=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;}catch(e){}
   try{skip=new URLSearchParams(location.search).has('home');}catch(e){}
-  try{seen=sessionStorage.getItem('shape.intro.seen')==='1';}catch(e){}
-  if(rm||skip||seen){if(el.parentNode)el.parentNode.removeChild(el);return;}
-  try{sessionStorage.setItem('shape.intro.seen','1');}catch(e){}
+  // Skip the splash on internal navigation (logo clicks etc.) but always
+  // run it on fresh / external / direct arrivals to the homepage.
+  try{
+    if(document.referrer){
+      var r=new URL(document.referrer);
+      if(r.origin===location.origin)internal=true;
+    }
+  }catch(e){}
+  if(rm||skip||internal){if(el.parentNode)el.parentNode.removeChild(el);return;}
   document.body.classList.add('intro-lock');
   var done=false;
   function end(){
