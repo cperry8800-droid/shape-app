@@ -153,10 +153,7 @@
   .ga-footer-cta { display: flex; flex-direction: column; align-items: center; gap: 10px; padding-bottom: 36px; text-align: center; }
   .ga-footer-cta img { height: 48px; width: auto; display: block; }
   .ga-footer-tag { font-family: var(--serif); font-size: 20px; font-style: italic; letter-spacing: -0.02em; color: var(--ink); }
-  .ga-footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 28px; padding-top: 30px; border-top: 1px solid var(--hairline); }
-  .ga-footer-brand { text-align: center; }
-  .ga-footer-brand img { height: 48px; width: auto; display: block; margin: 0 auto; }
-  .ga-footer-brand p { font-family: var(--sans); font-size: 12.5px; color: var(--ink-3); margin: 12px auto 0; max-width: 280px; line-height: 1.55; }
+  .ga-footer-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px; padding-top: 30px; border-top: 1px solid var(--hairline); justify-items: center; text-align: center; }
   .ga-footer-head { font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--teal); margin-bottom: 14px; }
   .ga-footer-grid > div > a { display: block; font-family: var(--sans); font-size: 12.5px; color: var(--ink-2); text-decoration: none; margin-bottom: 8px; transition: color .15s ease; }
   .ga-footer-grid > div > a:hover { color: var(--ink); }
@@ -164,7 +161,6 @@
   @media (max-width: 920px) {
     .ga-footer { padding: 32px 22px 24px; }
     .ga-footer-grid { grid-template-columns: 1fr 1fr; gap: 28px; padding-top: 28px; }
-    .ga-footer-brand { grid-column: 1 / -1; }
     .ga-footer-base { flex-direction: column; gap: 10px; align-items: flex-start; }
   }
 
@@ -252,10 +248,6 @@
       <div class="ga-footer-tag">Join the community</div>
     </div>
     <div class="ga-footer-grid">
-      <div class="ga-footer-brand">
-        <img src="/shape-logo-black.png" alt="Shape" />
-        <p>Real coaches. One marketplace. One platform.</p>
-      </div>
       <div>
         <div class="ga-footer-head">Product</div>
         <a href="/newdesign/Marketplace.html">Marketplace</a>

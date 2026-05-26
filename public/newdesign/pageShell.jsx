@@ -293,11 +293,7 @@ function Footer() {
           <img src="/shape-logo-new-white.png?v=3" alt="Shape" style={{ height: 96, width: "auto", display: "block" }} />
           <div style={{ fontFamily: serif, fontSize: 20, fontStyle: "italic", letterSpacing: "-0.02em", color: INK }}>Join the community</div>
         </div>
-        <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 28, paddingTop: 30, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
-          <div style={{ textAlign: "center" }}>
-            <img src="/shape-logo-new-white.png?v=3" alt="Shape" style={{ height: 96, width: "auto", display: "block", margin: "0 auto" }} />
-            <p style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.5)", margin: "12px auto 0", maxWidth: 280, lineHeight: 1.55 }}>Real coaches. One marketplace. One platform.</p>
-          </div>
+        <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 28, paddingTop: 30, borderTop: "1px solid rgba(242,237,228,0.1)", justifyItems: "center", textAlign: "center" }}>
           {[
             ["Product",      [["Marketplace", "Marketplace.html"], ["Shape Score", "Score.html"], ["Radio", "Radio.html"], ["Dashboard", "ClientDashboard.html"]]],
             ["For trainers", [["Apply", "SignupTrainer.html"], ["Payouts", "TrainerDashboard.html"], ["Programs", "TrainerPrograms.html"]]],
@@ -351,7 +347,6 @@ function ShapeMobileStyles() {
         /* Footer */
         .shape-footer { padding: 32px 22px 24px !important; }
         .shape-footer-grid { grid-template-columns: 1fr 1fr !important; gap: 28px !important; padding-top: 28px !important; }
-        .shape-footer-grid > div:first-child { grid-column: 1 / -1; }
         .shape-footer-base { flex-direction: column; gap: 10px; align-items: flex-start !important; }
 
         /* Typography — scale down the huge serif headlines used across the marketing pages.
