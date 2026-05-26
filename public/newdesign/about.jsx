@@ -35,16 +35,19 @@ function AboutLetter() {
             Shape is about exactly what its name suggests — shaping your life into what you want it to be. Your routines, your sleep, what you cook, the music that moves you, how you talk to yourself on hard days, the people you spend Saturday with. We built Shape to be the place where you can work on all of it, on your own terms.
           </p>
           <p style={{ margin: "0 0 22px" }}>
-            That starts with the coach. Having a great one shouldn't be a luxury. Most apps replace the coach with a chatbot; most gyms gate the good ones behind packages. We thought there was a better way: open the door for coaches who actually care, and make personal coaching affordable for the rest of us. The platform fee is flat. The coach is real. The rate is theirs.
+            That starts with the coach — and the nutritionist. Having great ones shouldn't be a luxury. Most apps replace them with chatbots; most gyms gate the good ones behind packages. We thought there was a better way: open the door for trainers, nutritionists, and registered dietitians who actually care, and make that level of guidance affordable for the rest of us. The platform fee is flat. The coach is real. The nutritionist is real. The rates are theirs.
           </p>
           <p style={{ margin: "0 0 22px" }}>
-            Then we built the rest of the loop around it: meal plans you actually follow, habits you actually stick to, a soundtrack that gets you out the door (that's Shape Radio), and a place to write down what you're shaping toward — strength, sleep, calm, confidence, a marathon, just feeling like yourself again. Structure when you need it. Discipline you build, not something handed down.
+            Then we built the rest of the loop around it: your nutritionist builds a meal plan around your specific goals — whether that's hitting a macro target, managing a dietary restriction, building around a health condition, or just eating better — and that plan turns into a grocery list you can actually shop from. Your dietitian tracks your progress and adjusts as your body changes. Habits you actually stick to. And a soundtrack that gets you out the door — that's Shape Radio, playing right on your workout card the moment you open it. As you show up — day after day, workout after workout, habit after habit — your Shape Score rises with you. It tracks your consistency, rewards your effort, and reflects the status you've actually earned. Not a vanity metric. A mirror.
           </p>
           <p style={{ margin: "0 0 22px" }}>
-            And then there's the part no app gets right: <em style={{ fontStyle: "italic", color: TEAL_BRIGHT, fontWeight: 500 }}>the community</em>. You can keep your journey private. Or you can share it — what you cooked, what you lifted, what your coach said this week — and have a community that actually shows up for you. Tips, recipes, recommendations, coaches worth trying. A whole feed of people figuring out the same things you are.
+            There's also a place to write down what you're shaping toward — strength, sleep, calm, confidence, a marathon, a specific body composition goal, just feeling like yourself again. Structure when you need it. Discipline you build, not something handed down.
+          </p>
+          <p style={{ margin: "0 0 22px" }}>
+            And then there's the part no app gets right: <em style={{ fontStyle: "italic", color: TEAL_BRIGHT, fontWeight: 500 }}>the community</em>. You can keep your journey private. Or you can share it — what you cooked, what your nutritionist recommended this week, what you lifted, what your coach said — and have a community that actually shows up for you. Tips, recipes, nutrition advice, coaches and dietitians worth trying. A whole feed of people figuring out the same things you are.
           </p>
           <p style={{ margin: 0 }}>
-            That's it. Shape is the place where you find the coach, build the habits, hear the music, and meet the people. The rest is just showing up.
+            That's it. Shape is the place where you find the coach, work with the nutritionist, build the habits, earn your score, hear the music, and meet the people. The rest is just showing up.
           </p>
         </div>
       </div>
