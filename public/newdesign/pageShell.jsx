@@ -289,8 +289,8 @@ function Footer() {
     <footer className="shape-footer" style={{ position: "relative", padding: "56px 72px 36px", background: INK_DEEP, color: INK }}>
       <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 30%, ${RUST} 70%, transparent 100%)`, opacity: 0.55 }} />
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
-        <div className="shape-footer-cta" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, paddingBottom: 36, textAlign: "center" }}>
-          <img src="/shape-text-white.svg" alt="Shape" style={{ height: 36, width: "auto", display: "block", margin: "0 auto" }} />
+        <div className="shape-footer-cta" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, paddingBottom: 36, textAlign: "center" }}>
+          <img src="/shape-logo-new-white.png?v=3" alt="Shape" style={{ height: 80, width: "auto", display: "block", margin: "0 auto", objectFit: "contain" }} />
           <div style={{ fontFamily: serif, fontSize: 20, fontStyle: "italic", letterSpacing: "-0.02em", color: INK }}>Join the community</div>
         </div>
         <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 28, paddingTop: 30, borderTop: "1px solid rgba(242,237,228,0.1)", justifyItems: "center", textAlign: "center" }}>
