@@ -102,26 +102,6 @@ function AboutPillars() {
   );
 }
 
-function AboutStats() {
-  const stats = [
-    { k: "$5", l: "flat platform fee — that's it" },
-    { k: "100%", l: "vetted before going live" },
-    { k: "0", l: "lock-in. Cancel anytime." },
-  ];
-  return (
-    <section style={{ padding: "30px 72px 100px" }}>
-      <div style={{ maxWidth: 1100, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 40, justifyItems: "center", textAlign: "center" }}>
-        {stats.map((s) => (
-          <div key={s.k} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-            <div style={{ fontFamily: serif, fontSize: 56, letterSpacing: "-0.035em", fontWeight: 300, lineHeight: 1, color: INK }}>{s.k}</div>
-            <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)", marginTop: 12, lineHeight: 1.55, maxWidth: 220 }}>{s.l}</div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 function AboutCTA() {
   return (
     <section style={{ padding: "40px 72px 140px" }}>
@@ -148,7 +128,6 @@ function AboutPage() {
       <AboutHero />
       <AboutLetter />
       <AboutPillars />
-      <AboutStats />
       <AboutCTA />
       <Footer />
     </div>
