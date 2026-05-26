@@ -181,7 +181,6 @@ function AboutPage() {
       <Header active="About" />
       <AboutHero />
       <AboutLetter />
-      <AboutCTA />
       <Footer />
     </div>
   );
