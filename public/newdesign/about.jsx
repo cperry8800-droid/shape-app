@@ -68,6 +68,7 @@ const ABOUT_BEATS = [
 
 function AboutLetter() {
   const [active, setActive] = React.useState(0);
+  const [pinned, setPinned] = React.useState(false);
   const wrapRef = React.useRef(null);
 
   React.useEffect(() => {
@@ -76,13 +77,12 @@ function AboutLetter() {
       const el = wrapRef.current;
       if (!el) return;
       const r = el.getBoundingClientRect();
-      // Clamp before / within / after the pinned stage.
+      const inRange = r.top <= 0 && r.bottom >= window.innerHeight;
+      setPinned((cur) => (cur !== inRange ? inRange : cur));
       let idx;
-      if (r.top > 0) {
-        idx = 0; // not reached yet — show the first beat
-      } else if (r.bottom < window.innerHeight) {
-        idx = ABOUT_BEATS.length - 1; // scrolled past — hold the last
-      } else {
+      if (r.top > 0) idx = 0;
+      else if (r.bottom < window.innerHeight) idx = ABOUT_BEATS.length - 1;
+      else {
         const prog = -r.top / Math.max(1, el.offsetHeight - window.innerHeight);
         idx = Math.min(
           ABOUT_BEATS.length - 1,
@@ -92,19 +92,34 @@ function AboutLetter() {
       setActive((cur) => (cur !== idx ? idx : cur));
     };
     const tick = () => { compute(); raf = requestAnimationFrame(tick); };
-    compute(); // initial pass so beat 0 is correctly chosen on first paint
+    compute();
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, []);
 
+  // Position the stage:
+  //   - before the wrapper is reached → absolute top:0 (anchored to top of section)
+  //   - while pinned → fixed (covers viewport)
+  //   - after scrolled past → absolute bottom:0 (anchored to end)
+  const wrapEl = wrapRef.current;
+  let stagePos = { position: "absolute", top: 0, left: 0, right: 0, height: "100vh" };
+  if (pinned) {
+    stagePos = { position: "fixed", top: 0, left: 0, right: 0, height: "100vh" };
+  } else if (wrapEl) {
+    const r = wrapEl.getBoundingClientRect();
+    if (r.bottom < window.innerHeight) {
+      stagePos = { position: "absolute", bottom: 0, left: 0, right: 0, height: "100vh" };
+    }
+  }
+
   return (
-    <section style={{ background: INK, color: PAPER, position: "relative" }}>
+    <section style={{ background: PAPER, color: INK, position: "relative" }}>
       <div ref={wrapRef} style={{ height: `${ABOUT_BEATS.length * 75}vh`, position: "relative" }}>
-        <div style={{ position: "sticky", top: 0, height: "100vh", display: "grid", placeItems: "center", overflow: "hidden" }}>
-          {/* Persistent eyebrow + chapter counter (below the fixed nav) */}
+        <div style={{ ...stagePos, display: "grid", placeItems: "center", overflow: "hidden" }}>
+          {/* Persistent eyebrow + chapter counter */}
           <div style={{ position: "absolute", top: 112, left: 0, right: 0, display: "flex", justifyContent: "space-between", alignItems: "center", maxWidth: 1240, margin: "0 auto", padding: "0 72px" }}>
-            <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL }}>Why Shape exists</div>
-            <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.18em", color: "rgba(26,22,18,0.5)" }}>{String(active + 1).padStart(2, "0")} / {String(ABOUT_BEATS.length).padStart(2, "0")}</div>
+            <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL_BRIGHT }}>Why Shape exists</div>
+            <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.18em", color: "rgba(242,237,228,0.5)" }}>{String(active + 1).padStart(2, "0")} / {String(ABOUT_BEATS.length).padStart(2, "0")}</div>
           </div>
 
           {/* All beats stacked; only the active one is opaque */}
@@ -112,10 +127,10 @@ function AboutLetter() {
             <div key={i} style={{ position: "absolute", inset: 0, display: "grid", alignItems: "start", justifyItems: "center", padding: "180px 72px 120px", opacity: i === active ? 1 : 0, transition: "opacity .5s ease, transform .5s ease", transform: i === active ? "translateY(0)" : (i < active ? "translateY(-16px)" : "translateY(16px)"), pointerEvents: i === active ? "auto" : "none" }}>
               <div style={{ maxWidth: 900, textAlign: "center" }}>
                 <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.28em", textTransform: "uppercase", color: TEAL_BRIGHT, marginBottom: 18 }}>{b.ix}</div>
-                <h2 className="about-beat-h" style={{ fontFamily: serif, fontSize: "clamp(36px, 5.6vw, 80px)", letterSpacing: "-0.035em", fontWeight: 300, margin: 0, lineHeight: 1.0, color: PAPER }}>
+                <h2 className="about-beat-h" style={{ fontFamily: serif, fontSize: "clamp(36px, 5.6vw, 80px)", letterSpacing: "-0.035em", fontWeight: 300, margin: 0, lineHeight: 1.0, color: INK }}>
                   {b.h}
                 </h2>
-                <p style={{ marginTop: 24, maxWidth: 600, marginLeft: "auto", marginRight: "auto", color: "rgba(26,22,18,0.78)", fontSize: 17, lineHeight: 1.65, fontFamily: sans }}>{b.p}</p>
+                <p style={{ marginTop: 24, maxWidth: 600, marginLeft: "auto", marginRight: "auto", color: "rgba(242,237,228,0.72)", fontSize: 17, lineHeight: 1.65, fontFamily: sans }}>{b.p}</p>
               </div>
             </div>
           ))}
@@ -123,7 +138,7 @@ function AboutLetter() {
           {/* Progress dots */}
           <div style={{ position: "absolute", bottom: 56, left: 0, right: 0, display: "flex", justifyContent: "center", gap: 8 }}>
             {ABOUT_BEATS.map((_, i) => (
-              <span key={i} style={{ width: i === active ? 22 : 8, height: 4, borderRadius: 4, background: i === active ? TEAL_BRIGHT : "rgba(26,22,18,0.25)", transition: "width .25s ease, background .25s ease" }} />
+              <span key={i} style={{ width: i === active ? 22 : 8, height: 4, borderRadius: 4, background: i === active ? TEAL_BRIGHT : "rgba(242,237,228,0.22)", transition: "width .25s ease, background .25s ease" }} />
             ))}
           </div>
         </div>
