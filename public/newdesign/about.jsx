@@ -115,10 +115,6 @@ function AboutCTA() {
         <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.6)", maxWidth: 560, margin: "20px auto 0", lineHeight: 1.6 }}>
           Find your coach, set your goals, hear the music, meet the people. The rest is just showing up.
         </p>
-        <div style={{ marginTop: 36, display: "flex", gap: 14, flexWrap: "wrap", justifyContent: "center" }}>
-          <a href="Marketplace.html" style={{ padding: "16px 30px", borderRadius: 2, background: TEAL, color: PAPER, fontFamily: sans, fontSize: 14.5, fontWeight: 600, textDecoration: "none" }}>Find your coach →</a>
-          <a href="SignupTrainer.html" style={{ padding: "16px 30px", borderRadius: 2, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", fontFamily: sans, fontSize: 14.5, fontWeight: 600, textDecoration: "none" }}>Apply as a coach</a>
-        </div>
       </div>
     </section>
   );
