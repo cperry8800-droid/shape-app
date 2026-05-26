@@ -11,7 +11,7 @@ const LOGIN_DESTS = {
 function LoginMark() {
   return (
     <a href="Landing.html" aria-label="Shape home" style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
-      <Logo variant="white" size={50} />
+      <Logo variant="white" size={28} />
     </a>
   );
 }
