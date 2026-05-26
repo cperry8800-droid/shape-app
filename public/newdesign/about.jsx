@@ -186,6 +186,64 @@ function AboutPage() {
         background: `radial-gradient(ellipse 46% 70% at 50% 40%, rgba(242,237,228,0.08) 0%, rgba(242,237,228,0.04) 35%, transparent 70%)`,
         pointerEvents: "none",
       }} />
+      {/* Giant faded S letterform — magazine feature backdrop. */}
+      <div aria-hidden style={{
+        position: "fixed",
+        top: "12%",
+        right: "-6%",
+        zIndex: 0,
+        fontFamily: serif,
+        fontSize: "70vh",
+        fontWeight: 300,
+        fontStyle: "italic",
+        color: "transparent",
+        WebkitTextStroke: `1.2px rgba(10,197,168,0.06)`,
+        lineHeight: 0.85,
+        letterSpacing: "-0.08em",
+        pointerEvents: "none",
+        userSelect: "none",
+      }}>S</div>
+      <div aria-hidden style={{
+        position: "fixed",
+        bottom: "8%",
+        left: "-4%",
+        zIndex: 0,
+        fontFamily: serif,
+        fontSize: "55vh",
+        fontWeight: 300,
+        fontStyle: "italic",
+        color: "transparent",
+        WebkitTextStroke: `1px rgba(210,105,63,0.05)`,
+        lineHeight: 0.85,
+        letterSpacing: "-0.08em",
+        pointerEvents: "none",
+        userSelect: "none",
+      }}>&</div>
+      {/* Film grain — fine SVG noise. */}
+      <svg aria-hidden xmlns="http://www.w3.org/2000/svg" style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 0,
+        width: "100%",
+        height: "100%",
+        opacity: 0.06,
+        pointerEvents: "none",
+        mixBlendMode: "overlay",
+      }}>
+        <filter id="aboutNoise">
+          <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch" />
+          <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.55 0" />
+        </filter>
+        <rect width="100%" height="100%" filter="url(#aboutNoise)" />
+      </svg>
+      {/* Hairline column rules — editorial column guides, very faint. */}
+      <div aria-hidden style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 0,
+        pointerEvents: "none",
+        background: "repeating-linear-gradient(to right, transparent 0, transparent calc(50% - 380px), rgba(242,237,228,0.04) calc(50% - 380px), rgba(242,237,228,0.04) calc(50% - 379px), transparent calc(50% - 379px), transparent calc(50% + 379px), rgba(242,237,228,0.04) calc(50% + 379px), rgba(242,237,228,0.04) calc(50% + 380px), transparent calc(50% + 380px))",
+      }} />
       <div style={{ position: "relative", zIndex: 1 }}>
         <Header active="About" />
         <AboutHero />
