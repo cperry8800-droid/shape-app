@@ -64,13 +64,12 @@ function AboutMission() {
 function AboutStats() {
   const stats = [
     { k: "$5", l: "flat platform fee — that's it" },
-    { k: "85%", l: "of every dollar goes to coaches" },
     { k: "100%", l: "vetted before going live" },
     { k: "0", l: "lock-in. Cancel anytime." },
   ];
   return (
     <section style={{ padding: "100px 72px" }}>
-      <div style={{ maxWidth: 1100, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 40, justifyItems: "center", textAlign: "center" }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 40, justifyItems: "center", textAlign: "center" }}>
         {stats.map((s) => (
           <div key={s.k} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
             <div style={{ fontFamily: serif, fontSize: 56, letterSpacing: "-0.035em", fontWeight: 300, lineHeight: 1, color: INK }}>{s.k}</div>
