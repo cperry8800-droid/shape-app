@@ -3,7 +3,7 @@
 
 function AboutHero() {
   return (
-    <section style={{ padding: "40px 72px 100px", position: "relative", overflow: "hidden", minHeight: "72vh", display: "flex", alignItems: "center" }}>
+    <section style={{ padding: "40px 72px 30px", position: "relative", overflow: "hidden", minHeight: "62vh", display: "flex", alignItems: "center" }}>
       <div aria-hidden style={{ position: "absolute", width: 620, height: 620, top: "-20%", right: "-8%", borderRadius: "50%", filter: "blur(85px)", opacity: 0.3, background: `radial-gradient(circle, ${TEAL}, transparent 70%)`, pointerEvents: "none" }} />
       <div style={{ maxWidth: 1100, margin: "0 auto", position: "relative", width: "100%", textAlign: "center" }}>
         <h1 style={{ fontFamily: serif, fontSize: "clamp(48px, 7vw, 104px)", letterSpacing: "-0.04em", fontWeight: 300, margin: 0, lineHeight: 0.94, color: INK }}>
@@ -48,7 +48,7 @@ function AboutLetter() {
     padding: "10px 0",
   };
   return (
-    <section style={{ background: PAPER, color: INK, position: "relative", padding: "120px 24px 140px" }}>
+    <section style={{ background: PAPER, color: INK, position: "relative", padding: "40px 24px 140px" }}>
       <div style={{ maxWidth: 720, margin: "0 auto", position: "relative" }}>
         <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL_BRIGHT, marginBottom: 18, textAlign: "center" }}>Why Shape exists</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(38px, 5.6vw, 76px)", letterSpacing: "-0.03em", fontWeight: 300, margin: "0 0 8px", lineHeight: 1.0, color: INK, textAlign: "center" }}>
