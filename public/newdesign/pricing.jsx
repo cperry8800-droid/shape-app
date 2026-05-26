@@ -212,7 +212,6 @@ function PricingPage() {
         <PricingCard />
         <PricingCoaches />
         <PricingFAQ />
-        <PricingCTA />
         <Footer />
       </div>
       <style>{`

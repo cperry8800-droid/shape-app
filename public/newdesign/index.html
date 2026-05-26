@@ -310,7 +310,7 @@
 </div></section>
 
 <section class="sec" id="market"><div class="wrap" style="max-width:1440px">
-  <div class="shead"><h2>The <b>Expert Marketplace</b></h2><div class="s">1,200+ vetted coaches · browse free before you pay</div></div>
+  <div class="shead"><h2>The <b>Expert Marketplace</b></h2><div class="s" id="mk-stats">Browse free before you pay</div></div>
   <div class="gal" id="gal"></div>
   <div style="text-align:center;margin-top:46px"><a class="b g" href="Marketplace.html">Browse all coaches →</a></div>
 </div></section>
@@ -489,6 +489,17 @@
       nauth.insertBefore(out,radio);
     })
     .catch(function(){});
+})();
+</script>
+<script>
+(function(){
+  var el=document.getElementById('mk-stats');if(!el)return;
+  fetch('/api/marketplace-stats').then(function(r){return r.ok?r.json():null;}).then(function(d){
+    if(!d)return;
+    var t=d.trainers||0,n=d.nutritionists||0;
+    if(!t&&!n)return;
+    el.textContent=t.toLocaleString()+' trainers · '+n.toLocaleString()+' nutritionists · browse free before you pay';
+  }).catch(function(){});
 })();
 </script>
 <script src="globalChatButton.js" defer></script>
