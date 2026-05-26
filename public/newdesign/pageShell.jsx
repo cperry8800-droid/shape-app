@@ -38,7 +38,7 @@ function NavDropdown({ label, items, active, activeMatch }) {
   const isActive = activeMatch.includes(active);
   return (
     <div style={{ position: "relative", display: "inline-flex", alignItems: "center", height: "100%" }} onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
-      <a style={{ fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: isActive ? "#f5efe1" : "rgba(245,239,225,0.66)", fontFamily: mono, fontWeight: 400, cursor: "default", display: "inline-flex", alignItems: "center", gap: 5, lineHeight: 1 }}>
+      <a style={{ fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: isActive ? "#f5efe1" : "rgba(245,239,225,0.66)", fontFamily: mono, fontWeight: 400, cursor: "default", display: "inline-flex", alignItems: "center", gap: 5, lineHeight: 1 }}>
         {label}<span style={{ fontSize: 9, opacity: 0.6, lineHeight: 1 }}>▾</span>
       </a>
       {open && (
@@ -64,7 +64,6 @@ const SHAPE_NAV_GROUPS = [
   { kind: "link", label: "Marketplace", href: "Marketplace.html" },
   { kind: "link", label: "Community", href: "Community.html" },
   { kind: "drop", label: "Rewards", match: ["Rewards", "Shape Score", "Store"], items: [["Shape Score", "Score.html"], ["Shape Store", "Store.html"]] },
-  { kind: "link", label: "Radio", href: "Radio.html" },
   { kind: "link", label: "App", href: "GetApp.html" },
   { kind: "link", label: "Pricing", href: "Pricing.html" },
 ];
@@ -198,16 +197,16 @@ function Header({ active }) {
       ? '/newdesign/NutritionistDashboard.html'
       : '/newdesign/ClientDashboard.html';
   const link = (name, href) => (
-    <a href={href} className="shape-nav-link" style={{ fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: active === name ? "#f5efe1" : "rgba(245,239,225,0.66)", fontFamily: mono, fontWeight: 400, whiteSpace: "nowrap", lineHeight: 1, display: "inline-flex", alignItems: "center" }}>{name}</a>
+    <a href={href} className="shape-nav-link" style={{ fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: active === name ? "#f5efe1" : "rgba(245,239,225,0.66)", fontFamily: mono, fontWeight: 400, whiteSpace: "nowrap", lineHeight: 1, display: "inline-flex", alignItems: "center" }}>{name}</a>
   );
   return (
     <>
     <header className="shape-header" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 50, background: "rgba(11,14,12,0.55)", backdropFilter: "blur(20px) saturate(1.05)", WebkitBackdropFilter: "blur(20px) saturate(1.05)", borderBottom: "1px solid rgba(245,239,225,0.07)" }}>
       <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 30%, ${RUST} 70%, transparent 100%)`, opacity: 0.5 }} />
       <ShapeMobileStyles />
-      <div className="shape-header-inner" style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "16px 72px 16px 44px", gap: 32 }}>
-        <a href="index.html?home" style={{ flex: "none", display: "inline-flex", alignItems: "center" }}><Logo variant="white" size={42} /></a>
-        <nav className="shape-nav-tabs" style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center", minWidth: 0 }}>
+      <div className="shape-header-inner" style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "10px 72px 10px 44px", gap: 32 }}>
+        <a href="index.html?home" style={{ flex: "none", display: "inline-flex", alignItems: "center" }}><Logo variant="white" size={64} /></a>
+        <nav className="shape-nav-tabs" style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center", minWidth: 0 }}>
           {navGroupsFor(authUser).map(g => g.kind === "drop"
             ? <NavDropdown key={g.label} label={g.label} active={active} activeMatch={g.match} items={g.items} />
             : <React.Fragment key={g.label}>{link(g.label, g.href)}</React.Fragment>
