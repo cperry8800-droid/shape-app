@@ -186,39 +186,6 @@ function AboutPage() {
         background: `radial-gradient(ellipse 46% 70% at 50% 40%, rgba(242,237,228,0.08) 0%, rgba(242,237,228,0.04) 35%, transparent 70%)`,
         pointerEvents: "none",
       }} />
-      {/* Giant faded S letterform — magazine feature backdrop. */}
-      <div aria-hidden style={{
-        position: "fixed",
-        top: "12%",
-        right: "-6%",
-        zIndex: 0,
-        fontFamily: serif,
-        fontSize: "70vh",
-        fontWeight: 300,
-        fontStyle: "italic",
-        color: "transparent",
-        WebkitTextStroke: `1.2px rgba(10,197,168,0.06)`,
-        lineHeight: 0.85,
-        letterSpacing: "-0.08em",
-        pointerEvents: "none",
-        userSelect: "none",
-      }}>S</div>
-      <div aria-hidden style={{
-        position: "fixed",
-        bottom: "8%",
-        left: "-4%",
-        zIndex: 0,
-        fontFamily: serif,
-        fontSize: "55vh",
-        fontWeight: 300,
-        fontStyle: "italic",
-        color: "transparent",
-        WebkitTextStroke: `1px rgba(210,105,63,0.05)`,
-        lineHeight: 0.85,
-        letterSpacing: "-0.08em",
-        pointerEvents: "none",
-        userSelect: "none",
-      }}>&</div>
       {/* Film grain — fine SVG noise. */}
       <svg aria-hidden xmlns="http://www.w3.org/2000/svg" style={{
         position: "fixed",
