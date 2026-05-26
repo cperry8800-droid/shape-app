@@ -21,7 +21,10 @@ function TrainerHero() {
       <div aria-hidden style={{ position: "absolute", width: 660, height: 660, top: "-20%", right: "-8%", borderRadius: "50%", filter: "blur(85px)", opacity: 0.32, background: `radial-gradient(circle, ${TEAL}, transparent 70%)`, pointerEvents: "none" }} />
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative", width: "100%" }}>
         <div style={{ maxWidth: 900 }}>
-          <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.3em", textTransform: "uppercase", color: TEAL_BRIGHT, marginBottom: 28 }}>For trainers</div>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "7px 14px", borderRadius: 999, background: "rgba(10,197,168,0.12)", border: "1px solid rgba(10,197,168,0.35)", fontFamily: mono, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginLeft: -15, marginBottom: 28 }}>
+            <span style={{ width: 6, height: 6, borderRadius: 999, background: TEAL }}></span>
+            For trainers
+          </div>
           <h1 style={{ fontFamily: serif, fontSize: "clamp(56px, 8vw, 118px)", letterSpacing: "-0.045em", fontWeight: 300, margin: 0, lineHeight: 0.9, color: INK }}>
             Shape how people <em style={{ fontStyle: "italic", fontWeight: 600, color: "transparent", WebkitTextStroke: `1.4px ${INK}` }}>train.</em>
           </h1>
