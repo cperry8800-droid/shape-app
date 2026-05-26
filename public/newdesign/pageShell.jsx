@@ -297,7 +297,7 @@ function Footer() {
           {[
             ["Product",      [["Marketplace", "Marketplace.html"], ["Shape Score", "Score.html"], ["Radio", "Radio.html"], ["Dashboard", "ClientDashboard.html"]]],
             ["For trainers", [["Apply", "SignupTrainer.html"], ["Payouts", "TrainerDashboard.html"], ["Programs", "TrainerPrograms.html"]]],
-            ["Company",      [["About", "index.html"], ["Press", "Team.html#press"]]],
+            ["Company",      [["About", "About.html"], ["Press", "Team.html#press"]]],
             ["Support",      [["Help", "/help.html"], ["Contact", "/contact.html"], ["Privacy", "/privacy.html"], ["Terms", "/terms.html"]]],
           ].map(([h, items]) => (
             <div key={h}>
