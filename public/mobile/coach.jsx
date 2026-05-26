@@ -20,8 +20,7 @@ function TrainerHero() {
         <div style={{ maxWidth: 900 }}>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL_BRIGHT, marginBottom: 28 }}>For trainers</div>
           <h1 style={{ fontFamily: serif, fontSize: "clamp(56px, 8vw, 112px)", letterSpacing: "-0.035em", fontWeight: 400, margin: 0, lineHeight: 0.95, color: INK }}>
-            Shape your <em style={{ fontStyle: "italic", color: TEAL }}>brand.</em><br/>
-            Build your <em style={{ fontStyle: "italic", color: TEAL }}>business.</em>
+            Shape how people <em style={{ fontStyle: "italic", color: TEAL }}>train.</em>
           </h1>
           <p style={{ fontFamily: sans, fontSize: 19, color: "rgba(242,237,228,0.78)", margin: "36px 0 0", maxWidth: 640, lineHeight: 1.5 }}>
             Shape puts your training business in front of potential clients actively looking for custom programs. Build your profile. Sell your sessions. No cost to join.
