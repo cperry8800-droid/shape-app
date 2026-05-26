@@ -1,9 +1,9 @@
-// About page — tight one-screen mission/story page, dropped into the standard
-// marketing shell (Header + Footer from pageShell.jsx).
+// About page — personal, mission-driven story page.
+// Standard marketing shell (Header + Footer from pageShell.jsx).
 
 function AboutHero() {
   return (
-    <section style={{ padding: "40px 72px 100px", position: "relative", overflow: "hidden", minHeight: "78vh", display: "flex", alignItems: "center" }}>
+    <section style={{ padding: "40px 72px 100px", position: "relative", overflow: "hidden", minHeight: "72vh", display: "flex", alignItems: "center" }}>
       <div aria-hidden style={{ position: "absolute", width: 620, height: 620, top: "-20%", right: "-8%", borderRadius: "50%", filter: "blur(85px)", opacity: 0.3, background: `radial-gradient(circle, ${TEAL}, transparent 70%)`, pointerEvents: "none" }} />
       <div style={{ maxWidth: 1100, margin: "0 auto", position: "relative", width: "100%", textAlign: "center" }}>
         <div style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "7px 14px", borderRadius: 999, background: "rgba(10,197,168,0.12)", border: "1px solid rgba(10,197,168,0.35)", fontFamily: mono, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 32 }}>
@@ -11,48 +11,89 @@ function AboutHero() {
           About Shape
         </div>
         <h1 style={{ fontFamily: serif, fontSize: "clamp(48px, 7vw, 104px)", letterSpacing: "-0.04em", fontWeight: 300, margin: 0, lineHeight: 0.94, color: INK }}>
-          Real coaches.<br />
-          <em style={{ fontStyle: "italic", fontWeight: 600, color: "transparent", WebkitTextStroke: `1.4px ${INK}` }}>One community.</em>
+          A community<br />
+          for <em style={{ fontStyle: "italic", fontWeight: 600, color: "transparent", WebkitTextStroke: `1.4px ${INK}` }}>shaping</em> your life.
         </h1>
-        <p style={{ fontFamily: sans, fontSize: 19, color: "rgba(242,237,228,0.74)", margin: "36px auto 0", maxWidth: 720, lineHeight: 1.6 }}>
-          Shape connects everyday people with vetted trainers and nutritionists — and gives those coaches a real platform to run their practice. No bots. No bundles. No lock-in. Just the loop that makes fitness actually stick: train, eat, recover, repeat — with a human in your corner.
+        <p style={{ fontFamily: sans, fontSize: 19, color: "rgba(242,237,228,0.74)", margin: "36px auto 0", maxWidth: 720, lineHeight: 1.65 }}>
+          Shape isn't a fitness app. It's a place to shape your whole life — your routines, your meals, your music, your mindset, your community. The workouts are part of it. So are the people you cook beside, the playlists that get you out the door, the habits you finally make stick, and the coach who picks up the phone when you need one.
         </p>
       </div>
     </section>
   );
 }
 
-function AboutMission() {
+function AboutLetter() {
+  return (
+    <section style={{ padding: "100px 72px 120px", background: INK, color: PAPER, position: "relative", overflow: "hidden" }}>
+      <div style={{ maxWidth: 820, margin: "0 auto", position: "relative" }}>
+        <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Why Shape exists</div>
+        <h2 style={{ fontFamily: serif, fontSize: "clamp(34px, 4.4vw, 56px)", letterSpacing: "-0.03em", fontWeight: 300, margin: 0, lineHeight: 1.05, color: PAPER }}>
+          Not just fitness — a way to <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>shape your life</em>.
+        </h2>
+        <div style={{ marginTop: 36, fontFamily: serif, fontSize: 19, lineHeight: 1.75, color: "rgba(26,22,18,0.86)" }}>
+          <p style={{ margin: "0 0 22px" }}>
+            "Getting in shape" has been reduced to a workout plan and a calorie count for too long. Real life is bigger than that. It's how you sleep, what you cook, the music that moves you, the way you talk to yourself on hard days, the people you spend Saturday with. Shape is a place to work on all of it — not a fitness app pretending to be more.
+          </p>
+          <p style={{ margin: "0 0 22px" }}>
+            That starts with the coach. Having a great one shouldn't be a luxury. Most apps replace the coach with a chatbot; most gyms gate the good ones behind packages. We thought there was a better way: open the door for coaches who actually care, and make personal coaching affordable for the rest of us. The platform fee is flat. The coach is real. The rate is theirs.
+          </p>
+          <p style={{ margin: "0 0 22px" }}>
+            Then we built the rest of the loop around it: meal plans you actually follow, habits you actually stick to, a soundtrack that gets you out the door (that's Shape Radio), and a place to write down what you're shaping toward — strength, sleep, calm, confidence, a marathon, just feeling like yourself again. Structure when you need it. Discipline you build, not something handed down.
+          </p>
+          <p style={{ margin: "0 0 22px" }}>
+            And then there's the part no app gets right: <em style={{ fontStyle: "italic", color: TEAL_BRIGHT, fontWeight: 500 }}>the community</em>. You can keep your journey private. Or you can share it — what you cooked, what you lifted, what your coach said this week — and have a community that actually shows up for you. Tips, recipes, recommendations, coaches worth trying. A whole feed of people figuring out the same things you are.
+          </p>
+          <p style={{ margin: 0 }}>
+            That's it. Shape is the place where you find the coach, build the habits, hear the music, and meet the people. The rest is just showing up.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function AboutPillars() {
   const items = [
     {
-      k: "01",
-      t: "A platform built around the coach.",
-      p: "Most apps treat coaches as content. We treat them as the product. Programming tools, payouts, scheduling, messaging, and analytics — all in one place, built by people who actually train clients.",
+      h: "Personal coaching, lower cost",
+      p: "Browse, message, and hire vetted trainers and nutritionists before you pay anything. $5/mo flat to the platform. Your coach sets their own rate and gets paid directly.",
     },
     {
-      k: "02",
-      t: "A marketplace built around trust.",
-      p: "Every trainer and nutritionist on Shape is credential-checked before they earn a single dollar. Browse, read, message — no paywall before you've found the right fit. The platform fee is flat ($5/mo); your coach's rate is paid to them, directly.",
+      h: "A real community",
+      p: "Share your week if you want to — or don't. Either way, you can find tips, recipes, recommended coaches, and people who get what you're trying to do.",
     },
     {
-      k: "03",
-      t: "An app built around the loop.",
-      p: "Train, eat, recover, coach — every day. Workouts loaded the night before. Macros tallied as you log. Shape Score reads the truth at the end of every week. Your coach adjusts before you stall, not after.",
+      h: "Shape Radio + the soundtrack",
+      p: "Ad-free mixes built for movement, included with every membership. Your coach can drop a playlist onto a workout and it plays right on the card.",
+    },
+    {
+      h: "Lifestyle, structured",
+      p: "Habit tracking, grocery lists that build themselves, meal plans you actually follow, Shape Score that reads the truth at the end of the week. Build the good ones. Break the bad ones.",
+    },
+    {
+      h: "Goals that are yours",
+      p: "Tell us what you're shaping toward — strength, weight, sleep, calm, a marathon, just feeling like yourself again. We help you plan around it and your coach holds the line.",
+    },
+    {
+      h: "Public if you want, private always",
+      p: "Your data is yours. Share your progress with the community when you feel like it. Keep it locked when you don't. There's no algorithm pushing you to overshare.",
     },
   ];
   return (
-    <section style={{ padding: "100px 72px 140px", background: INK, color: PAPER, position: "relative", overflow: "hidden" }}>
+    <section style={{ padding: "120px 72px" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-        <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: TEAL, marginBottom: 18 }}>What we believe</div>
-        <h2 style={{ fontFamily: serif, fontSize: "clamp(36px, 5vw, 64px)", letterSpacing: "-0.03em", fontWeight: 300, margin: 0, lineHeight: 1.02, maxWidth: 780 }}>
-          The future of fitness is <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>human</em>.
-        </h2>
-        <div style={{ marginTop: 72, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 40 }}>
-          {items.map((it) => (
-            <div key={it.k}>
-              <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.18em", color: TEAL_BRIGHT, marginBottom: 18 }}>{it.k}</div>
-              <div style={{ fontFamily: serif, fontSize: 24, letterSpacing: "-0.01em", fontWeight: 400, color: PAPER, lineHeight: 1.2, marginBottom: 14 }}>{it.t}</div>
-              <p style={{ fontFamily: sans, fontSize: 14.5, color: "rgba(26,22,18,0.72)", lineHeight: 1.65, margin: 0 }}>{it.p}</p>
+        <div style={{ textAlign: "center", marginBottom: 64 }}>
+          <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>What you get</div>
+          <h3 style={{ fontFamily: serif, fontSize: "clamp(30px, 4vw, 48px)", letterSpacing: "-0.025em", fontWeight: 300, margin: 0, lineHeight: 1.05 }}>
+            One app for the <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>whole loop</em>.
+          </h3>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 36, rowGap: 48 }}>
+          {items.map((it, i) => (
+            <div key={i} style={{ borderTop: `1px solid rgba(242,237,228,0.12)`, paddingTop: 22 }}>
+              <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.18em", color: TEAL_BRIGHT, marginBottom: 14 }}>{String(i + 1).padStart(2, "0")}</div>
+              <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.01em", fontWeight: 400, color: INK, lineHeight: 1.22, marginBottom: 12 }}>{it.h}</div>
+              <p style={{ fontFamily: sans, fontSize: 14.5, color: "rgba(242,237,228,0.66)", lineHeight: 1.65, margin: 0 }}>{it.p}</p>
             </div>
           ))}
         </div>
@@ -68,7 +109,7 @@ function AboutStats() {
     { k: "0", l: "lock-in. Cancel anytime." },
   ];
   return (
-    <section style={{ padding: "100px 72px" }}>
+    <section style={{ padding: "30px 72px 100px" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 40, justifyItems: "center", textAlign: "center" }}>
         {stats.map((s) => (
           <div key={s.k} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
@@ -83,13 +124,16 @@ function AboutStats() {
 
 function AboutCTA() {
   return (
-    <section style={{ padding: "60px 72px 140px" }}>
+    <section style={{ padding: "40px 72px 140px" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", textAlign: "center" }}>
         <h3 style={{ fontFamily: serif, fontSize: "clamp(32px, 4.4vw, 54px)", letterSpacing: "-0.03em", fontWeight: 300, margin: 0, lineHeight: 1.05 }}>
-          Find your <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>coach</em>.<br />Build your <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>practice</em>.
+          Come <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>shape</em> with us.
         </h3>
+        <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.6)", maxWidth: 560, margin: "20px auto 0", lineHeight: 1.6 }}>
+          Find your coach, set your goals, hear the music, meet the people. The rest is just showing up.
+        </p>
         <div style={{ marginTop: 36, display: "flex", gap: 14, flexWrap: "wrap", justifyContent: "center" }}>
-          <a href="Marketplace.html" style={{ padding: "16px 30px", borderRadius: 2, background: TEAL, color: PAPER, fontFamily: sans, fontSize: 14.5, fontWeight: 600, textDecoration: "none" }}>Browse the marketplace →</a>
+          <a href="Marketplace.html" style={{ padding: "16px 30px", borderRadius: 2, background: TEAL, color: PAPER, fontFamily: sans, fontSize: 14.5, fontWeight: 600, textDecoration: "none" }}>Find your coach →</a>
           <a href="SignupTrainer.html" style={{ padding: "16px 30px", borderRadius: 2, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", fontFamily: sans, fontSize: 14.5, fontWeight: 600, textDecoration: "none" }}>Apply as a coach</a>
         </div>
       </div>
@@ -102,7 +146,8 @@ function AboutPage() {
     <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh" }}>
       <Header active="About" />
       <AboutHero />
-      <AboutMission />
+      <AboutLetter />
+      <AboutPillars />
       <AboutStats />
       <AboutCTA />
       <Footer />
