@@ -32,7 +32,7 @@ function AboutLetter() {
         </h2>
         <div style={{ marginTop: 36, fontFamily: serif, fontSize: 19, lineHeight: 1.75, color: "rgba(26,22,18,0.86)" }}>
           <p style={{ margin: "0 0 22px" }}>
-            {`"Getting in shape" has been reduced to a workout plan and a calorie count for too long. Real life is bigger than that. It's how you sleep, what you cook, the music that moves you, the way you talk to yourself on hard days, the people you spend Saturday with. Shape is a place to work on all of it — not a fitness app pretending to be more.`}
+            Shape is about exactly what its name suggests — shaping your life into what you want it to be. Your routines, your sleep, what you cook, the music that moves you, how you talk to yourself on hard days, the people you spend Saturday with. We built Shape to be the place where you can work on all of it, on your own terms.
           </p>
           <p style={{ margin: "0 0 22px" }}>
             That starts with the coach. Having a great one shouldn't be a luxury. Most apps replace the coach with a chatbot; most gyms gate the good ones behind packages. We thought there was a better way: open the door for coaches who actually care, and make personal coaching affordable for the rest of us. The platform fee is flat. The coach is real. The rate is theirs.
