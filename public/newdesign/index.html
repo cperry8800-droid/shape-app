@@ -70,26 +70,17 @@
   .hero-mark .e1{filter:drop-shadow(0 0 2px rgba(255,255,255,0.9))}
   .hero-mark .e2{filter:drop-shadow(0 0 2px rgba(10,197,168,0.9));animation-delay:-1.6s}
   @keyframes hero-mark-edge{ to { stroke-dashoffset:-135 } }
-  .hero-mark-beam{display:block;margin-top:14px;width:140px;height:2px;border-radius:2px;
-    background:linear-gradient(90deg,transparent,#ffffff 28%,#ffffff 72%,transparent);
-    transform-origin:center;animation:hero-mark-beam 3.8s ease-in-out infinite}
   @keyframes hero-mark-pulse{
     0%,100%{filter:drop-shadow(0 0 14px rgba(10,197,168,0.35)) drop-shadow(0 0 28px rgba(10,197,168,0.18))}
     50%{filter:drop-shadow(0 0 22px rgba(10,197,168,0.9)) drop-shadow(0 0 50px rgba(46,224,196,0.45))}
   }
-  @keyframes hero-mark-beam{
-    0%,100%{opacity:0.35;transform:scaleX(0.55)}
-    50%{opacity:0.95;transform:scaleX(1)}
-  }
   @media(max-width:920px){
     .hero-mark-wrap{width:64px;margin:-28px auto 18px}
     .hero-mark{width:64px}
-    .hero-mark-beam{width:110px}
   }
   @media(prefers-reduced-motion:reduce){
-    .hero-mark,.hero-mark-beam,.hero-mark-edge{animation:none}
+    .hero-mark,.hero-mark-edge{animation:none}
     .hero-mark{filter:drop-shadow(0 0 18px rgba(10,197,168,0.45))}
-    .hero-mark-beam{opacity:0.65;transform:none}
     .hero-mark-edge{stroke-dasharray:none}
   }
   .eyb{font-family:var(--mono);font-size:12px;letter-spacing:.34em;text-transform:uppercase;color:var(--teal)}
@@ -314,7 +305,6 @@
         <polygon class="hero-mark-edge e1" points="20,40 20,88 56,64" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linejoin="round"/>
         <polygon class="hero-mark-edge e2" points="80,12 80,60 44,36" fill="none" stroke="#0ac5a8" stroke-width="1.6" stroke-linejoin="round"/>
       </svg>
-      <span class="hero-mark-beam"></span>
     </div>
     <div class="eyb" style="color:var(--cream)">Real coaches · one platform · the whole loop</div>
     <h1><b class="wt">Different</b> <b>goals.</b><br><b class="wt">One</b> <b>Community.</b></h1>
