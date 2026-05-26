@@ -109,7 +109,7 @@ function AboutLetter() {
 
           {/* All beats stacked; only the active one is opaque */}
           {ABOUT_BEATS.map((b, i) => (
-            <div key={i} style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", padding: "120px 72px", opacity: i === active ? 1 : 0, transition: "opacity .5s ease, transform .5s ease", transform: i === active ? "translateY(0)" : (i < active ? "translateY(-16px)" : "translateY(16px)"), pointerEvents: i === active ? "auto" : "none" }}>
+            <div key={i} style={{ position: "absolute", inset: 0, display: "grid", alignItems: "start", justifyItems: "center", padding: "180px 72px 120px", opacity: i === active ? 1 : 0, transition: "opacity .5s ease, transform .5s ease", transform: i === active ? "translateY(0)" : (i < active ? "translateY(-16px)" : "translateY(16px)"), pointerEvents: i === active ? "auto" : "none" }}>
               <div style={{ maxWidth: 900, textAlign: "center" }}>
                 <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.28em", textTransform: "uppercase", color: TEAL_BRIGHT, marginBottom: 18 }}>{b.ix}</div>
                 <h2 className="about-beat-h" style={{ fontFamily: serif, fontSize: "clamp(36px, 5.6vw, 80px)", letterSpacing: "-0.035em", fontWeight: 300, margin: 0, lineHeight: 1.0, color: PAPER }}>
