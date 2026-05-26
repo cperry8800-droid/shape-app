@@ -146,13 +146,13 @@ function LoginCard() {
   return (
     <div style={{
       width: "100%",
-      maxWidth: 440,
+      maxWidth: 360,
       background: "linear-gradient(180deg, rgba(10,9,8,0.45) 0%, rgba(11,10,9,0.40) 100%)",
       backdropFilter: "blur(14px) saturate(1.05)",
       WebkitBackdropFilter: "blur(14px) saturate(1.05)",
       border: "1px solid rgba(242,237,228,0.16)",
       borderRadius: 10,
-      padding: "34px 34px 30px",
+      padding: "26px 26px 22px",
       boxShadow: "0 28px 90px rgba(0,0,0,0.56), 0 0 0 1px rgba(255,255,255,0.02) inset",
       position: "relative",
     }}>
