@@ -242,17 +242,11 @@ function Header({ active }) {
               ) : null}
               <a href={dashboardHref(authUser.role)} style={{ fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(245,239,225,0.66)", fontFamily: mono, whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none" }}>Dashboard</a>
               <a href="#" onClick={handleLogout} style={{ background: "transparent", color: "#f5efe1", border: "1px solid #f5efe1", padding: "10px 18px", borderRadius: 0, fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", fontFamily: mono, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1 }}>Sign out</a>
-              <a href="/newdesign/Radio.html" aria-label="Shape Radio" style={{ display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
-                <img src="/shape-radio-wordmark-tight.svg?v=1" alt="Shape Radio" style={{ width: 170, height: "auto", maxWidth: "none", display: "block" }} />
-              </a>
             </>
           ) : (
             <>
               <a href="/newdesign/Login.html" style={{ fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(245,239,225,0.66)", fontFamily: mono, whiteSpace: "nowrap", lineHeight: 1 }}>Log in</a>
               <a href="/newdesign/Landing.html" style={{ background: "transparent", color: "#f5efe1", border: "1px solid #f5efe1", padding: "10px 18px", borderRadius: 0, fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", fontFamily: mono, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1 }}>Get started</a>
-              <a href="/newdesign/Radio.html" aria-label="Shape Radio" style={{ display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
-                <img src="/shape-radio-wordmark-tight.svg?v=1" alt="Shape Radio" style={{ width: 170, height: "auto", maxWidth: "none", display: "block" }} />
-              </a>
             </>
           )}
         </div>
