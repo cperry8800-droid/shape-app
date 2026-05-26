@@ -183,30 +183,60 @@ function ChatWidget(props) {
     if (w) { try { w.focus(); } catch {} setOpen(false); }
   };
 
-  // Global opener: window.__openChat(whoName, tabId?) ---------------------
+  // Global opener.
+  //   window.__openChat("Maya")                              ← legacy name lookup
+  //   window.__openChat("Maya", "team")                       ← scoped to a tab
+  //   window.__openChat({ who, role, eyebrow, conversationId }) ← inject if missing
+  //
+  // When called with an object descriptor, the widget will reuse the matching
+  // local thread if one already exists, otherwise prepend a fresh one so the
+  // user lands in a usable empty conversation with the right counterpart.
   React.useEffect(() => {
-    window.__openChat = (who, tabId) => {
+    window.__openChat = (arg, tabId) => {
       setOpen(true);
+      const descriptor = (arg && typeof arg === "object") ? arg : null;
+      const who = descriptor ? descriptor.who : (typeof arg === "string" ? arg : null);
       if (tabId) {
         const ti = tabs.findIndex(t => t.id === tabId);
         if (ti >= 0) setTabIdx(ti);
       }
-      if (who) {
-        // search current tab first, then all tabs
-        const searchTabs = tabId ? [tabs.findIndex(t => t.id === tabId)] : threadsByTab.map((_, i) => i);
-        for (const ti of searchTabs) {
-          if (ti < 0) continue;
-          const idx = threadsByTab[ti].findIndex(t => t.who.toLowerCase().includes(who.toLowerCase()));
-          if (idx >= 0) {
-            setTabIdx(ti);
-            setActiveByTab(prev => prev.map((v, i) => i === ti ? idx : v));
-            return;
-          }
+      if (!who) return;
+
+      const searchTabs = tabId ? [tabs.findIndex(t => t.id === tabId)] : threadsByTab.map((_, i) => i);
+      for (const ti of searchTabs) {
+        if (ti < 0) continue;
+        const idx = threadsByTab[ti].findIndex(t => t.who.toLowerCase().includes(who.toLowerCase()));
+        if (idx >= 0) {
+          setTabIdx(ti);
+          setActiveByTab(prev => prev.map((v, i) => i === ti ? idx : v));
+          return;
         }
+      }
+
+      // No matching thread. If we got a descriptor (e.g. from the Shared
+      // Clients tab), prepend a new empty thread on the current tab so the
+      // user can start typing right away.
+      if (descriptor) {
+        const fresh = {
+          who,
+          role: descriptor.role || descriptor.eyebrow || "Direct message",
+          last: "",
+          time: "now",
+          unread: 0,
+          conversationId: descriptor.conversationId || null,
+          messages: [],
+        };
+        const targetTab = tabId
+          ? Math.max(0, tabs.findIndex(t => t.id === tabId))
+          : tabIdx;
+        dirtyRef.current = true;
+        setThreadsByTab(prev => prev.map((ts, ti) => ti !== targetTab ? ts : [fresh, ...ts]));
+        setActiveByTab(prev => prev.map((v, ti) => ti === targetTab ? 0 : v));
+        setTabIdx(targetTab);
       }
     };
     return () => { delete window.__openChat; };
-  }, [threadsByTab, tabs]);
+  }, [threadsByTab, tabs, tabIdx]);
 
   React.useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;

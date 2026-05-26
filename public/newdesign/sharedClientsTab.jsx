@@ -51,9 +51,15 @@ function SharedClientsTab({ role, onCountChange }) {
         alert(data.error || 'Could not open the chat.');
         return;
       }
-      // Hint the chat widget which thread to surface. The widget matches on
-      // participant name; if it doesn't find one, the panel still opens.
-      try { window.__openChat && window.__openChat(r.counterpart.name); } catch {}
+      // Open the chat widget. If no local thread for this coach exists yet,
+      // the widget will prepend a fresh one tagged with the conversationId.
+      try {
+        window.__openChat && window.__openChat({
+          who: r.counterpart.name,
+          role: `${r.counterpart.role === 'trainer' ? 'Trainer' : 'Nutritionist'} · re: ${r.clientName}`,
+          conversationId: data.conversationId,
+        });
+      } catch {}
     } finally {
       setBusy(prev => { const n = { ...prev }; delete n[k]; return n; });
     }

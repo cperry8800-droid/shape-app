@@ -128,6 +128,41 @@ export async function GET() {
       sub: [r.topic, `${r.duration_min} min`, r.type].filter(Boolean).join(' · '),
     }));
 
+    // Counterpart sessions: trainers this nutritionist's clients also see.
+    // RLS (shared_coach_reads_sessions) permits reads when caller is an
+    // active coach on the client; we still narrow the scan to my clients.
+    const myClientIds = [...new Set(rows.map((r) => r.client_id).filter((x): x is string => !!x))];
+    if (myClientIds.length > 0) {
+      const { data: otherSessions } = await supabase
+        .from('sessions')
+        .select('scheduled_at, duration_min, type, status, topic, client_name, client_id, provider_id, provider_role')
+        .eq('provider_role', 'trainer')
+        .in('status', ['confirmed', 'requested', 'completed'])
+        .in('client_id', myClientIds)
+        .order('scheduled_at', { ascending: true })
+        .limit(500);
+      const otherRows = (otherSessions ?? []) as Array<SessionRow & { provider_id: number; provider_role: string }>;
+      if (otherRows.length > 0) {
+        const otherProviderIds = [...new Set(otherRows.map((r) => r.provider_id))];
+        const { data: trainerProfiles } = await supabase
+          .from('trainers')
+          .select('id, name')
+          .in('id', otherProviderIds);
+        const nameById = new Map<number, string>();
+        for (const t of trainerProfiles ?? []) nameById.set(t.id, t.name ?? 'Trainer');
+        for (const r of otherRows) {
+          calendar.push({
+            at: r.scheduled_at,
+            kind: 'TRAINING',
+            title: `${r.client_name || 'Client'} · with ${nameById.get(r.provider_id) || 'their trainer'}`,
+            sub: [r.topic, `${r.duration_min} min`, r.type].filter(Boolean).join(' · '),
+            sharedCoach: true,
+          });
+        }
+        calendar.sort((a, b) => new Date(a.at as string).getTime() - new Date(b.at as string).getTime());
+      }
+    }
+
     const byClient = new Map<
       string,
       { name: string; sessions: number; lastAt: number }
