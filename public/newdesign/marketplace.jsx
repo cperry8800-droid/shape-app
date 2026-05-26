@@ -201,7 +201,7 @@ function MarketplaceHero({ tab, setTab }) {
         <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.3em", textTransform: "uppercase", color: TEAL, marginBottom: 24 }}>The marketplace</div>
         <div className="mk-head" style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 80, alignItems: "end" }}>
           <h1 style={{ fontFamily: serif, fontSize: "clamp(52px, 7.6vw, 112px)", lineHeight: 0.86, letterSpacing: "-0.045em", fontWeight: 300, margin: 0, color: INK }}>
-            Find the <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>{tab === "Trainer" ? "coach" : "nutritionist"}</em><br />who fits.
+            Find the <em style={{ fontStyle: "italic", fontWeight: 600, color: "transparent", WebkitTextStroke: `1.4px ${INK}` }}>{tab === "Trainer" ? "coach" : "nutritionist"}</em><br />who fits.
           </h1>
           <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.55, color: "rgba(242,237,228,0.62)", margin: 0, maxWidth: 420 }}>
             Certified {tab === "Trainer" ? "trainers" : "nutritionists"} filtered by specialty, goal, location, and fit — not by who paid for placement.

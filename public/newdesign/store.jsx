@@ -87,7 +87,7 @@ function StoreHero() {
         <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 24 }}>Shape Store</div>
         <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 80, alignItems: "end" }}>
           <h1 style={{ fontFamily: serif, fontSize: "clamp(56px, 7.5vw, 108px)", lineHeight: 0.9, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, color: INK }}>
-            Spend<br />the <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>points</em> you earned.
+            Spend<br />the <em style={{ fontStyle: "italic", fontWeight: 500, color: "transparent", WebkitTextStroke: `1.4px ${INK}` }}>points</em> you earned.
           </h1>
           <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.55, color: "rgba(242,237,228,0.65)", margin: 0, maxWidth: 420 }}>
             Trade Shape Score for Shape merch, training credits, nutrition services, and membership perks. No expiry on points.

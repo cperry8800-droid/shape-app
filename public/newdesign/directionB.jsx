@@ -65,7 +65,7 @@ const DirB = (() => {
             <div>
               <h1 style={{ fontFamily: serif, fontSize: "clamp(56px, 7.2vw, 104px)", lineHeight: 0.9, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, color: INK }}>
                 Real coaches.<br />
-                <span style={{ whiteSpace: "nowrap" }}>One <em style={{ fontStyle: "italic", color: TEAL, fontWeight: 400 }}>marketplace</em>.</span><br />
+                <span style={{ whiteSpace: "nowrap" }}>One <em style={{ fontStyle: "italic", color: "transparent", WebkitTextStroke: `1.4px ${INK}`, fontWeight: 400 }}>marketplace</em>.</span><br />
                 <span style={{ whiteSpace: "nowrap" }}>One <em style={{ fontStyle: "italic", color: INK, fontWeight: 400 }}>platform</em>.</span>
               </h1>
             </div>

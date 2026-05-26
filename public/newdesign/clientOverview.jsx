@@ -17,7 +17,7 @@ function ClientOvHero() {
           </div>
           <h1 style={{ fontFamily: serif, fontSize: "clamp(60px, 7.6vw, 128px)", letterSpacing: "-0.04em", fontWeight: 400, lineHeight: 0.92, margin: 0, color: LIGHT }}>
             Shape your<br />
-            <em style={{ fontStyle: "italic", color: TEAL }}>lifestyle.</em>
+            <em style={{ fontStyle: "italic", color: "transparent", WebkitTextStroke: `1.4px ${LIGHT}` }}>lifestyle.</em>
           </h1>
           <p style={{ fontFamily: sans, fontSize: 20, lineHeight: 1.5, color: "rgba(233,239,237,0.72)", margin: "40px 0 48px", maxWidth: 540 }}>
             Train smarter, eat better, and track every step of your progress. Shape puts certified coaches and tools in one place — so you can focus on becoming the best version of yourself.

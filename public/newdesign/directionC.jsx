@@ -67,7 +67,7 @@ const DirC = (() => {
             <span style={{ color: TEAL_DEEP }}>→</span>
           </div>
           <h1 style={{ fontFamily: sans, fontSize: 112, lineHeight: 0.94, letterSpacing: "-0.04em", fontWeight: 500, margin: 0, color: INK, maxWidth: 1100, marginInline: "auto" }}>
-            The coaching platform<br/>for <span style={{ color: TEAL_DEEP, fontStyle: "italic", fontWeight: 400 }}>people</span> who want results.
+            The coaching platform<br/>for <span style={{ color: "transparent", WebkitTextStroke: `1.4px ${INK}`, fontStyle: "italic", fontWeight: 400 }}>people</span> who want results.
           </h1>
           <p style={{ fontFamily: sans, fontSize: 20, color: "rgba(10,31,27,0.65)", lineHeight: 1.5, maxWidth: 620, marginInline: "auto", marginTop: 28 }}>
             Shape is the infrastructure for human coaching. One marketplace for clients, one dashboard for trainers and nutritionists, one platform for the whole practice.
