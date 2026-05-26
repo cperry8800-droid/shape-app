@@ -66,12 +66,12 @@ function PricingHero() {
   return (
     <section style={{ position: "relative", padding: "40px 72px 70px", overflow: "hidden" }}>
       <div aria-hidden style={{ position: "absolute", width: 620, height: 620, top: "-20%", right: "-8%", borderRadius: "50%", filter: "blur(80px)", opacity: 0.32, background: `radial-gradient(circle, ${TEAL}, transparent 70%)`, pointerEvents: "none" }} />
-      <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
+      <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative", textAlign: "center" }}>
         <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.3em", textTransform: "uppercase", color: TEAL, marginBottom: 24 }}>Pricing</div>
         <h1 style={{ fontFamily: serif, fontSize: "clamp(54px, 9vw, 132px)", letterSpacing: "-0.045em", fontWeight: 300, margin: 0, lineHeight: 0.88 }}>
           Five dollars <em style={{ fontStyle: "italic", fontWeight: 600, color: "transparent", WebkitTextStroke: `1.4px ${INK}` }}>a&nbsp;month</em>.<br />Pay your coach directly.
         </h1>
-        <p style={{ fontFamily: sans, fontSize: 18, color: "rgba(242,237,228,0.66)", margin: "32px 0 0", maxWidth: 720, lineHeight: 1.6 }}>One flat platform fee. Browse every trainer and nutritionist before paying anything, message your pros, track progress, log meals, listen to Shape Radio. Coaches set their own rates — you pay them directly, cancel any time.</p>
+        <p style={{ fontFamily: sans, fontSize: 18, color: "rgba(242,237,228,0.66)", margin: "32px auto 0", maxWidth: 720, lineHeight: 1.6 }}>One flat platform fee. Browse every trainer and nutritionist before paying anything, message your pros, track progress, log meals, listen to Shape Radio. Coaches set their own rates — you pay them directly, cancel any time.</p>
       </div>
     </section>
   );
