@@ -46,7 +46,7 @@ function HeroC() {
         <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.3em", textTransform: "uppercase", color: TEAL, marginBottom: 28 }}>The community</div>
         <div className="cm-hero" style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 80, alignItems: "end" }}>
           <h1 style={{ fontFamily: serif, fontSize: "clamp(56px, 8.5vw, 124px)", lineHeight: 0.86, letterSpacing: "-0.045em", fontWeight: 300, margin: 0 }}>
-            Train <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>together</em>.<br />Show up <em style={{ fontStyle: "italic", fontWeight: 600, color: "transparent", WebkitTextStroke: `1.4px ${INK}` }}>alone.</em>
+            Show up <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>alone</em>.<br />Leave <em style={{ fontStyle: "italic", fontWeight: 600, color: "transparent", WebkitTextStroke: `1.4px ${INK}` }}>together.</em>
           </h1>
           <p style={{ fontFamily: sans, fontSize: 18, lineHeight: 1.55, color: "rgba(242,237,228,0.62)", margin: 0, maxWidth: 440 }}>
             Member events, challenges, and stories — the social layer that makes the hard stuff repeatable. Run with people in your city; stay accountable to the ones you don't see.
