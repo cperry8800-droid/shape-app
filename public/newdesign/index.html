@@ -65,7 +65,14 @@
   .blob.b{width:660px;height:660px;bottom:-14%;right:-8%;background:radial-gradient(circle,var(--rust),transparent 70%);opacity:.14}
   .htxt{position:relative;z-index:3;text-align:center;max-width:1100px;will-change:transform}
   .hero-mark{display:block;width:84px;height:auto;margin:-40px auto 22px}
+  .hero-mark polygon{animation:hero-mark-stroke 6s ease-in-out infinite}
+  .hero-mark .m2{animation-delay:-3s}
+  @keyframes hero-mark-stroke{
+    0%,100%{stroke:#0ac5a8}
+    50%{stroke:#d2693f}
+  }
   @media(max-width:920px){ .hero-mark{width:64px;margin:-28px auto 18px} }
+  @media(prefers-reduced-motion:reduce){ .hero-mark polygon{animation:none;stroke:#0ac5a8} }
   .eyb{font-family:var(--mono);font-size:12px;letter-spacing:.34em;text-transform:uppercase;color:var(--teal)}
   .hero h1{font-family:var(--serif);font-weight:300;font-size:clamp(34px,5vw,76px);line-height:1.02;letter-spacing:-.035em;margin:26px 0 0}
   .hero h1 b{font-weight:400;font-style:italic;color:var(--teal)}
@@ -282,8 +289,8 @@
   <span class="blob a" id="b1"></span><span class="blob b" id="b2"></span>
   <div class="htxt" id="htxt">
     <svg class="hero-mark" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
-      <polygon points="20,40 20,88 56,64" fill="none" stroke="#ffffff" stroke-width="3" stroke-linejoin="round"/>
-      <polygon points="80,12 80,60 44,36" fill="none" stroke="#ffffff" stroke-width="3" stroke-linejoin="round"/>
+      <polygon class="m1" points="20,40 20,88 56,64" fill="none" stroke-width="3" stroke-linejoin="round"/>
+      <polygon class="m2" points="80,12 80,60 44,36" fill="none" stroke-width="3" stroke-linejoin="round"/>
     </svg>
     <div class="eyb" style="color:var(--cream)">Real coaches · one platform · the whole loop</div>
     <h1><b class="wt">Where</b> <b>Coaches</b> <b class="wt">and</b> <b>Clients</b><br><b class="wt">become one</b> <b>Community.</b></h1>
