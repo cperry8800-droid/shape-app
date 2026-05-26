@@ -170,9 +170,6 @@ function AboutCTA() {
         <h3 style={{ fontFamily: serif, fontSize: "clamp(32px, 4.4vw, 54px)", letterSpacing: "-0.03em", fontWeight: 300, margin: 0, lineHeight: 1.05 }}>
           Come <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>shape</em> with us.
         </h3>
-        <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.6)", maxWidth: 560, margin: "20px auto 0", lineHeight: 1.6 }}>
-          Find your coach, set your goals, hear the music, meet the people. The rest is just showing up.
-        </p>
       </div>
     </section>
   );
