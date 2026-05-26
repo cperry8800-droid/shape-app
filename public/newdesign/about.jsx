@@ -188,6 +188,7 @@ function AboutPage() {
         <AboutLetter />
         <Footer />
       </div>
+    </div>
   );
 }
 
