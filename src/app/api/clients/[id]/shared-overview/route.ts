@@ -114,6 +114,65 @@ export async function GET(
     };
   });
 
+  // Active program assignments per provider. RLS (shared_coach_reads_*) lets
+  // the counterpart read assigned/active/paused rows + their template header.
+  const { data: assignments } = await supabase
+    .from('coach_program_assignments')
+    .select('id, status, provider_role, provider_id, program_template_id, updated_at, notes')
+    .eq('client_id', clientId)
+    .in('status', ['assigned', 'active', 'paused'])
+    .order('updated_at', { ascending: false })
+    .limit(20);
+
+  const templateIds = [...new Set((assignments ?? []).map(a => a.program_template_id))];
+  const { data: templates } = templateIds.length
+    ? await supabase
+        .from('coach_program_templates')
+        .select('id, title, goal, level, duration_weeks, days_per_week')
+        .in('id', templateIds)
+    : { data: [] as Array<{ id: string; title: string; goal: string | null; level: string | null; duration_weeks: number | null; days_per_week: number | null }> };
+  const templateById = new Map<string, { title: string; goal: string | null; level: string | null; durationWeeks: number | null; daysPerWeek: number | null }>();
+  for (const t of templates ?? []) {
+    templateById.set(t.id, {
+      title: t.title,
+      goal: t.goal,
+      level: t.level,
+      durationWeeks: t.duration_weeks,
+      daysPerWeek: t.days_per_week,
+    });
+  }
+  // Pick the most-recent assignment per (role, providerId) so the UI shows
+  // one current plan per coach rather than a long history.
+  const seen = new Set<string>();
+  const plans = (assignments ?? [])
+    .map(a => {
+      const key = `${a.provider_role}|${a.provider_id}`;
+      if (seen.has(key)) return null;
+      seen.add(key);
+      const tpl = templateById.get(a.program_template_id);
+      const coachName = a.provider_role === 'trainer'
+        ? trainerNameById.get(a.provider_id) || 'Trainer'
+        : nutriNameById.get(a.provider_id) || 'Nutritionist';
+      return {
+        assignmentId: a.id,
+        status: a.status,
+        providerRole: a.provider_role as 'trainer' | 'nutritionist',
+        providerId: a.provider_id,
+        coachName,
+        updatedAt: a.updated_at,
+        notes: a.notes,
+        template: tpl ? {
+          id: a.program_template_id,
+          title: tpl.title,
+          goal: tpl.goal,
+          level: tpl.level,
+          durationWeeks: tpl.durationWeeks,
+          daysPerWeek: tpl.daysPerWeek,
+        } : null,
+      };
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
+
   return NextResponse.json({
     client: clientProfile
       ? { id: clientProfile.id, name: (clientProfile.full_name ?? '').trim() || 'Client', avatarUrl: clientProfile.avatar_url }
@@ -121,5 +180,6 @@ export async function GET(
     me: { trainerId: myTrainerId, nutritionistId: myNutritionistId },
     careTeam,
     sessions,
+    plans,
   });
 }
