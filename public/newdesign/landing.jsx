@@ -191,7 +191,7 @@ function RoleGrid() {
   return (
     <section id="paths" style={{ padding: "30px 72px 90px", position: "relative", zIndex: 2 }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
-        <div className="shape-roles-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18, perspective: "1400px" }}>
+        <div className="shape-roles-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18, perspective: "1400px" }}>
           {ROLES.map((r, i) => <RoleCard key={r.key} role={r} index={i} total={ROLES.length} />)}
         </div>
       </div>
