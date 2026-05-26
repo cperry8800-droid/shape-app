@@ -201,12 +201,12 @@ function Header({ active }) {
   );
   return (
     <>
-    <header className="shape-header" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 50, background: "rgba(11,14,12,0.55)", backdropFilter: "blur(20px) saturate(1.05)", WebkitBackdropFilter: "blur(20px) saturate(1.05)", borderBottom: "1px solid rgba(245,239,225,0.07)" }}>
+    <header className="shape-header" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 60, background: "rgba(11,14,12,0.55)", backdropFilter: "blur(20px) saturate(1.05)", WebkitBackdropFilter: "blur(20px) saturate(1.05)", borderBottom: "1px solid rgba(245,239,225,0.06)" }}>
       <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 30%, ${RUST} 70%, transparent 100%)`, opacity: 0.5 }} />
       <ShapeMobileStyles />
       <div className="shape-header-inner" style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "10px 72px 10px 44px", gap: 32 }}>
         <a href="index.html?home" style={{ flex: "none", display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
-          <img src="/shape-logo-new-white.png?v=3" alt="Shape" style={{ height: 44, width: "auto", display: "block", objectFit: "contain" }} />
+          <img src="/shape-logo-new-white.png?v=3" alt="Shape" style={{ height: 64, width: "auto", display: "block", objectFit: "contain" }} />
         </a>
         <nav className="shape-nav-tabs" style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center", minWidth: 0 }}>
           {navGroupsFor(authUser).map(g => g.kind === "drop"
@@ -264,7 +264,7 @@ function Header({ active }) {
       </div>
       <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} active={active} authUser={authUser} onLogout={handleLogout} />
     </header>
-    <div aria-hidden className="shape-header-spacer" style={{ height: 68 }} />
+    <div aria-hidden className="shape-header-spacer" style={{ height: 84 }} />
     </>
   );
 }
@@ -323,13 +323,6 @@ function ShapeMobileStyles() {
       .shape-foot-link:hover { color: ${TEAL_BRIGHT} !important; }
       .shape-nav-link:hover { color: ${INK} !important; }
       .shape-header { transition: background .25s ease; }
-      /* Global scale-down for the newdesign pages — makes the whole UI feel
-         less heavy without touching every typographic value individually.
-         Applied only above 900px so the mobile media query below isn't
-         double-scaled. */
-      @media (min-width: 901px) {
-        body { zoom: 0.92; }
-      }
       .shape-brand-logo {
         height: var(--shape-logo-h) !important;
         width: auto !important;
@@ -342,7 +335,8 @@ function ShapeMobileStyles() {
       @media (max-width: 900px) {
         /* Header */
         .shape-header-inner { padding: 12px 18px !important; gap: 12px !important; }
-        .shape-header-spacer { height: 68px !important; }
+        .shape-header-spacer { height: 84px !important; }
+
 
         .shape-nav-tabs { display: none !important; }
         .shape-nav-auth { display: none !important; }
