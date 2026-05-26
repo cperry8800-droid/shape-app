@@ -160,9 +160,14 @@ function GoalEditModal({ goal, onClose, onSave, onDelete }) {
     >
       {!goal && (
         <div style={{ marginBottom: 18 }}>
-          <button onClick={() => setShowTemplates(s => !s)} style={{ background: "transparent", color: TEAL_BRIGHT, border: 0, padding: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", marginBottom: 12 }}>
-            {showTemplates ? "▾ Hide templates · or write your own below" : "▸ Browse goal templates"}
-          </button>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <button onClick={() => setShowTemplates(s => !s)} style={{ background: "transparent", color: TEAL_BRIGHT, border: 0, padding: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer" }}>
+              {showTemplates ? "▾ Hide templates" : "▸ Browse goal templates"}
+            </button>
+            <button onClick={() => setShowTemplates(false)} style={{ background: "rgba(10,197,168,0.1)", color: "#2ee0c4", border: "1px solid rgba(10,197,168,0.4)", padding: "7px 14px", borderRadius: 999, fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", whiteSpace: "nowrap" }}>
+              + Custom goal
+            </button>
+          </div>
           {showTemplates && (
             <div style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 12, padding: 14 }}>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
@@ -177,9 +182,6 @@ function GoalEditModal({ goal, onClose, onSave, onDelete }) {
                     <div style={{ fontSize: 11, color: "rgba(242,237,228,0.55)" }}>{tpl.sub} · ~{tpl.weeksOut} wks</div>
                   </button>
                 ))}
-                <button onClick={() => setShowTemplates(false)} style={{ gridColumn: "1 / -1", textAlign: "center", background: "rgba(10,197,168,0.08)", border: "1px dashed rgba(10,197,168,0.4)", padding: "12px 12px", borderRadius: 8, cursor: "pointer", color: "#2ee0c4", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase" }}>
-                  + Write a custom goal
-                </button>
               </div>
             </div>
           )}
