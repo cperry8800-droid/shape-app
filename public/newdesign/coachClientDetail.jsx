@@ -103,6 +103,45 @@ function CoachClientDetailPage() {
         </Card>
       )}
 
+      {Array.isArray(data.plans) && data.plans.length > 0 && (
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", marginBottom: 14 }}>CURRENT PLANS</div>
+          <div style={{ display: "grid", gridTemplateColumns: data.plans.length > 1 ? "1fr 1fr" : "1fr", gap: 14 }}>
+            {data.plans.map((p) => {
+              const tone = p.providerRole === "trainer" ? "#2ee0c4" : "#d2693f";
+              const tpl = p.template;
+              return (
+                <div key={p.assignmentId} style={{ border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: 16 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <span style={{ width: 6, height: 18, borderRadius: 3, background: tone }} />
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.1em", color: "rgba(242,237,228,0.55)", textTransform: "uppercase" }}>
+                      {p.providerRole} · {p.coachName}
+                    </span>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: tone, marginLeft: "auto", textTransform: "uppercase" }}>{p.status}</span>
+                  </div>
+                  <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, letterSpacing: "-0.01em", marginBottom: 6 }}>
+                    {tpl ? tpl.title : "Custom plan"}
+                  </div>
+                  <div style={{ fontSize: 12, color: "rgba(242,237,228,0.65)", lineHeight: 1.6 }}>
+                    {tpl ? [
+                      tpl.goal,
+                      tpl.level,
+                      tpl.durationWeeks ? `${tpl.durationWeeks} wks` : null,
+                      tpl.daysPerWeek ? `${tpl.daysPerWeek}×/wk` : null,
+                    ].filter(Boolean).join(" · ") : "Details visible to the assigning coach."}
+                  </div>
+                  {p.notes && (
+                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(242,237,228,0.06)", fontSize: 12, color: "rgba(242,237,228,0.55)", fontStyle: "italic" }}>
+                      "{p.notes}"
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
         <Card>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", marginBottom: 14 }}>UPCOMING</div>
