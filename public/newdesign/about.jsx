@@ -186,6 +186,93 @@ function AboutPage() {
         background: `radial-gradient(ellipse 46% 70% at 50% 40%, rgba(242,237,228,0.08) 0%, rgba(242,237,228,0.04) 35%, transparent 70%)`,
         pointerEvents: "none",
       }} />
+      {/* Vertical issue stamps — left + right edges. */}
+      <div aria-hidden style={{
+        position: "fixed",
+        top: "50%",
+        left: 28,
+        transform: "translateY(-50%) rotate(-90deg)",
+        transformOrigin: "left center",
+        fontFamily: mono,
+        fontSize: 10,
+        letterSpacing: "0.4em",
+        textTransform: "uppercase",
+        color: "rgba(242,237,228,0.28)",
+        whiteSpace: "nowrap",
+        zIndex: 0,
+        pointerEvents: "none",
+      }}>Issue 01 · A letter from Shape</div>
+      <div aria-hidden style={{
+        position: "fixed",
+        top: "50%",
+        right: 28,
+        transform: "translateY(-50%) rotate(90deg)",
+        transformOrigin: "right center",
+        fontFamily: mono,
+        fontSize: 10,
+        letterSpacing: "0.4em",
+        textTransform: "uppercase",
+        color: "rgba(242,237,228,0.28)",
+        whiteSpace: "nowrap",
+        zIndex: 0,
+        pointerEvents: "none",
+      }}>Vol · 2026 · The Shape Community</div>
+
+      {/* Page numerals — top-left + bottom-right corners. */}
+      <div aria-hidden style={{
+        position: "fixed",
+        top: 110,
+        left: 28,
+        zIndex: 0,
+        pointerEvents: "none",
+        fontFamily: mono,
+        fontSize: 10,
+        letterSpacing: "0.22em",
+        textTransform: "uppercase",
+        color: "rgba(242,237,228,0.32)",
+      }}>
+        <div style={{ marginBottom: 4, color: TEAL_BRIGHT }}>·</div>
+        <div>PG. 01</div>
+      </div>
+      <div aria-hidden style={{
+        position: "fixed",
+        bottom: 28,
+        right: 28,
+        zIndex: 0,
+        pointerEvents: "none",
+        fontFamily: mono,
+        fontSize: 10,
+        letterSpacing: "0.22em",
+        textTransform: "uppercase",
+        color: "rgba(242,237,228,0.32)",
+        textAlign: "right",
+      }}>
+        <div>About · Shape</div>
+        <div style={{ marginTop: 4, color: TEAL_BRIGHT }}>·</div>
+      </div>
+
+      {/* Registration mark — small "+" in upper-left of the spread. */}
+      <svg aria-hidden style={{ position: "fixed", top: 100, right: 60, width: 18, height: 18, zIndex: 0, pointerEvents: "none", opacity: 0.4 }} viewBox="0 0 18 18">
+        <line x1="9" y1="0" x2="9" y2="18" stroke={TEAL} strokeWidth="0.8"/>
+        <line x1="0" y1="9" x2="18" y2="9" stroke={TEAL} strokeWidth="0.8"/>
+        <circle cx="9" cy="9" r="4" fill="none" stroke={TEAL} strokeWidth="0.8"/>
+      </svg>
+      <svg aria-hidden style={{ position: "fixed", bottom: 90, left: 60, width: 18, height: 18, zIndex: 0, pointerEvents: "none", opacity: 0.4 }} viewBox="0 0 18 18">
+        <line x1="9" y1="0" x2="9" y2="18" stroke={RUST} strokeWidth="0.8"/>
+        <line x1="0" y1="9" x2="18" y2="9" stroke={RUST} strokeWidth="0.8"/>
+        <circle cx="9" cy="9" r="4" fill="none" stroke={RUST} strokeWidth="0.8"/>
+      </svg>
+
+      {/* Dot grid — fine cream specks across the surface. */}
+      <div aria-hidden style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 0,
+        pointerEvents: "none",
+        backgroundImage: "radial-gradient(circle at 1px 1px, rgba(245,239,225,0.05) 1px, transparent 1px)",
+        backgroundSize: "32px 32px",
+      }} />
+
       {/* Film grain — fine SVG noise. */}
       <svg aria-hidden xmlns="http://www.w3.org/2000/svg" style={{
         position: "fixed",
