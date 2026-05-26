@@ -27,6 +27,11 @@ const nextConfig: NextConfig = {
     return [
       { source: '/pricing', destination: '/newdesign/Pricing.html', permanent: true },
       { source: '/pricing.html', destination: '/newdesign/Pricing.html', permanent: true },
+      // About page lives at /public/newdesign/About.html. Case-tolerant
+      // redirects so /about, /about.html, /newdesign/about.html all resolve.
+      { source: '/about', destination: '/newdesign/About.html', permanent: true },
+      { source: '/about.html', destination: '/newdesign/About.html', permanent: true },
+      { source: '/newdesign/about.html', destination: '/newdesign/About.html', permanent: true },
     ];
   },
   async rewrites() {
