@@ -99,7 +99,7 @@ function AboutLetter() {
         </aside>
 
         <p style={{ ...para, marginBottom: 48 }}>
-          That's it. Shape is the place where you find the coach, work with the nutritionist, build the habits, earn your score, hear the music, and meet the people. The rest is just showing up.
+          Shape is the place where you find the coach, work with the nutritionist, build the habits, earn your score, hear the music, and meet the people. The rest is just showing up.
         </p>
 
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
