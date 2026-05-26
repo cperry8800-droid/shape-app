@@ -27,11 +27,6 @@ const nextConfig: NextConfig = {
     return [
       { source: '/pricing', destination: '/newdesign/Pricing.html', permanent: true },
       { source: '/pricing.html', destination: '/newdesign/Pricing.html', permanent: true },
-      // About page lives at /public/newdesign/About.html. Case-tolerant
-      // redirects so /about, /about.html, /newdesign/about.html all resolve.
-      { source: '/about', destination: '/newdesign/About.html', permanent: true },
-      { source: '/about.html', destination: '/newdesign/About.html', permanent: true },
-      { source: '/newdesign/about.html', destination: '/newdesign/About.html', permanent: true },
     ];
   },
   async rewrites() {
@@ -45,6 +40,11 @@ const nextConfig: NextConfig = {
       })),
       { source: '/newdesign', destination: '/newdesign/index.html' },
       { source: '/newdesign/', destination: '/newdesign/index.html' },
+      // About page lives at /public/newdesign/About.html. Rewrites (not
+      // redirects) keep the clean URL in the bar and avoid the case-sensitivity
+      // redirect loops Vercel can hit between lowercase/uppercase paths.
+      { source: '/about', destination: '/newdesign/About.html' },
+      { source: '/about.html', destination: '/newdesign/About.html' },
       // Mobile preview lives at public/mobile/Mobile.html. Give it clean,
       // lowercase URLs so the mixed-case filename isn't the only way in.
       { source: '/mobile', destination: '/mobile/Mobile.html' },
