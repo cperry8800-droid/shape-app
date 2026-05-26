@@ -28,7 +28,7 @@ function AboutLetter() {
       <div style={{ maxWidth: 820, margin: "0 auto", position: "relative" }}>
         <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Why Shape exists</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(34px, 4.4vw, 56px)", letterSpacing: "-0.03em", fontWeight: 300, margin: 0, lineHeight: 1.05, color: PAPER }}>
-          A way to <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>shape a lifestyle you want</em>.
+          Not just fitness — a way to <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>shape a lifestyle you want</em>.
         </h2>
         <div style={{ marginTop: 36, fontFamily: serif, fontSize: 19, lineHeight: 1.75, color: "rgba(26,22,18,0.86)" }}>
           <p style={{ margin: "0 0 22px" }}>
