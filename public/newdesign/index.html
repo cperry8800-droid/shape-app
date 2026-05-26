@@ -66,8 +66,10 @@
   .htxt{position:relative;z-index:3;text-align:center;max-width:1100px;will-change:transform}
   .hero-mark-wrap{position:relative;display:flex;flex-direction:column;align-items:center;margin:-40px auto 22px;width:84px}
   .hero-mark{display:block;width:84px;height:auto;animation:hero-mark-pulse 3.8s ease-in-out infinite}
-  .hero-mark-s{stroke-dasharray:14 90;stroke-dashoffset:0;filter:drop-shadow(0 0 2px rgba(255,255,255,0.9));animation:hero-mark-s-trace 2.6s linear infinite}
-  @keyframes hero-mark-s-trace{ to { stroke-dashoffset:-104 } }
+  .hero-mark-edge{stroke-dasharray:14 121;stroke-dashoffset:0;stroke-linecap:round;animation:hero-mark-edge 3.2s linear infinite}
+  .hero-mark .e1{filter:drop-shadow(0 0 2px rgba(255,255,255,0.9))}
+  .hero-mark .e2{filter:drop-shadow(0 0 2px rgba(10,197,168,0.9));animation-delay:-1.6s}
+  @keyframes hero-mark-edge{ to { stroke-dashoffset:-135 } }
   .hero-mark-beam{display:block;margin-top:14px;width:140px;height:2px;border-radius:2px;
     background:linear-gradient(90deg,transparent,#ffffff 28%,#ffffff 72%,transparent);
     transform-origin:center;animation:hero-mark-beam 3.8s ease-in-out infinite}
@@ -85,10 +87,10 @@
     .hero-mark-beam{width:110px}
   }
   @media(prefers-reduced-motion:reduce){
-    .hero-mark,.hero-mark-beam,.hero-mark-s{animation:none}
+    .hero-mark,.hero-mark-beam,.hero-mark-edge{animation:none}
     .hero-mark{filter:drop-shadow(0 0 18px rgba(10,197,168,0.45))}
     .hero-mark-beam{opacity:0.65;transform:none}
-    .hero-mark-s{stroke-dasharray:none}
+    .hero-mark-edge{stroke-dasharray:none}
   }
   .eyb{font-family:var(--mono);font-size:12px;letter-spacing:.34em;text-transform:uppercase;color:var(--teal)}
   .hero h1{font-family:var(--serif);font-weight:300;font-size:clamp(34px,5vw,76px);line-height:1.02;letter-spacing:-.035em;margin:26px 0 0}
@@ -309,8 +311,8 @@
       <svg class="hero-mark" viewBox="0 0 100 100" focusable="false">
         <polygon points="20,40 20,88 56,64" fill="#0ac5a8"/>
         <polygon points="80,12 80,60 44,36" fill="#ffffff"/>
-        <path class="hero-mark-s-base" d="M 66 22 Q 50 36 50 50 Q 50 64 34 78" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="1.6" stroke-linecap="round"/>
-        <path class="hero-mark-s" d="M 66 22 Q 50 36 50 50 Q 50 64 34 78" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+        <polygon class="hero-mark-edge e1" points="20,40 20,88 56,64" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linejoin="round"/>
+        <polygon class="hero-mark-edge e2" points="80,12 80,60 44,36" fill="none" stroke="#0ac5a8" stroke-width="1.6" stroke-linejoin="round"/>
       </svg>
       <span class="hero-mark-beam"></span>
     </div>
