@@ -159,7 +159,7 @@ function LoginCard() {
       <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, borderTopLeftRadius: 10, borderTopRightRadius: 10, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 16%, ${TEAL} 84%, transparent 100%)`, opacity: 0.62 }} />
       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>Welcome back</div>
       <h1 style={{ fontFamily: serif, fontSize: 52, letterSpacing: "-0.03em", fontWeight: 500, margin: "0 0 10px", lineHeight: 0.96 }}>
-        Log in to <em style={{ fontStyle: "italic", color: TEAL }}>Shape</em>.
+        Log in to <em style={{ fontStyle: "italic", color: "transparent", WebkitTextStroke: "1.4px #f2ede4" }}>Shape</em>.
       </h1>
       <p style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.68)", margin: "0 0 28px", lineHeight: 1.5 }}>Pick up where you left off. Your coaches, your plans, your progress.</p>
 
