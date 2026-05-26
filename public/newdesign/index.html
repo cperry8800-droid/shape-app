@@ -52,27 +52,32 @@
   }
   body > *:not(.site-bg):not(.site-contours){position:relative;z-index:1}
 
-  /* Topographic contour layer — thin teal route-map lines drifting slowly
-     over the gradient blobs. Stays well behind content. */
-  .site-contours{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:0.18;mix-blend-mode:screen}
-  .site-contours svg{width:100%;height:100%;display:block}
-  .site-contours .c1{animation:contour-a 60s linear infinite}
-  .site-contours .c2{animation:contour-b 80s linear infinite}
-  .site-contours .c3{animation:contour-c 70s linear infinite}
-  @keyframes contour-a{
+  /* Modern overlay: constellation mesh + faint hex grid.
+     Reads as a layered tech / data backdrop without competing with content. */
+  .site-contours{position:fixed;inset:0;z-index:0;pointer-events:none;
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(245,239,225,0.06) 1px, transparent 1px);
+    background-size:38px 38px}
+  .site-mesh{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:0.5;mix-blend-mode:screen}
+  .site-mesh svg{width:100%;height:100%;display:block}
+  .site-mesh .links{stroke:#2ee0c4;stroke-width:0.5;opacity:0.45;animation:mesh-drift 80s linear infinite}
+  .site-mesh .nodes circle{fill:#2ee0c4;opacity:0.85}
+  .site-mesh .pulse{transform-origin:center;animation:mesh-pulse 6s ease-in-out infinite}
+  .site-mesh .rings{stroke:#0ac5a8;stroke-width:0.6;fill:none;opacity:0.3;animation:mesh-rotate 120s linear infinite;transform-origin:50% 50%}
+  @keyframes mesh-drift{
     from{transform:translate(0,0)}
     to{transform:translate(40px,-30px)}
   }
-  @keyframes contour-b{
-    from{transform:translate(0,0)}
-    to{transform:translate(-50px,40px)}
+  @keyframes mesh-pulse{
+    0%,100%{opacity:0.6;transform:scale(1)}
+    50%{opacity:1;transform:scale(1.15)}
   }
-  @keyframes contour-c{
-    from{transform:translate(0,0)}
-    to{transform:translate(30px,50px)}
+  @keyframes mesh-rotate{
+    from{transform:rotate(0deg)}
+    to{transform:rotate(360deg)}
   }
   @media(prefers-reduced-motion:reduce){
-    .site-contours .c1,.site-contours .c2,.site-contours .c3{animation:none!important}
+    .site-mesh .links,.site-mesh .pulse,.site-mesh .rings{animation:none!important}
   }
   a{color:inherit;text-decoration:none}img{display:block;max-width:100%}
   button{font-family:inherit;cursor:pointer;border:0;background:none}
@@ -276,22 +281,58 @@
   <span class="sb sb2"></span>
   <span class="sb sb3"></span>
 </div>
-<div class="site-contours" aria-hidden="true">
+<div class="site-contours" aria-hidden="true"></div>
+<div class="site-mesh" aria-hidden="true">
   <svg viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
-    <g class="c1" fill="none" stroke="#0ac5a8" stroke-width="1.2">
-      <path d="M -50,200 C 200,160 400,260 650,220 S 1100,170 1350,240 S 1700,210 1700,210"/>
-      <path d="M -50,260 C 220,220 420,320 670,280 S 1120,230 1370,300 S 1700,270 1700,270"/>
-      <path d="M -50,320 C 240,280 440,380 690,340 S 1140,290 1390,360 S 1700,330 1700,330"/>
-      <path d="M -50,380 C 260,340 460,440 710,400 S 1160,350 1410,420 S 1700,390 1700,390"/>
+    <g class="rings">
+      <circle cx="800" cy="500" r="220"/>
+      <circle cx="800" cy="500" r="360"/>
+      <circle cx="800" cy="500" r="520"/>
     </g>
-    <g class="c2" fill="none" stroke="#2ee0c4" stroke-width="1">
-      <path d="M -50,720 C 220,680 460,780 720,740 S 1180,690 1420,760 S 1700,730 1700,730"/>
-      <path d="M -50,780 C 240,740 480,840 740,800 S 1200,750 1440,820 S 1700,790 1700,790"/>
-      <path d="M -50,840 C 260,800 500,900 760,860 S 1220,810 1460,880 S 1700,850 1700,850"/>
+    <g class="links">
+      <line x1="120" y1="180" x2="380" y2="260"/>
+      <line x1="380" y1="260" x2="620" y2="160"/>
+      <line x1="620" y1="160" x2="900" y2="280"/>
+      <line x1="900" y1="280" x2="1180" y2="200"/>
+      <line x1="1180" y1="200" x2="1420" y2="320"/>
+      <line x1="120" y1="180" x2="260" y2="440"/>
+      <line x1="260" y1="440" x2="500" y2="520"/>
+      <line x1="500" y1="520" x2="780" y2="620"/>
+      <line x1="780" y1="620" x2="1040" y2="540"/>
+      <line x1="1040" y1="540" x2="1320" y2="640"/>
+      <line x1="1320" y1="640" x2="1500" y2="480"/>
+      <line x1="380" y1="260" x2="500" y2="520"/>
+      <line x1="620" y1="160" x2="780" y2="620"/>
+      <line x1="900" y1="280" x2="1040" y2="540"/>
+      <line x1="1180" y1="200" x2="1320" y2="640"/>
+      <line x1="260" y1="440" x2="180" y2="760"/>
+      <line x1="500" y1="520" x2="420" y2="820"/>
+      <line x1="780" y1="620" x2="700" y2="880"/>
+      <line x1="1040" y1="540" x2="980" y2="820"/>
+      <line x1="1320" y1="640" x2="1260" y2="900"/>
+      <line x1="180" y1="760" x2="420" y2="820"/>
+      <line x1="420" y1="820" x2="700" y2="880"/>
+      <line x1="700" y1="880" x2="980" y2="820"/>
+      <line x1="980" y1="820" x2="1260" y2="900"/>
     </g>
-    <g class="c3" fill="none" stroke="#d2693f" stroke-width="0.9" opacity="0.6">
-      <path d="M -50,500 C 200,460 460,560 700,520 S 1140,470 1380,540 S 1700,510 1700,510"/>
-      <path d="M -50,560 C 220,520 480,620 720,580 S 1160,530 1400,600 S 1700,570 1700,570"/>
+    <g class="nodes">
+      <circle class="pulse" cx="120" cy="180" r="2.5"/>
+      <circle cx="380" cy="260" r="2"/>
+      <circle class="pulse" cx="620" cy="160" r="2.5" style="animation-delay:-1s"/>
+      <circle cx="900" cy="280" r="2"/>
+      <circle class="pulse" cx="1180" cy="200" r="2.5" style="animation-delay:-2s"/>
+      <circle cx="1420" cy="320" r="2"/>
+      <circle cx="260" cy="440" r="2"/>
+      <circle class="pulse" cx="500" cy="520" r="3" style="animation-delay:-3s"/>
+      <circle cx="780" cy="620" r="2"/>
+      <circle class="pulse" cx="1040" cy="540" r="3" style="animation-delay:-4s"/>
+      <circle cx="1320" cy="640" r="2"/>
+      <circle cx="1500" cy="480" r="2"/>
+      <circle cx="180" cy="760" r="2"/>
+      <circle class="pulse" cx="420" cy="820" r="2.5" style="animation-delay:-5s"/>
+      <circle cx="700" cy="880" r="2"/>
+      <circle class="pulse" cx="980" cy="820" r="2.5" style="animation-delay:-1.5s"/>
+      <circle cx="1260" cy="900" r="2"/>
     </g>
   </svg>
 </div>
