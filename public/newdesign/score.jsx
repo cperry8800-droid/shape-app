@@ -62,7 +62,7 @@ function ScoreHero() {
   const R = 118;
   const C = 2 * Math.PI * R;
   return (
-    <section style={{ padding: "150px 72px 60px", position: "relative", overflow: "hidden" }}>
+    <section style={{ padding: "40px 72px 60px", position: "relative", overflow: "hidden" }}>
       <div aria-hidden style={{ position: "absolute", width: 600, height: 600, top: "-22%", right: "-6%", borderRadius: "50%", filter: "blur(80px)", opacity: 0.3, background: `radial-gradient(circle, ${TEAL}, transparent 70%)`, pointerEvents: "none" }} />
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
         <div className="sc-hero" style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 80, alignItems: "center" }}>

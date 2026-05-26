@@ -64,7 +64,7 @@ function Reveal({ children, delay = 0, style = {} }) {
 
 function PricingHero() {
   return (
-    <section style={{ position: "relative", padding: "150px 72px 70px", overflow: "hidden" }}>
+    <section style={{ position: "relative", padding: "40px 72px 70px", overflow: "hidden" }}>
       <div aria-hidden style={{ position: "absolute", width: 620, height: 620, top: "-20%", right: "-8%", borderRadius: "50%", filter: "blur(80px)", opacity: 0.32, background: `radial-gradient(circle, ${TEAL}, transparent 70%)`, pointerEvents: "none" }} />
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
         <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.3em", textTransform: "uppercase", color: TEAL, marginBottom: 24 }}>Pricing</div>
