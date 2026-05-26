@@ -13,6 +13,11 @@ function AboutHero() {
         <p style={{ fontFamily: sans, fontSize: 19, color: "rgba(242,237,228,0.74)", margin: "36px auto 0", maxWidth: 720, lineHeight: 1.65 }}>
           Shape isn't just a fitness app or platform. It's where your trainer loads tomorrow's workout tonight, your nutritionist's meal plan turns into a grocery list, and the playlist attached to leg day starts playing the moment you open the card. Every workout you complete, every habit you build or stop, every day you show up — your Shape Score is keeping track. The more consistent you are, the higher your status climbs. The community isn't a forum — it's the people in your loop. Shape is where your lifestyle actually takes shape.
         </p>
+        {/* Connector cue down to the letter section. */}
+        <div style={{ marginTop: 56, display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }} aria-hidden="true">
+          <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.24em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>A letter</span>
+          <span style={{ width: 1, height: 56, background: `linear-gradient(to bottom, transparent, ${TEAL})`, display: "block" }} />
+        </div>
       </div>
     </section>
   );
@@ -48,14 +53,13 @@ function AboutLetter() {
     padding: "10px 0",
   };
   return (
-    <section style={{ background: PAPER, color: INK, position: "relative", padding: "40px 24px 140px" }}>
+    <section style={{ background: PAPER, color: INK, position: "relative", padding: "0 24px 140px" }}>
       <div style={{ maxWidth: 720, margin: "0 auto", position: "relative" }}>
-        <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL_BRIGHT, marginBottom: 18, textAlign: "center" }}>Why Shape exists</div>
-        <h2 style={{ fontFamily: serif, fontSize: "clamp(38px, 5.6vw, 76px)", letterSpacing: "-0.03em", fontWeight: 300, margin: "0 0 8px", lineHeight: 1.0, color: INK, textAlign: "center" }}>
+        <h2 style={{ fontFamily: serif, fontSize: "clamp(26px, 3vw, 38px)", letterSpacing: "-0.02em", fontWeight: 400, margin: "0 0 8px", lineHeight: 1.15, color: INK, textAlign: "center", fontStyle: "italic" }}>
           Not just fitness — a way to <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>shape</em> a <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>lifestyle</em> you want.
         </h2>
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 56 }}>
-          <span style={{ width: 36, height: 2, background: TEAL, opacity: 0.7 }} />
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 18, marginBottom: 48 }}>
+          <span style={{ width: 24, height: 1, background: "rgba(242,237,228,0.25)" }} />
         </div>
 
         <p style={para}>
