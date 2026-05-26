@@ -97,7 +97,7 @@ function CinemaHero() {
       <div ref={setLayer(0)} aria-hidden style={{ position: "absolute", width: 620, height: 620, top: "-6%", left: "-4%", borderRadius: "50%", filter: "blur(70px)", opacity: 0.5, background: `radial-gradient(circle, ${TEAL} 0%, transparent 70%)`, willChange: "transform" }} />
       <div ref={setLayer(1)} aria-hidden style={{ position: "absolute", width: 640, height: 640, bottom: "-12%", right: "-6%", borderRadius: "50%", filter: "blur(70px)", opacity: 0.42, background: `radial-gradient(circle, ${RUST} 0%, transparent 70%)`, willChange: "transform" }} />
       <div ref={setLayer(2)} style={{ position: "relative", zIndex: 3, textAlign: "center", maxWidth: 1100, willChange: "transform" }}>
-        <h1 style={{ fontFamily: serif, fontSize: "clamp(52px, 9.4vw, 142px)", letterSpacing: "-0.045em", fontWeight: 300, margin: 0, lineHeight: 0.9 }}>
+        <h1 style={{ fontFamily: serif, fontSize: "clamp(40px, 6.6vw, 96px)", letterSpacing: "-0.045em", fontWeight: 300, margin: 0, lineHeight: 0.92 }}>
           How will you <em style={{ fontStyle: "italic", fontWeight: 600, color: "transparent", WebkitTextStroke: `1.4px ${INK}` }}>Shape</em>?
         </h1>
         <p style={{ fontFamily: sans, fontSize: 18, color: "rgba(242,237,228,0.66)", margin: "32px auto 0", maxWidth: 560, lineHeight: 1.6 }}>
