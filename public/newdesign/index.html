@@ -218,10 +218,12 @@
 (function(){
   var el=document.getElementById('shape-intro');
   if(!el)return;
-  var rm=false,skip=false;
+  var rm=false,skip=false,seen=false;
   try{rm=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;}catch(e){}
   try{skip=new URLSearchParams(location.search).has('home');}catch(e){}
-  if(rm||skip){if(el.parentNode)el.parentNode.removeChild(el);return;}
+  try{seen=sessionStorage.getItem('shape.intro.seen')==='1';}catch(e){}
+  if(rm||skip||seen){if(el.parentNode)el.parentNode.removeChild(el);return;}
+  try{sessionStorage.setItem('shape.intro.seen','1');}catch(e){}
   document.body.classList.add('intro-lock');
   var done=false;
   function end(){
@@ -245,7 +247,7 @@
 
 <nav>
   <div class="wrap navr">
-    <a class="brand" href="index.html?home"><img src="/shape-logo-new-white.png?v=3" alt="Shape" /></a>
+    <a class="brand" href="index.html"><img src="/shape-logo-new-white.png?v=3" alt="Shape" /></a>
     <div class="nlinks">
       <div class="ndrop"><span>Clients</span><div class="ndmenu"><div>
         <a href="Client.html">Overview</a>
@@ -488,7 +490,7 @@
         e.preventDefault();
         fetch('/api/auth/signout',{method:'POST',credentials:'same-origin'})
           .catch(function(){})
-          .then(function(){window.location.href='index.html?home';});
+          .then(function(){window.location.href='index.html';});
       });
       nauth.insertBefore(hi,radio);
       nauth.insertBefore(dashLink,radio);
