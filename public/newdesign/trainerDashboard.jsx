@@ -3,12 +3,12 @@
 
 // Reusable sidebar. Renders a dashboard home href + nav items with active states.
 // navItems items: { label, count, active, href }
+// Note: the marketing top nav (Header from pageShell.jsx) is rendered above
+// this sidebar by DashPage/DashShell, so the sidebar starts below a fixed
+// 85px header. `top: 85` keeps the sticky position aligned with that header.
 function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
   return (
-    <aside style={{ borderRight: "1px solid rgba(242,237,228,0.08)", padding: "20px 20px", display: "flex", flexDirection: "column", gap: 6, position: "sticky", top: 0, alignSelf: "start", background: "linear-gradient(180deg, rgba(242,237,228,0.025), rgba(242,237,228,0.01))" }}>
-      <div style={{ padding: "2px 10px 18px" }}>
-        <a href={homeHref} style={{ flex: "none", display: "inline-flex" }}><Logo variant="white" size={20} /></a>
-      </div>
+    <aside style={{ borderRight: "1px solid rgba(242,237,228,0.08)", padding: "20px 20px", display: "flex", flexDirection: "column", gap: 6, position: "sticky", top: 85, alignSelf: "start", background: "linear-gradient(180deg, rgba(242,237,228,0.025), rgba(242,237,228,0.01))" }}>
       {navItems.map((n, i) => (
         <a key={i} href={n.href || "#"} style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -36,10 +36,13 @@ function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
   );
 }
 
-// Inner-page shell: sidebar + main w/ title bar + freeform children
+// Inner-page shell: sidebar + main w/ title bar + freeform children.
+// Header (the marketing top nav from pageShell.jsx) renders above the
+// dashboard grid so dashboards share the index.html nav formatting.
 function DashPage({ navItems, payoutCard, eyebrow, title, subtitle, actions, children }) {
   return (
     <div style={{ background: PAPER, color: INK, minHeight: "100vh", fontFamily: sans, display: "flex", flexDirection: "column" }}>
+      <Header />
       <div style={{ display: "grid", gridTemplateColumns: "240px 1fr", flex: 1 }}>
       <DashSidebar navItems={navItems} payoutCard={payoutCard} />
       <main style={{ padding: "40px 48px 80px", minWidth: 0, overflowX: "hidden" }}>
@@ -188,6 +191,7 @@ function DashShell({
   const cal = (typeof useCalendarOverlay === "function") ? useCalendarOverlay() : null;
   return (
     <div style={{ background: PAPER, color: INK, minHeight: "100vh", fontFamily: sans, display: "flex", flexDirection: "column" }}>
+      <Header />
       <div style={{ display: "grid", gridTemplateColumns: "240px 1fr", flex: 1 }}>
       <DashSidebar navItems={navItems} payoutCard={payoutCard} />
       {calendarEvents && cal && <CalendarOverlay {...cal.props} role={role} events={calendarEvents} />}
