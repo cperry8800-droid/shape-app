@@ -195,7 +195,7 @@ function Spotlight({ tab }) {
 
 function MarketplaceHero({ tab, setTab }) {
   return (
-    <section style={{ padding: "150px 72px 60px", position: "relative", overflow: "hidden" }}>
+    <section style={{ padding: "40px 72px 60px", position: "relative", overflow: "hidden" }}>
       <div aria-hidden style={{ position: "absolute", width: 620, height: 620, top: "-18%", right: "-6%", borderRadius: "50%", filter: "blur(82px)", opacity: 0.3, background: `radial-gradient(circle, ${TEAL}, transparent 70%)`, pointerEvents: "none" }} />
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
         <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.3em", textTransform: "uppercase", color: TEAL, marginBottom: 24 }}>The marketplace</div>

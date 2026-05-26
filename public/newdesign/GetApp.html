@@ -148,13 +148,26 @@
   .notify-msg.ok { color: var(--teal); }
   .notify-msg.err { color: var(--orange); }
 
-  footer { border-top: 1px solid var(--hairline-2); padding: 30px 0 26px; }
-  .foot-cta { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-  .foot-logo { height: 30px; width: auto; }
-  .foot-tagline { font-family: var(--mono); font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); }
-  .foot-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 18px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; color: var(--ink-3); text-transform: uppercase; flex-wrap: wrap; }
-  .foot-links { display: flex; gap: 18px; }
-  .foot-links a:hover { color: var(--ink); }
+  .ga-footer { position: relative; padding: 56px 72px 36px; background: #0b0e0c; color: #f2ede4; margin-top: auto; }
+  .ga-footer-rule { position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent 0%, var(--teal) 30%, var(--orange) 70%, transparent 100%); opacity: 0.55; }
+  .ga-footer-inner { max-width: 1320px; margin: 0 auto; }
+  .ga-footer-cta { display: flex; flex-direction: column; align-items: center; gap: 10px; padding-bottom: 36px; text-align: center; }
+  .ga-footer-cta img { height: 96px; width: auto; display: block; }
+  .ga-footer-tag { font-family: var(--serif); font-size: 20px; font-style: italic; letter-spacing: -0.02em; color: #f2ede4; }
+  .ga-footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 28px; padding-top: 30px; border-top: 1px solid rgba(242,237,228,0.1); }
+  .ga-footer-brand { text-align: center; }
+  .ga-footer-brand img { height: 96px; width: auto; display: block; margin: 0 auto; }
+  .ga-footer-brand p { font-family: var(--sans); font-size: 12.5px; color: rgba(242,237,228,0.5); margin: 12px auto 0; max-width: 280px; line-height: 1.55; }
+  .ga-footer-head { font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--teal); margin-bottom: 14px; }
+  .ga-footer-grid > div > a { display: block; font-family: var(--sans); font-size: 12.5px; color: rgba(242,237,228,0.72); text-decoration: none; margin-bottom: 8px; transition: color .15s ease; }
+  .ga-footer-grid > div > a:hover { color: #f2ede4; }
+  .ga-footer-base { margin-top: 36px; padding-top: 18px; border-top: 1px solid rgba(242,237,228,0.08); display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em; color: rgba(242,237,228,0.42); }
+  @media (max-width: 920px) {
+    .ga-footer { padding: 32px 22px 24px; }
+    .ga-footer-grid { grid-template-columns: 1fr 1fr; gap: 28px; padding-top: 28px; }
+    .ga-footer-brand { grid-column: 1 / -1; }
+    .ga-footer-base { flex-direction: column; gap: 10px; align-items: flex-start; }
+  }
 
   @media (max-width: 860px) {
     .stage { grid-template-columns: 1fr; gap: 32px; padding: 16px 0 44px; min-height: 0; }
@@ -233,18 +246,47 @@
   </div>
 </section>
 
-<footer>
-  <div class="wrap foot-cta">
-    <img src="/shape-logo-black.png" alt="Shape" class="foot-logo" />
-    <div class="foot-tagline">Join the community</div>
-  </div>
-  <div class="wrap foot-row">
-    <div>© 2026 Shape — Find your coach.</div>
-    <div class="foot-links">
-      <a href="/newdesign/index.html">Home</a>
-      <a href="/privacy">Privacy</a>
-      <a href="/terms">Terms</a>
-      <a href="/contact">Contact</a>
+<footer class="ga-footer">
+  <div aria-hidden class="ga-footer-rule"></div>
+  <div class="ga-footer-inner">
+    <div class="ga-footer-cta">
+      <img src="/shape-logo-new-white.png?v=3" alt="Shape" />
+      <div class="ga-footer-tag">Join the community</div>
+    </div>
+    <div class="ga-footer-grid">
+      <div class="ga-footer-brand">
+        <img src="/shape-logo-new-white.png?v=3" alt="Shape" />
+        <p>Real coaches. One marketplace. One platform.</p>
+      </div>
+      <div>
+        <div class="ga-footer-head">Product</div>
+        <a href="/newdesign/Marketplace.html">Marketplace</a>
+        <a href="/newdesign/Score.html">Shape Score</a>
+        <a href="/newdesign/Radio.html">Radio</a>
+        <a href="/newdesign/ClientDashboard.html">Dashboard</a>
+      </div>
+      <div>
+        <div class="ga-footer-head">For trainers</div>
+        <a href="/newdesign/SignupTrainer.html">Apply</a>
+        <a href="/newdesign/TrainerDashboard.html">Payouts</a>
+        <a href="/newdesign/TrainerPrograms.html">Programs</a>
+      </div>
+      <div>
+        <div class="ga-footer-head">Company</div>
+        <a href="/newdesign/index.html">About</a>
+        <a href="/newdesign/Team.html#press">Press</a>
+      </div>
+      <div>
+        <div class="ga-footer-head">Support</div>
+        <a href="/help.html">Help</a>
+        <a href="/contact.html">Contact</a>
+        <a href="/privacy.html">Privacy</a>
+        <a href="/terms.html">Terms</a>
+      </div>
+    </div>
+    <div class="ga-footer-base">
+      <span>© 2026 SHAPE</span>
+      <span>BROOKLYN · LISBON · MELBOURNE</span>
     </div>
   </div>
 </footer>
