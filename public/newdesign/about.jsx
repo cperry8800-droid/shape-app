@@ -186,31 +186,23 @@ function AboutPage() {
         background: `radial-gradient(ellipse 46% 70% at 50% 40%, rgba(242,237,228,0.08) 0%, rgba(242,237,228,0.04) 35%, transparent 70%)`,
         pointerEvents: "none",
       }} />
-      {/* Film grain — fine SVG noise. */}
+      {/* Film grain — fine SVG noise. Dominant texture for the editorial feel. */}
       <svg aria-hidden xmlns="http://www.w3.org/2000/svg" style={{
         position: "fixed",
         inset: 0,
         zIndex: 0,
         width: "100%",
         height: "100%",
-        opacity: 0.06,
+        opacity: 0.22,
         pointerEvents: "none",
         mixBlendMode: "overlay",
       }}>
         <filter id="aboutNoise">
-          <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch" />
-          <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.55 0" />
+          <feTurbulence type="fractalNoise" baseFrequency="0.78" numOctaves="3" stitchTiles="stitch" />
+          <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.75 0" />
         </filter>
         <rect width="100%" height="100%" filter="url(#aboutNoise)" />
       </svg>
-      {/* Hairline column rules — editorial column guides, very faint. */}
-      <div aria-hidden style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 0,
-        pointerEvents: "none",
-        background: "repeating-linear-gradient(to right, transparent 0, transparent calc(50% - 380px), rgba(242,237,228,0.04) calc(50% - 380px), rgba(242,237,228,0.04) calc(50% - 379px), transparent calc(50% - 379px), transparent calc(50% + 379px), rgba(242,237,228,0.04) calc(50% + 379px), rgba(242,237,228,0.04) calc(50% + 380px), transparent calc(50% + 380px))",
-      }} />
       <div style={{ position: "relative", zIndex: 1 }}>
         <Header active="About" />
         <AboutHero />
