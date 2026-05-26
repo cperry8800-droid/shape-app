@@ -17,7 +17,7 @@ function CoReveal({ children, delay = 0, style = {} }) {
 // ---------- Hero ----------
 function TrainerHero() {
   return (
-    <section style={{ padding: "150px 72px 100px", position: "relative", overflow: "hidden", minHeight: "88vh", display: "flex", alignItems: "center" }}>
+    <section style={{ padding: "40px 72px 100px", position: "relative", overflow: "hidden", minHeight: "88vh", display: "flex", alignItems: "center" }}>
       <div aria-hidden style={{ position: "absolute", width: 660, height: 660, top: "-20%", right: "-8%", borderRadius: "50%", filter: "blur(85px)", opacity: 0.32, background: `radial-gradient(circle, ${TEAL}, transparent 70%)`, pointerEvents: "none" }} />
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative", width: "100%" }}>
         <div style={{ maxWidth: 900 }}>

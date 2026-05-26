@@ -77,7 +77,7 @@ function TmReveal({ children, delay = 0, style = {} }) {
 
 function TeamHero() {
   return (
-    <section style={{ padding: "150px 72px 40px", position: "relative", overflow: "hidden" }}>
+    <section style={{ padding: "40px 72px 40px", position: "relative", overflow: "hidden" }}>
       <div aria-hidden style={{ position: "absolute", width: 600, height: 600, top: "-22%", right: "-6%", borderRadius: "50%", filter: "blur(80px)", opacity: 0.3, background: `radial-gradient(circle, ${TEAL}, transparent 70%)`, pointerEvents: "none" }} />
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
         <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.3em", textTransform: "uppercase", color: TEAL, marginBottom: 22 }}>Your team · Priya Shankar</div>
