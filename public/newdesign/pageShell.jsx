@@ -204,9 +204,9 @@ function Header({ active }) {
     <header className="shape-header" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 60, background: "rgba(11,14,12,0.55)", backdropFilter: "blur(20px) saturate(1.05)", WebkitBackdropFilter: "blur(20px) saturate(1.05)", borderBottom: "1px solid rgba(245,239,225,0.06)" }}>
       <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 30%, ${RUST} 70%, transparent 100%)`, opacity: 0.5 }} />
       <ShapeMobileStyles />
-      <div className="shape-header-inner" style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "10px 72px 10px 44px", gap: 32 }}>
+      <div className="shape-header-inner" style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "10px 72px 10px 72px", gap: 32 }}>
         <a href="index.html?home" style={{ flex: "none", display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
-          <img src="/shape-logo-new-white.png?v=3" alt="Shape" style={{ height: 64, width: "auto", display: "block", objectFit: "contain" }} />
+          <img src="/shape-logo-new-white.png?v=3" alt="Shape" style={{ height: 76, width: "auto", display: "block", objectFit: "contain" }} />
         </a>
         <nav className="shape-nav-tabs" style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center", minWidth: 0 }}>
           {navGroupsFor(authUser).map(g => g.kind === "drop"
@@ -264,7 +264,7 @@ function Header({ active }) {
       </div>
       <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} active={active} authUser={authUser} onLogout={handleLogout} />
     </header>
-    <div aria-hidden className="shape-header-spacer" style={{ height: 84 }} />
+    <div aria-hidden className="shape-header-spacer" style={{ height: 96 }} />
     </>
   );
 }
@@ -290,7 +290,7 @@ function Footer() {
         </div>
         <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 28, paddingTop: 30, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
           <div style={{ textAlign: "center" }}>
-            <img src="/shape-logo-new-white.png?v=3" alt="Shape" style={{ height: 84, width: "auto", display: "block", margin: "0 auto" }} />
+            <img src="/shape-logo-new-white.png?v=3" alt="Shape" style={{ height: 96, width: "auto", display: "block", margin: "0 auto" }} />
             <p style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.5)", margin: "12px auto 0", maxWidth: 280, lineHeight: 1.55 }}>Real coaches. One marketplace. One platform.</p>
           </div>
           {[
@@ -335,7 +335,8 @@ function ShapeMobileStyles() {
       @media (max-width: 900px) {
         /* Header */
         .shape-header-inner { padding: 12px 18px !important; gap: 12px !important; }
-        .shape-header-spacer { height: 84px !important; }
+        .shape-header-spacer { height: 96px !important; }
+
 
 
         .shape-nav-tabs { display: none !important; }
