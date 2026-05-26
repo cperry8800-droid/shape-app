@@ -22,125 +22,91 @@ function AboutHero() {
   );
 }
 
-// Scroll-scrubbed sticky stage — same pattern as the index "Loop" section.
-// One pinned stage holds N beats absolutely-positioned over each other. As
-// the user scrolls past the outer wrapper, an rAF loop calculates progress
-// and toggles which beat is "on" (opacity 1). The wrapper height = N * 100vh
-// so the visitor scrolls through one full screen per beat while the stage
-// stays pinned to the top.
-const ABOUT_BEATS = [
-  {
-    ix: "01 — Start",
-    h: <>Shape is about exactly what its name <b>suggests.</b></>,
-    p: "Shaping your life into what you want it to be. Your routines, your sleep, your music, your meals, your mindset, your people. We built Shape so you can work on all of it — on your own terms.",
-  },
-  {
-    ix: "02 — Coach",
-    h: <>Real coaches. <b>Real rates.</b></>,
-    p: "Personal coaching shouldn't be a luxury. We opened the door for trainers, nutritionists, and dietitians who actually care — and made that level of guidance affordable for the rest of us. The platform fee is flat. The coach is real. The rates are theirs.",
-  },
-  {
-    ix: "03 — Train",
-    h: <>Written <b>before</b> you arrive.</>,
-    p: "Your trainer programs your week the night before — every set, every tempo, every cue. No deciding at the rack. No guesswork. Just open the card and move.",
-  },
-  {
-    ix: "04 — Eat",
-    h: <>The plan, <b>on your plate.</b></>,
-    p: "Your nutritionist builds a meal plan around your specific goals — macros, restrictions, a health condition, or just eating better. It turns into a grocery list you can actually shop from. Your dietitian adjusts as your body changes.",
-  },
-  {
-    ix: "05 — Score",
-    h: <>Not a vanity metric. <b>A mirror.</b></>,
-    p: "Every workout you complete, every habit you build, every day you show up — your Shape Score keeps track. The more consistent you are, the higher your status climbs. It reflects the work you've actually done.",
-  },
-  {
-    ix: "06 — Community",
-    h: <>The people <b>in your loop.</b></>,
-    p: "Keep your journey private — or share it. What you cooked, what your nutritionist recommended, what you lifted, what your coach said. The community isn't a forum. It's the people figuring out the same things you are.",
-  },
-  {
-    ix: "07 — Show up",
-    h: <>The rest is just <b>showing up.</b></>,
-    p: "Find the coach. Build the habits. Hear the music. Meet the people. Shape is where your lifestyle actually takes shape.",
-  },
-];
-
 function AboutLetter() {
-  const [active, setActive] = React.useState(0);
-  const [pinned, setPinned] = React.useState(false);
-  const wrapRef = React.useRef(null);
-
-  React.useEffect(() => {
-    let raf;
-    const compute = () => {
-      const el = wrapRef.current;
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      const inRange = r.top <= 0 && r.bottom >= window.innerHeight;
-      setPinned((cur) => (cur !== inRange ? inRange : cur));
-      let idx;
-      if (r.top > 0) idx = 0;
-      else if (r.bottom < window.innerHeight) idx = ABOUT_BEATS.length - 1;
-      else {
-        const prog = -r.top / Math.max(1, el.offsetHeight - window.innerHeight);
-        idx = Math.min(
-          ABOUT_BEATS.length - 1,
-          Math.max(0, Math.floor(prog * ABOUT_BEATS.length))
-        );
-      }
-      setActive((cur) => (cur !== idx ? idx : cur));
-    };
-    const tick = () => { compute(); raf = requestAnimationFrame(tick); };
-    compute();
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  // Position the stage:
-  //   - before the wrapper is reached → absolute top:0 (anchored to top of section)
-  //   - while pinned → fixed (covers viewport)
-  //   - after scrolled past → absolute bottom:0 (anchored to end)
-  const wrapEl = wrapRef.current;
-  let stagePos = { position: "absolute", top: 0, left: 0, right: 0, height: "100vh" };
-  if (pinned) {
-    stagePos = { position: "fixed", top: 0, left: 0, right: 0, height: "100vh" };
-  } else if (wrapEl) {
-    const r = wrapEl.getBoundingClientRect();
-    if (r.bottom < window.innerHeight) {
-      stagePos = { position: "absolute", bottom: 0, left: 0, right: 0, height: "100vh" };
-    }
-  }
-
+  const dropStyle = {
+    float: "left",
+    fontFamily: serif,
+    fontSize: 96,
+    lineHeight: 0.85,
+    fontWeight: 400,
+    color: TEAL,
+    padding: "6px 14px 0 0",
+    marginTop: 8,
+  };
+  const para = {
+    fontFamily: serif,
+    fontSize: 20,
+    lineHeight: 1.75,
+    color: "rgba(242,237,228,0.86)",
+    margin: "0 0 28px",
+  };
+  const pullBase = {
+    fontFamily: serif,
+    fontStyle: "italic",
+    fontSize: "clamp(32px, 4.4vw, 54px)",
+    lineHeight: 1.12,
+    letterSpacing: "-0.02em",
+    fontWeight: 400,
+    color: INK,
+    margin: "44px 0",
+    padding: "10px 0",
+  };
   return (
-    <section style={{ background: PAPER, color: INK, position: "relative" }}>
-      <div ref={wrapRef} style={{ height: `${ABOUT_BEATS.length * 75}vh`, position: "relative" }}>
-        <div style={{ ...stagePos, display: "grid", placeItems: "center", overflow: "hidden" }}>
-          {/* Persistent eyebrow + chapter counter */}
-          <div style={{ position: "absolute", top: 112, left: 0, right: 0, display: "flex", justifyContent: "space-between", alignItems: "center", maxWidth: 1240, margin: "0 auto", padding: "0 72px" }}>
-            <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL_BRIGHT }}>Why Shape exists</div>
-            <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.18em", color: "rgba(242,237,228,0.5)" }}>{String(active + 1).padStart(2, "0")} / {String(ABOUT_BEATS.length).padStart(2, "0")}</div>
-          </div>
+    <section style={{ background: PAPER, color: INK, position: "relative", padding: "120px 24px 140px" }}>
+      <div style={{ maxWidth: 720, margin: "0 auto", position: "relative" }}>
+        <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL_BRIGHT, marginBottom: 18, textAlign: "center" }}>Why Shape exists</div>
+        <h2 style={{ fontFamily: serif, fontSize: "clamp(38px, 5.6vw, 76px)", letterSpacing: "-0.03em", fontWeight: 300, margin: "0 0 8px", lineHeight: 1.0, color: INK, textAlign: "center" }}>
+          Not just fitness — a way to <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>shape</em> a <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>lifestyle</em> you want.
+        </h2>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 56 }}>
+          <span style={{ width: 36, height: 2, background: TEAL, opacity: 0.7 }} />
+        </div>
 
-          {/* All beats stacked; only the active one is opaque */}
-          {ABOUT_BEATS.map((b, i) => (
-            <div key={i} style={{ position: "absolute", inset: 0, display: "grid", alignItems: "start", justifyItems: "center", padding: "180px 72px 120px", opacity: i === active ? 1 : 0, transition: "opacity .5s ease, transform .5s ease", transform: i === active ? "translateY(0)" : (i < active ? "translateY(-16px)" : "translateY(16px)"), pointerEvents: i === active ? "auto" : "none" }}>
-              <div style={{ maxWidth: 900, textAlign: "center" }}>
-                <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.28em", textTransform: "uppercase", color: TEAL_BRIGHT, marginBottom: 18 }}>{b.ix}</div>
-                <h2 className="about-beat-h" style={{ fontFamily: serif, fontSize: "clamp(36px, 5.6vw, 80px)", letterSpacing: "-0.035em", fontWeight: 300, margin: 0, lineHeight: 1.0, color: INK }}>
-                  {b.h}
-                </h2>
-                <p style={{ marginTop: 24, maxWidth: 600, marginLeft: "auto", marginRight: "auto", color: "rgba(242,237,228,0.72)", fontSize: 17, lineHeight: 1.65, fontFamily: sans }}>{b.p}</p>
-              </div>
-            </div>
-          ))}
+        <p style={para}>
+          <span style={dropStyle}>S</span>hape is about exactly what its name suggests — shaping your life into what you want it to be. Your routines, your sleep, what you cook, the music that moves you, how you talk to yourself on hard days, the people you spend Saturday with. We built Shape to be the place where you can work on all of it, on your own terms.
+        </p>
 
-          {/* Progress dots */}
-          <div style={{ position: "absolute", bottom: 56, left: 0, right: 0, display: "flex", justifyContent: "center", gap: 8 }}>
-            {ABOUT_BEATS.map((_, i) => (
-              <span key={i} style={{ width: i === active ? 22 : 8, height: 4, borderRadius: 4, background: i === active ? TEAL_BRIGHT : "rgba(242,237,228,0.22)", transition: "width .25s ease, background .25s ease" }} />
-            ))}
-          </div>
+        <p style={para}>
+          That starts with the coach — and the nutritionist. Having great ones shouldn't be a luxury. Most apps replace them with chatbots; most gyms gate the good ones behind packages. We thought there was a better way: open the door for trainers, nutritionists, and registered dietitians who actually care, and make that level of guidance affordable for the rest of us.
+        </p>
+
+        <aside style={{ ...pullBase, marginLeft: "-80px", paddingLeft: 24, borderLeft: `3px solid ${TEAL}` }}>
+          The platform fee is flat. The coach is real. The rates are theirs.
+        </aside>
+
+        <p style={para}>
+          Then we built the rest of the loop around it. Your trainer programs your week before you arrive — every set, every tempo, every cue loaded the night before so you're never standing at the rack wondering what's next. Your nutritionist builds a meal plan around your specific goals — whether that's hitting a macro target, managing a dietary restriction, building around a health condition, or just eating better — and that plan turns into a grocery list you can actually shop from.
+        </p>
+
+        <p style={para}>
+          As you show up — day after day, workout after workout, habit after habit — your Shape Score rises with you. It tracks your consistency, rewards your effort, and reflects the status you've actually earned.
+        </p>
+
+        <aside style={{ ...pullBase, marginRight: "-80px", paddingRight: 24, borderRight: `3px solid ${TEAL}`, textAlign: "right" }}>
+          Not a vanity metric. <em style={{ color: TEAL_BRIGHT }}>A mirror.</em>
+        </aside>
+
+        <p style={para}>
+          There's also a place to write down what you're shaping toward — strength, sleep, calm, confidence, a marathon, a specific body composition goal, just feeling like yourself again. Structure when you need it. Discipline you build, not something handed down.
+        </p>
+
+        <p style={para}>
+          And then there's the part no app gets right: <em style={{ fontStyle: "italic", color: TEAL_BRIGHT, fontWeight: 500 }}>the community</em>. You can keep your journey private — or share it. What you cooked, what your nutritionist recommended this week, what you lifted, what your coach said. Tips, recipes, nutrition advice, coaches and dietitians worth trying. A whole feed of people figuring out the same things you are.
+        </p>
+
+        <aside style={{ ...pullBase, marginLeft: "-80px", paddingLeft: 24, borderLeft: `3px solid ${TEAL}` }}>
+          The community isn't a forum. It's the people in your loop.
+        </aside>
+
+        <p style={{ ...para, marginBottom: 48 }}>
+          That's it. Shape is the place where you find the coach, work with the nutritionist, build the habits, earn your score, hear the music, and meet the people. The rest is just showing up.
+        </p>
+
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+          <span style={{ width: 24, height: 2, background: "rgba(242,237,228,0.25)" }} />
+        </div>
+        <div style={{ textAlign: "center", fontFamily: serif, fontStyle: "italic", fontSize: 16, color: "rgba(242,237,228,0.6)" }}>
+          — The Shape team
         </div>
       </div>
     </section>
@@ -216,6 +182,7 @@ function AboutPage() {
   return (
     <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh" }}>
       <Header active="About" />
+      <AboutHero />
       <AboutLetter />
       <AboutCTA />
       <Footer />
