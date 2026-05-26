@@ -197,8 +197,12 @@ function Header({ active }) {
     : r === 'nutritionist'
       ? '/newdesign/NutritionistDashboard.html'
       : '/newdesign/ClientDashboard.html';
+  // Wrap plain-link nav items in the same outer container shape NavDropdown
+  // uses, so they share vertical-centering and any future container styles.
   const link = (name, href) => (
-    <a href={href} className="shape-nav-link" style={{ fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: active === name ? "#f5efe1" : "rgba(245,239,225,0.66)", fontFamily: mono, fontWeight: 400, whiteSpace: "nowrap", lineHeight: 1, display: "inline-flex", alignItems: "center" }}>{name}</a>
+    <div style={{ position: "relative", display: "inline-flex", alignItems: "center", height: "100%" }}>
+      <a href={href} className="shape-nav-link" style={{ fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: active === name ? "#f5efe1" : "rgba(245,239,225,0.66)", fontFamily: mono, fontWeight: 400, whiteSpace: "nowrap", lineHeight: 1, display: "inline-flex", alignItems: "center" }}>{name}</a>
+    </div>
   );
   return (
     <>
