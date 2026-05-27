@@ -793,6 +793,38 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         )}
       </div>
 
+      {/* ── COACH'S LIFT CARD — today's flagship session preview ──── */}
+      <div style={{ margin: `22px ${t.padX}px 0`, padding: 18, background: t.PAPER2, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 4 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingBottom: 10, borderBottom: `2px solid ${t.ACCENT}` }}>
+          <div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.26em', color: t.ACCENT, textTransform: 'uppercase', fontWeight: 700 }}>Today · Block 3 / Wk 3</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, marginTop: 4, letterSpacing: '-0.01em' }}>Lower Push <span style={{ color: t.INK50, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em' }}>· 62 MIN · Casey M.</span></div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: t.INK50 }}>RPE</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 18, color: t.INK, fontWeight: 700 }}>8.0</div>
+          </div>
+        </div>
+        <div style={{ padding: '10px 0 4px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 30px 56px 42px 36px', gap: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, padding: '0 2px 4px', borderBottom: `1px dashed ${t.SURFACE_BORDER}` }}>
+            <span>Lift</span><span style={{ textAlign: 'center' }}>SET</span><span style={{ textAlign: 'right' }}>LOAD</span><span style={{ textAlign: 'right' }}>REPS</span><span style={{ textAlign: 'right' }}>RPE</span>
+          </div>
+          {[
+            { lift: 'Back Squat', set: '3', load: '255', reps: '5', rpe: '8.5' },
+            { lift: 'Romanian DL', set: '3', load: '215', reps: '8', rpe: '8' },
+            { lift: 'Split Squat', set: '2', load: '65',  reps: '10', rpe: '7.5' },
+          ].map((r, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.4fr 30px 56px 42px 36px', gap: 6, alignItems: 'center', padding: '7px 2px', borderBottom: i === 2 ? 'none' : `1px dotted ${t.SURFACE_BORDER}` }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 13, color: t.INK, letterSpacing: '-0.005em' }}>{r.lift}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 10, color: t.ACCENT, textAlign: 'center', fontWeight: 700 }}>{r.set}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK, textAlign: 'right' }}>{r.load}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK70, textAlign: 'right' }}>{r.reps}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 10, color: t.ACCENT, textAlign: 'right' }}>{r.rpe}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* ── HABIT TRACKER ─────────────────────────────────────────── */}
 
       <div style={{ margin: `22px ${t.padX}px 0`, padding: 20, background: t.INK, color: t.PAPER }}>
@@ -1602,6 +1634,34 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
         </div>
         <div style={{ fontFamily: t.DISPLAY, fontWeight: 500, fontSize: 18, lineHeight: 1.3, letterSpacing: '-0.01em' }}>
           Adherence is up 11% on the simplified macro template. Push it to the next 4 intakes.
+        </div>
+      </div>
+
+      {/* ── RX RECEIPT — today's flagship client plan ──────────────── */}
+      <div style={{ margin: `22px ${t.padX}px 0`, padding: 18, background: t.PAPER2, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 4, position: 'relative' }}>
+        <div style={{ position: 'absolute', top: -10, right: 14, background: t.ACCENT, color: t.PAPER, padding: '3px 8px', borderRadius: 999, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', fontWeight: 800, textTransform: 'uppercase' }}>Rx · Wk 4</div>
+        <div style={{ textAlign: 'center', paddingBottom: 8, borderBottom: `1px dashed ${t.SURFACE_BORDER}` }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.28em', color: t.ACCENT, textTransform: 'uppercase', fontWeight: 700 }}>Today's plan · Casey M.</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 17, color: t.INK, fontStyle: 'italic', marginTop: 4, letterSpacing: '-0.01em' }}>Tuesday · 1,950 kcal</div>
+        </div>
+        <div style={{ display: 'grid', gap: 5, padding: '10px 0 4px' }}>
+          {[
+            { l: 'Protein', v: 112, g: 175, c: t.ACCENT },
+            { l: 'Carbs',   v: 116, g: 180, c: t.AMBER || '#e8b14a' },
+            { l: 'Fat',     v: 42,  g: 65,  c: t.RUST || '#d2693f' },
+          ].map((m, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '50px 1fr 56px', gap: 8, alignItems: 'center' }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>{m.l}</div>
+              <div style={{ height: 4, background: t.SURFACE_BORDER, borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{ width: `${Math.min(100, (m.v / m.g) * 100)}%`, height: '100%', background: m.c }} />
+              </div>
+              <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK70, textAlign: 'right' }}>{m.v}<span style={{ color: t.INK50 }}>/{m.g}g</span></div>
+            </div>
+          ))}
+        </div>
+        <div style={{ borderTop: `2px solid ${t.SURFACE_BORDER}`, marginTop: 8, paddingTop: 8, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>
+          <span>Hydration 1.8/3 L</span>
+          <span style={{ color: t.ACCENT }}>On plan ●</span>
         </div>
       </div>
 
