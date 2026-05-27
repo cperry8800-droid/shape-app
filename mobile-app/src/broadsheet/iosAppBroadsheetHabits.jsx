@@ -800,39 +800,6 @@ function BSHabitRow({ habit, onToggle, onEdit, last }) {
             </span>
           )}
         </div>
-
-        <div style={{ display: 'flex', gap: 5, marginTop: 8 }}>
-          {week.map((date) => {
-            const did = set.has(date);
-            const isToday = date === _bsHabitsToday;
-            return (
-              <div key={date} style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 3,
-              }}>
-                <div style={{
-                  width: '100%',
-                  height: 9,
-                  background: did ? accent : 'transparent',
-                  border: `1px solid ${isToday ? 'rgba(247,241,230,0.80)' : 'rgba(247,241,230,0.13)'}`,
-                  borderRadius: 999,
-                }} />
-                <span style={{
-                  fontFamily: t.MONO,
-                  fontSize: 9,
-                  letterSpacing: '0.1em',
-                  color: isToday ? ink : muted,
-                  fontWeight: isToday ? 800 : 500,
-                }}>
-                  {_bsDowLetter(date)}
-                </span>
-              </div>
-            );
-          })}
-        </div>
       </div>
 
       <button
