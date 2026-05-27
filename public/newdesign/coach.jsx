@@ -19,22 +19,90 @@ function TrainerHero() {
   return (
     <section style={{ padding: "40px 72px 30px", position: "relative", overflow: "hidden", minHeight: "78vh", display: "flex", alignItems: "center" }}>
       <div aria-hidden style={{ position: "absolute", width: 660, height: 660, top: "-20%", right: "-8%", borderRadius: "50%", filter: "blur(85px)", opacity: 0.32, background: `radial-gradient(circle, ${TEAL}, transparent 70%)`, pointerEvents: "none" }} />
-      <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative", width: "100%" }}>
-        <div style={{ maxWidth: 900 }}>
+      <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative", width: "100%", display: "grid", gridTemplateColumns: "1.25fr 1fr", gap: 72, alignItems: "center" }}>
+        <div>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "7px 14px", borderRadius: 999, background: "rgba(10,197,168,0.12)", border: "1px solid rgba(10,197,168,0.35)", fontFamily: mono, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginLeft: -15, marginBottom: 28 }}>
             <span style={{ width: 6, height: 6, borderRadius: 999, background: TEAL }}></span>
             For trainers
           </div>
-          <h1 style={{ fontFamily: serif, fontSize: "clamp(56px, 8vw, 118px)", letterSpacing: "-0.045em", fontWeight: 300, margin: 0, lineHeight: 0.9, color: INK }}>
+          <h1 style={{ fontFamily: serif, fontSize: "clamp(52px, 7vw, 108px)", letterSpacing: "-0.045em", fontWeight: 300, margin: 0, lineHeight: 0.92, color: INK }}>
             Shape how people <em style={{ fontStyle: "italic", fontWeight: 600, color: "transparent", WebkitTextStroke: `1.4px ${INK}` }}>train.</em>
           </h1>
-          <p style={{ fontFamily: sans, fontSize: 19, color: "rgba(242,237,228,0.74)", margin: "36px 0 0", maxWidth: 640, lineHeight: 1.55 }}>
+          <p style={{ fontFamily: sans, fontSize: 18, color: "rgba(242,237,228,0.74)", margin: "32px 0 0", maxWidth: 540, lineHeight: 1.55 }}>
             Shape puts your training business in front of potential clients actively looking for custom programs. Build your profile. Sell your sessions. No cost to join.
           </p>
-          <div style={{ display: "flex", gap: 14, marginTop: 44, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 14, marginTop: 40, flexWrap: "wrap" }}>
             <a href="SignupTrainer.html" style={{ padding: "16px 30px", borderRadius: 2, background: TEAL, color: PAPER, border: 0, fontFamily: sans, fontSize: 14.5, fontWeight: 600, cursor: "pointer", letterSpacing: "0.01em" }}>Apply now — it's free</a>
             <a href="Marketplace.html" style={{ padding: "16px 30px", borderRadius: 2, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", fontFamily: sans, fontSize: 14.5, fontWeight: 600, cursor: "pointer" }}>See trainers on Shape</a>
           </div>
+        </div>
+        <div style={{ position: "relative" }}>
+          {/* Coach's notebook / lift card — paper-clipboard look with mono-numeric set grid */}
+          <div style={{
+            background: "linear-gradient(180deg, rgba(11,14,12,0.55) 0%, rgba(6,8,10,0.42) 100%)",
+            border: "1px solid rgba(242,237,228,0.14)",
+            borderRadius: 4,
+            padding: "26px 26px 22px",
+            position: "relative",
+            boxShadow: "0 30px 80px rgba(0,0,0,0.5)",
+            backdropFilter: "blur(10px)",
+            WebkitBackdropFilter: "blur(10px)",
+            backgroundImage: "repeating-linear-gradient(180deg, transparent 0, transparent 27px, rgba(242,237,228,0.04) 27px, rgba(242,237,228,0.04) 28px)",
+          }}>
+            {/* Header — block/session, lined up like a training journal */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingBottom: 10, borderBottom: `2px solid ${TEAL}` }}>
+              <div>
+                <div style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: "0.28em", color: TEAL, textTransform: "uppercase" }}>Session 14 · Block 3 / Wk 3</div>
+                <div style={{ fontFamily: serif, fontSize: 24, color: INK, marginTop: 4, letterSpacing: "-0.015em", lineHeight: 1.1 }}>Lower Push <span style={{ color: "rgba(242,237,228,0.5)", fontFamily: mono, fontSize: 11, letterSpacing: "0.14em" }}>· 62 MIN</span></div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontFamily: mono, fontSize: 9, letterSpacing: "0.2em", color: "rgba(242,237,228,0.45)" }}>RPE TARGET</div>
+                <div style={{ fontFamily: mono, fontSize: 22, color: INK, marginTop: 2, fontWeight: 600, letterSpacing: "-0.01em" }}>8.0</div>
+              </div>
+            </div>
+
+            {/* Set log grid — exercises with set × load × reps × rpe rows */}
+            <div style={{ padding: "14px 0 6px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1.4fr 38px 60px 50px 44px", gap: 8, fontFamily: mono, fontSize: 8.5, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)", padding: "0 2px 6px", borderBottom: `1px dashed rgba(242,237,228,0.18)` }}>
+                <span>Lift</span><span style={{ textAlign: "center" }}>SET</span><span style={{ textAlign: "right" }}>LOAD</span><span style={{ textAlign: "right" }}>REPS</span><span style={{ textAlign: "right" }}>RPE</span>
+              </div>
+              {[
+                { lift: "Back Squat",      sets: ["1×5 @ 225", "2×5 @ 245", "3×5 @ 255"], top: { set: "3", load: "255", reps: "5", rpe: "8.5" }, accent: TEAL },
+                { lift: "Romanian Deadlift", sets: ["1×8 @ 185", "2×8 @ 205", "3×8 @ 215"], top: { set: "3", load: "215", reps: "8", rpe: "8" }, accent: TEAL },
+                { lift: "Split Squat",     sets: ["1×10 @ 60", "2×10 @ 65"], top: { set: "2", load: "65", reps: "10", rpe: "7.5" }, accent: "#e8b14a" },
+                { lift: "Hanging Leg Raise", sets: ["1×12 BW", "2×12 BW", "3×12 BW"], top: { set: "3", load: "BW", reps: "12", rpe: "—" }, accent: "rgba(242,237,228,0.5)" },
+              ].map((ex, i) => (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "1.4fr 38px 60px 50px 44px", gap: 8, alignItems: "center", padding: "9px 2px", borderBottom: i === 3 ? "none" : `1px dotted rgba(242,237,228,0.1)` }}>
+                  <div>
+                    <div style={{ fontFamily: serif, fontSize: 14, color: INK, letterSpacing: "-0.005em", lineHeight: 1.15 }}>{ex.lift}</div>
+                    <div style={{ fontFamily: mono, fontSize: 8.5, letterSpacing: "0.06em", color: "rgba(242,237,228,0.4)", marginTop: 2 }}>{ex.sets.length} sets · last: {ex.sets[ex.sets.length - 1]}</div>
+                  </div>
+                  <div style={{ fontFamily: mono, fontSize: 11, color: ex.accent, textAlign: "center", fontWeight: 600 }}>{ex.top.set}</div>
+                  <div style={{ fontFamily: mono, fontSize: 11, color: INK, textAlign: "right", letterSpacing: "0.02em" }}>{ex.top.load}</div>
+                  <div style={{ fontFamily: mono, fontSize: 11, color: "rgba(242,237,228,0.75)", textAlign: "right" }}>{ex.top.reps}</div>
+                  <div style={{ fontFamily: mono, fontSize: 11, color: ex.accent, textAlign: "right" }}>{ex.top.rpe}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Volume sparkline */}
+            <div style={{ marginTop: 6, paddingTop: 12, borderTop: `2px solid rgba(242,237,228,0.22)`, display: "grid", gridTemplateColumns: "1fr auto", gap: 16, alignItems: "center" }}>
+              <div>
+                <div style={{ fontFamily: mono, fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" }}>Weekly volume · lbs lifted</div>
+                <svg viewBox="0 0 220 36" style={{ width: "100%", height: 36, marginTop: 4 }}>
+                  <polyline points="4,28 28,22 52,24 76,16 100,18 124,10 148,14 172,6 196,9 216,3" stroke={TEAL_BRIGHT} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                  <polyline points="4,28 28,22 52,24 76,16 100,18 124,10 148,14 172,6 196,9 216,3 216,36 4,36" fill={`${TEAL}`} fillOpacity="0.12" stroke="none" />
+                  <circle cx="216" cy="3" r="2.5" fill={TEAL_BRIGHT} />
+                </svg>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontFamily: serif, fontSize: 22, color: INK, letterSpacing: "-0.015em", lineHeight: 1 }}>48,720</div>
+                <div style={{ fontFamily: mono, fontSize: 8.5, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginTop: 3 }}>+6.4% w/w</div>
+              </div>
+            </div>
+          </div>
+          {/* Coach signature tag, like a clipboard owner tag */}
+          <div style={{ position: "absolute", top: -14, right: 18, background: INK, color: PAPER, padding: "5px 10px", borderRadius: 2, fontFamily: mono, fontSize: 9, letterSpacing: "0.2em", fontWeight: 700, textTransform: "uppercase", boxShadow: "0 6px 18px rgba(0,0,0,0.35)" }}>Coach · Maya O.</div>
         </div>
       </div>
     </section>
