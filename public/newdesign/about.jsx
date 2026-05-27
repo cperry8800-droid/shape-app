@@ -53,7 +53,7 @@ function AboutLetter() {
     padding: "10px 0",
   };
   return (
-    <section style={{ background: PAPER, color: INK, position: "relative", padding: "80px 24px 140px" }}>
+    <section style={{ color: INK, position: "relative", padding: "80px 24px 140px" }}>
       <div style={{ maxWidth: 720, margin: "0 auto", position: "relative" }}>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(26px, 3vw, 38px)", letterSpacing: "-0.02em", fontWeight: 400, margin: "0 0 8px", lineHeight: 1.15, color: INK, textAlign: "center", fontStyle: "italic" }}>
           <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>Fitness</em> is the entry point. Your <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>lifestyle</em> is the goal.
