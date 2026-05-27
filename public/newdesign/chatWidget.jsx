@@ -93,6 +93,19 @@ function ChatWidget(props) {
   const [creating, setCreating] = React.useState(false);
   const [newName, setNewName] = React.useState("");
   const [newDesc, setNewDesc] = React.useState("");
+  // iMessage-style reactions, keyed by `${tabIdx}:${threadIdx}:${msgIdx}` -> emoji string
+  const [reactions, setReactions] = React.useState({});
+  const [reactionPickerFor, setReactionPickerFor] = React.useState(null); // same key, or null
+  const REACTION_EMOJIS = ["❤️", "👍", "👎", "😂", "‼️", "❓"];
+  const toggleReaction = (key, emoji) => {
+    setReactions(prev => {
+      const cur = prev[key] || null;
+      const next = { ...prev };
+      if (cur === emoji) delete next[key]; else next[key] = emoji;
+      return next;
+    });
+    setReactionPickerFor(null);
+  };
   const [searchQ, setSearchQ] = React.useState("");
   const scrollRef = React.useRef(null);
 
@@ -705,24 +718,89 @@ function ChatWidget(props) {
             </div>
 
             <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "18px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
-              {active?.messages?.map((m, i) => (
-                <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start" }}>
+              {active?.messages?.map((m, i) => {
+                const rKey = `${tabIdx}:${activeByTab[tabIdx]}:${i}`;
+                const myReaction = reactions[rKey];
+                const pickerOpen = reactionPickerFor === rKey;
+                const longPressRef = { id: null };
+                const startLongPress = (e) => {
+                  e.preventDefault();
+                  longPressRef.id = setTimeout(() => setReactionPickerFor(rKey), 380);
+                };
+                const cancelLongPress = () => { if (longPressRef.id) clearTimeout(longPressRef.id); };
+                return (
+                <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start", position: "relative" }}>
                   {!m.me && active?.group && (
                     <div style={{ fontSize: 10.5, color: m.coach ? TEAL_BRIGHT : "rgba(242,237,228,0.55)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.05em", marginBottom: 3, padding: "0 4px" }}>
                       {m.who}{m.coach ? " · COACH" : ""}
                     </div>
                   )}
-                  <div style={{
-                    maxWidth: "78%", padding: "9px 13px", borderRadius: 12,
-                    background: m.me ? TEAL : "rgba(242,237,228,0.06)",
-                    color: m.me ? PAPER : INK,
-                    borderTopRightRadius: m.me ? 3 : 12,
-                    borderTopLeftRadius: m.me ? 12 : 3,
-                    fontSize: 13.5, lineHeight: 1.45,
-                  }}>{m.t}</div>
-                  <div style={{ fontSize: 10, color: "rgba(242,237,228,0.4)", fontFamily: "'JetBrains Mono', monospace", marginTop: 4, padding: "0 4px" }}>{m.time}</div>
+                  <div style={{ position: "relative" }}>
+                    <div
+                      onContextMenu={(e) => { e.preventDefault(); setReactionPickerFor(pickerOpen ? null : rKey); }}
+                      onDoubleClick={(e) => { e.preventDefault(); toggleReaction(rKey, "❤️"); }}
+                      onMouseDown={startLongPress}
+                      onMouseUp={cancelLongPress}
+                      onMouseLeave={cancelLongPress}
+                      onTouchStart={startLongPress}
+                      onTouchEnd={cancelLongPress}
+                      style={{
+                        maxWidth: "78%", padding: "9px 13px", borderRadius: 12,
+                        background: m.me ? TEAL : "rgba(242,237,228,0.06)",
+                        color: m.me ? PAPER : INK,
+                        borderTopRightRadius: m.me ? 3 : 12,
+                        borderTopLeftRadius: m.me ? 12 : 3,
+                        fontSize: 13.5, lineHeight: 1.45,
+                        cursor: "pointer", userSelect: "none",
+                      }}>{m.t}</div>
+                    {pickerOpen && (
+                      <div style={{
+                        position: "absolute",
+                        bottom: "calc(100% + 6px)",
+                        [m.me ? "right" : "left"]: 0,
+                        display: "flex", gap: 2, padding: "5px 7px",
+                        background: "rgba(26,22,18,0.98)",
+                        border: "1px solid rgba(242,237,228,0.12)",
+                        borderRadius: 999,
+                        boxShadow: "0 12px 32px rgba(0,0,0,0.5)",
+                        zIndex: 5,
+                      }}
+                        onMouseLeave={() => setReactionPickerFor(null)}>
+                        {REACTION_EMOJIS.map(em => (
+                          <button key={em}
+                            onClick={() => toggleReaction(rKey, em)}
+                            style={{
+                              background: myReaction === em ? "rgba(10,197,168,0.22)" : "transparent",
+                              border: 0, borderRadius: 999, width: 30, height: 30,
+                              cursor: "pointer", fontSize: 16, lineHeight: 1,
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                            }}>{em}</button>
+                        ))}
+                      </div>
+                    )}
+                    {myReaction && (
+                      <div style={{
+                        position: "absolute",
+                        bottom: -10,
+                        [m.me ? "left" : "right"]: -6,
+                        background: "rgba(26,22,18,0.96)",
+                        border: "1px solid rgba(242,237,228,0.14)",
+                        borderRadius: 999,
+                        padding: "2px 6px",
+                        fontSize: 12,
+                        lineHeight: 1,
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
+                        cursor: "pointer",
+                        zIndex: 2,
+                      }}
+                        onClick={() => toggleReaction(rKey, myReaction)}
+                        title="Remove reaction">{myReaction}</div>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 10, color: "rgba(242,237,228,0.4)", fontFamily: "'JetBrains Mono', monospace", marginTop: myReaction ? 10 : 4, padding: "0 4px" }}>{m.time}</div>
                 </div>
-              ))}
+                );
+              })}
               {typing && (
                 <div style={{ display: "flex", alignItems: "center", gap: 6, color: "rgba(242,237,228,0.5)", fontSize: 12, fontStyle: "italic" }}>
                   <TypingDots />{isSupport ? "Shape Support is typing…" : "someone is typing…"}
