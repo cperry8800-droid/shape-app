@@ -268,12 +268,14 @@ function ClientOvTools() {
 // ---------- FAQ ----------
 function ClientOvSnapshots() {
   const habits = [
-    { name: "Sleep 8 hrs", days: "7/7", hit: true,  note: "streak · 12d" },
-    { name: "10,000 steps", days: "6/7", hit: true,  note: "+2 from last wk" },
-    { name: "Phone-free meals", days: "5/7", hit: true,  note: "" },
-    { name: "Cold plunge", days: "3/7", hit: false, note: "below target" },
-    { name: "Read 20 min", days: "6/7", hit: true,  note: "" },
-    { name: "Stretch / mobility", days: "4/7", hit: false, note: "" },
+    { kind: "do",   name: "Sleep 8 hrs",          days: "7/7", hit: true,  note: "streak · 12d" },
+    { kind: "do",   name: "10,000 steps",         days: "6/7", hit: true,  note: "+2 from last wk" },
+    { kind: "do",   name: "Phone-free meals",     days: "5/7", hit: true,  note: "" },
+    { kind: "dont", name: "No phone after 9pm",   days: "4/7", hit: false, note: "" },
+    { kind: "do",   name: "Read 20 min",          days: "6/7", hit: true,  note: "" },
+    { kind: "dont", name: "No alcohol weekdays",  days: "5/5", hit: true,  note: "streak · 8d" },
+    { kind: "dont", name: "No doom-scrolling",    days: "4/7", hit: false, note: "<30 min/day" },
+    { kind: "do",   name: "Stretch / mobility",   days: "4/7", hit: false, note: "" },
   ];
   const grocery = [
     { aisle: "Produce",  items: ["Avocado × 4", "Baby spinach", "Blueberries", "Sweet potato × 3"] },
@@ -349,19 +351,24 @@ function ClientOvSnapshots() {
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(233,239,237,0.5)" }}>WEEK 04 · APR 13 — APR 19</div>
             </div>
             <div style={{ display: "grid", gap: 8 }}>
-              {habits.map((h, i) => (
-                <div key={i} style={{ display: "grid", gridTemplateColumns: "20px 1fr 56px auto", gap: 14, alignItems: "center", padding: "12px 14px", background: "rgba(233,239,237,0.03)", borderRadius: 8, border: "1px solid rgba(233,239,237,0.06)" }}>
-                  <div style={{ width: 14, height: 14, borderRadius: 4, border: `1px solid ${h.hit ? TEAL : "rgba(233,239,237,0.25)"}`, background: h.hit ? TEAL : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {h.hit && <span style={{ color: DARK, fontSize: 9, lineHeight: 1, fontWeight: 600 }}>✓</span>}
+              {habits.map((h, i) => {
+                const isDont = h.kind === "dont";
+                const accent = isDont ? "#d2693f" : TEAL;
+                return (
+                  <div key={i} style={{ display: "grid", gridTemplateColumns: "20px 44px 1fr 56px auto", gap: 12, alignItems: "center", padding: "12px 14px", background: "rgba(233,239,237,0.03)", borderRadius: 8, border: "1px solid rgba(233,239,237,0.06)" }}>
+                    <div style={{ width: 14, height: 14, borderRadius: 4, border: `1px solid ${h.hit ? accent : "rgba(233,239,237,0.25)"}`, background: h.hit ? accent : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {h.hit && <span style={{ color: DARK, fontSize: 9, lineHeight: 1, fontWeight: 600 }}>{isDont ? "×" : "✓"}</span>}
+                    </div>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", color: accent, textTransform: "uppercase" }}>{isDont ? "Don't" : "Do"}</div>
+                    <div style={{ fontFamily: serif, fontSize: 15, color: LIGHT, letterSpacing: "-0.005em" }}>{h.name}</div>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: h.hit ? accent : "rgba(233,239,237,0.55)", letterSpacing: "0.05em", textAlign: "right" }}>{h.days}</div>
+                    <div style={{ fontFamily: sans, fontSize: 11, color: "rgba(233,239,237,0.5)" }}>{h.note}</div>
                   </div>
-                  <div style={{ fontFamily: serif, fontSize: 15, color: LIGHT, letterSpacing: "-0.005em" }}>{h.name}</div>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: h.hit ? TEAL : "rgba(233,239,237,0.55)", letterSpacing: "0.05em", textAlign: "right" }}>{h.days}</div>
-                  <div style={{ fontFamily: sans, fontSize: 11, color: "rgba(233,239,237,0.5)" }}>{h.note}</div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid rgba(233,239,237,0.08)", display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(233,239,237,0.5)", letterSpacing: "0.08em" }}>
-              <span>4 / 6 above target</span>
+              <span>5 / 8 above target · 3 don'ts</span>
               <span style={{ color: TEAL }}>Shape Score +12 ●</span>
             </div>
           </div>
