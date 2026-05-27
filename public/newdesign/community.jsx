@@ -548,7 +548,7 @@ function Chat() {
         <div style={{ marginBottom: 44 }}>
           <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>Rooms · live</div>
           <h2 style={{ fontFamily: serif, fontSize: "clamp(46px, 6.4vw, 72px)", letterSpacing: "-0.04em", fontWeight: 300, margin: 0, lineHeight: 0.95 }}>
-            Talk to your <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>coach</em>.<br />Talk to your <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>people</em>.
+            Talk to your <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>coach</em>.<br />Talk to your <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>community</em>.
           </h2>
           <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.55, color: "rgba(242,237,228,0.62)", maxWidth: 560, marginTop: 24 }}>
             Members and coaches, one thread. Direct lines to your trainer and nutritionist, plus rooms by city, specialty, and challenge. No algorithm, no ads.
