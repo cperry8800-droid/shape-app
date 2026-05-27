@@ -3786,6 +3786,7 @@ function BSClientChat({ onProfile, role = 'client' }) {
   const [syncedCoachThreads, setSyncedCoachThreads] = useStateBSC([]);
   const [feedDraft, setFeedDraft] = useStateBSC('');
   const [feedExtras, setFeedExtras] = useStateBSC({});
+  const rx = useBSReactions();
 
   React.useEffect(() => {
     let active = true;
@@ -4258,26 +4259,38 @@ function BSClientChat({ onProfile, role = 'client' }) {
           {filteredFeedMessages.map((m, i) => {
             const me = m.me;
             const tagColor = bucketColor[m._bucket] || (m.coach ? t.AMBER : t.ACCENT);
+            const rKey = `feed:${m._bucket || ''}:${i}`;
+            const myR = rx.reactions[rKey];
+            const pickerOpen = rx.pickerKey === rKey;
+            const lp = bsLongPress((quick) => {
+              if (quick === '❤️') rx.toggle(rKey, '❤️');
+              else rx.setPickerKey(pickerOpen ? null : rKey);
+            });
             return (
-              <div key={i} style={{
-                border: `1px solid ${t.SURFACE_BORDER}`,
-                background: me ? t.INK : t.PAPER2,
-                color: me ? t.PAPER : t.INK,
-                borderRadius: t.RADIUS_LG,
-                padding: 12,
-                boxShadow: t.ELEVATION_SOFT,
-              }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '36px 1fr auto', gap: 10, alignItems: 'center' }}>
-                  <BSAvatar init={me ? 'A' : (m.who.match(/[A-Z#]/) || ['S'])[0]} size={34} fill={tagColor} />
-                  <div>
-                    <div style={{ fontFamily: t.BODY, fontSize: 14, fontWeight: 760 }}>{me ? 'You' : m.who}</div>
-                    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: me ? 'rgba(244,237,224,0.62)' : t.INK50 }}>
-                      {(m._thread || activeBucket?.label || '').slice(0, 32)}
+              <div key={i} style={{ position: 'relative' }}>
+                <div {...lp} style={{
+                  border: `1px solid ${t.SURFACE_BORDER}`,
+                  background: me ? t.INK : t.PAPER2,
+                  color: me ? t.PAPER : t.INK,
+                  borderRadius: t.RADIUS_LG,
+                  padding: 12,
+                  boxShadow: t.ELEVATION_SOFT,
+                  cursor: 'pointer', userSelect: 'none',
+                }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '36px 1fr auto', gap: 10, alignItems: 'center' }}>
+                    <BSAvatar init={me ? 'A' : (m.who.match(/[A-Z#]/) || ['S'])[0]} size={34} fill={tagColor} />
+                    <div>
+                      <div style={{ fontFamily: t.BODY, fontSize: 14, fontWeight: 760 }}>{me ? 'You' : m.who}</div>
+                      <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: me ? 'rgba(244,237,224,0.62)' : t.INK50 }}>
+                        {(m._thread || activeBucket?.label || '').slice(0, 32)}
+                      </div>
                     </div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: me ? 'rgba(244,237,224,0.62)' : t.INK50 }}>{m.time || 'now'}</div>
                   </div>
-                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: me ? 'rgba(244,237,224,0.62)' : t.INK50 }}>{m.time || 'now'}</div>
+                  <div style={{ marginTop: 10, fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.42 }}>{m.t}</div>
                 </div>
-                <div style={{ marginTop: 10, fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.42 }}>{m.t}</div>
+                {pickerOpen && <BSReactionPicker t={t} anchorRight={me} current={myR} onPick={(em) => rx.toggle(rKey, em)} />}
+                {myR && <BSReactionPill t={t} emoji={myR} anchorRight={me} onClick={() => rx.toggle(rKey, myR)} />}
               </div>
             );
           })}
@@ -4372,11 +4385,75 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
 }
 
 // ─── Thread detail ───────────────────────────────────────────
+const BS_REACTIONS = ['❤️', '👍', '👎', '😂', '‼️', '❓'];
+
+function useBSReactions() {
+  const [reactions, setReactions] = useStateBSC({});
+  const [pickerKey, setPickerKey] = useStateBSC(null);
+  const toggle = (key, emoji) => {
+    setReactions(prev => {
+      const next = { ...prev };
+      if (next[key] === emoji) delete next[key]; else next[key] = emoji;
+      return next;
+    });
+    setPickerKey(null);
+  };
+  return { reactions, pickerKey, setPickerKey, toggle };
+}
+
+function BSReactionPicker({ t, anchorRight, onPick, current }) {
+  return (
+    <div style={{
+      position: 'absolute',
+      bottom: 'calc(100% + 6px)',
+      [anchorRight ? 'right' : 'left']: 0,
+      display: 'flex', gap: 2, padding: '5px 6px',
+      background: t.PAPER2, border: `1px solid ${t.SURFACE_BORDER}`,
+      borderRadius: 999, boxShadow: t.ELEVATION,
+      zIndex: 6,
+    }}>
+      {BS_REACTIONS.map(em => (
+        <button key={em} onClick={() => onPick(em)} style={{
+          width: 32, height: 32, borderRadius: 999, border: 0,
+          background: current === em ? 'rgba(10,197,168,0.22)' : 'transparent',
+          fontSize: 17, lineHeight: 1, cursor: 'pointer',
+        }}>{em}</button>
+      ))}
+    </div>
+  );
+}
+
+function BSReactionPill({ t, emoji, anchorRight, onClick }) {
+  return (
+    <div onClick={onClick} title="Remove reaction" style={{
+      position: 'absolute', bottom: -10,
+      [anchorRight ? 'left' : 'right']: -6,
+      background: t.PAPER2, border: `1px solid ${t.SURFACE_BORDER}`,
+      borderRadius: 999, padding: '2px 6px', fontSize: 13, lineHeight: 1,
+      boxShadow: t.ELEVATION_SOFT, cursor: 'pointer', zIndex: 2,
+    }}>{emoji}</div>
+  );
+}
+
+function bsLongPress(onTrigger) {
+  let id = null;
+  return {
+    onContextMenu: (e) => { e.preventDefault(); onTrigger(); },
+    onMouseDown: () => { id = setTimeout(onTrigger, 380); },
+    onMouseUp: () => { if (id) clearTimeout(id); },
+    onMouseLeave: () => { if (id) clearTimeout(id); },
+    onTouchStart: () => { id = setTimeout(onTrigger, 380); },
+    onTouchEnd: () => { if (id) clearTimeout(id); },
+    onDoubleClick: (e) => { e.preventDefault(); onTrigger('❤️'); },
+  };
+}
+
 function BSChatThread({ thread, eyebrow, onBack }) {
   const t = useBS();
   const [text, setText] = useStateBSC('');
   const [extras, setExtras] = useStateBSC([]);
   const allMessages = [...(thread.messages || []), ...extras];
+  const rx = useBSReactions();
 
   const send = () => {
     if (!text.trim()) return;
@@ -4413,26 +4490,39 @@ function BSChatThread({ thread, eyebrow, onBack }) {
       <div style={{ padding: `16px ${t.padX}px calc(232px + env(safe-area-inset-bottom, 0px))`, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {allMessages.map((m, i) => {
           const me = m.me;
+          const rKey = `dt:${i}`;
+          const myR = rx.reactions[rKey];
+          const pickerOpen = rx.pickerKey === rKey;
+          const lp = bsLongPress((quick) => {
+            if (quick === '❤️') rx.toggle(rKey, '❤️');
+            else rx.setPickerKey(pickerOpen ? null : rKey);
+          });
           return (
             <div key={i} style={{
               alignSelf: me ? 'flex-end' : 'flex-start',
               maxWidth: '82%',
+              position: 'relative',
             }}>
               {!me && (
                 <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: m.coach ? t.AMBER : t.INK50, fontWeight: 700, marginBottom: 4 }}>
                   {m.who}{m.coach ? ' · Coach' : ''}
                 </div>
               )}
-              <div style={{
-                borderRadius: me ? '18px 18px 5px 18px' : '18px 18px 18px 5px',
-                fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.4, letterSpacing: '-0.005em',
-                color: me ? '#031f1c' : t.INK,
-                background: me ? t.ACCENT : t.PAPER2,
-                border: me ? 'none' : `1px solid ${t.SURFACE_BORDER}`,
-                boxShadow: me ? 'none' : t.ELEVATION_SOFT,
-                padding: '11px 13px',
-              }}>{m.t}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginTop: 4, textAlign: me ? 'right' : 'left' }}>{m.time}</div>
+              <div style={{ position: 'relative' }}>
+                <div {...lp} style={{
+                  borderRadius: me ? '18px 18px 5px 18px' : '18px 18px 18px 5px',
+                  fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.4, letterSpacing: '-0.005em',
+                  color: me ? '#031f1c' : t.INK,
+                  background: me ? t.ACCENT : t.PAPER2,
+                  border: me ? 'none' : `1px solid ${t.SURFACE_BORDER}`,
+                  boxShadow: me ? 'none' : t.ELEVATION_SOFT,
+                  padding: '11px 13px',
+                  cursor: 'pointer', userSelect: 'none',
+                }}>{m.t}</div>
+                {pickerOpen && <BSReactionPicker t={t} anchorRight={me} current={myR} onPick={(em) => rx.toggle(rKey, em)} />}
+                {myR && <BSReactionPill t={t} emoji={myR} anchorRight={me} onClick={() => rx.toggle(rKey, myR)} />}
+              </div>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginTop: myR ? 10 : 4, textAlign: me ? 'right' : 'left' }}>{m.time}</div>
             </div>
           );
         })}
