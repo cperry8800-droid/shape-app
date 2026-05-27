@@ -8,7 +8,7 @@ function AboutHero() {
       <div style={{ maxWidth: 1100, margin: "0 auto", position: "relative", width: "100%", textAlign: "center" }}>
         <h1 style={{
           fontFamily: serif,
-          fontSize: "clamp(44px, 6.4vw, 96px)",
+          fontSize: "clamp(52px, 7.4vw, 112px)",
           letterSpacing: "-0.045em",
           fontWeight: 300,
           fontVariationSettings: "'opsz' 144",
