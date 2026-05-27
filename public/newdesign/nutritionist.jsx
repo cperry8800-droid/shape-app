@@ -36,11 +36,6 @@ function NutHero() {
             <a href="SignupNutritionist.html" style={{ padding: "16px 30px", borderRadius: 2, background: TEAL, color: PAPER, border: 0, fontFamily: sans, fontSize: 14.5, fontWeight: 600, cursor: "pointer" }}>Apply now — it's free</a>
             <a href="Marketplace.html?role=Nutritionist" style={{ padding: "16px 30px", borderRadius: 2, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", fontFamily: sans, fontSize: 14.5, fontWeight: 600 }}>See nutritionists on Shape</a>
           </div>
-          <div style={{ marginTop: 40, display: "flex", gap: 28, fontFamily: mono, fontSize: 12, color: "rgba(242,237,228,0.55)", flexWrap: "wrap" }}>
-            <span>✓ RD &amp; CNS licensure protected</span>
-            <span>✓ Weekly payouts</span>
-            <span>✓ 10-minute application</span>
-          </div>
         </div>
       </div>
     </section>
