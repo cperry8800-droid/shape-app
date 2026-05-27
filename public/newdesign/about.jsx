@@ -237,6 +237,43 @@ function AboutPage() {
         pointerEvents: "none",
         background: "repeating-linear-gradient(to right, transparent 0, transparent calc(50% - 380px), rgba(242,237,228,0.06) calc(50% - 380px), rgba(242,237,228,0.06) calc(50% - 379px), transparent calc(50% - 379px), transparent calc(50% + 379px), rgba(242,237,228,0.06) calc(50% + 379px), rgba(242,237,228,0.06) calc(50% + 380px), transparent calc(50% + 380px))",
       }} />
+      {/* Printer's crop marks — small L-shaped ticks at the four corners,
+          like a magazine spread proof. Quiet but unmistakably editorial. */}
+      {[
+        { pos: { top: 112, left: 40 },   lines: [[0,0,0,18],[0,0,18,0]] },
+        { pos: { top: 112, right: 40 },  lines: [[18,0,18,18],[18,0,0,0]] },
+        { pos: { bottom: 40, left: 40 }, lines: [[0,18,0,0],[0,18,18,18]] },
+        { pos: { bottom: 40, right: 40 },lines: [[18,18,18,0],[18,18,0,18]] },
+      ].map((c, i) => (
+        <svg key={i} aria-hidden xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" style={{ position: "fixed", width: 18, height: 18, zIndex: 0, pointerEvents: "none", opacity: 0.55, ...c.pos }}>
+          {c.lines.map((l, j) => (
+            <line key={j} x1={l[0]} y1={l[1]} x2={l[2]} y2={l[3]} stroke={TEAL_BRIGHT} strokeWidth="1" />
+          ))}
+        </svg>
+      ))}
+      {/* Side rail with periodic tick marks — like a typeset measuring rule. */}
+      <svg aria-hidden xmlns="http://www.w3.org/2000/svg" style={{ position: "fixed", left: 22, top: 160, bottom: 60, width: 12, zIndex: 0, pointerEvents: "none", opacity: 0.35 }}>
+        <line x1="6" y1="0" x2="6" y2="100%" stroke="rgba(242,237,228,0.45)" strokeWidth="0.6" />
+        <g stroke="rgba(242,237,228,0.55)" strokeWidth="0.8">
+          <line x1="0" y1="0%" x2="12" y2="0%" />
+          <line x1="2" y1="20%" x2="10" y2="20%" />
+          <line x1="2" y1="40%" x2="10" y2="40%" />
+          <line x1="2" y1="60%" x2="10" y2="60%" />
+          <line x1="2" y1="80%" x2="10" y2="80%" />
+          <line x1="0" y1="100%" x2="12" y2="100%" />
+        </g>
+      </svg>
+      <svg aria-hidden xmlns="http://www.w3.org/2000/svg" style={{ position: "fixed", right: 22, top: 160, bottom: 60, width: 12, zIndex: 0, pointerEvents: "none", opacity: 0.35 }}>
+        <line x1="6" y1="0" x2="6" y2="100%" stroke="rgba(242,237,228,0.45)" strokeWidth="0.6" />
+        <g stroke="rgba(242,237,228,0.55)" strokeWidth="0.8">
+          <line x1="0" y1="0%" x2="12" y2="0%" />
+          <line x1="2" y1="20%" x2="10" y2="20%" />
+          <line x1="2" y1="40%" x2="10" y2="40%" />
+          <line x1="2" y1="60%" x2="10" y2="60%" />
+          <line x1="2" y1="80%" x2="10" y2="80%" />
+          <line x1="0" y1="100%" x2="12" y2="100%" />
+        </g>
+      </svg>
       <div style={{ position: "relative", zIndex: 1 }}>
         <Header active="About" />
         <AboutHero />
