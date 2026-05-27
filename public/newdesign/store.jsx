@@ -28,7 +28,6 @@ const PRODUCTS = [
   { id: 13, cat: "Nutrition", name: "Recipe archive pack", brand: "Shape nutrition templates", cost: 340, retail: 35, img: "recipes · pack", stock: "Unlimited" },
 
   // Shape Perks
-  { id: 14, cat: "Shape Perks", name: "Shape Radio · Studio", brand: "3 months ad-free", cost: 750, retail: 36, img: "radio · studio", stock: "Unlimited" },
   { id: 16, cat: "Shape Perks", name: "Annual membership credit", brand: "$200 toward next year", cost: 3500, retail: 200, img: "annual · 200", tag: "Peak tier", stock: "Unlimited", locked: true },
 ];
 
@@ -77,7 +76,6 @@ async function redeemLeadBoostRemote({ role, days }) {
 const UNLOCKED = [
   { code: "SHAPE-TEE-48F2", name: "Shape Training Tee", expires: "Jun 30", cost: 450, redeemed: "Apr 12" },
   { code: "NUTRI-PLAN-04F1", name: "Grocery list buildout", expires: "May 20", cost: 420, redeemed: "Apr 04" },
-  { code: "RADIO-3MO-BB7A", name: "Shape Radio · Studio · 3 mo", expires: "Jul 15", cost: 750, redeemed: "Mar 28" },
 ];
 
 function StoreHero() {

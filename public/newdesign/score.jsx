@@ -22,7 +22,6 @@ const LEDGER = [
 
 const REWARDS = [
   { title: "$25 session credit", sub: "Use with any coach", cost: 500, img: "credit" },
-  { title: "Shape Radio · Studio tier", sub: "3 months, ad-free", cost: 750, img: "radio" },
   { title: "Coach intro · 2nd opinion", sub: "Free 30-min with any trainer", cost: 900, img: "coach" },
   { title: "Nutrition plan refresh", sub: "Full plan rebuild with your RD", cost: 1200, img: "nutrition" },
   { title: "Shape merch — 20% off", sub: "In-house apparel and essentials", cost: 400, img: "store" },
@@ -72,7 +71,7 @@ function ScoreHero() {
               Rewards for<br /><em style={{ fontStyle: "italic", fontWeight: 600, color: "transparent", WebkitTextStroke: `1.4px ${INK}` }}>showing&nbsp;up</em>.
             </h1>
             <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.6, color: "rgba(242,237,228,0.66)", margin: "30px 0 0", maxWidth: 520 }}>
-              Every logged workout, tracked meal, kept session, and habit you hit adds up. Spend points on training credits, nutrition services, Shape Radio, or Shape merch. No expiry, no gotchas.
+              Every logged workout, tracked meal, kept session, and habit you hit adds up. Spend points on training credits, nutrition services, or Shape merch. No expiry, no gotchas.
             </p>
             <div style={{ display: "flex", gap: 12, marginTop: 34 }}>
               <button style={{ background: TEAL, color: PAPER, border: 0, padding: "16px 26px", borderRadius: 2, fontFamily: sans, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Redeem points →</button>
