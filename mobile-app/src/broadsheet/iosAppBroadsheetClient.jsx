@@ -4254,7 +4254,7 @@ function BSClientChat({ onProfile, role = 'client' }) {
             Feed mode is active. Messages post directly to {activeBucket?.label || 'this stream'}.
           </div>
         )}
-        {isFeedBucket && <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '0 0 138px' }}>
+        {isFeedBucket && <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '0 0 232px' }}>
           {filteredFeedMessages.map((m, i) => {
             const me = m.me;
             const tagColor = bucketColor[m._bucket] || (m.coach ? t.AMBER : t.ACCENT);
@@ -4317,20 +4317,17 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
       padding: 7,
       border: `1px solid ${t.SURFACE_BORDER}`,
       borderRadius: 999,
-      background: t.PAPER2,
-      boxShadow: `0 18px 38px ${t.isLight ? 'rgba(15,14,12,0.16)' : 'rgba(0,0,0,0.42)'}`,
-      WebkitBackdropFilter: 'blur(18px) saturate(140%)',
-      backdropFilter: 'blur(18px) saturate(140%)',
+      background: t.PAPER,
+      boxShadow: `0 18px 38px ${t.isLight ? 'rgba(15,14,12,0.16)' : 'rgba(0,0,0,0.42)'}, 0 -1px 0 ${t.SURFACE_BORDER}`,
       ...(pinned && {
         position: 'fixed',
         left: 0,
         right: 0,
-        // Tab bar (BSTabBar in iosAppBroadsheet.jsx) sits at bottom:0 with
-        // height 88 and zIndex 55. Pin the composer just above it so it isn't
-        // hidden behind the tab bar regardless of which screen pins it.
-        bottom: 'calc(88px + env(safe-area-inset-bottom, 0px))',
-        zIndex: 60,
-        marginBottom: 12,
+        // Sit above the Join-community upsell banner (~58px tall, bottom:92)
+        // and the 88px tab bar so the composer never overlaps either.
+        bottom: 'calc(150px + env(safe-area-inset-bottom, 0px))',
+        zIndex: 65,
+        marginBottom: 0,
       }),
     }}>
       <input
@@ -4413,7 +4410,7 @@ function BSChatThread({ thread, eyebrow, onBack }) {
       {/* Messages — bottom padding clears the pinned composer, which now
           sits above the 88px tab bar (composer box ~54px + 12px lift +
           88px tab bar + 24px breathing = 178px). */}
-      <div style={{ padding: `16px ${t.padX}px calc(178px + env(safe-area-inset-bottom, 0px))`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ padding: `16px ${t.padX}px calc(232px + env(safe-area-inset-bottom, 0px))`, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {allMessages.map((m, i) => {
           const me = m.me;
           return (

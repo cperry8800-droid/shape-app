@@ -6,9 +6,20 @@ function AboutHero() {
     <section style={{ padding: "40px 72px 30px", position: "relative", overflow: "hidden", minHeight: "62vh", display: "flex", alignItems: "center" }}>
       <div aria-hidden style={{ position: "absolute", width: 620, height: 620, top: "-20%", right: "-8%", borderRadius: "50%", filter: "blur(85px)", opacity: 0.3, background: `radial-gradient(circle, ${TEAL}, transparent 70%)`, pointerEvents: "none" }} />
       <div style={{ maxWidth: 1100, margin: "0 auto", position: "relative", width: "100%", textAlign: "center" }}>
-        <h1 style={{ fontFamily: serif, fontSize: "clamp(48px, 7vw, 104px)", letterSpacing: "-0.04em", fontWeight: 300, margin: 0, lineHeight: 0.94, color: INK }}>
-          A place<br />
-          for helping <em style={{ fontStyle: "italic", fontWeight: 600, color: "transparent", WebkitTextStroke: `1.4px ${TEAL}` }}>shape</em> a lifestyle
+        <h1 style={{
+          fontFamily: serif,
+          fontSize: "clamp(56px, 8.4vw, 132px)",
+          letterSpacing: "-0.045em",
+          fontWeight: 300,
+          fontStyle: "italic",
+          fontVariationSettings: "'opsz' 144, 'SOFT' 100",
+          margin: 0,
+          lineHeight: 0.9,
+          color: INK,
+          textRendering: "geometricPrecision",
+        }}>
+          A&nbsp;place<br />
+          for helping <em style={{ fontStyle: "italic", fontWeight: 500, color: "transparent", WebkitTextStroke: `1.4px ${TEAL}` }}>shape</em> a&nbsp;lifestyle
         </h1>
         <p style={{ fontFamily: sans, fontSize: 19, color: "rgba(242,237,228,0.74)", margin: "36px auto 0", maxWidth: 720, lineHeight: 1.65 }}>
           Your trainer already mapped out the next few weeks. Your nutritionist's plan became a grocery list before you thought to ask. When you open the workout card, the music starts — your coach picked it for that session. Shape Score watches all of it. Miss a day, it knows. Build a streak, it shows. The community isn't moderated positivity — it's people who are also mid-loop, figuring it out in real time. Nobody here is finished. That's the point.
