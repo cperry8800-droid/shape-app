@@ -245,6 +245,8 @@ function ClientOvTools() {
   const tools = [
     { t: "Real programming", b: "Your coach writes it. Sets, reps, progressions, substitutions. Updated every cycle based on how you're actually moving." },
     { t: "Food logs that read you back", b: "Photo, barcode, or quick-add. Your nutritionist reviews them. You get real feedback, not a green checkmark." },
+    { t: "Habits", b: "Build the good ones, break the bad. Track sleep, steps, mood, hydration, screen time, anything — your streaks roll up into your Shape Score." },
+    { t: "Grocery list", b: "Your nutritionist's meal plan turns itself into a shoppable list, organized by aisle, with a live running cost. One tap sends the whole thing to Instacart." },
     { t: "One calendar", b: "Workouts, meals, check-ins, calls. Syncs with Google, Apple, Outlook. Your coach sees what you see." },
     { t: "Messages with your team", b: "One thread per coach. Form check videos, lift cues, nutrition tweaks. Replies usually within a day." },
     { t: "Shape Score", b: "A weekly read on training load, recovery, and consistency. Uses your log — not your smartwatch's guess." },
@@ -255,7 +257,7 @@ function ClientOvTools() {
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>What you get</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 72px", lineHeight: 1 }}>Everything you actually <em style={{ fontStyle: "italic", color: TEAL }}>use.</em></h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1, background: "rgba(233,239,237,0.08)", border: "1px solid rgba(233,239,237,0.08)" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 1, background: "rgba(233,239,237,0.08)", border: "1px solid rgba(233,239,237,0.08)" }}>
           {tools.map((tool, i) => (
             <div key={i} style={{ padding: 36, background: DARK }}>
               <div style={{ fontFamily: serif, fontSize: 24, fontWeight: 400, letterSpacing: "-0.015em", color: LIGHT, marginBottom: 14, lineHeight: 1.15 }}>{tool.t}</div>
