@@ -132,7 +132,7 @@ function ClientOvHow() {
     { n: "01", t: "Tell us what you want", b: "Goals, training history, schedule, injuries, food preferences. Takes about 5 minutes — enough for us to match well.", time: "5 min" },
     { n: "02", t: "Match with a coach", b: "Browse verified trainers and nutritionists, or let Shape recommend. Filter by specialty, format, city, rate. Book a free intro call with up to three.", time: "Same day" },
     { n: "03", t: "Start your first week", b: "Your coach writes your program. You get a calendar, messages thread, and log. Train, eat, check in. They read everything.", time: "Week 1" },
-    { n: "04", t: "Adjust as you go", b: "Every 4–6 weeks your coach reviews progress and re-writes. Swap coaches anytime, add a nutritionist, scale up or down — your call.", time: "Ongoing" },
+    { n: "04", t: "Adjust as you go", b: "Your coach sets check-in times that fit your schedule — whatever cadence works for the two of you. They review progress and re-write. Swap coaches anytime, add a nutritionist, scale up or down — your call.", time: "Ongoing" },
   ];
   return (
     <section style={{ padding: "140px 72px", background: "rgba(6,8,10,0.82)", color: LIGHT }}>
