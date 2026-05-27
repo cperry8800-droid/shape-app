@@ -341,7 +341,6 @@ function TrainerOverviewPage() {
       <div style={{ position: "relative", zIndex: 1 }}>
         <Header active="Trainer Overview" />
         <TrainerHero />
-        <TrainerStats />
         <TrainerWhy />
         <TrainerHow />
         <TrainerEarnings />

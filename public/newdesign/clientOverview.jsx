@@ -463,7 +463,6 @@ function ClientOverviewPage() {
       <div style={{ position: "relative", zIndex: 1 }}>
         <Header active="Client Overview" />
         <ClientOvHero />
-        <ClientOvStats />
         <ClientOvWhy />
         <ClientOvHow />
         <ClientOvSnapshots />

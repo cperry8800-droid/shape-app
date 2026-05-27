@@ -341,7 +341,6 @@ function NutritionistOverviewPage() {
       <div style={{ position: "relative", zIndex: 1 }}>
         <Header active="Nutritionist Overview" />
         <NutHero />
-        <NutStats />
         <NutWhy />
         <NutHow />
         <NutEarnings />
