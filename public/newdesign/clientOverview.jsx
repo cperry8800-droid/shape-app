@@ -411,8 +411,8 @@ function ClientOverviewPage() {
         <ClientOvHero />
         <ClientOvStats />
         <ClientOvWhy />
-        <ClientOvSnapshots />
         <ClientOvHow />
+        <ClientOvSnapshots />
         <ClientOvPaths />
         <ClientOvTools />
         <ClientOvFAQ />
