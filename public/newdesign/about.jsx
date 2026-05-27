@@ -152,7 +152,7 @@ function AboutPillars() {
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: 64 }}>
           <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>What you get</div>
-          <h3 style={{ fontFamily: serif, fontSize: "clamp(30px, 4vw, 48px)", letterSpacing: "-0.025em", fontWeight: 300, margin: 0, lineHeight: 1.05 }}>
+          <h3 style={{ fontFamily: serif, fontSize: "clamp(32px, 4.4vw, 56px)", letterSpacing: "-0.03em", fontWeight: 300, fontStyle: "italic", margin: 0, lineHeight: 1.02 }}>
             One place for the <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>whole loop</em>.
           </h3>
         </div>
@@ -160,8 +160,8 @@ function AboutPillars() {
           {items.map((it, i) => (
             <div key={i} style={{ borderTop: `1px solid rgba(242,237,228,0.12)`, paddingTop: 22 }}>
               <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.18em", color: TEAL_BRIGHT, marginBottom: 14 }}>{String(i + 1).padStart(2, "0")}</div>
-              <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.01em", fontWeight: 400, color: INK, lineHeight: 1.22, marginBottom: 12 }}>{it.h}</div>
-              <p style={{ fontFamily: sans, fontSize: 14.5, color: "rgba(242,237,228,0.66)", lineHeight: 1.65, margin: 0 }}>{it.p}</p>
+              <div style={{ fontFamily: serif, fontSize: 24, letterSpacing: "-0.015em", fontWeight: 400, fontStyle: "italic", color: INK, lineHeight: 1.18, marginBottom: 14 }}>{it.h}</div>
+              <p style={{ fontFamily: serif, fontSize: 16, fontStyle: "italic", fontWeight: 300, letterSpacing: "-0.003em", color: "rgba(242,237,228,0.78)", lineHeight: 1.55, margin: 0 }}>{it.p}</p>
             </div>
           ))}
         </div>
@@ -174,7 +174,7 @@ function AboutCTA() {
   return (
     <section style={{ padding: "40px 72px 140px" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", textAlign: "center" }}>
-        <h3 style={{ fontFamily: serif, fontSize: "clamp(32px, 4.4vw, 54px)", letterSpacing: "-0.03em", fontWeight: 300, margin: 0, lineHeight: 1.05 }}>
+        <h3 style={{ fontFamily: serif, fontSize: "clamp(36px, 5vw, 64px)", letterSpacing: "-0.035em", fontWeight: 300, fontStyle: "italic", margin: 0, lineHeight: 1.0 }}>
           Come <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>shape</em> with us.
         </h3>
       </div>
