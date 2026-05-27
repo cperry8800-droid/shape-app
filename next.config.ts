@@ -51,11 +51,6 @@ const nextConfig: NextConfig = {
       { source: '/mobile/', destination: '/mobile/Mobile.html' },
       { source: '/mobile.html', destination: '/mobile/Mobile.html' },
       { source: '/mobile/mobile.html', destination: '/mobile/Mobile.html' },
-      // Mobile app browser preview — the Vite bundle from mobile-app/dist
-      // is copied to public/m/. Rewrite bare /m and /m/ to the index so
-      // visitors don't have to type /m/index.html.
-      { source: '/m', destination: '/m/index.html' },
-      { source: '/m/', destination: '/m/index.html' },
     ];
   },
 };
