@@ -73,7 +73,7 @@ function ClientOvStats() {
     { k: "Yours", v: "Your data, your plan, your coach. Leave anytime." },
   ];
   return (
-    <section style={{ padding: "80px 72px", background: DARK, borderTop: "1px solid rgba(233,239,237,0.08)", borderBottom: "1px solid rgba(233,239,237,0.08)" }}>
+    <section style={{ padding: "80px 72px", background: "rgba(6,8,10,0.7)", borderTop: "1px solid rgba(233,239,237,0.08)", borderBottom: "1px solid rgba(233,239,237,0.08)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}>
         {items.map((it, i) => (
           <div key={i} style={{ padding: "12px 32px", borderLeft: i ? "1px solid rgba(233,239,237,0.1)" : "none" }}>
@@ -106,7 +106,7 @@ function ClientOvWhy() {
     },
   ];
   return (
-    <section style={{ padding: "140px 72px", background: LIGHT, color: DARK }}>
+    <section style={{ padding: "140px 72px", background: "rgba(233,239,237,0.9)", color: DARK }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Why Shape for you</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 72px", lineHeight: 1, maxWidth: 1000 }}>
@@ -193,7 +193,7 @@ function ClientOvPaths() {
     },
   ];
   return (
-    <section style={{ padding: "140px 72px", background: LIGHT, color: DARK }}>
+    <section style={{ padding: "140px 72px", background: "rgba(233,239,237,0.9)", color: DARK }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Three ways in</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 72px", lineHeight: 1, maxWidth: 1000 }}>
@@ -302,7 +302,7 @@ function ClientOvSnapshots() {
   ];
   const mealCellBase = { background: "rgba(233,239,237,0.03)", border: "1px solid rgba(233,239,237,0.06)", borderRadius: 8, padding: "12px 14px" };
   return (
-    <section style={{ padding: "120px 72px", background: DARK, color: LIGHT, borderTop: "1px solid rgba(233,239,237,0.08)" }}>
+    <section style={{ padding: "120px 72px", background: "rgba(6,8,10,0.7)", color: LIGHT, borderTop: "1px solid rgba(233,239,237,0.08)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 18 }}>Inside the app</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(38px, 4.8vw, 68px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 60px", lineHeight: 1 }}>The <em style={{ fontStyle: "italic", color: TEAL }}>plan</em>, the <em style={{ fontStyle: "italic", color: TEAL }}>habits</em>, and the <em style={{ fontStyle: "italic", color: TEAL }}>list</em>.</h2>
@@ -417,7 +417,7 @@ function ClientOvFAQ() {
   ];
   const [open, setOpen] = useSClientOv(0);
   return (
-    <section style={{ padding: "140px 72px", background: LIGHT, color: DARK }}>
+    <section style={{ padding: "140px 72px", background: "rgba(233,239,237,0.9)", color: DARK }}>
       <div style={{ maxWidth: 960, margin: "0 auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>FAQ</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 48px", lineHeight: 1 }}>Common <em style={{ fontStyle: "italic", color: TEAL }}>questions.</em></h2>
@@ -440,7 +440,7 @@ function ClientOvFAQ() {
 // ---------- Final CTA ----------
 function ClientOvCTA() {
   return (
-    <section style={{ padding: "140px 72px", background: DARK, color: LIGHT, position: "relative", overflow: "hidden" }}>
+    <section style={{ padding: "140px 72px", background: "rgba(6,8,10,0.7)", color: LIGHT, position: "relative", overflow: "hidden" }}>
       <div style={{ position: "absolute", inset: 0, background: "radial-gradient(800px 500px at 50% 100%, rgba(10,197,168,0.14), transparent 70%)" }} />
       <div style={{ maxWidth: 1100, margin: "0 auto", position: "relative", textAlign: "center" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 28 }}>Find your coach</div>
@@ -464,7 +464,7 @@ function ClientOverviewPage() {
   return (
     <div style={{ background: DARK, color: LIGHT, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
       <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/Home%20page%202.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
-      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "rgba(6,8,10,0.6)", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "rgba(6,8,10,0.35)", pointerEvents: "none" }} />
       <div style={{ position: "relative", zIndex: 1 }}>
         <Header active="Client Overview" />
         <ClientOvHero />
