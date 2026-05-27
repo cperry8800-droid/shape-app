@@ -55,33 +55,25 @@
     background:linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.45) 55%, rgba(255,255,255,1) 100%);
     filter:drop-shadow(0 0 6px rgba(232,238,255,0.6));
     opacity:0;will-change:transform,opacity}
-  /* Left-to-right tracks: start at x=0 (inside the rotated frame), travel +160vw along the angle. */
-  .site-shoot .s1{top:18%;left:-220px;transform:rotate(18deg)}
-  .site-shoot .s2{top:58%;left:-260px;transform:rotate(8deg)}
-  /* Right-to-left track: start at right edge, rotated 180° so the comet tail faces the motion. */
-  .site-shoot .s3{top:34%;right:-260px;left:auto;transform:rotate(196deg)}
-  .site-shoot .s1 .bar{animation:shoot-a 8s linear infinite}
-  .site-shoot .s2 .bar{animation:shoot-b 11s linear infinite;animation-delay:3s}
-  .site-shoot .s3 .bar{animation:shoot-c 14s linear infinite;animation-delay:6s}
-  @keyframes shoot-a{
-    0%,86%{transform:translateX(0);opacity:0}
-    88%{opacity:0}
-    90%{opacity:1}
-    96%{opacity:1}
-    100%{transform:translateX(160vw);opacity:0}
-  }
-  @keyframes shoot-b{
+  /* Left-to-right tracks (angles 4°–22°, varied start heights). */
+  .site-shoot .s1{top:12%;left:-220px;transform:rotate(14deg)}
+  .site-shoot .s2{top:48%;left:-240px;transform:rotate(6deg)}
+  .site-shoot .s5{top:72%;left:-200px;transform:rotate(22deg)}
+  /* Right-to-left tracks (rotated 180°+a so the comet tail faces motion). */
+  .site-shoot .s3{top:24%;right:-240px;left:auto;transform:rotate(196deg)}
+  .site-shoot .s4{top:64%;right:-220px;left:auto;transform:rotate(188deg)}
+  .site-shoot .s6{top:8%;right:-260px;left:auto;transform:rotate(184deg)}
+  .site-shoot .s1 .bar{animation:shoot-fast 8s linear infinite}
+  .site-shoot .s2 .bar{animation:shoot-fast 11s linear infinite;animation-delay:3s}
+  .site-shoot .s3 .bar{animation:shoot-fast 9s linear infinite;animation-delay:1s}
+  .site-shoot .s4 .bar{animation:shoot-fast 12s linear infinite;animation-delay:5s}
+  .site-shoot .s5 .bar{animation:shoot-fast 13s linear infinite;animation-delay:7s}
+  .site-shoot .s6 .bar{animation:shoot-fast 10s linear infinite;animation-delay:4s}
+  @keyframes shoot-fast{
     0%,80%{transform:translateX(0);opacity:0}
     82%{opacity:0}
     84%{opacity:1}
-    93%{opacity:1}
-    100%{transform:translateX(160vw);opacity:0}
-  }
-  @keyframes shoot-c{
-    0%,90%{transform:translateX(0);opacity:0}
-    92%{opacity:0}
-    94%{opacity:1}
-    98%{opacity:1}
+    96%{opacity:1}
     100%{transform:translateX(160vw);opacity:0}
   }
   @media(prefers-reduced-motion:reduce){
@@ -342,6 +334,9 @@
   <span class="streak s1"><span class="bar"></span></span>
   <span class="streak s2"><span class="bar"></span></span>
   <span class="streak s3"><span class="bar"></span></span>
+  <span class="streak s4"><span class="bar"></span></span>
+  <span class="streak s5"><span class="bar"></span></span>
+  <span class="streak s6"><span class="bar"></span></span>
 </div>
 <script>
   (function(){
