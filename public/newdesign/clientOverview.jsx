@@ -324,7 +324,7 @@ function ClientOvSnapshots() {
                 <div style={{ display: "grid", gap: 8 }}>
                   {d.meals.map((m, j) => (
                     <div key={j}>
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", color: TEAL_B, marginBottom: 2 }}>{m.kind}</div>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 2 }}>{m.kind}</div>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
                         <div style={{ fontFamily: serif, fontSize: 13.5, color: LIGHT, letterSpacing: "-0.005em", lineHeight: 1.3 }}>{m.item}</div>
                         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(233,239,237,0.55)", flex: "none" }}>{m.kcal}</div>
