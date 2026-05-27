@@ -4205,7 +4205,7 @@ function BSClientChat({ onProfile, role = 'client' }) {
                 <button key={key} onClick={() => setSelectedThreadKey(key)} style={{
                   width: '100%',
                   border: `1px solid ${t.SURFACE_BORDER}`,
-                  background: t.SURFACE,
+                  background: t.PAPER2,
                   color: t.INK,
                   borderRadius: t.RADIUS_LG,
                   padding: 12,
@@ -4261,7 +4261,7 @@ function BSClientChat({ onProfile, role = 'client' }) {
             return (
               <div key={i} style={{
                 border: `1px solid ${t.SURFACE_BORDER}`,
-                background: me ? t.INK : t.SURFACE,
+                background: me ? t.INK : t.PAPER2,
                 color: me ? t.PAPER : t.INK,
                 borderRadius: t.RADIUS_LG,
                 padding: 12,
@@ -4430,7 +4430,7 @@ function BSChatThread({ thread, eyebrow, onBack }) {
                 borderRadius: me ? '18px 18px 5px 18px' : '18px 18px 18px 5px',
                 fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.4, letterSpacing: '-0.005em',
                 color: me ? '#031f1c' : t.INK,
-                background: me ? t.ACCENT : t.SURFACE,
+                background: me ? t.ACCENT : t.PAPER2,
                 border: me ? 'none' : `1px solid ${t.SURFACE_BORDER}`,
                 boxShadow: me ? 'none' : t.ELEVATION_SOFT,
                 padding: '11px 13px',
