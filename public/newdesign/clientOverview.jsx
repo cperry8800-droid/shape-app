@@ -379,17 +379,17 @@ function ClientOvSnapshots() {
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>Grocery list</div>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(233,239,237,0.5)" }}>FROM RAE'S PLAN · WEEK 04</div>
             </div>
-            <div style={{ display: "grid", gap: 14, flex: 1 }}>
+            <div style={{ display: "grid", gap: 10, flex: 1 }}>
               {grocery.map((g, i) => (
-                <div key={i} style={{ background: "rgba(233,239,237,0.03)", border: "1px solid rgba(233,239,237,0.06)", borderRadius: 8, padding: "12px 14px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+                <div key={i} style={{ background: "rgba(233,239,237,0.03)", border: "1px solid rgba(233,239,237,0.06)", borderRadius: 8, padding: "10px 14px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
                     <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL }}>{g.aisle}</div>
                     <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: "rgba(233,239,237,0.5)" }}>{g.items.length} items</div>
                   </div>
-                  <div style={{ display: "grid", gap: 6 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", columnGap: 16, rowGap: 4 }}>
                     {g.items.map((it, j) => (
-                      <div key={j} style={{ display: "flex", alignItems: "center", gap: 10, fontFamily: serif, fontSize: 14, color: LIGHT }}>
-                        <span style={{ width: 11, height: 11, borderRadius: 3, border: "1px solid rgba(233,239,237,0.35)", display: "inline-block", flex: "none" }} />
+                      <div key={j} style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: serif, fontSize: 14, color: LIGHT }}>
+                        <span style={{ width: 11, height: 11, borderRadius: 3, border: "1px solid rgba(233,239,237,0.35)", display: "inline-block" }} />
                         {it}
                       </div>
                     ))}
