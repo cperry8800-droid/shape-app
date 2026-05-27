@@ -44,6 +44,41 @@
   @keyframes star-twinkle{0%,100%{opacity:.6}50%{opacity:1}}
   .site-stars .twinkle{animation:star-twinkle var(--dur,3s) ease-in-out infinite}
 
+  /* Shooting stars — occasional diagonal sweep across the sky.
+     Two streaks on different angles + delays so they feel random/sparse. */
+  .site-shoot{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+  .site-shoot .streak{position:absolute;width:160px;height:1.4px;border-radius:999px;
+    background:linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.45) 55%, rgba(255,255,255,1) 100%);
+    filter:drop-shadow(0 0 6px rgba(232,238,255,0.6));
+    opacity:0;will-change:transform,opacity}
+  .site-shoot .s1{top:18%;left:-200px;transform:rotate(18deg);animation:shoot-a 22s linear infinite}
+  .site-shoot .s2{top:62%;left:-220px;transform:rotate(12deg);animation:shoot-b 31s linear infinite;animation-delay:12s}
+  .site-shoot .s3{top:36%;left:-180px;transform:rotate(25deg);animation:shoot-c 44s linear infinite;animation-delay:6s}
+  @keyframes shoot-a{
+    0%,86%{transform:translate(0,0) rotate(18deg);opacity:0}
+    88%{opacity:0;transform:translate(0,0) rotate(18deg)}
+    90%{opacity:1}
+    96%{opacity:1}
+    100%{transform:translate(120vw,38vh) rotate(18deg);opacity:0}
+  }
+  @keyframes shoot-b{
+    0%,80%{transform:translate(0,0) rotate(12deg);opacity:0}
+    82%{opacity:0}
+    84%{opacity:1}
+    93%{opacity:1}
+    100%{transform:translate(125vw,28vh) rotate(12deg);opacity:0}
+  }
+  @keyframes shoot-c{
+    0%,90%{transform:translate(0,0) rotate(25deg);opacity:0}
+    92%{opacity:0}
+    94%{opacity:1}
+    98%{opacity:1}
+    100%{transform:translate(118vw,48vh) rotate(25deg);opacity:0}
+  }
+  @media(prefers-reduced-motion:reduce){
+    .site-shoot .streak{animation:none!important;opacity:0}
+  }
+
   /* Layered animated gradient backdrop — three large soft blobs that drift
      slowly across the viewport. Fixed so they cover the page on scroll,
      screen blend so they pop without washing out the dark base. */
@@ -67,7 +102,7 @@
   @media(prefers-reduced-motion:reduce){
     .site-bg .sb{animation:none!important}
   }
-  body > *:not(.site-bg):not(.site-contours):not(.site-mesh):not(.site-sky):not(.site-moon):not(.site-nebula):not(.site-stars){position:relative;z-index:1}
+  body > *:not(.site-bg):not(.site-contours):not(.site-mesh):not(.site-sky):not(.site-moon):not(.site-nebula):not(.site-stars):not(.site-shoot){position:relative;z-index:1}
 
   /* Modern overlay: constellation mesh + faint hex grid.
      Reads as a layered tech / data backdrop without competing with content. */
@@ -294,6 +329,11 @@
 <div class="site-nebula" aria-hidden="true"></div>
 <div class="site-moon" aria-hidden="true"></div>
 <svg class="site-stars" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"></svg>
+<div class="site-shoot" aria-hidden="true">
+  <span class="streak s1"></span>
+  <span class="streak s2"></span>
+  <span class="streak s3"></span>
+</div>
 <script>
   (function(){
     var svg = document.querySelector('.site-stars');
