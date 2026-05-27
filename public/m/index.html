@@ -9,7 +9,7 @@
   html, body, #root { margin: 0; padding: 0; min-height: 100vh; width: 100%; overflow: hidden; }
   /* Browser preview: cap the app to phone-portrait width on wide viewports
      so the layout doesn't blow up to desktop dimensions. The native
-     Capacitor webview already has a phone-width constraint. */
+     Capacitor webview already constrains to the phone's pixel width. */
   @media (min-width: 500px) {
     html:not(.is-native-app) body { background: #14110d; display: flex; justify-content: center; }
     html:not(.is-native-app) #root { max-width: 393px; width: 393px; box-shadow: 0 0 60px rgba(0,0,0,0.5); }
