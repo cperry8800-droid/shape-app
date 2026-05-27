@@ -292,7 +292,7 @@ function LiveActivity() {
           <a href="/newdesign/Login.html" style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.16em", color: TEAL_BRIGHT, textDecoration: "none", whiteSpace: "nowrap" }}>JOIN THE FEED →</a>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 16, maxHeight: 720, overflowY: "auto", paddingRight: 8, scrollbarGutter: "stable", maskImage: "linear-gradient(180deg, #000 0, #000 calc(100% - 56px), transparent 100%)", WebkitMaskImage: "linear-gradient(180deg, #000 0, #000 calc(100% - 56px), transparent 100%)" }}>
+        <div className="cm-feed-scroll" style={{ display: "flex", flexDirection: "column", gap: 16, maxHeight: 720, overflowY: "auto", maskImage: "linear-gradient(180deg, #000 0, #000 calc(100% - 56px), transparent 100%)", WebkitMaskImage: "linear-gradient(180deg, #000 0, #000 calc(100% - 56px), transparent 100%)", scrollbarWidth: "none", msOverflowStyle: "none" }}>
           {LIVE_ACTIVITY.map((a, i) => (
             <CmReveal key={i} delay={Math.min(i * 50, 200)}>
               <article style={{ padding: "24px 26px", background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6 }}>
@@ -637,6 +637,7 @@ function Community() {
         <Footer />
       </div>
       <style>{`
+        .cm-feed-scroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
         @media (max-width: 980px) {
           .cm-hero { grid-template-columns: 1fr !important; gap: 28px !important; }
           .cm-3 { grid-template-columns: 1fr 1fr !important; }
