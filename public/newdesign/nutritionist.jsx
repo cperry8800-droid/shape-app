@@ -19,22 +19,54 @@ function NutHero() {
   return (
     <section style={{ padding: "40px 72px 30px", position: "relative", overflow: "hidden", minHeight: "78vh", display: "flex", alignItems: "center" }}>
       <div aria-hidden style={{ position: "absolute", width: 660, height: 660, top: "-20%", right: "-8%", borderRadius: "50%", filter: "blur(85px)", opacity: 0.32, background: `radial-gradient(circle, ${TEAL}, transparent 70%)`, pointerEvents: "none" }} />
-      <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative", width: "100%" }}>
-        <div style={{ maxWidth: 900 }}>
+      <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative", width: "100%", display: "grid", gridTemplateColumns: "1.25fr 1fr", gap: 72, alignItems: "center" }}>
+        <div>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "7px 14px", borderRadius: 999, background: "rgba(10,197,168,0.12)", border: "1px solid rgba(10,197,168,0.35)", fontFamily: mono, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginLeft: -15, marginBottom: 28 }}>
             <span style={{ width: 6, height: 6, borderRadius: 999, background: TEAL }}></span>
             For nutritionists
           </div>
-          <h1 style={{ fontFamily: serif, fontSize: "clamp(56px, 8vw, 118px)", letterSpacing: "-0.045em", fontWeight: 300, margin: 0, lineHeight: 0.9, color: INK }}>
+          <h1 style={{ fontFamily: serif, fontSize: "clamp(52px, 7vw, 108px)", letterSpacing: "-0.045em", fontWeight: 300, margin: 0, lineHeight: 0.92, color: INK }}>
             Shape how<br />
             people <em style={{ fontStyle: "italic", fontWeight: 600, color: "transparent", WebkitTextStroke: `1.4px ${INK}` }}>eat.</em>
           </h1>
-          <p style={{ fontFamily: sans, fontSize: 19, color: "rgba(242,237,228,0.74)", margin: "36px 0 0", maxWidth: 640, lineHeight: 1.55 }}>
+          <p style={{ fontFamily: sans, fontSize: 18, color: "rgba(242,237,228,0.74)", margin: "32px 0 0", maxWidth: 540, lineHeight: 1.55 }}>
             Members are already tracking meals, logging macros, and looking for guidance. Shape puts you where they are — ready to listen, ready to commit, and ready to let you shape their nutrition.
           </p>
-          <div style={{ display: "flex", gap: 14, marginTop: 44, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 14, marginTop: 40, flexWrap: "wrap" }}>
             <a href="SignupNutritionist.html" style={{ padding: "16px 30px", borderRadius: 2, background: TEAL, color: PAPER, border: 0, fontFamily: sans, fontSize: 14.5, fontWeight: 600, cursor: "pointer" }}>Apply now — it's free</a>
-            <a href="Marketplace.html?role=Nutritionist" style={{ padding: "16px 30px", borderRadius: 2, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", fontFamily: sans, fontSize: 14.5, fontWeight: 600 }}>See nutritionists on Shape</a>
+            <a href="Marketplace.html?role=Nutritionist" style={{ padding: "16px 30px", borderRadius: 2, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", fontFamily: sans, fontSize: 14.5, fontWeight: 600 }}>See nutritionists</a>
+          </div>
+        </div>
+        <div style={{ position: "relative" }}>
+          <div style={{ background: "rgba(6,8,10,0.7)", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 14, padding: 28, backdropFilter: "blur(12px)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 24 }}>
+              <div style={{ fontFamily: mono, fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>This week</div>
+              <div style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(242,237,228,0.5)" }}>APR 13 — APR 19</div>
+            </div>
+            <div style={{ display: "grid", gap: 10 }}>
+              {[
+                { when: "Mon 07:00", kind: "BREAKFAST", what: "Oats · berries · whey",       who: "Rae" },
+                { when: "Tue 12:30", kind: "LUNCH",     what: "Chicken bowl · brown rice",   who: "Rae" },
+                { when: "Wed 17:30", kind: "CALL",      what: "Macros review · 30 min",      who: "Rae" },
+                { when: "Thu 19:00", kind: "DINNER",    what: "Salmon · sweet potato",       who: "Rae" },
+                { when: "Fri 13:00", kind: "SNACK",     what: "Greek yogurt · almonds",      who: "Rae" },
+              ].map((it, i) => (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "90px 92px 1fr auto", gap: 14, alignItems: "center", padding: "12px 14px", background: "rgba(242,237,228,0.03)", borderRadius: 8, border: "1px solid rgba(242,237,228,0.06)" }}>
+                  <div style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(242,237,228,0.93)", letterSpacing: "0.05em" }}>{it.when}</div>
+                  <div style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: "0.14em", color: it.kind === "CALL" ? "rgba(242,237,228,0.8)" : it.kind === "SNACK" ? "#e8b14a" : TEAL }}>{it.kind}</div>
+                  <div style={{ fontFamily: serif, fontSize: 15, color: INK, letterSpacing: "-0.005em" }}>{it.what}</div>
+                  <div style={{ fontFamily: sans, fontSize: 11, color: "rgba(242,237,228,0.55)" }}>{it.who}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", justifyContent: "space-between", fontFamily: mono, fontSize: 10.5, color: "rgba(242,237,228,0.5)", letterSpacing: "0.08em" }}>
+              <span>5 meals · 1 review</span>
+              <span style={{ color: TEAL }}>on plan ●</span>
+            </div>
+          </div>
+          <div style={{ position: "absolute", bottom: -24, left: -24, background: INK_DEEP, color: INK, padding: "14px 18px", borderRadius: 10, fontFamily: sans, fontSize: 12, lineHeight: 1.4, boxShadow: "0 20px 72px rgba(0,0,0,0.45)", maxWidth: 230 }}>
+            <div style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 4 }}>From Rae</div>
+            Bumped your post-workout shake +20g carbs for tomorrow's long run.
           </div>
         </div>
       </div>
