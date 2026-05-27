@@ -628,8 +628,8 @@ function Community() {
       <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", background: "radial-gradient(120% 90% at 50% 6%, rgba(26,24,19,0.28) 0%, rgba(11,14,12,0.52) 55%, rgba(11,14,12,0.74) 100%)" }} />
       <div style={{ position: "relative", zIndex: 1 }}>
         <Header active="Community" />
-        <Chat />
         <HeroC />
+        <Chat />
         <LiveActivity />
         <Events />
         <Challenges />
