@@ -242,7 +242,7 @@ function ClientOvTools() {
     { t: "Shape Radio", b: "Curated stations for lifting, running, recovery, and focus. Auto-matches the tempo of your session — your warm-up, your working sets, your cool-down." },
     { t: "Habits", b: "Build the good ones, break the bad. Track sleep, steps, mood, hydration, screen time, anything — your streaks roll up into your Shape Score." },
     { t: "Grocery list", b: "Your nutritionist's meal plan turns itself into a shoppable list, organized by aisle, with a live running cost. One tap sends the whole thing to Instacart." },
-    { t: "One calendar", b: "Workouts, meals, check-ins, calls. Syncs with Google, Apple, Outlook. Your coach sees what you see." },
+    { t: "Shape calendar", b: "Your own training calendar inside Shape — workouts, meals, check-ins, and calls all in one view. Your coach sees what you see, and updates land in real time." },
     { t: "Messages with your team", b: "One thread per coach. Form check videos, lift cues, nutrition tweaks. Replies usually within a day." },
     { t: "Shape Score", b: "A weekly read on training load, recovery, and consistency. Uses your log — not your smartwatch's guess." },
     { t: "Community & events", b: "Local runs, lift nights, cohorts, and challenges. Train alone; stay accountable with people in your city." },
