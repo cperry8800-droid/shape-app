@@ -112,7 +112,7 @@ function TrainerHero() {
 // ---------- Value strip ----------
 function TrainerStats() {
   const items = [
-    { k: "15%", v: "Platform fee on what clients pay you. No monthly dues, no listing fees." },
+    { k: "Free", v: "To join and list your services. No monthly dues, no setup fees, no per-booking cuts." },
     { k: "Weekly", v: "Payouts direct to your bank, or instant any day." },
     { k: "Verified", v: "Every coach credential-checked on intake." },
     { k: "Yours", v: "Your brand, your pricing, your clients. No lock-in." },
@@ -213,10 +213,10 @@ function TrainerEarnings() {
             <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Earnings</div>
             <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5vw, 78px)", letterSpacing: "-0.04em", fontWeight: 300, margin: "0 0 28px", lineHeight: 0.96, color: INK }}>Set your price. <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>See your take-home.</em></h2>
             <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.68)", lineHeight: 1.62, margin: "0 0 28px", maxWidth: 500 }}>
-              Shape takes a <strong style={{ color: INK }}>15% platform fee</strong> on everything clients pay you. No monthly dues, no setup fees, no per-booking cuts — you only pay when you earn. Cancel any time.
+              Set your own session price and keep what you earn. No monthly dues, no setup fees, no per-booking cuts — Shape only takes a small platform fee when you get paid. Cancel any time.
             </p>
             <div style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, padding: "22px 24px", marginBottom: 28, maxWidth: 500 }}>
-              <div style={{ fontFamily: mono, fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL, marginBottom: 10 }}>What the 15% covers</div>
+              <div style={{ fontFamily: mono, fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL, marginBottom: 10 }}>What Shape covers</div>
               <div style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.72)", lineHeight: 1.55 }}>
                 Client acquisition through the Shape marketplace, in-app messaging and video, program hosting, scheduling, and liability coverage. Standard card processing is separate.
               </div>
@@ -252,7 +252,7 @@ function TrainerEarnings() {
                 <div style={{ fontFamily: mono, fontSize: 14, color: "rgba(242,237,228,0.75)" }}>${grossMonthly.toLocaleString()}</div>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingBottom: 18, borderBottom: "1px dashed rgba(242,237,228,0.12)" }}>
-                <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)" }}>Platform fee (15%)</div>
+                <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)" }}>Platform fee</div>
                 <div style={{ fontFamily: mono, fontSize: 14, color: "rgba(242,237,228,0.55)" }}>-${Math.round(feeMonthly).toLocaleString()}</div>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 18 }}>
@@ -265,7 +265,7 @@ function TrainerEarnings() {
               </div>
             </div>
             <div style={{ marginTop: 28, fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.4)", lineHeight: 1.5 }}>
-              Estimate assumes 4 sessions per client per month, less Shape's 15% platform fee. Actual earnings vary by specialty, location, and hours worked.
+              Estimate assumes 4 sessions per client per month, less Shape's small platform fee. Actual earnings vary by specialty, location, and hours worked.
             </div>
           </div>
         </div>
@@ -347,7 +347,7 @@ function TrainerFeatured() {
 function TrainerFAQ() {
   const faqs = [
     { q: "What credentials do I need?", a: "An accredited personal training certification (NASM, ACE, NSCA, ACSM, NCSF, or similar), plus proof of current CPR/AED. Specialty certs (CSCS, RKC, FMS) help but aren't required." },
-    { q: "What does Shape cost trainers?", a: "You keep 85% of everything your clients pay you. No monthly dues, no listing fees — Shape takes a 15% platform fee, so you only pay when you earn. Standard card processing is separate." },
+    { q: "What does Shape cost trainers?", a: "You keep the vast majority of everything your clients pay you. No monthly dues, no listing fees — Shape only takes a small platform fee when you get paid. Standard card processing is separate." },
     { q: "Can I bring my existing clients?", a: "Yes. Most trainers migrate their book within the first month. We'll help with invitations, transfer flows, and pricing continuity." },
     { q: "How fast do payouts land?", a: "Weekly, direct to your bank — usually Monday. Need it faster? Instant payouts for 1% are available any day." },
     { q: "Am I locked in?", a: "No exclusivity. Coach on Shape, on your own site, wherever — it's your business. Leave anytime, take your clients with you." },

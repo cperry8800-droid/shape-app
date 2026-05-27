@@ -224,10 +224,10 @@ function NutEarnings() {
             <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Earnings</div>
             <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5vw, 78px)", letterSpacing: "-0.04em", fontWeight: 300, margin: "0 0 28px", lineHeight: 0.96, color: INK }}>Your rate. <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>See your take-home.</em></h2>
             <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.68)", lineHeight: 1.62, margin: "0 0 28px", maxWidth: 500 }}>
-              Shape takes a <strong style={{ color: INK }}>15% platform fee</strong> on everything clients pay you. No monthly dues, no setup fees, no per-booking cuts — you only pay when you earn. Cancel any time.
+              Set your own session and plan pricing and keep what you earn. No monthly dues, no setup fees, no per-booking cuts — Shape only takes a small platform fee when you get paid. Cancel any time.
             </p>
             <div style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, padding: "22px 24px", marginBottom: 28, maxWidth: 500 }}>
-              <div style={{ fontFamily: mono, fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL, marginBottom: 10 }}>What the 15% covers</div>
+              <div style={{ fontFamily: mono, fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL, marginBottom: 10 }}>What Shape covers</div>
               <div style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.72)", lineHeight: 1.55 }}>
                 Client acquisition through the Shape marketplace, in-app messaging and video, meal plan hosting, scheduling, and liability coverage. Standard card processing is separate.
               </div>
@@ -263,7 +263,7 @@ function NutEarnings() {
                 <div style={{ fontFamily: mono, fontSize: 14, color: "rgba(242,237,228,0.75)" }}>${grossMonthly.toLocaleString()}</div>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingBottom: 18, borderBottom: "1px dashed rgba(242,237,228,0.12)" }}>
-                <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)" }}>Platform fee (15%)</div>
+                <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)" }}>Platform fee</div>
                 <div style={{ fontFamily: mono, fontSize: 14, color: "rgba(242,237,228,0.55)" }}>-${Math.round(feeMonthly).toLocaleString()}</div>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 18 }}>
@@ -276,7 +276,7 @@ function NutEarnings() {
               </div>
             </div>
             <div style={{ marginTop: 28, fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.4)", lineHeight: 1.5 }}>
-              Estimate assumes 2 billable touchpoints per client per month, less Shape's 15% platform fee. Actual earnings vary by specialty and practice model.
+              Estimate assumes 2 billable touchpoints per client per month, less Shape's small platform fee. Actual earnings vary by specialty and practice model.
             </div>
           </div>
         </div>
@@ -358,7 +358,7 @@ function NutFeatured() {
 function NutFAQ() {
   const faqs = [
     { q: "What credentials do I need?", a: "RD, RDN, CNS, CDN, or state-licensed dietitian. CSSD (sports) or IFMCP (functional) help but aren't required. Non-licensed health/nutrition coaches accepted under a distinct scope-of-practice tier." },
-    { q: "What does Shape cost?", a: "You keep 85% of everything your clients pay you. No monthly dues, no listing fees — Shape takes a 15% platform fee, so you only pay when you earn. Standard card processing is separate." },
+    { q: "What does Shape cost?", a: "You keep the vast majority of everything your clients pay you. No monthly dues, no listing fees — Shape only takes a small platform fee when you get paid. Standard card processing is separate." },
     { q: "How does Shape handle HIPAA and scope of practice?", a: "Client records are encrypted at rest and in transit. Scope-of-practice tiers are enforced by credential — non-RDs can't access medical nutrition therapy flows. BAAs available for practices that need them." },
     { q: "Can I bring my existing clients?", a: "Yes. Most nutritionists migrate within the first month. We help with transition emails, pricing continuity, and importing plan templates." },
     { q: "Payouts?", a: "Weekly, direct to your bank. Instant payouts available for 1% any day. 1099s auto-generated every January." },
