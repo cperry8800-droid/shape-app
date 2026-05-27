@@ -285,22 +285,19 @@ function ClientOvSnapshots() {
   ];
   const mealPlan = [
     { day: "MON", meals: [
-      { kind: "BREAKFAST", item: "Greek yogurt + blueberries + oats",         kcal: 480 },
-      { kind: "LUNCH",     item: "Grilled chicken bowl · sweet potato · greens", kcal: 620 },
-      { kind: "DINNER",    item: "Wild salmon · brown rice · roasted veg",    kcal: 720 },
-      { kind: "SNACK",     item: "Apple + almond butter",                     kcal: 220 },
+      { kind: "B", item: "Greek yogurt + oats",     kcal: 480 },
+      { kind: "L", item: "Chicken bowl",             kcal: 620 },
+      { kind: "D", item: "Salmon · rice · veg",      kcal: 720 },
     ]},
     { day: "TUE", meals: [
-      { kind: "BREAKFAST", item: "Veggie omelette · toast",                   kcal: 460 },
-      { kind: "LUNCH",     item: "Turkey wrap · side salad",                  kcal: 580 },
-      { kind: "DINNER",    item: "Lean steak · sweet potato · spinach",      kcal: 700 },
-      { kind: "SNACK",     item: "Greek yogurt + honey",                     kcal: 200 },
+      { kind: "B", item: "Veggie omelette",          kcal: 460 },
+      { kind: "L", item: "Turkey wrap",              kcal: 580 },
+      { kind: "D", item: "Steak · sweet potato",     kcal: 700 },
     ]},
     { day: "WED", meals: [
-      { kind: "BREAKFAST", item: "Smoothie · banana · whey · oats",          kcal: 500 },
-      { kind: "LUNCH",     item: "Shrimp + quinoa bowl",                     kcal: 560 },
-      { kind: "DINNER",    item: "Baked cod · rice · asparagus",             kcal: 660 },
-      { kind: "SNACK",     item: "Cottage cheese + berries",                 kcal: 200 },
+      { kind: "B", item: "Smoothie · oats",          kcal: 500 },
+      { kind: "L", item: "Shrimp + quinoa",          kcal: 560 },
+      { kind: "D", item: "Baked cod · asparagus",    kcal: 660 },
     ]},
   ];
   const mealCellBase = { background: "rgba(233,239,237,0.03)", border: "1px solid rgba(233,239,237,0.06)", borderRadius: 8, padding: "12px 14px" };
@@ -319,18 +316,16 @@ function ClientOvSnapshots() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
             {mealPlan.map((d, i) => (
               <div key={i} style={mealCellBase}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
                   <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.16em", color: LIGHT }}>{d.day}</div>
                   <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(233,239,237,0.5)" }}>{d.meals.reduce((s, m) => s + m.kcal, 0)} kcal</div>
                 </div>
-                <div style={{ display: "grid", gap: 8 }}>
+                <div style={{ display: "grid", gap: 6 }}>
                   {d.meals.map((m, j) => (
-                    <div key={j}>
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 2 }}>{m.kind}</div>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-                        <div style={{ fontFamily: serif, fontSize: 13.5, color: LIGHT, letterSpacing: "-0.005em", lineHeight: 1.3 }}>{m.item}</div>
-                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(233,239,237,0.55)", flex: "none" }}>{m.kcal}</div>
-                      </div>
+                    <div key={j} style={{ display: "grid", gridTemplateColumns: "14px 1fr 36px", gap: 8, alignItems: "baseline" }}>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: TEAL_BRIGHT }}>{m.kind}</div>
+                      <div style={{ fontFamily: serif, fontSize: 13.5, color: LIGHT, letterSpacing: "-0.005em", lineHeight: 1.3 }}>{m.item}</div>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(233,239,237,0.5)", textAlign: "right" }}>{m.kcal}</div>
                     </div>
                   ))}
                 </div>
