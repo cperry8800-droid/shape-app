@@ -70,10 +70,6 @@ function AboutLetter() {
           It starts with a coach — and the nutritionist. Having great ones shouldn't be a luxury. Most apps replace them with chatbots; most gyms gate the good ones behind packages. We thought there was a better way: open the door for trainers, nutritionists, and registered dietitians who actually care, and make that level of guidance affordable for the rest of us.
         </p>
 
-        <aside style={{ ...pullBase, marginLeft: "-80px", paddingLeft: 24, borderLeft: `3px solid ${TEAL}` }}>
-          The platform fee is flat. The coach is real. The rates are theirs.
-        </aside>
-
         <p style={para}>
           Shape builds the loop around all of it. Your trainer programs your week before you arrive — every set, every tempo, every cue loaded the night before so you're never standing at the rack wondering what's next. Your nutritionist builds a meal plan around your specific goals — whether that's hitting a macro target, managing a dietary restriction, building around a health condition, or just eating better — and that plan turns into a grocery list you can actually shop from.
         </p>
