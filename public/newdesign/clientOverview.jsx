@@ -278,10 +278,16 @@ function ClientOvSnapshots() {
     { kind: "do",   name: "Stretch / mobility",   days: "4/7", hit: false, note: "" },
   ];
   const grocery = [
-    { aisle: "Produce",  items: ["Avocado × 4", "Baby spinach", "Blueberries", "Sweet potato × 3"] },
-    { aisle: "Protein",  items: ["Chicken breast · 2 lb", "Wild salmon · 1 lb", "Eggs · 18 ct"] },
-    { aisle: "Pantry",   items: ["Rolled oats", "Almond butter", "Brown rice · 2 lb"] },
-    { aisle: "Dairy",    items: ["Greek yogurt · 32 oz", "Feta"] },
+    { aisle: "Produce",  items: ["Avocado × 4", "Baby spinach · 16 oz", "Blueberries · pint", "Sweet potato × 3", "Lemons × 3", "Garlic · 1 bulb", "Cherry tomatoes · pint", "Bell pepper × 2"] },
+    { aisle: "Protein",  items: ["Chicken breast · 2 lb", "Wild salmon · 1 lb", "Eggs · 18 ct", "Lean ground turkey · 1 lb", "Lentils · 1 bag"] },
+    { aisle: "Pantry",   items: ["Rolled oats · 32 oz", "Almond butter", "Brown rice · 2 lb", "Quinoa · 1 lb", "Olive oil", "Tamari", "Honey · 12 oz"] },
+    { aisle: "Dairy",    items: ["Greek yogurt · 32 oz", "Feta · 6 oz", "Whole milk · ½ gal", "Parmesan · 4 oz"] },
+  ];
+  const tomorrow = [
+    { kind: "BREAKFAST", item: "Greek yogurt + blueberries + oats",          kcal: 480 },
+    { kind: "LUNCH",     item: "Grilled chicken bowl · sweet potato · greens", kcal: 620 },
+    { kind: "DINNER",    item: "Wild salmon · brown rice · roasted veg",     kcal: 720 },
+    { kind: "SNACK",     item: "Apple + almond butter",                      kcal: 220 },
   ];
   const mealPlan = [
     { day: "MON", meals: [
@@ -343,7 +349,7 @@ function ClientOvSnapshots() {
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 28 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 28, alignItems: "start" }}>
           {/* Habits snapshot */}
           <div style={{ background: "rgba(233,239,237,0.04)", border: "1px solid rgba(233,239,237,0.12)", borderRadius: 14, padding: 28, backdropFilter: "blur(12px)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 22 }}>
@@ -373,22 +379,45 @@ function ClientOvSnapshots() {
             </div>
           </div>
 
-          {/* Grocery list snapshot */}
+          {/* Meal plan + grocery list snapshot */}
           <div style={{ background: "rgba(233,239,237,0.04)", border: "1px solid rgba(233,239,237,0.12)", borderRadius: 14, padding: 28, backdropFilter: "blur(12px)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 22 }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>Grocery list</div>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(233,239,237,0.5)" }}>FROM RAE'S PLAN · WEEK 04</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 18 }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>Meal plan + grocery</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(233,239,237,0.5)" }}>FROM RAE · WEEK 04</div>
             </div>
-            <div style={{ display: "grid", gap: 12 }}>
+
+            {/* Tomorrow's plan from the nutritionist */}
+            <div style={{ background: "rgba(233,239,237,0.03)", border: "1px solid rgba(233,239,237,0.06)", borderRadius: 8, padding: "14px 14px 10px", marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL }}>Tomorrow · Mon</div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: "rgba(233,239,237,0.5)" }}>{tomorrow.reduce((s, m) => s + m.kcal, 0)} kcal</div>
+              </div>
+              <div style={{ display: "grid", gap: 6 }}>
+                {tomorrow.map((m, i) => (
+                  <div key={i} style={{ display: "grid", gridTemplateColumns: "76px 1fr 40px", gap: 10, alignItems: "baseline" }}>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>{m.kind}</div>
+                    <div style={{ fontFamily: serif, fontSize: 14, color: LIGHT, letterSpacing: "-0.005em", lineHeight: 1.3 }}>{m.item}</div>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(233,239,237,0.55)", textAlign: "right" }}>{m.kcal}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid rgba(233,239,237,0.06)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: "rgba(233,239,237,0.5)", letterSpacing: "0.06em" }}>
+                175 g protein · 180 g carb · 65 g fat
+              </div>
+            </div>
+
+            {/* Shoppable list rolled up from the week's plan */}
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(233,239,237,0.5)", marginBottom: 8 }}>Rolled up · this week's shop</div>
+            <div style={{ display: "grid", gap: 10 }}>
               {grocery.map((g, i) => (
-                <div key={i} style={{ background: "rgba(233,239,237,0.03)", border: "1px solid rgba(233,239,237,0.06)", borderRadius: 8, padding: "12px 14px" }}>
+                <div key={i} style={{ background: "rgba(233,239,237,0.03)", border: "1px solid rgba(233,239,237,0.06)", borderRadius: 8, padding: "10px 14px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
                     <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL }}>{g.aisle}</div>
                     <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: "rgba(233,239,237,0.5)" }}>{g.items.length} items</div>
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", columnGap: 16, rowGap: 4 }}>
                     {g.items.map((it, j) => (
-                      <div key={j} style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: serif, fontSize: 14, color: LIGHT }}>
+                      <div key={j} style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: serif, fontSize: 13.5, color: LIGHT }}>
                         <span style={{ width: 11, height: 11, borderRadius: 3, border: "1px solid rgba(233,239,237,0.35)", display: "inline-block" }} />
                         {it}
                       </div>
@@ -398,7 +427,7 @@ function ClientOvSnapshots() {
               ))}
             </div>
             <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid rgba(233,239,237,0.08)", display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(233,239,237,0.5)", letterSpacing: "0.08em" }}>
-              <span>14 items · ~$84.20</span>
+              <span>24 items · ~$118.60</span>
               <span style={{ color: TEAL }}>Send to Instacart →</span>
             </div>
           </div>
