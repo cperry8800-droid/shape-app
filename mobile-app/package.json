@@ -9,7 +9,11 @@
     "preview": "vite preview --host 0.0.0.0",
     "start": "node server/index.js",
     "cap:sync": "cap sync",
-    "cap:open:ios": "cap open ios"
+    "cap:open:ios": "cap open ios",
+    "cap:open:android": "cap open android",
+    "sync": "npm run build && npx cap sync",
+    "sync:android": "npm run build && npx cap sync android",
+    "sync:ios": "npm run build && npx cap sync ios"
   },
   "dependencies": {
     "@capacitor/android": "^7.6.2",
