@@ -427,7 +427,7 @@ function CTA() {
   return (
     <section style={{ padding: "130px 72px", background: PAPER }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", textAlign: "center" }}>
-        <h2 style={{ fontFamily: serif, fontSize: "clamp(56px, 9vw, 120px)", letterSpacing: "-0.045em", fontWeight: 300, lineHeight: 0.9, margin: "0 0 40px" }}>
+        <h2 style={{ fontFamily: serif, fontSize: "clamp(40px, 5.6vw, 80px)", letterSpacing: "-0.04em", fontWeight: 300, lineHeight: 0.95, margin: "0 0 40px" }}>
           Join the <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>community</em>.
         </h2>
         <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
