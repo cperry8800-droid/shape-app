@@ -45,6 +45,27 @@ npm run dev           # http://localhost:5173 in a desktop browser
 This runs the SPA in a regular browser tab. Capacitor APIs that require
 native (Haptics, StatusBar, Push) silently no-op via `Capacitor.isNativePlatform()`.
 
+## Pushing source changes to a device build (the gotcha)
+
+The Android and iOS apps don't load `src/` directly. They load a built copy
+of the web bundle that lives at
+`android/app/src/main/assets/public/` (and the iOS equivalent).
+**Source edits never reach the device until you rebuild and sync.**
+
+Every time you change something in `src/` and want it on a phone:
+
+```bash
+cd mobile-app
+npm run sync:android   # = vite build && cap sync android
+# then in Android Studio: Build → Clean Project, then Run
+```
+
+(`npm run sync:ios` and plain `npm run sync` for both platforms also exist.)
+
+If you only ran `Run` in Android Studio without rebuilding the web bundle,
+your old bundle ships again and you'll see no changes. This is the #1
+reason "the mobile app isn't updating."
+
 ## Adding the iOS native shell (Mac + Xcode required)
 
 > You only do this once, on a Mac. After that the iOS project lives in
