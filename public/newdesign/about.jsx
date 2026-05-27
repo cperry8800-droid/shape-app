@@ -8,18 +8,17 @@ function AboutHero() {
       <div style={{ maxWidth: 1100, margin: "0 auto", position: "relative", width: "100%", textAlign: "center" }}>
         <h1 style={{
           fontFamily: serif,
-          fontSize: "clamp(56px, 8.4vw, 132px)",
-          letterSpacing: "-0.045em",
+          fontSize: "clamp(60px, 9vw, 140px)",
+          letterSpacing: "-0.05em",
           fontWeight: 300,
-          fontStyle: "italic",
-          fontVariationSettings: "'opsz' 144, 'SOFT' 100",
+          fontVariationSettings: "'opsz' 144",
           margin: 0,
-          lineHeight: 0.9,
+          lineHeight: 0.88,
           color: INK,
           textRendering: "geometricPrecision",
         }}>
           A&nbsp;place<br />
-          for helping <em style={{ fontStyle: "italic", fontWeight: 500, color: "transparent", WebkitTextStroke: `1.4px ${TEAL}` }}>shape</em> a&nbsp;lifestyle
+          for helping <em style={{ fontStyle: "italic", fontWeight: 400, color: "transparent", WebkitTextStroke: `1.4px ${TEAL}` }}>shape</em> a&nbsp;lifestyle
         </h1>
         <p style={{ fontFamily: serif, fontSize: 22, fontStyle: "italic", fontWeight: 300, letterSpacing: "-0.005em", color: "rgba(242,237,228,0.82)", margin: "44px auto 0", maxWidth: 760, lineHeight: 1.55 }}>
           Your trainer already mapped out the next few weeks. Your nutritionist's plan became a grocery list before you thought to ask. When you open the workout card, the music starts — your coach picked it for that session. Shape Score watches all of it. Miss a day, it knows. Build a streak, it shows. The community isn't moderated positivity — it's people who are also mid-loop, figuring it out in real time. Nobody here is finished. That's the point.
