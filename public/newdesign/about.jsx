@@ -189,7 +189,7 @@ function AboutPage() {
         inset: 0,
         zIndex: 0,
         pointerEvents: "none",
-        background: `linear-gradient(135deg, rgba(242,237,228,0.05) 0%, rgba(242,237,228,0.02) 35%, transparent 60%, rgba(11,14,12,0.18) 100%)`,
+        background: `linear-gradient(135deg, rgba(242,237,228,0.11) 0%, rgba(242,237,228,0.05) 30%, transparent 55%, rgba(11,14,12,0.42) 100%)`,
       }} />
       {/* Horizontal masthead + footer rules — frame the page like a print spread. */}
       <div aria-hidden style={{
@@ -200,7 +200,7 @@ function AboutPage() {
         height: 1,
         zIndex: 0,
         pointerEvents: "none",
-        background: "linear-gradient(to right, transparent 0%, rgba(242,237,228,0.10) 20%, rgba(242,237,228,0.10) 80%, transparent 100%)",
+        background: "linear-gradient(to right, transparent 0%, rgba(242,237,228,0.28) 18%, rgba(242,237,228,0.28) 82%, transparent 100%)",
       }} />
       <div aria-hidden style={{
         position: "fixed",
@@ -210,7 +210,7 @@ function AboutPage() {
         height: 1,
         zIndex: 0,
         pointerEvents: "none",
-        background: "linear-gradient(to right, transparent 0%, rgba(242,237,228,0.10) 20%, rgba(242,237,228,0.10) 80%, transparent 100%)",
+        background: "linear-gradient(to right, transparent 0%, rgba(242,237,228,0.28) 18%, rgba(242,237,228,0.28) 82%, transparent 100%)",
       }} />
       {/* Film grain — fine SVG noise. Dominant texture for the editorial feel. */}
       <svg aria-hidden xmlns="http://www.w3.org/2000/svg" style={{
