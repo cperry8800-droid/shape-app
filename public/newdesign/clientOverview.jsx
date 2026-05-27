@@ -274,7 +274,7 @@ function ClientOvSnapshots() {
     { kind: "dont", name: "No phone after 9pm",   days: "4/7", hit: false, note: "" },
     { kind: "do",   name: "Read 20 min",          days: "6/7", hit: true,  note: "" },
     { kind: "dont", name: "No alcohol weekdays",  days: "5/5", hit: true,  note: "streak · 8d" },
-    { kind: "dont", name: "No doom-scrolling",    days: "4/7", hit: false, note: "<30 min/day" },
+    { kind: "dont", name: "Negative self-talk",   days: "4/7", hit: false, note: "" },
     { kind: "do",   name: "Stretch / mobility",   days: "4/7", hit: false, note: "" },
   ];
   const grocery = [
