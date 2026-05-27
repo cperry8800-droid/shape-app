@@ -196,7 +196,7 @@ function AboutPage() {
         position: "fixed",
         inset: 0,
         zIndex: 0,
-        background: `radial-gradient(ellipse 80% 110% at 50% 45%, rgba(242,237,228,0.12) 0%, rgba(242,237,228,0.07) 30%, rgba(242,237,228,0.03) 60%, transparent 92%)`,
+        background: `radial-gradient(ellipse 140% 160% at 50% 45%, rgba(242,237,228,0.12) 0%, rgba(242,237,228,0.10) 30%, rgba(242,237,228,0.07) 60%, rgba(242,237,228,0.04) 85%, rgba(242,237,228,0.02) 100%)`,
         opacity: scrollFade,
         transition: "opacity .2s ease-out",
         pointerEvents: "none",
