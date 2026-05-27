@@ -66,7 +66,7 @@ function ScoreHero() {
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
         <div className="sc-hero" style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 80, alignItems: "center" }}>
           <div>
-            <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.3em", textTransform: "uppercase", color: TEAL, marginBottom: 22 }}>Shape Score · Priya Shankar</div>
+            <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.3em", textTransform: "uppercase", color: TEAL, marginBottom: 22 }}>Shape Score</div>
             <h1 style={{ fontFamily: serif, fontSize: "clamp(54px, 8vw, 116px)", letterSpacing: "-0.045em", fontWeight: 300, margin: 0, lineHeight: 0.88 }}>
               Rewards for<br /><em style={{ fontStyle: "italic", fontWeight: 600, color: "transparent", WebkitTextStroke: `1.4px ${INK}` }}>showing&nbsp;up</em>.
             </h1>
