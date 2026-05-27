@@ -92,10 +92,11 @@ lint/tmp/
 # Cordova plugins for Capacitor
 capacitor-cordova-android-plugins
 
-# Copied web assets
-app/src/main/assets/public
-
-# Generated Config files
-app/src/main/assets/capacitor.config.json
-app/src/main/assets/capacitor.plugins.json
+# Copied web assets — INTENTIONALLY tracked so the Android Studio build
+# always picks up the latest synced bundle without each dev needing to
+# run `npm run sync:android` locally. Regenerated automatically by
+# `npm run sync:android` (= vite build + cap sync android).
+# app/src/main/assets/public
+# app/src/main/assets/capacitor.config.json
+# app/src/main/assets/capacitor.plugins.json
 app/src/main/res/xml/config.xml
