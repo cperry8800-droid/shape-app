@@ -174,12 +174,12 @@ function AboutCTA() {
 function AboutPage() {
   return (
     <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative", overflow: "hidden" }}>
-      {/* Spotlight gradient — soft cream glow behind the letter column. */}
+      {/* Spotlight gradient — soft cream glow lighting the entire page. */}
       <div aria-hidden style={{
         position: "fixed",
         inset: 0,
         zIndex: 0,
-        background: `radial-gradient(ellipse 46% 70% at 50% 40%, rgba(242,237,228,0.08) 0%, rgba(242,237,228,0.04) 35%, transparent 70%)`,
+        background: `radial-gradient(ellipse 95% 130% at 50% 40%, rgba(242,237,228,0.11) 0%, rgba(242,237,228,0.07) 30%, rgba(242,237,228,0.03) 60%, transparent 95%)`,
         pointerEvents: "none",
       }} />
       {/* Paper-stock tone gradient — warm cream tint top-left, cooler shadow bottom-right.
