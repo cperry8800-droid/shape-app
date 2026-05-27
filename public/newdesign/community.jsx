@@ -629,7 +629,6 @@ function Community() {
       <div style={{ position: "relative", zIndex: 1 }}>
         <Header active="Community" />
         <HeroC />
-        <Chat />
         <LiveActivity />
         <Chat />
         <Events />
