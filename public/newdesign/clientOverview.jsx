@@ -411,10 +411,10 @@ function ClientOverviewPage() {
         <ClientOvHero />
         <ClientOvStats />
         <ClientOvWhy />
+        <ClientOvSnapshots />
         <ClientOvHow />
         <ClientOvPaths />
         <ClientOvTools />
-        <ClientOvSnapshots />
         <ClientOvFAQ />
         <ClientOvCTA />
         <Footer />
