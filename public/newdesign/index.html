@@ -128,14 +128,14 @@
   .ncta{font-family:var(--sans);font-size:12px;font-weight:300;letter-spacing:.04em;text-transform:lowercase;border:1px solid var(--cream);padding:11px 22px;border-radius:999px;transition:background .2s ease,color .2s ease,transform .2s ease,box-shadow .2s ease;white-space:nowrap}
   .ncta:hover{background:var(--cream);color:var(--ink-d);transform:translateY(-1px);box-shadow:0 6px 22px -8px rgba(245,239,225,0.4)}
 
-  .hero{position:relative;min-height:84vh;display:grid;place-items:center;overflow:hidden;padding:80px 24px 90px;
+  .hero{position:relative;min-height:84vh;display:grid;place-items:center;overflow:hidden;padding:40px 24px 110px;
     background:linear-gradient(rgba(11,14,12,0),rgba(11,14,12,0.18) 70%,rgba(11,14,12,0.4))}
   .blob{position:absolute;border-radius:50%;filter:blur(120px);will-change:transform;mix-blend-mode:screen}
   .blob.a{width:620px;height:620px;top:-8%;left:-6%;background:radial-gradient(circle,var(--teal),transparent 70%);opacity:.16}
   .blob.b{width:660px;height:660px;bottom:-14%;right:-8%;background:radial-gradient(circle,var(--rust),transparent 70%);opacity:.14}
   .htxt{position:relative;z-index:3;text-align:center;max-width:1100px;will-change:transform}
   .hero-mark-wrap{position:relative;display:flex;flex-direction:column;align-items:center;margin:-40px auto 22px;width:84px}
-  .hero-mark{display:block;width:84px;height:auto;animation:hero-mark-pulse 3.8s ease-in-out infinite}
+  .hero-mark{display:block;width:112px;height:auto;animation:hero-mark-pulse 3.8s ease-in-out infinite}
   .hero-mark-edge{stroke-dasharray:38 97;stroke-dashoffset:0;stroke-linecap:round;animation:hero-mark-edge 3.2s linear infinite}
   .hero-mark .e1{filter:drop-shadow(0 0 2px rgba(255,255,255,0.9))}
   .hero-mark .e2{filter:drop-shadow(0 0 2px rgba(10,197,168,0.9));animation-delay:-1.6s}
@@ -146,7 +146,7 @@
   }
   @media(max-width:920px){
     .hero-mark-wrap{width:64px;margin:-28px auto 18px}
-    .hero-mark{width:64px}
+    .hero-mark{width:84px}
   }
   @media(prefers-reduced-motion:reduce){
     .hero-mark,.hero-mark-edge{animation:none}
