@@ -162,7 +162,7 @@ function _bsHabitInsightStats(habits) {
   };
 }
 
-function BSHabitInsights({ habits, accent, onOpenScore }) {
+function BSHabitInsights({ habits, accent, onOpenScore, onAddHabit, onDeleteHabit }) {
   const t = useBS();
   const model = _bsHabitGridModel(habits);
   const stats = _bsHabitInsightStats(habits);
@@ -198,7 +198,16 @@ function BSHabitInsights({ habits, accent, onOpenScore }) {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 18 }}>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 800 }}>Grid</div>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', color: muted, textTransform: 'uppercase' }}>Last 7 days</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', color: muted, textTransform: 'uppercase' }}>Last 7 days</div>
+            {onAddHabit && (
+              <button type="button" onClick={onAddHabit} aria-label="Add habit" style={{
+                width: 26, height: 26, borderRadius: 999, border: `1px solid ${teal}`,
+                background: 'transparent', color: teal, fontSize: 16, lineHeight: 1, fontWeight: 700,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0,
+              }}>+</button>
+            )}
+          </div>
         </div>
 
         <div>
@@ -219,7 +228,7 @@ function BSHabitInsights({ habits, accent, onOpenScore }) {
           {model.rows.map((row, rowIndex) => (
             <div key={row.id} style={{
               display: 'grid',
-              gridTemplateColumns: '118px repeat(7, minmax(0, 1fr))',
+              gridTemplateColumns: onDeleteHabit ? '118px repeat(7, minmax(0, 1fr)) 22px' : '118px repeat(7, minmax(0, 1fr))',
               gap: 6,
               alignItems: 'center',
               padding: '9px 0',
@@ -246,6 +255,12 @@ function BSHabitInsights({ habits, accent, onOpenScore }) {
                 }}>{row.name}</span>
               </div>
               {row.pattern.map((value, i) => <Cell key={`${row.id}_${i}`} value={value} />)}
+              {onDeleteHabit && (
+                <button type="button" onClick={() => { if (window.confirm(`Delete "${row.name}"?`)) onDeleteHabit(row.id); }} aria-label="Delete habit" style={{
+                  width: 22, height: 22, borderRadius: 999, border: 0, background: 'transparent',
+                  color: 'rgba(247,241,230,0.42)', fontSize: 16, lineHeight: 1, cursor: 'pointer', padding: 0,
+                }}>×</button>
+              )}
             </div>
           ))}
         </div>
@@ -1683,6 +1698,30 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
   const t = useBS();
   const { BSPage, BSDetailHeader } = window;
   const habits = _bsDecodeHabits(tweaks.habits);
+  const saveAll = (next) => setTweak('habits', _bsEncodeHabits(next));
+  const addHabit = () => {
+    const name = window.prompt('New habit (prefix with "no " or "avoid " for a habit to break):');
+    if (!name) return;
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const isAvoid = /^(no |don'?t |avoid )/i.test(trimmed);
+    const cleanName = trimmed.replace(/^(no |don'?t |avoid )/i, '').trim() || trimmed;
+    const newH = {
+      id: 'h_' + Math.random().toString(36).slice(2, 9),
+      name: cleanName,
+      type: isAvoid ? 'avoid' : 'do',
+      cadence: 'daily',
+      visibility: 'private',
+      public: false,
+      history: [],
+    };
+    saveAll([...habits, newH]);
+    window.__bsToast?.(`Added "${cleanName}"`, 'ok');
+  };
+  const removeHabit = (id) => {
+    saveAll(habits.filter(h => h.id !== id));
+    window.__bsToast?.('Habit removed', 'ok');
+  };
   const doneCount = habits.filter(h => (h.history || []).includes(_bsHabitsToday)).length;
   const sharedCount = habits.filter(h => h.visibility !== 'private').length;
   const publicCount = habits.filter(h => h.visibility === 'public').length;
@@ -1696,7 +1735,7 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
         title={<>Habits</>}
       />
       <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <BSHabitInsights habits={habits} accent={accent} onOpenScore={onOpenScore} />
+        <BSHabitInsights habits={habits} accent={accent} onOpenScore={onOpenScore} onAddHabit={addHabit} onDeleteHabit={removeHabit} />
       </div>
       <div style={{ marginTop: 12 }}>
         <BSHabitTracker tweaks={tweaks} setTweak={setTweak} accent={accent} mode="full" />
@@ -1715,7 +1754,7 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
         <BSHabitTracker tweaks={tweaks} setTweak={setTweak} accent={accent} mode="full" />
       </div>
       <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <BSHabitInsights habits={habits} accent={accent} onOpenScore={onOpenScore} />
+        <BSHabitInsights habits={habits} accent={accent} onOpenScore={onOpenScore} onAddHabit={addHabit} onDeleteHabit={removeHabit} />
 
         <div style={{ marginTop: 12, borderRadius: 10, border: '1px solid rgba(247,241,230,0.12)', background: '#1a1713', color: '#f7f1e6', padding: 16, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
           {[
