@@ -42,7 +42,7 @@ function ClientOvHero() {
                 { when: "Fri 07:00", kind: "WORKOUT", what: "Full body · deload", who: "Maya" },
               ].map((it, i) => (
                 <div key={i} style={{ display: "grid", gridTemplateColumns: "90px 72px 1fr auto", gap: 14, alignItems: "center", padding: "12px 14px", background: "rgba(233,239,237,0.03)", borderRadius: 8, border: "1px solid rgba(233,239,237,0.06)" }}>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(233,239,237,0.82)", letterSpacing: "0.05em" }}>{it.when}</div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(233,239,237,0.93)", letterSpacing: "0.05em" }}>{it.when}</div>
                   <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", color: it.kind === "WORKOUT" ? TEAL : it.kind === "MEAL" ? "#e8b14a" : "rgba(233,239,237,0.8)" }}>{it.kind}</div>
                   <div style={{ fontFamily: serif, fontSize: 15, color: LIGHT, letterSpacing: "-0.005em" }}>{it.what}</div>
                   <div style={{ fontFamily: sans, fontSize: 11, color: "rgba(233,239,237,0.55)" }}>{it.who}</div>
@@ -55,7 +55,7 @@ function ClientOvHero() {
             </div>
           </div>
           <div style={{ position: "absolute", bottom: -24, left: -24, background: DARK, color: LIGHT, padding: "14px 18px", borderRadius: 10, fontFamily: sans, fontSize: 12, lineHeight: 1.4, boxShadow: "0 20px 72px rgba(0,0,0,0.25)", maxWidth: 220 }}>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(6,8,10,0.65)", marginBottom: 4 }}>From Maya</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(6,8,10,0.82)", marginBottom: 4 }}>From Maya</div>
             Great session. Added 5 lb to your working sets next week — you earned it.
           </div>
         </div>
@@ -73,7 +73,7 @@ function ClientOvStats() {
     { k: "Yours", v: "Your data, your plan, your coach. Leave anytime." },
   ];
   return (
-    <section style={{ padding: "80px 72px", background: "rgba(6,8,10,0.62)", borderTop: "1px solid rgba(233,239,237,0.08)", borderBottom: "1px solid rgba(233,239,237,0.08)" }}>
+    <section style={{ padding: "80px 72px", background: "rgba(6,8,10,0.8)", borderTop: "1px solid rgba(233,239,237,0.08)", borderBottom: "1px solid rgba(233,239,237,0.08)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}>
         {items.map((it, i) => (
           <div key={i} style={{ padding: "12px 32px", borderLeft: i ? "1px solid rgba(233,239,237,0.1)" : "none" }}>
@@ -106,7 +106,7 @@ function ClientOvWhy() {
     },
   ];
   return (
-    <section style={{ padding: "140px 72px", background: "rgba(233,239,237,0.82)", color: DARK }}>
+    <section style={{ padding: "140px 72px", background: "rgba(233,239,237,0.93)", color: DARK }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Why Shape for you</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 72px", lineHeight: 1, maxWidth: 1000 }}>
@@ -117,7 +117,7 @@ function ClientOvWhy() {
             <div key={i} style={{ paddingTop: 28, borderTop: `1px solid ${TEAL}` }}>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", color: "rgba(6,8,10,0.4)", marginBottom: 20 }}>{p.n}</div>
               <div style={{ fontFamily: serif, fontSize: 30, fontWeight: 400, letterSpacing: "-0.02em", lineHeight: 1.1, marginBottom: 18, color: "rgba(6,8,10,1)" }}>{p.title}</div>
-              <p style={{ fontFamily: sans, fontSize: 14.5, lineHeight: 1.65, color: "rgba(6,8,10,0.62)", margin: 0 }}>{p.body}</p>
+              <p style={{ fontFamily: sans, fontSize: 14.5, lineHeight: 1.65, color: "rgba(6,8,10,0.8)", margin: 0 }}>{p.body}</p>
             </div>
           ))}
         </div>
@@ -135,7 +135,7 @@ function ClientOvHow() {
     { n: "04", t: "Adjust as you go", b: "Every 4–6 weeks your coach reviews progress and re-writes. Swap coaches anytime, add a nutritionist, scale up or down — your call.", time: "Ongoing" },
   ];
   return (
-    <section style={{ padding: "140px 72px", background: "rgba(6,8,10,0.65)", color: LIGHT }}>
+    <section style={{ padding: "140px 72px", background: "rgba(6,8,10,0.82)", color: LIGHT }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: 80, marginBottom: 80, alignItems: "end" }}>
           <div>
@@ -193,7 +193,7 @@ function ClientOvPaths() {
     },
   ];
   return (
-    <section style={{ padding: "140px 72px", background: "rgba(233,239,237,0.82)", color: DARK }}>
+    <section style={{ padding: "140px 72px", background: "rgba(233,239,237,0.93)", color: DARK }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Three ways in</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 72px", lineHeight: 1, maxWidth: 1000 }}>
@@ -212,10 +212,10 @@ function ClientOvPaths() {
               position: "relative",
               minHeight: 380,
             }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: p.featured ? TEAL : "rgba(6,8,10,0.65)", marginBottom: 16 }}>{p.tag}</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: p.featured ? TEAL : "rgba(6,8,10,0.82)", marginBottom: 16 }}>{p.tag}</div>
               <div style={{ fontFamily: serif, fontSize: 34, fontWeight: 400, letterSpacing: "-0.02em", lineHeight: 1.05, marginBottom: 18 }}>{p.title}</div>
-              <p style={{ fontFamily: sans, fontSize: 14, lineHeight: 1.6, color: p.featured ? "rgba(233,239,237,0.72)" : "rgba(6,8,10,0.62)", margin: "0 0 24px", flex: 1 }}>{p.body}</p>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: p.featured ? TEAL : "rgba(6,8,10,0.62)", marginBottom: 20, letterSpacing: "0.04em" }}>{p.price}</div>
+              <p style={{ fontFamily: sans, fontSize: 14, lineHeight: 1.6, color: p.featured ? "rgba(233,239,237,0.72)" : "rgba(6,8,10,0.8)", margin: "0 0 24px", flex: 1 }}>{p.body}</p>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: p.featured ? TEAL : "rgba(6,8,10,0.8)", marginBottom: 20, letterSpacing: "0.04em" }}>{p.price}</div>
               <a href={p.cta[1]} style={{
                 padding: "13px 18px",
                 borderRadius: 6,
@@ -248,7 +248,7 @@ function ClientOvTools() {
     { t: "Community & events", b: "Local runs, lift nights, cohorts, and challenges. Train alone; stay accountable with people in your city." },
   ];
   return (
-    <section style={{ padding: "140px 72px", background: "rgba(6,8,10,0.65)", color: LIGHT }}>
+    <section style={{ padding: "140px 72px", background: "rgba(6,8,10,0.82)", color: LIGHT }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>What you get</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 72px", lineHeight: 1 }}>Everything you actually <em style={{ fontStyle: "italic", color: TEAL }}>use.</em></h2>
@@ -302,7 +302,7 @@ function ClientOvSnapshots() {
   ];
   const mealCellBase = { background: "rgba(233,239,237,0.03)", border: "1px solid rgba(233,239,237,0.06)", borderRadius: 8, padding: "12px 14px" };
   return (
-    <section style={{ padding: "120px 72px", background: "rgba(6,8,10,0.62)", color: LIGHT, borderTop: "1px solid rgba(233,239,237,0.08)" }}>
+    <section style={{ padding: "120px 72px", background: "rgba(6,8,10,0.8)", color: LIGHT, borderTop: "1px solid rgba(233,239,237,0.08)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 18 }}>Inside the app</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(38px, 4.8vw, 68px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 60px", lineHeight: 1 }}>The <em style={{ fontStyle: "italic", color: TEAL }}>plan</em>, the <em style={{ fontStyle: "italic", color: TEAL }}>habits</em>, and the <em style={{ fontStyle: "italic", color: TEAL }}>list</em>.</h2>
@@ -417,7 +417,7 @@ function ClientOvFAQ() {
   ];
   const [open, setOpen] = useSClientOv(0);
   return (
-    <section style={{ padding: "140px 72px", background: "rgba(233,239,237,0.82)", color: DARK }}>
+    <section style={{ padding: "140px 72px", background: "rgba(233,239,237,0.93)", color: DARK }}>
       <div style={{ maxWidth: 960, margin: "0 auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>FAQ</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 48px", lineHeight: 1 }}>Common <em style={{ fontStyle: "italic", color: TEAL }}>questions.</em></h2>
@@ -428,7 +428,7 @@ function ClientOvFAQ() {
                 <span style={{ fontFamily: serif, fontSize: 24, fontWeight: 400, color: DARK, letterSpacing: "-0.015em" }}>{f.q}</span>
                 <span style={{ fontFamily: serif, fontSize: 28, color: TEAL, transform: open === i ? "rotate(45deg)" : "none", transition: "transform 0.2s" }}>+</span>
               </button>
-              {open === i && <p style={{ fontFamily: sans, fontSize: 15, lineHeight: 1.65, color: "rgba(6,8,10,0.62)", margin: "0 0 32px", maxWidth: 760 }}>{f.a}</p>}
+              {open === i && <p style={{ fontFamily: sans, fontSize: 15, lineHeight: 1.65, color: "rgba(6,8,10,0.8)", margin: "0 0 32px", maxWidth: 760 }}>{f.a}</p>}
             </div>
           ))}
         </div>
@@ -440,14 +440,14 @@ function ClientOvFAQ() {
 // ---------- Final CTA ----------
 function ClientOvCTA() {
   return (
-    <section style={{ padding: "140px 72px", background: "rgba(6,8,10,0.62)", color: LIGHT, position: "relative", overflow: "hidden" }}>
+    <section style={{ padding: "140px 72px", background: "rgba(6,8,10,0.8)", color: LIGHT, position: "relative", overflow: "hidden" }}>
       <div style={{ position: "absolute", inset: 0, background: "radial-gradient(800px 500px at 50% 100%, rgba(10,197,168,0.14), transparent 70%)" }} />
       <div style={{ maxWidth: 1100, margin: "0 auto", position: "relative", textAlign: "center" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 28 }}>Find your coach</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(40px, 5.2vw, 84px)", letterSpacing: "-0.04em", fontWeight: 400, lineHeight: 0.95, margin: "0 0 48px" }}>
           You're ready.<br /><em style={{ fontStyle: "italic", color: TEAL }}>Pick someone real.</em>
         </h2>
-        <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.6, color: "rgba(233,239,237,0.82)", margin: "0 auto 48px", maxWidth: 640 }}>
+        <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.6, color: "rgba(233,239,237,0.93)", margin: "0 auto 48px", maxWidth: 640 }}>
           Free to join. Free intro calls. The right coach is usually a 20-minute conversation away.
         </p>
         <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>

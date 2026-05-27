@@ -224,7 +224,7 @@ function NutTools() {
           <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 82px)", letterSpacing: "-0.04em", fontWeight: 300, margin: "0 0 72px", lineHeight: 0.98, color: INK, maxWidth: 1000 }}>Built for <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>real practice.</em></h2>
           <div className="nu-tools" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", borderTop: "1px solid rgba(242,237,228,0.1)", borderLeft: "1px solid rgba(242,237,228,0.1)" }}>
             {tools.map((t, i) => (
-              <div key={i} style={{ padding: "40px 36px", borderRight: "1px solid rgba(242,237,228,0.1)", borderBottom: "1px solid rgba(242,237,228,0.1)" }}>
+              <div key={i} style={{ padding: "40px 36px", borderRight: "1px solid rgba(242,237,228,0.1)", borderBottom: "1px solid rgba(242,237,228,0.1)", background: "rgba(11,14,12,0.6)" }}>
                 <h3 style={{ fontFamily: serif, fontSize: 24, letterSpacing: "-0.02em", fontWeight: 400, margin: "0 0 14px", color: INK }}>{t.t}</h3>
                 <p style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.62)", lineHeight: 1.55, margin: 0 }}>{t.b}</p>
               </div>
