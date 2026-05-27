@@ -446,7 +446,7 @@ function ClientOvCTA() {
       <div style={{ position: "absolute", inset: 0, background: "radial-gradient(800px 500px at 50% 100%, rgba(10,197,168,0.14), transparent 70%)" }} />
       <div style={{ maxWidth: 1100, margin: "0 auto", position: "relative", textAlign: "center" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 28 }}>Find your coach</div>
-        <h2 style={{ fontFamily: serif, fontSize: "clamp(60px, 8vw, 132px)", letterSpacing: "-0.04em", fontWeight: 400, lineHeight: 0.92, margin: "0 0 48px" }}>
+        <h2 style={{ fontFamily: serif, fontSize: "clamp(40px, 5.2vw, 84px)", letterSpacing: "-0.04em", fontWeight: 400, lineHeight: 0.95, margin: "0 0 48px" }}>
           You're ready.<br /><em style={{ fontStyle: "italic", color: TEAL }}>Pick someone real.</em>
         </h2>
         <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.6, color: "rgba(233,239,237,0.7)", margin: "0 auto 48px", maxWidth: 640 }}>

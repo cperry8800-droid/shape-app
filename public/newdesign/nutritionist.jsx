@@ -317,7 +317,7 @@ function NutCTA() {
     <section style={{ padding: "140px 72px", background: INK, color: PAPER }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", textAlign: "center" }}>
         <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.3em", textTransform: "uppercase", color: TEAL, marginBottom: 28 }}>Ready?</div>
-        <h2 style={{ fontFamily: serif, fontSize: "clamp(56px, 8vw, 132px)", letterSpacing: "-0.045em", fontWeight: 300, margin: "0 0 40px", lineHeight: 0.9 }}>
+        <h2 style={{ fontFamily: serif, fontSize: "clamp(40px, 5.2vw, 84px)", letterSpacing: "-0.04em", fontWeight: 300, margin: "0 0 40px", lineHeight: 0.95 }}>
           Apply in <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>10 minutes.</em>
         </h2>
         <p style={{ fontFamily: sans, fontSize: 18, color: "rgba(26,22,18,0.7)", lineHeight: 1.55, margin: "0 auto 48px", maxWidth: 560 }}>
