@@ -1,4 +1,10 @@
-node_modules/
+node_modules/*
+# Capacitor Android Gradle plugin lives in node_modules — commit it so devs
+# without Node installed can open and run the Android Studio project.
+!node_modules/@capacitor
+node_modules/@capacitor/*
+!node_modules/@capacitor/android
+!node_modules/@capacitor/android/**
 dist/
 .env
 .env.local
