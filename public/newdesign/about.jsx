@@ -172,14 +172,33 @@ function AboutCTA() {
 }
 
 function AboutPage() {
+  const [scrollFade, setScrollFade] = React.useState(0);
+  React.useEffect(() => {
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        // Fade the spotlight in over the first 700px of scroll, then hold full.
+        const t = Math.min(1, Math.max(0, window.scrollY / 700));
+        setScrollFade(t);
+      });
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => { window.removeEventListener("scroll", onScroll); if (raf) cancelAnimationFrame(raf); };
+  }, []);
   return (
     <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative", overflow: "hidden" }}>
-      {/* Spotlight gradient — soft cream glow lighting the entire page. */}
+      {/* Spotlight gradient — soft cream glow that fades in as the visitor
+          scrolls past the hero, so the letter section reads as "lit". */}
       <div aria-hidden style={{
         position: "fixed",
         inset: 0,
         zIndex: 0,
-        background: `radial-gradient(ellipse 95% 130% at 50% 40%, rgba(242,237,228,0.11) 0%, rgba(242,237,228,0.07) 30%, rgba(242,237,228,0.03) 60%, transparent 95%)`,
+        background: `radial-gradient(ellipse 80% 110% at 50% 45%, rgba(242,237,228,0.12) 0%, rgba(242,237,228,0.07) 30%, rgba(242,237,228,0.03) 60%, transparent 92%)`,
+        opacity: scrollFade,
+        transition: "opacity .2s ease-out",
         pointerEvents: "none",
       }} />
       {/* Paper-stock tone gradient — warm cream tint top-left, cooler shadow bottom-right.
