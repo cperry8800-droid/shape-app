@@ -21,7 +21,7 @@ function AboutHero() {
           A&nbsp;place<br />
           for helping <em style={{ fontStyle: "italic", fontWeight: 500, color: "transparent", WebkitTextStroke: `1.4px ${TEAL}` }}>shape</em> a&nbsp;lifestyle
         </h1>
-        <p style={{ fontFamily: sans, fontSize: 19, color: "rgba(242,237,228,0.74)", margin: "36px auto 0", maxWidth: 720, lineHeight: 1.65 }}>
+        <p style={{ fontFamily: serif, fontSize: 22, fontStyle: "italic", fontWeight: 300, letterSpacing: "-0.005em", color: "rgba(242,237,228,0.82)", margin: "44px auto 0", maxWidth: 760, lineHeight: 1.55 }}>
           Your trainer already mapped out the next few weeks. Your nutritionist's plan became a grocery list before you thought to ask. When you open the workout card, the music starts — your coach picked it for that session. Shape Score watches all of it. Miss a day, it knows. Build a streak, it shows. The community isn't moderated positivity — it's people who are also mid-loop, figuring it out in real time. Nobody here is finished. That's the point.
         </p>
         {/* Connector cue down to the letter section. */}
