@@ -79,6 +79,7 @@ const GOAL_CATEGORIES = [
   { id: "composition", label: "Body comp" },
   { id: "nutrition",   label: "Nutrition" },
   { id: "habits",      label: "Habits" },
+  { id: "wellbeing",   label: "Wellbeing" },
 ];
 const GOAL_TEMPLATES = [
   // Endurance / events
@@ -105,6 +106,13 @@ const GOAL_TEMPLATES = [
   { cat: "habits", t: "Train 4x per week",    cur: 0,  tgt: 4,    sub: "sessions · per week",        pct: false, weeksOut: 12 },
   { cat: "habits", t: "30-day streak",        cur: 0,  tgt: 30,   sub: "consecutive days",           pct: false, weeksOut: 5 },
   { cat: "habits", t: "Drink 1 gallon water daily", cur: 0, tgt: 7, sub: "days hit · per week",     pct: false, weeksOut: 6 },
+  // Wellbeing — sleep / calm / confidence / "feel like myself again"
+  { cat: "wellbeing", t: "Feel like myself again", cur: 0, tgt: 100, sub: "%  ·  weekly self-check-in", pct: true,  weeksOut: 12 },
+  { cat: "wellbeing", t: "More calm, less stress", cur: 0, tgt: 100, sub: "%  ·  stress-down weeks",    pct: true,  weeksOut: 10 },
+  { cat: "wellbeing", t: "Build confidence",       cur: 0, tgt: 100, sub: "%  ·  confidence score",    pct: true,  weeksOut: 12 },
+  { cat: "wellbeing", t: "Better sleep quality",   cur: 0, tgt: 8,   sub: "avg hours · 7-day avg",      pct: false, weeksOut: 8  },
+  { cat: "wellbeing", t: "Mood-up days",           cur: 0, tgt: 5,   sub: "good days · per week",       pct: false, weeksOut: 8  },
+  { cat: "wellbeing", t: "Screen-free evenings",   cur: 0, tgt: 5,   sub: "evenings · per week",        pct: false, weeksOut: 6  },
 ];
 
 function isoFromWeeks(weeks) {
@@ -316,7 +324,7 @@ function ClientGoalPage() {
       payoutCard={clientPayoutCard}
       eyebrow="YOUR GOALS · Q2 2026"
       title="Goal"
-      subtitle={signedIn ? "What you're training toward this quarter." : "Sample view — sign in to save your own goals."}
+      subtitle={signedIn ? "What you're shaping toward — strength, sleep, calm, confidence, a marathon, body comp, or just feeling like yourself again." : "Sample view — sign in to save your own goals."}
       actions={<>
         <button onClick={() => persist({ ...state, goals: [] })} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Archive</button>
         <button onClick={() => setEditGoalIdx("new")} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ New goal</button>
