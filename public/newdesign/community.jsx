@@ -40,7 +40,7 @@ const STORIES = [
 
 function HeroC() {
   return (
-    <section style={{ padding: "40px 72px 80px", position: "relative", overflow: "hidden" }}>
+    <section style={{ padding: "40px 72px 24px", position: "relative", overflow: "hidden" }}>
       <div aria-hidden style={{ position: "absolute", width: 660, height: 660, top: "-22%", right: "-6%", borderRadius: "50%", filter: "blur(85px)", opacity: 0.3, background: `radial-gradient(circle, ${TEAL}, transparent 70%)`, pointerEvents: "none" }} />
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
         <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.3em", textTransform: "uppercase", color: TEAL, marginBottom: 28 }}>The community</div>
@@ -543,7 +543,7 @@ function Chat() {
   };
   const r = ROOMS[tab];
   return (
-    <section style={{ padding: "110px 72px", background: PAPER, color: INK }}>
+    <section style={{ padding: "40px 72px 110px", color: INK }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ marginBottom: 44 }}>
           <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>Rooms · live</div>
@@ -562,7 +562,7 @@ function Chat() {
           ))}
         </div>
 
-        <div className="cm-chat" style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, display: "grid", gridTemplateColumns: "260px 1fr 260px", minHeight: 540, overflow: "hidden" }}>
+        <div className="cm-chat" style={{ background: "rgba(11,14,12,0.55)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, display: "grid", gridTemplateColumns: "260px 1fr 260px", minHeight: 540, overflow: "hidden", backdropFilter: "blur(14px) saturate(1.05)", WebkitBackdropFilter: "blur(14px) saturate(1.05)" }}>
           <aside className="cm-chat-aside" style={{ borderRight: "1px solid rgba(242,237,228,0.08)", padding: "24px 0", background: "rgba(242,237,228,0.02)" }}>
             <div style={{ padding: "0 20px", fontFamily: mono, fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.5)", marginBottom: 14 }}>{r.sub.toUpperCase()}</div>
             {r.channels.map((c, i) => (
