@@ -188,89 +188,110 @@ function AboutPage() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => { window.removeEventListener("scroll", onScroll); if (raf) cancelAnimationFrame(raf); };
   }, []);
-  const stars = React.useMemo(() => {
-    const rand = (seed) => { let x = Math.sin(seed) * 10000; return x - Math.floor(x); };
-    const out = [];
-    for (let i = 0; i < 220; i++) {
-      out.push(<circle key={`s${i}`} cx={`${rand(i * 1.3) * 100}%`} cy={`${rand(i * 2.7 + 1) * 100}%`} r={rand(i * 3.1 + 2) * 0.7 + 0.3} fill="#e8eeff" opacity={0.35 + rand(i * 4.1) * 0.35} />);
-    }
-    for (let i = 0; i < 60; i++) {
-      out.push(<circle key={`m${i}`} cx={`${rand(i * 5.7 + 90) * 100}%`} cy={`${rand(i * 6.3 + 17) * 100}%`} r={rand(i * 7.1) * 0.8 + 0.9} fill="#ffffff" opacity={0.65 + rand(i * 8.3) * 0.3} />);
-    }
-    for (let i = 0; i < 14; i++) {
-      const cx = `${rand(i * 11.7 + 5) * 100}%`;
-      const cy = `${rand(i * 13.3 + 9) * 100}%`;
-      const dur = 2.5 + rand(i * 17) * 2.5;
-      out.push(
-        <circle key={`b${i}`} cx={cx} cy={cy} r={1.6 + rand(i * 19) * 0.8} fill="#ffffff">
-          <animate attributeName="opacity" values="0.6;1;0.6" dur={`${dur}s`} repeatCount="indefinite" />
-        </circle>
-      );
-    }
-    return out;
-  }, []);
   return (
-    <div style={{ background: "#05070d", color: INK, fontFamily: sans, minHeight: "100vh", position: "relative", overflow: "hidden" }}>
-      {/* Night-sky base — deep navy fading to near-black at the horizon. */}
+    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative", overflow: "hidden" }}>
+      {/* Spotlight gradient — soft cream glow that fades in as the visitor
+          scrolls past the hero, so the letter section reads as "lit". */}
       <div aria-hidden style={{
         position: "fixed",
         inset: 0,
         zIndex: 0,
-        pointerEvents: "none",
-        background: "radial-gradient(ellipse 120% 90% at 50% 0%, #142036 0%, #0a1020 35%, #050810 70%, #02030a 100%)",
-      }} />
-      {/* Moon glow — soft luminous halo top-center, fades in on scroll. */}
-      <div aria-hidden style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 0,
-        pointerEvents: "none",
-        opacity: 0.55 + scrollFade * 0.35,
+        background: `radial-gradient(ellipse 140% 160% at 50% 45%, rgba(242,237,228,0.12) 0%, rgba(242,237,228,0.10) 30%, rgba(242,237,228,0.07) 60%, rgba(242,237,228,0.04) 85%, rgba(242,237,228,0.02) 100%)`,
+        opacity: scrollFade,
         transition: "opacity .2s ease-out",
-        background: "radial-gradient(circle 480px at 78% 14%, rgba(232,238,255,0.22) 0%, rgba(232,238,255,0.10) 30%, rgba(232,238,255,0.04) 55%, transparent 75%)",
+        pointerEvents: "none",
       }} />
-      {/* Distant nebula — faint teal/violet wash for depth. */}
+      {/* Paper-stock tone gradient — warm cream tint top-left, cooler shadow bottom-right.
+          Layered above the spotlight so the page feels like printed stock, not flat black. */}
       <div aria-hidden style={{
         position: "fixed",
         inset: 0,
         zIndex: 0,
         pointerEvents: "none",
-        background: "radial-gradient(ellipse 70% 50% at 18% 70%, rgba(10,197,168,0.10) 0%, transparent 60%), radial-gradient(ellipse 60% 45% at 82% 80%, rgba(120,90,200,0.10) 0%, transparent 60%)",
+        background: `linear-gradient(135deg, rgba(242,237,228,0.11) 0%, rgba(242,237,228,0.05) 30%, transparent 55%, rgba(11,14,12,0.42) 100%)`,
       }} />
-      {/* Starfield — three layers (small/medium/bright) for parallax depth. */}
-      <svg aria-hidden xmlns="http://www.w3.org/2000/svg" style={{ position: "fixed", inset: 0, zIndex: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
-        {stars}
-      </svg>
-      {/* Shooting star — slow diagonal sweep. */}
-      <svg aria-hidden xmlns="http://www.w3.org/2000/svg" style={{ position: "fixed", inset: 0, zIndex: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
-        <defs>
-          <linearGradient id="shootTrail" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="rgba(255,255,255,0)" />
-            <stop offset="60%" stopColor="rgba(255,255,255,0.5)" />
-            <stop offset="100%" stopColor="rgba(255,255,255,1)" />
-          </linearGradient>
-        </defs>
-        <g opacity="0">
-          <line x1="0" y1="0" x2="120" y2="0" stroke="url(#shootTrail)" strokeWidth="1.4" strokeLinecap="round" />
-          <animateTransform attributeName="transform" type="translate" values="-200,80; 1600,520" dur="8s" begin="3s" repeatCount="indefinite" />
-          <animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.05;0.1;0.85;1" dur="8s" begin="3s" repeatCount="indefinite" />
-        </g>
-      </svg>
-      {/* Subtle star-grain — faint twinkle texture using fractal noise. */}
+      {/* Horizontal masthead + footer rules — frame the page like a print spread. */}
+      <div aria-hidden style={{
+        position: "fixed",
+        top: 96,
+        left: 0,
+        right: 0,
+        height: 1,
+        zIndex: 0,
+        pointerEvents: "none",
+        background: "linear-gradient(to right, transparent 0%, rgba(242,237,228,0.28) 18%, rgba(242,237,228,0.28) 82%, transparent 100%)",
+      }} />
+      <div aria-hidden style={{
+        position: "fixed",
+        bottom: 24,
+        left: 0,
+        right: 0,
+        height: 1,
+        zIndex: 0,
+        pointerEvents: "none",
+        background: "linear-gradient(to right, transparent 0%, rgba(242,237,228,0.28) 18%, rgba(242,237,228,0.28) 82%, transparent 100%)",
+      }} />
+      {/* Film grain — fine SVG noise. Dominant texture for the editorial feel. */}
       <svg aria-hidden xmlns="http://www.w3.org/2000/svg" style={{
         position: "fixed",
         inset: 0,
         zIndex: 0,
         width: "100%",
         height: "100%",
-        opacity: 0.08,
+        opacity: 0.22,
         pointerEvents: "none",
+        mixBlendMode: "overlay",
       }}>
         <filter id="aboutNoise">
-          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" />
-          <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.6 0" />
+          <feTurbulence type="fractalNoise" baseFrequency="0.78" numOctaves="3" stitchTiles="stitch" />
+          <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.75 0" />
         </filter>
         <rect width="100%" height="100%" filter="url(#aboutNoise)" />
+      </svg>
+      {/* Hairline column rules — faint editorial column guides. */}
+      <div aria-hidden style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 0,
+        pointerEvents: "none",
+        background: "repeating-linear-gradient(to right, transparent 0, transparent calc(50% - 380px), rgba(242,237,228,0.06) calc(50% - 380px), rgba(242,237,228,0.06) calc(50% - 379px), transparent calc(50% - 379px), transparent calc(50% + 379px), rgba(242,237,228,0.06) calc(50% + 379px), rgba(242,237,228,0.06) calc(50% + 380px), transparent calc(50% + 380px))",
+      }} />
+      {/* Printer's crop marks — small L-shaped ticks at the four corners,
+          like a magazine spread proof. Quiet but unmistakably editorial. */}
+      {[
+        { pos: { top: 112, left: 40 },   lines: [[0,0,0,18],[0,0,18,0]] },
+        { pos: { top: 112, right: 40 },  lines: [[18,0,18,18],[18,0,0,0]] },
+        { pos: { bottom: 40, left: 40 }, lines: [[0,18,0,0],[0,18,18,18]] },
+        { pos: { bottom: 40, right: 40 },lines: [[18,18,18,0],[18,18,0,18]] },
+      ].map((c, i) => (
+        <svg key={i} aria-hidden xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" style={{ position: "fixed", width: 18, height: 18, zIndex: 0, pointerEvents: "none", opacity: 0.55, ...c.pos }}>
+          {c.lines.map((l, j) => (
+            <line key={j} x1={l[0]} y1={l[1]} x2={l[2]} y2={l[3]} stroke={TEAL_BRIGHT} strokeWidth="1" />
+          ))}
+        </svg>
+      ))}
+      {/* Side rail with periodic tick marks — like a typeset measuring rule. */}
+      <svg aria-hidden xmlns="http://www.w3.org/2000/svg" style={{ position: "fixed", left: 22, top: 160, bottom: 60, width: 12, zIndex: 0, pointerEvents: "none", opacity: 0.35 }}>
+        <line x1="6" y1="0" x2="6" y2="100%" stroke="rgba(242,237,228,0.45)" strokeWidth="0.6" />
+        <g stroke="rgba(242,237,228,0.55)" strokeWidth="0.8">
+          <line x1="0" y1="0%" x2="12" y2="0%" />
+          <line x1="2" y1="20%" x2="10" y2="20%" />
+          <line x1="2" y1="40%" x2="10" y2="40%" />
+          <line x1="2" y1="60%" x2="10" y2="60%" />
+          <line x1="2" y1="80%" x2="10" y2="80%" />
+          <line x1="0" y1="100%" x2="12" y2="100%" />
+        </g>
+      </svg>
+      <svg aria-hidden xmlns="http://www.w3.org/2000/svg" style={{ position: "fixed", right: 22, top: 160, bottom: 60, width: 12, zIndex: 0, pointerEvents: "none", opacity: 0.35 }}>
+        <line x1="6" y1="0" x2="6" y2="100%" stroke="rgba(242,237,228,0.45)" strokeWidth="0.6" />
+        <g stroke="rgba(242,237,228,0.55)" strokeWidth="0.8">
+          <line x1="0" y1="0%" x2="12" y2="0%" />
+          <line x1="2" y1="20%" x2="10" y2="20%" />
+          <line x1="2" y1="40%" x2="10" y2="40%" />
+          <line x1="2" y1="60%" x2="10" y2="60%" />
+          <line x1="2" y1="80%" x2="10" y2="80%" />
+          <line x1="0" y1="100%" x2="12" y2="100%" />
+        </g>
       </svg>
       <div style={{ position: "relative", zIndex: 1 }}>
         <Header active="About" />
