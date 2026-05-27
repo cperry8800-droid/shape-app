@@ -38,36 +38,81 @@ function NutHero() {
           </div>
         </div>
         <div style={{ position: "relative" }}>
-          <div style={{ background: "rgba(6,8,10,0.7)", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 14, padding: 28, backdropFilter: "blur(12px)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 24 }}>
-              <div style={{ fontFamily: mono, fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>This week</div>
-              <div style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(242,237,228,0.5)" }}>APR 13 — APR 19</div>
+          {/* Receipt-style meal plan card — narrow column, mono-numeric, double rules, totals at the bottom */}
+          <div style={{
+            background: "linear-gradient(180deg, rgba(11,14,12,0.92) 0%, rgba(6,8,10,0.86) 100%)",
+            border: "1px solid rgba(242,237,228,0.14)",
+            borderRadius: 4,
+            padding: "26px 26px 22px",
+            position: "relative",
+            boxShadow: "0 30px 80px rgba(0,0,0,0.5)",
+          }}>
+            {/* Header */}
+            <div style={{ textAlign: "center", marginBottom: 18 }}>
+              <div style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: "0.32em", color: TEAL, textTransform: "uppercase" }}>Today's plan</div>
+              <div style={{ fontFamily: serif, fontStyle: "italic", fontSize: 22, color: INK, marginTop: 4, letterSpacing: "-0.01em" }}>Tuesday · Apr 15</div>
+              <div style={{ fontFamily: mono, fontSize: 9, letterSpacing: "0.2em", color: "rgba(242,237,228,0.45)", marginTop: 6 }}>RX BY RAE LINDQVIST, RD</div>
             </div>
-            <div style={{ display: "grid", gap: 10 }}>
+
+            {/* Macro ring + targets */}
+            <div style={{ display: "grid", gridTemplateColumns: "78px 1fr", gap: 18, alignItems: "center", padding: "16px 0", borderTop: `1px dashed rgba(242,237,228,0.18)`, borderBottom: `1px dashed rgba(242,237,228,0.18)` }}>
+              <svg viewBox="0 0 80 80" style={{ width: 78, height: 78 }}>
+                <circle cx="40" cy="40" r="34" stroke="rgba(242,237,228,0.1)" strokeWidth="6" fill="none" />
+                <circle cx="40" cy="40" r="34" stroke={TEAL_BRIGHT} strokeWidth="6" fill="none" strokeLinecap="round" strokeDasharray={`${2 * Math.PI * 34 * 0.62} ${2 * Math.PI * 34}`} transform="rotate(-90 40 40)" />
+                <text x="40" y="38" textAnchor="middle" fontFamily="Fraunces, serif" fontSize="20" fontWeight="400" fill={INK}>1,210</text>
+                <text x="40" y="52" textAnchor="middle" fontFamily="JetBrains Mono, monospace" fontSize="7" fill="rgba(242,237,228,0.5)" letterSpacing="1">/1950 KCAL</text>
+              </svg>
+              <div style={{ display: "grid", gap: 6 }}>
+                {[
+                  { l: "Protein", v: 112, g: 175, c: TEAL },
+                  { l: "Carbs",   v: 116, g: 180, c: "#e8b14a" },
+                  { l: "Fat",     v: 42,  g: 65,  c: "#d2693f" },
+                ].map((m, i) => {
+                  const pct = Math.min(1, m.v / m.g);
+                  return (
+                    <div key={i} style={{ display: "grid", gridTemplateColumns: "52px 1fr 60px", gap: 8, alignItems: "center" }}>
+                      <div style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.7)" }}>{m.l}</div>
+                      <div style={{ height: 4, background: "rgba(242,237,228,0.08)", borderRadius: 2, overflow: "hidden" }}>
+                        <div style={{ width: `${pct * 100}%`, height: "100%", background: m.c }} />
+                      </div>
+                      <div style={{ fontFamily: mono, fontSize: 10, color: "rgba(242,237,228,0.7)", textAlign: "right" }}>{m.v}<span style={{ color: "rgba(242,237,228,0.35)" }}>/{m.g}g</span></div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Receipt rows — meals checked off as the day goes */}
+            <div style={{ padding: "12px 0", display: "grid", gap: 8 }}>
               {[
-                { when: "Mon 07:00", kind: "BREAKFAST", what: "Oats · berries · whey",       who: "Rae" },
-                { when: "Tue 12:30", kind: "LUNCH",     what: "Chicken bowl · brown rice",   who: "Rae" },
-                { when: "Wed 17:30", kind: "CALL",      what: "Macros review · 30 min",      who: "Rae" },
-                { when: "Thu 19:00", kind: "DINNER",    what: "Salmon · sweet potato",       who: "Rae" },
-                { when: "Fri 13:00", kind: "SNACK",     what: "Greek yogurt · almonds",      who: "Rae" },
-              ].map((it, i) => (
-                <div key={i} style={{ display: "grid", gridTemplateColumns: "90px 92px 1fr auto", gap: 14, alignItems: "center", padding: "12px 14px", background: "rgba(242,237,228,0.03)", borderRadius: 8, border: "1px solid rgba(242,237,228,0.06)" }}>
-                  <div style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(242,237,228,0.93)", letterSpacing: "0.05em" }}>{it.when}</div>
-                  <div style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: "0.14em", color: it.kind === "CALL" ? "rgba(242,237,228,0.8)" : it.kind === "SNACK" ? "#e8b14a" : TEAL }}>{it.kind}</div>
-                  <div style={{ fontFamily: serif, fontSize: 15, color: INK, letterSpacing: "-0.005em" }}>{it.what}</div>
-                  <div style={{ fontFamily: sans, fontSize: 11, color: "rgba(242,237,228,0.55)" }}>{it.who}</div>
+                { time: "07:15", kind: "BREAKFAST", item: "Oats · berries · whey",         kcal: 460, done: true },
+                { time: "10:30", kind: "SNACK",     item: "Apple + almonds",                kcal: 220, done: true },
+                { time: "13:00", kind: "LUNCH",     item: "Chicken bowl · brown rice",      kcal: 530, done: true },
+                { time: "16:00", kind: "SNACK",     item: "Whey shake · banana",            kcal: 290, done: false },
+                { time: "19:30", kind: "DINNER",    item: "Salmon · sweet potato · greens", kcal: 450, done: false },
+              ].map((m, i) => (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "16px 50px 1fr auto", gap: 10, alignItems: "baseline", padding: "5px 0", borderBottom: i === 4 ? "none" : `1px dotted rgba(242,237,228,0.08)` }}>
+                  <div style={{ width: 12, height: 12, borderRadius: 3, border: `1px solid ${m.done ? TEAL : "rgba(242,237,228,0.25)"}`, background: m.done ? TEAL : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {m.done && <span style={{ color: PAPER, fontSize: 8.5, lineHeight: 1, fontWeight: 700 }}>✓</span>}
+                  </div>
+                  <div style={{ fontFamily: mono, fontSize: 10, color: "rgba(242,237,228,0.55)", letterSpacing: "0.04em" }}>{m.time}</div>
+                  <div>
+                    <div style={{ fontFamily: mono, fontSize: 8.5, letterSpacing: "0.18em", textTransform: "uppercase", color: m.kind === "SNACK" ? "#e8b14a" : TEAL, marginBottom: 2 }}>{m.kind}</div>
+                    <div style={{ fontFamily: serif, fontSize: 14, color: m.done ? "rgba(242,237,228,0.55)" : INK, letterSpacing: "-0.005em", textDecoration: m.done ? "line-through" : "none", textDecorationColor: "rgba(242,237,228,0.4)" }}>{m.item}</div>
+                  </div>
+                  <div style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(242,237,228,0.7)", letterSpacing: "0.02em" }}>{m.kcal}</div>
                 </div>
               ))}
             </div>
-            <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", justifyContent: "space-between", fontFamily: mono, fontSize: 10.5, color: "rgba(242,237,228,0.5)", letterSpacing: "0.08em" }}>
-              <span>5 meals · 1 review</span>
-              <span style={{ color: TEAL }}>on plan ●</span>
+
+            {/* Totals footer — receipt-style */}
+            <div style={{ borderTop: `2px solid rgba(242,237,228,0.22)`, marginTop: 10, paddingTop: 12, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <div style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)" }}>Hydration · 1.8 / 3 L</div>
+              <div style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL }}>On plan ●</div>
             </div>
           </div>
-          <div style={{ position: "absolute", bottom: -24, left: -24, background: INK_DEEP, color: INK, padding: "14px 18px", borderRadius: 10, fontFamily: sans, fontSize: 12, lineHeight: 1.4, boxShadow: "0 20px 72px rgba(0,0,0,0.45)", maxWidth: 230 }}>
-            <div style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 4 }}>From Rae</div>
-            Bumped your post-workout shake +20g carbs for tomorrow's long run.
-          </div>
+          {/* Small stamp tag */}
+          <div style={{ position: "absolute", top: -14, right: 18, background: TEAL, color: PAPER, padding: "5px 10px", borderRadius: 999, fontFamily: mono, fontSize: 9, letterSpacing: "0.2em", fontWeight: 700, textTransform: "uppercase", boxShadow: "0 6px 18px rgba(0,0,0,0.35)" }}>RX · Week 4</div>
         </div>
       </div>
     </section>
