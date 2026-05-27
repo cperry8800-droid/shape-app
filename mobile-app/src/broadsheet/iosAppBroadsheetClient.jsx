@@ -5070,7 +5070,6 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
   const ledger = profile.ledger || SHAPE_SCORE_PROFILES.client.ledger;
   const rewards = [
     ['$25 session credit', 'Use with any coach', '500 pts'],
-    ['Shape Radio - Studio tier', '3 months, ad-free', '750 pts'],
     ['Coach intro - 2nd opinion', 'Free 30-min with any trainer', '900 pts'],
     ['Nutrition plan refresh', 'Full plan rebuild with your RD', '1,200 pts'],
     ['Shape merch - 20% off', 'In-house apparel and essentials', '400 pts'],
@@ -5112,7 +5111,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
       <div style={{ padding: `16px ${t.padX}px 18px`, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
         <BSEyebrow color={t.ACCENT}>How it works</BSEyebrow>
         <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 17, lineHeight: 1.28, color: t.INK, letterSpacing: '-0.015em' }}>
-          Every logged workout, tracked meal, and kept session adds up. Spend points on training credits, nutrition services, Shape Radio, or Shape merch. No expiry, no gotchas.
+          Every logged workout, tracked meal, kept session, and habit you hit adds up. Climb tiers and spend points on training credits, nutrition services, or Shape merch. No expiry, no gotchas.
         </div>
         <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderTop: `2px solid ${t.INK}`, borderBottom: `1px solid ${t.RULE}` }}>
           {[
@@ -5207,13 +5206,11 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
     { cat: 'Nutrition', name: '$25 nutrition credit', brand: 'Any Shape nutritionist', cost: 500, retail: 25, stock: 'Unlimited' },
     { cat: 'Nutrition', name: 'Grocery list buildout', brand: 'Shape nutrition service', cost: 420, retail: 45, stock: 'Unlimited' },
     { cat: 'Nutrition', name: 'Recipe archive pack', brand: 'Shape nutrition templates', cost: 340, retail: 35, stock: 'Unlimited' },
-    { cat: 'Shape Perks', name: 'Shape Radio - Studio', brand: '3 months ad-free', cost: 750, retail: 36, stock: 'Unlimited' },
     { cat: 'Shape Perks', name: 'Annual membership credit', brand: '$200 toward next year', cost: 3500, retail: 200, tag: 'Peak tier', stock: 'Unlimited', locked: true },
   ];
   const unlocked = [
     ['SHAPE-TEE-48F2', 'Shape Training Tee', 'Jun 30', 450],
     ['NUTRI-PLAN-04F1', 'Grocery list buildout', 'May 21', 420],
-    ['RADIO-3MO-BB7A', 'Shape Radio - Studio - 3 mo', 'Jul 15', 750],
   ];
   const visible = products.filter(p => {
     if (cat !== 'All' && p.cat !== cat) return false;
