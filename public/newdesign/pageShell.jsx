@@ -38,8 +38,8 @@ function NavDropdown({ label, items, active, activeMatch }) {
   const isActive = activeMatch.includes(active);
   return (
     <div style={{ position: "relative", display: "inline-flex", alignItems: "center", height: "100%" }} onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
-      <a style={{ fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: isActive ? "#f5efe1" : "rgba(245,239,225,0.66)", fontFamily: mono, fontWeight: 400, cursor: "default", display: "inline-flex", alignItems: "center", gap: 5, lineHeight: 1 }}>
-        {label}<span style={{ fontSize: 9, opacity: 0.6, lineHeight: 1 }}>▾</span>
+      <a style={{ fontSize: 13.5, letterSpacing: "-0.005em", color: isActive ? "#f5efe1" : "rgba(245,239,225,0.62)", fontFamily: sans, fontWeight: 500, cursor: "default", display: "inline-flex", alignItems: "center", gap: 5, lineHeight: 1 }}>
+        {label}<span style={{ fontSize: 10, opacity: 0.55, lineHeight: 1 }}>▾</span>
       </a>
       {open && (
         <div style={{ position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)", paddingTop: 10, minWidth: 220 }}>
@@ -201,7 +201,7 @@ function Header({ active }) {
   // uses, so they share vertical-centering and any future container styles.
   const link = (name, href) => (
     <div style={{ position: "relative", display: "inline-flex", alignItems: "center", height: "100%" }}>
-      <a href={href} className="shape-nav-link" style={{ fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: active === name ? "#f5efe1" : "rgba(245,239,225,0.66)", fontFamily: mono, fontWeight: 400, whiteSpace: "nowrap", lineHeight: 1, display: "inline-flex", alignItems: "center" }}>{name}</a>
+      <a href={href} className="shape-nav-link" style={{ fontSize: 13.5, letterSpacing: "-0.005em", color: active === name ? "#f5efe1" : "rgba(245,239,225,0.62)", fontFamily: sans, fontWeight: 500, whiteSpace: "nowrap", lineHeight: 1, display: "inline-flex", alignItems: "center" }}>{name}</a>
     </div>
   );
   return (
