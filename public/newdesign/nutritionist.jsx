@@ -40,12 +40,14 @@ function NutHero() {
         <div style={{ position: "relative" }}>
           {/* Receipt-style meal plan card — narrow column, mono-numeric, double rules, totals at the bottom */}
           <div style={{
-            background: "linear-gradient(180deg, rgba(11,14,12,0.92) 0%, rgba(6,8,10,0.86) 100%)",
+            background: "linear-gradient(180deg, rgba(11,14,12,0.62) 0%, rgba(6,8,10,0.5) 100%)",
             border: "1px solid rgba(242,237,228,0.14)",
             borderRadius: 4,
             padding: "26px 26px 22px",
             position: "relative",
             boxShadow: "0 30px 80px rgba(0,0,0,0.5)",
+            backdropFilter: "blur(10px)",
+            WebkitBackdropFilter: "blur(10px)",
           }}>
             {/* Header */}
             <div style={{ textAlign: "center", marginBottom: 18 }}>
