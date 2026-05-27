@@ -25,10 +25,10 @@ const EVENTS = [
 ];
 
 const CHALLENGES = [
-  { title: "21 Days of Protein", people: 12800, days: "Apr 15 → May 5", tag: "Nutrition", color: TEAL },
-  { title: "Marathon Block — Spring", people: 3400, days: "Apr 01 → Jun 10", tag: "Endurance", color: TEAL },
-  { title: "Mobility Minutes", people: 9200, days: "Rolling · weekly", tag: "Recovery", color: TEAL },
-  { title: "PR or ER · Strength Month", people: 5600, days: "May 01 → May 31", tag: "Strength", color: TEAL_BRIGHT },
+  { title: "Your 21-Day Protein Reset", coach: "Rae Lindqvist, RD", role: "Your nutritionist", progress: "Day 7 of 21", days: "Apr 15 → May 5", tag: "Nutrition · for you", color: TEAL },
+  { title: "Your Spring Marathon Build", coach: "Maya Okafor, CPT", role: "Your trainer", progress: "Week 4 of 10", days: "Apr 01 → Jun 10", tag: "Endurance · for you", color: TEAL },
+  { title: "Your Mobility Minutes", coach: "Maya Okafor, CPT", role: "Your trainer", progress: "Rolling · 5 min / day", days: "Daily", tag: "Recovery · for you", color: TEAL },
+  { title: "Your PR Push — Squat / Bench", coach: "Maya Okafor, CPT", role: "Your trainer", progress: "Week 2 of 4", days: "May 01 → May 31", tag: "Strength · for you", color: TEAL_BRIGHT },
 ];
 
 const STORIES = [
@@ -368,10 +368,13 @@ function Challenges() {
     <section style={{ padding: "110px 72px", background: INK, color: PAPER }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ marginBottom: 52 }}>
-          <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>Challenges · live</div>
+          <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>Your challenges · from your team</div>
           <h2 style={{ fontFamily: serif, fontSize: "clamp(46px, 6.4vw, 72px)", letterSpacing: "-0.04em", fontWeight: 300, margin: 0, lineHeight: 0.95 }}>
-            Do it with <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>everyone</em>.
+            Built <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>for you.</em>
           </h2>
+          <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.55, color: "rgba(242,237,228,0.6)", maxWidth: 620, marginTop: 22 }}>
+            Your trainer and nutritionist write the challenges. You run them at your pace, share the wins with the people in your room, and they adjust the next block from how you actually did.
+          </p>
         </div>
         <div className="cm-2" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 20 }}>
           {CHALLENGES.map((c, i) => (
@@ -382,10 +385,12 @@ function Challenges() {
                   <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: c.color }}>{c.tag}</div>
                   <div style={{ fontFamily: mono, fontSize: 11, color: "rgba(26,22,18,0.55)" }}>{c.days}</div>
                 </div>
-                <h3 style={{ fontFamily: serif, fontSize: 38, letterSpacing: "-0.025em", fontWeight: 300, margin: "0 0 16px", lineHeight: 1 }}>{c.title}</h3>
+                <h3 style={{ fontFamily: serif, fontSize: 36, letterSpacing: "-0.025em", fontWeight: 300, margin: "0 0 10px", lineHeight: 1.02 }}>{c.title}</h3>
+                <div style={{ fontFamily: mono, fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: c.color, marginBottom: 4 }}>{c.role}</div>
+                <div style={{ fontFamily: serif, fontStyle: "italic", fontSize: 16, color: "rgba(26,22,18,0.78)", letterSpacing: "-0.005em" }}>{c.coach}</div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 28, paddingTop: 20, borderTop: "1px solid rgba(26,22,18,0.12)" }}>
-                  <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(26,22,18,0.75)" }}><b style={{ color: PAPER, fontWeight: 600 }}>{c.people.toLocaleString()}</b> members in</div>
-                  <button style={{ background: c.color, color: PAPER, border: 0, padding: "11px 20px", borderRadius: 2, fontFamily: sans, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Join →</button>
+                  <div style={{ fontFamily: mono, fontSize: 11.5, letterSpacing: "0.04em", color: PAPER, fontWeight: 600 }}>{c.progress}</div>
+                  <button style={{ background: c.color, color: PAPER, border: 0, padding: "11px 20px", borderRadius: 2, fontFamily: sans, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Open →</button>
                 </div>
               </article>
             </CmReveal>
