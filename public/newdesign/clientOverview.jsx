@@ -281,11 +281,65 @@ function ClientOvSnapshots() {
     { aisle: "Pantry",   items: ["Rolled oats", "Almond butter", "Brown rice · 2 lb"] },
     { aisle: "Dairy",    items: ["Greek yogurt · 32 oz", "Feta"] },
   ];
+  const mealPlan = [
+    { day: "MON", meals: [
+      { kind: "BREAKFAST", item: "Greek yogurt + blueberries + oats",         kcal: 480 },
+      { kind: "LUNCH",     item: "Grilled chicken bowl · sweet potato · greens", kcal: 620 },
+      { kind: "DINNER",    item: "Wild salmon · brown rice · roasted veg",    kcal: 720 },
+      { kind: "SNACK",     item: "Apple + almond butter",                     kcal: 220 },
+    ]},
+    { day: "TUE", meals: [
+      { kind: "BREAKFAST", item: "Veggie omelette · toast",                   kcal: 460 },
+      { kind: "LUNCH",     item: "Turkey wrap · side salad",                  kcal: 580 },
+      { kind: "DINNER",    item: "Lean steak · sweet potato · spinach",      kcal: 700 },
+      { kind: "SNACK",     item: "Greek yogurt + honey",                     kcal: 200 },
+    ]},
+    { day: "WED", meals: [
+      { kind: "BREAKFAST", item: "Smoothie · banana · whey · oats",          kcal: 500 },
+      { kind: "LUNCH",     item: "Shrimp + quinoa bowl",                     kcal: 560 },
+      { kind: "DINNER",    item: "Baked cod · rice · asparagus",             kcal: 660 },
+      { kind: "SNACK",     item: "Cottage cheese + berries",                 kcal: 200 },
+    ]},
+  ];
+  const mealCellBase = { background: "rgba(233,239,237,0.03)", border: "1px solid rgba(233,239,237,0.06)", borderRadius: 8, padding: "12px 14px" };
   return (
     <section style={{ padding: "120px 72px", background: DARK, color: LIGHT, borderTop: "1px solid rgba(233,239,237,0.08)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 18 }}>Inside the app</div>
-        <h2 style={{ fontFamily: serif, fontSize: "clamp(38px, 4.8vw, 68px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 60px", lineHeight: 1 }}>The <em style={{ fontStyle: "italic", color: TEAL }}>habits</em> + the <em style={{ fontStyle: "italic", color: TEAL }}>list</em>, side by side.</h2>
+        <h2 style={{ fontFamily: serif, fontSize: "clamp(38px, 4.8vw, 68px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 60px", lineHeight: 1 }}>The <em style={{ fontStyle: "italic", color: TEAL }}>plan</em>, the <em style={{ fontStyle: "italic", color: TEAL }}>habits</em>, and the <em style={{ fontStyle: "italic", color: TEAL }}>list</em>.</h2>
+
+        {/* Meal plan — full-width top card. */}
+        <div style={{ background: "rgba(233,239,237,0.04)", border: "1px solid rgba(233,239,237,0.12)", borderRadius: 14, padding: 28, backdropFilter: "blur(12px)", marginBottom: 28 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 22 }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>Meal plan</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(233,239,237,0.5)" }}>FROM RAE · WEEK 04 · 1,950 KCAL / DAY</div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+            {mealPlan.map((d, i) => (
+              <div key={i} style={mealCellBase}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.16em", color: LIGHT }}>{d.day}</div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(233,239,237,0.5)" }}>{d.meals.reduce((s, m) => s + m.kcal, 0)} kcal</div>
+                </div>
+                <div style={{ display: "grid", gap: 8 }}>
+                  {d.meals.map((m, j) => (
+                    <div key={j}>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", color: TEAL_B, marginBottom: 2 }}>{m.kind}</div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                        <div style={{ fontFamily: serif, fontSize: 13.5, color: LIGHT, letterSpacing: "-0.005em", lineHeight: 1.3 }}>{m.item}</div>
+                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(233,239,237,0.55)", flex: "none" }}>{m.kcal}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid rgba(233,239,237,0.08)", display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(233,239,237,0.5)", letterSpacing: "0.08em" }}>
+            <span>175 g protein · 180 g carb · 65 g fat</span>
+            <span style={{ color: TEAL }}>Adjusted by Rae · 2 days ago ●</span>
+          </div>
+        </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 28 }}>
           {/* Habits snapshot */}
