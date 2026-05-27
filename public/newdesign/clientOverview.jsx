@@ -270,7 +270,7 @@ function ClientOvSnapshots() {
   const habits = [
     { kind: "do",   name: "Sleep 8 hrs",          days: "7/7", hit: true,  note: "streak · 12d" },
     { kind: "do",   name: "10,000 steps",         days: "6/7", hit: true,  note: "+2 from last wk" },
-    { kind: "do",   name: "Phone-free meals",     days: "5/7", hit: true,  note: "" },
+    { kind: "do",   name: "Take vitamins",        days: "5/7", hit: true,  note: "" },
     { kind: "dont", name: "No phone after 9pm",   days: "4/7", hit: false, note: "" },
     { kind: "do",   name: "Read 20 min",          days: "6/7", hit: true,  note: "" },
     { kind: "dont", name: "No alcohol weekdays",  days: "5/5", hit: true,  note: "streak · 8d" },
