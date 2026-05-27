@@ -188,7 +188,7 @@ function ClientOvPaths() {
       title: "Build a full team",
       body: "Add PT, recovery, sport psych, massage. One roster, one calendar, one invoice. For serious training seasons or real rehab.",
       price: "custom",
-      cta: ["Talk to us", "mailto:teams@shape.co"],
+      cta: ["Browse specialists", "Marketplace.html"],
       featured: false,
     },
   ];
@@ -238,8 +238,8 @@ function ClientOvPaths() {
 // ---------- What you get ----------
 function ClientOvTools() {
   const tools = [
-    { t: "Real programming", b: "Your coach writes it. Sets, reps, progressions, substitutions. Updated every cycle based on how you're actually moving." },
-    { t: "Food logs that read you back", b: "Photo, barcode, or quick-add. Your nutritionist reviews them. You get real feedback, not a green checkmark." },
+    { t: "Real programming", b: "Your coach writes it. Sets, reps, progressions, substitutions — plus meal plans built around your goals. Updated every cycle based on how you're actually moving and eating." },
+    { t: "Shape Radio", b: "Curated stations for lifting, running, recovery, and focus. Auto-matches the tempo of your session — your warm-up, your working sets, your cool-down." },
     { t: "Habits", b: "Build the good ones, break the bad. Track sleep, steps, mood, hydration, screen time, anything — your streaks roll up into your Shape Score." },
     { t: "Grocery list", b: "Your nutritionist's meal plan turns itself into a shoppable list, organized by aisle, with a live running cost. One tap sends the whole thing to Instacart." },
     { t: "One calendar", b: "Workouts, meals, check-ins, calls. Syncs with Google, Apple, Outlook. Your coach sees what you see." },
@@ -283,60 +283,11 @@ function ClientOvSnapshots() {
     { aisle: "Pantry",   items: ["Rolled oats", "Almond butter", "Brown rice · 2 lb"] },
     { aisle: "Dairy",    items: ["Greek yogurt · 32 oz", "Feta"] },
   ];
-  const mealPlan = [
-    { day: "MON", meals: [
-      { kind: "B", item: "Greek yogurt + oats",     kcal: 480 },
-      { kind: "L", item: "Chicken bowl",             kcal: 620 },
-      { kind: "D", item: "Salmon · rice · veg",      kcal: 720 },
-    ]},
-    { day: "TUE", meals: [
-      { kind: "B", item: "Veggie omelette",          kcal: 460 },
-      { kind: "L", item: "Turkey wrap",              kcal: 580 },
-      { kind: "D", item: "Steak · sweet potato",     kcal: 700 },
-    ]},
-    { day: "WED", meals: [
-      { kind: "B", item: "Smoothie · oats",          kcal: 500 },
-      { kind: "L", item: "Shrimp + quinoa",          kcal: 560 },
-      { kind: "D", item: "Baked cod · asparagus",    kcal: 660 },
-    ]},
-  ];
-  const mealCellBase = { background: "rgba(233,239,237,0.03)", border: "1px solid rgba(233,239,237,0.06)", borderRadius: 8, padding: "12px 14px" };
   return (
     <section style={{ padding: "120px 72px", background: "rgba(6,8,10,0.8)", color: LIGHT, borderTop: "1px solid rgba(233,239,237,0.08)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 18 }}>Inside the app</div>
-        <h2 style={{ fontFamily: serif, fontSize: "clamp(38px, 4.8vw, 68px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 60px", lineHeight: 1 }}>The <em style={{ fontStyle: "italic", color: TEAL }}>plan</em>, the <em style={{ fontStyle: "italic", color: TEAL }}>habits</em>, and the <em style={{ fontStyle: "italic", color: TEAL }}>list</em>.</h2>
-
-        {/* Meal plan — full-width top card. */}
-        <div style={{ background: "rgba(6,8,10,0.7)", border: "1px solid rgba(233,239,237,0.12)", borderRadius: 14, padding: 28, backdropFilter: "blur(12px)", marginBottom: 28 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 22 }}>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>Meal plan</div>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(233,239,237,0.5)" }}>FROM RAE · WEEK 04 · 1,950 KCAL / DAY</div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
-            {mealPlan.map((d, i) => (
-              <div key={i} style={mealCellBase}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.16em", color: LIGHT }}>{d.day}</div>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(233,239,237,0.5)" }}>{d.meals.reduce((s, m) => s + m.kcal, 0)} kcal</div>
-                </div>
-                <div style={{ display: "grid", gap: 6 }}>
-                  {d.meals.map((m, j) => (
-                    <div key={j} style={{ display: "grid", gridTemplateColumns: "14px 1fr 36px", gap: 8, alignItems: "baseline" }}>
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: TEAL_BRIGHT }}>{m.kind}</div>
-                      <div style={{ fontFamily: serif, fontSize: 13.5, color: LIGHT, letterSpacing: "-0.005em", lineHeight: 1.3 }}>{m.item}</div>
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(233,239,237,0.5)", textAlign: "right" }}>{m.kcal}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-          <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid rgba(233,239,237,0.08)", display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(233,239,237,0.5)", letterSpacing: "0.08em" }}>
-            <span>175 g protein · 180 g carb · 65 g fat</span>
-            <span style={{ color: TEAL }}>Adjusted by Rae · 2 days ago ●</span>
-          </div>
-        </div>
+        <h2 style={{ fontFamily: serif, fontSize: "clamp(38px, 4.8vw, 68px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 60px", lineHeight: 1 }}>The <em style={{ fontStyle: "italic", color: TEAL }}>habits</em> and the <em style={{ fontStyle: "italic", color: TEAL }}>list</em>.</h2>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 28, alignItems: "stretch" }}>
           {/* Habits snapshot */}
