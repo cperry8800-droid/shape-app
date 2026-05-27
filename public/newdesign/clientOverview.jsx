@@ -278,10 +278,10 @@ function ClientOvSnapshots() {
     { kind: "do",   name: "Stretch / mobility",   days: "4/7", hit: false, note: "" },
   ];
   const grocery = [
-    { aisle: "Produce",  items: ["Avocado × 4", "Baby spinach", "Blueberries", "Sweet potato × 3"] },
-    { aisle: "Protein",  items: ["Chicken breast · 2 lb", "Wild salmon · 1 lb", "Eggs · 18 ct"] },
-    { aisle: "Pantry",   items: ["Rolled oats", "Almond butter", "Brown rice · 2 lb"] },
-    { aisle: "Dairy",    items: ["Greek yogurt · 32 oz", "Feta"] },
+    { aisle: "Produce",  items: ["Avocado × 4", "Baby spinach · 16 oz", "Blueberries · pint", "Sweet potato × 3", "Lemons × 3", "Garlic · 1 bulb", "Cherry tomatoes · pint", "Bell pepper × 2", "Cucumber × 2", "Broccoli · 2 heads"] },
+    { aisle: "Protein",  items: ["Chicken breast · 2 lb", "Wild salmon · 1 lb", "Eggs · 18 ct", "Lean ground turkey · 1 lb", "Tofu · 14 oz", "Lentils · 1 bag"] },
+    { aisle: "Pantry",   items: ["Rolled oats · 32 oz", "Almond butter", "Brown rice · 2 lb", "Quinoa · 1 lb", "Olive oil", "Tamari", "Honey · 12 oz", "Whole-grain pasta"] },
+    { aisle: "Dairy",    items: ["Greek yogurt · 32 oz", "Feta · 6 oz", "Whole milk · ½ gal", "Parmesan · 4 oz"] },
   ];
   const mealPlan = [
     { day: "MON", meals: [
@@ -397,9 +397,12 @@ function ClientOvSnapshots() {
                 </div>
               ))}
             </div>
-            <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid rgba(233,239,237,0.08)", display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(233,239,237,0.5)", letterSpacing: "0.08em" }}>
-              <span>14 items · ~$84.20</span>
-              <span style={{ color: TEAL }}>Send to Instacart →</span>
+            <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid rgba(233,239,237,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(233,239,237,0.5)", letterSpacing: "0.08em", gap: 12, flexWrap: "wrap" }}>
+              <span>28 items · ~$132</span>
+              <span style={{ display: "inline-flex", gap: 18 }}>
+                <span style={{ color: "rgba(233,239,237,0.78)" }}>☆ Save to library</span>
+                <span style={{ color: TEAL }}>Send to Instacart →</span>
+              </span>
             </div>
           </div>
         </div>
