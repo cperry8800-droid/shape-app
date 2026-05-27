@@ -8,12 +8,12 @@ function AboutHero() {
       <div style={{ maxWidth: 1100, margin: "0 auto", position: "relative", width: "100%", textAlign: "center" }}>
         <h1 style={{
           fontFamily: serif,
-          fontSize: "clamp(60px, 9vw, 140px)",
-          letterSpacing: "-0.05em",
+          fontSize: "clamp(44px, 6.4vw, 96px)",
+          letterSpacing: "-0.045em",
           fontWeight: 300,
           fontVariationSettings: "'opsz' 144",
           margin: 0,
-          lineHeight: 0.88,
+          lineHeight: 0.92,
           color: INK,
           textRendering: "geometricPrecision",
         }}>
