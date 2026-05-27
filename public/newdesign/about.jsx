@@ -11,7 +11,7 @@ function AboutHero() {
           for helping <em style={{ fontStyle: "italic", fontWeight: 600, color: "transparent", WebkitTextStroke: `1.4px ${TEAL}` }}>shape</em> a lifestyle
         </h1>
         <p style={{ fontFamily: sans, fontSize: 19, color: "rgba(242,237,228,0.74)", margin: "36px auto 0", maxWidth: 720, lineHeight: 1.65 }}>
-          Shape isn't just a fitness app or platform. It's where your trainer loads tomorrow's workout tonight, your nutritionist's meal plan turns into a grocery list, and the playlist attached to leg day starts playing the moment you open the card. Every workout you complete, every habit you build or stop, every day you show up — your Shape Score is keeping track. The more consistent you are, the higher your status climbs. The community isn't a forum — it's the people in your loop. Shape is where your lifestyle actually takes shape.
+          Your trainer already mapped out the next few weeks. Your nutritionist's plan became a grocery list before you thought to ask. When you open the workout card, the music starts — your coach picked it for that session. Shape Score watches all of it. Miss a day, it knows. Build a streak, it shows. The community isn't moderated positivity — it's people who are also mid-loop, figuring it out in real time. Nobody here is finished. Shape is where the lifestyle you want actually takes shape.
         </p>
         {/* Connector cue down to the letter section. */}
         <div style={{ marginTop: 56, display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }} aria-hidden="true">
