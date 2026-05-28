@@ -257,16 +257,16 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
   // ── 5. CLASSIFIED: dense newspaper classifieds, wordmark as featured listing
   if (style === 'classified') {
     const items = [
-      { tag: 'SHP-01',  title: 'Shape Radio · launch',  meta: 'Reactive FX overlays · live',   col: 1 },
-      { tag: 'NWS-04',  title: 'Zone 2 returns',        meta: 'NYT · cardio renaissance',     col: 1 },
-      { tag: 'SHP-12',  title: 'Marketplace v2',        meta: '+38 coaches this week',        col: 1 },
-      { tag: 'MND-09',  title: 'Therapy on the rise',   meta: 'WHO · 1 in 4 adults, 2026',    col: 1 },
-      { tag: 'SHP-22',  title: 'Block 3 unlocked',      meta: 'Hypertrophy · 4 weeks',        col: 1 },
-      { tag: 'NWS-18',  title: 'GLP-1 + lifting',       meta: 'Lancet · muscle preservation', col: 2 },
-      { tag: 'SHP-07',  title: 'Calendar redesign',     meta: 'Tap any day → drill in',       col: 2 },
-      { tag: 'WLB-03',  title: 'Sleep is the new gym',  meta: 'Stanford · HRV + recovery',    col: 2 },
-      { tag: 'SHP-31',  title: 'Grocery auto-sync',     meta: 'Plans → list, every Sun',      col: 2 },
-      { tag: 'MND-14',  title: 'Walking lowers anxiety',meta: 'JAMA Psychiatry · 30m/day',    col: 2 },
+      { tag: 'SHP-01',  title: 'Shape Score 2.0',         meta: 'Tiers + rewards, live now',         col: 1 },
+      { tag: 'SHP-04',  title: 'Coach chat, instant',     meta: 'Reactions · voice notes · video',   col: 1 },
+      { tag: 'SHP-12',  title: 'Marketplace · 410 coaches', meta: '+38 verified this week',          col: 1 },
+      { tag: 'SHP-19',  title: 'Personal challenges',     meta: 'Your coach writes them, you run',   col: 1 },
+      { tag: 'SHP-22',  title: 'Block 3 unlocked',        meta: 'Hypertrophy · 4 weeks',             col: 1 },
+      { tag: 'NWS-18',  title: 'GLP-1 + lifting',         meta: 'Lancet · muscle preservation',      col: 2 },
+      { tag: 'NWS-22',  title: 'Protein floor is 1g/lb',  meta: 'Schoenfeld meta-analysis, May',     col: 2 },
+      { tag: 'WLB-03',  title: 'Sleep is the new gym',    meta: 'Stanford · HRV + recovery',         col: 2 },
+      { tag: 'WLB-09',  title: 'Cold plunge ≠ recovery',  meta: 'JPhysiol · blunts hypertrophy',     col: 2 },
+      { tag: 'MND-14',  title: 'Walking lowers anxiety',  meta: 'JAMA Psychiatry · 30m/day',         col: 2 },
     ];
     const _bgRGB = bgColor && bgColor !== 'auto' ? _hexToRGBmain(bgColor) : null;
     const inkRgbCl = _bgRGB || t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
