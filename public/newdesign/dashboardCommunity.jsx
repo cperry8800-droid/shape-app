@@ -11,7 +11,7 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
   const [myPostsOnly, setMyPostsOnly] = React.useState(false);
   const [filter, setFilter] = React.useState("ALL");
 
-  const [feed, setFeed] = React.useState([
+  const DEMO_FEED = [
     { kind: "pr", who: "Marcus J.", role: "Tempo · 1,412", time: "8m", lift: "Bench Press", load: "225 lb", delta: "+10 lb", reps: "5 × 5", body: "First time hitting 225 on bench after 8 months. Maya's programming is unreal.", likes: 47, comments: 12, tag: "STRENGTH" },
     { kind: "workout", who: "Elena R.", role: "Peak · 6,108", time: "32m", title: "Lower strength · Block 3", duration: "52 min", exercises: 6, rpe: 8.5, coach: "Maya Okafor", note: "Squats felt locked in today.", likes: 18, comments: 3, tag: "STRENGTH" },
     { kind: "run", who: "Jonah W.", role: "Tempo · 980", time: "1h", distance: "8.4 mi", pace: "7:42 / mi", duration: "1h 04m", elev: "+412 ft", body: "Easy long. Brooklyn Half is Sunday — taper feels good.", likes: 24, comments: 6, tag: "RACING" },
@@ -20,7 +20,53 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
     { kind: "streak", who: "Diego R.", role: "Form · 2,540", time: "4h", days: 21, body: "Three weeks straight. Sunday-night protein prep is the unlock.", likes: 41, comments: 9, tag: "GENERAL" },
     { kind: "post", who: "Elena R.", role: "Peak · 6,108", time: "5h", body: "Down 14 lb and running negative splits for the first time ever. Rae's post-run fueling protocol changed everything.", likes: 82, comments: 24, tag: "NUTRITION" },
     { kind: "post", who: "Jonah W.", role: "Tempo · 980", time: "7h", body: "Race day Sunday — Brooklyn Half. Meet by the start corral at 6:45 if you're running. Coffee on me after.", likes: 19, comments: 8, tag: "RACING" },
-  ]);
+  ];
+  const [feed, setFeed] = React.useState(DEMO_FEED);
+
+  // Hydrate the live posts on top of the demo content. The /api/community/feed
+  // endpoint returns rows from community_posts (newest first); we map each row
+  // to the local feed shape and prepend so a real post lands above the demos.
+  React.useEffect(() => {
+    let alive = true;
+    const tagFor = (a) => {
+      const t = String(a || '').toLowerCase();
+      if (t === 'pr' || t === 'strength' || t === 'workout') return 'STRENGTH';
+      if (t === 'run' || t === 'race' || t === 'racing') return 'RACING';
+      if (t === 'meal' || t === 'nutrition') return 'NUTRITION';
+      return 'GENERAL';
+    };
+    const since = (iso) => {
+      const ms = Date.now() - new Date(iso).getTime();
+      if (ms < 60_000) return 'now';
+      if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m`;
+      if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h`;
+      return `${Math.floor(ms / 86_400_000)}d`;
+    };
+    fetch('/api/community/feed', { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (!alive || !d || !Array.isArray(d.posts) || !d.posts.length) return;
+        const live = d.posts.map(p => ({
+          kind: p.activity_type === 'pr' ? 'pr'
+              : p.activity_type === 'run' ? 'run'
+              : p.activity_type === 'meal' ? 'meal'
+              : p.activity_type === 'workout' ? 'workout'
+              : 'post',
+          who: p.author_name || 'Shape member',
+          role: p.author_role ? p.author_role[0].toUpperCase() + p.author_role.slice(1) : 'Member',
+          time: since(p.created_at),
+          title: p.title,
+          body: p.note || p.title,
+          likes: Array.isArray(p.likes) ? p.likes.length : 0,
+          comments: Array.isArray(p.comments) ? p.comments.length : 0,
+          tag: tagFor(p.activity_type),
+          isLive: true,
+        }));
+        setFeed([...live, ...DEMO_FEED]);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   // ── Inline renderers per feed kind ────────────────────────────────────
   function PRStat({ p }) {
