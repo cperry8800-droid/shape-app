@@ -495,39 +495,11 @@
 </script>
 <div class="rail" id="rail"></div>
 
-<nav>
-  <div class="wrap navr">
-    <a class="brand" href="index.html"><img src="/shape-logo-new-white.png?v=3" alt="Shape" /></a>
-    <div class="nlinks">
-      <a href="About.html">About</a>
-      <div class="ndrop"><span>Clients</span><div class="ndmenu"><div>
-        <a href="Client.html">Overview</a>
-        <a href="ClientDashboard.html">Dashboard</a>
-      </div></div></div>
-      <div class="ndrop"><span>Trainers</span><div class="ndmenu"><div>
-        <a href="Coach.html">Overview</a>
-        <a href="TrainerDashboard.html">Dashboard</a>
-      </div></div></div>
-      <div class="ndrop"><span>Nutritionists</span><div class="ndmenu"><div>
-        <a href="Nutritionist.html">Overview</a>
-        <a href="NutritionistDashboard.html">Dashboard</a>
-      </div></div></div>
-      <a href="Marketplace.html">Marketplace</a>
-      <a href="Community.html">Community</a>
-      <div class="ndrop"><span>Rewards</span><div class="ndmenu"><div>
-        <a href="Score.html">Shape Score</a>
-        <a href="Store.html">Shape Store</a>
-      </div></div></div>
-      <a href="GetApp.html">App</a>
-      <a href="Pricing.html">Pricing</a>
-    </div>
-    <div class="nauth">
-      <a class="login" href="Login.html">Log in</a>
-      <a class="ncta" href="Landing.html">Get started</a>
-      <a class="nradio" href="Radio.html" aria-label="Shape Radio"><img src="/shape-radio-wordmark-tight.svg?v=1" alt="Shape Radio" /></a>
-    </div>
-  </div>
-</nav>
+<!-- Nav is rendered by the shared React <Header> (pageShell.jsx) — the same
+     component every other newdesign page uses, so the dropdowns behave
+     identically here. (The previous bespoke CSS-hover nav dropped its menus
+     mid-travel on this page.) -->
+<div id="nav-root"></div>
 
 <header class="hero" id="hero">
   <span class="blob a" id="b1"></span><span class="blob b" id="b2"></span>
@@ -704,95 +676,12 @@
   });
 })();
 </script>
-<script>
-/* Nav dropdowns — JS-managed open/close so a menu can't vanish mid-travel.
-   Pure CSS :hover dropped the menu whenever the cursor crossed a 1px seam
-   between the trigger and the menu body (closing it before the user could
-   reach lower items like "Dashboard"). Here the .open class is authoritative:
-   - mouseenter opens (and closes siblings),
-   - mouseleave starts a 280ms close timer that re-entering cancels,
-   so brief exits across a dead pixel no longer close the menu.
-   Also click-to-toggle (touch) and click-outside / link-click to close. */
-(function(){
-  var drops = Array.prototype.slice.call(document.querySelectorAll('.ndrop'));
-  if(!drops.length) return;
-  var closeTimer = null;
-  function closeAll(except){
-    drops.forEach(function(d){ if(d!==except) d.classList.remove('open'); });
-  }
-  drops.forEach(function(d){
-    d.addEventListener('mouseenter', function(){
-      clearTimeout(closeTimer);
-      closeAll(d);
-      d.classList.add('open');
-    });
-    d.addEventListener('mouseleave', function(){
-      clearTimeout(closeTimer);
-      closeTimer = setTimeout(function(){ d.classList.remove('open'); }, 280);
-    });
-    var trigger = d.querySelector('span');
-    if(trigger){
-      trigger.addEventListener('click', function(e){
-        e.preventDefault();
-        var wasOpen = d.classList.contains('open');
-        closeAll(null);
-        if(!wasOpen) d.classList.add('open');
-      });
-    }
-    Array.prototype.forEach.call(d.querySelectorAll('a'), function(a){
-      a.addEventListener('click', function(){ d.classList.remove('open'); });
-    });
-  });
-  document.addEventListener('click', function(e){
-    if(!e.target.closest || !e.target.closest('.ndrop')) closeAll(null);
-  });
-})();
-</script>
-<script>
-/* Reflect signed-in state in the top nav: swap Log in / Get started for the
-   user's name, a Dashboard link, and Sign out. Mirrors the React portal
-   Header used on the other newdesign pages. */
-(function(){
-  fetch('/api/me',{credentials:'same-origin'})
-    .then(function(r){return r.ok?r.json():null;})
-    .then(function(d){
-      if(!d||!d.user)return;
-      var nauth=document.querySelector('nav .nauth');
-      if(!nauth)return;
-      var u=d.user;
-      var role=u.role||'client';
-      var dash=role==='trainer'?'TrainerDashboard.html'
-        :role==='nutritionist'?'NutritionistDashboard.html'
-        :'ClientDashboard.html';
-      var login=nauth.querySelector('.login');
-      var cta=nauth.querySelector('.ncta');
-      var radio=nauth.querySelector('.nradio');
-      if(login)login.remove();
-      if(cta)cta.remove();
-      var hi=document.createElement('span');
-      hi.className='login';
-      hi.style.color='var(--cream)';
-      hi.textContent='Hi, '+(u.firstName||u.email||'there');
-      var dashLink=document.createElement('a');
-      dashLink.className='login';
-      dashLink.href=dash;
-      dashLink.textContent='Dashboard';
-      var out=document.createElement('a');
-      out.className='ncta';
-      out.href='#';
-      out.textContent='Sign out';
-      out.addEventListener('click',function(e){
-        e.preventDefault();
-        fetch('/api/auth/signout',{method:'POST',credentials:'same-origin'})
-          .catch(function(){})
-          .then(function(){window.location.href='index.html';});
-      });
-      nauth.insertBefore(hi,radio);
-      nauth.insertBefore(dashLink,radio);
-      nauth.insertBefore(out,radio);
-    })
-    .catch(function(){});
-})();
+<!-- Shared React Header (same component + dropdown behavior as every other
+     newdesign page). Replaces this page's old bespoke CSS-hover nav, whose
+     dropdowns closed before lower items could be clicked. -->
+<script type="text/babel" data-presets="react" src="pageShell.jsx"></script>
+<script type="text/babel" data-presets="react">
+  ReactDOM.createRoot(document.getElementById('nav-root')).render(<Header active="Home" />);
 </script>
 <script>
 (function(){
