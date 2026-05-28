@@ -2322,6 +2322,80 @@ function BSCoachGoalPlan({ role = 'trainer' }) {
 // ═══════════════════════════════════════════════════════════
 // PRO CONSOLE SCREEN (shared by trainer + nutritionist)
 // ═══════════════════════════════════════════════════════════
+// Sample data shown when no backend / no real clients yet — keeps the
+// Console tab populated in the /m/ preview and demo Android build.
+function BS_CONSOLE_SAMPLE(role) {
+  const isNutri = role === 'nutritionist';
+  const clients = isNutri ? [
+    { id: 'c1', name: 'Alex Rivera',  block: 'Cut · 1900 kcal',    streak: 18 },
+    { id: 'c2', name: 'Jamie Wong',   block: 'Cut · 1700 kcal',    streak: 24 },
+    { id: 'c3', name: 'Riley Kim',    block: 'Cut · 1850 kcal',    streak: 9 },
+    { id: 'c4', name: 'Casey Lee',    block: 'Build · 2400 kcal',  streak: 6 },
+    { id: 'c5', name: 'Drew Park',    block: 'Build · 2200 kcal',  streak: 14 },
+  ] : [
+    { id: 'c1', name: 'Casey Morgan', block: 'Block 3 · Wk 3',     streak: 21 },
+    { id: 'c2', name: 'Drew Park',    block: 'Peak · Wk 11',       streak: 14 },
+    { id: 'c3', name: 'Maya Reyes',   block: 'Build · Wk 6',       streak: 7 },
+    { id: 'c4', name: 'Sam Patel',    block: 'Build · Wk 3',       streak: 12 },
+    { id: 'c5', name: 'Tomás Reyes',  block: 'Peak · Wk 8',        streak: 19 },
+  ];
+  const focusByClient = isNutri ? {
+    c1: 'Stay above 160g protein on training days. Add a midday snack.',
+    c2: 'Front-load carbs around the long run. Track sleep this week.',
+    c3: 'Veggies at lunch + dinner. Stop drinking calories.',
+    c4: 'Test +200 kcal — adherence dipped. Check digestion.',
+    c5: 'Pre-workout banana + whey 30 min before lift.',
+  } : {
+    c1: 'Squat top set RPE 8.5 → hold. Add a back-off triple at 80%.',
+    c2: 'Deload next week. Pull bench to 75%, 3×5 only.',
+    c3: 'Mobility 10 min before pulls. Right hip is grumpy.',
+    c4: 'Conditioning Tue + Fri. Keep zone 2 ≤ 145 bpm.',
+    c5: 'Push for deadlift PR Saturday. Belt + chalk + caffeine.',
+  };
+  const itemsByClient = isNutri ? {
+    c1: [
+      { id: 'i1', name: 'Push protein +20g',   note: 'On lift days',         done: false },
+      { id: 'i2', name: 'Macros review call',  note: 'Thu 9:00 AM',          done: false },
+    ],
+    c2: [
+      { id: 'i1', name: 'Send marathon fueling plan', note: 'By Friday',     done: true },
+      { id: 'i2', name: 'Set up post-run shake',      note: 'Auto-template', done: false },
+    ],
+    c3: [{ id: 'i1', name: 'Veggie reset', note: '5 days, log photos', done: false }],
+    c4: [{ id: 'i1', name: 'Trial +200 kcal', note: '2 weeks → reassess', done: false }],
+    c5: [{ id: 'i1', name: 'Lab panel reminder', note: 'Iron + B12', done: false }],
+  } : {
+    c1: [
+      { id: 'i1', name: 'Build squat block',  note: 'Wk 4-6 plan',          done: true },
+      { id: 'i2', name: 'Form check video',   note: 'Bench, request sent',  done: false },
+    ],
+    c2: [
+      { id: 'i1', name: 'Schedule deload',    note: 'Next Mon',             done: false },
+    ],
+    c3: [{ id: 'i1', name: 'Mobility homework', note: '10 min/day', done: false }],
+    c4: [{ id: 'i1', name: 'Conditioning template', note: 'Zone 2 30 min', done: false }],
+    c5: [
+      { id: 'i1', name: 'PR attempt — Saturday', note: '405 lbs target',    done: false },
+      { id: 'i2', name: 'Send opener strategy',  note: 'Email + video',     done: true },
+    ],
+  };
+  const snapshotByClient = isNutri ? {
+    c1: { adherence: '92%', protein: '178g', water: '2.4L', weight: '178 → 174' },
+    c2: { adherence: '88%', protein: '142g', water: '3.1L', weight: '162 (stable)' },
+    c3: { adherence: '71%', protein: '124g', water: '1.8L', weight: '188 → 184' },
+    c4: { adherence: '64%', protein: '156g', water: '2.0L', weight: '195 → 198' },
+    c5: { adherence: '83%', protein: '186g', water: '2.6L', weight: '210 → 212' },
+  } : {
+    c1: { sessions: '14/14', rpe: '8.2', volume: '48,720 lbs', deload: 'in 2 wks' },
+    c2: { sessions: '11/12', rpe: '7.8', volume: '52,140 lbs', deload: 'this week' },
+    c3: { sessions: '12/14', rpe: '8.5', volume: '34,580 lbs', deload: 'in 4 wks' },
+    c4: { sessions: '10/12', rpe: '7.6', volume: '28,910 lbs', deload: 'in 3 wks' },
+    c5: { sessions: '16/16', rpe: '8.4', volume: '61,200 lbs', deload: 'after PR' },
+  };
+  const profileByClient = Object.fromEntries(clients.map(c => [c.id, { name: c.name, block: c.block, streak: c.streak }]));
+  return { clients, focusByClient, itemsByClient, snapshotByClient, profileByClient };
+}
+
 function BSProConsoleScreen({ role = 'trainer', embedded = false }) {
   const t = useBS();
   const isNutri = role === 'nutritionist';
@@ -2346,16 +2420,24 @@ function BSProConsoleScreen({ role = 'trainer', embedded = false }) {
     setErr('');
     try {
       const data = await window.ShapeProConsole?.fetch(role);
-      if (!data) { setLoading(false); return; }
-      const cl = data.clients ?? [];
+      const useData = data && (data.clients?.length) ? data : BS_CONSOLE_SAMPLE(role);
+      const cl = useData.clients ?? [];
       setClients(cl);
-      setFocusByClient(data.focusByClient ?? {});
-      setItemsByClient(data.itemsByClient ?? {});
-      setSnapshotByClient(data.snapshotByClient ?? {});
-      setProfileByClient(data.profileByClient ?? {});
+      setFocusByClient(useData.focusByClient ?? {});
+      setItemsByClient(useData.itemsByClient ?? {});
+      setSnapshotByClient(useData.snapshotByClient ?? {});
+      setProfileByClient(useData.profileByClient ?? {});
       if (cl.length && !selClientId) setSelClientId(cl[0].id);
     } catch (e) {
-      setErr(e.message || 'Failed to load console.');
+      // Backend not available — fall through to sample data so the console
+      // is never empty in the preview/demo.
+      const sample = BS_CONSOLE_SAMPLE(role);
+      setClients(sample.clients);
+      setFocusByClient(sample.focusByClient);
+      setItemsByClient(sample.itemsByClient);
+      setSnapshotByClient(sample.snapshotByClient);
+      setProfileByClient(sample.profileByClient);
+      if (!selClientId) setSelClientId(sample.clients[0]?.id);
     }
     setLoading(false);
   };
