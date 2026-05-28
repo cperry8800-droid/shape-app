@@ -7,16 +7,16 @@
 <title>Shape - iOS App</title>
 <style>
   html, body, #root { margin: 0; padding: 0; min-height: 100vh; width: 100%; overflow: hidden; }
-  /* Pinned message composer is position:fixed and would span the whole
-     browser viewport on /m/ preview. Constrain to a phone-portrait width
-     centered. Native Capacitor (is-native-app) is unaffected — the
-     webview is already phone-width. */
+  /* Pinned message composer. position:fixed; we center it horizontally and
+     cap its width so it never spans the entire viewport edge-to-edge. The
+     16px-per-side inset gives it visual breathing room that matches the
+     rest of the page content. Capped at 430px so it doesn't get absurd on
+     wide browser previews. */
   .bs-pinned-composer {
     left: 50% !important;
     right: auto !important;
     transform: translateX(-50%);
-    width: min(100vw, 430px);
-    padding-left: 12px; padding-right: 12px;
+    width: min(calc(100vw - 32px), 430px);
     box-sizing: border-box;
   }
   html.is-native-app, html.is-native-app body, html.is-native-app #root { height: 100%; min-height: 100%; }
