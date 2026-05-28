@@ -24,7 +24,7 @@ function ClientOvHero() {
           </p>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <a href="Marketplace.html" style={{ padding: "16px 28px", borderRadius: 6, background: TEAL, color: LIGHT, fontFamily: sans, fontSize: 14, fontWeight: 500, letterSpacing: "0.02em" }}>Find your coach →</a>
-            <a href="SignupClient.html" style={{ padding: "16px 28px", borderRadius: 6, background: "transparent", color: LIGHT, border: "1px solid rgba(233,239,237,0.25)", fontFamily: sans, fontSize: 14, fontWeight: 500 }}>Start free account</a>
+            <a href="/newdesign/Pricing.html" style={{ padding: "16px 28px", borderRadius: 6, background: "transparent", color: LIGHT, border: "1px solid rgba(233,239,237,0.25)", fontFamily: sans, fontSize: 14, fontWeight: 500 }}>See pricing details</a>
           </div>
         </div>
         <div style={{ position: "relative" }}>
@@ -403,7 +403,7 @@ function ClientOvCTA() {
         </p>
         <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
           <a href="Marketplace.html" style={{ padding: "18px 32px", borderRadius: 6, background: TEAL, color: LIGHT, fontFamily: sans, fontSize: 14, fontWeight: 500 }}>Browse coaches →</a>
-          <a href="SignupClient.html" style={{ padding: "18px 32px", borderRadius: 6, background: "transparent", color: LIGHT, border: "1px solid rgba(233,239,237,0.3)", fontFamily: sans, fontSize: 14, fontWeight: 500 }}>Start free account</a>
+          <a href="/newdesign/Pricing.html" style={{ padding: "18px 32px", borderRadius: 6, background: "transparent", color: LIGHT, border: "1px solid rgba(233,239,237,0.3)", fontFamily: sans, fontSize: 14, fontWeight: 500 }}>See pricing details</a>
         </div>
       </div>
     </section>
