@@ -572,6 +572,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
         { key: 'store',    label: 'Store' },
         { key: 'me',       label: 'Me' },
       ]} />
+      <div id="bs-composer-slot" style={{ position: 'absolute', left: 0, right: 0, bottom: 88, pointerEvents: 'none', zIndex: 60 }} />
       <BSRadioPrompt />
     </div>
   );
@@ -1571,6 +1572,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
         { key: 'store',    label: 'Store' },
         { key: 'me',       label: 'Me' },
       ]} />
+      <div id="bs-composer-slot" style={{ position: 'absolute', left: 0, right: 0, bottom: 88, pointerEvents: 'none', zIndex: 60 }} />
       <BSRadioPrompt />
     </div>
   );

@@ -713,23 +713,50 @@
    - mouseleave starts a 280ms close timer that re-entering cancels,
    so brief exits across a dead pixel no longer close the menu.
    Also click-to-toggle (touch) and click-outside / link-click to close. */
+/* Port of NavDropdown from pageShell.jsx (the dropdown used on every
+   other newdesign page, which works there). Key vs. the previous
+   attempt: handlers are attached to BOTH the .ndrop trigger AND the
+   .ndmenu panel, the close timer is 500ms, and a real bridge <div>
+   sits between trigger and menu so the cursor can't cross dead
+   pixels. */
 (function(){
   var drops = Array.prototype.slice.call(document.querySelectorAll('.ndrop'));
   if(!drops.length) return;
   var closeTimer = null;
+  function cancelClose(){ if(closeTimer){ clearTimeout(closeTimer); closeTimer = null; } }
+  function scheduleClose(d){
+    cancelClose();
+    closeTimer = setTimeout(function(){ d.classList.remove('open'); }, 500);
+  }
   function closeAll(except){
+    cancelClose();
     drops.forEach(function(d){ if(d!==except) d.classList.remove('open'); });
   }
   drops.forEach(function(d){
-    d.addEventListener('mouseenter', function(){
-      clearTimeout(closeTimer);
-      closeAll(d);
-      d.classList.add('open');
-    });
-    d.addEventListener('mouseleave', function(){
-      clearTimeout(closeTimer);
-      closeTimer = setTimeout(function(){ d.classList.remove('open'); }, 280);
-    });
+    // Insert a hover-bridge spanning trigger->menu so the cursor never
+    // crosses dead space.
+    var bridge = document.createElement('div');
+    bridge.className = 'ndbridge';
+    bridge.style.cssText = 'position:absolute;top:100%;left:-20px;right:-20px;height:24px;pointer-events:auto;';
+    d.appendChild(bridge);
+    bridge.addEventListener('mouseenter', cancelClose);
+
+    var open = function(){ cancelClose(); closeAll(d); d.classList.add('open'); };
+    var close = function(){ scheduleClose(d); };
+
+    // Same as NavDropdown line 43: outer container handles enter/leave.
+    d.addEventListener('mouseenter', open);
+    d.addEventListener('mouseleave', close);
+
+    // Same as NavDropdown line 51: the menu panel ALSO handles enter/leave
+    // independently, so a brief exit from the .ndrop bounding box across
+    // a sub-pixel seam to the menu doesn't trigger close.
+    var menu = d.querySelector('.ndmenu');
+    if(menu){
+      menu.addEventListener('mouseenter', cancelClose);
+      menu.addEventListener('mouseleave', close);
+    }
+
     var trigger = d.querySelector('span');
     if(trigger){
       trigger.addEventListener('click', function(e){
