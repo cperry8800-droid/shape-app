@@ -4333,7 +4333,7 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
       background: t.PAPER,
       boxShadow: `0 18px 38px ${t.isLight ? 'rgba(15,14,12,0.16)' : 'rgba(0,0,0,0.42)'}, 0 -1px 0 ${t.SURFACE_BORDER}`,
       ...(pinned && {
-        position: 'fixed',
+        position: 'absolute',
         left: 0,
         right: 0,
         // Sit above the Join-community upsell banner (~58px tall, bottom:92)
