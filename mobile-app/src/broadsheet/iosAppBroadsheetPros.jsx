@@ -567,7 +567,6 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
       <BSTabBar active={tab} onChange={setTab} tabs={[
         { key: 'today',    label: 'Today' },
         { key: 'clients',  label: 'Clients' },
-        { key: 'console',  label: 'Console' },
         { key: 'programs', label: 'Plans' },
         { key: 'chat',     label: 'Chat' },
         { key: 'store',    label: 'Store' },
@@ -846,10 +845,80 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
   );
 }
 
+function BSProClientsTabBar({ active, onChange, role = 'trainer' }) {
+  const t = useBS();
+  const tabs = [
+    { k: 'roster',   l: 'Roster' },
+    { k: 'console',  l: 'Console' },
+    { k: 'analysis', l: 'Analysis' },
+  ];
+  return (
+    <div style={{ display: 'flex', gap: 0, borderBottom: `2px solid ${t.INK}`, background: t.PAPER }}>
+      {tabs.map(tb => {
+        const on = active === tb.k;
+        return (
+          <button key={tb.k} onClick={() => onChange(tb.k)} style={{
+            flex: 1, padding: '12px 0', border: 0, cursor: 'pointer',
+            background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK70,
+            fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase',
+            borderRight: tb.k !== 'analysis' ? `1px solid ${t.RULE}` : 'none',
+          }}>{tb.l}</button>
+        );
+      })}
+    </div>
+  );
+}
+
+function BSProAnalyticsScreen({ role = 'trainer' }) {
+  const t = useBS();
+  const isNutri = role === 'nutritionist';
+  const accent = isNutri ? t.RUST : t.ACCENT;
+  const kpis = isNutri ? [
+    { l: 'Active clients',    v: '14',     d: '+2 this mo' },
+    { l: 'Adherence avg',     v: '78%',    d: '+4pt vs last mo' },
+    { l: 'Plans delivered',   v: '52',     d: 'this month' },
+    { l: 'Avg consult value', v: '$220',   d: '8 consults / wk' },
+    { l: 'MRR',               v: '$4,180', d: '+9% w/w' },
+    { l: 'Retention 90d',     v: '92%',    d: 'cohort May' },
+  ] : [
+    { l: 'Active clients',  v: '14',     d: '+2 this mo' },
+    { l: 'Sessions kept',   v: '147',    d: 'this month' },
+    { l: 'RPE on target',   v: '11/14',  d: 'last week' },
+    { l: 'PRs logged',      v: '6',      d: 'this month' },
+    { l: 'MRR',             v: '$3,520', d: '+6.4% w/w' },
+    { l: 'Retention 90d',   v: '89%',    d: 'cohort May' },
+  ];
+  return (
+    <>
+      <BSSection title={`Analysis · last 30 days`} meta={isNutri ? 'Nutrition KPIs' : 'Training KPIs'} />
+      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: t.RULE, border: `1px solid ${t.RULE}`, marginTop: 14 }}>
+          {kpis.map((k, i) => (
+            <div key={i} style={{ background: t.PAPER, padding: '14px 12px' }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{k.l}</div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 600, color: t.INK, letterSpacing: '-0.02em', marginTop: 6, lineHeight: 1 }}>{k.v}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, color: accent, letterSpacing: '0.08em', marginTop: 6 }}>{k.d}</div>
+            </div>
+          ))}
+        </div>
+        <BSSection title="Trendline" meta="Weekly volume" />
+        <svg viewBox="0 0 320 80" style={{ width: '100%', height: 80, marginTop: 8 }}>
+          <polyline points="6,62 50,54 94,58 138,42 182,46 226,28 270,34 314,18" stroke={accent} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          <polyline points="6,62 50,54 94,58 138,42 182,46 226,28 270,34 314,18 314,80 6,80" fill={accent} fillOpacity="0.12" stroke="none" />
+        </svg>
+        <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, display: 'flex', justifyContent: 'space-between' }}>
+          <span>W{(new Date().getMonth()*4)-2}</span><span>W{(new Date().getMonth()*4)+5}</span>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function BSTrainerClients() {
   const t = useBS();
   const [previewClient, setPreviewClient] = useStateBSP(null);
   const [fullClient, setFullClient] = useStateBSP(null);
+  const [subtab, setSubtab] = useStateBSP('roster');
   if (fullClient) {
     return <BSProClientFullProfilePage client={fullClient} onBack={() => setFullClient(null)} />;
   }
@@ -865,9 +934,30 @@ function BSTrainerClients() {
       />
     );
   }
+  if (subtab === 'console') {
+    return (
+      <BSPage>
+        <BSPageHeader kicker="Section · Clients" title={<>14<br/>clients.</>} />
+        <BSProClientsTabBar active={subtab} onChange={setSubtab} role="trainer" />
+        <BSProConsoleScreen role="trainer" />
+        <BSFooter left="The Coach Edition" right="Pg 2 of 4" />
+      </BSPage>
+    );
+  }
+  if (subtab === 'analysis') {
+    return (
+      <BSPage>
+        <BSPageHeader kicker="Section · Clients" title={<>14<br/>clients.</>} />
+        <BSProClientsTabBar active={subtab} onChange={setSubtab} role="trainer" />
+        <BSProAnalyticsScreen role="trainer" />
+        <BSFooter left="The Coach Edition" right="Pg 2 of 4" />
+      </BSPage>
+    );
+  }
   return (
     <BSPage>
-      <BSPageHeader kicker="Section · Roster" title={<>14<br/>clients.</>} />
+      <BSPageHeader kicker="Section · Clients" title={<>14<br/>clients.</>} />
+      <BSProClientsTabBar active={subtab} onChange={setSubtab} role="trainer" />
       <BSSection title="By status" meta="Sorted by last seen" />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
         {[
@@ -1457,7 +1547,6 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
       <BSTabBar active={tab} onChange={setTab} tabs={[
         { key: 'today',    label: 'Today' },
         { key: 'clients',  label: 'Clients' },
-        { key: 'console',  label: 'Console' },
         { key: 'plans',    label: 'Plans' },
         { key: 'chat',     label: 'Chat' },
         { key: 'store',    label: 'Store' },
@@ -1679,6 +1768,7 @@ function BSNutriClients() {
   const t = useBS();
   const [previewClient, setPreviewClient] = useStateBSP(null);
   const [fullClient, setFullClient] = useStateBSP(null);
+  const [subtab, setSubtab] = useStateBSP('roster');
   if (fullClient) {
     return <BSProClientFullProfilePage client={fullClient} onBack={() => setFullClient(null)} />;
   }
@@ -1694,9 +1784,30 @@ function BSNutriClients() {
       />
     );
   }
+  if (subtab === 'console') {
+    return (
+      <BSPage>
+        <BSPageHeader kicker="Section · Clients" title={<>22<br/>plans.</>} />
+        <BSProClientsTabBar active={subtab} onChange={setSubtab} role="nutritionist" />
+        <BSProConsoleScreen role="nutritionist" />
+        <BSFooter left="The Nutritionist Edition" right="Pg 2 of 4" />
+      </BSPage>
+    );
+  }
+  if (subtab === 'analysis') {
+    return (
+      <BSPage>
+        <BSPageHeader kicker="Section · Clients" title={<>22<br/>plans.</>} />
+        <BSProClientsTabBar active={subtab} onChange={setSubtab} role="nutritionist" />
+        <BSProAnalyticsScreen role="nutritionist" />
+        <BSFooter left="The Nutritionist Edition" right="Pg 2 of 4" />
+      </BSPage>
+    );
+  }
   return (
     <BSPage>
-      <BSPageHeader kicker="Section · Roster" title={<>22<br/>plans.</>} />
+      <BSPageHeader kicker="Section · Clients" title={<>22<br/>plans.</>} />
+      <BSProClientsTabBar active={subtab} onChange={setSubtab} role="nutritionist" />
       <BSSection title="By adherence" meta="Past 7d" />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
         {[
