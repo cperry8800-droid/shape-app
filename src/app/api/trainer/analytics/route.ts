@@ -7,6 +7,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { stripe } from '@/lib/stripe';
 
 export const runtime = 'nodejs';
@@ -145,8 +146,16 @@ export async function GET() {
   let adherenceDen = 0;
 
   if (clientIds.length) {
+    // workout_sessions / workout_set_logs RLS (can_access_workout_session)
+    // only exposes rows where THIS trainer is the session's provider, so a
+    // client's self-logged workouts are invisible and the roster would
+    // under-report workouts + PRs. clientIds here are already verified as
+    // this trainer's active subscribers (read via the provider-scoped
+    // subscriptions policy), so it's safe to read their workout aggregates
+    // with the service-role client, constrained to exactly those clients.
+    const admin = createAdminClient();
     const [workoutRes, snapRes, prRes, namesRes] = await Promise.all([
-      supabase
+      admin
         .from('workout_sessions')
         .select('client_id, started_at, status')
         .in('client_id', clientIds)
@@ -158,7 +167,7 @@ export async function GET() {
         .in('user_id', clientIds)
         .gte('snapshot_date', since30Date)
         .order('snapshot_date', { ascending: true }),
-      supabase
+      admin
         .from('workout_set_logs')
         .select('client_id, created_at, completed')
         .in('client_id', clientIds)
