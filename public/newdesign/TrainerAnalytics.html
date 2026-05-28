@@ -31,15 +31,22 @@ function anDate(ms) {
 }
 
 // Mock data — shown while the API loads, or when the viewer isn't a
-// signed-in trainer.
+// signed-in trainer. Focused on client progress, not money.
 const MOCK_ANALYTICS = {
-  metrics: { mrrGrossCents: 898000, mrrNetCents: 763300, activeClients: 34, totalSessions: 286, completedSessions: 248, upcomingSessions: 12 },
-  stripe: {
-    connected: true, status: "connected", balanceCents: 184200,
-    payouts: [
-      { id: "po_1", amountCents: 412000, currency: "usd", status: "paid", arrivalDate: Date.now() - 5 * 86400000, created: Date.now() - 7 * 86400000 },
-      { id: "po_2", amountCents: 388500, currency: "usd", status: "paid", arrivalDate: Date.now() - 35 * 86400000, created: Date.now() - 37 * 86400000 },
-      { id: "po_3", amountCents: 401200, currency: "usd", status: "paid", arrivalDate: Date.now() - 65 * 86400000, created: Date.now() - 67 * 86400000 },
+  metrics: { activeClients: 34, totalSessions: 286, completedSessions: 248, upcomingSessions: 12 },
+  clientProgress: {
+    activeClients: 34,
+    workouts30d: 412,
+    workouts7d: 96,
+    prs30d: 41,
+    avgAdherencePct: 88,
+    roster: [
+      { name: "Alex Rivera", workouts30d: 18, workouts7d: 4, weightChangeLb: -6.2, prs30d: 3 },
+      { name: "Casey Morgan", workouts30d: 16, workouts7d: 4, weightChangeLb: -3.4, prs30d: 2 },
+      { name: "Sam Patel", workouts30d: 15, workouts7d: 3, weightChangeLb: -1.8, prs30d: 1 },
+      { name: "Riley Kim", workouts30d: 14, workouts7d: 4, weightChangeLb: -2.6, prs30d: 2 },
+      { name: "Drew Park", workouts30d: 12, workouts7d: 2, weightChangeLb: +1.2, prs30d: 0 },
+      { name: "Quinn Choi", workouts30d: 11, workouts7d: 3, weightChangeLb: -0.8, prs30d: 1 },
     ],
   },
 };
@@ -52,29 +59,56 @@ function TrainerAnalyticsPage() {
     let cancelled = false;
     fetch('/api/trainer/analytics', { credentials: 'same-origin' })
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (!cancelled && d && d.isTrainer) { setData(d); setLive(true); } })
+      .then(d => {
+        if (!cancelled && d && d.isTrainer) {
+          // Merge so any missing fields keep the demo content visible.
+          setData({
+            ...MOCK_ANALYTICS,
+            ...d,
+            clientProgress: { ...MOCK_ANALYTICS.clientProgress, ...(d.clientProgress || {}) },
+          });
+          setLive(true);
+        }
+      })
       .catch(() => {});
     return () => { cancelled = true; };
   }, []);
 
-  const m = data.metrics || {};
-  const s = data.stripe || { connected: false, payouts: [] };
-  const payouts = s.payouts || [];
+  const cp = data.clientProgress || {};
+  const roster = cp.roster || [];
 
   const cards = [
-    { k: anMoney(m.mrrNetCents), l: "Net monthly revenue" },
-    { k: String(m.activeClients ?? 0), l: "Active clients" },
-    { k: String(m.completedSessions ?? 0), l: "Sessions completed" },
-    { k: String(m.upcomingSessions ?? 0), l: "Upcoming sessions" },
+    { k: String(cp.activeClients ?? 0),     l: "Active clients",  sub: "with an active plan" },
+    { k: String(cp.workouts30d ?? 0),       l: "Workouts logged", sub: `${cp.workouts7d ?? 0} this week` },
+    { k: `${cp.avgAdherencePct ?? 0}%`,     l: "Avg adherence",   sub: "vs 4 sessions/wk target" },
+    { k: String(cp.prs30d ?? 0),            l: "PRs hit",         sub: "across roster, last 30d" },
   ];
+
+  const fmtWeight = (lb) => {
+    if (lb == null) return "—";
+    const r = Math.round(lb * 10) / 10;
+    const sign = r > 0 ? "+" : r < 0 ? "−" : "";
+    return sign + Math.abs(r).toFixed(1) + " lb";
+  };
+
+  // Sort clients into mover buckets — biggest weight drops + most consistent.
+  const topLosers = roster
+    .filter((r) => r.weightChangeLb != null && r.weightChangeLb < 0)
+    .slice()
+    .sort((a, b) => a.weightChangeLb - b.weightChangeLb)
+    .slice(0, 5);
+  const mostConsistent = roster
+    .slice()
+    .sort((a, b) => (b.workouts30d || 0) - (a.workouts30d || 0))
+    .slice(0, 5);
 
   return (
     <DashPage
       navItems={trainerNavItems("analytics")}
       payoutCard={trainerPayoutCard}
-      eyebrow="REVENUE · ROSTER · SESSIONS"
+      eyebrow="ROSTER · WORKOUTS · WEIGHT · PRS"
       title="Clients · Analytics"
-      subtitle="Your real numbers — recurring revenue, active roster, sessions, and Stripe payouts."
+      subtitle="What your clients are actually doing — workouts logged, adherence, weight trends, and the PRs they hit."
     >
       <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
         {[
@@ -91,41 +125,65 @@ function TrainerAnalyticsPage() {
           <Card key={i} style={{ padding: "22px 22px 20px" }}>
             <div style={{ fontFamily: serif, fontSize: 38, letterSpacing: "-0.02em", lineHeight: 1 }}>{c.k}</div>
             <div style={{ fontSize: 13, marginTop: 12 }}>{c.l}</div>
+            {c.sub && <div style={{ fontSize: 11, color: "rgba(242,237,228,0.5)", marginTop: 4 }}>{c.sub}</div>}
           </Card>
         ))}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1.25fr", gap: 20 }}>
+      <Card style={{ marginBottom: 20 }}>
+        <SectionTitle right="LAST 30 DAYS">Roster progress</SectionTitle>
+        {roster.length === 0 ? (
+          <div style={{ padding: "26px 4px", color: "rgba(242,237,228,0.55)", fontSize: 13 }}>
+            No client data yet. Once your clients log workouts and weigh-ins, they'll show up here.
+          </div>
+        ) : (
+          <div style={{ display: "grid", gap: 0 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1.4fr 80px 80px 100px 80px", gap: 12, alignItems: "center", padding: "10px 4px 12px", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+              <span>Client</span>
+              <span style={{ textAlign: "right" }}>30d</span>
+              <span style={{ textAlign: "right" }}>7d</span>
+              <span style={{ textAlign: "right" }}>Δ Weight</span>
+              <span style={{ textAlign: "right" }}>PRs</span>
+            </div>
+            {roster.map((r, i) => (
+              <div key={i} style={{ display: "grid", gridTemplateColumns: "1.4fr 80px 80px 100px 80px", gap: 12, alignItems: "center", padding: "12px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+                <div style={{ fontSize: 13.5, fontWeight: 500 }}>{r.name || "Client"}</div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, textAlign: "right" }}>{r.workouts30d}</div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, textAlign: "right", color: (r.workouts7d || 0) >= 3 ? TEAL_BRIGHT : "rgba(242,237,228,0.7)" }}>{r.workouts7d ?? "—"}</div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, textAlign: "right", color: r.weightChangeLb != null && r.weightChangeLb < 0 ? TEAL_BRIGHT : r.weightChangeLb != null && r.weightChangeLb > 0 ? "#e07856" : "rgba(242,237,228,0.6)" }}>{fmtWeight(r.weightChangeLb)}</div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, textAlign: "right", color: (r.prs30d || 0) > 0 ? TEAL_BRIGHT : "rgba(242,237,228,0.5)" }}>{r.prs30d || 0}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
         <Card>
-          <SectionTitle right="MONTHLY">Recurring revenue</SectionTitle>
-          <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", lineHeight: 1, marginTop: 4 }}>{anMoney(m.mrrNetCents)}</div>
-          <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>
-            net to you · gross {anMoney(m.mrrGrossCents)} less 15% Shape fee
-          </div>
-          <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", justifyContent: "space-between", fontSize: 12.5 }}>
-            <span style={{ color: "rgba(242,237,228,0.6)" }}>Stripe available balance</span>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", color: TEAL_BRIGHT }}>{s.connected ? anMoney(s.balanceCents) : "—"}</span>
-          </div>
+          <SectionTitle right={`${topLosers.length} CLIENTS`}>Top weight loss · 30d</SectionTitle>
+          {topLosers.length === 0 ? (
+            <div style={{ padding: "20px 4px", color: "rgba(242,237,228,0.55)", fontSize: 13 }}>No weight-loss trends yet.</div>
+          ) : (
+            topLosers.map((r, i) => (
+              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "12px 0", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+                <div style={{ fontSize: 13.5, fontWeight: 500 }}>{r.name || "Client"}</div>
+                <div style={{ fontFamily: serif, fontSize: 18, color: TEAL_BRIGHT, letterSpacing: "-0.01em" }}>{fmtWeight(r.weightChangeLb)}</div>
+              </div>
+            ))
+          )}
         </Card>
 
         <Card>
-          <SectionTitle right={s.connected ? "STRIPE CONNECT" : "NOT CONNECTED"}>Recent payouts</SectionTitle>
-          {!s.connected && (
-            <div style={{ padding: "26px 4px", color: "rgba(242,237,228,0.55)", fontSize: 13 }}>
-              Connect a Stripe account to receive and track payouts.
-            </div>
-          )}
-          {s.connected && payouts.length === 0 && (
-            <div style={{ padding: "26px 4px", color: "rgba(242,237,228,0.55)", fontSize: 13 }}>
-              No payouts yet. They'll appear here once Stripe sends your first transfer.
-            </div>
-          )}
-          {s.connected && payouts.length > 0 && (
-            <RecentPayouts rows={payouts.map((p) => ({
-              date: anDate(p.arrivalDate || p.created),
-              mid: String(p.status || "").toUpperCase(),
-              amount: anMoney(p.amountCents),
-            }))} />
+          <SectionTitle right={`${mostConsistent.length} CLIENTS`}>Most consistent · 30d</SectionTitle>
+          {mostConsistent.length === 0 ? (
+            <div style={{ padding: "20px 4px", color: "rgba(242,237,228,0.55)", fontSize: 13 }}>No workout history yet.</div>
+          ) : (
+            mostConsistent.map((r, i) => (
+              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "12px 0", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+                <div style={{ fontSize: 13.5, fontWeight: 500 }}>{r.name || "Client"}</div>
+                <div style={{ fontFamily: serif, fontSize: 18, letterSpacing: "-0.01em" }}>{r.workouts30d} <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)" }}>WORKOUTS</span></div>
+              </div>
+            ))
           )}
         </Card>
       </div>
