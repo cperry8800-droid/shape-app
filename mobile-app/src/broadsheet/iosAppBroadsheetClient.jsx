@@ -4255,7 +4255,7 @@ function BSClientChat({ onProfile, role = 'client' }) {
             Feed mode is active. Messages post directly to {activeBucket?.label || 'this stream'}.
           </div>
         )}
-        {isFeedBucket && <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '0 0 232px' }}>
+        {isFeedBucket && <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '0 0 170px' }}>
           {filteredFeedMessages.map((m, i) => {
             const me = m.me;
             const tagColor = bucketColor[m._bucket] || (m.coach ? t.AMBER : t.ACCENT);
@@ -4336,9 +4336,9 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
         position: 'absolute',
         left: 0,
         right: 0,
-        // Sit above the Join-community upsell banner (~58px tall, bottom:92)
-        // and the 88px tab bar so the composer never overlaps either.
-        bottom: 'calc(150px + env(safe-area-inset-bottom, 0px))',
+        // Sit just above the 88px tab bar so the messaging area uses all
+        // available vertical space.
+        bottom: 'calc(96px + env(safe-area-inset-bottom, 0px))',
         zIndex: 65,
         marginBottom: 0,
       }),
@@ -4487,7 +4487,7 @@ function BSChatThread({ thread, eyebrow, onBack }) {
       {/* Messages — bottom padding clears the pinned composer, which now
           sits above the 88px tab bar (composer box ~54px + 12px lift +
           88px tab bar + 24px breathing = 178px). */}
-      <div style={{ padding: `16px ${t.padX}px calc(232px + env(safe-area-inset-bottom, 0px))`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ padding: `16px ${t.padX}px calc(170px + env(safe-area-inset-bottom, 0px))`, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {allMessages.map((m, i) => {
           const me = m.me;
           const rKey = `dt:${i}`;
