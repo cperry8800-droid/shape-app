@@ -147,12 +147,23 @@
   .brand img{height:76px;width:auto;display:block;object-fit:contain}
   .nlinks{display:flex;gap:24px;align-items:center;justify-content:center;font-family:var(--sans);font-size:12px;font-weight:300;letter-spacing:.04em;text-transform:lowercase;color:rgba(245,239,225,0.55);white-space:nowrap}
   .nlinks>a{transition:color .16s}.nlinks>a:hover{color:var(--cream)}
-  .ndrop{position:relative;display:inline-flex;align-items:center}
+  /* Hover-keep region notes (DO NOT REGRESS):
+     - .ndrop must keep :hover while cursor traverses from trigger down through every menu item.
+     - .ndmenu is a DOM descendant of .ndrop so hovering it preserves .ndrop:hover.
+     - There MUST be zero unhovered pixels between the trigger bottom and the menu body, or the menu closes mid-travel and items further from the trigger (e.g. "Dashboard", which sits BELOW "Overview") become unclickable.
+     - Bridge implemented with .ndmenu::before that spans the menu's full width above its body, plus padding-top on .ndmenu itself.
+     - Do NOT use padding-bottom on the menu (past attempts intercepted clicks on content below).
+     - Do NOT extend the close-delay timer (past attempts at 220ms/500ms/800ms/1500ms caused duplicate-menu/flicker bugs). */
+  .ndrop{position:relative;display:inline-flex;align-items:center;padding:6px 0}
   .ndrop>span{display:inline-flex;align-items:center;gap:5px;cursor:default;color:var(--cream-2);transition:color .16s}
   .ndrop>span:after{content:"\25BE";font-size:9px;opacity:.6}
   .ndrop:hover>span{color:var(--cream)}
-  .ndmenu{position:absolute;top:100%;left:50%;transform:translateX(-50%);padding-top:6px;min-width:204px;opacity:0;visibility:hidden;z-index:120;transition:opacity .12s ease 0s, visibility 0s linear .12s}
-  .ndrop:hover .ndmenu,.ndrop:focus-within .ndmenu{opacity:1;visibility:visible;transition:opacity .12s ease 0s, visibility 0s linear 0s}
+  .ndmenu{position:absolute;top:100%;left:50%;transform:translateX(-50%);padding-top:14px;min-width:204px;opacity:0;visibility:hidden;z-index:120;pointer-events:none;transition:opacity .12s ease 0s, visibility 0s linear .12s}
+  /* Transparent hover-bridge filling the gap between .ndrop and the painted menu card.
+     Width matches the menu (min-width 204px) and height matches the .ndmenu padding-top
+     plus a small overshoot upward to overlap the trigger's bottom edge. */
+  .ndmenu:before{content:"";position:absolute;left:0;right:0;top:-8px;height:22px;background:transparent;pointer-events:auto}
+  .ndrop:hover .ndmenu,.ndrop:focus-within .ndmenu{opacity:1;visibility:visible;pointer-events:auto;transition:opacity .12s ease 0s, visibility 0s linear 0s}
   .ndmenu>div{background:rgba(11,14,12,0.97);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:8px;padding:8px;box-shadow:0 24px 60px rgba(0,0,0,.6)}
   .ndmenu a{display:block;padding:10px 14px;border-radius:5px;color:var(--cream-2);transition:background .14s,color .14s;white-space:nowrap}
   .ndmenu a:hover{background:rgba(10,197,168,0.12);color:var(--cream)}
