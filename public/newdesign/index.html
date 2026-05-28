@@ -147,28 +147,19 @@
   .brand img{height:76px;width:auto;display:block;object-fit:contain}
   .nlinks{display:flex;gap:24px;align-items:center;justify-content:center;font-family:var(--sans);font-size:12px;font-weight:300;letter-spacing:.04em;text-transform:lowercase;color:rgba(245,239,225,0.55);white-space:nowrap}
   .nlinks>a{transition:color .16s}.nlinks>a:hover{color:var(--cream)}
-  /* Hover-keep region notes (DO NOT REGRESS):
-     - .ndrop must keep :hover while cursor traverses from trigger down through every menu item.
-     - .ndmenu is a DOM descendant of .ndrop so hovering it preserves .ndrop:hover.
-     - There MUST be zero unhovered pixels between the trigger bottom and the menu body, or the menu closes mid-travel and items further from the trigger (e.g. "Dashboard", which sits BELOW "Overview") become unclickable.
-     - Bridge implemented with .ndmenu::before that spans the menu's full width above its body, plus padding-top on .ndmenu itself.
-     - Do NOT use padding-bottom on the menu (past attempts intercepted clicks on content below).
-     - Do NOT extend the close-delay timer (past attempts at 220ms/500ms/800ms/1500ms caused duplicate-menu/flicker bugs). */
+  /* Nav dropdowns — CLICK to open (no hover, no timers). Once open the menu
+     stays fully visible + clickable until you pick a link or click away, so
+     there is no hover-gap that can hide it mid-travel and no close-timer that
+     can fire during a click. Visibility is driven solely by the .open class
+     set in the dropdown script. */
   .ndrop{position:relative;display:inline-flex;align-items:center;padding:6px 0}
-  .ndrop>span{display:inline-flex;align-items:center;gap:5px;cursor:default;color:var(--cream-2);transition:color .16s}
-  .ndrop>span:after{content:"\25BE";font-size:9px;opacity:.6}
-  .ndrop:hover>span{color:var(--cream)}
-  .ndmenu{position:absolute;top:100%;left:50%;transform:translateX(-50%);padding-top:14px;min-width:204px;opacity:0;visibility:hidden;z-index:120;pointer-events:none;transition:opacity .12s ease}
-  /* Transparent hover-bridge filling the gap between .ndrop and the painted menu card.
-     Width matches the menu (min-width 204px) and height matches the .ndmenu padding-top
-     plus a small overshoot upward to overlap the trigger's bottom edge. */
-  .ndmenu:before{content:"";position:absolute;left:0;right:0;top:-8px;height:22px;background:transparent;pointer-events:auto}
-  /* Authoritative open state is the JS-managed .open class (see dropdown script):
-     it survives a brief cursor exit across any sub-pixel seam thanks to a
-     cancel-on-reenter close delay, which pure :hover cannot. :hover/:focus-within
-     are kept as a no-JS fallback. */
-  .ndrop:hover .ndmenu,.ndrop:focus-within .ndmenu,.ndrop.open .ndmenu{opacity:1;visibility:visible;pointer-events:auto}
-  .ndmenu>div{background:rgba(11,14,12,0.97);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:8px;padding:8px;box-shadow:0 24px 60px rgba(0,0,0,.6)}
+  .ndrop>span{display:inline-flex;align-items:center;gap:5px;cursor:pointer;color:var(--cream-2);transition:color .16s;user-select:none}
+  .ndrop>span:after{content:"\25BE";font-size:9px;opacity:.6;transition:transform .16s}
+  .ndrop:hover>span,.ndrop.open>span{color:var(--cream)}
+  .ndrop.open>span:after{transform:rotate(180deg)}
+  .ndmenu{position:absolute;top:100%;left:50%;transform:translateX(-50%);padding-top:10px;min-width:204px;opacity:0;visibility:hidden;z-index:300;pointer-events:none;transition:opacity .12s ease}
+  .ndrop.open .ndmenu{opacity:1;visibility:visible;pointer-events:auto}
+  .ndmenu>div{background:rgba(11,14,12,0.98);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:8px;padding:8px;box-shadow:0 24px 60px rgba(0,0,0,.6)}
   .ndmenu a{display:block;padding:10px 14px;border-radius:5px;color:var(--cream-2);transition:background .14s,color .14s;white-space:nowrap}
   .ndmenu a:hover{background:rgba(10,197,168,0.12);color:var(--cream)}
   .nauth{display:flex;align-items:center;gap:18px;justify-self:end}
@@ -705,47 +696,36 @@
 })();
 </script>
 <script>
-/* Nav dropdowns — JS-managed open/close so a menu can't vanish mid-travel.
-   Pure CSS :hover dropped the menu whenever the cursor crossed a 1px seam
-   between the trigger and the menu body (closing it before the user could
-   reach lower items like "Dashboard"). Here the .open class is authoritative:
-   - mouseenter opens (and closes siblings),
-   - mouseleave starts a 280ms close timer that re-entering cancels,
-   so brief exits across a dead pixel no longer close the menu.
-   Also click-to-toggle (touch) and click-outside / link-click to close. */
+/* Nav dropdowns — CLICK to open. The menu stays open (fully clickable, no
+   close-timer) until the user clicks a link inside it or clicks anywhere
+   outside. No hover logic at all, so there is no trigger->menu gap that can
+   hide the menu before a lower item ("Dashboard") is clicked. DOM-ready
+   guarded so the handlers always attach after the nav exists. */
 (function(){
-  var drops = Array.prototype.slice.call(document.querySelectorAll('.ndrop'));
-  if(!drops.length) return;
-  var closeTimer = null;
-  function closeAll(except){
-    drops.forEach(function(d){ if(d!==except) d.classList.remove('open'); });
-  }
-  drops.forEach(function(d){
-    d.addEventListener('mouseenter', function(){
-      clearTimeout(closeTimer);
-      closeAll(d);
-      d.classList.add('open');
-    });
-    d.addEventListener('mouseleave', function(){
-      clearTimeout(closeTimer);
-      closeTimer = setTimeout(function(){ d.classList.remove('open'); }, 280);
-    });
-    var trigger = d.querySelector('span');
-    if(trigger){
+  function init(){
+    var drops = Array.prototype.slice.call(document.querySelectorAll('.ndrop'));
+    if(!drops.length) return;
+    function closeAll(){ drops.forEach(function(d){ d.classList.remove('open'); }); }
+    drops.forEach(function(d){
+      var trigger = d.querySelector('span');
+      if(!trigger) return;
       trigger.addEventListener('click', function(e){
         e.preventDefault();
+        e.stopPropagation();
         var wasOpen = d.classList.contains('open');
-        closeAll(null);
+        closeAll();
         if(!wasOpen) d.classList.add('open');
       });
-    }
-    Array.prototype.forEach.call(d.querySelectorAll('a'), function(a){
-      a.addEventListener('click', function(){ d.classList.remove('open'); });
     });
-  });
-  document.addEventListener('click', function(e){
-    if(!e.target.closest || !e.target.closest('.ndrop')) closeAll(null);
-  });
+    // Click anywhere outside an open menu closes it. Clicks on the menu's
+    // own links are allowed through (we don't preventDefault), so navigation
+    // still happens — the page just unloads.
+    document.addEventListener('click', function(e){
+      if(!e.target.closest || !e.target.closest('.ndrop')) closeAll();
+    });
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
 })();
 </script>
 <script>
