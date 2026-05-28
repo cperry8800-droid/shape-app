@@ -939,7 +939,7 @@ function BSTrainerClients() {
       <BSPage>
         <BSPageHeader kicker="Section · Clients" title={<>14<br/>clients.</>} />
         <BSProClientsTabBar active={subtab} onChange={setSubtab} role="trainer" />
-        <BSProConsoleScreen role="trainer" />
+        <BSProConsoleScreen role="trainer" embedded />
         <BSFooter left="The Coach Edition" right="Pg 2 of 4" />
       </BSPage>
     );
@@ -1789,7 +1789,7 @@ function BSNutriClients() {
       <BSPage>
         <BSPageHeader kicker="Section · Clients" title={<>22<br/>plans.</>} />
         <BSProClientsTabBar active={subtab} onChange={setSubtab} role="nutritionist" />
-        <BSProConsoleScreen role="nutritionist" />
+        <BSProConsoleScreen role="nutritionist" embedded />
         <BSFooter left="The Nutritionist Edition" right="Pg 2 of 4" />
       </BSPage>
     );
@@ -2322,7 +2322,7 @@ function BSCoachGoalPlan({ role = 'trainer' }) {
 // ═══════════════════════════════════════════════════════════
 // PRO CONSOLE SCREEN (shared by trainer + nutritionist)
 // ═══════════════════════════════════════════════════════════
-function BSProConsoleScreen({ role = 'trainer' }) {
+function BSProConsoleScreen({ role = 'trainer', embedded = false }) {
   const t = useBS();
   const isNutri = role === 'nutritionist';
   const accent = isNutri ? t.RUST : t.AMBER;
@@ -2426,15 +2426,18 @@ function BSProConsoleScreen({ role = 'trainer' }) {
     fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: busy ? 0.6 : 1,
   });
 
+  const Wrapper = embedded ? React.Fragment : BSPage;
   return (
-    <BSPage>
-      {/* Header */}
-      <div style={{ padding: `54px ${t.padX}px 14px`, borderBottom: `2px solid ${t.INK}` }}>
-        <BSEyebrow color={accent}>{isNutri ? 'Nutritionist Console' : 'Trainer Console'}</BSEyebrow>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: t.W.display, letterSpacing: '-0.04em', color: t.INK, marginTop: 4, lineHeight: 1 }}>
-          {isNutri ? 'Meal & Focus Hub' : 'Workout & Focus Hub'}
+    <Wrapper>
+      {/* Header — only when standalone, not when embedded inside another page */}
+      {!embedded && (
+        <div style={{ padding: `54px ${t.padX}px 14px`, borderBottom: `2px solid ${t.INK}` }}>
+          <BSEyebrow color={accent}>{isNutri ? 'Nutritionist Console' : 'Trainer Console'}</BSEyebrow>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: t.W.display, letterSpacing: '-0.04em', color: t.INK, marginTop: 4, lineHeight: 1 }}>
+            {isNutri ? 'Meal & Focus Hub' : 'Workout & Focus Hub'}
+          </div>
         </div>
-      </div>
+      )}
 
       {loading ? (
         <div style={{ padding: `40px ${t.padX}px`, textAlign: 'center', fontFamily: t.MONO, fontSize: 11, color: t.INK50, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
@@ -2593,7 +2596,7 @@ function BSProConsoleScreen({ role = 'trainer' }) {
           <div style={{ height: 100 }} />
         </>
       )}
-    </BSPage>
+    </Wrapper>
   );
 }
 
