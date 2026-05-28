@@ -779,7 +779,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
       </div>
 
       <BSSection
-        title={selDay === 14 ? "Today's bookings" : `Bookings · May ${selDay}`}
+        title={selDay === 14 ? "Today's schedule" : `Schedule · May ${selDay}`}
         meta={<span onClick={goCalendar} style={{ cursor: 'pointer', textDecoration: 'underline' }}>Open calendar →</span>}
       />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
@@ -1584,6 +1584,58 @@ function _BSNutritionistApp_old({ onLogout }) {
 
 function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, onWidgetOpen = () => {}, onOpenHabits = () => {}, onOpenScore = () => {}, tweaks = {}, setTweak = () => {} }) {
   const t = useBS();
+  const [selDay, setSelDay] = useStateBSP(14);
+
+  // Per-day schedule for the nutritionist. May 14 (today) is the full
+  // roster; other days are lighter so the strip actually changes content
+  // when the user taps a different day.
+  const NUTRI_SCHEDULE = {
+    20: [
+      { time: '10:00', tag: 'F/U',  tagColor: t.BLUE,  title: 'Sam Patel',   sub: 'Macro check · 30m', state: 'done' },
+      { time: '14:00', tag: 'INTK', tagColor: t.GREEN, title: 'Drew Park',   sub: 'Initial · 60m', state: 'done', last: true },
+    ],
+    21: [
+      { time: '09:00', tag: 'INTK', tagColor: t.GREEN, title: 'Casey Lee',   sub: 'Initial · 60m', state: 'done' },
+      { time: '11:00', tag: 'F/U',  tagColor: t.BLUE,  title: 'Sara Mendez', sub: 'Cut adjustment · 30m', state: 'done' },
+      { time: '13:00', tag: 'F/U',  tagColor: t.BLUE,  title: 'Riley Kim',   sub: 'Refeed plan · 30m', state: 'next' },
+      { time: '16:00', tag: 'INTK', tagColor: t.GREEN, title: 'Morgan Liu',  sub: 'Initial · 60m', last: true },
+    ],
+    22: [
+      { time: '11:00', tag: 'INTK', tagColor: t.GREEN, title: 'Sara Mendez', sub: 'Initial · 60m' },
+      { time: '13:00', tag: 'F/U',  tagColor: t.BLUE,  title: 'Jamie Wong',  sub: 'Cut adjustment · 30m' },
+      { time: '15:00', tag: 'F/U',  tagColor: t.BLUE,  title: 'Alex Rivera', sub: 'Macro check · 30m', state: 'next' },
+      { time: '16:00', tag: 'F/U',  tagColor: t.BLUE,  title: 'Riley Kim',   sub: 'Refeed plan · 30m' },
+      { time: '17:30', tag: 'INTK', tagColor: t.GREEN, title: 'Pat Doan',    sub: 'Initial · 60m', last: true },
+    ],
+    23: [
+      { time: '10:00', tag: 'INTK', tagColor: t.GREEN, title: 'Quinn Choi', sub: 'Initial · 60m' },
+      { time: '14:00', tag: 'F/U',  tagColor: t.BLUE,  title: 'Tasha Yeo',  sub: 'Macro check · 30m', last: true },
+    ],
+    24: [
+      { time: '09:30', tag: 'F/U',  tagColor: t.BLUE,  title: 'Alex Rivera', sub: 'Macro check · 30m' },
+      { time: '12:00', tag: 'F/U',  tagColor: t.BLUE,  title: 'Sam Patel',   sub: 'Cut adjustment · 30m', last: true },
+    ],
+    25: [],
+    26: [
+      { time: '09:00', tag: 'INTK', tagColor: t.GREEN, title: 'Open hours', sub: 'Drop-in consults', last: true },
+    ],
+  };
+  const sourceDayByDate = { 11: 20, 14: 22, 15: 23, 16: 24, 17: 25 };
+  const dataDay = sourceDayByDate[selDay] || selDay;
+  const schedule = NUTRI_SCHEDULE[dataDay] || [];
+
+  // Per-day lead narrative.
+  const NUTRI_LEAD = {
+    20: { count: '2', kicker: 'Mon · May 11', copy: 'Quiet Monday — one intake, one follow-up.' },
+    21: { count: '4', kicker: 'Tue · May 12', copy: 'One intake, three follow-ups. First at 9am.' },
+    22: { count: '5', kicker: "Lead · Today's schedule", copy: 'Two intakes, three follow-ups. First at 11am.' },
+    23: { count: '2', kicker: 'Fri · May 15', copy: 'Light Friday — one intake, one macro check.' },
+    24: { count: '2', kicker: 'Sat · May 16', copy: 'Two follow-ups. Easy weekend cadence.' },
+    25: { count: '0', kicker: 'Sun · May 17', copy: 'Off day. No sessions scheduled.' },
+    26: { count: '1', kicker: 'Mon · May 18', copy: 'Open hours — drop-in consults only.' },
+  };
+  const lead = NUTRI_LEAD[dataDay] || NUTRI_LEAD[22];
+
   return (
     <BSPage>
       <BSMasthead
@@ -1593,7 +1645,7 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
           <span className="bs-daily-daily" style={{ fontFamily: "'Newsreader', Georgia, serif", fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>Daily.</span>
         </span>}
         leftKicker="Thu · May 14 · 2026"
-        rightKicker="22 plans · 5 consults"
+        rightKicker="22 plans · 5 sessions"
         trailing={<BSAvatar init="M" size={32} fill={t.RUST} ink={t.PAPER} onClick={onProfile} />}
       />
 
@@ -1626,7 +1678,7 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
       }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
           {[
-            { label: 'Today', meta: '5 consults', active: true, onClick: () => {} },
+            { label: 'Today', meta: '5 sessions', active: true, onClick: () => {} },
             { label: 'Habits', meta: '1/3 done', accent: t.GREEN, onClick: () => onOpenHabits() },
             { label: 'Score', meta: '+6 pts', accent: t.ACCENT, onClick: () => onOpenScore() },
           ].map((item) => (
@@ -1686,6 +1738,8 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
       {/* THIS WEEK — nutritionist view, dots = consult density */}
       <BSProWeekStrip
         goCalendar={goCalendar}
+        selDay={selDay}
+        onSelectDay={setSelDay}
         dots={{
           20: [t.BLUE, t.BLUE],
           21: [t.GREEN, t.BLUE, t.BLUE],
@@ -1699,24 +1753,27 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
 
       <div style={{ padding: `24px ${t.padX}px 22px`, borderBottom: `1px solid ${t.RULE}` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-          <BSEyebrow color={t.RUST}>Lead · Consults today</BSEyebrow>
-          <BSEyebrow>09:42</BSEyebrow>
+          <BSEyebrow color={t.RUST}>{lead.kicker}</BSEyebrow>
+          <BSEyebrow>{selDay === 14 ? '09:42' : `May ${selDay}`}</BSEyebrow>
         </div>
-        <BSHeadlineNumber value="5" unit="CONSULTS" />
+        <BSHeadlineNumber value={lead.count} unit="SESSIONS" />
         <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: t.body + 1, color: t.INK70, lineHeight: 1.3, fontWeight: 500 }}>
-          Two intakes, three follow-ups. First at 11am.
+          {lead.copy}
         </div>
       </div>
 
-      <BSSection title="Today's consults" meta={<span onClick={goCalendar} style={{ cursor: 'pointer', textDecoration: 'underline' }}>Open calendar →</span>} />
+      <BSSection
+        title={selDay === 14 ? "Today's schedule" : `Schedule · May ${selDay}`}
+        meta={<span onClick={goCalendar} style={{ cursor: 'pointer', textDecoration: 'underline' }}>Open calendar →</span>}
+      />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
-        {[
-          { time: '11:00', tag: 'INTK', tagColor: t.GREEN, title: 'Sara Mendez',  sub: 'Initial · 60m' },
-          { time: '13:00', tag: 'F/U',  tagColor: t.BLUE,  title: 'Jamie Wong',    sub: 'Cut adjustment · 30m' },
-          { time: '15:00', tag: 'F/U',  tagColor: t.BLUE,  title: 'Alex Rivera',  sub: 'Macro check · 30m', state: 'next' },
-          { time: '16:00', tag: 'F/U',  tagColor: t.BLUE,  title: 'Riley Kim',     sub: 'Refeed plan · 30m' },
-          { time: '17:30', tag: 'INTK', tagColor: t.GREEN, title: 'Pat Doan',      sub: 'Initial · 60m', last: true },
-        ].map((r, i) => <BSRow key={i} {...r} />)}
+        {schedule.length === 0 ? (
+          <div style={{ padding: '24px 0', textAlign: 'center', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
+            — Off day · nothing scheduled —
+          </div>
+        ) : (
+          schedule.map((r, i) => <BSRow key={i} {...r} />)
+        )}
       </div>
 
       {/* ── HABIT TRACKER ─────────────────────────────────────────── */}
