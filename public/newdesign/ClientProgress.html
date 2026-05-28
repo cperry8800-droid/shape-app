@@ -21,12 +21,12 @@
 <script type="text/babel" src="trainerDashboard.jsx"></script>
 <script type="text/babel" src="clientNav.jsx"></script>
 <script type="text/babel">
-function BigChart({ points, height = 260 }) {
-  const W = 1000, H = height, pad = 28;
+function BigChart({ points, height = 180, color = TEAL, gradId = "g" }) {
+  const W = 1000, H = height, pad = 24;
   const max = Math.max(...points);
   const min = Math.min(...points);
   const range = max - min || 1;
-  const step = (W - pad * 2) / (points.length - 1);
+  const step = points.length > 1 ? (W - pad * 2) / (points.length - 1) : 0;
   const path = points.map((v, i) => {
     const x = pad + i * step;
     const y = H - pad - ((v - min) / range) * (H - pad * 2);
@@ -36,16 +36,16 @@ function BigChart({ points, height = 260 }) {
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
       <defs>
-        <linearGradient id="g" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor={TEAL} stopOpacity="0.25" />
-          <stop offset="100%" stopColor={TEAL} stopOpacity="0" />
+        <linearGradient id={gradId} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.25" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
       </defs>
       {[0, 0.25, 0.5, 0.75, 1].map(t => (
         <line key={t} x1={pad} x2={W - pad} y1={pad + t * (H - pad * 2)} y2={pad + t * (H - pad * 2)} stroke="rgba(242,237,228,0.06)" />
       ))}
-      <path d={area} fill="url(#g)" />
-      <path d={path} fill="none" stroke={TEAL} strokeWidth="2" />
+      <path d={area} fill={`url(#${gradId})`} />
+      <path d={path} fill="none" stroke={color} strokeWidth="2" />
     </svg>
   );
 }
@@ -62,8 +62,9 @@ function prDate(iso) {
 }
 
 // Mock data — shown while the API loads, or when the viewer is signed out.
+const _toSeries = (arr) => arr.map((v) => ({ value: v }));
 const MOCK_PROGRESS = {
-  weightSeries: [184,183,184,182,181,181,180,179,178,178,177,177,176,175,176,174,173,173,172,171].map((v) => ({ value: v })),
+  weightSeries: _toSeries([184,183,184,182,181,181,180,179,178,178,177,177,176,175,176,174,173,173,172,171]),
   kpis: { weightChange: -13, weightLatest: 171, bodyFatLatest: 22.1, bodyFatFirst: 26.4, restingHr: 58, restingHrDelta: -6, sleepAvg: 7.4 },
   prs: [
     { move: "Back squat", best: 265, bestReps: 5, unit: "lb", bestAt: "2026-04-16" },
@@ -71,23 +72,59 @@ const MOCK_PROGRESS = {
     { move: "Bench press", best: 200, bestReps: 3, unit: "lb", bestAt: "2026-04-09" },
     { move: "Overhead press", best: 135, bestReps: 5, unit: "lb", bestAt: "2026-04-02" },
   ],
+  series: {
+    weight:     _toSeries([184,183,184,182,181,181,180,179,178,178,177,177,176,175,176,174,173,173,172,171]),
+    bodyFat:    _toSeries([26.4,26.2,26.0,25.8,25.6,25.3,25.1,24.8,24.6,24.4,24.1,23.8,23.6,23.3,23.0,22.8,22.6,22.4,22.2,22.1]),
+    strength:   _toSeries([205,210,215,215,225,225,230,235,235,240,245,245,250,255,255,260,260,260,265,265]),
+    restingHr:  _toSeries([64,63,64,62,62,61,61,60,61,60,59,59,60,59,58,59,58,58,57,58]),
+    sleep:      _toSeries([6.4,6.8,7.0,6.6,7.2,7.4,7.1,7.5,7.0,7.3,7.6,7.2,7.4,7.5,7.2,7.6,7.3,7.5,7.4,7.5]),
+    hrv:        _toSeries([42,44,43,46,48,47,49,52,50,53,55,54,56,58,57,59,60,58,61,62]),
+    volume:     _toSeries([180,195,205,210,225,200,230,240,250,235,255,260,270,255,280,275,290,285,300,295]),
+    protein:    _toSeries([142,138,156,148,160,164,158,168,172,165,170,175,168,180,172,178,184,175,182,185]),
+    hydration:  _toSeries([2.1,2.4,2.2,2.6,2.5,2.7,2.3,2.8,2.6,2.9,2.7,3.0,2.8,3.1,2.9,3.0,2.8,3.1,2.9,3.0]),
+  },
 };
+
+// Tab definitions for the trends card. Each tab maps a series key to the
+// chart label, unit, color, and (optional) formatter for the headline value.
+const TREND_TABS = [
+  { k: "weight",    label: "Weight",     unit: "lb",   color: "#0ac5a8", fmt: (v) => Math.round(v) },
+  { k: "bodyFat",   label: "Body fat",   unit: "%",    color: "#7ed4ff", fmt: (v) => v.toFixed(1) },
+  { k: "strength",  label: "Strength",   unit: "lb",   color: "#e8b14a", fmt: (v) => Math.round(v) },
+  { k: "restingHr", label: "Resting HR", unit: "bpm",  color: "#d2693f", fmt: (v) => Math.round(v) },
+  { k: "sleep",     label: "Sleep",      unit: "h",    color: "#a86bc4", fmt: (v) => v.toFixed(1) },
+  { k: "hrv",       label: "HRV",        unit: "ms",   color: "#9be3a8", fmt: (v) => Math.round(v) },
+  { k: "volume",    label: "Volume",     unit: "min/d",color: "#f5a0c8", fmt: (v) => Math.round(v) },
+  { k: "protein",   label: "Protein",    unit: "g",    color: "#ffb46b", fmt: (v) => Math.round(v) },
+  { k: "hydration", label: "Hydration",  unit: "L",    color: "#6ec8ff", fmt: (v) => v.toFixed(1) },
+];
 
 function ClientProgressPage() {
   const [data, setData] = React.useState(MOCK_PROGRESS);
   const [live, setLive] = React.useState(false);
+  const [trend, setTrend] = React.useState("weight");
 
   React.useEffect(() => {
     let cancelled = false;
     fetch('/api/client/progress', { credentials: 'same-origin' })
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (!cancelled && d && d.ok) { setData(d); setLive(true); } })
+      .then(d => { if (!cancelled && d && d.ok) { setData({ ...MOCK_PROGRESS, ...d, series: { ...MOCK_PROGRESS.series, ...(d.series || {}) } }); setLive(true); } })
       .catch(() => {});
     return () => { cancelled = true; };
   }, []);
 
   const kpis = data.kpis || {};
-  const points = (data.weightSeries || []).map(s => s.value);
+  const series = data.series || {};
+  const activeTab = TREND_TABS.find((t) => t.k === trend) || TREND_TABS[0];
+  const activeSeries = (series[activeTab.k] || []).map((s) => s.value);
+  const latestVal = activeSeries.length ? activeSeries[activeSeries.length - 1] : null;
+  const firstVal = activeSeries.length ? activeSeries[0] : null;
+  const deltaVal = latestVal != null && firstVal != null ? latestVal - firstVal : null;
+  const fmtDelta = (d, fmt) => {
+    if (d == null) return "—";
+    const sign = d > 0 ? "+" : d < 0 ? "−" : "";
+    return sign + fmt(Math.abs(d));
+  };
   const prs = data.prs || [];
 
   const kpiCards = [
@@ -116,17 +153,38 @@ function ClientProgressPage() {
       </div>
 
       <Card style={{ marginBottom: 20 }}>
+        {/* Trend tab strip */}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16, paddingBottom: 14, borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+          {TREND_TABS.map((t) => {
+            const on = trend === t.k;
+            return (
+              <button key={t.k} onClick={() => setTrend(t.k)} style={{
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.1em",
+                padding: "6px 12px", borderRadius: 999, cursor: "pointer",
+                background: on ? INK : "transparent",
+                color: on ? PAPER : "rgba(242,237,228,0.65)",
+                border: on ? "none" : "1px solid rgba(242,237,228,0.12)",
+              }}>{t.label.toUpperCase()}</button>
+            );
+          })}
+        </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 500 }}>Bodyweight</div>
-            <div style={{ fontSize: 12, color: "rgba(242,237,228,0.5)", marginTop: 2 }}>lb · from your weigh-ins</div>
+            <div style={{ fontSize: 14, fontWeight: 500 }}>{activeTab.label}</div>
+            <div style={{ fontSize: 12, color: "rgba(242,237,228,0.5)", marginTop: 2 }}>{activeTab.unit} · {activeSeries.length} data points</div>
           </div>
+          {latestVal != null && (
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontFamily: serif, fontSize: 28, letterSpacing: "-0.02em", lineHeight: 1, color: activeTab.color }}>{activeTab.fmt(latestVal)}<span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)", marginLeft: 4 }}>{activeTab.unit}</span></div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.08em", color: "rgba(242,237,228,0.55)", marginTop: 4 }}>{fmtDelta(deltaVal, activeTab.fmt)} since start</div>
+            </div>
+          )}
         </div>
-        {points.length >= 2 ? (
-          <BigChart points={points} />
+        {activeSeries.length >= 2 ? (
+          <BigChart points={activeSeries} color={activeTab.color} gradId={`g-${activeTab.k}`} />
         ) : (
           <div style={{ padding: "48px 4px", textAlign: "center", color: "rgba(242,237,228,0.5)", fontSize: 13 }}>
-            {live ? "Log a couple of weigh-ins to see your trend here." : "Not enough data yet."}
+            {live ? `Log more ${activeTab.label.toLowerCase()} data to see your trend here.` : "Not enough data yet."}
           </div>
         )}
       </Card>
