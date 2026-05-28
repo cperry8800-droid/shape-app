@@ -775,6 +775,7 @@ function BSHeadlineNumber({ sign = '', value, unit, color, size }) {
 // Ticker — black bar with scrolling content
 function BSTicker({ items, speedSec = 30, fg = '#7ed4ff' }) {
   const t = useBS();
+  const rows = Array.isArray(items) ? items : [];
   return (
     <div style={{
       background: t.INK, color: t.PAPER,
@@ -784,7 +785,7 @@ function BSTicker({ items, speedSec = 30, fg = '#7ed4ff' }) {
       <div style={{ display: 'inline-block', animation: `bsticker ${speedSec}s linear infinite`, paddingLeft: '100%' }}>
         {Array(2).fill(null).map((_, n) => (
           <span key={n}>
-            {items.map((it, i) => (
+            {rows.map((it, i) => (
               <span key={i}>
                 {it.label} <span style={{ color: it.color || fg }}>{it.value}</span>
                 {it.note && <span style={{ opacity: 0.7 }}> · {it.note}</span>}

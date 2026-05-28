@@ -123,6 +123,7 @@ export async function POST(req: Request) {
     const { data: existing } = await supabase
       .from('user_habit_completions')
       .select('id')
+      .eq('user_id', user.id)
       .eq('habit_id', id)
       .eq('done_on', date)
       .maybeSingle();
@@ -133,13 +134,15 @@ export async function POST(req: Request) {
         .delete()
         .eq('id', existing.id);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-      // Roll back the score credit tied to this completion row.
-      await supabase
+      // Roll back the score credit tied to this completion row. Log (don't
+      // swallow) a failure so a stuck ledger row is visible in server logs.
+      const { error: ledgerErr } = await supabase
         .from('score_ledger')
         .delete()
         .eq('user_id', user.id)
         .eq('source_kind', 'habit_completion')
         .eq('source_id', existing.id);
+      if (ledgerErr) console.error('[habits] score_ledger rollback failed:', ledgerErr.message);
       return NextResponse.json({ done: false });
     }
     const { data: ins, error } = await supabase
@@ -150,9 +153,10 @@ export async function POST(req: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     // Award 3 points to Shape Score under category 'habits'. The dedupe
     // index on (user_id, source_kind, source_id) prevents double-credit
-    // if this is retried.
+    // if this is retried. Surface a failed award in logs rather than
+    // returning done:true while points silently never post.
     if (ins) {
-      await supabase
+      const { error: ledgerErr } = await supabase
         .from('score_ledger')
         .upsert({
           user_id: user.id,
@@ -162,6 +166,7 @@ export async function POST(req: Request) {
           delta: 3,
           note: date,
         }, { onConflict: 'user_id,source_kind,source_id' });
+      if (ledgerErr) console.error('[habits] score_ledger award failed:', ledgerErr.message);
     }
     return NextResponse.json({ done: true });
   }
