@@ -260,6 +260,7 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
   }
 
   function ChannelsCard({ channels, meetups }) {
+    const [tab, setTab] = React.useState("channels"); // 'channels' | 'meetups'
     const [query, setQuery] = React.useState("");
     const [chFilter, setChFilter] = React.useState("all");
     const [joinedMap, setJoinedMap] = React.useState(() => {
@@ -291,67 +292,102 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
       );
     };
 
+    const meetupList = meetups || [];
+    const TabBtn = ({ k, label, count }) => {
+      const on = tab === k;
+      return (
+        <button onClick={() => setTab(k)} style={{
+          flex: 1,
+          padding: "10px 14px",
+          borderRadius: 999,
+          background: on ? INK : "transparent",
+          color: on ? PAPER : "rgba(242,237,228,0.72)",
+          border: on ? "none" : "1px solid rgba(242,237,228,0.14)",
+          fontFamily: sans, fontSize: 12.5, fontWeight: 500,
+          cursor: "pointer",
+          display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+        }}>
+          <span>{label}</span>
+          <span style={{
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em",
+            background: on ? "rgba(242,237,228,0.18)" : "rgba(242,237,228,0.06)",
+            color: on ? PAPER : "rgba(242,237,228,0.65)",
+            padding: "2px 7px", borderRadius: 999,
+          }}>{count}</span>
+        </button>
+      );
+    };
+
     return (
       <Card>
-        <SectionTitle right={`${channels.length} CH · ${(meetups || []).length} MTG`}>Channels & meetups</SectionTitle>
-        <input
-          type="search"
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          placeholder="Search channels…"
-          style={{ width: "100%", padding: "10px 14px", borderRadius: 8, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", color: INK, fontFamily: sans, fontSize: 13, outline: "none", marginBottom: 12 }}
-        />
-        <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
-          <FilterPill k="all" label="ALL" count={channels.length} />
-          <FilterPill k="joined" label="JOINED" count={joinedCount} />
-          <FilterPill k="trending" label="TRENDING" />
+        <SectionTitle right={tab === "channels"
+          ? `${channels.length} CHANNELS`
+          : `${meetupList.length} SCHEDULED`}>{tab === "channels" ? "Channels" : "Meetups"}</SectionTitle>
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          <TabBtn k="channels" label="Channels" count={channels.length} />
+          <TabBtn k="meetups" label="Meetups" count={meetupList.length} />
         </div>
 
-        {filtered.length === 0 && (
-          <div style={{ padding: "26px 4px", color: "rgba(242,237,228,0.5)", fontSize: 13, textAlign: "center" }}>
-            No channels match.
+        {tab === "channels" && <>
+          <input
+            type="search"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Search channels…"
+            style={{ width: "100%", padding: "10px 14px", borderRadius: 8, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", color: INK, fontFamily: sans, fontSize: 13, outline: "none", marginBottom: 12 }}
+          />
+          <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+            <FilterPill k="all" label="ALL" count={channels.length} />
+            <FilterPill k="joined" label="JOINED" count={joinedCount} />
+            <FilterPill k="trending" label="TRENDING" />
           </div>
-        )}
-        {filtered.map((c, i) => {
-          const joined = !!joinedMap[c.name];
-          return (
-            <div key={c.name} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "12px 0", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
-              <a href={`Community.html?channel=${encodeURIComponent(c.name)}`} style={{ minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", color: TEAL_BRIGHT, fontSize: 13, fontWeight: 500 }}>#</span>
-                  <span style={{ fontSize: 13.5, fontWeight: 500, color: INK }}>{c.name}</span>
-                  {c.trending && <Pill tone="teal">TRENDING</Pill>}
-                  {c.unread > 0 && joined && (
-                    <span style={{ background: TEAL, color: PAPER, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.04em", padding: "2px 7px", borderRadius: 999 }}>{c.unread}</span>
-                  )}
-                </div>
-                <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.55)", marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.lastMsg}</div>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(242,237,228,0.4)", letterSpacing: "0.08em", marginTop: 3 }}>{c.members.toLocaleString()} members · {c.at}</div>
-              </a>
-              <button onClick={() => toggle(c.name)} style={{
-                fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.1em",
-                padding: "6px 12px", borderRadius: 999, cursor: "pointer",
-                background: joined ? "rgba(242,237,228,0.04)" : TEAL,
-                color: joined ? "rgba(242,237,228,0.7)" : PAPER,
-                border: joined ? "1px solid rgba(242,237,228,0.18)" : "none",
-                whiteSpace: "nowrap",
-              }}>{joined ? "JOINED" : "JOIN"}</button>
-            </div>
-          );
-        })}
 
-        <div style={{ paddingTop: 14, marginTop: 6, borderTop: "1px solid rgba(242,237,228,0.08)" }}>
-          <a href="Community.html?new-channel=1" style={{ display: "block", textAlign: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>+ NEW CHANNEL</a>
-        </div>
-
-        {meetups && meetups.length > 0 && (
-          <div style={{ marginTop: 22, paddingTop: 20, borderTop: "1px solid rgba(242,237,228,0.12)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
-              <div style={{ fontSize: 13, fontWeight: 500 }}>Upcoming meetups</div>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.1em", color: "rgba(242,237,228,0.55)" }}>{meetups.length} SCHEDULED</div>
+          {filtered.length === 0 && (
+            <div style={{ padding: "26px 4px", color: "rgba(242,237,228,0.5)", fontSize: 13, textAlign: "center" }}>
+              No channels match.
             </div>
-            {meetups.map((m, i) => (
-              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "11px 0", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+          )}
+          {filtered.map((c, i) => {
+            const joined = !!joinedMap[c.name];
+            return (
+              <div key={c.name} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "12px 0", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+                <a href={`Community.html?channel=${encodeURIComponent(c.name)}`} style={{ minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", color: TEAL_BRIGHT, fontSize: 13, fontWeight: 500 }}>#</span>
+                    <span style={{ fontSize: 13.5, fontWeight: 500, color: INK }}>{c.name}</span>
+                    {c.trending && <Pill tone="teal">TRENDING</Pill>}
+                    {c.unread > 0 && joined && (
+                      <span style={{ background: TEAL, color: PAPER, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.04em", padding: "2px 7px", borderRadius: 999 }}>{c.unread}</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.55)", marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.lastMsg}</div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(242,237,228,0.4)", letterSpacing: "0.08em", marginTop: 3 }}>{c.members.toLocaleString()} members · {c.at}</div>
+                </a>
+                <button onClick={() => toggle(c.name)} style={{
+                  fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.1em",
+                  padding: "6px 12px", borderRadius: 999, cursor: "pointer",
+                  background: joined ? "rgba(242,237,228,0.04)" : TEAL,
+                  color: joined ? "rgba(242,237,228,0.7)" : PAPER,
+                  border: joined ? "1px solid rgba(242,237,228,0.18)" : "none",
+                  whiteSpace: "nowrap",
+                }}>{joined ? "JOINED" : "JOIN"}</button>
+              </div>
+            );
+          })}
+
+          <div style={{ paddingTop: 14, marginTop: 6, borderTop: "1px solid rgba(242,237,228,0.08)" }}>
+            <a href="Community.html?new-channel=1" style={{ display: "block", textAlign: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>+ NEW CHANNEL</a>
+          </div>
+        </>}
+
+        {tab === "meetups" && <>
+          {meetupList.length === 0 ? (
+            <div style={{ padding: "26px 4px", color: "rgba(242,237,228,0.5)", fontSize: 13, textAlign: "center" }}>
+              No meetups scheduled.
+            </div>
+          ) : (
+            meetupList.map((m, i) => (
+              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "12px 0", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.12em", color: TEAL_BRIGHT, marginBottom: 3 }}>{m.when}</div>
                   <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.title}</div>
@@ -366,10 +402,13 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
                   whiteSpace: "nowrap",
                 }}>{m.rsvp ? "GOING" : "RSVP"}</button>
               </div>
-            ))}
-            <a href="Community.html?meetups=1" style={{ display: "block", textAlign: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginTop: 12, paddingTop: 10, borderTop: "1px solid rgba(242,237,228,0.08)" }}>VIEW ALL MEETUPS →</a>
+            ))
+          )}
+          <div style={{ paddingTop: 14, marginTop: 6, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", justifyContent: "space-between", gap: 14 }}>
+            <a href="Community.html?new-meetup=1" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>+ NEW MEETUP</a>
+            <a href="Community.html?meetups=1" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>VIEW ALL →</a>
           </div>
-        )}
+        </>}
       </Card>
     );
   }
