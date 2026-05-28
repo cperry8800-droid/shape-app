@@ -493,16 +493,16 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
           {[['client','Client'],['trainer','Trainer'],['nutritionist','Nutri'],['shape_radio','Radio']].map(([k, l]) => {
             const on = role === k;
-            return <button key={k} onClick={() => setRole(k)} style={{ borderRadius: t.RADIUS_SM, padding: 12, border: `1px solid ${t.INK}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>{l}</button>;
+            return <button key={k} onClick={() => setRole(k)} style={{ borderRadius: t.RADIUS_SM, padding: 12, border: `1px solid ${on ? '#0ac5a8' : t.INK}`, background: on ? '#0ac5a8' : 'transparent', color: on ? '#031f1c' : t.INK, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>{l}</button>;
           })}
         </div>
       </div>
 
       {isCreate ? (
-        <button onClick={submitAuth} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Creating...' : 'Time to Shape →'}</button>
+        <button onClick={submitAuth} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: '#0ac5a8', color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Creating...' : 'Time to Shape →'}</button>
       ) : (
         <>
-          <button onClick={submitAuth} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: t.INK, color: t.PAPER, border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Signing in...' : 'Sign in →'}</button>
+          <button onClick={submitAuth} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: '#0ac5a8', color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Signing in...' : 'Sign in →'}</button>
 
           {/* Curious-reader path for non-members */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
