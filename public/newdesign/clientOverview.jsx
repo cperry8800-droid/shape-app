@@ -424,8 +424,8 @@ function ClientOverviewPage() {
         <ClientOvSnapshots />
         <ClientOvPaths />
         <ClientOvTools />
-        <ClientOvCTA />
         <ClientOvFAQ />
+        <ClientOvCTA />
         <Footer />
       </div>
     </div>
