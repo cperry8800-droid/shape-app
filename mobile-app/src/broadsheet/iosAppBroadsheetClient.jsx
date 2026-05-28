@@ -4333,14 +4333,14 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
       background: t.PAPER,
       boxShadow: `0 18px 38px ${t.isLight ? 'rgba(15,14,12,0.16)' : 'rgba(0,0,0,0.42)'}, 0 -1px 0 ${t.SURFACE_BORDER}`,
       ...(pinned && {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        // Sit just above the 88px tab bar so the messaging area uses all
-        // available vertical space.
+        // Sticky pins the composer to the bottom of the visible scroll area
+        // (the phone bezel), so it stays put while messages scroll behind it.
+        // bottom = tab bar height + clearance + safe area inset.
+        position: 'sticky',
         bottom: 'calc(96px + env(safe-area-inset-bottom, 0px))',
+        marginTop: 'auto',
+        marginLeft: t.padX, marginRight: t.padX,
         zIndex: 65,
-        marginBottom: 0,
       }),
     }}>
       <input
