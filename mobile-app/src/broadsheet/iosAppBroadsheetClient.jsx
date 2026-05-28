@@ -367,7 +367,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     store:   storeView === 'score'
       ? <BSShapeScorePage profile={scoreProfile} onBack={() => setStoreView('store')} onOpenStore={() => setStoreView('store')} />
       : <BSShapeStorePage profile={scoreProfile} onBack={() => setTab('home')} onOpenScore={() => setStoreView('score')} />,
-    me:      <BSClientMe       onProfile={goSettings} onLogout={onLogout} sheet={sheet} />,
+    me:      <BSClientMe       onProfile={goSettings} onLogout={onLogout} onIntegrations={goIntegrations} sheet={sheet} />,
   };
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
@@ -4567,7 +4567,102 @@ const SHAPE_SCORE_PROFILES = {
   },
 };
 
-function BSClientMe({ onProfile, onLogout }) {
+// Generic edit-sheet for the Me page. Renders as a bottom sheet with a single
+// labeled input (text / number / select / toggle / textarea). Save fires
+// onSave(newValue) and closes; Cancel just closes.
+function BSEditSheet({ field, onSave, onClose }) {
+  const t = useBS();
+  const [val, setVal] = React.useState(field?.value ?? '');
+  React.useEffect(() => { setVal(field?.value ?? ''); }, [field]);
+  if (!field) return null;
+  const kind = field.type || 'text';
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 9000,
+      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+    }}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK,
+        borderTopLeftRadius: 18, borderTopRightRadius: 18,
+        padding: '20px 20px calc(28px + env(safe-area-inset-bottom, 0px))',
+        boxShadow: '0 -20px 60px rgba(0,0,0,0.5)',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 18 }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em' }}>{field.label}</div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 0, color: t.INK50, fontSize: 14, cursor: 'pointer' }}>Cancel</button>
+        </div>
+        {field.hint && (
+          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8 }}>{field.hint}</div>
+        )}
+        {kind === 'select' ? (
+          <div style={{ display: 'grid', gap: 8 }}>
+            {(field.options || []).map((opt) => {
+              const v = typeof opt === 'string' ? opt : opt.value;
+              const l = typeof opt === 'string' ? opt : opt.label;
+              const on = String(v) === String(val);
+              return (
+                <button key={String(v)} onClick={() => setVal(v)} style={{
+                  borderRadius: 10, padding: '12px 14px', textAlign: 'left', cursor: 'pointer',
+                  border: `1px solid ${on ? t.ACCENT : t.SURFACE_BORDER}`,
+                  background: on ? `rgba(${t.inkRGB},0.06)` : 'transparent',
+                  color: t.INK, fontFamily: t.BODY, fontSize: 14, fontWeight: on ? 700 : 500,
+                }}>{l}</button>
+              );
+            })}
+          </div>
+        ) : kind === 'toggle' ? (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {[['on', field.onLabel || 'On'], ['off', field.offLabel || 'Off']].map(([v, l]) => {
+              const on = String(val) === v;
+              return (
+                <button key={v} onClick={() => setVal(v)} style={{
+                  borderRadius: 10, padding: '14px 0', cursor: 'pointer',
+                  border: `1px solid ${on ? t.ACCENT : t.SURFACE_BORDER}`,
+                  background: on ? `rgba(${t.inkRGB},0.06)` : 'transparent',
+                  color: t.INK, fontFamily: t.BODY, fontSize: 14, fontWeight: on ? 700 : 500,
+                }}>{l}</button>
+              );
+            })}
+          </div>
+        ) : kind === 'textarea' ? (
+          <textarea
+            value={val}
+            onChange={(e) => setVal(e.target.value)}
+            placeholder={field.placeholder || ''}
+            rows={4}
+            style={{
+              width: '100%', resize: 'vertical', minHeight: 96,
+              background: t.PAPER2, color: t.INK,
+              border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 10,
+              padding: '12px 14px', fontFamily: t.BODY, fontSize: 15, outline: 'none',
+            }}
+          />
+        ) : (
+          <input
+            value={val}
+            type={kind === 'number' ? 'number' : 'text'}
+            inputMode={kind === 'number' ? 'decimal' : undefined}
+            onChange={(e) => setVal(e.target.value)}
+            placeholder={field.placeholder || ''}
+            style={{
+              width: '100%', height: 46, background: t.PAPER2, color: t.INK,
+              border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 10,
+              padding: '0 14px', fontFamily: t.BODY, fontSize: 15, outline: 'none',
+            }}
+          />
+        )}
+        <button onClick={() => onSave(val)} style={{
+          marginTop: 16, width: '100%', padding: '14px 0', borderRadius: 999,
+          background: t.ACCENT, color: '#031f1c', border: 0,
+          fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase',
+          cursor: 'pointer',
+        }}>Save</button>
+      </div>
+    </div>
+  );
+}
+
+function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
   const t = useBS();
   const [showScore, setShowScore] = useStateBSC(false);
   const [showStore, setShowStore] = useStateBSC(false);
@@ -4578,6 +4673,143 @@ function BSClientMe({ onProfile, onLogout }) {
   const displayName = authProfile.full_name || 'Alex Rivera';
   const [firstName, ...lastParts] = displayName.split(' ');
   const lastName = lastParts.join(' ') || 'Rivera';
+
+  // Editable state — backed by client_profiles JSONB (profile + nutrition +
+  // training) and user_goals rows (privacy, social, notifications). Loaded
+  // from shapeDb on mount; saved on each Save tap.
+  const [profileData, setProfileData] = useStateBSC({});
+  const [nutritionPrefs, setNutritionPrefs] = useStateBSC({});
+  const [trainingPrefs, setTrainingPrefs] = useStateBSC({});
+  const [privacyPrefs, setPrivacyPrefs] = useStateBSC({});
+  const [socialLinks, setSocialLinks] = useStateBSC({});
+  const [editField, setEditField] = useStateBSC(null);
+  const [busy, setBusy] = useStateBSC(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [p, np, tp, pp, sl] = await Promise.all([
+          window.shapeDb?.getClientProfile?.() ?? {},
+          window.shapeDb?.getUserGoals?.('client_nutrition_prefs') ?? {},
+          window.shapeDb?.getUserGoals?.('client_training_prefs') ?? {},
+          window.shapeDb?.getUserGoals?.('client_privacy_prefs') ?? {},
+          window.shapeDb?.getUserGoals?.('client_social_links') ?? {},
+        ]);
+        if (cancelled) return;
+        setProfileData(p || {});
+        setNutritionPrefs(np || {});
+        setTrainingPrefs(tp || {});
+        setPrivacyPrefs(pp || {});
+        setSocialLinks(sl || {});
+      } catch (e) {
+        // shapeDb may be unavailable (signed out); leave demo defaults.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Persist a section to the backend and update local state.
+  const persistSection = async (section, next) => {
+    setBusy(true);
+    try {
+      if (section === 'profile') {
+        await window.shapeDb?.saveClientProfile?.(next);
+        setProfileData(next);
+      } else {
+        const kindMap = {
+          nutrition: 'client_nutrition_prefs',
+          training: 'client_training_prefs',
+          privacy: 'client_privacy_prefs',
+          social: 'client_social_links',
+        };
+        await window.shapeDb?.saveUserGoals?.(kindMap[section], next);
+        if (section === 'nutrition') setNutritionPrefs(next);
+        if (section === 'training') setTrainingPrefs(next);
+        if (section === 'privacy') setPrivacyPrefs(next);
+        if (section === 'social') setSocialLinks(next);
+      }
+      window.__bsToast?.('Saved', 'ok');
+    } catch (err) {
+      window.__bsToast?.(err?.message || 'Save failed', 'err');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openEdit = (section, key, label, opts = {}) => {
+    const blob = section === 'profile' ? profileData
+      : section === 'nutrition' ? nutritionPrefs
+      : section === 'training' ? trainingPrefs
+      : section === 'privacy' ? privacyPrefs
+      : section === 'social' ? socialLinks
+      : {};
+    setEditField({
+      section, key, label,
+      value: blob[key] ?? opts.defaultValue ?? '',
+      type: opts.type || 'text',
+      options: opts.options,
+      placeholder: opts.placeholder,
+      hint: opts.hint,
+      onLabel: opts.onLabel,
+      offLabel: opts.offLabel,
+    });
+  };
+  const saveEdit = async (val) => {
+    if (!editField) return;
+    const { section, key } = editField;
+    const blob = section === 'profile' ? profileData
+      : section === 'nutrition' ? nutritionPrefs
+      : section === 'training' ? trainingPrefs
+      : section === 'privacy' ? privacyPrefs
+      : section === 'social' ? socialLinks
+      : {};
+    await persistSection(section, { ...blob, [key]: val });
+    setEditField(null);
+  };
+
+  // Stripe Customer Portal — opens billing UI for card / cancel / invoices.
+  const openBillingPortal = async () => {
+    try {
+      const res = await fetch('/api/stripe/billing-portal', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ returnPath: '/m/' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.url) {
+        window.location.href = data.url;
+      } else {
+        window.__bsToast?.(data?.error || 'Billing portal unavailable', 'err');
+      }
+    } catch (err) {
+      window.__bsToast?.('Billing portal failed', 'err');
+    }
+  };
+
+  // Danger-zone actions — Export queues an email; Pause / Delete prompt
+  // for confirmation, then call a stub admin endpoint. We don't ship the
+  // actual delete server-side without product approval, so we surface a
+  // clear "submitted" state instead of silently doing nothing.
+  const requestAccountAction = async (action) => {
+    const confirms = {
+      Export: 'Email a copy of all your data to the address on file?',
+      Pause: 'Pause your membership? You keep your data and can resume anytime.',
+      Delete: 'Permanently delete your account and all data? This cannot be undone.',
+    };
+    if (!window.confirm(confirms[action] || `Confirm ${action}?`)) return;
+    try {
+      await fetch('/api/me/account-action', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      }).catch(() => null);
+      window.__bsToast?.(`${action} request submitted — we’ll email a confirmation.`, 'ok');
+      if (action === 'Delete') setTimeout(onLogout, 1500);
+    } catch (err) {
+      window.__bsToast?.(`${action} failed`, 'err');
+    }
+  };
 
   if (showScore) {
     return <BSShapeScorePage profile={scoreProfile} onBack={() => setShowScore(false)} onOpenStore={() => { setShowScore(false); setShowStore(true); }} />;
@@ -4592,24 +4824,24 @@ function BSClientMe({ onProfile, onLogout }) {
     return <BSTermsPage onBack={() => setShowTerms(false)} onContact={() => { setShowTerms(false); setShowContact(true); }} />;
   }
 
-  const openProfileAction = (label) => window.__bsToast?.(`${label} opened`, 'ok');
   const renderRows = (rows) => (
     <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
       {rows.map((row, i, arr) => (
-        <button key={`${row.l}-${i}`} onClick={() => row.action && openProfileAction(row.action)} style={{
+        <button key={`${row.l}-${i}`} onClick={typeof row.onClick === 'function' ? row.onClick : undefined} disabled={busy} style={{
           borderRadius: 0,
           width: '100%',
           border: 0,
           borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
           background: 'transparent',
           color: t.INK,
-          cursor: row.action ? 'pointer' : 'default',
+          cursor: row.onClick ? 'pointer' : 'default',
           padding: `${t.rowY + 4}px 0`,
           display: 'grid',
           gridTemplateColumns: '1fr auto auto',
           alignItems: 'center',
           gap: 10,
           textAlign: 'left',
+          opacity: busy ? 0.6 : 1,
         }}>
           <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em' }}>{row.l}</span>
           <span style={{
@@ -4634,64 +4866,105 @@ function BSClientMe({ onProfile, onLogout }) {
     ['19:30', 'Log dinner - protein target 168g', 'Nutrition'],
     ['21:00', 'Mobility - 10 min', 'Recovery'],
   ];
+  // Row builders — each row's `r` is the live value (with a fallback) and
+  // `onClick` opens the edit sheet for that field. `action` is the right-side
+  // verb chip ("Edit" / "Change" / etc).
   const profileRows = [
-    { l: 'Email', r: authProfile.email || 'alex@rivera.co', action: 'Edit' },
-    { l: 'Phone', r: authProfile.phone || '+1 (415) 555-0144', action: 'Edit' },
-    { l: 'Location', r: authProfile.location || 'Brooklyn, NY', action: 'Edit' },
-    { l: 'Birthday', r: 'Oct 4, 1993', action: 'Edit' },
-    { l: 'Height / weight', r: '5 ft 6 in - 171 lb', action: 'Update' },
-  ];
+    { k: 'email', l: 'Email',
+      r: profileData.email || authProfile.email || 'Not set',
+      type: 'text', placeholder: 'you@example.com' },
+    { k: 'phone', l: 'Phone',
+      r: profileData.phone || authProfile.phone || 'Not set',
+      type: 'text', placeholder: '+1 (555) 555-0100' },
+    { k: 'location', l: 'Location',
+      r: profileData.location || authProfile.location || 'Not set',
+      type: 'text', placeholder: 'City, State' },
+    { k: 'birthday', l: 'Birthday',
+      r: profileData.birthday || 'Not set',
+      type: 'text', placeholder: 'Oct 4, 1993' },
+    { k: 'height_weight', l: 'Height / weight',
+      r: profileData.height_weight || 'Not set',
+      type: 'text', placeholder: '5 ft 6 in · 171 lb',
+      action: 'Update' },
+  ].map((r) => ({
+    l: r.l, r: r.r, action: r.action || 'Edit',
+    onClick: () => openEdit('profile', r.k, r.l, { type: r.type, placeholder: r.placeholder }),
+  }));
+
   const billingRows = [
-    { l: 'Shape Platform', r: '$5 / month', action: 'Manage' },
-    { l: 'Jordan - Strength + hybrid', r: '$220 / month', action: 'Manage' },
-    { l: 'Maya - Performance fuel', r: '$180 / month', action: 'Manage' },
-    { l: 'Total monthly', r: '$405' },
-    { l: 'Next charge', r: 'June 4, 2026' },
-    { l: 'Payment method', r: 'Visa 4290', action: 'Update' },
+    { l: 'Manage subscriptions', r: 'Stripe portal', action: 'Open', onClick: openBillingPortal },
+    { l: 'Update payment method', r: 'Stripe portal', action: 'Open', onClick: openBillingPortal },
+    { l: 'View invoices & receipts', r: 'Stripe portal', action: 'Open', onClick: openBillingPortal },
   ];
+
   const connectedRows = [
-    { l: 'Apple Health', r: 'Connected', action: 'Disconnect' },
-    { l: 'WHOOP', r: 'Connected', action: 'Disconnect' },
-    { l: 'Strava', r: 'Not connected', action: 'Connect' },
-    { l: 'MyFitnessPal', r: 'Not connected', action: 'Connect' },
-    { l: 'Garmin', r: 'Not connected', action: 'Connect' },
+    // All connect/disconnect flows live on BSIntegrationsPage (OAuth).
+    { l: 'Manage health integrations', r: 'Apple · WHOOP · Strava…', action: 'Open', onClick: onIntegrations },
   ];
+
   const nutritionRows = [
-    { l: 'Dietary style', r: 'Omnivore - high protein', action: 'Edit' },
-    { l: 'Allergies', r: 'Shellfish, tree nuts', action: 'Edit' },
-    { l: 'Dislikes', r: 'Cilantro, blue cheese', action: 'Edit' },
-    { l: 'Protein target', r: '168 g / day', action: 'Edit' },
-    { l: 'Calorie range', r: 'By feel', action: 'Change' },
-    { l: 'Meal cadence', r: '3 meals + 1 snack', action: 'Edit' },
-    { l: 'Kitchen', r: 'Full kitchen - 30 min', action: 'Edit' },
-    { l: 'Supplements', r: 'Creatine, D, omega-3', action: 'Edit' },
-    { l: 'Alcohol', r: 'Social - Fri / Sat', action: 'Edit' },
-    { l: 'Hydration target', r: '3.0 L / day', action: 'Edit' },
-  ];
+    { k: 'dietary_style', l: 'Dietary style', type: 'select',
+      options: ['Omnivore', 'Vegetarian', 'Vegan', 'Pescatarian', 'Keto', 'Paleo', 'Mediterranean'] },
+    { k: 'allergies', l: 'Allergies', type: 'text', placeholder: 'Shellfish, tree nuts…' },
+    { k: 'dislikes', l: 'Dislikes', type: 'text', placeholder: 'Cilantro, blue cheese…' },
+    { k: 'protein_target_g', l: 'Protein target (g/day)', type: 'number', placeholder: '168' },
+    { k: 'calorie_range', l: 'Calorie range', type: 'select',
+      options: ['By feel', 'Strict', 'Loose tracking', '1600–1800', '1800–2000', '2000–2200', '2200–2400', '2400+'] },
+    { k: 'meal_cadence', l: 'Meal cadence', type: 'text', placeholder: '3 meals + 1 snack' },
+    { k: 'kitchen', l: 'Kitchen', type: 'text', placeholder: 'Full kitchen · 30 min' },
+    { k: 'supplements', l: 'Supplements', type: 'text', placeholder: 'Creatine, D, omega-3' },
+    { k: 'alcohol', l: 'Alcohol', type: 'select', options: ['None', 'Rare', 'Social', 'Weekly', 'Daily'] },
+    { k: 'hydration_target_l', l: 'Hydration target (L/day)', type: 'number', placeholder: '3.0' },
+  ].map((r) => ({
+    l: r.l, r: nutritionPrefs[r.k] || 'Not set', action: 'Edit',
+    onClick: () => openEdit('nutrition', r.k, r.l, { type: r.type, placeholder: r.placeholder, options: r.options }),
+  }));
+
   const trainingRows = [
-    { l: 'Primary goal', r: 'Strength + hypertrophy', action: 'Edit' },
-    { l: 'Experience', r: 'Intermediate - 3 yrs', action: 'Edit' },
-    { l: 'Sessions / week', r: '4 - 60 to 75 min', action: 'Edit' },
-    { l: 'Equipment access', r: 'Full gym + home DBs', action: 'Edit' },
-    { l: 'Injuries & notes', r: 'Left shoulder', action: 'Edit' },
-    { l: 'Preferred times', r: 'Evenings - 6 to 8pm', action: 'Edit' },
-  ];
+    { k: 'primary_goal', l: 'Primary goal', type: 'select',
+      options: ['Strength', 'Hypertrophy', 'Strength + hypertrophy', 'Endurance', 'Fat loss', 'General health'] },
+    { k: 'experience', l: 'Experience', type: 'select',
+      options: ['Beginner', 'Novice', 'Intermediate', 'Advanced', 'Elite'] },
+    { k: 'sessions_per_week', l: 'Sessions / week', type: 'select',
+      options: ['2', '3', '4', '5', '6'] },
+    { k: 'equipment', l: 'Equipment access', type: 'select',
+      options: ['Full gym', 'Home gym', 'Bodyweight only', 'Limited (bands + DBs)', 'Full gym + home DBs'] },
+    { k: 'injuries', l: 'Injuries & notes', type: 'textarea', placeholder: 'Left shoulder, knee tracking…' },
+    { k: 'preferred_times', l: 'Preferred times', type: 'select',
+      options: ['Early morning', 'Mornings', 'Midday', 'Evenings', 'Late evenings', 'Variable'] },
+  ].map((r) => ({
+    l: r.l, r: trainingPrefs[r.k] || 'Not set', action: 'Edit',
+    onClick: () => openEdit('training', r.k, r.l, { type: r.type, placeholder: r.placeholder, options: r.options }),
+  }));
+
   const privacyRows = [
-    { l: 'Profile visibility', r: 'Community only', action: 'Change' },
-    { l: 'Share data with coaches', r: 'All metrics', action: 'Change' },
-    { l: 'Community posts', r: 'On', action: 'Toggle' },
-    { l: 'Coach messages', r: 'Push + email', action: 'Change' },
-    { l: 'Weekly digest', r: 'Sunday 8am', action: 'Change' },
-    { l: 'Marketing emails', r: 'Off', action: 'Toggle' },
-  ];
+    { k: 'profile_visibility', l: 'Profile visibility', type: 'select',
+      options: ['Public', 'Community only', 'Coaches only', 'Private'] },
+    { k: 'share_data_with_coaches', l: 'Share data with coaches', type: 'select',
+      options: ['All metrics', 'Workouts + nutrition', 'Workouts only', 'Nothing'] },
+    { k: 'community_posts', l: 'Community posts', type: 'toggle' },
+    { k: 'coach_messages', l: 'Coach messages', type: 'select',
+      options: ['Push + email', 'Push only', 'Email only', 'Muted'] },
+    { k: 'weekly_digest', l: 'Weekly digest', type: 'select',
+      options: ['Sunday 8am', 'Sunday 6pm', 'Monday 8am', 'Off'] },
+    { k: 'marketing_emails', l: 'Marketing emails', type: 'toggle' },
+  ].map((r) => ({
+    l: r.l, r: privacyPrefs[r.k] || 'Not set', action: r.type === 'toggle' ? 'Toggle' : 'Change',
+    onClick: () => openEdit('privacy', r.k, r.l, { type: r.type, options: r.options }),
+  }));
+
   const socialRows = [
-    { l: 'Instagram', r: '@alex.rivera', action: 'Edit' },
-    { l: 'TikTok', r: 'Not connected', action: 'Connect' },
-    { l: 'Strava', r: 'alex-r - public', action: 'Edit' },
-    { l: 'Website', r: 'Not added', action: 'Add' },
-    { l: 'YouTube', r: 'Not connected', action: 'Connect' },
-    { l: 'Twitter / X', r: '@alexr', action: 'Edit' },
-  ];
+    { k: 'instagram', l: 'Instagram', placeholder: '@handle' },
+    { k: 'tiktok', l: 'TikTok', placeholder: '@handle' },
+    { k: 'strava', l: 'Strava', placeholder: 'profile url or handle' },
+    { k: 'website', l: 'Website', placeholder: 'https://…' },
+    { k: 'youtube', l: 'YouTube', placeholder: '@channel' },
+    { k: 'twitter', l: 'Twitter / X', placeholder: '@handle' },
+  ].map((r) => ({
+    l: r.l, r: socialLinks[r.k] || 'Not added',
+    action: socialLinks[r.k] ? 'Edit' : 'Add',
+    onClick: () => openEdit('social', r.k, r.l, { type: 'text', placeholder: r.placeholder }),
+  }));
 
   return (
     <BSPage>
@@ -4758,9 +5031,9 @@ function BSClientMe({ onProfile, onLogout }) {
       <BSSection title="Bio" meta="500 chars" />
       <div style={{ padding: `14px ${t.padX}px 18px`, borderTop: `2px solid ${t.INK}`, borderBottom: `1px solid ${t.RULE}` }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK70, lineHeight: 1.45 }}>
-          Product designer by day, lifter by evening. Working with Jordan on strength and hypertrophy, and Maya on protein targets that do not feel like homework. Goals this year: a real 1.5x bodyweight squat, a credible 5K, and better fueling for long rides.
+          {profileData.bio || 'Product designer by day, lifter by evening. Working with Jordan on strength and hypertrophy, and Maya on protein targets that do not feel like homework. Goals this year: a real 1.5x bodyweight squat, a credible 5K, and better fueling for long rides.'}
         </div>
-        <button onClick={() => openProfileAction('Edit bio')} style={{ borderRadius: t.RADIUS_SM,
+        <button onClick={() => openEdit('profile', 'bio', 'Bio', { type: 'textarea', placeholder: 'Tell your team about you…' })} style={{ borderRadius: t.RADIUS_SM,
           marginTop: 12, padding: '9px 12px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
           fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
         }}>Edit bio</button>
@@ -4769,7 +5042,7 @@ function BSClientMe({ onProfile, onLogout }) {
       <BSSection title="Today" meta="Wk 6 / 12" />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
         {todayItems.map(([time, what, owner], i, arr) => (
-          <button key={time} onClick={() => openProfileAction('Today item')} style={{
+          <button key={time} onClick={() => window.__bsToast?.('Open the relevant tab to act on this item', 'ok')} style={{
             borderRadius: 0,
             width: '100%',
             border: 0,
@@ -4860,20 +5133,20 @@ function BSClientMe({ onProfile, onLogout }) {
       <BSSection title="Settings" />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
         {[
-          { l: 'Account & billing',       r: 'Pro' },
-          { l: 'Shape Store',             r: `${scoreProfile.available.toLocaleString()} pts`, action: () => setShowStore(true) },
-          { l: 'Notifications',           r: 'On' },
-          { l: 'Health integrations',     r: 'Apple · WHOOP' },
-          { l: 'Contact support',         r: '24h reply', action: () => setShowContact(true) },
-          { l: 'Terms of service',        r: 'Legal', action: () => setShowTerms(true) },
-          { l: 'Privacy & data',          r: '' },
-          { l: 'Sign out',                r: '', alert: true },
+          { l: 'Account & billing',       r: 'Stripe portal',        onClick: openBillingPortal },
+          { l: 'Shape Store',             r: `${scoreProfile.available.toLocaleString()} pts`, onClick: () => setShowStore(true) },
+          { l: 'Notifications',           r: 'Manage',               onClick: () => openEdit('privacy', 'coach_messages', 'Coach messages', { type: 'select', options: ['Push + email', 'Push only', 'Email only', 'Muted'] }) },
+          { l: 'Health integrations',     r: 'Apple · WHOOP · …',    onClick: onIntegrations },
+          { l: 'Contact support',         r: '24h reply',            onClick: () => setShowContact(true) },
+          { l: 'Terms of service',        r: 'Legal',                onClick: () => setShowTerms(true) },
+          { l: 'Privacy & data',          r: 'Manage',               onClick: () => openEdit('privacy', 'profile_visibility', 'Profile visibility', { type: 'select', options: ['Public', 'Community only', 'Coaches only', 'Private'] }) },
+          { l: 'Sign out',                r: '',                     alert: true, onClick: onLogout },
         ].map((s, i, arr) => (
-          <div key={i} onClick={s.alert ? onLogout : s.action} style={{
+          <div key={i} onClick={s.onClick} style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             padding: `${t.rowY + 4}px 0`,
             borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-            cursor: (s.alert || s.action) ? 'pointer' : 'default',
+            cursor: s.onClick ? 'pointer' : 'default',
           }}>
             <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em' }}>{s.l}</span>
             {s.r && <BSEyebrow>{s.r}</BSEyebrow>}
@@ -4883,12 +5156,13 @@ function BSClientMe({ onProfile, onLogout }) {
 
       <BSSection title="Account actions" meta="Danger zone" />
       {renderRows([
-        { l: 'Export all my data', r: 'Request file', action: 'Export' },
-        { l: 'Pause membership', r: 'Keep account', action: 'Pause' },
-        { l: 'Delete account', r: 'Permanent', action: 'Delete' },
+        { l: 'Export all my data', r: 'Request file', action: 'Export', onClick: () => requestAccountAction('Export') },
+        { l: 'Pause membership', r: 'Keep account', action: 'Pause', onClick: () => requestAccountAction('Pause') },
+        { l: 'Delete account', r: 'Permanent', action: 'Delete', onClick: () => requestAccountAction('Delete') },
       ])}
 
       <BSFooter right="Pg 5 of 5" />
+      <BSEditSheet field={editField} onSave={saveEdit} onClose={() => setEditField(null)} />
     </BSPage>
   );
 }
