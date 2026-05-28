@@ -19,6 +19,9 @@ type Snap = {
   protein_g: number | null;
   calories: number | null;
   recovery_score: number | null;
+  hrv_ms: number | null;
+  resting_hr: number | null;
+  weight_lb: number | null;
 };
 
 function isoDateUTC(d: Date) { return d.toISOString().slice(0, 10); }
@@ -38,7 +41,7 @@ export async function GET() {
   const [snapsRes, sessionsRes, ledgerRes] = await Promise.all([
     supabase
       .from('daily_health_snapshot')
-      .select('snapshot_date, sleep_hours, protein_g, calories, recovery_score')
+      .select('snapshot_date, sleep_hours, protein_g, calories, recovery_score, hrv_ms, resting_hr, weight_lb')
       .eq('user_id', user.id)
       .gte('snapshot_date', since14)
       .order('snapshot_date', { ascending: true }),
@@ -112,6 +115,36 @@ export async function GET() {
     return `${whole}h ${String(min).padStart(2, '0')}m`;
   };
 
+  // Most recent snapshot per metric (for the home masthead ticker).
+  const latestOf = (pick: (s: Snap) => number | null) => {
+    for (let i = snaps.length - 1; i >= 0; i--) {
+      const v = pick(snaps[i]);
+      if (v != null) return v;
+    }
+    return null;
+  };
+  const todaySnap = snaps[snaps.length - 1] || null;
+  const yest = snaps[snaps.length - 2] || null;
+  const calorieTarget = 2100; // TODO: derive from user_goals once that's wired
+  const tickerSnapshot = {
+    cal: todaySnap?.calories != null ? Math.round(Number(todaySnap.calories)) : null,
+    cal_target: calorieTarget,
+    protein_g: todaySnap?.protein_g != null ? Math.round(Number(todaySnap.protein_g)) : null,
+    sleep_hours: latestOf((s) => (s.sleep_hours != null ? Number(s.sleep_hours) : null)),
+    hrv_ms: latestOf((s) => (s.hrv_ms != null ? Number(s.hrv_ms) : null)),
+    resting_hr: latestOf((s) => (s.resting_hr != null ? Number(s.resting_hr) : null)),
+    weight_lb: latestOf((s) => (s.weight_lb != null ? Number(s.weight_lb) : null)),
+    weight_delta_7d: (() => {
+      const latest = latestOf((s) => (s.weight_lb != null ? Number(s.weight_lb) : null));
+      const wk = snaps.slice(-7).find((s) => s.weight_lb != null);
+      if (latest == null || !wk || wk.weight_lb == null) return null;
+      return Math.round((latest - Number(wk.weight_lb)) * 10) / 10;
+    })(),
+    sleep_delta_min: yest?.sleep_hours != null && todaySnap?.sleep_hours != null
+      ? Math.round((Number(todaySnap.sleep_hours) - Number(yest.sleep_hours)) * 60)
+      : null,
+  };
+
   return NextResponse.json({
     has_data: snaps.length > 0 || sessions.length > 0 || ledger.length > 0,
     kpis: {
@@ -127,5 +160,6 @@ export async function GET() {
     },
     workouts_this_week: workoutsThisWeek,
     protein_hits_this_week: proteinHits,
+    ticker: tickerSnapshot,
   });
 }
