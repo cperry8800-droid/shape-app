@@ -3070,20 +3070,32 @@ function BSClientEat({ onProfile }) {
         </div>
       </div>
 
-      {/* Macro headline — driven by cur.totals */}
-      <div style={{ borderRadius: t.RADIUS_SM, margin: `18px ${t.padX}px 0`, padding: `16px 14px`, border: `1px solid ${t.RULE}`, background: t.PAPER2, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
-        {[
-          { l: 'CAL',   v: cur.totals.cal, s: `/${cur.totals.target.cal}` },
-          { l: 'PRO',   v: cur.totals.p,   s: `/${cur.totals.target.p}g` },
-          { l: 'CARB',  v: cur.totals.c,   s: `/${cur.totals.target.c}g` },
-          { l: 'FAT',   v: cur.totals.f,   s: `/${cur.totals.target.f}g`  },
-        ].map((m, i) => (
-          <div key={m.l} style={{ borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0, paddingLeft: i > 0 ? 10 : 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase' }}>{m.l}</div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 28, color: t.INK, marginTop: 4, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{m.v}</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.08em' }}>{m.s}</div>
-          </div>
-        ))}
+      {/* RX RECEIPT — today's prescribed plan, with progress bars */}
+      <div style={{ margin: `22px ${t.padX}px 0`, padding: 18, background: t.PAPER2, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 4, position: 'relative' }}>
+        <div style={{ position: 'absolute', top: -10, right: 14, background: t.ACCENT, color: t.PAPER, padding: '3px 8px', borderRadius: 999, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', fontWeight: 800, textTransform: 'uppercase' }}>Rx · Wk 4</div>
+        <div style={{ textAlign: 'center', paddingBottom: 8, borderBottom: `1px dashed ${t.SURFACE_BORDER}` }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.28em', color: t.ACCENT, textTransform: 'uppercase', fontWeight: 700 }}>Today's plan · from Rae</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 17, color: t.INK, fontStyle: 'italic', marginTop: 4, letterSpacing: '-0.01em' }}>{cur.d} · {cur.totals.target.cal} kcal</div>
+        </div>
+        <div style={{ display: 'grid', gap: 5, padding: '10px 0 4px' }}>
+          {[
+            { l: 'Protein', v: parseInt(cur.totals.p, 10) || 0,    g: parseInt(cur.totals.target.p, 10) || 0,    c: t.ACCENT },
+            { l: 'Carbs',   v: parseInt(cur.totals.c, 10) || 0,    g: parseInt(cur.totals.target.c, 10) || 0,    c: t.AMBER || '#e8b14a' },
+            { l: 'Fat',     v: parseInt(cur.totals.f, 10) || 0,    g: parseInt(cur.totals.target.f, 10) || 0,    c: t.RUST || '#d2693f' },
+          ].map((m, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '50px 1fr 70px', gap: 8, alignItems: 'center' }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>{m.l}</div>
+              <div style={{ height: 4, background: t.SURFACE_BORDER, borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{ width: `${m.g ? Math.min(100, (m.v / m.g) * 100) : 0}%`, height: '100%', background: m.c }} />
+              </div>
+              <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK70, textAlign: 'right' }}>{m.v}<span style={{ color: t.INK50 }}>/{m.g}g</span></div>
+            </div>
+          ))}
+        </div>
+        <div style={{ borderTop: `2px solid ${t.SURFACE_BORDER}`, marginTop: 8, paddingTop: 8, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>
+          <span>Hydration 1.8/3 L</span>
+          <span style={{ color: t.ACCENT }}>On plan ●</span>
+        </div>
       </div>
 
       <BSSection title={day === 4 ? "Today's menu" : `${cur.d} menu`} meta={`${cur.meals.length} services · ${loggedCount} logged`} />
