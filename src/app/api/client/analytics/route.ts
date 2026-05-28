@@ -78,7 +78,7 @@ export async function GET() {
   }
   const workoutTrend = last7Dates.map(d => (workoutDays.has(d) ? 1 : 0.15));
   const workoutsThisWeek = last7Dates.reduce((a, d) => a + (workoutDays.has(d) ? 1 : 0), 0);
-  const workoutAdherencePct = Math.round((workoutsThisWeek / 5) * 100); // 5 target/wk
+  const workoutAdherencePct = Math.min(100, Math.round((workoutsThisWeek / 5) * 100)); // 5 target/wk, capped at 100
 
   // Nutrition trend: protein hit (>=120g) as proxy for macro adherence.
   const nutritionTrend = last7Dates.map(d => {

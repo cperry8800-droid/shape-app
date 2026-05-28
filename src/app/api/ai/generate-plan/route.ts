@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
 
@@ -237,6 +238,15 @@ async function generateWithOpenAI(body: GenerateBody): Promise<GeneratedDraft | 
 }
 
 export async function POST(request: Request) {
+  // Gate the OpenAI proxy behind an authenticated session — the plan
+  // generator is only reached from signed-in coach surfaces, and an open
+  // endpoint would let anyone burn the server's OpenAI key.
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  }
+
   let json: unknown = {};
   try {
     json = await request.json();

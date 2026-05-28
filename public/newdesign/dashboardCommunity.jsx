@@ -47,11 +47,12 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
       .then(d => {
         if (!alive || !d || !Array.isArray(d.posts) || !d.posts.length) return;
         const live = d.posts.map(p => ({
-          kind: p.activity_type === 'pr' ? 'pr'
-              : p.activity_type === 'run' ? 'run'
-              : p.activity_type === 'meal' ? 'meal'
-              : p.activity_type === 'workout' ? 'workout'
-              : 'post',
+          // Always render live posts with the text-only 'post' renderer. The
+          // stat renderers (pr/run/workout/meal) require fields the feed API
+          // doesn't return (load, distance, duration, coach, kcal…) and would
+          // throw on .toUpperCase()/.split() of undefined. The activity_type
+          // still drives the section tag below.
+          kind: 'post',
           who: p.author_name || 'Shape member',
           role: p.author_role ? p.author_role[0].toUpperCase() + p.author_role.slice(1) : 'Member',
           time: since(p.created_at),
@@ -272,7 +273,7 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
 
     const q = query.trim().toLowerCase();
     const filtered = channels.filter(c => {
-      if (q && !(c.name.includes(q) || c.lastMsg.toLowerCase().includes(q))) return false;
+      if (q && !(c.name.toLowerCase().includes(q) || c.lastMsg.toLowerCase().includes(q))) return false;
       if (chFilter === "joined" && !joinedMap[c.name]) return false;
       if (chFilter === "trending" && !c.trending) return false;
       return true;
