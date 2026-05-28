@@ -37,15 +37,18 @@ function NavDropdown({ label, items, active, activeMatch }) {
   const [open, setOpen] = React.useState(false);
   const closeTimer = React.useRef(null);
   const cancelClose = () => { if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; } };
-  const scheduleClose = () => { cancelClose(); closeTimer.current = setTimeout(() => setOpen(false), 220); };
+  const scheduleClose = () => { cancelClose(); closeTimer.current = setTimeout(() => setOpen(false), 500); };
   const isActive = activeMatch.includes(active);
   return (
     <div style={{ position: "relative", display: "inline-flex", alignItems: "center", height: "100%" }} onMouseEnter={() => { cancelClose(); setOpen(true); }} onMouseLeave={scheduleClose}>
-      <a style={{ fontSize: 12, letterSpacing: "0.04em", textTransform: "lowercase", color: isActive ? "#f5efe1" : "rgba(245,239,225,0.55)", fontFamily: sans, fontWeight: 300, cursor: "default", display: "inline-flex", alignItems: "center", gap: 5, lineHeight: 1 }}>
+      <a onClick={() => setOpen(o => !o)} style={{ fontSize: 12, letterSpacing: "0.04em", textTransform: "lowercase", color: isActive ? "#f5efe1" : "rgba(245,239,225,0.55)", fontFamily: sans, fontWeight: 300, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, lineHeight: 1 }}>
         {label}<span style={{ fontSize: 9, opacity: 0.5, lineHeight: 1 }}>▾</span>
       </a>
+      {/* Invisible hover bridge — fills the gap between trigger and panel so the
+          cursor never crosses dead space that could trigger mouseLeave. */}
+      {open && <div onMouseEnter={cancelClose} style={{ position: "absolute", top: "100%", left: 0, right: 0, height: 20 }} />}
       {open && (
-        <div onMouseEnter={cancelClose} onMouseLeave={scheduleClose} style={{ position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)", paddingTop: 10, minWidth: 220 }}>
+        <div onMouseEnter={cancelClose} onMouseLeave={scheduleClose} style={{ position: "absolute", top: "calc(100% + 4px)", left: "50%", transform: "translateX(-50%)", minWidth: 220 }}>
           <div style={{ background: "rgba(26,22,18,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: 10, boxShadow: "0 20px 50px rgba(0,0,0,0.5)" }}>
           {items.map(([n, href]) => (
             <a key={n} href={href} style={{ display: "block", padding: "10px 14px", fontSize: 13, color: "rgba(242,237,228,0.85)", fontFamily: sans, borderRadius: 4, whiteSpace: "nowrap" }}
