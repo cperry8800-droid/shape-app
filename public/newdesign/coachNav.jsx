@@ -1,36 +1,40 @@
 // Shared trainer dashboard sidebar config
 function trainerNavItems(active) {
+  // 'Clients' page now hosts Roster / Console / Analytics as sub-tabs.
+  // Console + Analytics no longer have their own top-level entries.
   const items = [
     { label: "Today",     href: "TrainerDashboard.html" },
     { label: "Clients",   href: "TrainerClients.html", count: 34 },
-    { label: "Console",   href: "TrainerLiveConsole.html" },
     { label: "Programs",  href: "TrainerPrograms.html" },
     { label: "Playlists", href: "TrainerPlaylists.html" },
     { label: "Community", href: "TrainerCommunity.html" },
-    { label: "Analytics", href: "TrainerAnalytics.html" },
     { label: "Goal",      href: "TrainerGoal.html" },
     { label: "Score",     href: "TrainerScore.html" },
     { label: "Profile",   href: "TrainerProfile.html" },
   ];
-  return items.map(n => ({ ...n, active: n.label.toLowerCase() === active.toLowerCase() }));
+  // Treat Console / Analytics as part of Clients for sidebar highlight.
+  const map = { console: 'Clients', analytics: 'Clients' };
+  const norm = map[active.toLowerCase()] || active;
+  return items.map(n => ({ ...n, active: n.label.toLowerCase() === norm.toLowerCase() }));
 }
 const trainerPayoutCard = { label: "PAYOUT APR 30", amount: "$18,420", sub: "Month to date · +22%" };
 
 // Shared nutritionist dashboard sidebar config
 function nutriNavItems(active) {
+  // 'Clients' page now hosts Roster / Console / Analytics as sub-tabs.
   const items = [
     { label: "Today",     href: "NutritionistDashboard.html" },
     { label: "Clients",   href: "NutritionistClients.html", count: 28 },
-    { label: "Console",   href: "NutritionistLiveConsole.html" },
     { label: "Plans",     href: "NutritionistPlans.html" },
     { label: "Playlists", href: "NutritionistPlaylists.html" },
     { label: "Community", href: "NutritionistCommunity.html" },
-    { label: "Analytics", href: "NutritionistAnalytics.html" },
     { label: "Goal",      href: "NutritionistGoal.html" },
     { label: "Score",     href: "NutritionistScore.html" },
     { label: "Profile",   href: "NutritionistProfile.html" },
   ];
-  return items.map(n => ({ ...n, active: n.label.toLowerCase() === active.toLowerCase() }));
+  const map = { console: 'Clients', analytics: 'Clients' };
+  const norm = map[active.toLowerCase()] || active;
+  return items.map(n => ({ ...n, active: n.label.toLowerCase() === norm.toLowerCase() }));
 }
 const nutriPayoutCard = { label: "PAYOUT APR 30", amount: "$11,240", sub: "Month to date · +14%" };
 
