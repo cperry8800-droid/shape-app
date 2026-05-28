@@ -443,6 +443,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   const [activeDayLogKey, setActiveDayLogKey] = useStateBSC(null);
   const [quickLoggedItems, setQuickLoggedItems] = useStateBSC({});
   const [coachFeed, setCoachFeed] = useStateBSC({ banners: [], items: [] });
+  const [ticker, setTicker] = useStateBSC(null);
 
   // Live focus banner + pushed items the coach sent. Initial pull, then a
   // Supabase Realtime subscription on coach_focus_banners / coach_pushed_items
@@ -465,6 +466,18 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
       cancelled = true;
       try { unsubscribe(); } catch {}
     };
+  }, []);
+
+  // Hydrate the masthead ticker from /api/client/analytics — latest snapshot
+  // (calories, protein, sleep, HRV, RHR, weight). Falls back to the demo
+  // values when the API returns nothing (signed-out / brand-new account).
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/client/analytics', { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && d && d.ticker) setTicker(d.ticker); })
+      .catch(() => {});
+    return () => { cancelled = true; };
   }, []);
 
   // Home-page lunch record (fed to BSMealPreview when user taps the slab).
@@ -653,14 +666,30 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         </span>
       </div>
 
-      <BSTicker items={[
-        { label: 'CAL',  value: '1568/2100', note: '-25% TGT' },
-        { label: 'PRO',  value: '118G',      note: 'ON PACE' },
-        { label: 'SLP',  value: '7H24M',     note: '+28M VS AVG', color: '#a3e09a' },
-        { label: 'HRV',  value: '62MS',      note: 'GOOD',         color: '#a3e09a' },
-        { label: 'RHR',  value: '54BPM',     note: 'ELEV +2',      color: '#ffc56a' },
-        { label: 'WGT',  value: '178.2LB',   note: '-0.4 7D' },
-      ]} />
+      <BSTicker items={(() => {
+        const tk = ticker || {};
+        const fmtSleep = (h) => {
+          if (h == null) return null;
+          const whole = Math.floor(h);
+          const min = Math.round((h - whole) * 60);
+          return `${whole}H${String(min).padStart(2, '0')}M`;
+        };
+        const fmtDelta = (n, suffix) => {
+          if (n == null) return '';
+          const sign = n > 0 ? '+' : n < 0 ? '-' : '';
+          return `${sign}${Math.abs(n)}${suffix}`;
+        };
+        const pct = tk.cal != null && tk.cal_target ? Math.round((tk.cal / tk.cal_target - 1) * 100) : null;
+        const proColor = tk.protein_g != null && tk.protein_g >= 120 ? '#a3e09a' : undefined;
+        return [
+          { label: 'CAL',  value: tk.cal != null ? `${tk.cal}/${tk.cal_target}` : '1568/2100', note: pct != null ? `${pct >= 0 ? '+' : ''}${pct}% TGT` : '-25% TGT' },
+          { label: 'PRO',  value: tk.protein_g != null ? `${tk.protein_g}G` : '118G', note: tk.protein_g != null && tk.protein_g >= 120 ? 'ON PACE' : 'BUILD UP', color: proColor },
+          { label: 'SLP',  value: fmtSleep(tk.sleep_hours) || '7H24M', note: fmtDelta(tk.sleep_delta_min, 'M VS YEST') || '+28M VS AVG', color: '#a3e09a' },
+          { label: 'HRV',  value: tk.hrv_ms != null ? `${Math.round(tk.hrv_ms)}MS` : '62MS', note: tk.hrv_ms != null && tk.hrv_ms >= 50 ? 'GOOD' : 'LOW', color: tk.hrv_ms != null && tk.hrv_ms >= 50 ? '#a3e09a' : '#ffc56a' },
+          { label: 'RHR',  value: tk.resting_hr != null ? `${Math.round(tk.resting_hr)}BPM` : '54BPM', note: tk.resting_hr != null && tk.resting_hr > 60 ? 'ELEV' : 'STEADY', color: tk.resting_hr != null && tk.resting_hr > 60 ? '#ffc56a' : undefined },
+          { label: 'WGT',  value: tk.weight_lb != null ? `${tk.weight_lb.toFixed(1)}LB` : '178.2LB', note: tk.weight_delta_7d != null ? fmtDelta(tk.weight_delta_7d, ' 7D') : '-0.4 7D' },
+        ];
+      })()} />
 
       {/* From your coach — live focus banner + pushed items pulled from the */}
       {/* coach_focus_banners + coach_pushed_items tables (RLS-scoped to me). */}

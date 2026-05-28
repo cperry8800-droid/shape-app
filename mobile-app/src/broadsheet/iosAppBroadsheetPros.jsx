@@ -601,6 +601,18 @@ function _BSTrainerApp_old({ onLogout }) {
 function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, onWidgetOpen = () => {}, onOpenHabits = () => {}, onOpenScore = () => {}, tweaks = {}, setTweak = () => {} }) {
   const t = useBS();
   const [selDay, setSelDay] = useStateBSP(14);
+  const [ticker, setTicker] = useStateBSP(null);
+
+  // Live ticker — pulled from /api/trainer/analytics so the masthead matches
+  // the coach's actual roster, programs, and today's bookings.
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/trainer/analytics', { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && d && d.isTrainer && d.ticker) setTicker(d.ticker); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   // Per-day bookings dataset. May 14 (today) is the full roster; other days lighter.
   const TRAINER_BOOKINGS = {
@@ -679,13 +691,16 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         </span>
       </div>
 
-      <BSTicker items={[
-        { label: 'BOOKED',  value: '8 SESN',  note: '6 LIVE · 2 ASYNC' },
-        { label: 'REVENUE', value: '$1.2K',   note: 'TODAY' },
-        { label: 'AVG RPE', value: '7.4',     color: '#a3e09a' },
-        { label: 'PRGRM',   value: '12',      note: '4 EDITED THIS WEEK' },
-        { label: 'CLIENTS', value: '14',      note: '+2 NEW' },
-      ]} />
+      <BSTicker items={(() => {
+        const tk = ticker || {};
+        return [
+          { label: 'BOOKED',  value: tk.bookedToday != null ? `${tk.bookedToday} SESN` : '8 SESN', note: 'TODAY' },
+          { label: 'CLIENTS', value: tk.activeClients != null ? String(tk.activeClients) : '14', note: 'ACTIVE' },
+          { label: 'ADHR',    value: tk.avgAdherencePct != null ? `${tk.avgAdherencePct}%` : '78%', color: '#a3e09a' },
+          { label: 'PRGRM',   value: tk.programsCount != null ? String(tk.programsCount) : '12',  note: 'PUBLISHED' },
+          { label: '7D LOG',  value: tk.workouts7d != null ? `${tk.workouts7d} WO` : '32 WO', note: 'ROSTER' },
+        ];
+      })()} />
 
       <div style={{
         padding: `10px ${t.padX}px 12px`,
@@ -1585,6 +1600,19 @@ function _BSNutritionistApp_old({ onLogout }) {
 function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, onWidgetOpen = () => {}, onOpenHabits = () => {}, onOpenScore = () => {}, tweaks = {}, setTweak = () => {} }) {
   const t = useBS();
   const [selDay, setSelDay] = useStateBSP(14);
+  const [ticker, setTicker] = useStateBSP(null);
+
+  // Live ticker — pulled from /api/nutritionist/analytics so the masthead
+  // reflects today's consults, active roster, protein adherence, and new
+  // clients this week.
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/nutritionist/analytics', { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && d && d.isNutritionist && d.ticker) setTicker(d.ticker); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   // Per-day schedule for the nutritionist. May 14 (today) is the full
   // roster; other days are lighter so the strip actually changes content
@@ -1664,12 +1692,16 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
         </span>
       </div>
 
-      <BSTicker items={[
-        { label: 'CONSLT', value: '5 BOOKED', note: '2 INTAKE' },
-        { label: 'PLANS',  value: '22 ACTV',  note: '6 EDITED 7D' },
-        { label: 'AVG ADHR', value: '78%',    color: '#a3e09a' },
-        { label: 'NEW',    value: '+3 7D',    color: '#7ed4ff' },
-      ]} />
+      <BSTicker items={(() => {
+        const tk = ticker || {};
+        return [
+          { label: 'CONSLT', value: tk.consultsToday != null ? `${tk.consultsToday} TODAY` : '5 TODAY', note: tk.upcomingSessions != null ? `${tk.upcomingSessions} UPCOMING` : '12 UPCOMING' },
+          { label: 'CLIENTS', value: tk.activeClients != null ? String(tk.activeClients) : '22', note: 'ACTIVE' },
+          { label: 'ADHR',   value: tk.proteinAdherencePct != null ? `${tk.proteinAdherencePct}%` : '78%', color: '#a3e09a', note: 'PROTEIN' },
+          { label: 'NEW',    value: tk.newClients7d != null ? `+${tk.newClients7d} 7D` : '+3 7D',    color: '#7ed4ff' },
+          { label: 'LOGS',   value: tk.avgLogsPerClient != null ? `${tk.avgLogsPerClient} AVG` : '22 AVG', note: 'PER CLIENT' },
+        ];
+      })()} />
 
       <div style={{
         padding: `10px ${t.padX}px 12px`,

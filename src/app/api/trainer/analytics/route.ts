@@ -97,8 +97,11 @@ export async function GET() {
   const sessions = sessRows ?? [];
 
   const now = Date.now();
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(todayStart.getTime() + 86400000);
   let completedSessions = 0;
   let upcomingSessions = 0;
+  let bookedToday = 0;
   for (const s of sessions) {
     if (s.status === 'completed') {
       completedSessions += 1;
@@ -108,7 +111,17 @@ export async function GET() {
     ) {
       upcomingSessions += 1;
     }
+    const sched = new Date(s.scheduled_at).getTime();
+    if (sched >= todayStart.getTime() && sched < todayEnd.getTime() && s.status !== 'cancelled') {
+      bookedToday += 1;
+    }
   }
+
+  // Count of programs this trainer has published, for the home masthead ticker.
+  const { count: programsCount } = await supabase
+    .from('client_workouts')
+    .select('id', { count: 'exact', head: true })
+    .eq('trainer_id', providerId);
 
   // -------- Client-progress rollups (roster-wide) ---------------------------
   const since30Iso = new Date(Date.now() - 30 * 86400000).toISOString();
@@ -240,6 +253,14 @@ export async function GET() {
         .slice()
         .sort((a, b) => b.workouts30d - a.workouts30d)
         .slice(0, 12),
+    },
+    ticker: {
+      bookedToday,
+      upcomingSessions,
+      activeClients: subs.length,
+      programsCount: programsCount ?? 0,
+      workouts7d: totalWorkouts7d,
+      avgAdherencePct,
     },
     stripe: stripeSummary,
   });

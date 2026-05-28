@@ -97,8 +97,11 @@ export async function GET() {
   const sessions = sessRows ?? [];
 
   const now = Date.now();
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(todayStart.getTime() + 86400000);
   let completedSessions = 0;
   let upcomingSessions = 0;
+  let bookedToday = 0;
   for (const s of sessions) {
     if (s.status === 'completed') {
       completedSessions += 1;
@@ -108,7 +111,20 @@ export async function GET() {
     ) {
       upcomingSessions += 1;
     }
+    const sched = new Date(s.scheduled_at).getTime();
+    if (sched >= todayStart.getTime() && sched < todayEnd.getTime() && s.status !== 'cancelled') {
+      bookedToday += 1;
+    }
   }
+
+  // New clients in the last 7 days (any subscription created since).
+  const since7 = new Date(Date.now() - 7 * 86400000).toISOString();
+  const { count: newClients7d } = await supabase
+    .from('subscriptions')
+    .select('id', { count: 'exact', head: true })
+    .eq('provider_role', 'nutritionist')
+    .eq('provider_id', providerId)
+    .gte('created_at', since7);
 
   // -------- Client-progress rollups for nutritionist roster -----------------
   const since30Date = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
@@ -205,6 +221,14 @@ export async function GET() {
         .slice()
         .sort((a, b) => b.daysLogged30d - a.daysLogged30d)
         .slice(0, 12),
+    },
+    ticker: {
+      consultsToday: bookedToday,
+      upcomingSessions,
+      activeClients: subs.length,
+      proteinAdherencePct,
+      newClients7d: newClients7d ?? 0,
+      avgLogsPerClient,
     },
     stripe: stripeSummary,
   });
