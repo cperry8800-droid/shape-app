@@ -1,0 +1,158 @@
+// Live habits store for the signed-in client.
+//
+// GET: returns the user's habits with their completion history (last 90 days)
+// POST: { action: 'create', name, type?, cadence?, visibility? } → creates a habit
+//       { action: 'update', id, name?, type?, cadence?, visibility? } → updates fields
+//       { action: 'toggle', id, date } → toggles completion on a given date
+//       { action: 'delete', id } → deletes (cascades completions)
+
+import { NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+
+export const dynamic = 'force-dynamic';
+
+type CompletionRow = { habit_id: string; done_on: string };
+
+export async function GET() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+
+  const { data: habits, error: habitsErr } = await supabase
+    .from('user_habits')
+    .select('id, name, type, cadence, visibility, sort_order, created_at, updated_at')
+    .eq('user_id', user.id)
+    .is('archived_at', null)
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true });
+
+  if (habitsErr) return NextResponse.json({ error: habitsErr.message }, { status: 500 });
+
+  // Pull last 90 days of completions in one shot so streaks are stable.
+  const since = new Date();
+  since.setUTCHours(0, 0, 0, 0);
+  since.setUTCDate(since.getUTCDate() - 90);
+  const sinceISO = since.toISOString().slice(0, 10);
+
+  const { data: completions, error: compErr } = await supabase
+    .from('user_habit_completions')
+    .select('habit_id, done_on')
+    .eq('user_id', user.id)
+    .gte('done_on', sinceISO);
+
+  if (compErr) return NextResponse.json({ error: compErr.message }, { status: 500 });
+
+  const byHabit = new Map<string, string[]>();
+  for (const c of (completions || []) as CompletionRow[]) {
+    const list = byHabit.get(c.habit_id) || [];
+    list.push(c.done_on);
+    byHabit.set(c.habit_id, list);
+  }
+
+  const out = (habits || []).map((h) => ({
+    ...h,
+    history: (byHabit.get(h.id) || []).sort(),
+  }));
+
+  return NextResponse.json({ habits: out });
+}
+
+export async function POST(req: Request) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+
+  const body = await req.json().catch(() => ({}));
+  const action = String((body as { action?: unknown }).action || '').toLowerCase();
+
+  if (action === 'create') {
+    const name = String((body as { name?: unknown }).name || '').trim();
+    if (!name) return NextResponse.json({ error: 'Name required.' }, { status: 400 });
+    const type = (body as { type?: string }).type === 'avoid' ? 'avoid' : 'do';
+    const cadence = String((body as { cadence?: unknown }).cadence || 'daily');
+    const visibility = ['private', 'friends', 'public'].includes(String((body as { visibility?: unknown }).visibility || ''))
+      ? String((body as { visibility?: unknown }).visibility)
+      : 'private';
+    const { data, error } = await supabase
+      .from('user_habits')
+      .insert({ user_id: user.id, name, type, cadence, visibility })
+      .select('id, name, type, cadence, visibility, sort_order, created_at, updated_at')
+      .single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ habit: { ...data, history: [] } });
+  }
+
+  if (action === 'update') {
+    const id = String((body as { id?: unknown }).id || '');
+    if (!id) return NextResponse.json({ error: 'id required.' }, { status: 400 });
+    const patch: Record<string, unknown> = {};
+    const b = body as Record<string, unknown>;
+    if (typeof b.name === 'string') patch.name = b.name.trim();
+    if (b.type === 'do' || b.type === 'avoid') patch.type = b.type;
+    if (typeof b.cadence === 'string') patch.cadence = b.cadence;
+    if (b.visibility === 'private' || b.visibility === 'friends' || b.visibility === 'public') patch.visibility = b.visibility;
+    if (typeof b.sort_order === 'number') patch.sort_order = b.sort_order;
+    const { data, error } = await supabase
+      .from('user_habits')
+      .update(patch)
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .select('id, name, type, cadence, visibility, sort_order, created_at, updated_at')
+      .single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ habit: data });
+  }
+
+  if (action === 'toggle') {
+    const id = String((body as { id?: unknown }).id || '');
+    const date = String((body as { date?: unknown }).date || '');
+    if (!id || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return NextResponse.json({ error: 'id and YYYY-MM-DD date required.' }, { status: 400 });
+    }
+    // Confirm the habit belongs to the user (RLS would block anyway, but
+    // returning a clean 404 is friendlier than relying on the RLS error).
+    const { data: owned, error: ownErr } = await supabase
+      .from('user_habits')
+      .select('id')
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (ownErr) return NextResponse.json({ error: ownErr.message }, { status: 500 });
+    if (!owned) return NextResponse.json({ error: 'Habit not found.' }, { status: 404 });
+
+    const { data: existing } = await supabase
+      .from('user_habit_completions')
+      .select('id')
+      .eq('habit_id', id)
+      .eq('done_on', date)
+      .maybeSingle();
+
+    if (existing) {
+      const { error } = await supabase
+        .from('user_habit_completions')
+        .delete()
+        .eq('id', existing.id);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ done: false });
+    }
+    const { error } = await supabase
+      .from('user_habit_completions')
+      .insert({ habit_id: id, user_id: user.id, done_on: date });
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ done: true });
+  }
+
+  if (action === 'delete') {
+    const id = String((body as { id?: unknown }).id || '');
+    if (!id) return NextResponse.json({ error: 'id required.' }, { status: 400 });
+    const { error } = await supabase
+      .from('user_habits')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  }
+
+  return NextResponse.json({ error: 'Unknown action.' }, { status: 400 });
+}

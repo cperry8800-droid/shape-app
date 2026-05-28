@@ -60,11 +60,61 @@ function HabitRow({ h, onToggle, onRemove }) {
 function ClientHabitsPage() {
   const [habits, setHabits] = React.useState(() => loadHabitToday(SEED_HABITS));
   const [visibility, setVisibility] = React.useState("friends");
+  const [synced, setSynced] = React.useState(false);
 
   // Persist today's checked state per-day (shared with the dashboard widget).
   React.useEffect(() => { saveHabitToday(habits); }, [habits]);
 
-  const toggleToday = (id) => setHabits(hs => hs.map(h => h.id === id ? { ...h, today: !h.today } : h));
+  // On mount, try to hydrate from the signed-in user's server-side habits.
+  // If the user isn't signed in (or the API returns nothing), we silently
+  // fall back to localStorage behavior.
+  React.useEffect(() => {
+    let alive = true;
+    fetch('/api/client/habits', { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (!alive || !d || !Array.isArray(d.habits)) return;
+        const today = new Date().toISOString().slice(0, 10);
+        const mapped = d.habits.map(h => {
+          const hist = Array.isArray(h.history) ? h.history : [];
+          // Build a 6-cell history strip ending yesterday.
+          const strip = [];
+          for (let i = 6; i >= 1; i--) {
+            const d = new Date(); d.setUTCHours(0,0,0,0); d.setUTCDate(d.getUTCDate() - i);
+            strip.push(hist.includes(d.toISOString().slice(0,10)));
+          }
+          return {
+            id: h.id,
+            type: h.type === 'avoid' ? 'dont' : 'do',
+            label: h.name,
+            sub: h.type === 'avoid' ? "Tap when you've avoided it today" : 'Keep the streak alive',
+            points: 3,
+            visibility: h.visibility || 'private',
+            history: strip,
+            today: hist.includes(today),
+            _server: true,
+          };
+        });
+        setHabits(mapped);
+        setSynced(true);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const apiPost = (body) => fetch('/api/client/habits', {
+    method: 'POST', credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }).then(r => (r.ok ? r.json() : null)).catch(() => null);
+
+  const toggleToday = (id) => {
+    setHabits(hs => hs.map(h => h.id === id ? { ...h, today: !h.today } : h));
+    if (synced) {
+      const today = new Date().toISOString().slice(0, 10);
+      apiPost({ action: 'toggle', id, date: today });
+    }
+  };
 
   const addHabit = (type) => {
     const promptLabel = type === "dont"
@@ -72,19 +122,28 @@ function ClientHabitsPage() {
       : "New habit to do (e.g. “Meditate 10 min”)";
     const label = window.prompt(promptLabel);
     if (!label || !label.trim()) return;
-    const id = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 32) + "-" + Math.random().toString(36).slice(2, 6);
-    setHabits(hs => [...hs, {
-      id, type, label: label.trim(),
+    const localId = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 32) + "-" + Math.random().toString(36).slice(2, 6);
+    const draft = {
+      id: localId, type, label: label.trim(),
       sub: type === "dont" ? "Tap when you've avoided it today" : "Just added — start your streak today",
       points: 3,
       visibility,
       history: [false, false, false, false, false, false], today: false,
-    }]);
+    };
+    setHabits(hs => [...hs, draft]);
+    if (synced) {
+      apiPost({ action: 'create', name: label.trim(), type: type === 'dont' ? 'avoid' : 'do', visibility })
+        .then(d => {
+          if (!d || !d.habit) return;
+          setHabits(hs => hs.map(h => h.id === localId ? { ...h, id: d.habit.id, _server: true } : h));
+        });
+    }
   };
 
   const removeHabit = (id) => {
     if (!window.confirm("Remove this habit? History will be discarded.")) return;
     setHabits(hs => hs.filter(h => h.id !== id));
+    if (synced) apiPost({ action: 'delete', id });
   };
 
   const dos = habits.filter(h => h.type === "do");
