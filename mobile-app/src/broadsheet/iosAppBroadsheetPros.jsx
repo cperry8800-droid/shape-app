@@ -1262,7 +1262,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
       )}
 
       {planTab !== 'playlists' && (
-      <div style={{ margin: `16px ${t.padX}px 0`, padding: 14, border: `1px solid ${t.RULE}`, borderRadius: 14, background: 'rgba(255,255,255,0.42)', boxShadow: '0 8px 18px rgba(10,13,12,0.035)' }}>
+      <div style={{ margin: `16px ${t.padX}px 0`, padding: 14, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 14, background: t.PAPER2, boxShadow: t.ELEVATION_SOFT }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 800 }}>
           Storefront setup
         </div>
@@ -1841,8 +1841,33 @@ function BSNutriClients() {
   );
 }
 
+function BSProPlansTabBar({ active, onChange }) {
+  const t = useBS();
+  const tabs = [
+    { k: 'meal',    l: 'Meal plans' },
+    { k: 'tmpl',    l: 'Templates' },
+    { k: 'onetime', l: 'One-time' },
+  ];
+  return (
+    <div style={{ display: 'flex', gap: 0, borderBottom: `2px solid ${t.INK}`, background: t.PAPER }}>
+      {tabs.map(tb => {
+        const on = active === tb.k;
+        return (
+          <button key={tb.k} onClick={() => onChange(tb.k)} style={{
+            flex: 1, padding: '12px 0', border: 0, cursor: 'pointer',
+            background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK70,
+            fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase',
+            borderRight: tb.k !== 'onetime' ? `1px solid ${t.RULE}` : 'none',
+          }}>{tb.l}</button>
+        );
+      })}
+    </div>
+  );
+}
+
 function BSNutriPlans() {
   const t = useBS();
+  const [subtab, setSubtab] = useStateBSP('meal');
   const mealPlans = [
     { n: 'Cut - 1700-1900 kcal',   v: 'Meal plan subscription', meta: '8 active clients', c: t.RUST, price: '$119/mo' },
     { n: 'Build - 2200-2600 kcal', v: 'Meal plan subscription', meta: '6 active clients', c: t.AMBER, price: '$129/mo' },
@@ -1869,10 +1894,10 @@ function BSNutriPlans() {
     <div style={{
       marginBottom: i === arr.length - 1 ? 0 : 10,
       padding: '13px 12px',
-      border: `1px solid ${t.RULE}`,
+      border: `1px solid ${t.SURFACE_BORDER}`,
       borderRadius: 12,
-      background: 'rgba(255,255,255,0.42)',
-      boxShadow: '0 8px 18px rgba(10,13,12,0.035)',
+      background: t.PAPER2,
+      boxShadow: t.ELEVATION_SOFT,
       display: 'grid', gridTemplateColumns: '12px 1fr auto', gap: 12, alignItems: 'center',
     }}>
       <div style={{ width: 9, height: 9, borderRadius: 99, background: item.c, boxShadow: `0 0 0 4px ${item.c}22` }} />
@@ -1883,7 +1908,7 @@ function BSNutriPlans() {
         </div>
         <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{item.v} - {item.meta}</div>
       </div>
-      <span style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, padding: '6px 8px', background: t.PAPER, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 900 }}>
+      <span style={{ borderRadius: 999, border: `1px solid ${t.SURFACE_BORDER}`, padding: '6px 8px', background: t.PAPER, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 900 }}>
         {action}
       </span>
     </div>
@@ -1891,21 +1916,26 @@ function BSNutriPlans() {
   return (
     <BSPage>
       <BSPageHeader kicker="Section · Plans" title={<>Meals<br/>& templates.</>} />
+      <BSProPlansTabBar active={subtab} onChange={setSubtab} />
       <BSPlanGeneratorCard role="nutritionist" kind="meal_plan" />
-      <BSSection title="Meal plans" meta="Recurring subscriptions" />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        {mealPlans.map((p, i, arr) => <ProductRow key={p.n} item={p} i={i} arr={arr} action="EDIT" />)}
-      </div>
-
-      <BSSection title="Templates" meta="Reusable meal frameworks" />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        {templates.map((p, i, arr) => <ProductRow key={p.n} item={p} i={i} arr={arr} action="EDIT" />)}
-      </div>
-
-      <BSSection title="One-time purchases" meta="Not meal plans - not subscriptions" />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        {oneTime.map((p, i, arr) => <ProductRow key={p.n} item={p} i={i} arr={arr} action="SELL" />)}
-      </div>
+      {subtab === 'meal' && (<>
+        <BSSection title="Meal plans" meta="Recurring subscriptions" />
+        <div style={{ padding: `0 ${t.padX}px` }}>
+          {mealPlans.map((p, i, arr) => <ProductRow key={p.n} item={p} i={i} arr={arr} action="EDIT" />)}
+        </div>
+      </>)}
+      {subtab === 'tmpl' && (<>
+        <BSSection title="Templates" meta="Reusable meal frameworks" />
+        <div style={{ padding: `0 ${t.padX}px` }}>
+          {templates.map((p, i, arr) => <ProductRow key={p.n} item={p} i={i} arr={arr} action="EDIT" />)}
+        </div>
+      </>)}
+      {subtab === 'onetime' && (<>
+        <BSSection title="One-time purchases" meta="Not meal plans - not subscriptions" />
+        <div style={{ padding: `0 ${t.padX}px` }}>
+          {oneTime.map((p, i, arr) => <ProductRow key={p.n} item={p} i={i} arr={arr} action="SELL" />)}
+        </div>
+      </>)}
 
       <BSCoachPlaylistStudio
         role="nutritionist"
@@ -1915,7 +1945,7 @@ function BSNutriPlans() {
         copy="Create custom playlists, attach them to meal plans, templates, or one-time nutrition assets, and send playable Spotify or Apple Music links to clients."
       />
 
-      <div style={{ margin: `16px ${t.padX}px 0`, padding: 14, border: `1px solid ${t.RULE}`, borderRadius: 14, background: 'rgba(255,255,255,0.42)', boxShadow: '0 8px 18px rgba(10,13,12,0.035)' }}>
+      <div style={{ margin: `16px ${t.padX}px 0`, padding: 14, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 14, background: t.PAPER2, boxShadow: t.ELEVATION_SOFT }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 800 }}>
           Storefront setup
         </div>
