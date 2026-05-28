@@ -1096,7 +1096,11 @@ function BSPlanGeneratorCard({ role = 'trainer', kind = 'workout' }) {
     }
   };
 
-  const label = isNutri ? 'Meal-plan generator' : kind === 'program' ? 'Program generator' : 'Workout generator';
+  const label = kind === 'meal_plan'  ? 'Meal-plan generator'
+              : kind === 'meal_tmpl'  ? 'Template generator'
+              : kind === 'meal_one'   ? 'One-time asset generator'
+              : kind === 'program'    ? 'Program generator'
+              :                         'Workout generator';
   return (
     <div style={{ margin: `0 ${t.padX}px 16px`, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 16, background: t.SURFACE, boxShadow: '0 8px 18px rgba(0,0,0,0.28)', overflow: 'hidden' }}>
       <div style={{ padding: 14, borderBottom: `1px solid ${t.HAIR}` }}>
