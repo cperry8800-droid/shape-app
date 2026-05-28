@@ -451,7 +451,7 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
         <span>{isCreate ? 'Time to Shape' : '$5 / mo'}</span>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 18, transform: 'translateY(-56px)' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 18 }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
           <BSLogo size={40} color={t.INK} />
           <div style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 500, fontSize: 50, lineHeight: 0.88, letterSpacing: '-0.055em', color: t.INK, textAlign: 'center' }}>
