@@ -4338,7 +4338,7 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
         // its width to the phone column in browser preview mode.
         position: 'fixed',
         left: 0, right: 0,
-        bottom: 'calc(96px + env(safe-area-inset-bottom, 0px))',
+        bottom: 'calc(112px + env(safe-area-inset-bottom, 0px))',
         zIndex: 65,
         marginBottom: 0,
       }),

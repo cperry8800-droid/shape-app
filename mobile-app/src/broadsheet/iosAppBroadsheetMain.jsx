@@ -468,8 +468,8 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
           {[['signin','Sign in'],['create','Join Shape']].map(([k, l]) => {
             const on = mode === k;
             return <button key={k} onClick={() => setMode(k)} style={{ borderRadius: t.RADIUS_SM,
-              padding: '11px 4px', border: 0, background: on ? t.INK : 'transparent',
-              color: on ? t.PAPER : t.INK, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 700,
+              padding: '11px 4px', border: 0, background: on ? '#0ac5a8' : 'transparent',
+              color: on ? '#031f1c' : t.INK, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 700,
               letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
             }}>{l}</button>;
           })}
