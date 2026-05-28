@@ -20,6 +20,42 @@
 <script type="text/babel" src="clientNav.jsx"></script>
 <script type="text/babel">
 function ClientAnalyticsPage() {
+  const STATIC_KPIS = [
+    { k: "86%", l: "Workout adherence" },
+    { k: "91%", l: "Macro adherence" },
+    { k: "7h 18m", l: "Avg sleep" },
+    { k: "+14", l: "Weekly points" },
+  ];
+  const STATIC_PULSE = [
+    { who: "Workout consistency", sub: "4/5 this week", trend: [0.4,0.52,0.48,0.6,0.66,0.72,0.78] },
+    { who: "Nutrition compliance", sub: "On target 6/7 days", trend: [0.5,0.56,0.6,0.58,0.65,0.7,0.74] },
+    { who: "Sleep + recovery", sub: "Improving", trend: [0.3,0.35,0.42,0.45,0.5,0.56,0.62] },
+  ];
+  const [kpis, setKpis] = React.useState(STATIC_KPIS);
+  const [pulse, setPulse] = React.useState(STATIC_PULSE);
+
+  React.useEffect(() => {
+    let alive = true;
+    fetch('/api/client/analytics', { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (!alive || !d || !d.has_data) return;
+        setKpis([
+          { k: `${d.kpis.workout_adherence_pct}%`, l: "Workout adherence" },
+          { k: `${d.kpis.macro_adherence_pct}%`,   l: "Macro adherence" },
+          { k: d.kpis.avg_sleep_label,             l: "Avg sleep" },
+          { k: `${d.kpis.weekly_points >= 0 ? '+' : ''}${d.kpis.weekly_points}`, l: "Weekly points" },
+        ]);
+        setPulse([
+          { who: "Workout consistency",  sub: `${d.workouts_this_week}/5 this week`,        trend: d.pulse.workout },
+          { who: "Nutrition compliance", sub: `Protein hit ${d.protein_hits_this_week}/7 days`, trend: d.pulse.nutrition },
+          { who: "Sleep + recovery",     sub: d.kpis.avg_sleep_label === '—' ? "No data yet" : `Avg ${d.kpis.avg_sleep_label}`, trend: d.pulse.sleep },
+        ]);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
   return (
     <DashShell
       role="client"
@@ -30,12 +66,7 @@ function ClientAnalyticsPage() {
       secondaryCta={["Open nutri", "ClientNutri.html"]}
       navItems={clientNavItems("analytics")}
       payoutCard={clientPayoutCard}
-      kpis={[
-        { k: "86%", l: "Workout adherence" },
-        { k: "91%", l: "Macro adherence" },
-        { k: "7h 18m", l: "Avg sleep" },
-        { k: "+14", l: "Weekly points" },
-      ]}
+      kpis={kpis}
       scheduleTitle="Today’s focus"
       schedule={[
         { time: "TRAIN", who: "Upper pull", sub: "Last time: +5 lb on row", status: "NEXT" },
@@ -43,11 +74,7 @@ function ClientAnalyticsPage() {
         { time: "RECOV", who: "Sleep goal", sub: "7h minimum tonight" },
       ]}
       pulseTitle="Trend signals"
-      pulse={[
-        { who: "Workout consistency", sub: "4/5 this week", trend: [0.4,0.52,0.48,0.6,0.66,0.72,0.78] },
-        { who: "Nutrition compliance", sub: "On target 6/7 days", trend: [0.5,0.56,0.6,0.58,0.65,0.7,0.74] },
-        { who: "Sleep + recovery", sub: "Improving", trend: [0.3,0.35,0.42,0.45,0.5,0.56,0.62] },
-      ]}
+      pulse={pulse}
       extraSections={[{
         title: "Coach notes from analytics",
         render: () => (
