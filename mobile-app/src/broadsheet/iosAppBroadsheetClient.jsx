@@ -1,5 +1,4 @@
 import React from 'react';
-import * as ReactDOM from 'react-dom';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
 
@@ -4327,12 +4326,6 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
       </button>
     </div>
   );
-
-  if (!pinned) return box;
-  const slot = typeof document !== 'undefined' ? document.getElementById('bs-composer-slot') : null;
-  // Fall back to inline rendering if the slot isn't in the tree (first paint
-  // or a legacy app shell that hasn't been updated to provide it).
-  return slot ? ReactDOM.createPortal(box, slot) : box;
 }
 
 // ─── Thread detail ───────────────────────────────────────────

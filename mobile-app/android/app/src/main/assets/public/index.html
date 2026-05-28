@@ -7,8 +7,18 @@
 <title>Shape - iOS App</title>
 <style>
   html, body, #root { margin: 0; padding: 0; min-height: 100vh; width: 100%; overflow: hidden; }
-  /* (BSMessageComposer now portals into #bs-composer-slot inside the
-     phone-frame container, so no viewport-level CSS override is needed.) */
+  /* Pinned message composer. position:fixed; we center it horizontally and
+     cap its width so it never spans the entire viewport edge-to-edge. The
+     16px-per-side inset gives it visual breathing room that matches the
+     rest of the page content. Capped at 430px so it doesn't get absurd on
+     wide browser previews. */
+  .bs-pinned-composer {
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%);
+    width: min(calc(100vw - 32px), 430px);
+    box-sizing: border-box;
+  }
   html.is-native-app, html.is-native-app body, html.is-native-app #root { height: 100%; min-height: 100%; }
   body { font-family: 'Newsreader', Georgia, serif; -webkit-font-smoothing: antialiased; background: #f3eee4; }
   html.is-native-app body { background: #050504; overscroll-behavior: none; }
@@ -43,7 +53,7 @@
     opacity: 0.25;
   }
 </style>
-  <script type="module" crossorigin src="/m/assets/index-Buq07RKQ.js"></script>
+  <script type="module" crossorigin src="/m/assets/index-Dby45-fh.js"></script>
   <link rel="modulepreload" crossorigin href="/m/assets/preload-helper-Dl09zyQo.js">
   <link rel="stylesheet" crossorigin href="/m/assets/index-D84wWR4z.css">
 </head>
