@@ -4321,7 +4321,7 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
   const canSend = value.trim().length > 0;
 
   return (
-    <div style={{
+    <div className={pinned ? 'bs-pinned-composer' : undefined} style={{
       margin: `0 ${t.padX}px 16px`,
       display: 'grid',
       gridTemplateColumns: '1fr 58px',
@@ -4333,14 +4333,14 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
       background: t.PAPER,
       boxShadow: `0 18px 38px ${t.isLight ? 'rgba(15,14,12,0.16)' : 'rgba(0,0,0,0.42)'}, 0 -1px 0 ${t.SURFACE_BORDER}`,
       ...(pinned && {
-        // Sticky pins the composer to the bottom of the visible scroll area
-        // (the phone bezel), so it stays put while messages scroll behind it.
-        // bottom = tab bar height + clearance + safe area inset.
-        position: 'sticky',
+        // Position fixed so it pins to the viewport bottom regardless of
+        // scroll. .bs-pinned-composer CSS in mobile-app/index.html constrains
+        // its width to the phone column in browser preview mode.
+        position: 'fixed',
+        left: 0, right: 0,
         bottom: 'calc(96px + env(safe-area-inset-bottom, 0px))',
-        marginTop: 'auto',
-        marginLeft: t.padX, marginRight: t.padX,
         zIndex: 65,
+        marginBottom: 0,
       }),
     }}>
       <input
