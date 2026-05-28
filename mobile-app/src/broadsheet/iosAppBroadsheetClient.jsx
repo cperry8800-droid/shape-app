@@ -4321,7 +4321,7 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
   const canSend = value.trim().length > 0;
 
   return (
-    <div className={pinned ? 'bs-pinned-composer' : undefined} style={{
+    <div style={{
       margin: `0 ${t.padX}px 16px`,
       display: 'grid',
       gridTemplateColumns: '1fr 58px',
