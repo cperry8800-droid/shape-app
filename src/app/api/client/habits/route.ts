@@ -133,12 +133,36 @@ export async function POST(req: Request) {
         .delete()
         .eq('id', existing.id);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      // Roll back the score credit tied to this completion row.
+      await supabase
+        .from('score_ledger')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('source_kind', 'habit_completion')
+        .eq('source_id', existing.id);
       return NextResponse.json({ done: false });
     }
-    const { error } = await supabase
+    const { data: ins, error } = await supabase
       .from('user_habit_completions')
-      .insert({ habit_id: id, user_id: user.id, done_on: date });
+      .insert({ habit_id: id, user_id: user.id, done_on: date })
+      .select('id')
+      .single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    // Award 3 points to Shape Score under category 'habits'. The dedupe
+    // index on (user_id, source_kind, source_id) prevents double-credit
+    // if this is retried.
+    if (ins) {
+      await supabase
+        .from('score_ledger')
+        .upsert({
+          user_id: user.id,
+          category: 'habits',
+          source_kind: 'habit_completion',
+          source_id: ins.id,
+          delta: 3,
+          note: date,
+        }, { onConflict: 'user_id,source_kind,source_id' });
+    }
     return NextResponse.json({ done: true });
   }
 
