@@ -445,7 +445,7 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
     }
   };
   return (
-    <div style={{ position: 'absolute', inset: 0, background: t.PAPER, color: t.INK, padding: 'calc(64px + env(safe-area-inset-top, 0px)) 20px 32px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <div style={{ position: 'absolute', inset: 0, background: t.PAPER, color: t.INK, padding: 'calc(96px + env(safe-area-inset-top, 0px)) 20px 32px', display: 'flex', flexDirection: 'column', gap: 18 }}>
       <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${t.INK}`, paddingBottom: 10 }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><BSLogo size={16} color={t.INK} /> Vol. 6 · {isCreate ? 'New subscriber' : 'Subscribe'}</span>
         <span>{isCreate ? 'Time to Shape' : '$5 / mo'}</span>
