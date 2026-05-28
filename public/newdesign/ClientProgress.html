@@ -103,6 +103,7 @@ function ClientProgressPage() {
   const [data, setData] = React.useState(MOCK_PROGRESS);
   const [live, setLive] = React.useState(false);
   const [trend, setTrend] = React.useState("weight");
+  const [topTab, setTopTab] = React.useState("trends"); // 'trends' | 'records'
 
   React.useEffect(() => {
     let cancelled = false;
@@ -152,7 +153,38 @@ function ClientProgressPage() {
         ))}
       </div>
 
-      <Card style={{ marginBottom: 20 }}>
+      {/* Top-level tab strip: Trends | Personal records */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        {[
+          { k: "trends",  label: "Trends",          count: TREND_TABS.length },
+          { k: "records", label: "Personal records", count: prs.length },
+        ].map((tab) => {
+          const on = topTab === tab.k;
+          return (
+            <button key={tab.k} onClick={() => setTopTab(tab.k)} style={{
+              flex: 1,
+              padding: "10px 14px",
+              borderRadius: 999,
+              background: on ? INK : "transparent",
+              color: on ? PAPER : "rgba(242,237,228,0.72)",
+              border: on ? "none" : "1px solid rgba(242,237,228,0.14)",
+              fontFamily: sans, fontSize: 12.5, fontWeight: 500,
+              cursor: "pointer",
+              display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+            }}>
+              <span>{tab.label}</span>
+              <span style={{
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em",
+                background: on ? "rgba(242,237,228,0.18)" : "rgba(242,237,228,0.06)",
+                color: on ? PAPER : "rgba(242,237,228,0.65)",
+                padding: "2px 7px", borderRadius: 999,
+              }}>{tab.count}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {topTab === "trends" && <Card style={{ marginBottom: 20 }}>
         {/* Trend tab strip */}
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16, paddingBottom: 14, borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
           {TREND_TABS.map((t) => {
@@ -187,9 +219,9 @@ function ClientProgressPage() {
             {live ? `Log more ${activeTab.label.toLowerCase()} data to see your trend here.` : "Not enough data yet."}
           </div>
         )}
-      </Card>
+      </Card>}
 
-      <Card>
+      {topTab === "records" && <Card>
         <SectionTitle right="FROM YOUR LOGGED SETS">Personal records</SectionTitle>
         {prs.length === 0 && (
           <div style={{ padding: "26px 4px", color: "rgba(242,237,228,0.5)", fontSize: 13 }}>
@@ -210,7 +242,7 @@ function ClientProgressPage() {
             ))}
           </div>
         )}
-      </Card>
+      </Card>}
     </DashPage>
   );
 }
