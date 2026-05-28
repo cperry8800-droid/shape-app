@@ -16,8 +16,8 @@
 <script type="text/babel" src="coachNav.jsx"></script>
 <script type="text/babel">
 function TrainerScorePage() {
-  const tiers = [["Raw","0–1,000","Just getting started",false],["Tempo","1,000–5,000","Consistent coach",false],["Peak","5,000–15,000","Top performer",true],["Legend","15,000+","Top 1% of coaches",false]];
-  const breakdown = [
+  const STATIC_TIERS = [["Raw","0–1,000","Just getting started",false],["Tempo","1,000–5,000","Consistent coach",false],["Peak","5,000–15,000","Top performer",true],["Legend","15,000+","Top 1% of coaches",false]];
+  const STATIC_BREAKDOWN = [
     ["Active clients",        1760, "34 clients · +11 this Q"],
     ["Client adherence",      1200, "92% 30d avg"],
     ["Session completion",    1080, "96% 30d avg"],
@@ -27,12 +27,33 @@ function TrainerScorePage() {
     ["Radio hosted",           220, "3 rooms last month"],
     ["Community endorsements", 340, "38 coach co-signs"],
   ];
+  const [tiers, setTiers] = React.useState(STATIC_TIERS);
+  const [breakdown, setBreakdown] = React.useState(STATIC_BREAKDOWN);
+  const [headline, setHeadline] = React.useState({ title: "6,420", eyebrow: "COACH SCORE · PEAK" });
+
+  React.useEffect(() => {
+    let alive = true;
+    fetch('/api/coach/score?role=trainer', { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (!alive || !d || typeof d.total !== 'number') return;
+        if (!d.breakdown || !d.breakdown.length) return;
+        setBreakdown(d.breakdown.map(b => [b.label, b.points, b.sub]));
+        setHeadline({
+          title: d.total.toLocaleString(),
+          eyebrow: `COACH SCORE · ${String(d.current_tier).toUpperCase()}`,
+        });
+        setTiers(STATIC_TIERS.map(([t,r,desc]) => [t, r, desc, t === d.current_tier]));
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
   return (
     <DashPage
       navItems={trainerNavItems("score")}
       payoutCard={trainerPayoutCard}
-      eyebrow="COACH SCORE · PEAK"
-      title="6,420"
+      eyebrow={headline.eyebrow}
+      title={headline.title}
       subtitle="Top 4% of trainers on Shape. Scores drive marketplace ranking, verified badge, and payout tier."
       actions={<>
         <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>How it works</button>
@@ -53,7 +74,7 @@ function TrainerScorePage() {
       </Card>
       <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 20 }}>
         <Card>
-          <SectionTitle right="TOTAL 6,420">Score breakdown</SectionTitle>
+          <SectionTitle right={`TOTAL ${breakdown.reduce((a, b) => a + b[1], 0).toLocaleString()}`}>Score breakdown</SectionTitle>
           {breakdown.map(([l,v,sub],i)=>{
             const w = (v / Math.max(...breakdown.map(b=>b[1]))) * 100;
             return (

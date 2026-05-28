@@ -20,10 +20,31 @@
 <script type="text/babel" src="clientNav.jsx"></script>
 <script type="text/babel">
 function ClientTeamPage() {
-  const coaches = [
+  const STATIC_COACHES = [
     { name: "Maya Okafor", role: "Head trainer", since: "Feb 4, 2026", plan: "Strength + hybrid · $220/mo", last: "2m ago", avail: "Next session Thu 8am", trend: [0.3,0.5,0.4,0.7,0.6,0.8,0.7] },
     { name: "Rae Lindqvist", role: "Nutritionist", since: "Feb 18, 2026", plan: "Performance fuel · $180/mo", last: "14m ago", avail: "Weekly check Wed 1:30pm", trend: [0.4,0.3,0.5,0.4,0.6,0.5,0.7] },
   ];
+  const [coaches, setCoaches] = React.useState(STATIC_COACHES);
+
+  React.useEffect(() => {
+    let alive = true;
+    fetch('/api/client/team', { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (!alive || !d || !Array.isArray(d.coaches) || !d.coaches.length) return;
+        setCoaches(d.coaches.map(c => ({
+          name: c.name,
+          role: c.role,
+          since: c.since,
+          plan: c.plan,
+          last: '—',
+          avail: c.next,
+          trend: [0.3,0.4,0.5,0.5,0.6,0.65,0.7],
+        })));
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
   const chatThreads = [
     { who: "Maya Okafor", role: "Head trainer · Tempo + hybrid", last: "Stick with 185 for top set. Drop backoffs to 165.", time: "2m", unread: 0, messages: [
       { who: "Maya", t: "How'd the warmups feel this morning?", time: "8:48 AM", me: false },

@@ -4334,13 +4334,16 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
       boxShadow: `0 18px 38px ${t.isLight ? 'rgba(15,14,12,0.16)' : 'rgba(0,0,0,0.42)'}, 0 -1px 0 ${t.SURFACE_BORDER}`,
       ...(pinned && {
         // Position fixed so it pins to the viewport bottom regardless of
-        // scroll. .bs-pinned-composer CSS in mobile-app/index.html constrains
-        // its width to the phone column in browser preview mode.
+        // scroll. .bs-pinned-composer CSS in mobile-app/index.html sets
+        // left:50%, transform:translateX(-50%), width:min(100vw,430px),
+        // and 12px horizontal padding — so we must zero the inline
+        // horizontal margin or the box gets shifted past the right edge
+        // of the viewport (the Send button gets clipped).
         position: 'fixed',
         left: 0, right: 0,
         bottom: 'calc(112px + env(safe-area-inset-bottom, 0px))',
         zIndex: 65,
-        marginBottom: 0,
+        margin: 0,
       }),
     }}>
       <input
@@ -4862,6 +4865,34 @@ function BSClientMe({ onProfile, onLogout }) {
             <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{l}</div>
           </div>
         ))}
+      </div>
+
+      {/* RX RECEIPT — today's prescribed plan from the client's nutritionist */}
+      <div style={{ margin: `22px ${t.padX}px 0`, padding: 18, background: t.PAPER2, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 4, position: 'relative' }}>
+        <div style={{ position: 'absolute', top: -10, right: 14, background: t.ACCENT, color: t.PAPER, padding: '3px 8px', borderRadius: 999, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', fontWeight: 800, textTransform: 'uppercase' }}>Rx · Wk 4</div>
+        <div style={{ textAlign: 'center', paddingBottom: 8, borderBottom: `1px dashed ${t.SURFACE_BORDER}` }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.28em', color: t.ACCENT, textTransform: 'uppercase', fontWeight: 700 }}>Today's plan · from Rae</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 17, color: t.INK, fontStyle: 'italic', marginTop: 4, letterSpacing: '-0.01em' }}>Tuesday · 1,950 kcal</div>
+        </div>
+        <div style={{ display: 'grid', gap: 5, padding: '10px 0 4px' }}>
+          {[
+            { l: 'Protein', v: 112, g: 175, c: t.ACCENT },
+            { l: 'Carbs',   v: 116, g: 180, c: t.AMBER || '#e8b14a' },
+            { l: 'Fat',     v: 42,  g: 65,  c: t.RUST || '#d2693f' },
+          ].map((m, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '50px 1fr 70px', gap: 8, alignItems: 'center' }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>{m.l}</div>
+              <div style={{ height: 4, background: t.SURFACE_BORDER, borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{ width: `${Math.min(100, (m.v / m.g) * 100)}%`, height: '100%', background: m.c }} />
+              </div>
+              <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK70, textAlign: 'right' }}>{m.v}<span style={{ color: t.INK50 }}>/{m.g}g</span></div>
+            </div>
+          ))}
+        </div>
+        <div style={{ borderTop: `2px solid ${t.SURFACE_BORDER}`, marginTop: 8, paddingTop: 8, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>
+          <span>Hydration 1.8/3 L</span>
+          <span style={{ color: t.ACCENT }}>On plan ●</span>
+        </div>
       </div>
 
       <BSSection title="Profile" meta="Personal info" />

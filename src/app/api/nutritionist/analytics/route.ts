@@ -77,7 +77,7 @@ export async function GET() {
 
   const { data: subRows } = await supabase
     .from('subscriptions')
-    .select('price_cents, status')
+    .select('client_id, price_cents, status')
     .eq('provider_role', 'nutritionist')
     .eq('provider_id', providerId)
     .in('status', ['active', 'trialing']);
@@ -86,6 +86,7 @@ export async function GET() {
     (sum: number, r: { price_cents: number | null }) => sum + (r.price_cents ?? 0),
     0
   );
+  const clientIds = subs.map((r: { client_id: string }) => r.client_id).filter(Boolean);
 
   const { data: sessRows } = await supabase
     .from('sessions')
@@ -109,6 +110,77 @@ export async function GET() {
     }
   }
 
+  // -------- Client-progress rollups for nutritionist roster -----------------
+  const since30Date = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+
+  type RosterRow = {
+    client_id: string;
+    name?: string;
+    daysLogged30d: number;
+    avgProteinG: number | null;
+    avgCalories: number | null;
+    avgHydrationL: number | null;
+    weightStart: number | null;
+    weightLatest: number | null;
+    weightChangeLb: number | null;
+  };
+  const roster: RosterRow[] = [];
+  let totalDaysLogged = 0;
+  let totalProteinDays = 0;
+  let proteinHits = 0; // >=120g
+
+  if (clientIds.length) {
+    const [snapRes, namesRes] = await Promise.all([
+      supabase
+        .from('daily_health_snapshot')
+        .select('user_id, snapshot_date, protein_g, calories, hydration_l, weight_lb')
+        .in('user_id', clientIds)
+        .gte('snapshot_date', since30Date)
+        .order('snapshot_date', { ascending: true }),
+      supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', clientIds),
+    ]);
+
+    type Snap = { user_id: string; snapshot_date: string; protein_g: number | null; calories: number | null; hydration_l: number | null; weight_lb: number | null };
+    const byClient = new Map<string, Snap[]>();
+    for (const r of (snapRes.data || []) as Snap[]) {
+      const list = byClient.get(r.user_id) || [];
+      list.push(r);
+      byClient.set(r.user_id, list);
+    }
+    const nameById = new Map<string, string>();
+    for (const r of namesRes.data || []) nameById.set(String(r.id), String(r.full_name || ''));
+
+    for (const cid of clientIds) {
+      const rows = byClient.get(cid) || [];
+      const proteins = rows.map((r) => r.protein_g).filter((v) => v != null) as number[];
+      const cals = rows.map((r) => r.calories).filter((v) => v != null) as number[];
+      const waters = rows.map((r) => r.hydration_l).filter((v) => v != null) as number[];
+      const weights = rows.map((r) => r.weight_lb).filter((v) => v != null) as number[];
+      const wStart = weights.length ? Number(weights[0]) : null;
+      const wLatest = weights.length ? Number(weights[weights.length - 1]) : null;
+      const wDelta = wStart != null && wLatest != null ? wLatest - wStart : null;
+      totalDaysLogged += rows.length;
+      for (const p of proteins) { totalProteinDays += 1; if (Number(p) >= 120) proteinHits += 1; }
+      roster.push({
+        client_id: cid,
+        daysLogged30d: rows.length,
+        avgProteinG: proteins.length ? Math.round(proteins.reduce((a, b) => a + Number(b), 0) / proteins.length) : null,
+        avgCalories: cals.length ? Math.round(cals.reduce((a, b) => a + Number(b), 0) / cals.length) : null,
+        avgHydrationL: waters.length ? Math.round((waters.reduce((a, b) => a + Number(b), 0) / waters.length) * 10) / 10 : null,
+        weightStart: wStart,
+        weightLatest: wLatest,
+        weightChangeLb: wDelta != null ? Math.round(wDelta * 10) / 10 : null,
+      });
+    }
+    for (const r of roster) r.name = nameById.get(r.client_id) || 'Client';
+  }
+
+  const proteinAdherencePct = totalProteinDays ? Math.round((proteinHits / totalProteinDays) * 100) : 0;
+  const avgLogsPerClient = clientIds.length ? Math.round(totalDaysLogged / clientIds.length) : 0;
+
   const stripeSummary = await loadStripe(
     nutriRow.stripe_account_id ?? null,
     nutriRow.stripe_account_status ?? null
@@ -123,6 +195,16 @@ export async function GET() {
       totalSessions: sessions.length,
       completedSessions,
       upcomingSessions,
+    },
+    clientProgress: {
+      activeClients: subs.length,
+      proteinAdherencePct,
+      avgLogsPerClient,
+      totalDaysLogged,
+      roster: roster
+        .slice()
+        .sort((a, b) => b.daysLogged30d - a.daysLogged30d)
+        .slice(0, 12),
     },
     stripe: stripeSummary,
   });

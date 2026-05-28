@@ -77,7 +77,7 @@ export async function GET() {
 
   const { data: subRows } = await supabase
     .from('subscriptions')
-    .select('price_cents, status')
+    .select('client_id, price_cents, status')
     .eq('provider_role', 'trainer')
     .eq('provider_id', providerId)
     .in('status', ['active', 'trialing']);
@@ -86,6 +86,7 @@ export async function GET() {
     (sum: number, r: { price_cents: number | null }) => sum + (r.price_cents ?? 0),
     0
   );
+  const clientIds = subs.map((r: { client_id: string }) => r.client_id).filter(Boolean);
 
   const { data: sessRows } = await supabase
     .from('sessions')
@@ -109,6 +110,111 @@ export async function GET() {
     }
   }
 
+  // -------- Client-progress rollups (roster-wide) ---------------------------
+  const since30Iso = new Date(Date.now() - 30 * 86400000).toISOString();
+  const since30Date = since30Iso.slice(0, 10);
+  const since7Iso = new Date(Date.now() - 7 * 86400000).toISOString();
+
+  type RosterRow = {
+    client_id: string;
+    workouts30d: number;
+    workouts7d: number;
+    weightStart: number | null;
+    weightLatest: number | null;
+    weightChangeLb: number | null;
+    prs30d: number;
+  };
+  const roster: RosterRow[] = [];
+  let totalWorkouts30d = 0;
+  let totalWorkouts7d = 0;
+  let totalPrs30d = 0;
+  let adherenceNum = 0;
+  let adherenceDen = 0;
+
+  if (clientIds.length) {
+    const [workoutRes, snapRes, prRes, namesRes] = await Promise.all([
+      supabase
+        .from('workout_sessions')
+        .select('client_id, started_at, status')
+        .in('client_id', clientIds)
+        .eq('status', 'completed')
+        .gte('started_at', since30Iso),
+      supabase
+        .from('daily_health_snapshot')
+        .select('user_id, snapshot_date, weight_lb')
+        .in('user_id', clientIds)
+        .gte('snapshot_date', since30Date)
+        .order('snapshot_date', { ascending: true }),
+      supabase
+        .from('workout_set_logs')
+        .select('client_id, created_at, completed')
+        .in('client_id', clientIds)
+        .eq('completed', true)
+        .gte('created_at', since30Iso),
+      supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', clientIds),
+    ]);
+
+    const workoutsByClient = new Map<string, { wk30: number; wk7: number }>();
+    for (const r of workoutRes.data || []) {
+      const k = String(r.client_id);
+      const slot = workoutsByClient.get(k) || { wk30: 0, wk7: 0 };
+      slot.wk30 += 1;
+      if (r.started_at && new Date(String(r.started_at)).toISOString() >= since7Iso) slot.wk7 += 1;
+      workoutsByClient.set(k, slot);
+    }
+
+    const weightsByClient = new Map<string, number[]>();
+    for (const r of snapRes.data || []) {
+      if (r.weight_lb == null) continue;
+      const k = String(r.user_id);
+      const list = weightsByClient.get(k) || [];
+      list.push(Number(r.weight_lb));
+      weightsByClient.set(k, list);
+    }
+
+    const prsByClient = new Map<string, number>();
+    for (const r of prRes.data || []) {
+      const k = String(r.client_id);
+      prsByClient.set(k, (prsByClient.get(k) || 0) + 1);
+    }
+
+    const nameById = new Map<string, string>();
+    for (const r of namesRes.data || []) nameById.set(String(r.id), String(r.full_name || ''));
+
+    for (const cid of clientIds) {
+      const w = workoutsByClient.get(cid) || { wk30: 0, wk7: 0 };
+      const weights = weightsByClient.get(cid) || [];
+      const wStart = weights.length ? weights[0] : null;
+      const wLatest = weights.length ? weights[weights.length - 1] : null;
+      const wDelta = wStart != null && wLatest != null ? wLatest - wStart : null;
+      const prs = prsByClient.get(cid) || 0;
+      totalWorkouts30d += w.wk30;
+      totalWorkouts7d += w.wk7;
+      totalPrs30d += prs;
+      // Adherence proxy: completed workouts vs target of 4/wk over the last 4 wk.
+      adherenceDen += 16;
+      adherenceNum += Math.min(16, w.wk30);
+      roster.push({
+        client_id: cid,
+        workouts30d: w.wk30,
+        workouts7d: w.wk7,
+        weightStart: wStart,
+        weightLatest: wLatest,
+        weightChangeLb: wDelta != null ? Math.round(wDelta * 10) / 10 : null,
+        prs30d: prs,
+      });
+    }
+    // Attach names for the roster table.
+    for (const r of roster as Array<RosterRow & { name?: string }>) {
+      r.name = nameById.get(r.client_id) || 'Client';
+    }
+  }
+
+  const avgAdherencePct = adherenceDen ? Math.round((adherenceNum / adherenceDen) * 100) : 0;
+
   const stripeSummary = await loadStripe(
     trainerRow.stripe_account_id ?? null,
     trainerRow.stripe_account_status ?? null
@@ -123,6 +229,17 @@ export async function GET() {
       totalSessions: sessions.length,
       completedSessions,
       upcomingSessions,
+    },
+    clientProgress: {
+      activeClients: subs.length,
+      workouts30d: totalWorkouts30d,
+      workouts7d: totalWorkouts7d,
+      prs30d: totalPrs30d,
+      avgAdherencePct,
+      roster: roster
+        .slice()
+        .sort((a, b) => b.workouts30d - a.workouts30d)
+        .slice(0, 12),
     },
     stripe: stripeSummary,
   });

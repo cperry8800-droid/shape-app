@@ -256,18 +256,67 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
 
   // ── 5. CLASSIFIED: dense newspaper classifieds, wordmark as featured listing
   if (style === 'classified') {
-    const items = [
+    const STATIC_INSIDE = [
       { tag: 'SHP-01',  title: 'Shape Score 2.0',         meta: 'Tiers + rewards, live now',         col: 1 },
       { tag: 'SHP-04',  title: 'Coach chat, instant',     meta: 'Reactions · voice notes · video',   col: 1 },
       { tag: 'SHP-12',  title: 'Marketplace · 410 coaches', meta: '+38 verified this week',          col: 1 },
       { tag: 'SHP-19',  title: 'Personal challenges',     meta: 'Your coach writes them, you run',   col: 1 },
       { tag: 'SHP-22',  title: 'Block 3 unlocked',        meta: 'Hypertrophy · 4 weeks',             col: 1 },
+    ];
+    const STATIC_WORLD = [
       { tag: 'NWS-18',  title: 'GLP-1 + lifting',         meta: 'Lancet · muscle preservation',      col: 2 },
       { tag: 'NWS-22',  title: 'Protein floor is 1g/lb',  meta: 'Schoenfeld meta-analysis, May',     col: 2 },
       { tag: 'WLB-03',  title: 'Sleep is the new gym',    meta: 'Stanford · HRV + recovery',         col: 2 },
       { tag: 'WLB-09',  title: 'Cold plunge ≠ recovery',  meta: 'JPhysiol · blunts hypertrophy',     col: 2 },
       { tag: 'MND-14',  title: 'Walking lowers anxiety',  meta: 'JAMA Psychiatry · 30m/day',         col: 2 },
     ];
+
+    // Today's editorial date — "Thu · May 28 · 2026"
+    const today = new Date();
+    const wkday = today.toLocaleDateString([], { weekday: 'short' });
+    const month = today.toLocaleDateString([], { month: 'short' });
+    const day   = today.getDate();
+    const year  = today.getFullYear();
+    const dateLine = `${wkday} · ${month} ${day} · ${year}`;
+    const dateShort = `${wkday} · ${month} ${day}`;
+
+    // Hydrate "Inside Shape" with recent community posts when available
+    // (the feed endpoint allows anon reads). Falls back to the static
+    // editorial blurbs when the feed is empty or unreachable.
+    const [insideItems, setInsideItems] = React.useState(STATIC_INSIDE);
+    React.useEffect(() => {
+      let alive = true;
+      fetch('/api/community/feed', { credentials: 'same-origin', cache: 'no-store' })
+        .then(r => (r.ok ? r.json() : null))
+        .then(d => {
+          if (!alive || !d || !Array.isArray(d.posts) || !d.posts.length) return;
+          const ago = (iso) => {
+            const ms = Date.now() - new Date(iso).getTime();
+            if (ms < 60_000) return 'just now';
+            if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m ago`;
+            if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h ago`;
+            return `${Math.floor(ms / 86_400_000)}d ago`;
+          };
+          const tagFor = (a) => {
+            const t = String(a || '').toLowerCase();
+            if (t === 'pr' || t === 'strength' || t === 'workout') return 'STR';
+            if (t === 'run' || t === 'race') return 'RUN';
+            if (t === 'meal' || t === 'nutrition') return 'EAT';
+            return 'SHP';
+          };
+          const hydrated = d.posts.slice(0, 5).map((p, i) => ({
+            tag: `${tagFor(p.activity_type)}-${String(i + 1).padStart(2, '0')}`,
+            title: p.title || p.note || 'Update',
+            meta: `${p.author_name || 'Member'} · ${ago(p.created_at)}`,
+            col: 1,
+          }));
+          setInsideItems(hydrated);
+        })
+        .catch(() => {});
+      return () => { alive = false; };
+    }, []);
+
+    const items = [...insideItems, ...STATIC_WORLD];
     const _bgRGB = bgColor && bgColor !== 'auto' ? _hexToRGBmain(bgColor) : null;
     const inkRgbCl = _bgRGB || t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
     return (
@@ -276,7 +325,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
 
         <div style={{ position: 'relative', zIndex: 1, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, display: 'flex', justifyContent: 'space-between', borderBottom: `2px solid ${t.INK}`, paddingBottom: 8 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><BSLogo size={16} color={t.INK} /> Classifieds</span>
-          <span>Sec. C · 04</span>
+          <span>{dateShort}</span>
         </div>
 
         <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', paddingTop: 6 }}>
@@ -289,7 +338,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
                 <span className="bs-splash-daily" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>Daily.</span>
               </span>
             </div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, marginTop: 18 }}>Today's edition · 6 sections</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, marginTop: 18 }}>Today's edition · {dateLine}</div>
           </div>
         </div>
 

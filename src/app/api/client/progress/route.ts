@@ -25,20 +25,32 @@ export async function GET() {
 
   const { data: snapRows } = await supabase
     .from('daily_health_snapshot')
-    .select('snapshot_date, weight_lb, body_fat_pct, resting_hr, sleep_hours')
+    .select('snapshot_date, weight_lb, body_fat_pct, resting_hr, sleep_hours, hrv_ms, workout_minutes, protein_g, hydration_l')
     .eq('user_id', user.id)
     .order('snapshot_date', { ascending: true })
     .limit(400);
 
   const snaps = snapRows ?? [];
 
-  const weightSeries = snaps
-    .filter((s) => s.weight_lb != null)
-    .map((s) => ({ date: s.snapshot_date, value: Number(s.weight_lb) }));
+  // Per-metric trend series. Each row keeps both the date and the value so
+  // the client can render time-aware sparklines without needing alignment.
+  const seriesFor = (key: 'weight_lb' | 'body_fat_pct' | 'resting_hr' | 'sleep_hours' | 'hrv_ms' | 'workout_minutes' | 'protein_g' | 'hydration_l') =>
+    snaps
+      .filter((s) => (s as Record<string, unknown>)[key] != null)
+      .map((s) => ({ date: (s as Record<string, string>).snapshot_date, value: Number((s as Record<string, unknown>)[key]) }));
 
-  const bodyFats = snaps.filter((s) => s.body_fat_pct != null).map((s) => Number(s.body_fat_pct));
-  const restingHrs = snaps.filter((s) => s.resting_hr != null).map((s) => Number(s.resting_hr));
-  const sleeps = snaps.filter((s) => s.sleep_hours != null).map((s) => Number(s.sleep_hours));
+  const weightSeries = seriesFor('weight_lb');
+  const bodyFatSeries = seriesFor('body_fat_pct');
+  const restingHrSeries = seriesFor('resting_hr');
+  const sleepSeries = seriesFor('sleep_hours');
+  const hrvSeries = seriesFor('hrv_ms');
+  const volumeSeries = seriesFor('workout_minutes');
+  const proteinSeries = seriesFor('protein_g');
+  const hydrationSeries = seriesFor('hydration_l');
+
+  const bodyFats = bodyFatSeries.map((s) => s.value);
+  const restingHrs = restingHrSeries.map((s) => s.value);
+  const sleeps = sleepSeries.map((s) => s.value);
 
   const restingRecent = avg(restingHrs.slice(-7));
   const restingPrior = avg(restingHrs.slice(-14, -7));
@@ -102,5 +114,41 @@ export async function GET() {
     .sort((a, b) => b.best - a.best)
     .slice(0, 6);
 
-  return NextResponse.json({ ok: true, weightSeries, kpis, prs });
+  // Strength trajectory: top one-rep-equivalent across all logged sets,
+  // bucketed weekly so the chart shows the trend instead of every spike.
+  const weeklyTop = new Map<string, number>();
+  for (const r of setRows ?? []) {
+    if (r.completed === false) continue;
+    const load = Number(r.actual_load);
+    if (!Number.isFinite(load) || load <= 0) continue;
+    const week = new Date(r.created_at);
+    const day = week.getUTCDay();
+    // Anchor each week to Monday for stability.
+    week.setUTCDate(week.getUTCDate() - ((day + 6) % 7));
+    week.setUTCHours(0, 0, 0, 0);
+    const key = week.toISOString().slice(0, 10);
+    const prev = weeklyTop.get(key) || 0;
+    if (load > prev) weeklyTop.set(key, load);
+  }
+  const strengthSeries = [...weeklyTop.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, value]) => ({ date, value }));
+
+  return NextResponse.json({
+    ok: true,
+    weightSeries,
+    kpis,
+    prs,
+    series: {
+      weight: weightSeries,
+      bodyFat: bodyFatSeries,
+      restingHr: restingHrSeries,
+      sleep: sleepSeries,
+      hrv: hrvSeries,
+      volume: volumeSeries,
+      protein: proteinSeries,
+      hydration: hydrationSeries,
+      strength: strengthSeries,
+    },
+  });
 }
