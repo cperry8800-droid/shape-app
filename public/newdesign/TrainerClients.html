@@ -85,11 +85,13 @@ function TrainerClientsPage() {
           </Card>
         ))}
       </div>
-      <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+      <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
         <button onClick={() => setTab("all")} style={tabStyle(tab === "all")}>All clients</button>
         <button onClick={() => setTab("shared")} style={tabStyle(tab === "shared")}>
           Shared clients{sharedBadge > 0 ? ` · ${sharedBadge} new` : ""}
         </button>
+        <a href="TrainerLiveConsole.html" style={{ ...tabStyle(false), textDecoration: "none", display: "inline-block" }}>Console</a>
+        <a href="TrainerAnalytics.html" style={{ ...tabStyle(false), textDecoration: "none", display: "inline-block" }}>Analytics</a>
       </div>
       <Card>
         {tab === "shared" ? (

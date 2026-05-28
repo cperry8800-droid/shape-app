@@ -382,9 +382,20 @@ function TrainerLiveConsolePage() {
       navItems={trainerNavItems("console")}
       payoutCard={trainerPayoutCard}
       eyebrow={<span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><LiveDot /> LIVE COACHING</span>}
-      title="Console"
+      title="Clients · Console"
       subtitle="See what a client is doing right now — and coach them in the moment."
     >
+      {/* Clients sub-tab bar — Console + Analytics now live under the Clients top-level nav. */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+        {[
+          { l: "All clients",    href: "TrainerClients.html",     on: false },
+          { l: "Shared clients", href: "TrainerClients.html?tab=shared", on: false },
+          { l: "Console",        href: "TrainerLiveConsole.html", on: true },
+          { l: "Analytics",      href: "TrainerAnalytics.html",   on: false },
+        ].map((s, i) => (
+          <a key={i} href={s.href} style={{ background: s.on ? "rgba(46,224,196,0.14)" : "transparent", color: s.on ? "#2ee0c4" : "rgba(242,237,228,0.65)", border: s.on ? "1px solid rgba(46,224,196,0.35)" : "1px solid rgba(242,237,228,0.12)", padding: "8px 16px", borderRadius: 999, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12.5, fontWeight: 500, cursor: "pointer", letterSpacing: "0.02em", textDecoration: "none" }}>{s.l}</a>
+        ))}
+      </div>
       {/* Client picker — dropdown grouped by Current / Past */}
       <div style={{ position: "relative", display: "inline-block", marginBottom: 20 }}>
         <button
