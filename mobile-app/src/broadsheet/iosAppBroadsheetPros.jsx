@@ -2026,7 +2026,7 @@ function BSNutriPlans() {
 // ═══════════════════════════════════════════════════════════
 // SHARED PRO ME
 // ═══════════════════════════════════════════════════════════
-function BSProMe({ role, name, onLogout }) {
+function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
   const t = useBS();
   const isCoach = role === 'trainer';
   const accent = isCoach ? t.AMBER : t.RUST;
@@ -2075,7 +2075,7 @@ function BSProMe({ role, name, onLogout }) {
 
   return (
     <BSPage>
-      <BSPageHeader kicker={isCoach ? 'Coach · 4.9 ★' : 'Nutritionist · 4.9 ★'} title={<>{name.split(' ')[0]}<br/>{name.split(' ').slice(1).join(' ')}.</>} trailing={<BSAvatar init={init} size={32} fill={accent} ink={t.PAPER} />} />
+      <BSPageHeader kicker={isCoach ? 'Coach · 4.9 ★' : 'Nutritionist · 4.9 ★'} title={<>{name.split(' ')[0]}<br/>{name.split(' ').slice(1).join(' ')}.</>} trailing={<BSAvatar init={init} size={32} fill={accent} ink={t.PAPER} onClick={onSettings} />} />
 
       <button onClick={() => setShowScore(true)} style={{ borderRadius: 0,
         width: '100%', textAlign: 'left', padding: `16px ${t.padX}px 18px`,
