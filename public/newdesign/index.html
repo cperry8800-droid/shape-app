@@ -151,11 +151,13 @@
   .ndrop>span{display:inline-flex;align-items:center;gap:5px;cursor:default;color:var(--cream-2);transition:color .16s}
   .ndrop>span:after{content:"\25BE";font-size:9px;opacity:.6}
   .ndrop:hover>span{color:var(--cream)}
-  .ndmenu{position:absolute;top:100%;left:50%;transform:translateX(-50%);padding-top:14px;min-width:204px;opacity:0;visibility:hidden;z-index:120;transition:opacity .16s ease 1.5s, visibility 0s linear 1.66s}
-  /* padding-bottom on the trigger extends its hit area down into the gap so
-     mouse moving from trigger toward menu never crosses dead space. */
-  .ndrop{position:relative;padding-bottom:16px;margin-bottom:-16px}
-  .ndrop:hover .ndmenu,.ndrop:focus-within .ndmenu{opacity:1;visibility:visible;transition:opacity .16s ease 0s, visibility 0s linear 0s}
+  .ndmenu{position:absolute;top:100%;left:50%;transform:translateX(-50%);padding-top:14px;min-width:204px;opacity:0;visibility:hidden;transition:opacity .16s;z-index:120}
+  .ndrop{position:relative}
+  .ndrop:hover .ndmenu,.ndrop:focus-within .ndmenu{opacity:1;visibility:visible;transition-delay:0s}
+  /* Forgiving close: keep menu visible for 500ms after hover ends so the
+     cursor can travel from trigger down to a menu item without losing it. */
+  .ndmenu{transition:opacity .16s,visibility 0s linear 1.5s}
+  .ndrop:hover .ndmenu,.ndrop:focus-within .ndmenu{transition:opacity .16s,visibility 0s}
   .ndmenu>div{background:rgba(11,14,12,0.97);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:8px;padding:8px;box-shadow:0 24px 60px rgba(0,0,0,.6)}
   .ndmenu a{display:block;padding:10px 14px;border-radius:5px;color:var(--cream-2);transition:background .14s,color .14s;white-space:nowrap}
   .ndmenu a:hover{background:rgba(10,197,168,0.12);color:var(--cream)}
