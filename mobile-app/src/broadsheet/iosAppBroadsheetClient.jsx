@@ -4334,13 +4334,16 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
       boxShadow: `0 18px 38px ${t.isLight ? 'rgba(15,14,12,0.16)' : 'rgba(0,0,0,0.42)'}, 0 -1px 0 ${t.SURFACE_BORDER}`,
       ...(pinned && {
         // Position fixed so it pins to the viewport bottom regardless of
-        // scroll. .bs-pinned-composer CSS in mobile-app/index.html constrains
-        // its width to the phone column in browser preview mode.
+        // scroll. .bs-pinned-composer CSS in mobile-app/index.html sets
+        // left:50%, transform:translateX(-50%), width:min(100vw,430px),
+        // and 12px horizontal padding — so we must zero the inline
+        // horizontal margin or the box gets shifted past the right edge
+        // of the viewport (the Send button gets clipped).
         position: 'fixed',
         left: 0, right: 0,
         bottom: 'calc(112px + env(safe-area-inset-bottom, 0px))',
         zIndex: 65,
-        marginBottom: 0,
+        margin: 0,
       }),
     }}>
       <input
