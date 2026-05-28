@@ -1921,10 +1921,7 @@ function BSNutriPlans() {
     <BSPage>
       <BSPageHeader kicker="Section · Plans" title={<>Meals<br/>& templates.</>} />
       <BSProPlansTabBar active={subtab} onChange={setSubtab} />
-      <BSPlanGeneratorCard
-        role="nutritionist"
-        kind={subtab === 'tmpl' ? 'meal_tmpl' : subtab === 'onetime' ? 'meal_one' : 'meal_plan'}
-      />
+      <BSPlanGeneratorCard role="nutritionist" kind="meal_plan" />
       {subtab === 'meal' && (<>
         <BSSection title="Meal plans" meta="Recurring subscriptions" />
         <div style={{ padding: `0 ${t.padX}px` }}>
