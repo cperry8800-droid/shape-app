@@ -38,12 +38,12 @@ function ClientScorePage() {
     let alive = true;
     fetch('/api/client/score', { credentials: 'same-origin' })
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (alive && d && typeof d.points_month === 'number') setLive(d); })
+      .then(d => { if (alive && d && typeof d.points_total === 'number') setLive(d); })
       .catch(() => {});
     return () => { alive = false; };
   }, []);
 
-  const myPoints = live ? live.points_month : 1284;
+  const myPoints = live ? live.points_total : 1284;
   // Find current tier (highest threshold <= myPoints) and next tier.
   let currentIdx = 0;
   for (let i = tiers.length - 1; i >= 0; i--) { if (myPoints >= tiers[i][1]) { currentIdx = i; break; } }
@@ -64,8 +64,8 @@ function ClientScorePage() {
     ["Radio participation",60, "4 rooms joined"],
     ["Referrals",         100, "2 friends on Shape"],
   ];
-  const breakdown = live && Array.isArray(live.breakdown_month) && live.breakdown_month.length
-    ? live.breakdown_month.map(b => [b.label, b.points, ""])
+  const breakdown = live && Array.isArray(live.breakdown_total) && live.breakdown_total.length
+    ? live.breakdown_total.map(b => [b.label, b.points, ""])
     : staticBreakdown;
   const total = breakdown.reduce((a, b) => a + b[1], 0);
 
@@ -117,7 +117,7 @@ function ClientScorePage() {
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
           <div>
             <span style={{ fontSize: 14, fontWeight: 500 }}>Reward tiers</span>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.45)", marginLeft: 12 }}>MONTHLY POINTS</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.45)", marginLeft: 12 }}>LIFETIME POINTS</span>
           </div>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.45)" }}>{tiers.length} TIERS</span>
         </div>

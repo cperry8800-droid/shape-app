@@ -50,13 +50,16 @@ export async function GET() {
   weekStart.setUTCHours(0, 0, 0, 0);
   weekStart.setUTCDate(weekStart.getUTCDate() - 7);
 
-  const { data: monthRows, error: monthErr } = await supabase
+  // Tier is based on LIFETIME points so a member's standing never resets on
+  // the 1st of the month (a monthly basis silently demoted everyone). Month
+  // and week sums stay as secondary "activity" stats. One fetch covers all
+  // three windows plus the lifetime breakdown.
+  const { data: allRows, error: allErr } = await supabase
     .from('score_ledger')
-    .select('category, delta, note, earned_at, source_kind')
-    .eq('user_id', user.id)
-    .gte('earned_at', monthStart.toISOString());
+    .select('category, delta, earned_at')
+    .eq('user_id', user.id);
 
-  if (monthErr) return NextResponse.json({ error: monthErr.message }, { status: 500 });
+  if (allErr) return NextResponse.json({ error: allErr.message }, { status: 500 });
 
   const { data: recent, error: recentErr } = await supabase
     .from('score_ledger')
@@ -67,15 +70,20 @@ export async function GET() {
 
   if (recentErr) return NextResponse.json({ error: recentErr.message }, { status: 500 });
 
-  const rows = (monthRows || []) as LedgerRow[];
+  const rows = (allRows || []) as Array<{ category: string; delta: number; earned_at: string }>;
   const totals = new Map<string, number>();
-  for (const r of rows) totals.set(r.category, (totals.get(r.category) || 0) + r.delta);
+  let points_total = 0;
+  let points_month = 0;
+  let week_gain = 0;
+  const monthIso = monthStart.toISOString();
+  for (const r of rows) {
+    points_total += r.delta;
+    totals.set(r.category, (totals.get(r.category) || 0) + r.delta);
+    if (r.earned_at >= monthIso) points_month += r.delta;
+    if (new Date(r.earned_at) >= weekStart) week_gain += r.delta;
+  }
 
-  const points_month = rows.reduce((a, r) => a + r.delta, 0);
-  const week_gain = rows
-    .filter(r => new Date(r.earned_at) >= weekStart)
-    .reduce((a, r) => a + r.delta, 0);
-
+  // Lifetime breakdown — matches the tier basis ("how I reached this tier").
   const breakdown = Object.keys(CATEGORY_LABELS).map(cat => ({
     category: cat,
     label: CATEGORY_LABELS[cat],
@@ -84,16 +92,19 @@ export async function GET() {
 
   let currentIdx = 0;
   for (let i = TIERS.length - 1; i >= 0; i--) {
-    if (points_month >= TIERS[i][1]) { currentIdx = i; break; }
+    if (points_total >= TIERS[i][1]) { currentIdx = i; break; }
   }
   const current_tier = TIERS[currentIdx];
   const next_tier = TIERS[currentIdx + 1] || null;
-  const points_to_next = next_tier ? next_tier[1] - points_month : 0;
+  const points_to_next = next_tier ? next_tier[1] - points_total : 0;
 
   return NextResponse.json({
+    // points_total drives the headline + tier; points_month kept for back-compat.
+    points_total,
     points_month,
     week_gain,
-    breakdown_month: breakdown,
+    breakdown_total: breakdown,
+    breakdown_month: breakdown, // back-compat alias; both now reflect lifetime
     recent: (recent || []) as LedgerRow[],
     tiers: TIERS.map(([name, threshold, display, benefit]) => ({ name, threshold, display, benefit })),
     current_tier: { name: current_tier[0], threshold: current_tier[1] },
