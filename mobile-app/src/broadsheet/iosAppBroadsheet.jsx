@@ -828,11 +828,11 @@ function BSTabBar({ tabs, active, onChange }) {
   return (
     <div style={{
       position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 55,
-      height: 92, padding: '12px 8px calc(18px + env(safe-area-inset-bottom, 0px))',
+      height: 88, padding: '10px 10px calc(16px + env(safe-area-inset-bottom, 0px))',
       background: `linear-gradient(180deg, rgba(${t.inkRGB},0.03), ${t.PAPER} 78%)`,
       color: t.INK,
       borderTop: `1px solid ${t.SURFACE_BORDER}`,
-      display: 'grid', gridTemplateColumns: `repeat(${tabs.length}, 1fr)`, gap: 2,
+      display: 'grid', gridTemplateColumns: `repeat(${tabs.length}, 1fr)`, gap: 4,
       backdropFilter: 'blur(18px)',
       WebkitBackdropFilter: 'blur(18px)',
       boxShadow: `0 -16px 40px ${t.isLight ? 'rgba(15,14,12,0.08)' : 'rgba(0,0,0,0.26)'}`,
@@ -843,18 +843,17 @@ function BSTabBar({ tabs, active, onChange }) {
           <button key={tab.key} onClick={() => onChange(tab.key)} style={{ borderRadius: 14,
             border: on ? `1px solid ${t.SURFACE_BORDER}` : '1px solid transparent',
             background: on ? t.INK : 'transparent',
-            cursor: 'pointer', padding: '6px 2px',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 5,
-            color: on ? t.PAPER : t.INK70, position: 'relative', minWidth: 0,
+            cursor: 'pointer', padding: '8px 0',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+            color: on ? t.PAPER : t.INK70, position: 'relative',
             boxShadow: on ? t.ELEVATION_SOFT : 'none',
           }}>
             <span style={{
-              fontFamily: t.MONO, fontWeight: 700, fontSize: 10, letterSpacing: '-0.01em',
+              fontFamily: t.MONO, fontWeight: 700, fontSize: 10.5, letterSpacing: '-0.01em',
               fontVariantNumeric: 'tabular-nums',
             }}>{String(i + 1).padStart(2, '0')}</span>
             <span style={{
-              fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600,
-              whiteSpace: 'nowrap',
+              fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600,
             }}>{tab.label}</span>
           </button>
         );
