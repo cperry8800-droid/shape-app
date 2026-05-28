@@ -7,20 +7,6 @@
 <title>Shape - iOS App</title>
 <style>
   html, body, #root { margin: 0; padding: 0; min-height: 100vh; width: 100%; overflow: hidden; }
-  /* Browser preview: cap to a comfortable phone width and center on wider screens. */
-  @media (min-width: 600px) {
-    html:not(.is-native-app) body { background: #14110d; }
-    html:not(.is-native-app) #root { max-width: 500px; margin: 0 auto; box-shadow: 0 0 60px rgba(0,0,0,0.5); }
-    /* The pinned message composer is position:fixed and spans the viewport
-       which makes it overflow the centered phone column. Constrain it to
-       match the column width. */
-    html:not(.is-native-app) .bs-pinned-composer {
-      left: 50% !important;
-      right: auto !important;
-      width: min(100vw, 500px);
-      transform: translateX(-50%);
-    }
-  }
   html.is-native-app, html.is-native-app body, html.is-native-app #root { height: 100%; min-height: 100%; }
   body { font-family: 'Newsreader', Georgia, serif; -webkit-font-smoothing: antialiased; background: #f3eee4; }
   html.is-native-app body { background: #050504; overscroll-behavior: none; }
