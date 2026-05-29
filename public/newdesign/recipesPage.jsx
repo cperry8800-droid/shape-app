@@ -1,0 +1,174 @@
+// Public Recipes page — a browsable library of recipes created by the Shape
+// network of nutritionists, dieticians and chefs. Filterable by creator type
+// and by diet category. Reuses SHAPE_RECIPES + RecipeModal from recipes.jsx
+// and Header/Footer + PAPER/INK/TEAL/serif/sans from pageShell.jsx (both must
+// load first).
+
+const DIET_META = {
+  "Vegan":        { color: "#4fae5a" },
+  "Vegetarian":   { color: "#7bc043" },
+  "Plant-based":  { color: "#2ee0c4" },
+  "Seafood":      { color: "#3b9ed6" },
+  "Poultry":      { color: "#e0a84e" },
+  "Meat":         { color: "#c0533b" },
+};
+const DIET_ORDER = ["Vegan", "Vegetarian", "Plant-based", "Seafood", "Poultry", "Meat"];
+// Stored byRole is singular; filter chips read nicer plural.
+const CREATORS = [
+  { key: "Nutritionist", label: "Nutritionists" },
+  { key: "Dietician",    label: "Dieticians" },
+  { key: "Chef",         label: "Chefs" },
+];
+
+function dietColor(diet) {
+  return (DIET_META[diet] && DIET_META[diet].color) || TEAL;
+}
+
+function FilterChip({ label, active, color, onClick, count }) {
+  const accent = color || TEAL;
+  return (
+    <button onClick={onClick}
+      style={{
+        fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.1em",
+        textTransform: "uppercase", cursor: "pointer", whiteSpace: "nowrap",
+        padding: "8px 14px", borderRadius: 999,
+        border: `1px solid ${active ? accent : "rgba(242,237,228,0.18)"}`,
+        background: active ? accent : "transparent",
+        color: active ? "#0a0f0d" : "rgba(242,237,228,0.78)",
+        display: "inline-flex", alignItems: "center", gap: 7, lineHeight: 1,
+        transition: "all 120ms ease",
+      }}>
+      {label}
+      {typeof count === "number" && (
+        <span style={{ fontSize: 10, opacity: active ? 0.7 : 0.5 }}>{count}</span>
+      )}
+    </button>
+  );
+}
+
+function RecipeCard({ recipe, onOpen }) {
+  const dc = dietColor(recipe.diet);
+  return (
+    <button onClick={onOpen}
+      style={{
+        textAlign: "left", cursor: "pointer", padding: 0, border: "1px solid rgba(242,237,228,0.1)",
+        background: PAPER, color: INK, borderRadius: 14, overflow: "hidden",
+        display: "flex", flexDirection: "column", fontFamily: sans,
+      }}>
+      <div style={{ height: 150, background: recipe.hero, position: "relative", display: "flex", alignItems: "flex-start", justifyContent: "space-between", padding: 12 }}>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "#0a0f0d", background: dc, padding: "4px 9px", borderRadius: 999, fontWeight: 600 }}>
+          {(recipe.diet || "").toUpperCase()}
+        </span>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(255,255,255,0.9)", background: "rgba(0,0,0,0.4)", padding: "4px 9px", borderRadius: 999 }}>
+          {recipe.time.toUpperCase()} · {recipe.kcal} KCAL
+        </span>
+      </div>
+      <div style={{ padding: "16px 18px 18px", display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", color: TEAL_BRIGHT }}>
+          {(recipe.byRole || "").toUpperCase()} · {recipe.by.toUpperCase()}
+        </div>
+        <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.02em", lineHeight: 1.12 }}>{recipe.title}</div>
+        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", marginTop: "auto", paddingTop: 6 }}>
+          <Macro label="P" value={recipe.macros.p} color="#0ac5a8" />
+          <Macro label="C" value={recipe.macros.c} color="#f4b860" />
+          <Macro label="F" value={recipe.macros.f} color="#e07856" />
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {recipe.tags.slice(0, 3).map(t => (
+            <span key={t} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", padding: "3px 8px", borderRadius: 4, color: "rgba(242,237,228,0.65)", background: "rgba(242,237,228,0.06)", border: "1px solid rgba(242,237,228,0.1)" }}>{t.toUpperCase()}</span>
+          ))}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function RecipesPage() {
+  const all = (typeof SHAPE_RECIPES !== "undefined" ? SHAPE_RECIPES : []);
+  const [creator, setCreator] = React.useState("All");
+  const [diet, setDiet] = React.useState("All");
+  const [active, setActive] = React.useState(null); // recipe open in modal
+
+  const filtered = all.filter(r =>
+    (creator === "All" || r.byRole === creator) &&
+    (diet === "All" || r.diet === diet)
+  );
+
+  const countFor = (predicate) => all.filter(predicate).length;
+
+  return (
+    <div style={{ background: INK_DEEP, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", background: "radial-gradient(120% 90% at 50% 0%, rgba(26,24,19,0.5) 0%, rgba(11,14,12,0.85) 60%, #0b0e0c 100%)" }} />
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <Header active="Recipes" />
+
+        {/* Hero */}
+        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "56px 24px 28px" }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: TEAL_BRIGHT, marginBottom: 14 }}>
+            Shape Kitchen
+          </div>
+          <h1 style={{ fontFamily: serif, fontSize: "clamp(38px, 6vw, 68px)", letterSpacing: "-0.03em", lineHeight: 1.02, margin: 0, maxWidth: 820 }}>
+            Recipes from our nutritionists, dieticians & chefs.
+          </h1>
+          <p style={{ fontSize: 16, lineHeight: 1.55, color: "rgba(242,237,228,0.72)", maxWidth: 620, marginTop: 18 }}>
+            Every recipe is built by a Shape professional — macro-balanced, easy to
+            scale, and tagged by diet so you can cook for how you eat.
+          </p>
+        </div>
+
+        {/* Filters */}
+        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "8px 24px 4px", display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: "rgba(242,237,228,0.45)", width: 64 }}>CREATOR</span>
+            <FilterChip label="All" active={creator === "All"} onClick={() => setCreator("All")} count={all.length} />
+            {CREATORS.map(c => (
+              <FilterChip key={c.key} label={c.label} active={creator === c.key} onClick={() => setCreator(c.key)} count={countFor(r => r.byRole === c.key)} />
+            ))}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: "rgba(242,237,228,0.45)", width: 64 }}>DIET</span>
+            <FilterChip label="All" active={diet === "All"} onClick={() => setDiet("All")} count={all.length} />
+            {DIET_ORDER.map(d => (
+              <FilterChip key={d} label={d} active={diet === d} color={dietColor(d)} onClick={() => setDiet(d)} count={countFor(r => r.diet === d)} />
+            ))}
+          </div>
+        </div>
+
+        {/* Result count + reset */}
+        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "20px 24px 0", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", color: "rgba(242,237,228,0.55)" }}>
+            {filtered.length} {filtered.length === 1 ? "RECIPE" : "RECIPES"}
+            {(creator !== "All" || diet !== "All") ? " · FILTERED" : ""}
+          </div>
+          {(creator !== "All" || diet !== "All") && (
+            <button onClick={() => { setCreator("All"); setDiet("All"); }}
+              style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: TEAL_BRIGHT, background: "transparent", border: 0, cursor: "pointer" }}>
+              Clear filters ×
+            </button>
+          )}
+        </div>
+
+        {/* Grid */}
+        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "20px 24px 80px" }}>
+          {filtered.length > 0 ? (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 20 }}>
+              {filtered.map((r, i) => (
+                <RecipeCard key={`${r.title}-${i}`} recipe={r} onOpen={() => setActive(r)} />
+              ))}
+            </div>
+          ) : (
+            <div style={{ padding: "60px 0", textAlign: "center", color: "rgba(242,237,228,0.6)", fontFamily: sans, fontSize: 15 }}>
+              No recipes match those filters yet.
+            </div>
+          )}
+        </div>
+
+        <Footer />
+      </div>
+
+      {active && <RecipeModal recipe={active} onClose={() => setActive(null)} />}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<RecipesPage />);

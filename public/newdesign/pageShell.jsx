@@ -67,7 +67,7 @@ const SHAPE_NAV_GROUPS = [
   { kind: "link", label: "About", href: "About.html" },
   { kind: "drop", label: "Clients", match: ["Clients", "My Profile", "Overview", "Dashboard", "Client Overview", "Client Dashboard"], items: [["Overview", "Client.html"], ["Dashboard", "ClientDashboard.html"]] },
   { kind: "drop", label: "Trainers", match: ["Trainers", "Trainer Profile", "Trainer Overview", "Trainer Dashboard"], items: [["Overview", "Coach.html"], ["Dashboard", "TrainerDashboard.html"]] },
-  { kind: "drop", label: "Nutritionists", match: ["Nutritionists", "Nutritionist Profile", "Nutritionist Overview", "Nutritionist Dashboard"], items: [["Overview", "Nutritionist.html"], ["Dashboard", "NutritionistDashboard.html"]] },
+  { kind: "drop", label: "Nutritionists", match: ["Nutritionists", "Nutritionist Profile", "Nutritionist Overview", "Nutritionist Dashboard", "Recipes"], items: [["Overview", "Nutritionist.html"], ["Dashboard", "NutritionistDashboard.html"], ["Recipes", "Recipes.html"]] },
   { kind: "link", label: "Marketplace", href: "Marketplace.html" },
   { kind: "link", label: "Community", href: "Community.html" },
   { kind: "drop", label: "Rewards", match: ["Rewards", "Shape Score", "Store"], items: [["Shape Score", "Score.html"], ["Shape Store", "Store.html"]] },
