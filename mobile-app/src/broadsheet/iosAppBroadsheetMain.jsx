@@ -325,7 +325,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
 
         <div style={{ position: 'relative', zIndex: 1, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, display: 'flex', justifyContent: 'space-between', borderBottom: `2px solid ${t.INK}`, paddingBottom: 8 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><BSLogo size={16} color={t.INK} /> Classifieds</span>
-          <span>{dateShort}</span>
+          <span style={{ fontWeight: 700, color: t.INK }}>{dateShort}</span>
         </div>
 
         <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', paddingTop: 6 }}>
@@ -338,7 +338,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
                 <span className="bs-splash-daily" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>Daily.</span>
               </span>
             </div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, marginTop: 18 }}>Today's edition · {dateLine}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, marginTop: 18 }}>Today's edition · <span style={{ fontWeight: 700, color: t.INK }}>{dateLine}</span></div>
           </div>
         </div>
 
