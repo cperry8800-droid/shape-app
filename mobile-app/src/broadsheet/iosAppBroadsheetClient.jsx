@@ -5683,8 +5683,69 @@ function BSIntegrationsPage({ onBack }) {
   );
 }
 
+const _BS_SCORE_CATEGORY_LABELS = {
+  workouts: 'Workout logged',
+  adherence: 'Plan adherence',
+  habits: 'Habit completed',
+  prs: 'PR hit',
+  community: 'Community',
+  endorsements: 'Coach endorsement',
+  radio: 'Radio participation',
+  referrals: 'Referral',
+  other: 'Points',
+};
+const _BS_SCORE_MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+function _bsFormatScoreDate(iso) {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return `${_BS_SCORE_MON[d.getUTCMonth()]} ${d.getUTCDate()}`;
+}
+
+// Merge the signed-in member's live Shape Score (from /api/client/score, which
+// now reflects habit completions and every other logged point) onto the static
+// role profile. The point-value catalog + reward tiers stay static — they're
+// program rules, not user data — while the headline total, tier, weekly gain,
+// and recent ledger go live. Signed out, the static profile passes through.
+function _bsUseLiveScore(profile) {
+  const loggedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user);
+  const [data, setData] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!loggedIn) return undefined;
+    let cancelled = false;
+    fetch('/api/client/score', { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && d && typeof d.points_total === 'number') setData(d); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [loggedIn]);
+
+  if (!loggedIn || !data) return { ...profile, live: false };
+
+  const total = data.points_total || 0;
+  const nextTier = data.next_tier || null;
+  const ledger = (data.recent || []).slice(0, 12).map(r => [
+    _bsFormatScoreDate(r.earned_at),
+    `${r.delta > 0 ? '+' : ''}${r.delta}`,
+    r.note || _BS_SCORE_CATEGORY_LABELS[r.category] || 'Points',
+  ]);
+  return {
+    ...profile,
+    live: true,
+    total,
+    goal: nextTier ? nextTier.threshold : Math.max(total, profile.goal || total),
+    tier: data.current_tier ? data.current_tier.name : profile.tier,
+    nextTier: nextTier ? nextTier.name : 'Top tier',
+    pointsToNext: data.points_to_next || 0,
+    week: `${(data.week_gain || 0) >= 0 ? '+' : ''}${data.week_gain || 0}`,
+    month: data.points_month || 0,
+    available: total,
+    ledger: ledger.length ? ledger : [['—', '+0', 'Start earning — log a workout or check off a habit']],
+  };
+}
+
 function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.client }) {
   const t = useBS();
+  profile = _bsUseLiveScore(profile);
   const scoreTotal = profile.total;
   const scoreGoal = profile.goal;
   const streak = profile.streak;
@@ -5712,7 +5773,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         title={<>Showing<br/>up.</>}
         trailing={<div style={{ textAlign: 'right' }}>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 42, lineHeight: 0.9, fontWeight: 700, color: t.INK, letterSpacing: '-0.05em' }}>{scoreTotal.toLocaleString()}</div>
-          <BSEyebrow>of {scoreGoal.toLocaleString()}</BSEyebrow>
+          <BSEyebrow>{profile.live && profile.nextTier === 'Top tier' ? 'Top tier' : `of ${scoreGoal.toLocaleString()}`}</BSEyebrow>
         </div>}
       />
 
@@ -5741,11 +5802,18 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
           Every logged workout, tracked meal, kept session, and habit you hit adds up. Climb tiers and spend points on training credits, nutrition services, or Shape merch. No expiry, no gotchas.
         </div>
         <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderTop: `2px solid ${t.INK}`, borderBottom: `1px solid ${t.RULE}` }}>
-          {[
-            ['THIS WK', '+36', 'vs 32 last'],
-            ['STREAK', `${streak}d`, 'Personal best 22d'],
-            ['TIER', tier, `${pointsToNext.toLocaleString()} to ${nextTier}`],
-          ].map(([label, value, note], i) => (
+          {(profile.live
+            ? [
+                ['THIS WK', profile.week, 'Last 7 days'],
+                ['THIS MO', `+${(profile.month || 0).toLocaleString()}`, 'This month'],
+                ['TIER', tier, profile.nextTier === 'Top tier' ? 'Top tier reached' : `${pointsToNext.toLocaleString()} to ${nextTier}`],
+              ]
+            : [
+                ['THIS WK', profile.week || '+36', 'vs 32 last'],
+                ['STREAK', `${streak}d`, 'Personal best 22d'],
+                ['TIER', tier, `${pointsToNext.toLocaleString()} to ${nextTier}`],
+              ]
+          ).map(([label, value, note], i) => (
             <div key={label} style={{ padding: '10px 8px', borderLeft: i ? `1px solid ${t.RULE}` : 0 }}>
               <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{label}</div>
               <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>{value}</div>
