@@ -2910,6 +2910,50 @@ function BSClientEat({ onProfile }) {
     setView('grocery');
   };
 
+  // Persist an edited/created custom list. Keeps the in-view (aisle-shaped)
+  // copy in selectedGroceryList and a flat library-shaped copy in recipeLists
+  // (which is what BSGroceryLibrary renders + what gets saved to localStorage).
+  const persistGroceryList = (normalized) => {
+    setSelectedGroceryList(normalized);
+    const items = (normalized.aisles || []).flatMap(a => a.items || []);
+    const flat = {
+      id: normalized.id,
+      name: normalized.name,
+      kind: normalized.kind || 'custom',
+      editable: true,
+      eyebrow: normalized.eyebrow || 'Custom · Created today',
+      author: normalized.author || 'You',
+      note: normalized.note,
+      usedCount: normalized.usedCount || 0,
+      preview: items.slice(0, 3).map(it => it.n).join(' · ') || 'Empty list',
+      count: items.length,
+      items: items.map((it, idx) => ({ id: it.id || `${normalized.id}-${idx}`, n: it.n, q: it.q, meals: it.meals || normalized.name })),
+    };
+    setRecipeLists(prev => prev.some(l => l.id === flat.id)
+      ? prev.map(l => l.id === flat.id ? flat : l)
+      : [flat, ...prev]);
+  };
+
+  const createGroceryList = () => {
+    const name = window.prompt('Name your new grocery list:');
+    if (!name || !name.trim()) return;
+    const clean = name.trim().slice(0, 60);
+    const id = 'custom-' + Math.random().toString(36).slice(2, 9);
+    const note = `"${clean}" — your custom grocery list.`;
+    // In-view copy carries aisles; library/localStorage copy stays flat.
+    setSelectedGroceryList({
+      id, name: clean, kind: 'custom', editable: true,
+      eyebrow: 'Custom · Created today', author: 'You', note,
+      usedCount: 0, aisles: [{ aisle: 'Items', items: [] }],
+    });
+    setRecipeLists(prev => [
+      { id, name: clean, kind: 'custom', editable: true, eyebrow: 'Custom · Created today', author: 'You', note, usedCount: 0, preview: 'Empty list', count: 0, items: [] },
+      ...prev,
+    ]);
+    setView('grocery');
+    window.__bsToast?.(`Created "${clean}"`, 'ok');
+  };
+
   // Reset scroll-to-top whenever the eat-tab view changes (day swap,
   // entering/exiting preview, switching grocery view). Without this,
   // .bs-scroll keeps the scrollTop from the previous render branch — which
@@ -2920,8 +2964,8 @@ function BSClientEat({ onProfile }) {
     if (el) el.scrollTop = 0;
   }, [day, previewMealId, previewRecipe, previewDayBrief, view]);
 
-  if (view === 'grocery') return <BSGrocery list={activeGroceryList} onBack={() => setView('eat')} onLibrary={() => setView('library')} recipeLists={recipeLists} onChangeView={setView} />;
-  if (view === 'library') return <BSGroceryLibrary onBack={() => setView('grocery')} onLoad={loadGroceryList} recipeLists={recipeLists} />;
+  if (view === 'grocery') return <BSGrocery list={activeGroceryList} onBack={() => setView('eat')} onLibrary={() => setView('library')} recipeLists={recipeLists} onChangeView={setView} editable={!!activeGroceryList.editable} onUpdate={persistGroceryList} onCreate={createGroceryList} />;
+  if (view === 'library') return <BSGroceryLibrary onBack={() => setView('grocery')} onLoad={loadGroceryList} recipeLists={recipeLists} onCreate={createGroceryList} />;
   if (view === 'recipes') {
     return (
       <BSRecipeArchivePage
@@ -6238,10 +6282,27 @@ const BS_GROCERY_DEFAULT = {
   ],
 };
 
-function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onChangeView = () => {} }) {
+function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onChangeView = () => {}, editable = false, onUpdate = () => {}, onCreate = () => {} }) {
   const t = useBS();
   _bsScrollTopOnMount();
   const list = bsNormalizeGroceryList(activeList || BS_GROCERY_DEFAULT);
+  const [newName, setNewName] = useStateBSC('');
+  const [newQty, setNewQty] = useStateBSC('');
+  const addItem = () => {
+    const n = newName.trim();
+    if (!n) return;
+    const item = { id: `${list.id || 'list'}-i-${Date.now()}`, n, q: newQty.trim() || '1', meals: list.name };
+    const aisles = (list.aisles && list.aisles.length)
+      ? list.aisles.map(a => ({ ...a, items: [...a.items] }))
+      : [{ aisle: 'Items', items: [] }];
+    aisles[0] = { ...aisles[0], items: [...aisles[0].items, item] };
+    onUpdate({ ...list, aisles });
+    setNewName(''); setNewQty('');
+  };
+  const removeItem = (ai, ii) => {
+    const aisles = list.aisles.map((a, idx) => idx === ai ? { ...a, items: a.items.filter((_, j) => j !== ii) } : a);
+    onUpdate({ ...list, aisles });
+  };
   const allKeys = [];
   list.aisles.forEach((a, ai) => a.items.forEach((it, ii) => allKeys.push({ k: `${ai}-${ii}`, have: !!it.have })));
   const initialChecked = new Set(allKeys.filter(x => x.have).map(x => x.k));
@@ -6294,6 +6355,10 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
             padding: '12px 14px', background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, cursor: 'pointer',
             fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
           }}>Library {recipeLists.length ? `(${recipeLists.length})` : ''}</button>
+          <button onClick={onCreate} style={{ borderRadius: t.RADIUS_SM,
+            padding: '12px 14px', background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, cursor: 'pointer',
+            fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
+          }}>+ New</button>
           <button onClick={() => setChecked(new Set())} style={{ borderRadius: t.RADIUS_SM,
             padding: '12px 14px', background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, cursor: 'pointer',
             fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
@@ -6327,14 +6392,40 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
                       <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em', textDecoration: on ? 'line-through' : 'none' }}>{it.n}</div>
                       <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{it.meals}</div>
                     </div>
-                    <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK70, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{it.q}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK70, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{it.q}</span>
+                      {editable && (
+                        <button onClick={(e) => { e.stopPropagation(); removeItem(ai, ii); }} aria-label="Remove item" style={{
+                          border: 0, background: 'transparent', color: t.INK50, fontSize: 16, lineHeight: 1, cursor: 'pointer', padding: 0,
+                        }}>×</button>
+                      )}
+                    </span>
                   </div>
                 );
               })}
+              {editable && aisle.items.length === 0 && (
+                <div style={{ padding: `${t.rowY + 2}px 0`, fontFamily: t.MONO, fontSize: 10, color: t.INK50, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                  No items yet — add some below.
+                </div>
+              )}
             </div>
           </div>
         );
       })}
+
+      {/* Add item — only on editable (custom) lists */}
+      {editable && (
+        <div style={{ padding: `16px ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8 }}>Add item</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addItem(); }}
+              placeholder="Item (e.g. Almond milk)" style={{ flex: 1, minWidth: 0, height: 40, borderRadius: t.RADIUS_SM, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, padding: '0 12px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' }} />
+            <input value={newQty} onChange={(e) => setNewQty(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addItem(); }}
+              placeholder="Qty" style={{ width: 72, height: 40, borderRadius: t.RADIUS_SM, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, padding: '0 10px', fontFamily: t.MONO, fontSize: 12, outline: 'none' }} />
+            <button onClick={addItem} style={{ height: 40, borderRadius: t.RADIUS_SM, padding: '0 16px', background: t.INK, color: t.PAPER, border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Add</button>
+          </div>
+        </div>
+      )}
 
       <BSFooter right={`${done}/${total} items`} />
     </BSPage>
@@ -6388,7 +6479,7 @@ function bsNormalizeGroceryList(list) {
   };
 }
 
-function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [] }) {
+function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreate = () => {} }) {
   const t = useBS();
   _bsScrollTopOnMount();
   const [filter, setFilter] = useStateBSC('all'); // all | custom | template | mealplan | recipe
@@ -6405,8 +6496,17 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [] }) {
         title={<>Saved<br/>carts.</>}
       />
 
-      {/* Filter chips */}
-      <div style={{ padding: `12px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}`, display: 'flex', gap: 6, overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+      {/* New list */}
+      <div style={{ padding: `12px ${t.padX}px 0` }}>
+        <button onClick={onCreate} style={{ width: '100%', borderRadius: t.RADIUS_SM,
+          padding: '13px 14px', background: t.INK, color: t.PAPER, border: 0, cursor: 'pointer',
+          fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase',
+        }}>+ New grocery list</button>
+      </div>
+
+      {/* Filter chips — wrap so they never run off-screen on mobile (the app's
+          touch handling blocks horizontal scroll of inner rows). */}
+      <div style={{ padding: `12px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}`, display: 'flex', gap: 6, flexWrap: 'wrap', rowGap: 8 }}>
         {[['all','All'],['recipe','Recipes'],['custom','Custom'],['template','Templates'],['mealplan','Meal Plans']].map(([k, l]) => (
           <button key={k} onClick={() => setFilter(k)} style={{ borderRadius: t.RADIUS_SM,
             flex: '0 0 auto',
