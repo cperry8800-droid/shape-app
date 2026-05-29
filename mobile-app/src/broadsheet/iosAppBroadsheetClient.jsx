@@ -4095,7 +4095,10 @@ function BSClientChat({ onProfile, role = 'client' }) {
   const buckets = view === 'direct' ? directBuckets : communityBuckets;
   const activeSubId = subId && buckets.some(b => b.id === subId) ? subId : buckets[0]?.id;
   const activeBucket = buckets.find(b => b.id === activeSubId) || buckets[0];
-  const isThreadedBucket = view === 'direct' && (activeSubId === 'circle' || activeSubId === 'friends');
+  // Channels (community) and the threaded Direct buckets open into a specific
+  // conversation — you tap a channel/person to enter it, and the message
+  // composer lives inside that thread (not on the list).
+  const isThreadedBucket = view === 'community' || (view === 'direct' && (activeSubId === 'circle' || activeSubId === 'friends'));
   const isFeedBucket = view !== 'feed' && !isThreadedBucket;
   const getThreadKey = (th) => `${view}:${activeSubId || 'none'}:${th?.who || ''}:${th?.role || ''}`;
   // Filter threads by query — match on name, role/sub, or last message
@@ -4376,7 +4379,7 @@ function BSClientChat({ onProfile, role = 'client' }) {
             })}
             {activeThreads.length === 0 && (
               <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, padding: '10px 2px' }}>
-                No people match this search.
+                Nothing matches this search.
               </div>
             )}
           </div>
@@ -4624,7 +4627,12 @@ function BSChatThread({ thread, eyebrow, onBack }) {
   const t = useBS();
   const [text, setText] = useStateBSC('');
   const [extras, setExtras] = useStateBSC([]);
-  const allMessages = [...(thread.messages || []), ...extras];
+  // Seed from the thread's last-message preview when it has no message history,
+  // so a channel you open isn't blank before you post.
+  const seed = (thread.messages && thread.messages.length)
+    ? thread.messages
+    : (thread.last ? [{ who: thread.who, t: thread.last, time: thread.time || 'now', me: false }] : []);
+  const allMessages = [...seed, ...extras];
   const rx = useBSReactions();
 
   const send = () => {
