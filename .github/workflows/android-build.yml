@@ -1,0 +1,174 @@
+# Android build CI for the Capacitor app in mobile-app/.
+#
+# What this does on every PR / push that touches the mobile app:
+#   1. builds the Vite web bundle (relative base — correct for the native shell)
+#   2. syncs it into the Android project with Capacitor
+#   3. assembles a DEBUG apk with Gradle and uploads it as an artifact
+#
+# A debug APK is debug-signed automatically, so this runs with no secrets and
+# proves the Android build stays green. Producing an installable RELEASE build
+# needs your signing keystore — that part is intentionally left as documented,
+# opt-in steps (see the "release" job at the bottom) so nothing here depends on
+# secrets you haven't added yet. To enable release signing later, add these
+# repository secrets and the release job runs automatically:
+#   ANDROID_KEYSTORE_BASE64  — `base64 -w0 my-release.keystore`
+#   ANDROID_KEYSTORE_PASSWORD
+#   ANDROID_KEY_ALIAS
+#   ANDROID_KEY_PASSWORD
+
+name: Android Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'mobile-app/**'
+      - '.github/workflows/android-build.yml'
+  pull_request:
+    paths:
+      - 'mobile-app/**'
+      - '.github/workflows/android-build.yml'
+  workflow_dispatch:
+
+# Cancel an in-flight run when a newer commit is pushed to the same ref.
+concurrency:
+  group: android-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  debug-apk:
+    name: Build debug APK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile-app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile-app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web assets
+        run: npm run build
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Cache Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Sync Capacitor Android
+        run: npx cap sync android
+
+      - name: Assemble debug APK
+        working-directory: mobile-app/android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: shape-debug-apk
+          path: mobile-app/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+  # Opt-in release build. Skips entirely until the signing secrets are present,
+  # so the workflow stays green before you've set up a keystore.
+  release-apk:
+    name: Build signed release APK
+    runs-on: ubuntu-latest
+    # Only attempt on main / manual runs; the secret check below makes it a
+    # no-op until a keystore is configured.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    defaults:
+      run:
+        working-directory: mobile-app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for signing secrets
+        id: secrets
+        run: |
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "No ANDROID_KEYSTORE_BASE64 secret — skipping release build."
+          fi
+
+      - name: Set up Node
+        if: steps.secrets.outputs.present == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile-app/package-lock.json
+
+      - name: Install dependencies
+        if: steps.secrets.outputs.present == 'true'
+        run: npm ci
+
+      - name: Build web assets
+        if: steps.secrets.outputs.present == 'true'
+        run: npm run build
+
+      - name: Set up JDK 21
+        if: steps.secrets.outputs.present == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        if: steps.secrets.outputs.present == 'true'
+        uses: android-actions/setup-android@v3
+
+      - name: Cache Gradle
+        if: steps.secrets.outputs.present == 'true'
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Sync Capacitor Android
+        if: steps.secrets.outputs.present == 'true'
+        run: npx cap sync android
+
+      - name: Decode keystore
+        if: steps.secrets.outputs.present == 'true'
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.keystore"
+
+      - name: Assemble signed release APK
+        if: steps.secrets.outputs.present == 'true'
+        working-directory: mobile-app/android
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace \
+            -Pandroid.injected.signing.store.file="$ANDROID_KEYSTORE_PATH" \
+            -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD"
+
+      - name: Upload release APK
+        if: steps.secrets.outputs.present == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: shape-release-apk
+          path: mobile-app/android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
