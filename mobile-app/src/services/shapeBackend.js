@@ -167,6 +167,57 @@ async function signUp({ email, password, fullName, role }) {
   return cached;
 }
 
+// ─── Phone / SMS sign-in (Supabase phone auth + Twilio) ──────────────────────
+// Step 1: request an SMS one-time code. Supabase sends it via the configured
+// SMS provider (Twilio) — see the Auth → Providers → Phone settings. With
+// `shouldCreateUser: true` this doubles as passwordless sign-UP for new phones.
+async function signInWithPhone({ phone, fullName, role }) {
+  const normalizedPhone = String(phone || '').trim();
+  if (!normalizedPhone) throw new Error('Enter your phone number.');
+  if (!authConfigured) {
+    // Demo mode (no Supabase configured): pretend the code was sent.
+    return { otpSent: true, demo: true, phone: normalizedPhone };
+  }
+  const { error } = await supabase.auth.signInWithOtp({
+    phone: normalizedPhone,
+    options: {
+      shouldCreateUser: true,
+      data: fullName || role
+        ? { full_name: fullName || '', role: normalizeRole(role) }
+        : undefined,
+    },
+  });
+  if (error) throw error;
+  return { otpSent: true, phone: normalizedPhone };
+}
+
+// Step 2: verify the 6-digit SMS code, establish the session, and (for a brand
+// new phone account) seed the profile row + bridge the session to the API.
+async function verifyPhoneOtp({ phone, token, fullName, role }) {
+  const normalizedPhone = String(phone || '').trim();
+  const code = String(token || '').trim();
+  if (!normalizedPhone || !code) throw new Error('Enter the code we texted you.');
+  if (!authConfigured) {
+    const profile = demoProfile({ fullName, role: normalizeRole(role) });
+    return setCached({
+      user: { id: profile.id, email: profile.email, phone: normalizedPhone, user_metadata: { role: profile.role } },
+      session: { demo: true },
+      profile,
+    });
+  }
+  const { data, error } = await supabase.auth.verifyOtp({ phone: normalizedPhone, token: code, type: 'sms' });
+  if (error) throw error;
+
+  let profile = data.user ? await fetchProfile(data.user) : null;
+  if (!profile && data.user) profile = await upsertProfile(data.user, { fullName, role });
+
+  const cached = setCached({ user: data.user, session: data.session, profile });
+  await bridgeSessionToApi(data.session).catch((error) => {
+    console.warn('[shape] Session bridge failed.', error);
+  });
+  return cached;
+}
+
 async function updateProfileRoles({ primaryRole, roles } = {}) {
   if (!state.user?.id) {
     throw new Error('Sign in before updating roles.');
@@ -2134,6 +2185,8 @@ window.ShapeAuth = {
   client: supabase,
   signIn,
   signUp,
+  signInWithPhone,
+  verifyPhoneOtp,
   signOut,
   getCurrentSession,
   updateProfileRoles,

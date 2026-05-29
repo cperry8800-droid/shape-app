@@ -462,15 +462,33 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
   return null;
 }
 
+// Coerce user input to E.164 (+15551234567). A bare 10-digit US number gets a
+// +1; anything already starting with + is left alone; other digit strings get
+// a leading +. Supabase / Twilio require E.164.
+function _bsNormalizePhone(raw) {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('+')) return '+' + trimmed.slice(1).replace(/[^\d]/g, '');
+  const digits = trimmed.replace(/[^\d]/g, '');
+  if (!digits) return '';
+  if (digits.length === 10) return '+1' + digits;
+  return '+' + digits;
+}
+
 function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
   const t = useBS();
   const [mode, setMode] = useStateBSM(initialMode || 'signin'); // 'signin' | 'create'
+  const [authMethod, setAuthMethod] = useStateBSM('email'); // 'email' | 'phone'
   const [fullName, setFullName] = useStateBSM('');
   const [email, setEmail] = useStateBSM('');
   const [password, setPassword] = useStateBSM('');
+  const [phone, setPhone] = useStateBSM('');
+  const [otpCode, setOtpCode] = useStateBSM('');
+  const [otpSent, setOtpSent] = useStateBSM(false);
   const [authError, setAuthError] = useStateBSM('');
   const [busy, setBusy] = useStateBSM(false);
   const isCreate = mode === 'create';
+  const isPhone = authMethod === 'phone';
   const submitAuth = async () => {
     setAuthError('');
     const auth = window.ShapeAuth;
@@ -492,6 +510,52 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
     } finally {
       setBusy(false);
     }
+  };
+  // Phone — step 1: text the code.
+  const sendPhoneCode = async () => {
+    setAuthError('');
+    const auth = window.ShapeAuth;
+    const e164 = _bsNormalizePhone(phone);
+    if (!e164 || e164.length < 8) {
+      setAuthError('Enter a valid phone number, e.g. +1 555 123 4567.');
+      return;
+    }
+    setPhone(e164);
+    setBusy(true);
+    try {
+      await auth.signInWithPhone({ phone: e164, fullName: fullName.trim(), role });
+      setOtpSent(true);
+    } catch (error) {
+      setAuthError(error?.message || 'Could not send the code.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  // Phone — step 2: verify the code and sign in.
+  const verifyPhoneCode = async () => {
+    setAuthError('');
+    const auth = window.ShapeAuth;
+    if (!otpCode.trim()) {
+      setAuthError('Enter the code we texted you.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await auth.verifyPhoneOtp({ phone: _bsNormalizePhone(phone), token: otpCode.trim(), fullName: fullName.trim(), role });
+      const nextRole = result?.profile?.role;
+      if (nextRole && nextRole !== role) setRole(nextRole);
+      onLogin(result);
+    } catch (error) {
+      setAuthError(error?.message || 'That code did not work. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const switchMethod = (m) => {
+    setAuthMethod(m);
+    setAuthError('');
+    setOtpSent(false);
+    setOtpCode('');
   };
   return (
     <div style={{ position: 'absolute', inset: 0, background: t.PAPER, color: t.INK, padding: 'max(56px, calc(env(safe-area-inset-top, 0px) + 28px)) 20px 32px', display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -524,12 +588,39 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
           })}
         </div>
 
+      {/* Email / Phone method switch */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 2 }}>
+        {[['email', 'Email'], ['phone', 'Phone']].map(([k, l]) => {
+          const on = authMethod === k;
+          return <button key={k} onClick={() => switchMethod(k)} style={{ borderRadius: t.RADIUS_SM,
+            padding: '9px 4px', border: `1px solid ${on ? '#0ac5a8' : t.RULE}`,
+            background: on ? 'rgba(10,197,168,0.12)' : 'transparent',
+            color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700,
+            letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer',
+          }}>{l}</button>;
+        })}
+      </div>
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 2 }}>
         {isCreate && (
           <input placeholder="Full name" value={fullName} onChange={(e) => setFullName(e.target.value)} style={{ borderRadius: t.RADIUS_SM, background: 'transparent', border: 0, borderBottom: `1px solid ${t.INK}`, padding: '12px 0', fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, outline: 'none' }} />
         )}
-        <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" style={{ borderRadius: t.RADIUS_SM, background: 'transparent', border: 0, borderBottom: `1px solid ${t.INK}`, padding: '12px 0', fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, outline: 'none' }} />
-        <input placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={isCreate ? 'new-password' : 'current-password'} style={{ borderRadius: t.RADIUS_SM, background: 'transparent', border: 0, borderBottom: `1px solid ${t.INK}`, padding: '12px 0', fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, outline: 'none' }} />
+        {isPhone ? (
+          <>
+            <input placeholder="Phone (+1 555 123 4567)" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" disabled={otpSent} style={{ borderRadius: t.RADIUS_SM, background: 'transparent', border: 0, borderBottom: `1px solid ${t.INK}`, padding: '12px 0', fontFamily: t.DISPLAY, fontSize: 16, color: otpSent ? t.INK50 : t.INK, outline: 'none' }} />
+            {otpSent && (
+              <input placeholder="6-digit code" type="tel" inputMode="numeric" value={otpCode} onChange={(e) => setOtpCode(e.target.value)} autoComplete="one-time-code" style={{ borderRadius: t.RADIUS_SM, background: 'transparent', border: 0, borderBottom: `1px solid ${t.INK}`, padding: '12px 0', fontFamily: t.DISPLAY, fontSize: 22, letterSpacing: '0.3em', color: t.INK, outline: 'none' }} />
+            )}
+            {otpSent && (
+              <button onClick={() => { setOtpSent(false); setOtpCode(''); setAuthError(''); }} style={{ alignSelf: 'flex-start', background: 'transparent', border: 0, color: t.INK50, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '2px 0' }}>← Change number</button>
+            )}
+          </>
+        ) : (
+          <>
+            <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" style={{ borderRadius: t.RADIUS_SM, background: 'transparent', border: 0, borderBottom: `1px solid ${t.INK}`, padding: '12px 0', fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, outline: 'none' }} />
+            <input placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={isCreate ? 'new-password' : 'current-password'} style={{ borderRadius: t.RADIUS_SM, background: 'transparent', border: 0, borderBottom: `1px solid ${t.INK}`, padding: '12px 0', fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, outline: 'none' }} />
+          </>
+        )}
         {authError && (
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.RUST, lineHeight: 1.35 }}>
             {authError}
@@ -548,10 +639,18 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
       </div>
 
       {isCreate ? (
-        <button onClick={submitAuth} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: '#0ac5a8', color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Creating...' : 'Time to Shape →'}</button>
+        isPhone ? (
+          <button onClick={otpSent ? verifyPhoneCode : sendPhoneCode} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: '#0ac5a8', color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Working...' : otpSent ? 'Verify & join →' : 'Text me a code →'}</button>
+        ) : (
+          <button onClick={submitAuth} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: '#0ac5a8', color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Creating...' : 'Time to Shape →'}</button>
+        )
       ) : (
         <>
-          <button onClick={submitAuth} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: '#0ac5a8', color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Signing in...' : 'Sign in →'}</button>
+          {isPhone ? (
+            <button onClick={otpSent ? verifyPhoneCode : sendPhoneCode} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: '#0ac5a8', color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Working...' : otpSent ? 'Verify & sign in →' : 'Text me a code →'}</button>
+          ) : (
+            <button onClick={submitAuth} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: '#0ac5a8', color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Signing in...' : 'Sign in →'}</button>
+          )}
 
           {/* Curious-reader path for non-members */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
