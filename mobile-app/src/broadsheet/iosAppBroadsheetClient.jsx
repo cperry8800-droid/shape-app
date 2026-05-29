@@ -4091,10 +4091,10 @@ function BSClientChat({ onProfile, role = 'client' }) {
   const buckets = view === 'direct' ? directBuckets : communityBuckets;
   const activeSubId = subId && buckets.some(b => b.id === subId) ? subId : buckets[0]?.id;
   const activeBucket = buckets.find(b => b.id === activeSubId) || buckets[0];
-  // Channels (community) and the threaded Direct buckets open into a specific
-  // conversation — you tap a channel/person to enter it, and the message
-  // composer lives inside that thread (not on the list).
-  const isThreadedBucket = view === 'community' || (view === 'direct' && (activeSubId === 'circle' || activeSubId === 'friends'));
+  // Channels you tap into a specific channel thread (composer lives inside it).
+  // Shape Members stays a continuous feed with the composer docked at the
+  // bottom. Direct circle/friends are threaded too.
+  const isThreadedBucket = (view === 'community' && activeSubId === 'channels') || (view === 'direct' && (activeSubId === 'circle' || activeSubId === 'friends'));
   const isFeedBucket = view !== 'feed' && !isThreadedBucket;
   const getThreadKey = (th) => `${view}:${activeSubId || 'none'}:${th?.who || ''}:${th?.role || ''}`;
   // Filter threads by query — match on name, role/sub, or last message
