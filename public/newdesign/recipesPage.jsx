@@ -97,6 +97,7 @@ function RecipeCard({ recipe, saved, onToggleSave }) {
 function RecipesPage() {
   const all = (typeof SHAPE_RECIPES !== "undefined" ? SHAPE_RECIPES : []);
   const [diet, setDiet] = React.useState("All");
+  const [needs, setNeeds] = React.useState([]); // multi-select dietary needs
   const [view, setView] = React.useState("all"); // "all" | "saved"
   const [me, setMe] = React.useState(null); // null = loading, false = signed out, object = user
   const [savedSlugs, setSavedSlugs] = React.useState(() => new Set(typeof getSavedRecipeSlugs === "function" ? getSavedRecipeSlugs() : []));
@@ -119,9 +120,12 @@ function RecipesPage() {
     setSavedSlugs(new Set(getSavedRecipeSlugs()));
   };
 
+  const toggleNeed = (n) => setNeeds(prev => prev.includes(n) ? prev.filter(x => x !== n) : [...prev, n]);
+
   const savedCount = all.filter(r => savedSlugs.has(recipeSlug(r))).length;
   const filtered = all.filter(r =>
     (diet === "All" || r.diet === diet) &&
+    (needs.length === 0 || needs.every(n => recipeNeeds(r).includes(n))) &&
     (view !== "saved" || savedSlugs.has(recipeSlug(r)))
   );
   const countFor = (predicate) => all.filter(predicate).length;
@@ -163,6 +167,12 @@ function RecipesPage() {
               <FilterChip key={d} label={d} active={diet === d} color={dietColor(d)} onClick={() => setDiet(d)} count={countFor(r => r.diet === d)} />
             ))}
           </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: "rgba(242,237,228,0.45)", width: 64 }}>NEEDS</span>
+            {(typeof RECIPE_NEEDS !== "undefined" ? RECIPE_NEEDS : []).map(n => (
+              <FilterChip key={n} label={n} active={needs.includes(n)} onClick={() => toggleNeed(n)} count={countFor(r => recipeNeeds(r).includes(n))} />
+            ))}
+          </div>
         </div>
 
         {/* Account nudge for saving */}
@@ -182,10 +192,10 @@ function RecipesPage() {
         <div style={{ maxWidth: 1180, margin: "0 auto", padding: "20px 24px 0", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", color: "rgba(242,237,228,0.55)" }}>
             {filtered.length} {filtered.length === 1 ? "RECIPE" : "RECIPES"}
-            {(diet !== "All" || view === "saved") ? " · FILTERED" : ""}
+            {(diet !== "All" || needs.length > 0 || view === "saved") ? " · FILTERED" : ""}
           </div>
-          {diet !== "All" && (
-            <button onClick={() => { setDiet("All"); }}
+          {(diet !== "All" || needs.length > 0) && (
+            <button onClick={() => { setDiet("All"); setNeeds([]); }}
               style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: TEAL_BRIGHT, background: "transparent", border: 0, cursor: "pointer" }}>
               Clear filters ×
             </button>

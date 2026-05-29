@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { SHAPE_KITCHEN_RECIPES } from './shapeKitchenData.js';
+import { SHAPE_KITCHEN_RECIPES, RECIPE_NEEDS, recipeNeeds } from './shapeKitchenData.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
 
@@ -2168,8 +2168,10 @@ function BSShapeKitchen({ onChangeView, onOpenRecipe }) {
   const t = useBS();
   _bsScrollTopOnMount();
   const [diet, setDiet] = useStateBSC('All');
+  const [needs, setNeeds] = useStateBSC([]);
   const all = SHAPE_KITCHEN_RECIPES;
-  const filtered = all.filter(r => (diet === 'All' || r.diet === diet));
+  const toggleNeed = (n) => setNeeds(prev => prev.includes(n) ? prev.filter(x => x !== n) : [...prev, n]);
+  const filtered = all.filter(r => (diet === 'All' || r.diet === diet) && (needs.length === 0 || needs.every(n => recipeNeeds(r).includes(n))));
   const Chip = ({ label, on, color, onClick, count }) => (
     <button onClick={onClick} style={{
       flex: '0 0 auto', padding: '8px 12px', borderRadius: 999, cursor: 'pointer',
@@ -2182,9 +2184,14 @@ function BSShapeKitchen({ onChangeView, onOpenRecipe }) {
     <BSPage>
       <BSPageHeader kicker="Section · Nutrition" title={<>Shape<br/>Kitchen.</>} />
       <BSNutritionTopTabs active="recipes" onChange={onChangeView} />
-      <div style={{ padding: `12px ${t.padX}px 12px`, display: 'flex', gap: 6, flexWrap: 'wrap', borderBottom: `1px solid ${t.RULE}` }}>
+      <div style={{ padding: `12px ${t.padX}px 8px`, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, marginRight: 2 }}>DIET</span>
         <Chip label="All" on={diet === 'All'} onClick={() => setDiet('All')} count={all.length} />
         {BS_SK_DIETS.map(d => <Chip key={d} label={d} on={diet === d} color={BS_SK_DIET_COLOR[d]} onClick={() => setDiet(diet === d ? 'All' : d)} count={all.filter(r => r.diet === d).length} />)}
+      </div>
+      <div style={{ padding: `0 ${t.padX}px 12px`, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', borderBottom: `1px solid ${t.RULE}` }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, marginRight: 2 }}>NEEDS</span>
+        {RECIPE_NEEDS.map(n => <Chip key={n} label={n} on={needs.includes(n)} onClick={() => toggleNeed(n)} count={all.filter(r => recipeNeeds(r).includes(n)).length} />)}
       </div>
       <div style={{ padding: `14px ${t.padX}px 6px`, display: 'grid', gap: 12 }}>
         {filtered.map((r, i) => {
