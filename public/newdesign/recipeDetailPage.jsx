@@ -65,7 +65,7 @@ function RDRelatedCard({ recipe }) {
       </div>
       <div style={{ padding: "12px 14px 14px" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.12em", color: TEAL_BRIGHT, marginBottom: 6 }}>{(recipe.byRole || "").toUpperCase()}</div>
-        <div style={{ fontFamily: serif, fontSize: 17, letterSpacing: "-0.01em", lineHeight: 1.15 }}>{recipe.title}</div>
+        <div style={{ fontFamily: serif, fontWeight: 500, fontSize: 17, letterSpacing: "-0.01em", lineHeight: 1.15 }}>{recipe.title}</div>
       </div>
     </a>
   );
@@ -80,7 +80,7 @@ function RecipeDetailPage() {
       <div style={{ background: INK_DEEP, color: INK, fontFamily: sans, minHeight: "100vh" }}>
         <Header active="Recipes" />
         <div style={{ maxWidth: 720, margin: "0 auto", padding: "80px 24px", textAlign: "center" }}>
-          <div style={{ fontFamily: serif, fontSize: 40, letterSpacing: "-0.02em", marginBottom: 12 }}>Recipe not found</div>
+          <div style={{ fontFamily: serif, fontWeight: 300, fontSize: 40, letterSpacing: "-0.03em", marginBottom: 12 }}>Recipe not found</div>
           <p style={{ color: "rgba(242,237,228,0.7)", fontSize: 16, marginBottom: 24 }}>We couldn't find that recipe. It may have been renamed or removed.</p>
           <a href="/recipes" style={{ background: TEAL, color: "#0a0f0d", padding: "11px 22px", borderRadius: 999, fontFamily: sans, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>← Back to Shape Kitchen</a>
         </div>
@@ -96,6 +96,24 @@ function RecipeDetailPage() {
 
   const [added, setAdded] = React.useState(0); // count of items added (0 = not yet)
   const addToGrocery = () => { setAdded(rdAddRecipeToGrocery(recipe)); };
+
+  // Save-to-library (gated behind an account).
+  const rslug = recipeSlug(recipe);
+  const [me, setMe] = React.useState(null); // null=loading, false=signed out, obj=user
+  const [saved, setSaved] = React.useState(() => (typeof isRecipeSaved === "function") ? isRecipeSaved(rslug) : false);
+  const [authNudge, setAuthNudge] = React.useState(false);
+  React.useEffect(() => {
+    let c = false;
+    fetch("/api/me", { credentials: "same-origin" })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!c) setMe(d && d.user ? d.user : false); })
+      .catch(() => { if (!c) setMe(false); });
+    return () => { c = true; };
+  }, []);
+  const toggleSave = () => {
+    if (!me) { setAuthNudge(true); return; }
+    setSaved(toggleSavedRecipe(rslug));
+  };
 
   return (
     <div style={{ background: INK_DEEP, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
@@ -116,7 +134,7 @@ function RecipeDetailPage() {
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: "rgba(255,255,255,0.8)", marginBottom: 8 }}>
               {(recipe.byRole || "RECIPE").toUpperCase()} · {recipe.by.toUpperCase()}
             </div>
-            <h1 style={{ fontFamily: serif, fontSize: "clamp(34px, 5vw, 56px)", letterSpacing: "-0.03em", lineHeight: 1.02, color: "#fff", margin: 0, maxWidth: 760 }}>{recipe.title}</h1>
+            <h1 style={{ fontFamily: serif, fontWeight: 300, fontSize: "clamp(34px, 5vw, 56px)", letterSpacing: "-0.04em", lineHeight: 1.0, color: "#fff", margin: 0, maxWidth: 760 }}>{recipe.title}</h1>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: "rgba(255,255,255,0.82)", letterSpacing: "0.06em", marginTop: 16 }}>
               {recipe.time.toUpperCase()} · SERVES {recipe.servings} · {recipe.kcal} KCAL
             </div>
@@ -196,8 +214,25 @@ function RecipeDetailPage() {
               Add to grocery list
             </button>
           )}
+          <button onClick={toggleSave} style={{
+            background: saved ? "rgba(46,224,196,0.12)" : "transparent",
+            color: saved ? TEAL_BRIGHT : INK,
+            border: `1px solid ${saved ? "rgba(46,224,196,0.5)" : "rgba(242,237,228,0.25)"}`,
+            padding: "11px 22px", borderRadius: 999, fontFamily: sans, fontSize: 14, cursor: "pointer",
+          }}>{saved ? "✓ Saved to library" : "♥ Save to library"}</button>
           <a href="ClientNutri.html" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "11px 22px", borderRadius: 999, fontFamily: sans, fontSize: 14, textDecoration: "none" }}>Add to today's plan</a>
         </div>
+        {authNudge && !me && (
+          <div style={{ maxWidth: 980, margin: "12px auto 0", padding: "0 24px" }}>
+            <div style={{ padding: "12px 16px", borderRadius: 12, background: "rgba(46,224,196,0.08)", border: "1px solid rgba(46,224,196,0.25)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 13.5, color: "rgba(242,237,228,0.9)" }}>Create a free account to save recipes to your library.</span>
+              <span style={{ display: "flex", gap: 10 }}>
+                <a href="/signup" style={{ background: TEAL, color: "#0a0f0d", padding: "8px 16px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 600, textDecoration: "none" }}>Create account</a>
+                <a href="/login" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "8px 16px", borderRadius: 999, fontFamily: sans, fontSize: 13, textDecoration: "none" }}>Log in</a>
+              </span>
+            </div>
+          </div>
+        )}
         <div style={{ maxWidth: 980, margin: "10px auto 0", padding: "0 24px" }}>
           <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.55)", lineHeight: 1.5 }}>
             Adds all {(recipe.ingredients || []).length} ingredients to your grocery list, where you can check them off or send the whole list to Instacart.

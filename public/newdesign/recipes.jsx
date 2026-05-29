@@ -431,6 +431,28 @@ function findRecipeBySlug(slug) {
   return SHAPE_RECIPES.find(r => recipeSlug(r) === slug) || null;
 }
 
+// Saved recipe library — persisted as an array of slugs in localStorage so a
+// member's saved recipes survive across the site (and the mobile app, same
+// origin).
+const SAVED_RECIPES_KEY = "shape.savedRecipes.v1";
+function getSavedRecipeSlugs() {
+  try {
+    const raw = window.localStorage.getItem(SAVED_RECIPES_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) { return []; }
+}
+function isRecipeSaved(slug) {
+  return getSavedRecipeSlugs().indexOf(slug) >= 0;
+}
+function toggleSavedRecipe(slug) {
+  let slugs = getSavedRecipeSlugs();
+  if (slugs.indexOf(slug) >= 0) slugs = slugs.filter(s => s !== slug);
+  else slugs = [slug, ...slugs];
+  try { window.localStorage.setItem(SAVED_RECIPES_KEY, JSON.stringify(slugs)); } catch (e) {}
+  return slugs.indexOf(slug) >= 0;
+}
+
 function recipeOfTheDay(date = new Date()) {
   return RECIPES_BY_WEEKDAY[date.getDay()];
 }
@@ -567,4 +589,7 @@ if (typeof window !== "undefined") {
   window.SHAPE_RECIPES = SHAPE_RECIPES;
   window.recipeSlug = recipeSlug;
   window.findRecipeBySlug = findRecipeBySlug;
+  window.getSavedRecipeSlugs = getSavedRecipeSlugs;
+  window.isRecipeSaved = isRecipeSaved;
+  window.toggleSavedRecipe = toggleSavedRecipe;
 }
