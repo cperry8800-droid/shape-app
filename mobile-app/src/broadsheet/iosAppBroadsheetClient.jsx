@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
 
@@ -373,6 +374,15 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     <div style={{ position: 'absolute', inset: 0 }}>
       {screens[tab]}
       <BSRadioFx />
+      {/* Pinned message composers (chat feed + DM threads) portal into this
+          slot so they're positioned against the phone-frame container — not
+          the browser viewport. A viewport-fixed composer overhangs the frame
+          in the desktop preview where the frame is narrower than the window. */}
+      <div id="bs-composer-slot" style={{
+        position: 'absolute', left: 0, right: 0,
+        bottom: 'calc(88px + env(safe-area-inset-bottom, 0px))',
+        zIndex: 60, pointerEvents: 'none',
+      }} />
       <BSTabBar
         active={tab}
         onChange={setTab}
@@ -4261,9 +4271,20 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
   const t = useBS();
   const canSend = value.trim().length > 0;
 
-  return (
-    <div className={pinned ? 'bs-pinned-composer' : undefined} style={{
-      margin: `0 ${t.padX}px 16px`,
+  // When pinned, render through a portal into #bs-composer-slot — a node that
+  // lives inside the phone-frame container (next to the tab bar). The slot is
+  // committed by an ancestor, so it won't exist on this component's first
+  // render; resolve it in an effect and re-render once available.
+  const [slot, setSlot] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!pinned) return;
+    setSlot(document.getElementById('bs-composer-slot'));
+  }, [pinned]);
+
+  const box = (
+    <div style={{
+      margin: `0 ${t.padX}px`,
+      ...(pinned ? { pointerEvents: 'auto' } : { marginBottom: 16 }),
       display: 'grid',
       gridTemplateColumns: '1fr 58px',
       gap: 8,
@@ -4273,19 +4294,6 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
       borderRadius: 999,
       background: t.PAPER,
       boxShadow: `0 18px 38px ${t.isLight ? 'rgba(15,14,12,0.16)' : 'rgba(0,0,0,0.42)'}, 0 -1px 0 ${t.SURFACE_BORDER}`,
-      ...(pinned && {
-        // Position fixed so it pins to the viewport bottom regardless of
-        // scroll. .bs-pinned-composer CSS in mobile-app/index.html sets
-        // left:50%, transform:translateX(-50%), width:min(100vw,430px),
-        // and 12px horizontal padding — so we must zero the inline
-        // horizontal margin or the box gets shifted past the right edge
-        // of the viewport (the Send button gets clipped).
-        position: 'fixed',
-        left: 0, right: 0,
-        bottom: 'calc(112px + env(safe-area-inset-bottom, 0px))',
-        zIndex: 65,
-        margin: 0,
-      }),
     }}>
       <input
         value={value}
@@ -4326,6 +4334,11 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
       </button>
     </div>
   );
+
+  if (pinned) {
+    return slot ? createPortal(box, slot) : null;
+  }
+  return box;
 }
 
 // ─── Thread detail ───────────────────────────────────────────
