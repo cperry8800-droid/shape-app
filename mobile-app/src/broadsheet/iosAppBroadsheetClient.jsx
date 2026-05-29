@@ -5610,6 +5610,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
           { l: 'Health integrations',     r: 'Apple · WHOOP · …',    onClick: onIntegrations },
           { l: 'Contact support',         r: '24h reply',            onClick: () => setShowContact(true) },
           { l: 'Terms of service',        r: 'Legal',                onClick: () => setShowTerms(true) },
+          { l: 'Privacy policy',          r: 'Legal',                onClick: () => window.open('https://www.theshapecommunity.com/privacy.html', '_blank') },
           { l: 'Privacy & data',          r: 'Manage',               onClick: () => openEdit('privacy', 'profile_visibility', 'Profile visibility', { type: 'select', options: ['Public', 'Community only', 'Coaches only', 'Private'] }) },
           { l: 'Sign out',                r: '',                     alert: true, onClick: onLogout },
         ].map((s, i, arr) => (
@@ -7202,7 +7203,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         { l: 'Help center',     r: 'Visit' },
         { l: 'Contact support', r: '24h reply', action: () => setShowContact(true) },
         { l: 'Terms of service',r: 'Legal', action: () => setShowTerms(true) },
-        { l: 'Privacy policy',  r: '' },
+        { l: 'Privacy policy',  r: 'Legal', action: () => window.open('https://www.theshapecommunity.com/privacy.html', '_blank') },
         { l: 'Open-source',     r: '' },
       ],
     },
