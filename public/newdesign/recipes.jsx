@@ -14,7 +14,7 @@
 // One mock recipe per weekday. Index 0 = Sunday to match Date#getDay().
 const RECIPES_BY_WEEKDAY = [
   {
-    title: "One-pan chicken & rice",
+    title: "One-pan chicken and rice",
     by: "Rae Lindqvist", byRole: "Nutritionist", diet: "Poultry",
     time: "30 min", servings: 1, kcal: 640,
     macros: { p: 48, c: 72, f: 18 },
@@ -69,7 +69,7 @@ const RECIPES_BY_WEEKDAY = [
     tip: "Brown the turkey in a thin layer and resist stirring early — that crust is most of the flavour in a low-carb dish.",
   },
   {
-    title: "Sheet-pan salmon, sweet potato & broccoli",
+    title: "Sheet-pan salmon, sweet potato and broccoli",
     by: "Marco Bellini", byRole: "Chef", diet: "Seafood",
     time: "35 min", servings: 1, kcal: 620,
     macros: { p: 44, c: 58, f: 22 },
@@ -88,7 +88,7 @@ const RECIPES_BY_WEEKDAY = [
     tip: "Roughly equal-sized sweet potato cubes cook evenly — aim for 3/4-inch pieces so none are raw while others turn to mush.",
   },
   {
-    title: "Steak & sweet potato hash",
+    title: "Steak and sweet potato hash",
     by: "Daniel Reyes", byRole: "Chef", diet: "Meat",
     time: "25 min", servings: 1, kcal: 660,
     macros: { p: 46, c: 56, f: 26 },
@@ -107,7 +107,7 @@ const RECIPES_BY_WEEKDAY = [
     tip: "Always slice steak against the grain; it shortens the muscle fibres so each bite is far more tender.",
   },
   {
-    title: "Shrimp & quinoa harvest bowl",
+    title: "Shrimp and quinoa harvest bowl",
     by: "Dr. Priya Nair", byRole: "Dietician", diet: "Seafood",
     time: "20 min", servings: 1, kcal: 560,
     macros: { p: 40, c: 62, f: 16 },
@@ -126,7 +126,7 @@ const RECIPES_BY_WEEKDAY = [
     tip: "Cook to colour, not the clock: shrimp are done the moment they're pink and opaque — they keep cooking off the heat.",
   },
   {
-    title: "Black bean & sweet potato tacos",
+    title: "Black bean and sweet potato tacos",
     by: "Aisha Bello", byRole: "Chef", diet: "Vegan",
     time: "20 min", servings: 1, kcal: 540,
     macros: { p: 24, c: 78, f: 14 },
@@ -150,7 +150,7 @@ const RECIPES_BY_WEEKDAY = [
 // types (Nutritionist / Dietician / Chef) and diet categories.
 const RECIPES_EXTRA = [
   {
-    title: "Red lentil & spinach dahl",
+    title: "Red lentil and spinach dahl",
     by: "James Cole", byRole: "Dietician", diet: "Vegan",
     time: "30 min", servings: 2, kcal: 470,
     macros: { p: 24, c: 68, f: 12 },
@@ -207,7 +207,7 @@ const RECIPES_EXTRA = [
     tip: "Miso burns quickly because of its sugars — keep the fish a few inches from the element and stay by the oven.",
   },
   {
-    title: "Tofu & edamame poke bowl",
+    title: "Tofu and edamame poke bowl",
     by: "Aisha Bello", byRole: "Chef", diet: "Plant-based",
     time: "15 min", servings: 1, kcal: 520,
     macros: { p: 26, c: 64, f: 18 },
@@ -245,7 +245,7 @@ const RECIPES_EXTRA = [
     tip: "Pounding the breast to an even thickness is how you get juicy chicken — thin tips overcook before thick centres are done.",
   },
   {
-    title: "Beef & broccoli stir-fry",
+    title: "Beef and broccoli stir-fry",
     by: "Daniel Reyes", byRole: "Chef", diet: "Meat",
     time: "20 min", servings: 1, kcal: 600,
     macros: { p: 45, c: 48, f: 24 },
@@ -264,7 +264,7 @@ const RECIPES_EXTRA = [
     tip: "Cook the beef and broccoli separately and combine at the end — crowding the pan drops the heat and you'll braise, not stir-fry.",
   },
   {
-    title: "Tempeh & broccoli teriyaki",
+    title: "Tempeh and broccoli teriyaki",
     by: "Elena Voss", byRole: "Dietician", diet: "Vegan",
     time: "25 min", servings: 1, kcal: 540,
     macros: { p: 32, c: 58, f: 18 },
@@ -301,7 +301,7 @@ const RECIPES_EXTRA = [
     tip: "Boil eggs and potatoes in the same pot to save time and washing-up — start the eggs, add potatoes alongside.",
   },
   {
-    title: "Roasted veg & halloumi traybake",
+    title: "Roasted veg and halloumi traybake",
     by: "Marco Bellini", byRole: "Chef", diet: "Vegetarian",
     time: "35 min", servings: 2, kcal: 520,
     macros: { p: 26, c: 44, f: 28 },
@@ -356,7 +356,7 @@ const RECIPES_EXTRA = [
     tip: "Mix the meatball mixture just until combined — the gentler you are, the more tender they stay.",
   },
   {
-    title: "Smoked salmon & avocado toast",
+    title: "Smoked salmon and avocado toast",
     by: "Rae Lindqvist", byRole: "Nutritionist", diet: "Seafood",
     time: "10 min", servings: 1, kcal: 440,
     macros: { p: 28, c: 38, f: 20 },
@@ -374,7 +374,7 @@ const RECIPES_EXTRA = [
     tip: "For a clean poached egg, use the freshest egg you can and swirl the simmering water into a gentle vortex before dropping it in.",
   },
   {
-    title: "Black-eyed pea & coconut curry",
+    title: "Black-eyed pea and coconut curry",
     by: "James Cole", byRole: "Dietician", diet: "Vegan",
     time: "30 min", servings: 2, kcal: 500,
     macros: { p: 20, c: 66, f: 16 },

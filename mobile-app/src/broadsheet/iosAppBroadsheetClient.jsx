@@ -1,5 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
+import { SHAPE_KITCHEN_RECIPES } from './shapeKitchenData.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
 
@@ -2083,7 +2084,7 @@ function BSNutritionTopTabs({ active, onChange }) {
   const tabs = [
     ['eat', 'Day'],
     ['grocery', 'Grocery'],
-    ['recipes', 'Recipes'],
+    ['recipes', 'Kitchen'],
   ];
   return (
     <div style={{ padding: `12px ${t.padX}px`, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, borderBottom: `1px solid ${t.RULE}` }}>
@@ -2149,9 +2150,134 @@ function BSRecipeArchivePage({ recipes, recipeLists, onOpenRecipe, onAddGrocery,
   );
 }
 
+// ── Shape Kitchen — recipe library (mirrors the website /recipes) ──────
+const BS_SK_DIET_COLOR = { Vegan: '#4fae5a', Vegetarian: '#7bc043', 'Plant-based': '#2ee0c4', Seafood: '#3b9ed6', Poultry: '#e0a84e', Meat: '#c0533b' };
+const BS_SK_DIETS = ['Vegan', 'Vegetarian', 'Plant-based', 'Seafood', 'Poultry', 'Meat'];
+const BS_SK_CREATORS = [['Nutritionist', 'Nutritionists'], ['Dietician', 'Dieticians'], ['Chef', 'Chefs']];
+function bsSkSlug(title) {
+  return String(title || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
+function bsSkParseIngredient(s) {
+  s = String(s || '').trim();
+  const m = s.match(/^([0-9¼½¾⅓⅔.\/]+(?:\s*[-–]\s*[0-9.\/]+)?\s*(?:oz|ounces?|cups?|tbsp|tablespoons?|tsp|teaspoons?|lb|lbs|pounds?|kg|g|grams?|ml|l|liters?|cans?|cloves?|slices?|pints?|sprigs?|scoops?|handfuls?|bags?)?\.?)\s+(.+)$/i);
+  if (m && m[2]) return { q: m[1].trim(), n: m[2].trim() };
+  return { q: '', n: s };
+}
+
+function BSShapeKitchen({ onChangeView, onOpenRecipe }) {
+  const t = useBS();
+  _bsScrollTopOnMount();
+  const [creator, setCreator] = useStateBSC('All');
+  const [diet, setDiet] = useStateBSC('All');
+  const all = SHAPE_KITCHEN_RECIPES;
+  const filtered = all.filter(r => (creator === 'All' || r.byRole === creator) && (diet === 'All' || r.diet === diet));
+  const Chip = ({ label, on, color, onClick, count }) => (
+    <button onClick={onClick} style={{
+      flex: '0 0 auto', padding: '8px 12px', borderRadius: 999, cursor: 'pointer',
+      border: `1px solid ${on ? (color || t.INK) : t.RULE}`, background: on ? (color || t.INK) : 'transparent',
+      color: on ? (color ? '#0a0f0d' : t.PAPER) : t.INK70,
+      fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase',
+    }}>{label}{typeof count === 'number' ? ` ${count}` : ''}</button>
+  );
+  return (
+    <BSPage>
+      <BSPageHeader kicker="Section · Nutrition" title={<>Shape<br/>Kitchen.</>} />
+      <BSNutritionTopTabs active="recipes" onChange={onChangeView} />
+      <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <Chip label="All" on={creator === 'All'} onClick={() => setCreator('All')} count={all.length} />
+        {BS_SK_CREATORS.map(([k, l]) => <Chip key={k} label={l} on={creator === k} onClick={() => setCreator(k)} count={all.filter(r => r.byRole === k).length} />)}
+      </div>
+      <div style={{ padding: `8px ${t.padX}px 12px`, display: 'flex', gap: 6, flexWrap: 'wrap', borderBottom: `1px solid ${t.RULE}` }}>
+        {BS_SK_DIETS.map(d => <Chip key={d} label={d} on={diet === d} color={BS_SK_DIET_COLOR[d]} onClick={() => setDiet(diet === d ? 'All' : d)} count={all.filter(r => r.diet === d).length} />)}
+      </div>
+      <div style={{ padding: `14px ${t.padX}px 6px`, display: 'grid', gap: 12 }}>
+        {filtered.map((r, i) => {
+          const dc = BS_SK_DIET_COLOR[r.diet] || t.ACCENT;
+          return (
+            <button key={`${r.title}-${i}`} onClick={() => onOpenRecipe(r)} style={{ textAlign: 'left', cursor: 'pointer', padding: 0, border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: t.RADIUS_SM, overflow: 'hidden', display: 'block' }}>
+              <div style={{ height: 96, background: r.hero, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: 10 }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', color: '#0a0f0d', background: dc, padding: '3px 8px', borderRadius: 999 }}>{(r.diet || '').toUpperCase()}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', color: '#fff', background: 'rgba(0,0,0,0.4)', padding: '3px 8px', borderRadius: 999 }}>{r.time.toUpperCase()} · {r.kcal} KCAL</span>
+              </div>
+              <div style={{ padding: '12px 14px 14px' }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', color: t.ACCENT, marginBottom: 6 }}>{(r.byRole || '').toUpperCase()} · {r.by.toUpperCase()}</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', marginBottom: 8 }}>{r.title}</div>
+                <div style={{ display: 'flex', gap: 12, fontFamily: t.MONO, fontSize: 10, color: t.INK70 }}>
+                  <span>{r.macros.p}P</span><span>{r.macros.c}C</span><span>{r.macros.f}F</span>
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <BSFooter right="Shape Kitchen" />
+    </BSPage>
+  );
+}
+
+function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
+  const t = useBS();
+  _bsScrollTopOnMount();
+  const r = recipe;
+  return (
+    <BSPage>
+      <BSDetailHeader onBack={onBack} eyebrow={`${r.byRole} · ${r.by}`} kicker="Shape Kitchen" title={r.title} />
+      <div style={{ padding: `0 ${t.padX}px` }}>
+        <div style={{ height: 150, borderRadius: t.RADIUS_SM, background: r.hero, display: 'flex', alignItems: 'flex-end', padding: 12 }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', color: '#fff', background: 'rgba(0,0,0,0.4)', padding: '4px 9px', borderRadius: 999 }}>{r.time.toUpperCase()} · SERVES {r.servings} · {r.kcal} KCAL · {(r.diet || '').toUpperCase()}</span>
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', padding: `16px ${t.padX}px 14px`, borderBottom: `1px solid ${t.RULE}`, borderTop: `2px solid ${t.INK}`, marginTop: 16 }}>
+        {[['PROTEIN', r.macros.p], ['CARBS', r.macros.c], ['FAT', r.macros.f]].map(([l, v], i) => (
+          <div key={l} style={{ borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0, paddingLeft: i > 0 ? 10 : 0 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
+            <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 22, color: t.INK, marginTop: 4, letterSpacing: '-0.03em' }}>{v}g</div>
+          </div>
+        ))}
+      </div>
+      {r.blurb && (
+        <div style={{ padding: `14px ${t.padX}px 0`, fontFamily: t.DISPLAY, fontSize: 14, fontStyle: 'italic', color: t.INK70, lineHeight: 1.5 }}>"{r.blurb}" — {r.by}, {r.byRole}</div>
+      )}
+      <BSSection title="Ingredients" meta={`${r.ingredients.length} items`} />
+      <div style={{ padding: `0 ${t.padX}px` }}>
+        {r.ingredients.map((ing, i) => (
+          <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '9px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
+            <span style={{ width: 6, height: 6, borderRadius: 999, background: t.ACCENT, marginTop: 7, flex: 'none' }} />
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK }}>{ing}</span>
+          </div>
+        ))}
+      </div>
+      <BSSection title="Method" meta={`${r.steps.length} steps`} />
+      <div style={{ padding: `0 ${t.padX}px` }}>
+        {r.steps.map((s, i) => (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '28px 1fr', gap: 12, padding: '12px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.ACCENT, fontWeight: 700 }}>{String(i + 1).padStart(2, '0')}</span>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK, lineHeight: 1.55 }}>{s}</span>
+          </div>
+        ))}
+      </div>
+      {r.tip && (
+        <div style={{ padding: `16px ${t.padX}px 0` }}>
+          <div style={{ borderRadius: t.RADIUS_SM, border: `1px solid ${t.ACCENT}`, background: t.PAPER2, padding: 14 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700, marginBottom: 6 }}>Chef's tip</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, lineHeight: 1.5 }}>{r.tip}</div>
+          </div>
+        </div>
+      )}
+      <div style={{ padding: `16px ${t.padX}px 0` }}>
+        <button onClick={onAddGrocery} style={{ width: '100%', borderRadius: t.RADIUS_SM, padding: '14px', border: `1px solid ${groceryAdded ? t.GREEN : t.INK}`, background: groceryAdded ? t.GREEN : t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: 'pointer' }}>
+          {groceryAdded ? 'Added to grocery list' : 'Add ingredients to grocery list'}
+        </button>
+      </div>
+      <BSFooter right="Shape Kitchen" />
+    </BSPage>
+  );
+}
+
 function BSClientEat({ onProfile }) {
   const t = useBS();
   const [view, setView] = useStateBSC('eat'); // 'eat' | 'grocery' | 'library'
+  const [skRecipe, setSkRecipe] = useStateBSC(null); // selected Shape Kitchen recipe
   const [previewMealId, setPreviewMealId] = useStateBSC(null);
   const [previewRecipe, setPreviewRecipe] = useStateBSC(false);
   const [previewRecipeReturnView, setPreviewRecipeReturnView] = useStateBSC('eat');
@@ -2892,6 +3018,19 @@ function BSClientEat({ onProfile }) {
     window.__bsToast?.('Recipe grocery list added', 'ok');
   };
 
+  // Itemize a Shape Kitchen recipe (string ingredients) into a saved grocery list.
+  const addSKRecipeToGrocery = (recipe) => {
+    if (!recipe) return;
+    const id = 'sk-' + bsSkSlug(recipe.title);
+    const items = (recipe.ingredients || []).map((ing, idx) => {
+      const p = bsSkParseIngredient(ing);
+      return { id: `${id}-${idx}`, n: p.n, q: p.q, meals: recipe.title };
+    });
+    const list = { id, name: `${recipe.title} grocery list`, kind: 'recipe', eyebrow: `Shape Kitchen · ${recipe.byRole}`, usedCount: 1, preview: items.slice(0, 3).map(i => i.n).join(' · '), count: items.length, items };
+    setRecipeLists(prev => [list, ...prev.filter(l => l.id !== id)]);
+    window.__bsToast?.('Added to grocery list', 'ok');
+  };
+
   React.useEffect(() => {
     try {
       window.localStorage && window.localStorage.setItem('shape.recipeGroceryLists', JSON.stringify(recipeLists));
@@ -2962,18 +3101,26 @@ function BSClientEat({ onProfile }) {
   React.useLayoutEffect(() => {
     const el = document.querySelector('.bs-scroll');
     if (el) el.scrollTop = 0;
-  }, [day, previewMealId, previewRecipe, previewDayBrief, view]);
+  }, [day, previewMealId, previewRecipe, previewDayBrief, view, skRecipe]);
 
   if (view === 'grocery') return <BSGrocery list={activeGroceryList} onBack={() => setView('eat')} onLibrary={() => setView('library')} recipeLists={recipeLists} onChangeView={setView} editable={!!activeGroceryList.editable} onUpdate={persistGroceryList} onCreate={createGroceryList} />;
   if (view === 'library') return <BSGroceryLibrary onBack={() => setView('grocery')} onLoad={loadGroceryList} recipeLists={recipeLists} onCreate={createGroceryList} />;
   if (view === 'recipes') {
+    if (skRecipe) {
+      const gid = 'sk-' + bsSkSlug(skRecipe.title);
+      return (
+        <BSShapeKitchenRecipe
+          recipe={skRecipe}
+          onBack={() => setSkRecipe(null)}
+          onAddGrocery={() => addSKRecipeToGrocery(skRecipe)}
+          groceryAdded={recipeLists.some(l => l.id === gid)}
+        />
+      );
+    }
     return (
-      <BSRecipeArchivePage
-        recipes={recipeArchive}
-        recipeLists={recipeLists}
-        onChangeView={setView}
-        onAddGrocery={addRecipeToGrocery}
-        onOpenRecipe={(entry) => { setDay(entry.idx); setPreviewRecipeReturnView('recipes'); setView('eat'); setPreviewRecipe(true); }}
+      <BSShapeKitchen
+        onChangeView={(v) => { setSkRecipe(null); setView(v); }}
+        onOpenRecipe={(r) => setSkRecipe(r)}
       />
     );
   }
