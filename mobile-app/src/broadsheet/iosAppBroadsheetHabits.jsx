@@ -272,19 +272,19 @@ function BSHabitInsights({ habits, accent, onOpenScore, onAddHabit, onDeleteHabi
         border: `1px solid ${teal}`,
         background: scoreBg,
         color: cardInk,
-        padding: 18,
+        padding: 12,
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)',
       }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 900, letterSpacing: '0.22em', color: hot, textTransform: 'uppercase' }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 900, letterSpacing: '0.22em', color: hot, textTransform: 'uppercase' }}>
           Shape Score · From Habits
         </div>
-        <div style={{ fontFamily: t.SERIF || t.DISPLAY, fontSize: 54, lineHeight: 0.95, marginTop: 14, color: hot, letterSpacing: '-0.06em' }}>
+        <div style={{ fontFamily: t.SERIF || t.DISPLAY, fontSize: 34, lineHeight: 0.95, marginTop: 8, color: hot, letterSpacing: '-0.06em' }}>
           +{stats.score}
         </div>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.45, marginTop: 14, color: 'rgba(247,241,230,0.78)' }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 12, lineHeight: 1.4, marginTop: 8, color: 'rgba(247,241,230,0.78)' }}>
           Earned from habits this week. Each row's +pts rolls into your Shape Score nightly.
         </div>
-        <button type="button" onClick={onOpenScore || (() => window.__bsToast?.('Shape Score opened', 'ok'))} style={{ display: 'inline-flex', alignItems: 'center', marginTop: 18, padding: 0, border: 0, background: 'transparent', color: hot, fontFamily: t.MONO, fontSize: 10, fontWeight: 900, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: 'pointer' }}>
+        <button type="button" onClick={onOpenScore || (() => window.__bsToast?.('Shape Score opened', 'ok'))} style={{ display: 'inline-flex', alignItems: 'center', marginTop: 12, padding: 0, border: 0, background: 'transparent', color: hot, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 900, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: 'pointer' }}>
           See full breakdown →
         </button>
       </div>
@@ -1736,9 +1736,6 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
       />
       <div style={{ padding: `12px ${t.padX}px 0` }}>
         <BSHabitInsights habits={habits} accent={accent} onOpenScore={onOpenScore} onAddHabit={addHabit} onDeleteHabit={removeHabit} />
-      </div>
-      <div style={{ marginTop: 12 }}>
-        <BSHabitTracker tweaks={tweaks} setTweak={setTweak} accent={accent} mode="full" />
       </div>
     </BSPage>
   );
