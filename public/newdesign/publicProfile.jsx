@@ -581,32 +581,109 @@ function AvailabilitySection({ p }) {
   );
 }
 
-function ReviewsSection({ p }) {
+function ReviewStars10({ value }) {
+  const v = Math.round(value || 0);
+  return (
+    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: TEAL, letterSpacing: 1 }}>
+      {"★".repeat(Math.min(10, v))}<span style={{ color: "rgba(242,237,228,0.25)" }}>{"★".repeat(Math.max(0, 10 - v))}</span>
+    </span>
+  );
+}
+
+function ReviewsSection({ p, slug, kind }) {
+  // Seeded sample reviews are on a 1–5 scale; show them on the 1–10 scale (×2).
+  const seeded = (p.reviewList || []).map((r, i) => ({ id: "seed-" + i, author: r.name, rating: Math.min(10, (r.rating || 0) * 2), text: r.body, time: r.time, tags: r.tags || [] }));
+  const [live, setLive] = React.useState([]);
+  const [me, setMe] = React.useState(null);
+  const [formRating, setFormRating] = React.useState(0);
+  const [hover, setHover] = React.useState(0);
+  const [text, setText] = React.useState("");
+  const [posting, setPosting] = React.useState(false);
+  const [nudge, setNudge] = React.useState(false);
+
+  React.useEffect(() => {
+    fetch("/api/me", { credentials: "same-origin" }).then(r => (r.ok ? r.json() : null)).then(d => setMe(d && d.user ? d.user : false)).catch(() => setMe(false));
+  }, []);
+  React.useEffect(() => {
+    if (!slug) return undefined;
+    let c = false;
+    fetch(`/api/coaches/reviews?coach=${encodeURIComponent(slug)}`, { credentials: "same-origin" })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!c && d && Array.isArray(d.reviews)) setLive(d.reviews); })
+      .catch(() => {});
+    return () => { c = true; };
+  }, [slug]);
+
+  const all = [...live, ...seeded];
+  const count = all.length;
+  const avg = count ? Math.round((all.reduce((s, r) => s + (r.rating || 0), 0) / count) * 10) / 10 : 0;
+
+  const submit = () => {
+    if (!me) { setNudge(true); return; }
+    if (!formRating || posting) return;
+    setPosting(true);
+    fetch("/api/coaches/reviews", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ coach: slug, kind, rating: formRating, text }) })
+      .then(r => (r.ok ? r.json() : r.json().then(e => Promise.reject(e))))
+      .then(d => { if (d && d.review) { setLive(prev => [d.review, ...prev]); setFormRating(0); setHover(0); setText(""); } })
+      .catch(err => { if (err && /sign in/i.test(err.error || "")) setNudge(true); })
+      .finally(() => setPosting(false));
+  };
+
   return (
     <section style={{ padding: "80px 72px", borderBottom: "1px solid rgba(242,237,228,0.08)", background: "rgba(242,237,228,0.015)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
-        <SectionHead
-          label="Reviews"
-          title={`${p.reviews} reviews · ${p.rating} avg.`}
-          right={<button style={{ padding: "10px 20px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.2)", background: "transparent", color: INK, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Read all →</button>}
-        />
+        <SectionHead label="Reviews" title={count ? `${count} reviews · ${avg}/10 avg.` : "No reviews yet"} />
+
+        {/* Write a review (1–10) */}
+        <div style={{ padding: "22px 24px", background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 12, marginBottom: 24 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" }}>Your rating</span>
+            <span style={{ display: "inline-flex" }}>
+              {Array.from({ length: 10 }, (_, idx) => idx + 1).map(n => (
+                <button key={n} onClick={() => setFormRating(n)} onMouseEnter={() => setHover(n)} onMouseLeave={() => setHover(0)} aria-label={`${n} of 10`}
+                  style={{ background: "transparent", border: 0, cursor: "pointer", padding: "0 1px", fontSize: 20, lineHeight: 1, color: (hover || formRating) >= n ? TEAL : "rgba(242,237,228,0.25)" }}>★</button>
+              ))}
+            </span>
+            {formRating ? <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: TEAL }}>{formRating}/10</span> : null}
+          </div>
+          <textarea value={text} onChange={e => setText(e.target.value)} placeholder="Share how working with them went…" rows={3}
+            style={{ width: "100%", boxSizing: "border-box", background: INK_DEEP, color: INK, border: "1px solid rgba(242,237,228,0.18)", borderRadius: 8, padding: "10px 12px", fontFamily: sans, fontSize: 14, resize: "vertical", outline: "none" }} />
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+            <button onClick={submit} disabled={!formRating || posting}
+              style={{ background: formRating ? TEAL : "rgba(242,237,228,0.12)", color: formRating ? "#0a0f0d" : "rgba(242,237,228,0.4)", border: 0, padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13.5, fontWeight: 600, cursor: (formRating && !posting) ? "pointer" : "default" }}>
+              {posting ? "Posting…" : "Post review"}
+            </button>
+          </div>
+          {nudge && !me && (
+            <div style={{ marginTop: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <span style={{ fontFamily: sans, fontSize: 13.5, color: "rgba(242,237,228,0.85)" }}>Create a free account to leave a review.</span>
+              <span style={{ display: "flex", gap: 10 }}>
+                <a href="/signup" style={{ background: TEAL, color: "#0a0f0d", padding: "8px 16px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 600, textDecoration: "none" }}>Create account</a>
+                <a href="/login" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "8px 16px", borderRadius: 999, fontFamily: sans, fontSize: 13, textDecoration: "none" }}>Log in</a>
+              </span>
+            </div>
+          )}
+        </div>
+
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-          {p.reviewList.map((r, i) => (
-            <article key={i} style={{ padding: "28px 28px 24px", background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 12 }}>
+          {all.map((r) => (
+            <article key={r.id} style={{ padding: "28px 28px 24px", background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 999, background: "rgba(242,237,228,0.06)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: serif, fontSize: 16, color: INK }}>{r.name.split(" ").map(x => x[0]).join("")}</div>
+                  <div style={{ width: 40, height: 40, borderRadius: 999, background: "rgba(242,237,228,0.06)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: serif, fontSize: 16, color: INK }}>{(r.author || "M").split(" ").map(x => x[0]).join("")}</div>
                   <div>
-                    <div style={{ fontFamily: sans, fontSize: 14, fontWeight: 500, color: INK }}>{r.name}</div>
-                    <div style={{ fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.5)" }}>{r.time}</div>
+                    <div style={{ fontFamily: sans, fontSize: 14, fontWeight: 500, color: INK }}>{r.author}</div>
+                    <div style={{ fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.5)" }}>{r.time || (r.date ? new Date(r.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "")}</div>
                   </div>
                 </div>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: TEAL }}>{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</div>
+                <ReviewStars10 value={r.rating} />
               </div>
-              <p style={{ fontFamily: serif, fontSize: 17, lineHeight: 1.55, color: "rgba(242,237,228,0.85)", margin: "0 0 16px", fontStyle: "italic", textWrap: "pretty" }}>"{r.body}"</p>
-              <div style={{ display: "flex", gap: 6 }}>
-                {r.tags.map(t => <Pill key={t} tone="muted">{t}</Pill>)}
-              </div>
+              {r.text && <p style={{ fontFamily: serif, fontSize: 17, lineHeight: 1.55, color: "rgba(242,237,228,0.85)", margin: "0 0 16px", fontStyle: "italic", textWrap: "pretty" }}>"{r.text}"</p>}
+              {(r.tags && r.tags.length > 0) && (
+                <div style={{ display: "flex", gap: 6 }}>
+                  {r.tags.map(t => <Pill key={t} tone="muted">{t}</Pill>)}
+                </div>
+              )}
             </article>
           ))}
         </div>
@@ -1223,7 +1300,7 @@ function PublicProfilePage({ kind }) {
         <PackagesSection p={p} kind={kind} />
         <SamplesSection p={p} kind={kind} />
         <AvailabilitySection p={p} />
-        <ReviewsSection p={p} />
+        <ReviewsSection p={p} slug={coachSlug || (p.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")} kind={kind} />
         <FAQSection p={p} />
         <FinalCTA p={p} kind={kind} />
         <Footer />

@@ -1129,6 +1129,29 @@ function BSCoachDetailPublic({ coach, onBack }) {
   const [action, setAction] = useStateBSM2(null);
   const [checkoutBusy, setCheckoutBusy] = useStateBSM2(false);
   const tabs = ['profile', 'packages', 'sample', 'reviews'];
+
+  // Live coach reviews (1–10), shared with the website via /api/coaches/reviews.
+  const coachSlug = coach.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  const coachKind = coach.tag === 'Nutritionist' ? 'nutritionist' : 'trainer';
+  const [liveReviews, setLiveReviews] = useStateBSM2([]);
+  const [revRating, setRevRating] = useStateBSM2(0);
+  const [revText, setRevText] = useStateBSM2('');
+  const avgRev = liveReviews.length ? Math.round((liveReviews.reduce((s, r) => s + (r.rating || 0), 0) / liveReviews.length) * 10) / 10 : null;
+  useEffectBSM2(() => {
+    let c = false;
+    fetch(`/api/coaches/reviews?coach=${encodeURIComponent(coachSlug)}`, { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!c && d && Array.isArray(d.reviews)) setLiveReviews(d.reviews); })
+      .catch(() => {});
+    return () => { c = true; };
+  }, [coachSlug]);
+  const submitReview = () => {
+    if (!revRating) return;
+    fetch('/api/coaches/reviews', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ coach: coachSlug, kind: coachKind, rating: revRating, text: revText }) })
+      .then(r => (r.ok ? r.json() : r.json().then(e => Promise.reject(e))))
+      .then(d => { if (d && d.review) { setLiveReviews(prev => [d.review, ...prev]); setRevRating(0); setRevText(''); window.__bsToast?.('Review posted', 'ok'); } })
+      .catch(err => { window.__bsToast?.(err && err.error ? err.error : 'Could not post review', 'err'); });
+  };
   const last = coach.name.split(' ').slice(1).join(' ') || p.role;
   const firstName = p.first;
 
@@ -1471,8 +1494,32 @@ function BSCoachDetailPublic({ coach, onBack }) {
 
       {tab === 'reviews' && (
         <>
-          <BSSection title="Reviews" meta={`${formatCoachRating10(coach)} stars - ${coach.clients} clients`} />
+          <BSSection title="Reviews" meta={avgRev != null ? `${avgRev}/10 · ${liveReviews.length + p.reviews.length} reviews` : `${formatCoachRating10(coach)} · ${coach.clients} clients`} />
           <div style={{ padding: `0 ${t.padX}px 16px`, display: 'grid', gap: 10 }}>
+            {/* Write a review (1–10) */}
+            <BSProfileCard>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8 }}>Your rating</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, marginBottom: 10 }}>
+                {Array.from({ length: 10 }, (_, i) => i + 1).map(n => (
+                  <button key={n} onClick={() => setRevRating(n)} aria-label={`${n} of 10`} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '0 1px', fontSize: 20, lineHeight: 1, color: revRating >= n ? t.ACCENT : t.INK50 }}>★</button>
+                ))}
+                {revRating ? <span style={{ marginLeft: 6, fontFamily: t.MONO, fontSize: 11, color: t.ACCENT }}>{revRating}/10</span> : null}
+              </div>
+              <textarea value={revText} onChange={(e) => setRevText(e.target.value)} placeholder="Share how it went…" rows={2}
+                style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: t.RADIUS_SM, padding: '8px 10px', fontFamily: t.DISPLAY, fontSize: 13.5, resize: 'vertical', outline: 'none' }} />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                <button onClick={submitReview} style={{ borderRadius: t.RADIUS_SM, padding: '8px 16px', background: revRating ? t.INK : t.SURFACE, color: revRating ? t.PAPER : t.INK50, border: 0, cursor: revRating ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Post review</button>
+              </div>
+            </BSProfileCard>
+            {liveReviews.map(rv => (
+              <BSProfileCard key={rv.id}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                  <BSEyebrow color={t.ACCENT}>{rv.author}</BSEyebrow>
+                  <span style={{ fontFamily: t.MONO, color: t.ACCENT, fontSize: 10, letterSpacing: '0.08em', fontWeight: 800 }}>{rv.rating}/10</span>
+                </div>
+                {rv.text && <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1.45, color: t.INK }}>"{rv.text}"</div>}
+              </BSProfileCard>
+            ))}
             {p.reviews.map(([name, body]) => (
               <BSProfileCard key={name}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
