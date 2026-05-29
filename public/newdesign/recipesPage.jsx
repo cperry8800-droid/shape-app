@@ -1,8 +1,9 @@
-// Public Recipes page — a browsable library of recipes created by the Shape
-// network of nutritionists, dieticians and chefs. Filterable by creator type
-// and by diet category. Each card links to that recipe's own page at
-// /recipes/<slug>. Reuses SHAPE_RECIPES + recipeSlug from recipes.jsx and
-// Header/Footer + PAPER/INK/TEAL/serif/sans from pageShell.jsx (both load first).
+// Public Recipes page — "Shape Kitchen". A browsable library of recipes created
+// by the Shape network of nutritionists, dieticians and chefs. Filterable by
+// creator type and diet category, plus a saved "My library" view (gated behind
+// an account). Each card links to that recipe's own page at /recipes/<slug>.
+// Reuses SHAPE_RECIPES / recipeSlug / saved-recipe helpers from recipes.jsx and
+// Header/Footer + theme tokens from pageShell.jsx (both load first).
 
 const DIET_META = {
   "Vegan":        { color: "#4fae5a" },
@@ -13,7 +14,6 @@ const DIET_META = {
   "Meat":         { color: "#c0533b" },
 };
 const DIET_ORDER = ["Vegan", "Vegetarian", "Plant-based", "Seafood", "Poultry", "Meat"];
-// Stored byRole is singular; filter chips read nicer plural.
 const CREATORS = [
   { key: "Nutritionist", label: "Nutritionists" },
   { key: "Dietician",    label: "Dieticians" },
@@ -46,7 +46,7 @@ function FilterChip({ label, active, color, onClick, count }) {
   );
 }
 
-function RecipeCard({ recipe }) {
+function RecipeCard({ recipe, saved, onToggleSave }) {
   const dc = dietColor(recipe.diet);
   return (
     <a href={`/recipes/${recipeSlug(recipe)}`}
@@ -62,12 +62,23 @@ function RecipeCard({ recipe }) {
         <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(255,255,255,0.9)", background: "rgba(0,0,0,0.4)", padding: "4px 9px", borderRadius: 999 }}>
           {recipe.time.toUpperCase()} · {recipe.kcal} KCAL
         </span>
+        <button
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleSave(recipe); }}
+          aria-label={saved ? "Remove from library" : "Save to library"}
+          title={saved ? "Saved — click to remove" : "Save to library"}
+          style={{
+            position: "absolute", bottom: 10, right: 10, width: 34, height: 34, borderRadius: 999,
+            border: `1px solid ${saved ? TEAL : "rgba(255,255,255,0.5)"}`,
+            background: saved ? TEAL : "rgba(0,0,0,0.4)",
+            color: saved ? "#0a0f0d" : "#fff", cursor: "pointer", fontSize: 15, lineHeight: 1,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>{saved ? "♥" : "♡"}</button>
       </div>
       <div style={{ padding: "16px 18px 18px", display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", color: TEAL_BRIGHT }}>
           {(recipe.byRole || "").toUpperCase()} · {recipe.by.toUpperCase()}
         </div>
-        <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.02em", lineHeight: 1.12 }}>{recipe.title}</div>
+        <div style={{ fontFamily: serif, fontWeight: 500, fontSize: 23, letterSpacing: "-0.02em", lineHeight: 1.12 }}>{recipe.title}</div>
         <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", marginTop: "auto", paddingTop: 6 }}>
           <Macro label="P" value={recipe.macros.p} color="#0ac5a8" />
           <Macro label="C" value={recipe.macros.c} color="#f4b860" />
@@ -87,12 +98,34 @@ function RecipesPage() {
   const all = (typeof SHAPE_RECIPES !== "undefined" ? SHAPE_RECIPES : []);
   const [creator, setCreator] = React.useState("All");
   const [diet, setDiet] = React.useState("All");
+  const [view, setView] = React.useState("all"); // "all" | "saved"
+  const [me, setMe] = React.useState(null); // null = loading, false = signed out, object = user
+  const [savedSlugs, setSavedSlugs] = React.useState(() => new Set(typeof getSavedRecipeSlugs === "function" ? getSavedRecipeSlugs() : []));
+  const [authNudge, setAuthNudge] = React.useState(false);
 
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch("/api/me", { credentials: "same-origin" })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled) setMe(d && d.user ? d.user : false); })
+      .catch(() => { if (!cancelled) setMe(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const loggedIn = !!me;
+  const toggleSave = (recipe) => {
+    if (!loggedIn) { setAuthNudge(true); return; }
+    const slug = recipeSlug(recipe);
+    toggleSavedRecipe(slug);
+    setSavedSlugs(new Set(getSavedRecipeSlugs()));
+  };
+
+  const savedCount = all.filter(r => savedSlugs.has(recipeSlug(r))).length;
   const filtered = all.filter(r =>
     (creator === "All" || r.byRole === creator) &&
-    (diet === "All" || r.diet === diet)
+    (diet === "All" || r.diet === diet) &&
+    (view !== "saved" || savedSlugs.has(recipeSlug(r)))
   );
-
   const countFor = (predicate) => all.filter(predicate).length;
 
   return (
@@ -101,12 +134,12 @@ function RecipesPage() {
       <div style={{ position: "relative", zIndex: 1 }}>
         <Header active="Recipes" />
 
-        {/* Hero — Shape Kitchen is the page header */}
+        {/* Hero — Shape Kitchen header (matches the site's thin Fraunces display) */}
         <div style={{ maxWidth: 1180, margin: "0 auto", padding: "56px 24px 28px" }}>
-          <h1 style={{ fontFamily: serif, fontSize: "clamp(44px, 7vw, 78px)", letterSpacing: "-0.03em", lineHeight: 1.0, margin: 0 }}>
+          <h1 style={{ fontFamily: serif, fontWeight: 300, fontSize: "clamp(46px, 7.4vw, 92px)", letterSpacing: "-0.04em", lineHeight: 0.98, margin: 0 }}>
             Shape Kitchen
           </h1>
-          <div style={{ fontFamily: serif, fontSize: "clamp(20px, 3vw, 30px)", letterSpacing: "-0.02em", lineHeight: 1.15, marginTop: 14, color: "rgba(242,237,228,0.82)", maxWidth: 720 }}>
+          <div style={{ fontFamily: serif, fontWeight: 300, fontSize: "clamp(20px, 3vw, 30px)", letterSpacing: "-0.025em", lineHeight: 1.15, marginTop: 16, color: "rgba(242,237,228,0.82)", maxWidth: 720 }}>
             Recipes from our nutritionists, dieticians &amp; chefs.
           </div>
           <p style={{ fontSize: 16, lineHeight: 1.55, color: "rgba(242,237,228,0.7)", maxWidth: 620, marginTop: 16 }}>
@@ -114,6 +147,13 @@ function RecipesPage() {
             scale, with step-by-step method and a chef's tip. Tap any recipe for the
             full page.
           </p>
+        </div>
+
+        {/* View toggle: all recipes vs your saved library */}
+        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 24px 6px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: "rgba(242,237,228,0.45)", width: 64 }}>LIBRARY</span>
+          <FilterChip label="All recipes" active={view === "all"} onClick={() => setView("all")} count={all.length} />
+          <FilterChip label="♥ Saved" active={view === "saved"} onClick={() => { setView("saved"); if (!loggedIn) setAuthNudge(true); }} count={savedCount} />
         </div>
 
         {/* Filters */}
@@ -134,11 +174,24 @@ function RecipesPage() {
           </div>
         </div>
 
-        {/* Result count + reset */}
+        {/* Account nudge for saving */}
+        {authNudge && !loggedIn && (
+          <div style={{ maxWidth: 1180, margin: "16px auto 0", padding: "0 24px" }}>
+            <div style={{ padding: "14px 16px", borderRadius: 12, background: "rgba(46,224,196,0.08)", border: "1px solid rgba(46,224,196,0.25)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 14, color: "rgba(242,237,228,0.9)" }}>Create a free account to save recipes to your library.</span>
+              <span style={{ display: "flex", gap: 10 }}>
+                <a href="/signup" style={{ background: TEAL, color: "#0a0f0d", padding: "9px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 600, textDecoration: "none" }}>Create account</a>
+                <a href="/login" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "9px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, textDecoration: "none" }}>Log in</a>
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Result count */}
         <div style={{ maxWidth: 1180, margin: "0 auto", padding: "20px 24px 0", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", color: "rgba(242,237,228,0.55)" }}>
             {filtered.length} {filtered.length === 1 ? "RECIPE" : "RECIPES"}
-            {(creator !== "All" || diet !== "All") ? " · FILTERED" : ""}
+            {(creator !== "All" || diet !== "All" || view === "saved") ? " · FILTERED" : ""}
           </div>
           {(creator !== "All" || diet !== "All") && (
             <button onClick={() => { setCreator("All"); setDiet("All"); }}
@@ -153,8 +206,16 @@ function RecipesPage() {
           {filtered.length > 0 ? (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 20 }}>
               {filtered.map((r, i) => (
-                <RecipeCard key={`${r.title}-${i}`} recipe={r} />
+                <RecipeCard key={`${r.title}-${i}`} recipe={r} saved={savedSlugs.has(recipeSlug(r))} onToggleSave={toggleSave} />
               ))}
+            </div>
+          ) : view === "saved" ? (
+            <div style={{ padding: "60px 0", textAlign: "center" }}>
+              <div style={{ fontFamily: serif, fontWeight: 300, fontSize: 30, letterSpacing: "-0.02em", marginBottom: 10 }}>Your recipe library is empty</div>
+              <p style={{ color: "rgba(242,237,228,0.65)", fontSize: 15, marginBottom: 18 }}>
+                {loggedIn ? "Tap the ♥ on any recipe to save it here." : "Create a free account, then tap the ♥ on any recipe to save it here."}
+              </p>
+              {!loggedIn && <a href="/signup" style={{ background: TEAL, color: "#0a0f0d", padding: "11px 22px", borderRadius: 999, fontFamily: sans, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Create account</a>}
             </div>
           ) : (
             <div style={{ padding: "60px 0", textAlign: "center", color: "rgba(242,237,228,0.6)", fontFamily: sans, fontSize: 15 }}>
