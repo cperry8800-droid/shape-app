@@ -1,0 +1,170 @@
+// Per-recipe page rendered at /recipes/<slug> (a Next rewrite serves this file;
+// the slug is read from the path). Reuses SHAPE_RECIPES / findRecipeBySlug /
+// recipeSlug / Macro from recipes.jsx and Header/Footer + theme tokens from
+// pageShell.jsx (both load first).
+
+const RD_DIET_COLOR = {
+  "Vegan": "#4fae5a", "Vegetarian": "#7bc043", "Plant-based": "#2ee0c4",
+  "Seafood": "#3b9ed6", "Poultry": "#e0a84e", "Meat": "#c0533b",
+};
+
+function rdGetSlug() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get("r");
+    if (q) return q;
+    const parts = window.location.pathname.split("/").filter(Boolean);
+    const last = parts[parts.length - 1] || "";
+    if (last && last !== "RecipeDetail.html" && last.toLowerCase() !== "recipes") return last;
+  } catch (e) {}
+  return "";
+}
+
+function RDRelatedCard({ recipe }) {
+  const dc = RD_DIET_COLOR[recipe.diet] || TEAL;
+  return (
+    <a href={`/recipes/${recipeSlug(recipe)}`}
+      style={{ border: "1px solid rgba(242,237,228,0.1)", background: PAPER, color: INK, borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column", textDecoration: "none", fontFamily: sans }}>
+      <div style={{ height: 96, background: recipe.hero, display: "flex", alignItems: "flex-start", padding: 10 }}>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: "#0a0f0d", background: dc, padding: "3px 8px", borderRadius: 999, fontWeight: 600 }}>{(recipe.diet || "").toUpperCase()}</span>
+      </div>
+      <div style={{ padding: "12px 14px 14px" }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.12em", color: TEAL_BRIGHT, marginBottom: 6 }}>{(recipe.byRole || "").toUpperCase()}</div>
+        <div style={{ fontFamily: serif, fontSize: 17, letterSpacing: "-0.01em", lineHeight: 1.15 }}>{recipe.title}</div>
+      </div>
+    </a>
+  );
+}
+
+function RecipeDetailPage() {
+  const slug = rdGetSlug();
+  const recipe = (typeof findRecipeBySlug === "function") ? findRecipeBySlug(slug) : null;
+
+  if (!recipe) {
+    return (
+      <div style={{ background: INK_DEEP, color: INK, fontFamily: sans, minHeight: "100vh" }}>
+        <Header active="Recipes" />
+        <div style={{ maxWidth: 720, margin: "0 auto", padding: "80px 24px", textAlign: "center" }}>
+          <div style={{ fontFamily: serif, fontSize: 40, letterSpacing: "-0.02em", marginBottom: 12 }}>Recipe not found</div>
+          <p style={{ color: "rgba(242,237,228,0.7)", fontSize: 16, marginBottom: 24 }}>We couldn't find that recipe. It may have been renamed or removed.</p>
+          <a href="/recipes" style={{ background: TEAL, color: "#0a0f0d", padding: "11px 22px", borderRadius: 999, fontFamily: sans, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>← Back to Shape Kitchen</a>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  const dc = RD_DIET_COLOR[recipe.diet] || TEAL;
+  const related = (typeof SHAPE_RECIPES !== "undefined" ? SHAPE_RECIPES : [])
+    .filter(r => r !== recipe && (r.diet === recipe.diet || r.byRole === recipe.byRole))
+    .slice(0, 3);
+
+  return (
+    <div style={{ background: INK_DEEP, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", background: "radial-gradient(120% 90% at 50% 0%, rgba(26,24,19,0.5) 0%, rgba(11,14,12,0.85) 60%, #0b0e0c 100%)" }} />
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <Header active="Recipes" />
+
+        <div style={{ maxWidth: 980, margin: "0 auto", padding: "28px 24px 0" }}>
+          <a href="/recipes" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.6)", textDecoration: "none" }}>← Shape Kitchen</a>
+        </div>
+
+        {/* Hero banner */}
+        <div style={{ maxWidth: 980, margin: "16px auto 0", padding: "0 24px" }}>
+          <div style={{ borderRadius: 16, overflow: "hidden", background: recipe.hero, padding: "40px 32px", position: "relative" }}>
+            <div style={{ display: "inline-block", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "#0a0f0d", background: dc, padding: "4px 10px", borderRadius: 999, fontWeight: 600, marginBottom: 14 }}>
+              {(recipe.diet || "").toUpperCase()}
+            </div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: "rgba(255,255,255,0.8)", marginBottom: 8 }}>
+              {(recipe.byRole || "RECIPE").toUpperCase()} · {recipe.by.toUpperCase()}
+            </div>
+            <h1 style={{ fontFamily: serif, fontSize: "clamp(34px, 5vw, 56px)", letterSpacing: "-0.03em", lineHeight: 1.02, color: "#fff", margin: 0, maxWidth: 760 }}>{recipe.title}</h1>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: "rgba(255,255,255,0.82)", letterSpacing: "0.06em", marginTop: 16 }}>
+              {recipe.time.toUpperCase()} · SERVES {recipe.servings} · {recipe.kcal} KCAL
+            </div>
+          </div>
+        </div>
+
+        {/* Macros + tags */}
+        <div style={{ maxWidth: 980, margin: "0 auto", padding: "22px 24px 0", display: "flex", gap: 22, flexWrap: "wrap", alignItems: "center" }}>
+          <Macro label="PROTEIN" value={recipe.macros.p} color="#0ac5a8" />
+          <Macro label="CARBS" value={recipe.macros.c} color="#f4b860" />
+          <Macro label="FAT" value={recipe.macros.f} color="#e07856" />
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginLeft: "auto" }}>
+            {recipe.tags.map(tg => (
+              <span key={tg} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.08em", padding: "4px 9px", borderRadius: 4, color: "rgba(242,237,228,0.7)", background: "rgba(242,237,228,0.06)", border: "1px solid rgba(242,237,228,0.1)" }}>{tg.toUpperCase()}</span>
+            ))}
+          </div>
+        </div>
+
+        {recipe.note && (
+          <div style={{ maxWidth: 980, margin: "0 auto", padding: "18px 24px 0" }}>
+            <div style={{ fontSize: 15, color: "rgba(242,237,228,0.75)", fontStyle: "italic", lineHeight: 1.5 }}>
+              "{recipe.note}" — {recipe.by}{recipe.byRole ? `, ${recipe.byRole}` : ""}
+            </div>
+          </div>
+        )}
+
+        {/* Ingredients + Method */}
+        <div style={{ maxWidth: 980, margin: "0 auto", padding: "28px 24px 0" }}>
+          <div className="rd-cols" style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: 36 }}>
+            <div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.16em", color: TEAL_BRIGHT, marginBottom: 12 }}>INGREDIENTS</div>
+              <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+                {recipe.ingredients.map((ing, i) => (
+                  <li key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "9px 0", fontSize: 14.5, color: "rgba(242,237,228,0.88)", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.07)" }}>
+                    <span style={{ width: 6, height: 6, borderRadius: 999, background: TEAL, marginTop: 8, flex: "none" }} />
+                    <span>{ing}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.16em", color: TEAL_BRIGHT, marginBottom: 12 }}>METHOD</div>
+              <ol style={{ margin: 0, paddingLeft: 0, listStyle: "none" }}>
+                {recipe.steps.map((s, i) => (
+                  <li key={i} style={{ display: "grid", gridTemplateColumns: "34px 1fr", gap: 14, padding: "14px 0", fontSize: 15, color: "rgba(242,237,228,0.92)", lineHeight: 1.6, borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.07)" }}>
+                    <span style={{ fontFamily: serif, fontSize: 22, color: TEAL_BRIGHT, lineHeight: 1 }}>{String(i + 1).padStart(2, "0")}</span>
+                    <span>{s}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+        </div>
+
+        {recipe.tip && (
+          <div style={{ maxWidth: 980, margin: "28px auto 0", padding: "0 24px" }}>
+            <div style={{ padding: "18px 20px", borderRadius: 12, background: "rgba(46,224,196,0.08)", border: "1px solid rgba(46,224,196,0.25)" }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.16em", color: TEAL_BRIGHT, marginBottom: 8 }}>CHEF'S TIP</div>
+              <div style={{ fontSize: 15, color: "rgba(242,237,228,0.9)", lineHeight: 1.55 }}>{recipe.tip}</div>
+            </div>
+          </div>
+        )}
+
+        {/* CTAs */}
+        <div style={{ maxWidth: 980, margin: "28px auto 0", padding: "0 24px", display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <a href="ClientLibrary.html" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "11px 22px", borderRadius: 999, fontFamily: sans, fontSize: 14, textDecoration: "none" }}>Save to library</a>
+          <a href="ClientNutri.html" style={{ background: TEAL, color: "#0a0f0d", border: 0, padding: "11px 24px", borderRadius: 999, fontFamily: sans, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Add to today's plan</a>
+        </div>
+
+        {/* Related */}
+        {related.length > 0 && (
+          <div style={{ maxWidth: 980, margin: "48px auto 0", padding: "0 24px" }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.16em", color: "rgba(242,237,228,0.5)", marginBottom: 16 }}>MORE LIKE THIS</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
+              {related.map((r, i) => <RDRelatedCard key={`${r.title}-${i}`} recipe={r} />)}
+            </div>
+          </div>
+        )}
+
+        <div style={{ height: 64 }} />
+        <Footer />
+      </div>
+
+      <style>{`@media (max-width: 760px){ .rd-cols { grid-template-columns: 1fr !important; gap: 28px !important; } }`}</style>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<RecipeDetailPage />);

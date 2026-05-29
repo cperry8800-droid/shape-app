@@ -416,6 +416,21 @@ const RECIPES_EXTRA = [
 // "recipe of the day" rotation stays self-consistent.
 const SHAPE_RECIPES = [...RECIPES_BY_WEEKDAY, ...RECIPES_EXTRA];
 
+// URL-safe slug from a recipe title, e.g. "Sheet-pan salmon, sweet potato &
+// broccoli" -> "sheet-pan-salmon-sweet-potato-and-broccoli". Used for the
+// per-recipe pages at /recipes/<slug>.
+function recipeSlug(r) {
+  return String((r && r.title) || "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
+function findRecipeBySlug(slug) {
+  if (!slug) return null;
+  return SHAPE_RECIPES.find(r => recipeSlug(r) === slug) || null;
+}
+
 function recipeOfTheDay(date = new Date()) {
   return RECIPES_BY_WEEKDAY[date.getDay()];
 }
@@ -550,4 +565,6 @@ if (typeof window !== "undefined") {
   window.RecipeOfTheDayWidget = RecipeOfTheDayWidget;
   window.RecipeModal = RecipeModal;
   window.SHAPE_RECIPES = SHAPE_RECIPES;
+  window.recipeSlug = recipeSlug;
+  window.findRecipeBySlug = findRecipeBySlug;
 }
