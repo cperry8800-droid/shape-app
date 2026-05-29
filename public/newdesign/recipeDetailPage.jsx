@@ -115,6 +115,27 @@ function RecipeDetailPage() {
     setSaved(toggleSavedRecipe(rslug));
   };
 
+  // Reviews
+  const [reviews, setReviews] = React.useState(() => (typeof getRecipeReviews === "function" ? getRecipeReviews(rslug) : []));
+  const [formRating, setFormRating] = React.useState(0);
+  const [hoverRating, setHoverRating] = React.useState(0);
+  const [reviewText, setReviewText] = React.useState("");
+  const summary = (reviews.length)
+    ? { avg: Math.round((reviews.reduce((s, r) => s + (Number(r.rating) || 0), 0) / reviews.length) * 10) / 10, count: reviews.length }
+    : { avg: 0, count: 0 };
+  const submitReview = () => {
+    if (!me) { setAuthNudge(true); return; }
+    if (!formRating) return;
+    addRecipeReview(rslug, { rating: formRating, text: reviewText, author: (me.firstName || me.name || me.email || "Member") });
+    setReviews(getRecipeReviews(rslug));
+    setFormRating(0); setHoverRating(0); setReviewText("");
+  };
+  const Stars = ({ value, size = 14 }) => (
+    <span style={{ color: "#f4b860", fontSize: size, letterSpacing: 1 }} aria-label={`${value} out of 5`}>
+      {"★★★★★".slice(0, Math.round(value))}<span style={{ color: "rgba(242,237,228,0.25)" }}>{"★★★★★".slice(0, 5 - Math.round(value))}</span>
+    </span>
+  );
+
   return (
     <div style={{ background: INK_DEEP, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
       <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", background: "radial-gradient(120% 90% at 50% 0%, rgba(26,24,19,0.5) 0%, rgba(11,14,12,0.85) 60%, #0b0e0c 100%)" }} />
@@ -237,6 +258,60 @@ function RecipeDetailPage() {
           <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.55)", lineHeight: 1.5 }}>
             Adds all {(recipe.ingredients || []).length} ingredients to your grocery list, where you can check them off or send the whole list to Instacart.
           </div>
+        </div>
+
+        {/* Reviews */}
+        <div style={{ maxWidth: 980, margin: "48px auto 0", padding: "0 24px" }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap", borderTop: "1px solid rgba(242,237,228,0.1)", paddingTop: 28 }}>
+            <div style={{ fontFamily: serif, fontWeight: 300, fontSize: "clamp(26px, 4vw, 38px)", letterSpacing: "-0.03em" }}>Reviews</div>
+            {summary.count > 0 ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Stars value={summary.avg} size={16} />
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "rgba(242,237,228,0.6)" }}>{summary.avg} · {summary.count} {summary.count === 1 ? "review" : "reviews"}</span>
+              </div>
+            ) : (
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>Be the first to review</span>
+            )}
+          </div>
+
+          {/* Write a review */}
+          <div style={{ marginTop: 18, padding: "16px 18px", borderRadius: 12, background: PAPER, border: "1px solid rgba(242,237,228,0.1)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>Your rating</span>
+              <span>
+                {[1, 2, 3, 4, 5].map(n => (
+                  <button key={n} onClick={() => setFormRating(n)} onMouseEnter={() => setHoverRating(n)} onMouseLeave={() => setHoverRating(0)}
+                    aria-label={`${n} star${n > 1 ? "s" : ""}`}
+                    style={{ background: "transparent", border: 0, cursor: "pointer", padding: "0 2px", fontSize: 22, lineHeight: 1, color: (hoverRating || formRating) >= n ? "#f4b860" : "rgba(242,237,228,0.25)" }}>★</button>
+                ))}
+              </span>
+            </div>
+            <textarea value={reviewText} onChange={e => setReviewText(e.target.value)} placeholder="Share how it turned out, any tweaks you made…" rows={3}
+              style={{ width: "100%", boxSizing: "border-box", background: INK_DEEP, color: INK, border: "1px solid rgba(242,237,228,0.18)", borderRadius: 8, padding: "10px 12px", fontFamily: sans, fontSize: 14, resize: "vertical", outline: "none" }} />
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+              <button onClick={submitReview} disabled={!formRating}
+                style={{ background: formRating ? TEAL : "rgba(242,237,228,0.12)", color: formRating ? "#0a0f0d" : "rgba(242,237,228,0.4)", border: 0, padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13.5, fontWeight: 600, cursor: formRating ? "pointer" : "default" }}>
+                Post review
+              </button>
+            </div>
+          </div>
+
+          {/* Existing reviews */}
+          {reviews.length > 0 && (
+            <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 12 }}>
+              {reviews.map(rv => (
+                <div key={rv.id} style={{ padding: "14px 16px", borderRadius: 12, background: PAPER, border: "1px solid rgba(242,237,228,0.08)" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 6 }}>
+                    <Stars value={rv.rating} />
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)" }}>
+                      {rv.author.toUpperCase()} · {new Date(rv.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </span>
+                  </div>
+                  {rv.text && <div style={{ fontSize: 14, lineHeight: 1.5, color: "rgba(242,237,228,0.85)" }}>{rv.text}</div>}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Related */}

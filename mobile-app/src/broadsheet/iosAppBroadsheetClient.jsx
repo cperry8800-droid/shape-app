@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { SHAPE_KITCHEN_RECIPES, RECIPE_NEEDS, recipeNeeds } from './shapeKitchenData.js';
+import { SHAPE_KITCHEN_RECIPES, RECIPE_NEEDS, recipeNeeds, getRecipeReviews, addRecipeReview } from './shapeKitchenData.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
 
@@ -2222,6 +2222,17 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
   const t = useBS();
   _bsScrollTopOnMount();
   const r = recipe;
+  const slug = bsSkSlug(r.title);
+  const [reviews, setReviews] = useStateBSC(() => getRecipeReviews(slug));
+  const [formRating, setFormRating] = useStateBSC(0);
+  const [reviewText, setReviewText] = useStateBSC('');
+  const avg = reviews.length ? Math.round((reviews.reduce((s, x) => s + (x.rating || 0), 0) / reviews.length) * 10) / 10 : 0;
+  const submitReview = () => {
+    if (!formRating) return;
+    addRecipeReview(slug, { rating: formRating, text: reviewText, author: 'You' });
+    setReviews(getRecipeReviews(slug));
+    setFormRating(0); setReviewText('');
+  };
   return (
     <BSPage>
       <BSDetailHeader onBack={onBack} eyebrow={`${r.byRole} · ${r.by}`} kicker="Shape Kitchen" title={r.title} />
@@ -2272,6 +2283,33 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
           {groceryAdded ? 'Added to grocery list' : 'Add ingredients to grocery list'}
         </button>
       </div>
+
+      <BSSection title="Reviews" meta={reviews.length ? `${avg} ★ · ${reviews.length} ${reviews.length === 1 ? 'review' : 'reviews'}` : 'Be the first'} />
+      <div style={{ padding: `0 ${t.padX}px` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>Your rating</span>
+          {[1, 2, 3, 4, 5].map(n => (
+            <button key={n} onClick={() => setFormRating(n)} aria-label={`${n} stars`} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontSize: 22, lineHeight: 1, color: formRating >= n ? '#f4b860' : t.INK50 }}>★</button>
+          ))}
+        </div>
+        <textarea value={reviewText} onChange={(e) => setReviewText(e.target.value)} placeholder="Share how it turned out, any tweaks you made…" rows={3}
+          style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: t.RADIUS_SM, padding: '10px 12px', fontFamily: t.DISPLAY, fontSize: 14, resize: 'vertical', outline: 'none' }} />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+          <button onClick={submitReview} style={{ borderRadius: t.RADIUS_SM, padding: '10px 18px', background: formRating ? t.INK : t.SURFACE, color: formRating ? t.PAPER : t.INK50, border: 0, cursor: formRating ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Post review</button>
+        </div>
+        <div style={{ marginTop: 14, display: 'grid', gap: 10 }}>
+          {reviews.map(rv => (
+            <div key={rv.id} style={{ borderRadius: t.RADIUS_SM, border: `1px solid ${t.HAIR}`, background: t.PAPER2, padding: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, gap: 8 }}>
+                <span style={{ color: '#f4b860', fontSize: 13 }}>{'★★★★★'.slice(0, Math.round(rv.rating))}<span style={{ color: t.INK50 }}>{'★★★★★'.slice(0, 5 - Math.round(rv.rating))}</span></span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', color: t.INK50 }}>{(rv.author || 'You').toUpperCase()} · {new Date(rv.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+              </div>
+              {rv.text && <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, lineHeight: 1.5 }}>{rv.text}</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+
       <BSFooter right="Shape Kitchen" />
     </BSPage>
   );
