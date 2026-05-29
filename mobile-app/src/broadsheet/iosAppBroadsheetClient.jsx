@@ -4956,12 +4956,172 @@ function BSEditSheet({ field, onSave, onClose }) {
   );
 }
 
+// ─── PROGRESS ────────────────────────────────────────────────
+// Live body + strength progress for the signed-in member, read from
+// /api/client/progress (daily_health_snapshot + workout_set_logs, RLS-scoped).
+// 100% real data — a brand-new account renders the empty state, which is the
+// correct "real" picture, not demo numbers.
+function _bsSignedNum(n, digits = 1, unit = '') {
+  if (n == null || !Number.isFinite(Number(n))) return '—';
+  const v = Number(n);
+  const s = v > 0 ? '+' : v < 0 ? '−' : '';
+  return `${s}${Math.abs(v).toFixed(digits)}${unit}`;
+}
+
+function BSProgressSpark({ values, color, h = 40 }) {
+  const t = useBS();
+  if (!values || values.length < 2) return null;
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = max - min || 1;
+  const W = 100;
+  const pts = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * W;
+    const y = h - ((v - min) / range) * (h - 6) - 3;
+    return [Number(x.toFixed(2)), Number(y.toFixed(2))];
+  });
+  const line = pts.map(([x, y]) => `${x},${y}`).join(' ');
+  const area = `M 0,${h} L ${pts.map(([x, y]) => `${x},${y}`).join(' L ')} L ${W},${h} Z`;
+  const last = pts[pts.length - 1];
+  return (
+    <svg width="100%" height={h} viewBox={`0 0 ${W} ${h}`} preserveAspectRatio="none" style={{ display: 'block' }}>
+      <path d={area} fill={color} opacity="0.14" />
+      <polyline points={line} fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      <circle cx={last[0]} cy={last[1]} r="1.6" fill={t.PAPER} stroke={color} strokeWidth="0.9" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+function BSClientProgress({ onBack }) {
+  const t = useBS();
+  const { BSPage, BSDetailHeader } = window;
+  const [data, setData] = useStateBSC(null);
+  const [loading, setLoading] = useStateBSC(true);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/client/progress', { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled) { setData(d && d.ok ? d : null); setLoading(false); } })
+      .catch(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const kpis = (data && data.kpis) || {};
+  const series = (data && data.series) || {};
+  const prs = (data && data.prs) || [];
+  const valuesOf = (key) => ((series[key] || []).map(p => Number(p.value)).filter(Number.isFinite));
+
+  const cards = [
+    kpis.weightLatest != null && { label: 'Weight', value: `${Math.round(kpis.weightLatest)}`, unit: 'lb', sub: kpis.weightChange != null ? `${_bsSignedNum(kpis.weightChange, 1, ' lb')} since start` : 'Latest', c: t.AMBER },
+    kpis.bodyFatLatest != null && { label: 'Body fat', value: `${kpis.bodyFatLatest.toFixed(1)}`, unit: '%', sub: (kpis.bodyFatFirst != null) ? `${_bsSignedNum(kpis.bodyFatLatest - kpis.bodyFatFirst, 1, '%')} since start` : 'Latest', c: t.RUST },
+    kpis.restingHr != null && { label: 'Resting HR', value: `${kpis.restingHr}`, unit: 'bpm', sub: kpis.restingHrDelta != null ? `${_bsSignedNum(kpis.restingHrDelta, 0, '')} vs prior wk` : '7-day avg', c: t.GREEN },
+    kpis.sleepAvg != null && { label: 'Sleep', value: `${kpis.sleepAvg}`, unit: 'h', sub: '30-day avg', c: t.BLUE },
+  ].filter(Boolean);
+
+  const trendRows = [
+    { key: 'weight', label: 'Weight', c: t.AMBER },
+    { key: 'strength', label: 'Top set', c: t.ACCENT },
+    { key: 'restingHr', label: 'Resting HR', c: t.GREEN },
+    { key: 'sleep', label: 'Sleep', c: t.BLUE },
+  ].map(r => ({ ...r, values: valuesOf(r.key) })).filter(r => r.values.length >= 2);
+
+  const isEmpty = !loading && cards.length === 0 && prs.length === 0 && trendRows.length === 0;
+
+  return (
+    <BSPage>
+      <BSDetailHeader
+        onBack={onBack}
+        eyebrow="Section · Progress"
+        kicker="Body & strength"
+        title={<>Your<br/>progress.</>}
+      />
+
+      {loading && (
+        <div style={{ padding: `20px ${t.padX}px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
+      )}
+
+      {isEmpty && (
+        <div style={{ padding: `0 ${t.padX}px 18px` }}>
+          <div style={{ borderTop: `2px solid ${t.INK}`, paddingTop: 14 }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, lineHeight: 1.15, letterSpacing: '-0.02em', marginBottom: 8 }}>
+              No progress data yet.
+            </div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK70, lineHeight: 1.45 }}>
+              Connect a health source (Apple Health, WHOOP) or log workouts and check-ins. Your weight, recovery, sleep and strength PRs will trend here automatically.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!loading && cards.length > 0 && (
+        <>
+          <BSSection title="Key metrics" kicker="Latest" meta={`${cards.length} tracked`} />
+          <div style={{ padding: `0 ${t.padX}px` }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: t.RULE, border: `1px solid ${t.RULE}` }}>
+              {cards.map((card) => (
+                <div key={card.label} style={{ background: t.PAPER, padding: '14px 14px 12px' }}>
+                  <BSEyebrow color={card.c}>{card.label}</BSEyebrow>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 6 }}>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, color: t.INK, letterSpacing: '-0.04em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}>{card.value}</span>
+                    <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK50, letterSpacing: '0.08em' }}>{card.unit}</span>
+                  </div>
+                  <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{card.sub}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {!loading && trendRows.length > 0 && (
+        <>
+          <BSSection title="Trends" kicker="Recent history" />
+          <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+            {trendRows.map((r, i) => (
+              <div key={r.key} style={{ display: 'grid', gridTemplateColumns: '78px 1fr 44px', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: i === trendRows.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70, fontWeight: 700 }}>{r.label}</div>
+                <BSProgressSpark values={r.values} color={r.c} />
+                <div style={{ textAlign: 'right', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{Math.round(r.values[r.values.length - 1])}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {!loading && prs.length > 0 && (
+        <>
+          <BSSection title="Strength PRs" kicker="Best logged set" meta={`${prs.length}`} />
+          <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+            {prs.map((pr, i) => (
+              <div key={`${pr.move}-${i}`} style={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: i === prs.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+                <div>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{pr.move}</div>
+                  <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
+                    {pr.bestReps != null ? `${pr.bestReps} reps · ` : ''}{_bsFormatScoreDate(pr.bestAt)}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>{Math.round(pr.best)}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{pr.unit || 'lb'}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      <BSFooter right="Progress" />
+    </BSPage>
+  );
+}
+
 function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
   const t = useBS();
   const [showScore, setShowScore] = useStateBSC(false);
   const [showStore, setShowStore] = useStateBSC(false);
   const [showContact, setShowContact] = useStateBSC(false);
   const [showTerms, setShowTerms] = useStateBSC(false);
+  const [showProgress, setShowProgress] = useStateBSC(false);
   const scoreProfile = SHAPE_SCORE_PROFILES.client;
   const authProfile = window.ShapeAuth?.getCachedState?.().profile || {};
   const displayName = authProfile.full_name || 'Alex Rivera';
@@ -5110,6 +5270,9 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
   }
   if (showStore) {
     return <BSShapeStorePage profile={scoreProfile} onBack={() => setShowStore(false)} onOpenScore={() => { setShowStore(false); setShowScore(true); }} />;
+  }
+  if (showProgress) {
+    return <BSClientProgress onBack={() => setShowProgress(false)} />;
   }
   if (showContact) {
     return <BSContactPage onBack={() => setShowContact(false)} />;
@@ -5300,6 +5463,20 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
             </div>
           ))}
         </div>
+      </button>
+
+      {/* PROGRESS — live body + strength trends */}
+      <button onClick={() => setShowProgress(true)} style={{
+        width: '100%', textAlign: 'left', padding: `13px ${t.padX}px`,
+        border: 0, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER,
+        color: t.INK, cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+      }}>
+        <div>
+          <BSEyebrow color={t.GREEN}>Progress &amp; PRs</BSEyebrow>
+          <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>Weight, recovery, strength trends</div>
+        </div>
+        <BSEyebrow>View →</BSEyebrow>
       </button>
 
       <BSSection title="Your team" />
