@@ -131,6 +131,7 @@ const SPOTLIGHT = {
 function Spotlight({ tab }) {
   const s = SPOTLIGHT[tab];
   const activeBoost = useActiveLeadBoost(tab === "Trainer" ? "trainer" : "nutritionist");
+  const coachUrl = (name) => (tab === "Trainer" ? "TrainerPublic.html" : "NutritionistPublic.html") + "?coach=" + String(name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
   return (
     <section style={{ padding: "12px 72px 24px" }}>
       <MkReveal>
@@ -150,7 +151,7 @@ function Spotlight({ tab }) {
 
           <div className="mk-spot" style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 20 }}>
             {/* Lead feature */}
-            <article style={{ background: INK, color: PAPER, borderRadius: 6, overflow: "hidden", display: "grid", gridTemplateColumns: "1fr 1fr", position: "relative" }}>
+            <a href={coachUrl(s.lead.name)} style={{ background: INK, color: PAPER, borderRadius: 6, overflow: "hidden", display: "grid", gridTemplateColumns: "1fr 1fr", position: "relative", textDecoration: "none", cursor: "pointer" }}>
               <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${TEAL}, ${RUST})`, opacity: 0.75, zIndex: 2 }} />
               <Ph label={`${s.lead.name.split(" ")[0]} · feature`} ratio="auto" tone="dark" style={{ borderRadius: 0, height: "100%", minHeight: 380 }} />
               <div style={{ padding: "34px 34px", display: "flex", flexDirection: "column", gap: 12 }}>
@@ -164,15 +165,15 @@ function Spotlight({ tab }) {
                     <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.025em", color: PAPER, lineHeight: 1 }}>${s.lead.rate}<span style={{ fontSize: 11, color: "rgba(26,22,18,0.55)", fontFamily: sans, marginLeft: 4 }}>/session</span></div>
                     <div style={{ fontFamily: mono, fontSize: 10, color: "rgba(26,22,18,0.55)", marginTop: 4 }}>★ {s.lead.rating.toFixed(2)} · {s.lead.sessions.toLocaleString()} sessions</div>
                   </div>
-                  <button style={{ marginLeft: "auto", padding: "11px 18px", borderRadius: 2, background: TEAL, color: PAPER, border: 0, fontFamily: sans, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>View profile →</button>
+                  <span style={{ marginLeft: "auto", padding: "11px 18px", borderRadius: 2, background: TEAL, color: PAPER, fontFamily: sans, fontSize: 12.5, fontWeight: 600 }}>View profile →</span>
                 </div>
               </div>
-            </article>
+            </a>
 
             {/* 3 side picks */}
             <div style={{ display: "grid", gridTemplateRows: "repeat(3, 1fr)", gap: 10 }}>
               {s.side.map((p, i) => (
-                <article key={i} style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 4, padding: 16, display: "grid", gridTemplateColumns: "90px 1fr auto", gap: 14, alignItems: "center" }}>
+                <a key={i} href={coachUrl(p.name)} style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 4, padding: 16, display: "grid", gridTemplateColumns: "90px 1fr auto", gap: 14, alignItems: "center", textDecoration: "none", color: "inherit", cursor: "pointer" }}>
                   <Ph label={p.name.split(" ")[0]} ratio="1/1" tone="light" style={{ borderRadius: 4 }} />
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: TEAL }}>{p.city}</div>
@@ -184,7 +185,7 @@ function Spotlight({ tab }) {
                     <div style={{ fontFamily: serif, fontSize: 20, color: INK, letterSpacing: "-0.01em", lineHeight: 1 }}>${p.rate}</div>
                     <div style={{ fontFamily: mono, fontSize: 10, color: TEAL, marginTop: 4 }}>★ {p.rating.toFixed(2)}</div>
                   </div>
-                </article>
+                </a>
               ))}
             </div>
           </div>
@@ -278,7 +279,7 @@ function CoachCard({ c }) {
   };
   const onLeave = () => { if (ref.current) ref.current.style.transform = ""; };
   return (
-    <article ref={ref} onMouseMove={onMove} onMouseLeave={onLeave} style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 4, overflow: "hidden", display: "flex", flexDirection: "column", transition: "transform .12s ease-out, border-color .15s", willChange: "transform" }}>
+    <a ref={ref} onMouseMove={onMove} onMouseLeave={onLeave} href={(c.tag === "Trainer" ? "TrainerPublic.html" : "NutritionistPublic.html") + "?coach=" + c.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")} style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 4, overflow: "hidden", display: "flex", flexDirection: "column", transition: "transform .12s ease-out, border-color .15s", willChange: "transform", textDecoration: "none", color: "inherit", cursor: "pointer" }}>
       <div style={{ position: "relative" }}>
         <Ph label={`${c.name.split(' ')[0]}`} ratio="4/3" tone="light" style={{ borderRadius: 0 }} />
         <span style={{ position: "absolute", top: 10, left: 10, fontFamily: mono, fontSize: 9, padding: "3px 7px", background: "rgba(11,14,12,0.85)", color: TEAL, borderRadius: 3, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}>{c.format}</span>
@@ -305,10 +306,10 @@ function CoachCard({ c }) {
             </div>
             <div style={{ fontFamily: mono, fontSize: 10, color: "rgba(242,237,228,0.5)", marginTop: 2 }}>{c.sessions.toLocaleString()} sessions</div>
           </div>
-          <a href={(c.tag === "Trainer" ? "TrainerPublic.html" : "NutritionistPublic.html") + "?coach=" + c.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")} style={{ padding: "9px 14px", borderRadius: 2, background: TEAL, color: PAPER, border: 0, fontFamily: sans, fontSize: 11.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", textAlign: "center" }}>View →</a>
+          <span style={{ padding: "9px 14px", borderRadius: 2, background: TEAL, color: PAPER, fontFamily: sans, fontSize: 11.5, fontWeight: 600, whiteSpace: "nowrap", textAlign: "center" }}>View →</span>
         </div>
       </div>
-    </article>);
+    </a>);
 }
 
 function Grid({ tab }) {
