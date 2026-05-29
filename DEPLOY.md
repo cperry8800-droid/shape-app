@@ -115,15 +115,62 @@ When you're ready to accept real money:
    `STRIPE_WEBHOOK_SECRET` to the live values
 5. Redeploy
 
+## 8. Enable SMS login (Twilio)
+
+The mobile app's login screen has an **Email / Phone** switch. The phone path
+(`signInWithPhone` → SMS code → `verifyPhoneOtp`) is live in the code; it just
+needs an SMS provider wired into Supabase. There is no app redeploy required.
+
+1. Create a Twilio account → buy a number (or set up a Messaging Service) with
+   SMS capability.
+2. Collect: **Account SID**, **Auth Token**, and the **Messaging Service SID**
+   (preferred) or the **From** number.
+3. Supabase → **Authentication → Providers → Phone** → enable, choose
+   **Twilio**, paste the three values, save.
+4. (Recommended) Supabase → Authentication → Rate limits → confirm the SMS OTP
+   rate limit is sane, and set a sensible OTP expiry.
+5. Test from the app: Login → Phone → enter your number → receive the code →
+   verify. A brand-new phone auto-creates the account and seeds a profile row.
+
+> Costs: each SMS is billed by Twilio. Watch the rate limits to avoid abuse.
+
+## 9. Android release signing (CI)
+
+`/.github/workflows/android-build.yml` builds a **debug** APK on every push/PR
+with no configuration. To also produce a **signed release** APK, add these
+repository secrets (Settings → Secrets and variables → Actions); the release
+job stays skipped until they exist:
+
+| Secret | How to get it |
+| --- | --- |
+| `ANDROID_KEYSTORE_BASE64` | `base64 -w0 my-release.keystore` |
+| `ANDROID_KEYSTORE_PASSWORD` | keystore password |
+| `ANDROID_KEY_ALIAS` | key alias inside the keystore |
+| `ANDROID_KEY_PASSWORD` | key password |
+
+Keep the keystore itself out of the repo — CI decodes it into the runner's
+temp dir at build time only.
+
+## Database migrations
+
+All SQL lives in `supabase-migrations/` and is applied manually in the Supabase
+SQL editor (run any not yet applied, oldest first). The provider dashboards
+depend on the owner-id + RLS migrations in particular:
+
+- `2026-04-14-provider-owner-id.sql` — `owner_id` columns + provider-scoped
+  policies + the `claim_provider_row()` helper.
+- `2026-05-29-provider-rls-hardening.sql` — provider read on `public.profiles`
+  + tightened `provider_update_sessions` check.
+
 ## Known caveats
 
-- **Provider dashboard RLS** — trainers/nutritionists can't see their own
-  subscribers yet because there's no `owner_id` column linking
-  `auth.users.id` to `trainers.id`. The webhook writes subs via
-  service_role so they land regardless; we just can't query them from the
-  provider side. Addressed by the next "provider onboarding" task.
-- **Phone login** requires Twilio creds in Supabase → Authentication →
-  Providers → Phone. See the top-level project notes for that setup.
+- **Provider rows need an `owner_id`.** Dashboards resolve "which provider am
+  I" via `trainers/nutritionists.owner_id = auth.uid()`. That column is set
+  automatically when a provider completes **Stripe Connect onboarding**
+  (`/api/stripe/connect-account`), or manually via the `claim_provider_row()`
+  RPC / the `/dashboard/claim` page. A provider row with a null `owner_id`
+  won't appear in that user's dashboard — claim it if a row was seeded
+  out-of-band.
 - **No background jobs yet** — the subscription status relies entirely on
   Stripe webhooks. If a webhook is missed, the row won't update until the
   next event. Stripe retries automatically, so this is usually fine.
