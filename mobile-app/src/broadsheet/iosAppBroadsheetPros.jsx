@@ -934,6 +934,21 @@ function BSTrainerClients() {
   const [previewClient, setPreviewClient] = useStateBSP(null);
   const [fullClient, setFullClient] = useStateBSP(null);
   const [subtab, setSubtab] = useStateBSP('roster');
+  const [roster, setRoster] = useStateBSP('active'); // 'active' | 'past'
+  const COACH_CLIENTS = [
+    { i: 'A', c: t.RUST,  n: 'Alex Rivera',    r: 'CUT · W6 · D38',   d: 'JUST NOW',   s: 'on track',    active: true },
+    { i: 'S', c: t.BLUE,  n: 'Sam Patel',      r: 'BUILD · W3',       d: '2H AGO',     s: 'on track',    active: true },
+    { i: 'R', c: t.AMBER, n: 'Riley Kim',      r: 'CUT · W8',         d: '1D AGO',     s: 'review form', active: true },
+    { i: 'C', c: t.AMBER, n: 'Casey Lee',      r: 'PEAK · W11',       d: '1D AGO',     s: 'deload soon', active: true },
+    { i: 'D', c: t.GREEN, n: 'Drew Park',      r: 'PEAK · W11',       d: '2D AGO',     s: 'deload soon', active: true },
+    { i: 'M', c: t.RUST,  n: 'Morgan Liu',     r: 'INTAKE',           d: 'NEW',        s: 'onboard',     active: true },
+    { i: 'Q', c: t.BLUE,  n: 'Quinn Choi',     r: 'BUILD · W2',       d: '3D AGO',     s: 'on track',    active: true },
+    { i: 'B', c: t.INK50, n: 'Bailey Cruz',    r: 'PAST · finished block', d: '6W AGO', s: 'past',       active: false },
+    { i: 'T', c: t.INK50, n: 'Taylor Reed',    r: 'PAST · paused',    d: '3M AGO',     s: 'past',        active: false },
+  ];
+  const shownClients = COACH_CLIENTS.filter(c => roster === 'active' ? c.active : !c.active);
+  const activeCount = COACH_CLIENTS.filter(c => c.active).length;
+  const pastCount = COACH_CLIENTS.length - activeCount;
   if (fullClient) {
     return <BSProClientFullProfilePage client={fullClient} onBack={() => setFullClient(null)} />;
   }
@@ -973,17 +988,27 @@ function BSTrainerClients() {
     <BSPage>
       <BSPageHeader kicker="Section · Clients" title={<>14<br/>clients.</>} />
       <BSProClientsTabBar active={subtab} onChange={setSubtab} role="trainer" />
-      <BSSection title="By status" meta="Sorted by last seen" />
+      {/* Active / Past clients toggle */}
+      <div style={{ padding: `12px ${t.padX}px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, borderBottom: `1px solid ${t.RULE}` }}>
+        {[['active', `Active · ${activeCount}`], ['past', `Past · ${pastCount}`]].map(([k, label]) => {
+          const on = roster === k;
+          return (
+            <button key={k} onClick={() => setRoster(k)} style={{ borderRadius: t.RADIUS_SM,
+              padding: '10px 6px', border: `1px solid ${on ? t.INK : t.RULE}`,
+              background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK,
+              fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer',
+            }}>{label}</button>
+          );
+        })}
+      </div>
+      <BSSection title={roster === 'active' ? 'By status' : 'Past clients'} meta={roster === 'active' ? 'Sorted by last seen' : 'Archived'} />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
-        {[
-          { i: 'A', c: t.RUST,  n: 'Alex Rivera',    r: 'CUT · W6 · D38',   d: 'JUST NOW',   s: 'on track' },
-          { i: 'S', c: t.BLUE,  n: 'Sam Patel',      r: 'BUILD · W3',       d: '2H AGO',     s: 'on track' },
-          { i: 'R', c: t.AMBER, n: 'Riley Kim',      r: 'CUT · W8',         d: '1D AGO',     s: 'review form' },
-          { i: 'C', c: t.AMBER, n: 'Casey Lee',      r: 'PEAK · W11',       d: '1D AGO',     s: 'deload soon' },
-          { i: 'D', c: t.GREEN, n: 'Drew Park',      r: 'PEAK · W11',       d: '2D AGO',     s: 'deload soon' },
-          { i: 'M', c: t.RUST,  n: 'Morgan Liu',     r: 'INTAKE',           d: 'NEW',        s: 'onboard' },
-          { i: 'Q', c: t.BLUE,  n: 'Quinn Choi',     r: 'BUILD · W2',       d: '3D AGO',     s: 'on track' },
-        ].map((c, i, arr) => (
+        {shownClients.length === 0 && (
+          <div style={{ padding: `${t.rowY + 8}px 0`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>
+            No {roster} clients.
+          </div>
+        )}
+        {shownClients.map((c, i, arr) => (
           <button key={i} onClick={() => setPreviewClient(c)} style={{ width: '100%', border: 0, background: 'transparent',
             display: 'grid', gridTemplateColumns: '40px 1fr 90px',
             gap: 12, padding: `${t.rowY + 4}px 0`, alignItems: 'center',
@@ -1834,6 +1859,22 @@ function BSNutriClients() {
   const [previewClient, setPreviewClient] = useStateBSP(null);
   const [fullClient, setFullClient] = useStateBSP(null);
   const [subtab, setSubtab] = useStateBSP('roster');
+  const [roster, setRoster] = useStateBSP('active'); // 'active' | 'past'
+  const NUTRI_CLIENTS = [
+    { i: 'A', c: t.RUST,  n: 'Alex Rivera',  r: 'CUT · 1900 KCAL',  d: '94%', good: true, active: true },
+    { i: 'J', c: t.BLUE,  n: 'Jamie Wong',   r: 'CUT · 1700 KCAL',  d: '88%', good: true, active: true },
+    { i: 'R', c: t.AMBER, n: 'Riley Kim',    r: 'CUT · 1850 KCAL',  d: '72%', active: true },
+    { i: 'S', c: t.GREEN, n: 'Sara Mendez',  r: 'INTAKE',           d: 'NEW', active: true },
+    { i: 'P', c: t.BLUE,  n: 'Pat Doan',     r: 'INTAKE',           d: 'NEW', active: true },
+    { i: 'C', c: t.AMBER, n: 'Casey Lee',    r: 'BUILD · 2400',     d: '64%', warn: true, active: true },
+    { i: 'D', c: t.RUST,  n: 'Drew Park',    r: 'BUILD · 2200',     d: '58%', warn: true, active: true },
+    { i: 'M', c: t.INK50, n: 'Morgan Liu',   r: 'PAST · ended Apr', d: '—', active: false },
+    { i: 'T', c: t.INK50, n: 'Taylor Reed',  r: 'PAST · paused',    d: '—', active: false },
+    { i: 'N', c: t.INK50, n: 'Noah Bennett', r: 'PAST · completed', d: '—', active: false },
+  ];
+  const shownClients = NUTRI_CLIENTS.filter(c => roster === 'active' ? c.active : !c.active);
+  const activeCount = NUTRI_CLIENTS.filter(c => c.active).length;
+  const pastCount = NUTRI_CLIENTS.length - activeCount;
   if (fullClient) {
     return <BSProClientFullProfilePage client={fullClient} onBack={() => setFullClient(null)} />;
   }
@@ -1873,17 +1914,27 @@ function BSNutriClients() {
     <BSPage>
       <BSPageHeader kicker="Section · Clients" title={<>22<br/>plans.</>} />
       <BSProClientsTabBar active={subtab} onChange={setSubtab} role="nutritionist" />
-      <BSSection title="By adherence" meta="Past 7d" />
+      {/* Active / Past clients toggle */}
+      <div style={{ padding: `12px ${t.padX}px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, borderBottom: `1px solid ${t.RULE}` }}>
+        {[['active', `Active · ${activeCount}`], ['past', `Past · ${pastCount}`]].map(([k, label]) => {
+          const on = roster === k;
+          return (
+            <button key={k} onClick={() => setRoster(k)} style={{ borderRadius: t.RADIUS_SM,
+              padding: '10px 6px', border: `1px solid ${on ? t.INK : t.RULE}`,
+              background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK,
+              fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer',
+            }}>{label}</button>
+          );
+        })}
+      </div>
+      <BSSection title={roster === 'active' ? 'By adherence' : 'Past clients'} meta={roster === 'active' ? 'Past 7d' : 'Archived'} />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
-        {[
-          { i: 'A', c: t.RUST,  n: 'Alex Rivera',  r: 'CUT · 1900 KCAL',  d: '94%', good: true },
-          { i: 'J', c: t.BLUE,  n: 'Jamie Wong',   r: 'CUT · 1700 KCAL',  d: '88%', good: true },
-          { i: 'R', c: t.AMBER, n: 'Riley Kim',    r: 'CUT · 1850 KCAL',  d: '72%' },
-          { i: 'S', c: t.GREEN, n: 'Sara Mendez',  r: 'INTAKE',           d: 'NEW' },
-          { i: 'P', c: t.BLUE,  n: 'Pat Doan',     r: 'INTAKE',           d: 'NEW' },
-          { i: 'C', c: t.AMBER, n: 'Casey Lee',    r: 'BUILD · 2400',     d: '64%', warn: true },
-          { i: 'D', c: t.RUST,  n: 'Drew Park',    r: 'BUILD · 2200',     d: '58%', warn: true },
-        ].map((c, i, arr) => (
+        {shownClients.length === 0 && (
+          <div style={{ padding: `${t.rowY + 8}px 0`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>
+            No {roster} clients.
+          </div>
+        )}
+        {shownClients.map((c, i, arr) => (
           <button key={i} onClick={() => setPreviewClient(c)} style={{ width: '100%', border: 0, background: 'transparent',
             display: 'grid', gridTemplateColumns: '40px 1fr 80px',
             gap: 12, padding: `${t.rowY + 4}px 0`, alignItems: 'center',
