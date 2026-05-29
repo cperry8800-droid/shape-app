@@ -13,7 +13,10 @@ const DIET_META = {
   "Poultry":      { color: "#e0a84e" },
   "Meat":         { color: "#c0533b" },
 };
-const DIET_ORDER = ["Vegan", "Vegetarian", "Plant-based", "Seafood", "Poultry", "Meat"];
+// The single `diet` axis, split into two coherent groups for the UI:
+// plant-based eating patterns vs the animal protein source.
+const DIET_PLANT = ["Vegan", "Vegetarian", "Plant-based"];
+const DIET_PROTEIN = ["Seafood", "Poultry", "Meat"];
 const CREATORS = [
   { key: "Nutritionist", label: "Nutritionists" },
   { key: "Dietician",    label: "Dieticians" },
@@ -153,7 +156,7 @@ function RecipesPage() {
 
         {/* View toggle: all recipes vs your saved library */}
         <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 24px 6px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: "rgba(242,237,228,0.45)", width: 64 }}>LIBRARY</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: "rgba(242,237,228,0.45)", width: 96 }}>LIBRARY</span>
           <FilterChip label="All recipes" active={view === "all"} onClick={() => setView("all")} count={all.length} />
           <FilterChip label="♥ Saved" active={view === "saved"} onClick={() => { setView("saved"); if (!loggedIn) setAuthNudge(true); }} count={savedCount} />
         </div>
@@ -161,14 +164,20 @@ function RecipesPage() {
         {/* Filters */}
         <div style={{ maxWidth: 1180, margin: "0 auto", padding: "8px 24px 4px", display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: "rgba(242,237,228,0.45)", width: 64 }}>DIET</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: "rgba(242,237,228,0.45)", width: 96 }}>PLANT-BASED</span>
             <FilterChip label="All" active={diet === "All"} onClick={() => setDiet("All")} count={all.length} />
-            {DIET_ORDER.map(d => (
+            {DIET_PLANT.map(d => (
               <FilterChip key={d} label={d} active={diet === d} color={dietColor(d)} onClick={() => setDiet(d)} count={countFor(r => r.diet === d)} />
             ))}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: "rgba(242,237,228,0.45)", width: 64 }}>NEEDS</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: "rgba(242,237,228,0.45)", width: 96 }}>PROTEIN</span>
+            {DIET_PROTEIN.map(d => (
+              <FilterChip key={d} label={d} active={diet === d} color={dietColor(d)} onClick={() => setDiet(d)} count={countFor(r => r.diet === d)} />
+            ))}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: "rgba(242,237,228,0.45)", width: 96 }}>NEEDS</span>
             {(typeof RECIPE_NEEDS !== "undefined" ? RECIPE_NEEDS : []).map(n => (
               <FilterChip key={n} label={n} active={needs.includes(n)} onClick={() => toggleNeed(n)} count={countFor(r => recipeNeeds(r).includes(n))} />
             ))}

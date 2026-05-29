@@ -2152,7 +2152,8 @@ function BSRecipeArchivePage({ recipes, recipeLists, onOpenRecipe, onAddGrocery,
 
 // ── Shape Kitchen — recipe library (mirrors the website /recipes) ──────
 const BS_SK_DIET_COLOR = { Vegan: '#4fae5a', Vegetarian: '#7bc043', 'Plant-based': '#2ee0c4', Seafood: '#3b9ed6', Poultry: '#e0a84e', Meat: '#c0533b' };
-const BS_SK_DIETS = ['Vegan', 'Vegetarian', 'Plant-based', 'Seafood', 'Poultry', 'Meat'];
+const BS_SK_PLANT = ['Vegan', 'Vegetarian', 'Plant-based'];
+const BS_SK_PROTEIN = ['Seafood', 'Poultry', 'Meat'];
 const BS_SK_CREATORS = [['Nutritionist', 'Nutritionists'], ['Dietician', 'Dieticians'], ['Chef', 'Chefs']];
 function bsSkSlug(title) {
   return String(title || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -2185,9 +2186,13 @@ function BSShapeKitchen({ onChangeView, onOpenRecipe }) {
       <BSPageHeader kicker="Section · Nutrition" title={<>Shape<br/>Kitchen.</>} />
       <BSNutritionTopTabs active="recipes" onChange={onChangeView} />
       <div style={{ padding: `12px ${t.padX}px 8px`, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, marginRight: 2 }}>DIET</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, marginRight: 2 }}>PLANT</span>
         <Chip label="All" on={diet === 'All'} onClick={() => setDiet('All')} count={all.length} />
-        {BS_SK_DIETS.map(d => <Chip key={d} label={d} on={diet === d} color={BS_SK_DIET_COLOR[d]} onClick={() => setDiet(diet === d ? 'All' : d)} count={all.filter(r => r.diet === d).length} />)}
+        {BS_SK_PLANT.map(d => <Chip key={d} label={d} on={diet === d} color={BS_SK_DIET_COLOR[d]} onClick={() => setDiet(diet === d ? 'All' : d)} count={all.filter(r => r.diet === d).length} />)}
+      </div>
+      <div style={{ padding: `0 ${t.padX}px 8px`, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, marginRight: 2 }}>PROTEIN</span>
+        {BS_SK_PROTEIN.map(d => <Chip key={d} label={d} on={diet === d} color={BS_SK_DIET_COLOR[d]} onClick={() => setDiet(diet === d ? 'All' : d)} count={all.filter(r => r.diet === d).length} />)}
       </div>
       <div style={{ padding: `0 ${t.padX}px 12px`, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', borderBottom: `1px solid ${t.RULE}` }}>
         <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, marginRight: 2 }}>NEEDS</span>
