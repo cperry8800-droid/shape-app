@@ -381,14 +381,6 @@ function BSMarketplaceScreen({ onBack, onProfile }) {
         border: `1px solid ${t.INK}`,
         background: t.PAPER2,
       }}>
-        <div aria-hidden style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundImage: `radial-gradient(circle, rgba(${t.inkRGB},0.22) 1px, transparent 1.35px)`,
-          backgroundSize: '8px 8px',
-          opacity: 0.34,
-          pointerEvents: 'none',
-        }} />
         <div style={{ position: 'relative', zIndex: 1, fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1.5, color: t.INK70, letterSpacing: '-0.005em' }}>
           <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>{liveTotal.toLocaleString()} listings.</span>{' '}
           Browse certified trainers and nutritionists. Direct booking. No agency in the middle.
@@ -596,18 +588,9 @@ function BSMarketplaceScreen({ onBack, onProfile }) {
           cursor: 'pointer',
           margin: `18px ${t.padX}px 22px`,
           padding: 16,
-          border: `2px solid ${t.INK}`,
+          border: `1px solid ${t.INK}`,
           background: t.PAPER2,
-          boxShadow: `4px 4px 0 0 ${t.INK}`,
         }}>
-          <div aria-hidden style={{
-            position: 'absolute',
-            inset: 0,
-            backgroundImage: `linear-gradient(135deg, rgba(${t.inkRGB},0.08) 25%, transparent 25%, transparent 50%, rgba(${t.inkRGB},0.08) 50%, rgba(${t.inkRGB},0.08) 75%, transparent 75%, transparent)`,
-            backgroundSize: '10px 10px',
-            opacity: 0.42,
-            pointerEvents: 'none',
-          }} />
           <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10 }}>
             <BSTag color={t.ACCENT} dark={!t.isLight}>FEATURED</BSTag>
             <BSEyebrow color={t.INK50}>{featured.tag || `${featured.match}% match`}</BSEyebrow>
@@ -688,51 +671,6 @@ function BSMarketplaceScreen({ onBack, onProfile }) {
         ))}
       </div>
 
-      {/* RATE CARD — like newspaper rate listings */}
-      <BSSection title="Rate card" meta="At a glance" />
-      <div style={{ padding: `0 ${t.padX}px 16px` }}>
-        <div style={{
-          display: 'grid', gridTemplateColumns: '24px 1fr 60px 64px',
-          padding: '6px 0', borderTop: `2px solid ${t.INK}`, borderBottom: `1px solid ${t.RULE}`,
-          fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700,
-        }}>
-          <span>#</span><span>Coach · Specialty</span><span style={{ textAlign: 'right' }}>Rate</span><span style={{ textAlign: 'right' }}>Match</span>
-        </div>
-        {list.map((c, i) => (
-          <button key={c.id} onClick={() => setOpen(c)} style={{
-            display: 'grid', gridTemplateColumns: '24px 1fr 60px 64px', alignItems: 'center',
-            padding: '12px 0',
-            borderWidth: 0,
-            borderBottomWidth: i === list.length - 1 ? 0 : 1,
-            borderStyle: 'solid',
-            borderColor: t.HAIR,
-            background: 'transparent', borderRadius: 0, width: '100%', cursor: 'pointer', textAlign: 'left', color: t.INK,
-          }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 700 }}>{String(i + 1).padStart(2, '0')}</span>
-            <span style={{ minWidth: 0 }}>
-              <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15, letterSpacing: '-0.015em', color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
-              <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.spec.join(' · ')}</span>
-            </span>
-            <span style={{ textAlign: 'right', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 16, color: t.INK, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>${c.rate}</span>
-            <span style={{ textAlign: 'right', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.12em', color: c.match >= 90 ? t.ACCENT : t.INK70, fontWeight: 700 }}>{c.match}%</span>
-          </button>
-        ))}
-      </div>
-
-      {/* "PERSONAL ADS" — fun classifieds-styled mini cards */}
-      <BSSection title="The Personals" kicker="Open calls" meta="Looking for…" />
-      <div style={{ padding: `0 ${t.padX}px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        {[
-          { eye: 'OPEN CALL', title: 'Marathon block', body: '16-wk plan · Brooklyn HM target', accent: t.ACCENT },
-          { eye: 'GROUP · WED', title: 'Tempo run, 6PM', body: '5-7k · 5:00/km pace · Prospect Pk', accent: t.GREEN },
-        ].map((p, i) => (
-          <BSCell key={i} accent={p.accent}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: p.accent, fontWeight: 700 }}>{p.eye}</div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 16, color: t.INK, marginTop: 8, letterSpacing: '-0.02em', lineHeight: 1.05 }}>{p.title}</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK70, letterSpacing: '0.1em', marginTop: 6, fontWeight: 600 }}>{p.body}</div>
-          </BSCell>
-        ))}
-      </div>
 
       {/* CTA */}
       <button onClick={() => setApplyRole(tab === 'Nutritionist' ? 'nutritionist' : 'trainer')} style={{ margin: `22px ${t.padX}px 0`, padding: 20, background: t.INK, color: t.PAPER, border: 0, display: 'block', width: `calc(100% - ${t.padX * 2}px)`, textAlign: 'left', cursor: 'pointer' }}>
