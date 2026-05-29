@@ -377,3 +377,32 @@ export const SHAPE_KITCHEN_RECIPES = [
     tip: "Slice through the core, not across it — the stem is the spine that keeps a cauliflower steak in one piece on the flip.",
   },
 ];
+
+// Dietary-needs axis (multi-match) layered on top of the single `diet`. Keep in
+// sync with public/newdesign/recipes.jsx.
+export const RECIPE_NEEDS = ["High-protein", "Low-carb", "Gluten-free", "Dairy-free", "Mediterranean", "Pescatarian"];
+const _RECIPE_NOT_GF = new Set([
+  "Tempo turkey lettuce cups", "Miso-glazed cod with greens", "Tofu and edamame poke bowl",
+  "Grilled chicken Caesar, lightened", "Beef and broccoli stir-fry", "Tempeh and broccoli teriyaki",
+  "Turkey meatballs in marinara", "Smoked salmon and avocado toast", "Greek yogurt power bowl",
+]);
+const _RECIPE_HAS_DAIRY = new Set([
+  "Greek yogurt power bowl", "Shrimp and quinoa harvest bowl", "Chickpea shakshuka",
+  "Grilled chicken Caesar, lightened", "Roasted veg and halloumi traybake", "Turkey meatballs in marinara",
+]);
+const _RECIPE_MED = new Set([
+  "Sheet-pan salmon, sweet potato and broccoli", "Shrimp and quinoa harvest bowl", "Chickpea shakshuka",
+  "Tuna niçoise bowl", "Roasted veg and halloumi traybake",
+]);
+export function recipeNeeds(r) {
+  const out = [];
+  const p = (r.macros && r.macros.p) || 0;
+  const c = (r.macros && r.macros.c) || 0;
+  if (p >= 30) out.push("High-protein");
+  if (c <= 40) out.push("Low-carb");
+  if (r.diet !== "Meat" && r.diet !== "Poultry") out.push("Pescatarian");
+  if (!_RECIPE_NOT_GF.has(r.title)) out.push("Gluten-free");
+  if (!_RECIPE_HAS_DAIRY.has(r.title)) out.push("Dairy-free");
+  if (_RECIPE_MED.has(r.title)) out.push("Mediterranean");
+  return out;
+}
