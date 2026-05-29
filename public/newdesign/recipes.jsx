@@ -550,7 +550,14 @@ function toggleSavedRecipe(slug) {
 // Dietary-needs axis (multi-match) layered on top of the single `diet`.
 // Objective needs are derived from macros/diet; gluten/dairy/mediterranean use
 // small curated title sets (more accurate than parsing free-text ingredients).
-const RECIPE_NEEDS = ["High-protein", "Low-carb", "Gluten-free", "Dairy-free", "Mediterranean", "Pescatarian"];
+// Four filter groups:
+//   Diet (eating pattern/identity) + Protein (primary source) — one shared
+//   single-select axis; Free From (allergens) + Goals (macro targets) — a
+//   multi-select layer (recipeNeeds).
+const RECIPE_DIETS = ["Vegan", "Vegetarian", "Pescatarian", "Plant-based", "Mediterranean"];
+const RECIPE_PROTEINS = ["Seafood", "Poultry", "Meat"];
+const RECIPE_FREE_FROM = ["Gluten-free", "Dairy-free"];
+const RECIPE_GOALS = ["High-protein", "Low-carb"];
 const _RECIPE_NOT_GF = new Set([
   "Tempo turkey lettuce cups", "Miso-glazed cod with greens", "Tofu and edamame poke bowl",
   "Grilled chicken Caesar, lightened", "Beef and broccoli stir-fry", "Tempeh and broccoli teriyaki",
@@ -566,17 +573,24 @@ const _RECIPE_MED = new Set([
   "Sheet-pan salmon, sweet potato and broccoli", "Shrimp and quinoa harvest bowl", "Chickpea shakshuka",
   "Tuna niçoise bowl", "Roasted veg and halloumi traybake",
 ]);
+// Free From + Goals membership (the multi-select layer).
 function recipeNeeds(r) {
   const out = [];
   const p = (r.macros && r.macros.p) || 0;
   const c = (r.macros && r.macros.c) || 0;
   if (p >= 30) out.push("High-protein");
   if (c <= 40) out.push("Low-carb");
-  if (r.diet !== "Meat" && r.diet !== "Poultry") out.push("Pescatarian");
   if (!_RECIPE_NOT_GF.has(r.title)) out.push("Gluten-free");
   if (!_RECIPE_HAS_DAIRY.has(r.title)) out.push("Dairy-free");
-  if (_RECIPE_MED.has(r.title)) out.push("Mediterranean");
   return out;
+}
+// Single-select Diet/Protein axis. Pescatarian = no meat/poultry; Mediterranean
+// = curated set; everything else matches the recipe's base diet value.
+function recipeMatchesDiet(r, diet) {
+  if (!diet || diet === "All") return true;
+  if (diet === "Pescatarian") return r.diet !== "Meat" && r.diet !== "Poultry";
+  if (diet === "Mediterranean") return _RECIPE_MED.has(r.title);
+  return r.diet === diet;
 }
 
 function recipeOfTheDay(date = new Date()) {
@@ -718,6 +732,10 @@ if (typeof window !== "undefined") {
   window.getSavedRecipeSlugs = getSavedRecipeSlugs;
   window.isRecipeSaved = isRecipeSaved;
   window.toggleSavedRecipe = toggleSavedRecipe;
-  window.RECIPE_NEEDS = RECIPE_NEEDS;
+  window.RECIPE_DIETS = RECIPE_DIETS;
+  window.RECIPE_PROTEINS = RECIPE_PROTEINS;
+  window.RECIPE_FREE_FROM = RECIPE_FREE_FROM;
+  window.RECIPE_GOALS = RECIPE_GOALS;
   window.recipeNeeds = recipeNeeds;
+  window.recipeMatchesDiet = recipeMatchesDiet;
 }
