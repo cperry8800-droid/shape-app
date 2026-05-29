@@ -140,7 +140,7 @@ function RecipesPage() {
             Shape Kitchen
           </h1>
           <div style={{ fontFamily: serif, fontWeight: 300, fontSize: "clamp(20px, 3vw, 30px)", letterSpacing: "-0.025em", lineHeight: 1.15, marginTop: 16, color: "rgba(242,237,228,0.82)", maxWidth: 720 }}>
-            Recipes from our nutritionists, dieticians &amp; chefs.
+            Recipes from our nutritionists, dieticians and chefs.
           </div>
           <p style={{ fontSize: 16, lineHeight: 1.55, color: "rgba(242,237,228,0.7)", maxWidth: 620, marginTop: 16 }}>
             Every recipe is built by a Shape professional — macro-balanced, easy to
