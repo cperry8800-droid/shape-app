@@ -2084,7 +2084,7 @@ function BSNutritionTopTabs({ active, onChange }) {
   const tabs = [
     ['eat', 'Day'],
     ['grocery', 'Grocery'],
-    ['recipes', 'Kitchen'],
+    ['recipes', 'Recipes'],
   ];
   return (
     <div style={{ padding: `12px ${t.padX}px`, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, borderBottom: `1px solid ${t.RULE}` }}>
