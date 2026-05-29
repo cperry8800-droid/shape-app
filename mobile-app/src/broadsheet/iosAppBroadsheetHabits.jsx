@@ -1210,33 +1210,20 @@ function BSHabitForm({ initial, onSave, onCancel, onDelete }) {
 // Main block — drop on any home page
 function BSHabitTracker({ tweaks, setTweak, accent, mode = 'full', onOpen }) {
   const t = useBS();
-  const habits = _bsDecodeHabits(tweaks.habits);
+  // Live (Supabase) when signed in, ephemeral tweaks otherwise. Completions
+  // toggled here persist to the same store the dedicated habits page reads.
+  const { habits, upsert: upsertHabit, remove: removeHabit, toggle } = _bsUseServerHabits(tweaks, setTweak);
   const [editingId, setEditingId] = useStateBSH(null); // 'new' | habit.id | null
 
   const accentColor = accent || t.AMBER;
-  const save = (next) => setTweak('habits', _bsEncodeHabits(next));
-
-  const toggle = (id) => {
-    save(habits.map(h => {
-      if (h.id !== id) return h;
-      const hist = new Set(h.history || []);
-      if (hist.has(_bsHabitsToday)) hist.delete(_bsHabitsToday);
-      else hist.add(_bsHabitsToday);
-      return { ...h, history: [...hist].sort() };
-    }));
-  };
 
   const upsert = (h) => {
-    const exists = habits.find(x => x.id === h.id);
-    save(exists
-      ? habits.map(x => x.id === h.id ? h : x)
-      : [...habits, h]
-    );
+    upsertHabit(h);
     setEditingId(null);
   };
 
   const remove = (id) => {
-    save(habits.filter(h => h.id !== id));
+    removeHabit(id);
     setEditingId(null);
   };
 
@@ -1736,15 +1723,17 @@ function _bsMapServerHabits(rows) {
   }));
 }
 
-function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
-  const t = useBS();
-  const { BSPage, BSDetailHeader } = window;
-
-  // When signed in, habits are live in Supabase via /api/client/habits (the
-  // app's bridged session authenticates the same-origin request). Signed out,
-  // fall back to the in-memory tweaks store (ephemeral, demo behaviour).
+// ── Shared habits state + actions ────────────────────────────
+// When signed in, habits are live in Supabase via /api/client/habits (the
+// app's bridged session authenticates the same-origin request). Signed out,
+// fall back to the in-memory tweaks store (ephemeral demo behaviour). Used by
+// BOTH the home tracker and the dedicated habits page so a completion toggled
+// in one place persists everywhere. Server mutations update optimistically and
+// also mirror into tweaks so the home summary reflects them without a refetch.
+function _bsUseServerHabits(tweaks, setTweak) {
   const loggedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user);
   const [serverHabits, setServerHabits] = useStateBSH(null);
+
   React.useEffect(() => {
     if (!loggedIn) return undefined;
     let cancelled = false;
@@ -1763,10 +1752,102 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
   const local = _bsDecodeHabits(tweaks.habits);
   const useServer = loggedIn && serverHabits != null;
   const habits = useServer ? serverHabits : local;
-  const saveAll = (next) => setTweak('habits', _bsEncodeHabits(next));
+  const saveLocal = (next) => setTweak('habits', _bsEncodeHabits(next));
   const apiAction = (body) => fetch('/api/client/habits', {
     method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   }).then(r => (r.ok ? r.json() : r.json().then(e => Promise.reject(e))));
+  // Apply a server-state update and mirror the result into tweaks so the home
+  // summary card (which reads tweaks.habits) stays in sync.
+  const setServer = (updater) => setServerHabits(prev => {
+    const next = updater(prev || []);
+    try { setTweak('habits', _bsEncodeHabits(next)); } catch (e) { /* best-effort mirror */ }
+    return next;
+  });
+
+  const create = ({ name, type = 'do', cadence = 'daily', visibility = 'private' }) => {
+    const cleanName = String(name || '').trim();
+    if (!cleanName) return;
+    if (useServer) {
+      apiAction({ action: 'create', name: cleanName, type, cadence, visibility })
+        .then(d => { if (d && d.habit) setServer(prev => [...prev, ..._bsMapServerHabits([{ ...d.habit, history: [] }])]); window.__bsToast?.(`Added "${cleanName}"`, 'ok'); })
+        .catch(() => window.__bsToast?.('Could not add habit', 'err'));
+      return;
+    }
+    saveLocal([...local, { id: 'h_' + Math.random().toString(36).slice(2, 9), name: cleanName, type, cadence, visibility, public: visibility === 'public', history: [] }]);
+    window.__bsToast?.(`Added "${cleanName}"`, 'ok');
+  };
+
+  const upsert = (h) => {
+    if (useServer) {
+      const exists = (serverHabits || []).some(x => x.id === h.id);
+      if (exists) {
+        setServer(prev => prev.map(x => x.id === h.id ? { ...x, ...h } : x));
+        apiAction({ action: 'update', id: h.id, name: h.name, type: h.type, cadence: h.cadence, visibility: h.visibility }).catch(() => {});
+      } else {
+        apiAction({ action: 'create', name: h.name, type: h.type, cadence: h.cadence || 'daily', visibility: h.visibility || 'private' })
+          .then(d => { if (d && d.habit) setServer(prev => [...prev, ..._bsMapServerHabits([{ ...d.habit, history: h.history || [] }])]); })
+          .catch(() => window.__bsToast?.('Could not add habit', 'err'));
+      }
+      return;
+    }
+    const exists = local.find(x => x.id === h.id);
+    saveLocal(exists ? local.map(x => x.id === h.id ? h : x) : [...local, h]);
+  };
+
+  const remove = (id) => {
+    if (useServer) {
+      setServer(prev => prev.filter(h => h.id !== id));
+      apiAction({ action: 'delete', id }).catch(() => {});
+    } else {
+      saveLocal(local.filter(h => h.id !== id));
+    }
+    window.__bsToast?.('Habit removed', 'ok');
+  };
+
+  const setVisibility = (id, visibility) => {
+    if (useServer) {
+      setServer(prev => prev.map(h => h.id === id ? { ...h, visibility, public: visibility === 'public' } : h));
+      apiAction({ action: 'update', id, visibility }).catch(() => {});
+    } else {
+      saveLocal(local.map(h => h.id === id ? { ...h, visibility, public: visibility === 'public' } : h));
+    }
+    window.__bsToast?.(
+      visibility === 'public' ? 'Made public'
+        : visibility === 'friends' ? 'Shared with friends'
+        : 'Set to private',
+      'ok',
+    );
+  };
+
+  const toggle = (id) => {
+    const applyToggle = (list) => list.map(h => {
+      if (h.id !== id) return h;
+      const hist = new Set(h.history || []);
+      if (hist.has(_bsHabitsToday)) hist.delete(_bsHabitsToday);
+      else hist.add(_bsHabitsToday);
+      return { ...h, history: [...hist].sort() };
+    });
+    if (useServer) {
+      setServer(applyToggle);
+      apiAction({ action: 'toggle', id, date: _bsHabitsToday }).catch(() => {
+        setServer(applyToggle); // revert the optimistic flip on failure
+        window.__bsToast?.('Could not update habit', 'err');
+      });
+    } else {
+      saveLocal(applyToggle(local));
+    }
+  };
+
+  return { loggedIn, useServer, habits, create, upsert, remove, setVisibility, toggle };
+}
+
+function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
+  const t = useBS();
+  const { BSPage, BSDetailHeader } = window;
+
+  // Live (Supabase) when signed in, ephemeral tweaks otherwise — shared with
+  // the home tracker so completions and edits stay in sync across surfaces.
+  const { habits, create, remove: removeHabit, setVisibility: setHabitVisibility } = _bsUseServerHabits(tweaks, setTweak);
 
   const addHabit = () => {
     const name = window.prompt('New habit (prefix with "no " or "avoid " for a habit to break):');
@@ -1775,38 +1856,7 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
     if (!trimmed) return;
     const isAvoid = /^(no |don'?t |avoid )/i.test(trimmed);
     const cleanName = trimmed.replace(/^(no |don'?t |avoid )/i, '').trim() || trimmed;
-    const type = isAvoid ? 'avoid' : 'do';
-    if (useServer) {
-      apiAction({ action: 'create', name: cleanName, type, visibility: 'private' })
-        .then(d => { if (d && d.habit) setServerHabits(prev => [...(prev || []), ..._bsMapServerHabits([{ ...d.habit, history: [] }])]); window.__bsToast?.(`Added "${cleanName}"`, 'ok'); })
-        .catch(() => window.__bsToast?.('Could not add habit', 'err'));
-      return;
-    }
-    saveAll([...local, { id: 'h_' + Math.random().toString(36).slice(2, 9), name: cleanName, type, cadence: 'daily', visibility: 'private', public: false, history: [] }]);
-    window.__bsToast?.(`Added "${cleanName}"`, 'ok');
-  };
-  const removeHabit = (id) => {
-    if (useServer) {
-      setServerHabits(prev => (prev || []).filter(h => h.id !== id));
-      apiAction({ action: 'delete', id }).catch(() => {});
-    } else {
-      saveAll(local.filter(h => h.id !== id));
-    }
-    window.__bsToast?.('Habit removed', 'ok');
-  };
-  const setHabitVisibility = (id, visibility) => {
-    if (useServer) {
-      setServerHabits(prev => (prev || []).map(h => h.id === id ? { ...h, visibility, public: visibility === 'public' } : h));
-      apiAction({ action: 'update', id, visibility }).catch(() => {});
-    } else {
-      saveAll(local.map(h => h.id === id ? { ...h, visibility, public: visibility === 'public' } : h));
-    }
-    window.__bsToast?.(
-      visibility === 'public' ? 'Made public'
-        : visibility === 'friends' ? 'Shared with friends'
-        : 'Set to private',
-      'ok',
-    );
+    create({ name: cleanName, type: isAvoid ? 'avoid' : 'do', visibility: 'private' });
   };
   const doneCount = habits.filter(h => (h.history || []).includes(_bsHabitsToday)).length;
   const sharedCount = habits.filter(h => h.visibility !== 'private').length;
