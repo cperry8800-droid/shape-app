@@ -125,6 +125,7 @@ function _bsHabitGridModel(habits) {
       id: h.id || `habit_${i}`,
       type: h.type === 'avoid' ? 'avoid' : 'do',
       name: h.name || 'Habit',
+      visibility: ['private', 'friends', 'public'].includes(h.visibility) ? h.visibility : 'private',
       pattern,
       pts: pattern.reduce((sum, v) => sum + (v ? basePts / 7 : 0), 0),
     };
@@ -162,7 +163,7 @@ function _bsHabitInsightStats(habits) {
   };
 }
 
-function BSHabitInsights({ habits, accent, onOpenScore, onAddHabit, onDeleteHabit }) {
+function BSHabitInsights({ habits, accent, onOpenScore, onAddHabit, onDeleteHabit, onSetVisibility }) {
   const t = useBS();
   const model = _bsHabitGridModel(habits);
   const stats = _bsHabitInsightStats(habits);
@@ -174,6 +175,20 @@ function BSHabitInsights({ habits, accent, onOpenScore, onAddHabit, onDeleteHabi
   const muted = 'rgba(247,241,230,0.58)';
   const border = 'rgba(247,241,230,0.12)';
   const missed = 'rgba(247,241,230,0.08)';
+
+  // Per-habit visibility: tap to cycle Private → Friends → Public. Color-coded
+  // to match the rest of the habit chrome (muted = private, teal = friends,
+  // hot = public). Only shown for real habits, not the demo placeholder rows.
+  const VIS = {
+    private: { abbr: 'Pvt', full: 'Private', color: muted },
+    friends: { abbr: 'Frd', full: 'Friends', color: teal },
+    public:  { abbr: 'Pub', full: 'Public', color: hot },
+  };
+  const VIS_NEXT = { private: 'friends', friends: 'public', public: 'private' };
+  const showVis = !!onSetVisibility && !model.demo;
+  const showDel = !!onDeleteHabit;
+  const trailingCols = `${showVis ? ' 34px' : ''}${showDel ? ' 22px' : ''}`;
+  const gridCols = `118px repeat(7, minmax(0, 1fr))${trailingCols}`;
 
   const Cell = ({ value }) => (
     <div style={{
@@ -211,7 +226,7 @@ function BSHabitInsights({ habits, accent, onOpenScore, onAddHabit, onDeleteHabi
         </div>
 
         <div>
-          <div style={{ display: 'grid', gridTemplateColumns: '118px repeat(7, minmax(0, 1fr))', gap: 6, alignItems: 'center', marginBottom: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: gridCols, gap: 6, alignItems: 'center', marginBottom: 8 }}>
             <div />
             {model.days.map((d, i) => (
               <div key={`${d}_${i}`} style={{
@@ -223,12 +238,16 @@ function BSHabitInsights({ habits, accent, onOpenScore, onAddHabit, onDeleteHabi
                 color: muted,
               }}>{d}</div>
             ))}
+            {showVis && <div />}
+            {showDel && <div />}
           </div>
 
-          {model.rows.map((row, rowIndex) => (
+          {model.rows.map((row, rowIndex) => {
+            const vis = VIS[row.visibility] || VIS.private;
+            return (
             <div key={row.id} style={{
               display: 'grid',
-              gridTemplateColumns: onDeleteHabit ? '118px repeat(7, minmax(0, 1fr)) 22px' : '118px repeat(7, minmax(0, 1fr))',
+              gridTemplateColumns: gridCols,
               gap: 6,
               alignItems: 'center',
               padding: '9px 0',
@@ -255,14 +274,24 @@ function BSHabitInsights({ habits, accent, onOpenScore, onAddHabit, onDeleteHabi
                 }}>{row.name}</span>
               </div>
               {row.pattern.map((value, i) => <Cell key={`${row.id}_${i}`} value={value} />)}
-              {onDeleteHabit && (
+              {showVis && (
+                <button type="button" onClick={() => onSetVisibility(row.id, VIS_NEXT[row.visibility] || 'friends')}
+                  aria-label={`Visibility: ${vis.full}. Tap to change.`} title={`${vis.full} — tap to change`} style={{
+                  height: 22, borderRadius: 999, border: `1px solid ${vis.color}`,
+                  background: 'transparent', color: vis.color,
+                  fontFamily: t.MONO, fontSize: 8, fontWeight: 900, letterSpacing: '0.06em',
+                  textTransform: 'uppercase', lineHeight: 1, cursor: 'pointer', padding: '0 4px',
+                }}>{vis.abbr}</button>
+              )}
+              {showDel && (
                 <button type="button" onClick={() => { if (window.confirm(`Delete "${row.name}"?`)) onDeleteHabit(row.id); }} aria-label="Delete habit" style={{
                   width: 22, height: 22, borderRadius: 999, border: 0, background: 'transparent',
                   color: 'rgba(247,241,230,0.42)', fontSize: 16, lineHeight: 1, cursor: 'pointer', padding: 0,
                 }}>×</button>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -1722,6 +1751,15 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
     saveAll(habits.filter(h => h.id !== id));
     window.__bsToast?.('Habit removed', 'ok');
   };
+  const setHabitVisibility = (id, visibility) => {
+    saveAll(habits.map(h => h.id === id ? { ...h, visibility, public: visibility === 'public' } : h));
+    window.__bsToast?.(
+      visibility === 'public' ? 'Made public'
+        : visibility === 'friends' ? 'Shared with friends'
+        : 'Set to private',
+      'ok',
+    );
+  };
   const doneCount = habits.filter(h => (h.history || []).includes(_bsHabitsToday)).length;
   const sharedCount = habits.filter(h => h.visibility !== 'private').length;
   const publicCount = habits.filter(h => h.visibility === 'public').length;
@@ -1735,7 +1773,7 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
         title={<>Habits</>}
       />
       <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <BSHabitInsights habits={habits} accent={accent} onOpenScore={onOpenScore} onAddHabit={addHabit} onDeleteHabit={removeHabit} />
+        <BSHabitInsights habits={habits} accent={accent} onOpenScore={onOpenScore} onAddHabit={addHabit} onDeleteHabit={removeHabit} onSetVisibility={setHabitVisibility} />
       </div>
     </BSPage>
   );
