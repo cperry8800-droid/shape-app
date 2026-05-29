@@ -469,7 +469,10 @@ export const SHAPE_KITCHEN_RECIPES = [
 
 // Dietary-needs axis (multi-match) layered on top of the single `diet`. Keep in
 // sync with public/newdesign/recipes.jsx.
-export const RECIPE_NEEDS = ["High-protein", "Low-carb", "Gluten-free", "Dairy-free", "Mediterranean", "Pescatarian"];
+export const RECIPE_DIETS = ["Vegan", "Vegetarian", "Pescatarian", "Plant-based", "Mediterranean"];
+export const RECIPE_PROTEINS = ["Seafood", "Poultry", "Meat"];
+export const RECIPE_FREE_FROM = ["Gluten-free", "Dairy-free"];
+export const RECIPE_GOALS = ["High-protein", "Low-carb"];
 const _RECIPE_NOT_GF = new Set([
   "Tempo turkey lettuce cups", "Miso-glazed cod with greens", "Tofu and edamame poke bowl",
   "Grilled chicken Caesar, lightened", "Beef and broccoli stir-fry", "Tempeh and broccoli teriyaki",
@@ -491,9 +494,13 @@ export function recipeNeeds(r) {
   const c = (r.macros && r.macros.c) || 0;
   if (p >= 30) out.push("High-protein");
   if (c <= 40) out.push("Low-carb");
-  if (r.diet !== "Meat" && r.diet !== "Poultry") out.push("Pescatarian");
   if (!_RECIPE_NOT_GF.has(r.title)) out.push("Gluten-free");
   if (!_RECIPE_HAS_DAIRY.has(r.title)) out.push("Dairy-free");
-  if (_RECIPE_MED.has(r.title)) out.push("Mediterranean");
   return out;
+}
+export function recipeMatchesDiet(r, diet) {
+  if (!diet || diet === "All") return true;
+  if (diet === "Pescatarian") return r.diet !== "Meat" && r.diet !== "Poultry";
+  if (diet === "Mediterranean") return _RECIPE_MED.has(r.title);
+  return r.diet === diet;
 }
