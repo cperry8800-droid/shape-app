@@ -48,6 +48,9 @@ const nextConfig: NextConfig = {
       // Recipes library lives at public/newdesign/Recipes.html.
       { source: '/recipes', destination: '/newdesign/Recipes.html' },
       { source: '/recipes.html', destination: '/newdesign/Recipes.html' },
+      // Each recipe gets its own page: /recipes/<slug> -> RecipeDetail.html,
+      // which reads the slug from the path (?r passed for direct access too).
+      { source: '/recipes/:slug', destination: '/newdesign/RecipeDetail.html?r=:slug' },
       // Mobile preview lives at public/mobile/Mobile.html. Give it clean,
       // lowercase URLs so the mixed-case filename isn't the only way in.
       { source: '/mobile', destination: '/mobile/Mobile.html' },

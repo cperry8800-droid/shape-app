@@ -1,8 +1,8 @@
 // Public Recipes page — a browsable library of recipes created by the Shape
 // network of nutritionists, dieticians and chefs. Filterable by creator type
-// and by diet category. Reuses SHAPE_RECIPES + RecipeModal from recipes.jsx
-// and Header/Footer + PAPER/INK/TEAL/serif/sans from pageShell.jsx (both must
-// load first).
+// and by diet category. Each card links to that recipe's own page at
+// /recipes/<slug>. Reuses SHAPE_RECIPES + recipeSlug from recipes.jsx and
+// Header/Footer + PAPER/INK/TEAL/serif/sans from pageShell.jsx (both load first).
 
 const DIET_META = {
   "Vegan":        { color: "#4fae5a" },
@@ -46,14 +46,14 @@ function FilterChip({ label, active, color, onClick, count }) {
   );
 }
 
-function RecipeCard({ recipe, onOpen }) {
+function RecipeCard({ recipe }) {
   const dc = dietColor(recipe.diet);
   return (
-    <button onClick={onOpen}
+    <a href={`/recipes/${recipeSlug(recipe)}`}
       style={{
-        textAlign: "left", cursor: "pointer", padding: 0, border: "1px solid rgba(242,237,228,0.1)",
+        textAlign: "left", cursor: "pointer", border: "1px solid rgba(242,237,228,0.1)",
         background: PAPER, color: INK, borderRadius: 14, overflow: "hidden",
-        display: "flex", flexDirection: "column", fontFamily: sans,
+        display: "flex", flexDirection: "column", fontFamily: sans, textDecoration: "none",
       }}>
       <div style={{ height: 150, background: recipe.hero, position: "relative", display: "flex", alignItems: "flex-start", justifyContent: "space-between", padding: 12 }}>
         <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "#0a0f0d", background: dc, padding: "4px 9px", borderRadius: 999, fontWeight: 600 }}>
@@ -79,7 +79,7 @@ function RecipeCard({ recipe, onOpen }) {
           ))}
         </div>
       </div>
-    </button>
+    </a>
   );
 }
 
@@ -87,7 +87,6 @@ function RecipesPage() {
   const all = (typeof SHAPE_RECIPES !== "undefined" ? SHAPE_RECIPES : []);
   const [creator, setCreator] = React.useState("All");
   const [diet, setDiet] = React.useState("All");
-  const [active, setActive] = React.useState(null); // recipe open in modal
 
   const filtered = all.filter(r =>
     (creator === "All" || r.byRole === creator) &&
@@ -102,17 +101,18 @@ function RecipesPage() {
       <div style={{ position: "relative", zIndex: 1 }}>
         <Header active="Recipes" />
 
-        {/* Hero */}
+        {/* Hero — Shape Kitchen is the page header */}
         <div style={{ maxWidth: 1180, margin: "0 auto", padding: "56px 24px 28px" }}>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: TEAL_BRIGHT, marginBottom: 14 }}>
+          <h1 style={{ fontFamily: serif, fontSize: "clamp(44px, 7vw, 78px)", letterSpacing: "-0.03em", lineHeight: 1.0, margin: 0 }}>
             Shape Kitchen
-          </div>
-          <h1 style={{ fontFamily: serif, fontSize: "clamp(38px, 6vw, 68px)", letterSpacing: "-0.03em", lineHeight: 1.02, margin: 0, maxWidth: 820 }}>
-            Recipes from our nutritionists, dieticians & chefs.
           </h1>
-          <p style={{ fontSize: 16, lineHeight: 1.55, color: "rgba(242,237,228,0.72)", maxWidth: 620, marginTop: 18 }}>
+          <div style={{ fontFamily: serif, fontSize: "clamp(20px, 3vw, 30px)", letterSpacing: "-0.02em", lineHeight: 1.15, marginTop: 14, color: "rgba(242,237,228,0.82)", maxWidth: 720 }}>
+            Recipes from our nutritionists, dieticians &amp; chefs.
+          </div>
+          <p style={{ fontSize: 16, lineHeight: 1.55, color: "rgba(242,237,228,0.7)", maxWidth: 620, marginTop: 16 }}>
             Every recipe is built by a Shape professional — macro-balanced, easy to
-            scale, and tagged by diet so you can cook for how you eat.
+            scale, with step-by-step method and a chef's tip. Tap any recipe for the
+            full page.
           </p>
         </div>
 
@@ -153,7 +153,7 @@ function RecipesPage() {
           {filtered.length > 0 ? (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 20 }}>
               {filtered.map((r, i) => (
-                <RecipeCard key={`${r.title}-${i}`} recipe={r} onOpen={() => setActive(r)} />
+                <RecipeCard key={`${r.title}-${i}`} recipe={r} />
               ))}
             </div>
           ) : (
@@ -165,8 +165,6 @@ function RecipesPage() {
 
         <Footer />
       </div>
-
-      {active && <RecipeModal recipe={active} onClose={() => setActive(null)} />}
     </div>
   );
 }
