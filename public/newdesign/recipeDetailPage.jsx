@@ -115,20 +115,36 @@ function RecipeDetailPage() {
     setSaved(toggleSavedRecipe(rslug));
   };
 
-  // Reviews
-  const [reviews, setReviews] = React.useState(() => (typeof getRecipeReviews === "function" ? getRecipeReviews(rslug) : []));
+  // Reviews — live from /api/recipes/reviews (Supabase-backed, shared across users)
+  const [reviews, setReviews] = React.useState([]);
   const [formRating, setFormRating] = React.useState(0);
   const [hoverRating, setHoverRating] = React.useState(0);
   const [reviewText, setReviewText] = React.useState("");
+  const [posting, setPosting] = React.useState(false);
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/recipes/reviews?slug=${encodeURIComponent(rslug)}`, { credentials: "same-origin" })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && d && Array.isArray(d.reviews)) setReviews(d.reviews); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [rslug]);
   const summary = (reviews.length)
     ? { avg: Math.round((reviews.reduce((s, r) => s + (Number(r.rating) || 0), 0) / reviews.length) * 10) / 10, count: reviews.length }
     : { avg: 0, count: 0 };
   const submitReview = () => {
     if (!me) { setAuthNudge(true); return; }
-    if (!formRating) return;
-    addRecipeReview(rslug, { rating: formRating, text: reviewText, author: (me.firstName || me.name || me.email || "Member") });
-    setReviews(getRecipeReviews(rslug));
-    setFormRating(0); setHoverRating(0); setReviewText("");
+    if (!formRating || posting) return;
+    setPosting(true);
+    fetch("/api/recipes/reviews", {
+      method: "POST", credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slug: rslug, rating: formRating, text: reviewText }),
+    })
+      .then(r => (r.ok ? r.json() : r.json().then(e => Promise.reject(e))))
+      .then(d => { if (d && d.review) { setReviews(prev => [d.review, ...prev]); setFormRating(0); setHoverRating(0); setReviewText(""); } })
+      .catch(err => { if (err && /sign in/i.test(err.error || "")) setAuthNudge(true); })
+      .finally(() => setPosting(false));
   };
   const Stars = ({ value, size = 14 }) => (
     <span style={{ color: "#f4b860", fontSize: size, letterSpacing: 1 }} aria-label={`${value} out of 5`}>
@@ -289,9 +305,9 @@ function RecipeDetailPage() {
             <textarea value={reviewText} onChange={e => setReviewText(e.target.value)} placeholder="Share how it turned out, any tweaks you made…" rows={3}
               style={{ width: "100%", boxSizing: "border-box", background: INK_DEEP, color: INK, border: "1px solid rgba(242,237,228,0.18)", borderRadius: 8, padding: "10px 12px", fontFamily: sans, fontSize: 14, resize: "vertical", outline: "none" }} />
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
-              <button onClick={submitReview} disabled={!formRating}
-                style={{ background: formRating ? TEAL : "rgba(242,237,228,0.12)", color: formRating ? "#0a0f0d" : "rgba(242,237,228,0.4)", border: 0, padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13.5, fontWeight: 600, cursor: formRating ? "pointer" : "default" }}>
-                Post review
+              <button onClick={submitReview} disabled={!formRating || posting}
+                style={{ background: formRating ? TEAL : "rgba(242,237,228,0.12)", color: formRating ? "#0a0f0d" : "rgba(242,237,228,0.4)", border: 0, padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13.5, fontWeight: 600, cursor: (formRating && !posting) ? "pointer" : "default" }}>
+                {posting ? "Posting…" : "Post review"}
               </button>
             </div>
           </div>

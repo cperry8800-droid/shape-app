@@ -497,31 +497,3 @@ export function recipeNeeds(r) {
   if (_RECIPE_MED.has(r.title)) out.push("Mediterranean");
   return out;
 }
-
-// Recipe reviews — persisted per slug in localStorage (shared with the website
-// via the same origin). Shape: { [slug]: [ { id, rating, text, author, date } ] }
-const RECIPE_REVIEWS_KEY = "shape.recipeReviews.v1";
-function _loadAllReviews() {
-  try {
-    const raw = window.localStorage.getItem(RECIPE_REVIEWS_KEY);
-    const parsed = raw ? JSON.parse(raw) : {};
-    return (parsed && typeof parsed === "object") ? parsed : {};
-  } catch (e) { return {}; }
-}
-export function getRecipeReviews(slug) {
-  const all = _loadAllReviews();
-  return Array.isArray(all[slug]) ? all[slug] : [];
-}
-export function addRecipeReview(slug, review) {
-  const all = _loadAllReviews();
-  const entry = {
-    id: "rv_" + Math.random().toString(36).slice(2, 9),
-    rating: Math.max(1, Math.min(5, Number(review.rating) || 0)),
-    text: String(review.text || "").slice(0, 600),
-    author: String(review.author || "You").slice(0, 60),
-    date: new Date().toISOString(),
-  };
-  all[slug] = [entry, ...(Array.isArray(all[slug]) ? all[slug] : [])];
-  try { window.localStorage.setItem(RECIPE_REVIEWS_KEY, JSON.stringify(all)); } catch (e) {}
-  return entry;
-}

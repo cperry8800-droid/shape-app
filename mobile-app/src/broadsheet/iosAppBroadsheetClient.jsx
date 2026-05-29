@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { SHAPE_KITCHEN_RECIPES, RECIPE_NEEDS, recipeNeeds, getRecipeReviews, addRecipeReview } from './shapeKitchenData.js';
+import { SHAPE_KITCHEN_RECIPES, RECIPE_NEEDS, recipeNeeds } from './shapeKitchenData.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
 
@@ -2223,15 +2223,24 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
   _bsScrollTopOnMount();
   const r = recipe;
   const slug = bsSkSlug(r.title);
-  const [reviews, setReviews] = useStateBSC(() => getRecipeReviews(slug));
+  const [reviews, setReviews] = useStateBSC([]);
   const [formRating, setFormRating] = useStateBSC(0);
   const [reviewText, setReviewText] = useStateBSC('');
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/recipes/reviews?slug=${encodeURIComponent(slug)}`, { credentials: 'same-origin' })
+      .then(res => (res.ok ? res.json() : null))
+      .then(d => { if (!cancelled && d && Array.isArray(d.reviews)) setReviews(d.reviews); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [slug]);
   const avg = reviews.length ? Math.round((reviews.reduce((s, x) => s + (x.rating || 0), 0) / reviews.length) * 10) / 10 : 0;
   const submitReview = () => {
     if (!formRating) return;
-    addRecipeReview(slug, { rating: formRating, text: reviewText, author: 'You' });
-    setReviews(getRecipeReviews(slug));
-    setFormRating(0); setReviewText('');
+    fetch('/api/recipes/reviews', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug, rating: formRating, text: reviewText }) })
+      .then(res => (res.ok ? res.json() : res.json().then(e => Promise.reject(e))))
+      .then(d => { if (d && d.review) { setReviews(prev => [d.review, ...prev]); setFormRating(0); setReviewText(''); window.__bsToast?.('Review posted', 'ok'); } })
+      .catch(err => { window.__bsToast?.(err && err.error ? err.error : 'Could not post review', 'err'); });
   };
   return (
     <BSPage>
