@@ -456,7 +456,7 @@ function toggleSavedRecipe(slug) {
 // Dietary-needs axis (multi-match) layered on top of the single `diet`.
 // Objective needs are derived from macros/diet; gluten/dairy/mediterranean use
 // small curated title sets (more accurate than parsing free-text ingredients).
-const RECIPE_NEEDS = ["High-protein", "Low-carb", "Gluten-free", "Dairy-free", "Mediterranean", "Pescatarian"];
+const RECIPE_NEEDS = ["High-protein", "Low-carb", "Gluten-free", "Dairy-free", "Mediterranean"];
 const _RECIPE_NOT_GF = new Set([
   "Tempo turkey lettuce cups", "Miso-glazed cod with greens", "Tofu and edamame poke bowl",
   "Grilled chicken Caesar, lightened", "Beef and broccoli stir-fry", "Tempeh and broccoli teriyaki",
@@ -476,7 +476,6 @@ function recipeNeeds(r) {
   const c = (r.macros && r.macros.c) || 0;
   if (p >= 30) out.push("High-protein");
   if (c <= 40) out.push("Low-carb");
-  if (r.diet !== "Meat" && r.diet !== "Poultry") out.push("Pescatarian");
   if (!_RECIPE_NOT_GF.has(r.title)) out.push("Gluten-free");
   if (!_RECIPE_HAS_DAIRY.has(r.title)) out.push("Dairy-free");
   if (_RECIPE_MED.has(r.title)) out.push("Mediterranean");
