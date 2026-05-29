@@ -469,7 +469,7 @@ export const SHAPE_KITCHEN_RECIPES = [
 
 // Dietary-needs axis (multi-match) layered on top of the single `diet`. Keep in
 // sync with public/newdesign/recipes.jsx.
-export const RECIPE_DIETS = ["Vegan", "Vegetarian", "Pescatarian", "Plant-based", "Mediterranean"];
+export const RECIPE_DIETS = ["Vegan", "Vegetarian", "Pescatarian", "Mediterranean"];
 export const RECIPE_PROTEINS = ["Seafood", "Poultry", "Meat"];
 export const RECIPE_FREE_FROM = ["Gluten-free", "Dairy-free"];
 export const RECIPE_GOALS = ["High-protein", "Low-carb"];

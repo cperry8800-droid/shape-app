@@ -554,7 +554,7 @@ function toggleSavedRecipe(slug) {
 //   Diet (eating pattern/identity) + Protein (primary source) — one shared
 //   single-select axis; Free From (allergens) + Goals (macro targets) — a
 //   multi-select layer (recipeNeeds).
-const RECIPE_DIETS = ["Vegan", "Vegetarian", "Pescatarian", "Plant-based", "Mediterranean"];
+const RECIPE_DIETS = ["Vegan", "Vegetarian", "Pescatarian", "Mediterranean"];
 const RECIPE_PROTEINS = ["Seafood", "Poultry", "Meat"];
 const RECIPE_FREE_FROM = ["Gluten-free", "Dairy-free"];
 const RECIPE_GOALS = ["High-protein", "Low-carb"];
