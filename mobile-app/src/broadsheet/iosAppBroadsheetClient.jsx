@@ -380,7 +380,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
           in the desktop preview where the frame is narrower than the window. */}
       <div id="bs-composer-slot" style={{
         position: 'absolute', left: 0, right: 0,
-        bottom: 'calc(88px + env(safe-area-inset-bottom, 0px))',
+        bottom: 88,
         zIndex: 60, pointerEvents: 'none',
       }} />
       <BSTabBar
@@ -4325,10 +4325,74 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
     setSlot(document.getElementById('bs-composer-slot'));
   }, [pinned]);
 
-  const box = (
+  const input = (
+    <input
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={(e) => { if (e.key === 'Enter') onSend(); }}
+      placeholder={placeholder}
+      style={{
+        minWidth: 0,
+        height: 38,
+        background: pinned ? t.SURFACE : t.PAPER,
+        border: `1px solid ${t.SURFACE_BORDER}`,
+        borderRadius: 999,
+        padding: '0 14px',
+        fontFamily: t.BODY,
+        fontSize: 14,
+        color: t.INK,
+        outline: 'none',
+        letterSpacing: '-0.005em',
+      }}
+    />
+  );
+  const sendBtn = (
+    <button
+      onClick={onSend}
+      disabled={!canSend}
+      style={{
+        height: 38,
+        border: 0,
+        borderRadius: 999,
+        background: canSend ? t.ACCENT : t.SURFACE,
+        color: canSend ? '#031f1c' : t.INK50,
+        fontFamily: t.BODY,
+        fontSize: 12.5,
+        fontWeight: 760,
+        cursor: canSend ? 'pointer' : 'default',
+        opacity: canSend ? 1 : 0.86,
+      }}
+    >
+      Send
+    </button>
+  );
+
+  if (pinned) {
+    // Docked input bar: spans the full phone-frame width and sits flush on top
+    // of the tab bar — reads as part of the screen, not a floating bubble.
+    const bar = (
+      <div style={{
+        pointerEvents: 'auto',
+        background: t.PAPER,
+        borderTop: `1px solid ${t.SURFACE_BORDER}`,
+        padding: `10px ${t.padX}px`,
+        boxShadow: `0 -10px 26px ${t.isLight ? 'rgba(15,14,12,0.10)' : 'rgba(0,0,0,0.34)'}`,
+        display: 'grid',
+        gridTemplateColumns: '1fr 58px',
+        gap: 8,
+        alignItems: 'center',
+      }}>
+        {input}
+        {sendBtn}
+      </div>
+    );
+    return slot ? createPortal(bar, slot) : null;
+  }
+
+  // Non-pinned: the original floating rounded pill.
+  return (
     <div style={{
-      margin: `0 ${t.padX}px`,
-      ...(pinned ? { pointerEvents: 'auto' } : { marginBottom: 16 }),
+      margin: `0 ${t.padX}px 16px`,
       display: 'grid',
       gridTemplateColumns: '1fr 58px',
       gap: 8,
@@ -4339,50 +4403,10 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
       background: t.PAPER,
       boxShadow: `0 18px 38px ${t.isLight ? 'rgba(15,14,12,0.16)' : 'rgba(0,0,0,0.42)'}, 0 -1px 0 ${t.SURFACE_BORDER}`,
     }}>
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter') onSend(); }}
-        placeholder={placeholder}
-        style={{
-          minWidth: 0,
-          height: 38,
-          background: t.PAPER,
-          border: `1px solid ${t.SURFACE_BORDER}`,
-          borderRadius: 999,
-          padding: '0 14px',
-          fontFamily: t.BODY,
-          fontSize: 14,
-          color: t.INK,
-          outline: 'none',
-          letterSpacing: '-0.005em',
-        }}
-      />
-      <button
-        onClick={onSend}
-        disabled={!canSend}
-        style={{
-          height: 38,
-          border: 0,
-          borderRadius: 999,
-          background: canSend ? t.ACCENT : t.SURFACE,
-          color: canSend ? '#031f1c' : t.INK50,
-          fontFamily: t.BODY,
-          fontSize: 12.5,
-          fontWeight: 760,
-          cursor: canSend ? 'pointer' : 'default',
-          opacity: canSend ? 1 : 0.86,
-        }}
-      >
-        Send
-      </button>
+      {input}
+      {sendBtn}
     </div>
   );
-
-  if (pinned) {
-    return slot ? createPortal(box, slot) : null;
-  }
-  return box;
 }
 
 // ─── Thread detail ───────────────────────────────────────────
