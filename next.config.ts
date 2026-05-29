@@ -45,6 +45,9 @@ const nextConfig: NextConfig = {
       // redirect loops Vercel can hit between lowercase/uppercase paths.
       { source: '/about', destination: '/newdesign/About.html' },
       { source: '/about.html', destination: '/newdesign/About.html' },
+      // Recipes library lives at public/newdesign/Recipes.html.
+      { source: '/recipes', destination: '/newdesign/Recipes.html' },
+      { source: '/recipes.html', destination: '/newdesign/Recipes.html' },
       // Mobile preview lives at public/mobile/Mobile.html. Give it clean,
       // lowercase URLs so the mixed-case filename isn't the only way in.
       { source: '/mobile', destination: '/mobile/Mobile.html' },
