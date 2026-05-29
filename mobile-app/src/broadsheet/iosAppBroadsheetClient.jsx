@@ -2167,10 +2167,9 @@ function bsSkParseIngredient(s) {
 function BSShapeKitchen({ onChangeView, onOpenRecipe }) {
   const t = useBS();
   _bsScrollTopOnMount();
-  const [creator, setCreator] = useStateBSC('All');
   const [diet, setDiet] = useStateBSC('All');
   const all = SHAPE_KITCHEN_RECIPES;
-  const filtered = all.filter(r => (creator === 'All' || r.byRole === creator) && (diet === 'All' || r.diet === diet));
+  const filtered = all.filter(r => (diet === 'All' || r.diet === diet));
   const Chip = ({ label, on, color, onClick, count }) => (
     <button onClick={onClick} style={{
       flex: '0 0 auto', padding: '8px 12px', borderRadius: 999, cursor: 'pointer',
@@ -2183,11 +2182,8 @@ function BSShapeKitchen({ onChangeView, onOpenRecipe }) {
     <BSPage>
       <BSPageHeader kicker="Section · Nutrition" title={<>Shape<br/>Kitchen.</>} />
       <BSNutritionTopTabs active="recipes" onChange={onChangeView} />
-      <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        <Chip label="All" on={creator === 'All'} onClick={() => setCreator('All')} count={all.length} />
-        {BS_SK_CREATORS.map(([k, l]) => <Chip key={k} label={l} on={creator === k} onClick={() => setCreator(k)} count={all.filter(r => r.byRole === k).length} />)}
-      </div>
-      <div style={{ padding: `8px ${t.padX}px 12px`, display: 'flex', gap: 6, flexWrap: 'wrap', borderBottom: `1px solid ${t.RULE}` }}>
+      <div style={{ padding: `12px ${t.padX}px 12px`, display: 'flex', gap: 6, flexWrap: 'wrap', borderBottom: `1px solid ${t.RULE}` }}>
+        <Chip label="All" on={diet === 'All'} onClick={() => setDiet('All')} count={all.length} />
         {BS_SK_DIETS.map(d => <Chip key={d} label={d} on={diet === d} color={BS_SK_DIET_COLOR[d]} onClick={() => setDiet(diet === d ? 'All' : d)} count={all.filter(r => r.diet === d).length} />)}
       </div>
       <div style={{ padding: `14px ${t.padX}px 6px`, display: 'grid', gap: 12 }}>
