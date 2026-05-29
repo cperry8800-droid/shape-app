@@ -20,6 +20,41 @@ function rdGetSlug() {
   return "";
 }
 
+// Split an ingredient string like "3/4 cup jasmine rice" into { qty, item }.
+function rdParseIngredient(s) {
+  s = String(s || "").trim();
+  const m = s.match(/^([0-9¼½¾⅓⅔.\/]+(?:\s*[-–]\s*[0-9.\/]+)?\s*(?:oz|ounces?|cups?|tbsp|tablespoons?|tsp|teaspoons?|lb|lbs|pounds?|kg|g|grams?|ml|l|liters?|cans?|cloves?|slices?|pints?|sprigs?|scoops?|handfuls?|bags?|btl|bottles?)?\.?)\s+(.+)$/i);
+  if (m && m[2]) return { qty: m[1].trim(), item: m[2].trim() };
+  return { qty: "", item: s };
+}
+
+// Itemize a recipe's ingredients into the shared grocery store
+// (shape.grocery.lists.v1) that ClientGrocery.html reads, and make it the
+// active list so the grocery page opens straight to it (with Send to Instacart).
+function rdAddRecipeToGrocery(recipe) {
+  const STORE_KEY = "shape.grocery.lists.v1";
+  const ACTIVE_KEY = "shape.grocery.activeListId.v1";
+  let lists = [];
+  try {
+    const raw = window.localStorage.getItem(STORE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (Array.isArray(parsed)) lists = parsed;
+  } catch (e) {}
+  const id = "recipe-" + recipeSlug(recipe);
+  const items = (recipe.ingredients || []).map((ing, idx) => {
+    const parts = rdParseIngredient(ing);
+    return { id: `${id}-${idx}`, item: parts.item, qty: parts.qty, category: "other", checked: false };
+  });
+  const list = { id, name: `${recipe.title} — ingredients`, items };
+  const i = lists.findIndex(l => l.id === id);
+  if (i >= 0) lists[i] = list; else lists = [list, ...lists];
+  try {
+    window.localStorage.setItem(STORE_KEY, JSON.stringify(lists));
+    window.localStorage.setItem(ACTIVE_KEY, id);
+  } catch (e) {}
+  return items.length;
+}
+
 function RDRelatedCard({ recipe }) {
   const dc = RD_DIET_COLOR[recipe.diet] || TEAL;
   return (
@@ -58,6 +93,9 @@ function RecipeDetailPage() {
   const related = (typeof SHAPE_RECIPES !== "undefined" ? SHAPE_RECIPES : [])
     .filter(r => r !== recipe && (r.diet === recipe.diet || r.byRole === recipe.byRole))
     .slice(0, 3);
+
+  const [added, setAdded] = React.useState(0); // count of items added (0 = not yet)
+  const addToGrocery = () => { setAdded(rdAddRecipeToGrocery(recipe)); };
 
   return (
     <div style={{ background: INK_DEEP, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
@@ -143,9 +181,27 @@ function RecipeDetailPage() {
         )}
 
         {/* CTAs */}
-        <div style={{ maxWidth: 980, margin: "28px auto 0", padding: "0 24px", display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <a href="ClientLibrary.html" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "11px 22px", borderRadius: 999, fontFamily: sans, fontSize: 14, textDecoration: "none" }}>Save to library</a>
-          <a href="ClientNutri.html" style={{ background: TEAL, color: "#0a0f0d", border: 0, padding: "11px 24px", borderRadius: 999, fontFamily: sans, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Add to today's plan</a>
+        <div style={{ maxWidth: 980, margin: "28px auto 0", padding: "0 24px", display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+          {added > 0 ? (
+            <>
+              <a href="ClientGrocery.html" style={{ background: TEAL, color: "#0a0f0d", border: 0, padding: "11px 24px", borderRadius: 999, fontFamily: sans, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>
+                Open grocery list →
+              </a>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.1em", color: TEAL_BRIGHT }}>
+                ✓ ADDED {added} {added === 1 ? "ITEM" : "ITEMS"}
+              </span>
+            </>
+          ) : (
+            <button onClick={addToGrocery} style={{ background: TEAL, color: "#0a0f0d", border: 0, padding: "11px 24px", borderRadius: 999, fontFamily: sans, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+              Add to grocery list
+            </button>
+          )}
+          <a href="ClientNutri.html" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "11px 22px", borderRadius: 999, fontFamily: sans, fontSize: 14, textDecoration: "none" }}>Add to today's plan</a>
+        </div>
+        <div style={{ maxWidth: 980, margin: "10px auto 0", padding: "0 24px" }}>
+          <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.55)", lineHeight: 1.5 }}>
+            Adds all {(recipe.ingredients || []).length} ingredients to your grocery list, where you can check them off or send the whole list to Instacart.
+          </div>
         </div>
 
         {/* Related */}
