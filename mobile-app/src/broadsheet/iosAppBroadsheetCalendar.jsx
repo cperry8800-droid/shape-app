@@ -1,4 +1,6 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
+const _BS_CAL_KIND_ICON = { WORKOUT: '🏋', MEAL: '🍽', CHECKIN: '✅', CONSULT: '💬', REVIEW: '📋', PLAN: '🗺', REST: '😴', ADMIN: '✦' };
 // iosAppBroadsheetCalendar.jsx — Sheet overlay system + Week/Month calendar screen.
 // Newspaper-styled. Role-aware events (client / trainer / nutritionist).
 
@@ -361,35 +363,47 @@ function BSCalAddSheet({ year, month, day, onClose, onSaved }) {
 
   const input = (val, setVal, ph, type = 'text') => (
     <input value={val} onChange={(e) => setVal(e.target.value)} placeholder={ph} type={type}
-      style={{ width: '100%', height: 44, background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 10, padding: '0 12px', fontFamily: t.BODY || t.DISPLAY, fontSize: 15, outline: 'none' }} />
+      style={{ width: '100%', height: 46, background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 12, padding: '0 14px', fontFamily: t.BODY || t.DISPLAY, fontSize: 15, outline: 'none', boxSizing: 'border-box' }} />
   );
+  const niceDate = (() => { const d = new Date(dateStr + 'T00:00:00'); return isNaN(d) ? dateStr : d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }); })();
 
-  return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 9000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: '20px 18px calc(26px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -20px 60px rgba(0,0,0,0.5)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em' }}>Add to calendar</div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 0, color: t.INK50, fontSize: 14, cursor: 'pointer' }}>Cancel</button>
+  return createPortal((
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, maxHeight: '92vh', overflowY: 'auto', background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '10px 18px calc(20px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0 12px' }}>
+          <div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} />
         </div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 14 }}>{dateStr}</div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: t.W.display, letterSpacing: '-0.025em' }}>Add to calendar</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>{niceDate}</div>
+          </div>
+          <button onClick={onClose} aria-label="Close" style={{ width: 32, height: 32, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK50, fontSize: 16, cursor: 'pointer', lineHeight: 1 }}>×</button>
+        </div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 9 }}>Type</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 7, marginBottom: 18 }}>
           {KINDS.map(k => {
             const on = k === kind;
-            return <button key={k} onClick={() => setKind(k)} style={{ padding: '7px 11px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? t.ACCENT : 'transparent', color: on ? '#031f1c' : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{k}</button>;
+            return (
+              <button key={k} onClick={() => setKind(k)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 2px 7px', borderRadius: 12, cursor: 'pointer', border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? `${t.ACCENT}22` : 'transparent' }}>
+                <span style={{ fontSize: 17, lineHeight: 1, filter: on ? 'none' : 'grayscale(0.4)' }}>{_BS_CAL_KIND_ICON[k] || '✦'}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.04em', color: on ? t.INK : t.INK50 }}>{k}</span>
+              </button>
+            );
           })}
         </div>
-        <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
+        <div style={{ display: 'grid', gap: 9, marginBottom: 18 }}>
           {input(title, setTitle, 'Title (e.g. Upper Push)')}
           {input(sub, setSub, 'Details (optional)')}
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 9 }}>
             {input(time, setTime, 'Time HH:MM', 'text')}
             {input(dur, setDur, 'Min', 'number')}
           </div>
         </div>
-        <button onClick={save} disabled={busy} style={{ width: '100%', padding: '14px 0', borderRadius: 999, background: t.ACCENT, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Saving…' : 'Add event →'}</button>
+        <button onClick={save} disabled={busy} style={{ width: '100%', padding: '16px 0', borderRadius: 999, background: t.ACCENT, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Saving…' : 'Add to calendar →'}</button>
       </div>
     </div>
-  );
+  ), (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body);
 }
 
 // ────────── WEEK VIEW
