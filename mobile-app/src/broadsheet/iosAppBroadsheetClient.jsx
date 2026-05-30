@@ -1748,6 +1748,70 @@ function BSAddWidgets({ added, onAdd }) {
   );
 }
 
+// Index of today within a Mon–Sun week (0 = Mon … 6 = Sun).
+function bsWeekdayIdx(d = new Date()) { return (d.getDay() + 6) % 7; }
+
+// Build the 7-day Train PROGRAM from live assigned workouts. Workouts with a
+// scheduled_date land on that weekday; any unscheduled ones are laid onto the
+// open weekdays in order so a client with a plan but no dates still sees real
+// data. Days with no workout render as rest. Presentation (titles, accents,
+// tags) is derived here — the API returns only raw plan data.
+function bsBuildTrainProgram(workouts, t) {
+  const DOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  const ACCENTS = [t.RUST, t.AMBER, t.BLUE];
+  const monday = new Date(); monday.setHours(0, 0, 0, 0);
+  monday.setDate(monday.getDate() - bsWeekdayIdx(monday));
+  const dateFor = (i) => { const d = new Date(monday); d.setDate(d.getDate() + i); return d; };
+
+  // Slot workouts onto the week.
+  const slots = [null, null, null, null, null, null, null];
+  const unscheduled = [];
+  for (const w of (workouts || [])) {
+    if (w.scheduledDate) {
+      const dt = new Date(w.scheduledDate + 'T00:00:00');
+      const idx = Math.round((dt - monday) / 86400000);
+      if (idx >= 0 && idx <= 6 && !slots[idx]) { slots[idx] = w; continue; }
+    }
+    unscheduled.push(w);
+  }
+  for (let i = 0; i < 7 && unscheduled.length; i++) {
+    if (!slots[i]) slots[i] = unscheduled.shift();
+  }
+
+  return slots.map((w, i) => {
+    const d = dateFor(i);
+    const label = `${DOW[i]} ${d.getDate()}`;
+    if (!w) {
+      return {
+        d: label, kicker: 'The Recovery', title: 'Rest\nday.', tag: 'REST',
+        tagColor: t.GREEN, accent: t.GREEN, headline: 'Full rest.',
+        meta: 'No session · 0 min', copy: 'No workout scheduled today. Recover, eat well, sleep.',
+        moves: [], total: '0 sessions', coachLine: 'Recovery is training. Take the day.',
+      };
+    }
+    const moves = (w.exercises || []).map((e, j) => {
+      const sr = [e.sets, e.reps].filter(Boolean).join(' × ');
+      const s = [sr, e.rest].filter(Boolean).join(' · ');
+      return { n: String(j + 1).padStart(2, '0'), m: e.name, s: s || '—', l: e.load || '—' };
+    });
+    const isCustom = w.kind === 'custom';
+    return {
+      d: label,
+      kicker: 'The Training',
+      title: w.title || 'Workout',
+      tag: isCustom ? 'CUSTOM' : 'FEATURE',
+      tagColor: isCustom ? t.BLUE : t.AMBER,
+      accent: ACCENTS[i % ACCENTS.length],
+      headline: w.title || 'Workout',
+      meta: [w.durationMin ? `${w.durationMin} min` : null, `${moves.length} move${moves.length === 1 ? '' : 's'}`].filter(Boolean).join(' · '),
+      copy: w.description || 'Programmed by your coach.',
+      moves,
+      total: `${moves.length} move${moves.length === 1 ? '' : 's'}`,
+      coachLine: w.description || 'Move with intent. Quality over load.',
+    };
+  });
+}
+
 // ═══════════════════════════════════════════════════════════
 // TRAIN — workout-focused page
 // ═══════════════════════════════════════════════════════════
@@ -1756,9 +1820,25 @@ function BSClientTrain({ onProfile }) {
   const [day, setDay] = useStateBSC(4);
   const [session, setSession] = useStateBSC(false);
   const [previewing, setPreviewing] = useStateBSC(false);
+  const [liveProgram, setLiveProgram] = useStateBSC(null);
 
-  // ── Per-day program (May 8–14, 2026) ──
-  const PROGRAM = [
+  // Pull the client's assigned plan; fall back to the demo program below when
+  // nothing is assigned (keeps the screen rich for unassigned/demo accounts).
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const p = await window.ShapePlan?.get?.();
+        if (cancelled || !p?.training?.hasPlan) return;
+        setLiveProgram(bsBuildTrainProgram(p.training.workouts, t));
+        setDay(bsWeekdayIdx());
+      } catch (e) { /* keep demo program */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // ── Per-day program (demo fallback, May 8–14, 2026) ──
+  const MOCK_PROGRAM = [
     {
       d: 'M 17',
       kicker: 'The Training',
@@ -1895,7 +1975,8 @@ function BSClientTrain({ onProfile }) {
     },
   ];
 
-  const cur = PROGRAM[day];
+  const PROGRAM = liveProgram || MOCK_PROGRAM;
+  const cur = PROGRAM[day] || PROGRAM[0];
   const days = PROGRAM.map(p => p.d);
 
   if (session) return <BSSession moves={cur.moves.map(m => ({ ...m, sets: 4, reps: '6-8' }))} onBack={() => setSession(false)} />;
@@ -2807,6 +2888,7 @@ function BSClientEat({ onProfile }) {
   });
   const [selectedGroceryList, setSelectedGroceryList] = useStateBSC(null);
   const [day, setDay] = useStateBSC(4); // 0..6 — Fri (idx 4) = today, mirrors Train
+  const [liveProgram, setLiveProgram] = useStateBSC(null);
 
   // ── Compact builder for non-anchor days. Generates a full BSMealPreview-shaped record.
   const mk = ({ id, time, tag, tagColor, title, kcal, p, c, f, state, last, hero, brief, ingredients, steps, coachNote, prep = '10 min', portion = '1 plate', score = 'A' }) => ({
@@ -2817,8 +2899,91 @@ function BSClientEat({ onProfile }) {
     hero, brief, ingredients, steps, coachNote,
   });
 
-  // ── 7-day menu program (May 8–14, 2026 — same week as Train)
-  const PROGRAM = [
+  // Build the 7-day menu from a live meal plan (days[] from /api/client/plan),
+  // padding to 7 so the day strip stays stable. Presentation is derived here;
+  // the API returns raw plan data. Falls back to the demo PROGRAM below.
+  const buildMealProgram = (days) => {
+    const DOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    const ACCENTS = [t.RUST, t.AMBER, t.BLUE];
+    const SLOT_COLOR = { BFAST: t.GREEN, BREAKFAST: t.GREEN, LUNCH: t.AMBER, SNACK: t.BLUE, DINNER: t.RUST, DINR: t.RUST };
+    const monday = new Date(); monday.setHours(0, 0, 0, 0);
+    monday.setDate(monday.getDate() - bsWeekdayIdx(monday));
+    const byDow = [null, null, null, null, null, null, null];
+    const seq = [];
+    for (const d of (days || [])) {
+      if (Number.isInteger(d.dow) && d.dow >= 0 && d.dow <= 6 && !byDow[d.dow]) byDow[d.dow] = d;
+      else seq.push(d);
+    }
+    for (let i = 0; i < 7 && seq.length; i++) if (!byDow[i]) byDow[i] = seq.shift();
+
+    return byDow.map((dy, i) => {
+      const date = new Date(monday); date.setDate(date.getDate() + i);
+      const label = `${DOW[i]} ${date.getDate()}`;
+      if (!dy) {
+        return {
+          d: label, kicker: 'Section · Nutrition', title: 'Open day', tag: 'OPEN',
+          tagColor: t.GREEN, accent: t.GREEN, headline: 'No menu',
+          meta: 'No meals planned', copy: 'No meals planned for today.', coachLine: '',
+          totals: { cal: '', p: '', c: '', f: '', target: { cal: '', p: '', c: '', f: '' } },
+          meals: [],
+        };
+      }
+      const dm = Array.isArray(dy.meals) ? dy.meals : [];
+      const meals = dm.map((meal, j) => {
+        const slot = String(meal.slot || 'MEAL').toUpperCase();
+        return mk({
+          id: meal.id || `live-${i}-${j}`,
+          time: meal.time || '',
+          tag: slot.slice(0, 5),
+          tagColor: SLOT_COLOR[slot] || t.AMBER,
+          title: meal.title || 'Meal',
+          kcal: meal.kcal || 0, p: meal.p || 0, c: meal.c || 0, f: meal.f || 0,
+          state: meal.state, last: j === dm.length - 1,
+          hero: meal.hero || '', brief: meal.brief || '',
+          ingredients: (meal.ingredients || []).map((ing) => ({ n: ing.qty || '', m: ing.name || '', k: ing.kcal != null ? `${ing.kcal} kcal` : '' })),
+          steps: meal.steps || [],
+          coachNote: meal.coachNote || '',
+          prep: meal.prep || '—', portion: meal.portion || '1 plate', score: meal.score || '—',
+        });
+      });
+      const tot = dy.totals || {}; const tgt = dy.targets || {};
+      const str = (v) => (v != null ? String(v) : '');
+      return {
+        d: label,
+        kicker: 'Section · Nutrition',
+        title: dy.title || 'Today',
+        tag: String(dy.tag || 'PLAN').toUpperCase(),
+        tagColor: t.AMBER,
+        accent: ACCENTS[i % ACCENTS.length],
+        headline: dy.title || 'Today',
+        meta: `${meals.length} meal${meals.length === 1 ? '' : 's'}${tot.cal != null ? ` · ${tot.cal} kcal` : ''}`,
+        copy: dy.copy || '',
+        coachLine: dy.coachLine || '',
+        totals: {
+          cal: str(tot.cal), p: str(tot.p), c: str(tot.c), f: str(tot.f),
+          target: { cal: str(tgt.cal), p: str(tgt.p), c: str(tgt.c), f: str(tgt.f) },
+        },
+        meals,
+      };
+    });
+  };
+
+  // Pull the client's assigned meal plan; fall back to the demo menu when none.
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const p = await window.ShapePlan?.get?.();
+        if (cancelled || !p?.meals?.hasPlan) return;
+        setLiveProgram(buildMealProgram(p.meals.days));
+        setDay(bsWeekdayIdx());
+      } catch (e) { /* keep demo menu */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // ── 7-day menu program (demo fallback, May 8–14, 2026 — same week as Train)
+  const MOCK_PROGRAM = [
     {
       d: 'M 17',
       kicker: 'Section · Nutrition',
@@ -3551,7 +3716,8 @@ function BSClientEat({ onProfile }) {
     } catch {}
   }, [recipeLists]);
 
-  const cur = PROGRAM[day];
+  const PROGRAM = liveProgram || MOCK_PROGRAM;
+  const cur = PROGRAM[day] || PROGRAM[0];
   const days = PROGRAM.map(p => p.d);
   const meals = cur.meals;
   const activeGroceryList = selectedGroceryList || BS_GROCERY_DEFAULT;
