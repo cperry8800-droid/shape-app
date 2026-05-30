@@ -3710,6 +3710,32 @@ function BSClientEat({ onProfile }) {
     window.__bsToast?.('Added to grocery list', 'ok');
   };
 
+  // Roll every ingredient from the assigned weekly meal plan into one grocery
+  // list (deduped by name, quantities concatenated). Only meaningful when a
+  // live plan is loaded — the demo menu uses the per-recipe path above.
+  const addPlanToGrocery = () => {
+    if (!liveProgram) return;
+    const byName = new Map();
+    liveProgram.forEach(dy => (dy.meals || []).forEach(meal => (meal.ingredients || []).forEach(ing => {
+      const name = (ing.m || '').trim();
+      if (!name) return;
+      const key = name.toLowerCase();
+      const e = byName.get(key) || { n: name, qtys: [], meals: new Set(), k: ing.k };
+      if (ing.n) e.qtys.push(ing.n);
+      if (meal.title) e.meals.add(meal.title);
+      byName.set(key, e);
+    })));
+    const items = [...byName.values()].map((e, idx) => ({
+      id: `plan-week-${idx}`, n: e.n, q: e.qtys.join(' + '), meals: [...e.meals].join(', '), k: e.k,
+    }));
+    if (!items.length) { window.__bsToast?.('No ingredients in your plan yet', 'err'); return; }
+    const list = { id: 'plan-week', name: "This week's plan", kind: 'recipe', eyebrow: 'From your meal plan', usedCount: 1, preview: items.slice(0, 3).map(i => i.n).join(' · '), count: items.length, items };
+    setRecipeLists(prev => [list, ...prev.filter(l => l.id !== 'plan-week')]);
+    setSelectedGroceryList(bsNormalizeGroceryList(list));
+    setView('grocery');
+    window.__bsToast?.('Plan ingredients added to groceries', 'ok');
+  };
+
   React.useEffect(() => {
     try {
       window.localStorage && window.localStorage.setItem('shape.recipeGroceryLists', JSON.stringify(recipeLists));
@@ -3867,6 +3893,15 @@ function BSClientEat({ onProfile }) {
           );
         })}
       </div>
+
+      {/* Live plan → one-tap grocery list from every ingredient in the week. */}
+      {liveProgram && (
+        <div style={{ padding: `12px ${t.padX}px 0` }}>
+          <button onClick={addPlanToGrocery} style={{ width: '100%', borderRadius: t.RADIUS_SM, padding: '12px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer' }}>
+            Add week's ingredients to groceries
+          </button>
+        </div>
+      )}
 
       {/* Today's prescribed plan from the nutritionist (moved here from Me). */}
       {day === 4 && <BSRxPlanWidget />}
