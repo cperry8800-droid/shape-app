@@ -142,7 +142,7 @@ function BSCosmicWordmark({ scale = 1 }) {
   return (
     <div className="bs-splash-title" style={{ textAlign: 'center', lineHeight: 1, whiteSpace: 'nowrap', color: '#f4efe6' }}>
       <span className="bs-splash-the" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 31 * scale, letterSpacing: '-0.055em' }}>The</span>
-      <span className="bs-splash-shape" style={{ display: 'inline-block', marginLeft: 8 * scale, marginRight: 10 * scale, fontFamily: `'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif`, fontWeight: 300, fontSize: 37 * scale, letterSpacing: '0.18em', textTransform: 'uppercase', transform: 'translateY(1px)', color: '#000000' }}>SHAPE</span>
+      <span className="bs-splash-shape" style={{ display: 'inline-block', marginLeft: 8 * scale, marginRight: 10 * scale, fontFamily: `'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif`, fontWeight: 300, fontSize: 37 * scale, letterSpacing: '0.18em', textTransform: 'uppercase', transform: 'translateY(1px)', color: '#ffffff' }}>SHAPE</span>
       <span className="bs-splash-daily" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 31 * scale, letterSpacing: '-0.055em' }}>Daily.</span>
     </div>
   );
@@ -708,7 +708,7 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
               {isCreate ? (
                 <>Join the<br/><span style={{ fontWeight: 400, fontStyle: 'italic', letterSpacing: '-0.065em', ...SHAPE_GRAD }}>community.</span></>
               ) : (
-                <>Welcome<br/>to <span style={{ display: 'inline-block', fontFamily: `'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif`, fontWeight: 300, fontStyle: 'normal', fontSize: 48, letterSpacing: '0.16em', textTransform: 'uppercase', transform: 'translateY(2px)', color: '#000000' }}>SHAPE</span>.</>
+                <>Welcome<br/>to <span style={{ display: 'inline-block', fontFamily: `'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif`, fontWeight: 300, fontStyle: 'normal', fontSize: 48, letterSpacing: '0.16em', textTransform: 'uppercase', transform: 'translateY(2px)', color: '#ffffff' }}>SHAPE</span>.</>
               )}
             </div>
           </div>
@@ -1022,7 +1022,7 @@ function BSAppShell({ tweaks, setTweak }) {
   return (
     <BSRadioProvider>
       <BSPhone>
-        {stage === 'splash' && <BSSplash style={tweaks.splashStyle} bg={tweaks.splashBg || 'plain'} bgColor={tweaks.splashBgColor || 'auto'} onDone={() => setStage(tweaks.startLoggedIn && !authConfigured ? 'app' : 'login')} />}
+        {stage === 'splash' && <BSSplash style="cosmos" bg={tweaks.splashBg || 'plain'} bgColor={tweaks.splashBgColor || 'auto'} onDone={() => setStage(tweaks.startLoggedIn && !authConfigured ? 'app' : 'login')} />}
         {stage === 'login'  && <BSLogin
           key={loginMode}
           initialMode={loginMode}
