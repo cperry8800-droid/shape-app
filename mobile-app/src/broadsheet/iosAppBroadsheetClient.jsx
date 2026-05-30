@@ -5641,18 +5641,20 @@ const _BS_ACTIVITY_ICON = { Run: '🏃', Ride: '🚴', Swim: '🏊', Walk: '🚶
 // Activities that care about distance (km) — others hide that field.
 const _BS_ACTIVITY_DISTANCE = new Set(['Run', 'Ride', 'Swim', 'Walk', 'Hike', 'Rowing']);
 
-// Bottom-sheet for logging an activity by hand (no device needed).
 // Mood check-in sheet — writes today's mood (1–10) via /api/client/checkin.
+const _BS_MOOD_FACE = (m) => m >= 9 ? '😄' : m >= 7 ? '🙂' : m >= 5 ? '😐' : m >= 3 ? '😕' : '😞';
+const _BS_MOOD_WORD = (m) => m >= 8 ? 'Great' : m >= 6 ? 'Good' : m >= 4 ? 'Okay' : 'Low';
+// Quick-pick presets across the range.
+const _BS_MOOD_QUICK = [[2, '😞', 'Low'], [4, '😕', 'Meh'], [6, '😐', 'Okay'], [8, '🙂', 'Good'], [10, '😄', 'Great']];
 function BSMoodSheet({ onClose, onSaved }) {
   const t = useBS();
   const [val, setVal] = useStateBSC(7);
   const [busy, setBusy] = useStateBSC(false);
-  const labelFor = (m) => m >= 8 ? 'Great' : m >= 6 ? 'Good' : m >= 4 ? 'Okay' : 'Low';
   const save = async () => {
     setBusy(true);
     try {
       await window.ShapeCheckin.log({ mood: val });
-      window.__bsToast?.(`Logged · ${labelFor(val)}`, 'ok');
+      window.__bsToast?.(`Logged · ${_BS_MOOD_WORD(val)}`, 'ok');
       onSaved?.();
       onClose?.();
     } catch (e) {
@@ -5662,27 +5664,56 @@ function BSMoodSheet({ onClose, onSaved }) {
     }
   };
   return createPortal((
-    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, maxHeight: '88vh', overflowY: 'auto', background: t.PAPER, color: t.INK, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: '20px 18px calc(26px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -20px 60px rgba(0,0,0,0.5)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em' }}>How are you feeling?</div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 0, color: t.INK50, fontSize: 14, cursor: 'pointer' }}>Cancel</button>
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, maxHeight: '92vh', overflowY: 'auto', background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '10px 18px calc(20px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
+        {/* Grab handle */}
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0 12px' }}>
+          <div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} />
         </div>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: '10px 0 14px' }}>
-          <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 44, letterSpacing: '-0.04em', color: t.INK }}>{labelFor(val)}</span>
-          <span style={{ fontFamily: t.MONO, fontSize: 12, letterSpacing: '0.1em', color: t.INK50, fontWeight: 700 }}>{val}/10</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: t.W.display, letterSpacing: '-0.025em' }}>How are you feeling?</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>Today's check-in · shared with your coach</div>
+          </div>
+          <button onClick={onClose} aria-label="Close" style={{ width: 32, height: 32, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK50, fontSize: 16, cursor: 'pointer', lineHeight: 1 }}>×</button>
         </div>
-        <div style={{ display: 'flex', gap: 5 }}>
+
+        {/* Big face + label */}
+        <div style={{ textAlign: 'center', padding: '6px 0 16px' }}>
+          <div style={{ fontSize: 64, lineHeight: 1 }}>{_BS_MOOD_FACE(val)}</div>
+          <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 26, letterSpacing: '-0.03em', color: t.INK }}>{_BS_MOOD_WORD(val)}</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.14em', color: t.INK50, fontWeight: 700, marginTop: 2 }}>{val}/10</div>
+        </div>
+
+        {/* Quick emoji picks */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 16 }}>
+          {_BS_MOOD_QUICK.map(([n, face, word]) => {
+            const on = val === n;
+            return (
+              <button key={n} onClick={() => setVal(n)} style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '10px 2px 7px',
+                borderRadius: 12, cursor: 'pointer', border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? `${t.ACCENT}22` : 'transparent',
+              }}>
+                <span style={{ fontSize: 22, lineHeight: 1, filter: on ? 'none' : 'grayscale(0.5)' }}>{face}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: on ? t.INK : t.INK50 }}>{word}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Fine 1–10 scale */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 18 }}>
           {[1,2,3,4,5,6,7,8,9,10].map((n) => (
-            <button key={n} onClick={() => setVal(n)} style={{
-              flex: 1, height: 40, borderRadius: 8, cursor: 'pointer',
+            <button key={n} onClick={() => setVal(n)} aria-label={`${n} of 10`} style={{
+              flex: 1, height: 34, borderRadius: 8, cursor: 'pointer',
               border: `1px solid ${n === val ? t.ACCENT : t.RULE}`,
               background: n <= val ? t.ACCENT : 'transparent',
-              color: n <= val ? '#031f1c' : t.INK50, fontFamily: t.MONO, fontSize: 11, fontWeight: 800,
+              color: n === val ? '#031f1c' : (n <= val ? '#031f1c' : t.INK50), fontFamily: t.MONO, fontSize: 10, fontWeight: 800,
             }}>{n}</button>
           ))}
         </div>
-        <button onClick={save} disabled={busy} style={{ width: '100%', marginTop: 16, padding: '14px 0', borderRadius: 999, background: t.ACCENT, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Saving…' : 'Log check-in →'}</button>
+
+        <button onClick={save} disabled={busy} style={{ width: '100%', padding: '16px 0', borderRadius: 999, background: t.ACCENT, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Saving…' : 'Log check-in →'}</button>
       </div>
     </div>
   ), (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body);

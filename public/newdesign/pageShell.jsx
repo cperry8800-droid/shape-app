@@ -565,6 +565,7 @@ function CalendarOverlay({ open, onClose, role = "client", events = [], anchorDa
 // Add-event modal — writes to /api/calendar (shared with the mobile app).
 function CalAddForm({ defaultDate, onClose, onSaved }) {
   const KINDS = ["WORKOUT","MEAL","CHECKIN","CONSULT","REVIEW","PLAN","REST","ADMIN"];
+  const KIND_ICON = { WORKOUT: "🏋", MEAL: "🍽", CHECKIN: "✅", CONSULT: "💬", REVIEW: "📋", PLAN: "🗺", REST: "😴", ADMIN: "✦" };
   const [kind, setKind] = React.useState("WORKOUT");
   const [title, setTitle] = React.useState("");
   const [sub, setSub] = React.useState("");
@@ -596,10 +597,17 @@ function CalAddForm({ defaultDate, onClose, onSaved }) {
           <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.02em" }}>Add to calendar</div>
           <button onClick={onClose} style={{ background: "transparent", color: "rgba(242,237,228,0.6)", border: 0, fontSize: 20, cursor: "pointer" }}>×</button>
         </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-          {KINDS.map(k => (
-            <button key={k} onClick={() => setKind(k)} style={{ padding: "6px 12px", borderRadius: 999, cursor: "pointer", border: `1px solid ${kind===k ? TEAL : "rgba(242,237,228,0.15)"}`, background: kind===k ? TEAL : "transparent", color: kind===k ? "#031f1c" : INK, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em" }}>{k}</button>
-          ))}
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)", marginBottom: 9, fontWeight: 700 }}>Type</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 7, marginBottom: 18 }}>
+          {KINDS.map(k => {
+            const on = kind === k;
+            return (
+              <button key={k} onClick={() => setKind(k)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "10px 2px 7px", borderRadius: 12, cursor: "pointer", border: `1px solid ${on ? TEAL : "rgba(242,237,228,0.15)"}`, background: on ? "rgba(10,197,168,0.13)" : "transparent" }}>
+                <span style={{ fontSize: 17, lineHeight: 1, filter: on ? "none" : "grayscale(0.4)" }}>{KIND_ICON[k] || "✦"}</span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, fontWeight: 700, letterSpacing: "0.04em", color: on ? INK : "rgba(242,237,228,0.55)" }}>{k}</span>
+              </button>
+            );
+          })}
         </div>
         <div style={{ display: "grid", gap: 10 }}>
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Title" style={field} />
@@ -611,7 +619,7 @@ function CalAddForm({ defaultDate, onClose, onSaved }) {
           </div>
         </div>
         {err && <div style={{ color: "#ff8b7f", fontSize: 12, marginTop: 10, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>{err}</div>}
-        <button onClick={save} disabled={busy} style={{ width: "100%", marginTop: 16, padding: "13px 0", borderRadius: 999, background: TEAL, color: "#031f1c", border: 0, fontFamily: sans, fontSize: 14, fontWeight: 700, cursor: busy ? "wait" : "pointer", opacity: busy ? 0.65 : 1 }}>{busy ? "Saving…" : "Add event"}</button>
+        <button onClick={save} disabled={busy} style={{ width: "100%", marginTop: 18, padding: "15px 0", borderRadius: 999, background: TEAL, color: "#031f1c", border: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", cursor: busy ? "wait" : "pointer", opacity: busy ? 0.65 : 1 }}>{busy ? "Saving…" : "Add to calendar →"}</button>
       </div>
     </div>
   );
