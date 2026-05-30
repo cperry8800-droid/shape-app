@@ -2428,6 +2428,19 @@ async function logCheckin({ mood, stress, soreness } = {}) {
 }
 window.ShapeCheckin = { log: logCheckin };
 
+// Shape Score leaderboard (cross-user ranking via SECURITY DEFINER RPC).
+async function getLeaderboard(period = 'month') {
+  if (!supabase || !state.user?.id) return { entries: [], me: null };
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/leaderboard?period=${encodeURIComponent(period)}`, { headers: sessionsAuthHeaders(), credentials: 'same-origin', cache: 'no-store' });
+    if (!res.ok) return { entries: [], me: null };
+    return await res.json();
+  } catch (e) {
+    return { entries: [], me: null };
+  }
+}
+window.ShapeLeaderboard = { get: getLeaderboard };
+
 // Client analytics (home cards + ticker). Bearer in native, cookie on /m/.
 async function getAnalytics() {
   if (!supabase || !state.user?.id) return null;
