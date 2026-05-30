@@ -840,6 +840,17 @@ function BSAppShell({ tweaks, setTweak }) {
     return () => { cancelled = true; };
   }, [authConfigured]);
 
+  // Global live notifications — toast the moment a new one lands, anywhere in
+  // the app, so updates "appear" without opening the notifications feed.
+  const authUserId = authState?.user?.id || null;
+  useEffectBSM(() => {
+    if (!authUserId || !window.ShapeNotifications?.subscribe) return () => {};
+    const unsub = window.ShapeNotifications.subscribe((n) => {
+      if (n && n.title) window.__bsToast?.(n.title, 'ok');
+    });
+    return () => { try { unsub(); } catch (e) {} };
+  }, [authUserId]);
+
   const handleLogin = (nextAuthState) => {
     setAuthState(nextAuthState || window.ShapeAuth?.getCachedState?.() || {});
     setBrowseMode(false);
