@@ -2279,7 +2279,7 @@ function sessionsAuthHeaders(extra = {}) {
 async function getSessions() {
   if (!supabase || !state.user?.id) return [];
   try {
-    const res = await fetch(sessionsApiUrl(), { headers: sessionsAuthHeaders(), credentials: 'same-origin' });
+    const res = await fetch(sessionsApiUrl(), { headers: sessionsAuthHeaders(), credentials: 'same-origin', cache: 'no-store' });
     if (!res.ok) return [];
     const data = await res.json();
     return Array.isArray(data.sessions) ? data.sessions : [];
@@ -2303,7 +2303,7 @@ async function manageSession({ sessionId, action } = {}) {
 async function listNotifications() {
   if (!supabase || !state.user?.id) return { notifications: [], unread: 0 };
   try {
-    const res = await fetch(`${apiBaseUrl || ''}/api/notifications`, { headers: sessionsAuthHeaders(), credentials: 'same-origin' });
+    const res = await fetch(`${apiBaseUrl || ''}/api/notifications`, { headers: sessionsAuthHeaders(), credentials: 'same-origin', cache: 'no-store' });
     if (!res.ok) return { notifications: [], unread: 0 };
     const data = await res.json();
     return { notifications: Array.isArray(data.notifications) ? data.notifications : [], unread: data.unread || 0 };
@@ -2338,7 +2338,7 @@ async function listActivities(clientId) {
   if (!supabase || !state.user?.id) return { activities: [], breakdown: [], totalMinutes: 0 };
   try {
     const qs = clientId ? `?clientId=${encodeURIComponent(clientId)}` : '';
-    const res = await fetch(`${apiBaseUrl || ''}/api/client/activities${qs}`, { headers: sessionsAuthHeaders(), credentials: 'same-origin' });
+    const res = await fetch(`${apiBaseUrl || ''}/api/client/activities${qs}`, { headers: sessionsAuthHeaders(), credentials: 'same-origin', cache: 'no-store' });
     if (!res.ok) return { activities: [], breakdown: [], totalMinutes: 0 };
     const d = await res.json();
     return { activities: d.activities || [], breakdown: d.breakdown || [], totalMinutes: d.totalMinutes || 0 };
@@ -2366,7 +2366,7 @@ async function listCalendar({ from, to, clientId } = {}) {
     if (from) qs.set('from', from);
     if (to) qs.set('to', to);
     if (clientId) qs.set('clientId', clientId);
-    const res = await fetch(`${apiBaseUrl || ''}/api/calendar?${qs.toString()}`, { headers: sessionsAuthHeaders(), credentials: 'same-origin' });
+    const res = await fetch(`${apiBaseUrl || ''}/api/calendar?${qs.toString()}`, { headers: sessionsAuthHeaders(), credentials: 'same-origin', cache: 'no-store' });
     if (!res.ok) return { events: [] };
     const d = await res.json();
     return { events: Array.isArray(d.events) ? d.events : [] };
@@ -2432,7 +2432,7 @@ window.ShapeCheckin = { log: logCheckin };
 async function getAnalytics() {
   if (!supabase || !state.user?.id) return null;
   try {
-    const res = await fetch(`${apiBaseUrl || ''}/api/client/analytics`, { headers: sessionsAuthHeaders(), credentials: 'same-origin' });
+    const res = await fetch(`${apiBaseUrl || ''}/api/client/analytics`, { headers: sessionsAuthHeaders(), credentials: 'same-origin', cache: 'no-store' });
     if (!res.ok) return null;
     return await res.json();
   } catch (e) {
@@ -2442,7 +2442,7 @@ async function getAnalytics() {
 async function getProgress() {
   if (!supabase || !state.user?.id) return null;
   try {
-    const res = await fetch(`${apiBaseUrl || ''}/api/client/progress`, { headers: sessionsAuthHeaders(), credentials: 'same-origin' });
+    const res = await fetch(`${apiBaseUrl || ''}/api/client/progress`, { headers: sessionsAuthHeaders(), credentials: 'same-origin', cache: 'no-store' });
     if (!res.ok) return null;
     return await res.json();
   } catch (e) {
