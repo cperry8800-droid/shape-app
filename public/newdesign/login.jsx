@@ -67,14 +67,77 @@ const EmailIcon = () => (
   </svg>
 );
 
+function normalizePhoneE164(raw) {
+  const trimmed = String(raw || "").trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("+")) return "+" + trimmed.slice(1).replace(/[^\d]/g, "");
+  const digits = trimmed.replace(/[^\d]/g, "");
+  if (!digits) return "";
+  if (digits.length === 10) return "+1" + digits;
+  return "+" + digits;
+}
+
 function LoginCard() {
+  const [method, setMethod] = React.useState("email"); // 'email' | 'phone'
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
+  const [phone, setPhone] = React.useState("");
+  const [otp, setOtp] = React.useState("");
+  const [otpSent, setOtpSent] = React.useState(false);
   const [role, setRole] = React.useState("client");
   const [remember, setRemember] = React.useState(true);
   const [showPass, setShowPass] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [errMsg, setErrMsg] = React.useState("");
+
+  // Bridge a Supabase session into Next.js cookies, then route to the dashboard.
+  const finishLogin = async (session) => {
+    if (session && session.access_token) {
+      await fetch('/api/auth/session', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+        body: JSON.stringify({ access_token: session.access_token, refresh_token: session.refresh_token }),
+      }).catch(() => {});
+    }
+    let nextDashboard = role === 'shape_radio' ? '/newdesign/Radio.html'
+      : role === 'trainer' ? '/newdesign/TrainerDashboard.html'
+      : role === 'nutritionist' ? '/newdesign/NutritionistDashboard.html'
+      : '/newdesign/ClientDashboard.html';
+    try {
+      const next = new URLSearchParams(window.location.search).get('next');
+      if (next && next.startsWith('/') && !next.startsWith('//')) nextDashboard = next;
+    } catch (e) {}
+    window.location.href = nextDashboard;
+  };
+
+  // Phone — request the SMS code.
+  const sendPhoneOtp = async (e) => {
+    e.preventDefault();
+    if (submitting) return;
+    setErrMsg("");
+    const sb = window.shapeDb && window.shapeDb.client;
+    if (!sb) { setErrMsg("Auth is still loading. Try again in a second."); return; }
+    const e164 = normalizePhoneE164(phone);
+    if (!e164 || e164.length < 8) { setErrMsg("Enter a valid phone number, e.g. +1 555 123 4567."); return; }
+    setPhone(e164);
+    setSubmitting(true);
+    const { error } = await sb.auth.signInWithOtp({ phone: e164, options: { shouldCreateUser: true } });
+    setSubmitting(false);
+    if (error) { setErrMsg(error.message || "Could not send the code."); return; }
+    setOtpSent(true);
+  };
+  // Phone — verify the code.
+  const verifyPhoneOtp = async (e) => {
+    e.preventDefault();
+    if (submitting) return;
+    setErrMsg("");
+    const sb = window.shapeDb && window.shapeDb.client;
+    if (!sb) { setErrMsg("Auth is still loading."); return; }
+    if (!otp.trim()) { setErrMsg("Enter the code we texted you."); return; }
+    setSubmitting(true);
+    const { data, error } = await sb.auth.verifyOtp({ phone: normalizePhoneE164(phone), token: otp.trim(), type: 'sms' });
+    if (error || !data.session) { setErrMsg(error ? error.message : "That code didn't work."); setSubmitting(false); return; }
+    await finishLogin(data.session);
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -94,34 +157,7 @@ function LoginCard() {
         setSubmitting(false);
         return;
       }
-      // Bridge the session into Next.js HTTP cookies so server routes see it.
-      await fetch('/api/auth/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token,
-        }),
-      }).catch(() => {});
-      // Keep the user in the newdesign layout after login.
-      // Honor ?next= when it points to a same-origin path, otherwise
-      // fall back to the role's dashboard.
-      let nextDashboard = role === 'shape_radio'
-        ? '/newdesign/Radio.html'
-        : role === 'trainer'
-        ? '/newdesign/TrainerDashboard.html'
-        : role === 'nutritionist'
-          ? '/newdesign/NutritionistDashboard.html'
-          : '/newdesign/ClientDashboard.html';
-      try {
-        const params = new URLSearchParams(window.location.search);
-        const next = params.get('next');
-        if (next && next.startsWith('/') && !next.startsWith('//')) {
-          nextDashboard = next;
-        }
-      } catch (e) {}
-      window.location.href = nextDashboard;
+      await finishLogin(data.session);
     } catch (err) {
       console.error('[login] unexpected', err);
       setErrMsg("Something went wrong. Please try again.");
@@ -169,38 +205,67 @@ function LoginCard() {
         <SocialButton icon={<AppleIcon />} label="Apple" />
       </div>
 
-      {/* Divider */}
-      <div style={{ display: "flex", alignItems: "center", gap: 14, margin: "2px 0 22px" }}>
-        <div style={{ flex: 1, height: 1, background: "rgba(242,237,228,0.14)" }} />
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.22em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" }}>Or with email</span>
-        <div style={{ flex: 1, height: 1, background: "rgba(242,237,228,0.14)" }} />
+      {/* Email / Phone method toggle */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, background: "rgba(8,7,6,0.76)", border: "1px solid rgba(242,237,228,0.2)", borderRadius: 7, padding: 4, marginBottom: 18 }}>
+        {[["email", "Email"], ["phone", "Phone"]].map(([v, l]) => (
+          <button key={v} type="button" onClick={() => { setMethod(v); setErrMsg(""); setOtpSent(false); setOtp(""); }} style={{
+            padding: "9px 10px", borderRadius: 5, border: 0,
+            background: method === v ? INK : "transparent", color: method === v ? PAPER : "rgba(242,237,228,0.7)",
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase",
+            fontWeight: method === v ? 700 : 500, cursor: "pointer",
+          }}>{l}</button>
+        ))}
       </div>
 
       {/* Form */}
-      <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-        <div>
-          <label style={labelStyle} htmlFor="email">Email</label>
-          <div style={fieldWrap}>
-            <input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" style={inputStyle}
-              onFocus={(e) => { e.currentTarget.style.borderColor = TEAL; e.currentTarget.style.background = "rgba(10,9,8,0.95)"; }}
-              onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(242,237,228,0.2)"; e.currentTarget.style.background = "rgba(8,7,6,0.76)"; }} />
-          </div>
-        </div>
+      <form onSubmit={method === "phone" ? (otpSent ? verifyPhoneOtp : sendPhoneOtp) : submit} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        {method === "phone" ? (
+          <>
+            <div>
+              <label style={labelStyle} htmlFor="phone">Phone</label>
+              <div style={fieldWrap}>
+                <input id="phone" type="tel" autoComplete="tel" required value={phone} disabled={otpSent} onChange={(e) => setPhone(e.target.value)} placeholder="+1 555 123 4567" style={{ ...inputStyle, opacity: otpSent ? 0.6 : 1 }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = TEAL; }} onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(242,237,228,0.2)"; }} />
+              </div>
+            </div>
+            {otpSent && (
+              <div>
+                <label style={labelStyle} htmlFor="otp">6-digit code</label>
+                <div style={fieldWrap}>
+                  <input id="otp" type="text" inputMode="numeric" autoComplete="one-time-code" required value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="••••••" style={{ ...inputStyle, letterSpacing: "0.3em", fontSize: 18 }}
+                    onFocus={(e) => { e.currentTarget.style.borderColor = TEAL; }} onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(242,237,228,0.2)"; }} />
+                </div>
+                <button type="button" onClick={() => { setOtpSent(false); setOtp(""); setErrMsg(""); }} style={{ marginTop: 8, background: "transparent", border: 0, padding: 0, color: "rgba(242,237,228,0.6)", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer" }}>← Change number</button>
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <div>
+              <label style={labelStyle} htmlFor="email">Email</label>
+              <div style={fieldWrap}>
+                <input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" style={inputStyle}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = TEAL; e.currentTarget.style.background = "rgba(10,9,8,0.95)"; }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(242,237,228,0.2)"; e.currentTarget.style.background = "rgba(8,7,6,0.76)"; }} />
+              </div>
+            </div>
 
-        <div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-            <label style={labelStyle} htmlFor="password">Password</label>
-            <a href="/forgot-password" style={{ fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.6)", marginBottom: 9 }}>Forgot?</a>
-          </div>
-          <div style={fieldWrap}>
-            <input id="password" type={showPass ? "text" : "password"} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" style={{ ...inputStyle, paddingRight: 52 }}
-              onFocus={(e) => { e.currentTarget.style.borderColor = TEAL; e.currentTarget.style.background = "rgba(10,9,8,0.95)"; }}
-              onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(242,237,228,0.2)"; e.currentTarget.style.background = "rgba(8,7,6,0.76)"; }} />
-            <button type="button" onClick={() => setShowPass(s => !s)} style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "transparent", border: 0, padding: "6px 10px", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.58)", cursor: "pointer" }}>
-              {showPass ? "Hide" : "Show"}
-            </button>
-          </div>
-        </div>
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <label style={labelStyle} htmlFor="password">Password</label>
+                <a href="/forgot-password" style={{ fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.6)", marginBottom: 9 }}>Forgot?</a>
+              </div>
+              <div style={fieldWrap}>
+                <input id="password" type={showPass ? "text" : "password"} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" style={{ ...inputStyle, paddingRight: 52 }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = TEAL; e.currentTarget.style.background = "rgba(10,9,8,0.95)"; }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(242,237,228,0.2)"; e.currentTarget.style.background = "rgba(8,7,6,0.76)"; }} />
+                <button type="button" onClick={() => setShowPass(s => !s)} style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "transparent", border: 0, padding: "6px 10px", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.58)", cursor: "pointer" }}>
+                  {showPass ? "Hide" : "Show"}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
 
         {/* Role (dev switcher for prototype) */}
         <div>
@@ -259,7 +324,7 @@ function LoginCard() {
           onMouseDown={(e) => e.currentTarget.style.transform = "scale(0.99)"}
           onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
           onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
-        >{submitting ? "Signing in…" : "Log in →"}</button>
+        >{submitting ? "Working…" : method === "phone" ? (otpSent ? "Verify & sign in →" : "Text me a code →") : "Log in →"}</button>
       </form>
 
       <div style={{ marginTop: 26, paddingTop: 18, borderTop: "1px solid rgba(242,237,228,0.14)", display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)" }}>
