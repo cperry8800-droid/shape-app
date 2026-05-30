@@ -638,9 +638,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   const balance = macros.kcalIn - macros.kcalBurn; // negative = deficit
   const balanceSign = balance < 0 ? '−' : '+';
   const balanceValue = Math.abs(balance).toString();
-  const leadKicker = balance < 0 ? 'Lead · Calorie deficit'
-                  : balance > 0 ? 'Lead · Calorie surplus'
-                  : 'Lead · Maintenance';
+  const leadKicker = balance < 0 ? 'Calorie deficit'
+                  : balance > 0 ? 'Calorie surplus'
+                  : 'Maintenance';
 
   if (previewMeal) {
     return <BSMealPreview meal={previewMeal} onBack={() => setPreviewMeal(null)} />;

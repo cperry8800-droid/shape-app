@@ -151,6 +151,33 @@ job stays skipped until they exist:
 Keep the keystore itself out of the repo — CI decodes it into the runner's
 temp dir at build time only.
 
+## 10. Push notifications (app closed / locked)
+
+In-app notifications work today (live feed + toast). To also deliver system
+push when the app is **closed or the phone is locked**, wire up FCM:
+
+1. **Firebase project** → Project settings → Service accounts → *Generate new
+   private key*. From that JSON set in Vercel:
+   - `FCM_PROJECT_ID` = `project_id`
+   - `FCM_CLIENT_EMAIL` = `client_email`
+   - `FCM_PRIVATE_KEY` = `private_key` (keep the `\n` escapes)
+2. **iOS**: Apple Developer → create an APNs auth key (.p8) → upload it under
+   Firebase → Cloud Messaging → Apple app config.
+3. **Supabase Database Webhook** (Database → Webhooks):
+   - Table `notifications`, event **Insert**, HTTP **POST**
+   - URL `https://theshapecommunity.com/api/push/dispatch`
+   - Header `x-push-secret: <value>`, and set the same value as
+     `PUSH_WEBHOOK_SECRET` in Vercel.
+   - This fans **every** notification (bookings, messages, coach content,
+     payments) out to push with no per-event wiring.
+4. **Mobile app**: add `@capacitor/push-notifications`, register on launch, and
+   POST the device token to `/api/push/register`. Needs the Firebase config
+   files (`google-services.json` for Android, the APNs key for iOS) before a
+   native build — this step is added once the Firebase project exists.
+
+Until the FCM env vars are set, `/api/push/dispatch` is a safe no-op, so nothing
+breaks before Firebase is configured.
+
 ## Database migrations
 
 All SQL lives in `supabase-migrations/` and is applied manually in the Supabase
