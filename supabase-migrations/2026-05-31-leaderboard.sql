@@ -13,6 +13,11 @@
 -- period: 'week' | 'month' | 'all'. limit_n caps the returned rows.
 -- Idempotent, safe to re-run.
 
+-- Drop first so a re-run after any signature/return-type edit can't fail with
+-- "cannot change return type of existing function".
+drop function if exists public.shape_leaderboard(text, int);
+drop function if exists public.shape_leaderboard_me(text);
+
 create or replace function public.shape_leaderboard(
   p_period text default 'month',
   p_limit int default 50
