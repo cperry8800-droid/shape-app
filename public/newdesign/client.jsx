@@ -212,6 +212,7 @@ function ClientDashboard() {
         </div>
 
         <div style={{ display: "grid", gap: 32 }}>
+          {window.ShapeHomeCards ? <ShapeHomeCards /> : null}
           <div style={{ background: INK, color: PAPER, borderRadius: 12, padding: 28 }}>
             <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 12 }}>This week</div>
             <div style={{ display: "flex", alignItems: "end", gap: 10, height: 120, marginBottom: 12 }}>
