@@ -4956,6 +4956,93 @@ function BSEditSheet({ field, onSave, onClose }) {
   );
 }
 
+// ─── NOTIFICATIONS ───────────────────────────────────────────
+// In-app feed backed by /api/notifications. Tapping a notification marks it
+// read and (if it carries a `route`) deep-links via onRoute.
+function _bsNotifAgo(iso) {
+  const d = new Date(iso).getTime();
+  if (isNaN(d)) return '';
+  const s = Math.max(0, Math.floor((Date.now() - d) / 1000));
+  if (s < 60) return 'now';
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h`;
+  return `${Math.floor(s / 86400)}d`;
+}
+
+function BSNotifications({ onBack, onRoute = () => {} }) {
+  const t = useBS();
+  const { BSPage, BSDetailHeader } = window;
+  const [items, setItems] = useStateBSC(null);
+
+  const load = () => window.ShapeNotifications?.list?.()
+    .then(d => setItems(Array.isArray(d.notifications) ? d.notifications : []))
+    .catch(() => setItems([]));
+  React.useEffect(() => {
+    load();
+    const unsub = window.ShapeNotifications?.subscribe?.(() => load()) || (() => {});
+    return () => { try { unsub(); } catch (e) {} };
+  }, []);
+
+  const open = async (n) => {
+    if (!n.read) {
+      setItems(list => (list || []).map(x => x.id === n.id ? { ...x, read: true } : x));
+      window.ShapeNotifications?.markRead?.({ id: n.id }).catch(() => {});
+    }
+    if (n.route) onRoute(n.route, n.data || {});
+  };
+  const markAll = async () => {
+    setItems(list => (list || []).map(x => ({ ...x, read: true })));
+    window.ShapeNotifications?.markRead?.({ all: true }).catch(() => {});
+  };
+
+  const list = items || [];
+  const unread = list.filter(n => !n.read).length;
+
+  return (
+    <BSPage>
+      <BSDetailHeader
+        onBack={onBack}
+        eyebrow="Section · Activity"
+        kicker="Notifications"
+        title={<>Your<br/>updates.</>}
+        trailing={unread ? (
+          <button onClick={markAll} style={{ padding: '8px 12px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Mark all read</button>
+        ) : null}
+      />
+      {items === null && (
+        <div style={{ padding: `20px ${t.padX}px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
+      )}
+      {items !== null && list.length === 0 && (
+        <div style={{ padding: `0 ${t.padX}px 18px` }}>
+          <div style={{ borderTop: `2px solid ${t.INK}`, paddingTop: 14 }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, lineHeight: 1.15, letterSpacing: '-0.02em', marginBottom: 8 }}>You’re all caught up.</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK70, lineHeight: 1.45 }}>Booking requests, confirmations and other updates will show up here.</div>
+          </div>
+        </div>
+      )}
+      {list.length > 0 && (
+        <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+          {list.map((n, i) => (
+            <button key={n.id} onClick={() => open(n)} style={{
+              width: '100%', textAlign: 'left', display: 'grid', gridTemplateColumns: '8px 1fr auto', alignItems: 'start', gap: 10,
+              padding: '13px 0', borderBottom: i === list.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+              border: 0, borderBottomStyle: 'solid', background: 'transparent', cursor: n.route ? 'pointer' : 'default',
+            }}>
+              <span style={{ width: 7, height: 7, borderRadius: 99, marginTop: 6, background: n.read ? 'transparent' : t.ACCENT, border: n.read ? `1px solid ${t.HAIR}` : 0 }} />
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: n.read ? 500 : 700, color: t.INK, letterSpacing: '-0.015em' }}>{n.title}</span>
+                {n.body ? <span style={{ display: 'block', marginTop: 3, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, fontWeight: 500, lineHeight: 1.35 }}>{n.body}</span> : null}
+              </span>
+              <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', marginTop: 2 }}>{_bsNotifAgo(n.createdAt)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <BSFooter right="Activity" />
+    </BSPage>
+  );
+}
+
 // ─── SESSIONS & IN-APP VIDEO CALLS ───────────────────────────
 // Live coach↔client bookings from /api/sessions/manage. Coaches confirm /
 // decline requests; confirming a video session mints a Jitsi room into
@@ -5263,6 +5350,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
   const [showTerms, setShowTerms] = useStateBSC(false);
   const [showProgress, setShowProgress] = useStateBSC(false);
   const [showSessions, setShowSessions] = useStateBSC(false);
+  const [showNotifications, setShowNotifications] = useStateBSC(false);
   const scoreProfile = SHAPE_SCORE_PROFILES.client;
   const authProfile = window.ShapeAuth?.getCachedState?.().profile || {};
   const displayName = authProfile.full_name || 'Alex Rivera';
@@ -5417,6 +5505,9 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
   }
   if (showSessions) {
     return <BSSessionsScreen onBack={() => setShowSessions(false)} />;
+  }
+  if (showNotifications) {
+    return <BSNotifications onBack={() => setShowNotifications(false)} onRoute={(route) => { if (route === 'sessions') { setShowNotifications(false); setShowSessions(true); } }} />;
   }
   if (showContact) {
     return <BSContactPage onBack={() => setShowContact(false)} />;
@@ -5619,6 +5710,20 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
         <div>
           <BSEyebrow color={t.GREEN}>Progress &amp; PRs</BSEyebrow>
           <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>Weight, recovery, strength trends</div>
+        </div>
+        <BSEyebrow>View →</BSEyebrow>
+      </button>
+
+      {/* NOTIFICATIONS — activity feed */}
+      <button onClick={() => setShowNotifications(true)} style={{
+        width: '100%', textAlign: 'left', padding: `13px ${t.padX}px`,
+        border: 0, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER,
+        color: t.INK, cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+      }}>
+        <div>
+          <BSEyebrow color={t.AMBER}>Notifications</BSEyebrow>
+          <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>Requests, confirmations &amp; updates</div>
         </div>
         <BSEyebrow>View →</BSEyebrow>
       </button>
@@ -7225,6 +7330,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showContact, setShowContact] = useStateBSC(false);
   const [showTerms, setShowTerms] = useStateBSC(false);
   const [showSessions, setShowSessions] = useStateBSC(false);
+  const [showNotifications, setShowNotifications] = useStateBSC(false);
   const [showIntegrations, setShowIntegrations] = useStateBSC(initialPage === 'integrations');
 
   // Coach-only "pause new bookings" (at_capacity). null until loaded / for
@@ -7308,6 +7414,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   }
   if (showSessions) {
     return <BSSessionsScreen onBack={() => setShowSessions(false)} />;
+  }
+  if (showNotifications) {
+    return <BSNotifications onBack={() => setShowNotifications(false)} onRoute={(route) => { if (route === 'sessions') { setShowNotifications(false); setShowSessions(true); } }} />;
   }
   if (showIntegrations) {
     return <BSIntegrationsPage onBack={() => setShowIntegrations(false)} />;
@@ -7424,6 +7533,19 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           </div>
         </div>
       )}
+
+      {/* Notifications — activity feed */}
+      <button onClick={() => setShowNotifications(true)} style={{
+        width: '100%', textAlign: 'left', padding: `14px ${t.padX}px`,
+        border: 0, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER, color: t.INK, cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+      }}>
+        <div>
+          <BSEyebrow color={t.AMBER}>Notifications</BSEyebrow>
+          <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>Requests, confirmations &amp; updates</div>
+        </div>
+        <BSEyebrow>View →</BSEyebrow>
+      </button>
 
       {/* Bookings — confirm requests + in-app video calls */}
       <button onClick={() => setShowSessions(true)} style={{

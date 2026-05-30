@@ -2299,6 +2299,46 @@ async function manageSession({ sessionId, action } = {}) {
   return data;
 }
 
+// ─── Notifications (in-app feed + live bell) ─────────────────────────────────
+async function listNotifications() {
+  if (!supabase || !state.user?.id) return { notifications: [], unread: 0 };
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/notifications`, { headers: sessionsAuthHeaders(), credentials: 'same-origin' });
+    if (!res.ok) return { notifications: [], unread: 0 };
+    const data = await res.json();
+    return { notifications: Array.isArray(data.notifications) ? data.notifications : [], unread: data.unread || 0 };
+  } catch (e) {
+    return { notifications: [], unread: 0 };
+  }
+}
+async function markNotificationRead({ id, all } = {}) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/notifications`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(all ? { all: true } : { id }),
+  });
+  return res.ok;
+}
+// Live subscription on the user's notifications (added to supabase_realtime by
+// the 2026-05-30 migration). Fires onInsert for new rows; returns unsubscribe.
+function subscribeNotifications(onInsert) {
+  if (!supabase || !state.user?.id) return () => {};
+  const userId = state.user.id;
+  const channel = supabase
+    .channel(`notifications:${userId}`)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
+      (payload) => { try { onInsert?.(payload.new); } catch (e) {} })
+    .subscribe();
+  return () => { try { supabase.removeChannel(channel); } catch (e) {} };
+}
+
+window.ShapeNotifications = {
+  list: listNotifications,
+  markRead: markNotificationRead,
+  subscribe: subscribeNotifications,
+};
+
 window.ShapeBookings = {
   submitConsultationBooking,
   getCapacity: getProviderCapacity,
