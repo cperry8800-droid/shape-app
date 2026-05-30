@@ -256,12 +256,8 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
     return (
       <div onClick={onDone} style={{ position: 'absolute', inset: 0, color: '#f4efe6', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', cursor: 'pointer' }}>
         <BSNightSky />
-        <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24, padding: '0 24px' }}>
-          <BSShapeMark size={108} />
-          <BSCosmicWordmark />
-          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'rgba(244,239,230,0.6)' }}>
-            Train · Eat · Recover · Repeat
-          </div>
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <BSShapeMark size={132} />
         </div>
         <div style={{ position: 'absolute', bottom: 'calc(34px + env(safe-area-inset-bottom, 0px))', left: 0, right: 0, textAlign: 'center', zIndex: 1, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'rgba(244,239,230,0.42)' }}>
           Tap to enter
