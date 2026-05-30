@@ -1107,7 +1107,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   }
 
   return (
-    <BSPage>
+    <BSPage backdrop={window.BSNightSky ? <window.BSNightSky /> : null}>
       <BSMasthead
         title={<span className="bs-daily-title" style={{ display: 'block', textAlign: 'center', lineHeight: 1, whiteSpace: 'nowrap' }}>
           <span className="bs-daily-the" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>The</span>

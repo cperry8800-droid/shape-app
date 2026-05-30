@@ -886,7 +886,13 @@ function BSRadioScreen({ onBack }) {
       fontFamily: t.DISPLAY,
       color: CREAM,
       scrollbarWidth: 'none', msOverflowStyle: 'none',
-      backgroundColor: t.PAPER,
+      // Match the website's Shape Radio: full-bleed photo backdrop (dark mode),
+      // with a dark wash for legibility. Translucent header/hero/cards show it.
+      backgroundColor: isLight ? t.PAPER : '#0b0c0c',
+      backgroundImage: isLight ? undefined : `linear-gradient(rgba(8,10,10,0.46), rgba(8,10,10,0.78)), url('${import.meta.env.BASE_URL}radio-bg.jpg')`,
+      backgroundSize: isLight ? undefined : 'cover',
+      backgroundPosition: isLight ? undefined : 'center 22%',
+      backgroundRepeat: 'no-repeat',
     }}>
       {/* Top fade so the masthead area sits cleanly on the portrait */}
       <div aria-hidden style={{
