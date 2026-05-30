@@ -5951,16 +5951,19 @@ function BSClientProgress({ onBack }) {
       {!loading && cards.length > 0 && (
         <>
           <BSSection title="Key metrics" kicker="Latest" meta={`${cards.length} tracked`} />
-          <div style={{ padding: `0 ${t.padX}px` }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: t.RULE, border: `1px solid ${t.RULE}` }}>
+          <div style={{ padding: `12px ${t.padX}px 4px` }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               {cards.map((card) => (
-                <div key={card.label} style={{ background: t.PAPER, padding: '14px 14px 12px' }}>
-                  <BSEyebrow color={card.c}>{card.label}</BSEyebrow>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 6 }}>
-                    <span style={{ fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, color: t.INK, letterSpacing: '-0.04em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}>{card.value}</span>
-                    <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK50, letterSpacing: '0.08em' }}>{card.unit}</span>
+                <div key={card.label} style={{ borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, overflow: 'hidden' }}>
+                  <div style={{ height: 3, background: card.c }} />
+                  <div style={{ padding: '13px 14px 12px' }}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: card.c }}>{card.label}</div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 7 }}>
+                      <span style={{ fontFamily: t.DISPLAY, fontSize: 34, fontWeight: t.W.display, color: t.INK, letterSpacing: '-0.04em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}>{card.value}</span>
+                      <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK50, letterSpacing: '0.08em' }}>{card.unit}</span>
+                    </div>
+                    <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{card.sub}</div>
                   </div>
-                  <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{card.sub}</div>
                 </div>
               ))}
             </div>
