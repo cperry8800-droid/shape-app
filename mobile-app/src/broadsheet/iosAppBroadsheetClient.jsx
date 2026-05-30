@@ -677,11 +677,19 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     26: { kcalIn: 1320, kcalBurn: 1700, status: 'rest day', note: 'Rest day. Three lighter meals.' },
   };
   const macros = DAY_MACROS[dataDay] || DAY_MACROS[20 + todayIdx] || DAY_MACROS[21];
-  const balance = macros.kcalIn - macros.kcalBurn; // negative = deficit
+  // Live balance for TODAY when we have a real logged-calories snapshot
+  // (ticker.cal from /api/client/analytics: consumed vs target). Other days, or
+  // when nothing's logged, fall back to the editorial sample.
+  const liveCal = ticker && typeof ticker.cal === 'number' ? ticker.cal : null;
+  const liveTarget = ticker && typeof ticker.cal_target === 'number' ? ticker.cal_target : null;
+  const hasLiveBalance = selIdx === todayIdx && liveCal != null && liveTarget != null;
+  const balance = hasLiveBalance ? (liveCal - liveTarget) : (macros.kcalIn - macros.kcalBurn); // negative = deficit
   const balanceSign = balance < 0 ? '−' : '+';
   const balanceValue = Math.abs(balance).toString();
-  // The estimate, demoted to a secondary line with a tilde (admits it's approximate).
-  const energyEstimate = `~${balanceSign}${balanceValue} kcal`;
+  // Demoted secondary line with a tilde (admits it's approximate). '— kcal' when
+  // today has no logged nutrition yet.
+  const noLiveToday = selIdx === todayIdx && liveCal == null;
+  const energyEstimate = noLiveToday ? '— kcal' : `~${balanceSign}${balanceValue} kcal`;
 
   // ── ENERGY card — one component, three goal-driven states. Same balance,
   // reframed: a deficit reads as on-target for a cut, balanced for maintenance,
@@ -702,11 +710,18 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     build: {
       kicker: 'Energy · Fuel up', hero: balance < 0 ? 'Short' : 'Built',
       meta: ['Build', energyEstimate, balance < 0 ? 'under surplus' : 'on surplus'],
-      tail: balance < 0 ? '— but a build day wants more. Add a meal.' : "— surplus in. That's the fuel for growth.",
+      tail: balance < 0 ? 'A build day wants more — add a meal.' : "Surplus in. That's the fuel for growth.",
     },
   };
-  const energy = ENERGY_STATES[energyGoal] || ENERGY_STATES.maintain;
-  const energyCaption = `${macros.note} ${energy.tail}`;
+  let energy = ENERGY_STATES[energyGoal] || ENERGY_STATES.maintain;
+  // Today with nothing logged yet → invite logging instead of asserting a state.
+  if (noLiveToday) {
+    const goalLabel = { cut: 'Fat loss', maintain: 'Maintain', build: 'Build' }[energyGoal] || 'Maintain';
+    energy = { kicker: 'Energy · Log to see', hero: 'Open', meta: [goalLabel, '— kcal', 'nothing logged'], tail: '' };
+  }
+  const energyCaption = noLiveToday
+    ? 'Log a meal to see where today lands against your goal.'
+    : (hasLiveBalance ? energy.tail : `${macros.note} ${energy.tail}`);
 
   if (previewMeal) {
     return <BSMealPreview meal={previewMeal} onBack={() => setPreviewMeal(null)} />;
