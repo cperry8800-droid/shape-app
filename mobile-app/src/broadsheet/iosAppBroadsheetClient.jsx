@@ -6516,6 +6516,19 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
         <BSEyebrow>View →</BSEyebrow>
       </button>
 
+      <button onClick={() => setShowLeaderboard(true)} style={{
+        width: '100%', textAlign: 'left', padding: `13px ${t.padX}px`,
+        border: 0, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER,
+        color: t.INK, cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+      }}>
+        <div>
+          <BSEyebrow color={t.AMBER}>Leaderboard</BSEyebrow>
+          <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>Shape Score ranking</div>
+        </div>
+        <BSEyebrow>View →</BSEyebrow>
+      </button>
+
       {/* NOTIFICATIONS — activity feed */}
       <button onClick={() => setShowNotifications(true)} style={{
         width: '100%', textAlign: 'left', padding: `13px ${t.padX}px`,
