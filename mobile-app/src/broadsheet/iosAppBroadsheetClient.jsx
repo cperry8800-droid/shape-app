@@ -998,8 +998,19 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
       note: 'Tap Log now when this item is complete.',
     };
   };
-  const logDayItem = (key) => {
+  const logDayItem = (key, row) => {
     setQuickLoggedItems(prev => ({ ...prev, [key]: true }));
+    // A workout/training item logs a real activity so it lands on the live
+    // Training card + Shape Score, then refresh analytics so the card updates.
+    if (row && row.tag === 'TRN' && window.ShapeActivities?.log) {
+      const minMatch = String(row.sub || '').match(/(\d+)\s*min/i);
+      const durationMin = minMatch ? Number(minMatch[1]) : 45;
+      window.ShapeActivities.log({ activityType: 'strength', durationMin, title: row.title })
+        .then(() => { refreshAnalytics(); window.__bsToast?.('Workout logged · Training updated', 'ok'); })
+        .catch(() => window.__bsToast?.('Logged locally — sign in to save', 'warn'));
+    } else if (row && row.tag === 'MEAL') {
+      window.__bsToast?.('Meal logged', 'ok');
+    }
   };
   const activeDayLogEntry = dayLog
     .map((row, i) => ({ row, key: dayLogKey(row, i), index: i }))
@@ -1380,7 +1391,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                   <span
                     onClick={(e) => {
                       e.stopPropagation();
-                      logDayItem(key);
+                      logDayItem(key, row);
                     }}
                     style={{
                       border: `1px solid ${logged ? t.GREEN : t.INK}`,
@@ -1511,7 +1522,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                 </button>
                 <button
                   onClick={() => {
-                    logDayItem(activeDayLogEntry.key);
+                    logDayItem(activeDayLogEntry.key, activeDayLog);
                     setActiveDayLogKey(null);
                   }}
                   style={{ padding: '12px 10px', border: `1px solid ${activeDayLogLogged ? t.GREEN : t.INK}`, borderRadius: t.RADIUS_SM, background: activeDayLogLogged ? t.GREEN : t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 10, fontWeight: 900, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer' }}
