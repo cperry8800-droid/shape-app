@@ -15,7 +15,9 @@
 import { NextResponse } from 'next/server';
 import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { videoRoomUrl } from '@/lib/video';
+import { createNotification } from '@/lib/notify';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -174,6 +176,28 @@ export async function POST(request: Request) {
     .select('id, status, type, scheduled_at, duration_min, meeting_url, topic')
     .maybeSingle();
   if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
+
+  // Notify the client when the coach confirms or declines (best-effort). The
+  // recipient is a different user than the actor, so use the service role.
+  if ((action === 'confirm' || action === 'decline') && session.client_id) {
+    try {
+      const when = new Date(session.scheduled_at).toLocaleString('en-US', {
+        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'UTC',
+      });
+      await createNotification(createAdminClient(), {
+        userId: session.client_id,
+        type: action === 'confirm' ? 'session_confirmed' : 'session_declined',
+        title: action === 'confirm' ? 'Session confirmed' : 'Session declined',
+        body: action === 'confirm'
+          ? `Your coach confirmed your session on ${when}.`
+          : `Your coach couldn’t take the session on ${when}.`,
+        route: 'sessions',
+        data: { sessionId: session.id },
+      });
+    } catch {
+      /* best-effort */
+    }
+  }
 
   return NextResponse.json({
     ok: true,
