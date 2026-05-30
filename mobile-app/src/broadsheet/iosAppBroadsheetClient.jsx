@@ -468,32 +468,58 @@ function _bsBuildCard(type, ctx) {
     case 'training': {
       const wk = analytics && typeof analytics.workouts_this_week === 'number' ? analytics.workouts_this_week : null;
       const adher = typeof k.workout_adherence_pct === 'number' ? k.workout_adherence_pct : null;
+      const dist = typeof tk.today_distance_km === 'number' ? tk.today_distance_km : null;
+      const mins = typeof tk.today_activity_min === 'number' ? tk.today_activity_min : null;
+      const actType = tk.today_activity_type || null;
+      const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+      // Today's real activity leads (miles or minutes); else workouts this week.
+      if (dist != null && dist > 0) {
+        const mi = Math.round((dist / 1.609) * 10) / 10;
+        return {
+          accent: t.AMBER, kicker: 'Training', hero: String(mi), heroUnit: `mi · ${cap(actType) || 'logged'}`,
+          sub: [cap(actType) || 'Activity', mins ? `${mins} min` : 'today', wk != null ? `${wk} this wk` : 'logged'],
+          caption: 'Distance in the bank today. Nice work.',
+          alive: 85,
+        };
+      }
+      if (mins != null && mins > 0) {
+        return {
+          accent: t.AMBER, kicker: 'Training', hero: String(mins), heroUnit: `min · ${cap(actType) || 'trained'}`,
+          sub: [cap(actType) || 'Trained', 'today', wk != null ? `${wk} this wk` : 'logged'],
+          caption: 'Session logged today. Stay on the program.',
+          alive: 82,
+        };
+      }
       const has = wk != null;
       return {
         accent: t.AMBER,
         kicker: 'Training',
         hero: has ? String(wk) : dash,
-        heroUnit: has ? (wk === 1 ? 'session' : 'sessions') : 'this week',
+        heroUnit: has ? (wk === 1 ? 'workout this wk' : 'workouts this wk') : 'this week',
         sub: ['This week', adher != null ? `${adher}% adherence` : 'log a workout', 'keep moving'],
-        caption: has && wk > 0 ? 'Sessions in the bank. Stay on the program.' : 'Nothing logged yet — get one in today.',
-        alive: has && wk > 0 ? 70 : 35,
+        caption: has && wk > 0 ? 'Sessions in the bank. Get today in too.' : 'Nothing logged yet — get one in today.',
+        alive: has && wk > 0 ? 60 : 38,
       };
     }
     case 'recovery': {
       const sleep = typeof tk.sleep_hours === 'number' ? tk.sleep_hours : null;
       const hrv = typeof tk.hrv_ms === 'number' ? tk.hrv_ms : null;
-      const ready = sleep == null ? null : sleep >= 7;
+      const rec = typeof tk.recovery_score === 'number' ? tk.recovery_score : null;
+      // Prefer a real recovery score; fall back to a sleep heuristic.
+      const ready = rec != null ? rec >= 66 : (sleep == null ? null : sleep >= 7);
+      const mid = rec != null && rec >= 40 && rec < 66;
       const sleepLabel = sleep != null ? `${Math.floor(sleep)}h ${Math.round((sleep % 1) * 60)}m` : dash;
+      const heroWord = (rec == null && sleep == null) ? dash : (ready ? 'Ready' : mid ? 'Steady' : 'Low');
       return {
         accent: t.BLUE,
         kicker: 'Recovery',
-        hero: sleep == null ? dash : (ready ? 'Ready' : 'Low'),
-        heroUnit: '',
+        hero: heroWord,
+        heroUnit: rec != null ? `${Math.round(rec)}%` : '',
         sub: ['Sleep', sleepLabel, hrv != null ? `HRV ${Math.round(hrv)}` : 'HRV —'],
-        caption: sleep == null ? 'Connect a wearable or log sleep to see readiness.'
-          : ready ? "Recovered. Body's good to push tomorrow." : 'Under-slept — keep today easy.',
-        // Poor sleep is highly "alive" — it should bubble up.
-        alive: sleep == null ? 30 : (ready ? 55 : 90),
+        caption: (rec == null && sleep == null) ? 'Connect a wearable or log sleep to see readiness.'
+          : ready ? "Recovered. Body's good to push tomorrow." : mid ? 'Middling — train, but listen to the body.' : 'Under-recovered — keep today easy.',
+        // Poor recovery is highly "alive" — it should bubble up.
+        alive: (rec == null && sleep == null) ? 30 : (ready ? 52 : mid ? 72 : 92),
       };
     }
     case 'energy': {
@@ -509,7 +535,6 @@ function _bsBuildCard(type, ctx) {
       };
     }
     case 'consistency': {
-      const days = analytics && typeof analytics.protein_hits_this_week === 'number' ? null : null;
       const pts = typeof k.weekly_points === 'number' ? k.weekly_points : null;
       const has = pts != null;
       return {
@@ -524,30 +549,33 @@ function _bsBuildCard(type, ctx) {
     }
     case 'protein': {
       const p = typeof tk.protein_g === 'number' ? tk.protein_g : null;
-      const target = 150;
+      const target = typeof tk.protein_target === 'number' ? tk.protein_target : 150;
       const has = p != null;
-      const hit = has && p >= 120;
+      const pct = has ? Math.round((p / target) * 100) : null;
+      const hit = has && p >= target * 0.9;
       return {
         accent: t.RUST,
         kicker: 'Protein',
         hero: has ? String(p) : dash,
         heroUnit: has ? `/ ${target} g` : 'g today',
-        sub: ['Today', has ? `${Math.round((p / target) * 100)}% of target` : 'not logged', 'muscle fuel'],
-        caption: !has ? 'Log meals to track protein.' : hit ? 'On target — protein locked in.' : 'Behind on protein — add a source.',
+        sub: ['Today', has ? `${pct}% of target` : 'not logged', 'muscle fuel'],
+        caption: !has ? 'Log meals to track protein.' : hit ? 'On target — protein locked in.' : `Behind on protein — ${target - p}g to go.`,
         alive: !has ? 35 : (hit ? 45 : 75),
       };
     }
     case 'mood': {
-      // mood isn't in the ticker; show a gentle check-in prompt (logged via
-      // the daily check-in flow). Aliveness stays low unless unset.
+      const m = typeof tk.mood === 'number' ? tk.mood : null;
+      const word = m == null ? dash : m >= 8 ? 'Great' : m >= 6 ? 'Good' : m >= 4 ? 'Okay' : 'Low';
       return {
         accent: t.ACCENT,
         kicker: 'Mood',
-        hero: dash,
-        heroUnit: 'check in',
-        sub: ['Today', 'tap to log', '1–10'],
-        caption: 'How are you feeling? A quick check-in keeps your coach in the loop.',
-        alive: 20,
+        hero: word,
+        heroUnit: m != null ? `${m}/10` : 'check in',
+        sub: ['Today', m != null ? 'logged' : 'tap to log', '1–10'],
+        caption: m == null ? 'How are you feeling? A quick check-in keeps your coach in the loop.'
+          : m >= 6 ? 'Feeling good today — keep the momentum.' : 'Off day — be kind to yourself, log a note.',
+        // Unlogged or low mood is more "alive" (worth surfacing).
+        alive: m == null ? 30 : (m < 4 ? 80 : 22),
       };
     }
     default:
@@ -555,15 +583,23 @@ function _bsBuildCard(type, ctx) {
   }
 }
 
-function BSHomeCardItem({ slot, model, t, pinned, onPin, onRemove, onOpen }) {
+function BSHomeCardItem({ slot, model, t, pinned, onPin, onRemove, onOpen, draggable, dragHandlers, dragging, dragOver }) {
   return (
-    <div style={{
-      margin: `0 ${t.padX}px 12px`, borderRadius: 14, overflow: 'hidden',
-      border: pinned ? `1.5px solid ${model.accent}` : `1px solid ${t.RULE}`,
-      background: t.PAPER2,
-    }}>
+    <div
+      draggable={draggable}
+      {...(dragHandlers || {})}
+      style={{
+        margin: `0 ${t.padX}px 12px`, borderRadius: 14, overflow: 'hidden',
+        border: dragOver ? `1.5px dashed ${model.accent}` : (pinned ? `1.5px solid ${model.accent}` : `1px solid ${t.RULE}`),
+        background: t.PAPER2,
+        opacity: dragging ? 0.5 : 1,
+        transition: 'opacity 0.15s ease',
+      }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px 0' }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: model.accent }}>{model.kicker}{pinned ? ' · pinned' : ''}</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: model.accent, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          {draggable && <span title="Drag to reorder" style={{ cursor: 'grab', color: t.INK50, fontSize: 12, letterSpacing: 0 }}>⠿</span>}
+          {model.kicker}{pinned ? ' · pinned' : ''}
+        </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <button onClick={onPin} title={pinned ? 'Unpin' : 'Pin to top'} style={_bsCardBtn(t, pinned ? model.accent : t.INK50)}>⌃</button>
           <button onClick={onRemove} title="Hide" style={_bsCardBtn(t, t.INK50)}>×</button>
@@ -596,9 +632,13 @@ function _bsCardBtn(t, color) {
 // The stack: header, ordered cards, + Add, footer note. Layout {order[], pinned[]}
 // persists to client_ui_prefs. onOpenEnergy etc. let cards deep-link.
 function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
-  const defaultLayout = { order: BS_CARD_DEFAULTS.slice(), pinned: [] };
+  // manual: once the user drags, we respect their explicit order (and stop
+  // auto-sorting by aliveness) so a deliberate arrangement sticks.
+  const defaultLayout = { order: BS_CARD_DEFAULTS.slice(), pinned: [], manual: false };
   const [layout, setLayout] = useStateBSC(defaultLayout);
   const [menuOpen, setMenuOpen] = useStateBSC(false);
+  const [dragType, setDragType] = useStateBSC(null);
+  const [overType, setOverType] = useStateBSC(null);
 
   // Load saved layout (best-effort); persist on change.
   React.useEffect(() => {
@@ -608,7 +648,7 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
       if (cancelled || !saved || !Array.isArray(saved.order)) return;
       const order = saved.order.filter(x => BS_CARD_TYPES.includes(x));
       const pinned = Array.isArray(saved.pinned) ? saved.pinned.filter(x => order.includes(x)) : [];
-      setLayout({ order, pinned });
+      setLayout({ order, pinned, manual: !!saved.manual });
     }).catch(() => {});
     return () => { cancelled = true; };
   }, []);
@@ -617,21 +657,40 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
     try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_home_cards', next); } catch (e) {}
   };
 
-  // Build models, then order: pinned first (in pin order), then unpinned by
-  // aliveness desc (stable by original order on ties).
+  // Build models, then order: pinned first (in pin order), then unpinned —
+  // either the user's manual order, or auto by aliveness desc (stable on ties).
   const models = {};
   layout.order.forEach(type => { models[type] = _bsBuildCard(type, ctx); });
   const pinnedOrder = layout.pinned.filter(x => layout.order.includes(x));
   const unpinned = layout.order.filter(x => !layout.pinned.includes(x));
-  unpinned.sort((a, b) => (models[b].alive - models[a].alive) || (layout.order.indexOf(a) - layout.order.indexOf(b)));
+  if (!layout.manual) {
+    unpinned.sort((a, b) => (models[b].alive - models[a].alive) || (layout.order.indexOf(a) - layout.order.indexOf(b)));
+  }
   const ordered = [...pinnedOrder, ...unpinned];
+
+  // Drag-to-reorder: dropping b before/after a rewrites `order` and locks it
+  // to manual so the deliberate arrangement sticks.
+  const onDrop = (target) => {
+    if (!dragType || dragType === target) { setDragType(null); setOverType(null); return; }
+    const next = layout.order.filter(x => x !== dragType);
+    const idx = next.indexOf(target);
+    next.splice(idx < 0 ? next.length : idx, 0, dragType);
+    persist({ ...layout, order: next, manual: true });
+    setDragType(null); setOverType(null);
+  };
+  const dragHandlersFor = (type) => ({
+    onDragStart: () => setDragType(type),
+    onDragEnd: () => { setDragType(null); setOverType(null); },
+    onDragOver: (e) => { e.preventDefault(); if (overType !== type) setOverType(type); },
+    onDrop: (e) => { e.preventDefault(); onDrop(type); },
+  });
 
   const togglePin = (type) => {
     const pinned = layout.pinned.includes(type) ? layout.pinned.filter(x => x !== type) : [...layout.pinned, type];
     persist({ ...layout, pinned });
   };
   const hideCard = (type) => {
-    persist({ order: layout.order.filter(x => x !== type), pinned: layout.pinned.filter(x => x !== type) });
+    persist({ ...layout, order: layout.order.filter(x => x !== type), pinned: layout.pinned.filter(x => x !== type) });
   };
   // Dropdown toggles which cards are visible on the home. Keeps BS_CARD_TYPES
   // order when re-adding so the stack stays stable.
@@ -697,21 +756,31 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
         </div>
       )}
 
-      {ordered.map((type) => (
-        <BSHomeCardItem
-          key={type}
-          slot={type}
-          model={models[type]}
-          t={t}
-          pinned={layout.pinned.includes(type)}
-          onPin={() => togglePin(type)}
-          onRemove={() => hideCard(type)}
-          onOpen={openers[type]}
-        />
-      ))}
+      {ordered.map((type) => {
+        const isPinned = layout.pinned.includes(type);
+        return (
+          <BSHomeCardItem
+            key={type}
+            slot={type}
+            model={models[type]}
+            t={t}
+            pinned={isPinned}
+            onPin={() => togglePin(type)}
+            onRemove={() => hideCard(type)}
+            onOpen={openers[type]}
+            draggable={!isPinned}
+            dragHandlers={!isPinned ? dragHandlersFor(type) : null}
+            dragging={dragType === type}
+            dragOver={overType === type && dragType && dragType !== type}
+          />
+        );
+      })}
 
       <div style={{ padding: `2px ${t.padX}px 14px`, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK50, lineHeight: 1.4 }}>
-        <span style={{ fontWeight: 700, color: t.INK70 }}>Three defaults, then it's yours.</span> Pin a card to lock it to the top, choose which cards show from <span style={{ fontWeight: 700, color: t.INK70 }}>Cards ▾</span>, or hide what you don't track. Unpinned cards reorder by what's most alive that day.
+        <span style={{ fontWeight: 700, color: t.INK70 }}>Three defaults, then it's yours.</span> Drag the ⠿ handle to reorder, pin a card to lock it to the top, or choose which cards show from <span style={{ fontWeight: 700, color: t.INK70 }}>Cards ▾</span>.
+        {layout.manual
+          ? <> Order is set by you — <button onClick={() => persist({ ...layout, manual: false })} style={{ background: 'transparent', border: 0, padding: 0, color: t.ACCENT, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit' }}>switch back to auto</button>.</>
+          : ' Unpinned cards reorder by what\'s most alive that day.'}
       </div>
     </>
   );
