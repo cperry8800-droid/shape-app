@@ -851,6 +851,14 @@ function BSAppShell({ tweaks, setTweak }) {
     return () => { try { unsub(); } catch (e) {} };
   }, [authUserId]);
 
+  // Register for native push once signed in (no-op off native / until the
+  // @capacitor/push-notifications plugin + Firebase are configured).
+  useEffectBSM(() => {
+    if (!authUserId) return undefined;
+    window.ShapePush?.register?.();
+    return undefined;
+  }, [authUserId]);
+
   const handleLogin = (nextAuthState) => {
     setAuthState(nextAuthState || window.ShapeAuth?.getCachedState?.() || {});
     setBrowseMode(false);
