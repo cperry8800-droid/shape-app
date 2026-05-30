@@ -11,6 +11,7 @@ export const dynamic = 'force-dynamic';
 const DAY_MS = 86_400_000;
 
 type ClientEntry = {
+  id: string | null;
   name: string;
   sessions: number;
   lastAt: number | null;
@@ -62,7 +63,7 @@ export async function GET() {
   const ensure = (key: string): ClientEntry => {
     let e = byClient.get(key);
     if (!e) {
-      e = { name: 'Client', sessions: 0, lastAt: null, mrrCents: 0, joinedAt: null };
+      e = { id: null, name: 'Client', sessions: 0, lastAt: null, mrrCents: 0, joinedAt: null };
       byClient.set(key, e);
     }
     return e;
@@ -71,6 +72,7 @@ export async function GET() {
   for (const s of sessRows ?? []) {
     const key = s.client_id || `name:${s.client_name || 'unknown'}`;
     const e = ensure(key);
+    if (s.client_id) e.id = s.client_id;
     e.sessions += 1;
     if (s.client_name && e.name === 'Client') e.name = s.client_name;
     const t = new Date(s.scheduled_at).getTime();
@@ -79,6 +81,7 @@ export async function GET() {
 
   for (const sub of subRows ?? []) {
     const e = ensure(sub.client_id || 'unknown');
+    if (sub.client_id) e.id = sub.client_id;
     e.mrrCents += sub.price_cents ?? 0;
     if (sub.created_at && (!e.joinedAt || sub.created_at < e.joinedAt)) {
       e.joinedAt = sub.created_at;
@@ -89,6 +92,7 @@ export async function GET() {
   const clients = [...byClient.values()]
     .sort((a, b) => (b.lastAt ?? 0) - (a.lastAt ?? 0))
     .map((e) => ({
+      id: e.id,
       name: e.name,
       sessions: e.sessions,
       mrrCents: e.mrrCents,
