@@ -239,6 +239,30 @@ function activityPostPayload(
   };
 }
 
+// Typed per-activity row for the activities table (preserves sport type).
+function stravaActivityRow(activity: StravaActivity, userId: string) {
+  const sport = (activity.sport_type || activity.type || 'Activity').toLowerCase();
+  const secs = activity.moving_time ?? activity.elapsed_time ?? null;
+  return {
+    user_id: userId,
+    source: 'strava',
+    external_id: String(activity.id),
+    activity_type: sport,
+    title: activity.name || sport,
+    started_at: activity.start_date ?? null,
+    duration_min: typeof secs === 'number' ? Math.round(secs / 60) : null,
+    distance_km: typeof activity.distance === 'number' ? Number((activity.distance / 1000).toFixed(2)) : null,
+    calories: typeof activity.calories === 'number' ? Math.round(activity.calories) : null,
+    avg_hr: typeof activity.average_heartrate === 'number' ? Math.round(activity.average_heartrate) : null,
+    metrics: {
+      elevationGainMeter: activity.total_elevation_gain ?? null,
+      maxHeartRate: activity.max_heartrate ?? null,
+      averageSpeedMeterSecond: activity.average_speed ?? null,
+      sufferScore: activity.suffer_score ?? null,
+    },
+  };
+}
+
 async function importStravaActivities(
   client: SupabaseClient,
   userId: string,
@@ -251,6 +275,11 @@ async function importStravaActivities(
 
   for (const activity of activities) {
     if (!activity.id) continue;
+    // Typed per-activity row (idempotent on user+source+external_id).
+    await client
+      .from('activities')
+      .upsert(stravaActivityRow(activity, userId), { onConflict: 'user_id,source,external_id' });
+
     const payload = activityPostPayload(activity, userId, profile, fallbackName);
     const { data: existing, error: lookupError } = await client
       .from('community_posts')

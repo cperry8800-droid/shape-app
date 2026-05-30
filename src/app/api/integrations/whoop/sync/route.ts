@@ -143,6 +143,27 @@ function workoutPostPayload(workout: WhoopWorkout, userId: string, profile: Prof
   };
 }
 
+// Typed per-activity row for the activities table (preserves sport type).
+function whoopActivityRow(workout: WhoopWorkout, userId: string) {
+  const score = workout.score ?? {};
+  const sport = (workout.sport_name || 'whoop workout').trim().toLowerCase();
+  const mins = durationMinutes(workout.start, workout.end);
+  return {
+    user_id: userId,
+    source: 'whoop',
+    external_id: String(workout.id),
+    activity_type: sport,
+    title: sport,
+    started_at: workout.start ?? null,
+    duration_min: typeof mins === 'number' ? mins : null,
+    distance_km: typeof score.distance_meter === 'number' ? Number((score.distance_meter / 1000).toFixed(2)) : null,
+    calories: typeof score.kilojoule === 'number' ? Math.round(score.kilojoule / 4.184) : null,
+    avg_hr: typeof score.average_heart_rate === 'number' ? Math.round(score.average_heart_rate) : null,
+    strain: typeof score.strain === 'number' ? Number(score.strain.toFixed(1)) : null,
+    metrics: { kilojoule: score.kilojoule ?? null },
+  };
+}
+
 async function importWhoopWorkouts(
   client: SupabaseClient,
   userId: string,
@@ -155,6 +176,11 @@ async function importWhoopWorkouts(
 
   for (const workout of workouts) {
     if (!workout.id) continue;
+    // Typed per-activity row (idempotent on user+source+external_id).
+    await client
+      .from('activities')
+      .upsert(whoopActivityRow(workout, userId), { onConflict: 'user_id,source,external_id' });
+
     const payload = workoutPostPayload(workout, userId, profile, fallbackName);
     const { data: existing, error: lookupError } = await client
       .from('community_posts')
