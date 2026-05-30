@@ -6048,6 +6048,98 @@ function BSClientProgress({ onBack }) {
   );
 }
 
+// ─── LEADERBOARD ─────────────────────────────────────────────
+// Shape Score ranking via /api/leaderboard (SECURITY DEFINER RPC, opt-out
+// aware). Week / Month / All-time toggle; the caller's own rank is pinned even
+// when outside the visible top.
+function BSLeaderboard({ onBack }) {
+  const t = useBS();
+  const { BSPage, BSDetailHeader } = window;
+  const [period, setPeriod] = useStateBSC('month');
+  const [data, setData] = useStateBSC(null);
+  const [loading, setLoading] = useStateBSC(true);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    const p = window.ShapeLeaderboard?.get ? window.ShapeLeaderboard.get(period)
+      : fetch(`/api/leaderboard?period=${period}`, { credentials: 'same-origin', cache: 'no-store' }).then(r => (r.ok ? r.json() : null));
+    Promise.resolve(p)
+      .then(d => { if (!cancelled) { setData(d || { entries: [], me: null }); setLoading(false); } })
+      .catch(() => { if (!cancelled) { setData({ entries: [], me: null }); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, [period]);
+
+  const entries = (data && data.entries) || [];
+  const me = data && data.me;
+  const medal = (rank) => rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : null;
+
+  const initials = (name) => (name || '?').split(' ').map(s => s[0]).slice(0, 2).join('').toUpperCase();
+
+  return (
+    <BSPage>
+      <BSDetailHeader onBack={onBack} eyebrow="Section · Community" kicker="Shape Score" title={<>Leader<br/>board.</>} />
+
+      {/* Period toggle */}
+      <div style={{ padding: `4px ${t.padX}px 14px` }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: 4 }}>
+          {[['week', 'This week'], ['month', 'This month'], ['all', 'All time']].map(([k, l]) => {
+            const on = period === k;
+            return <button key={k} onClick={() => setPeriod(k)} style={{ padding: '9px 4px', borderRadius: 999, border: 0, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{l}</button>;
+          })}
+        </div>
+      </div>
+
+      {loading && <div style={{ padding: `20px ${t.padX}px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>}
+
+      {!loading && entries.length === 0 && (
+        <div style={{ padding: `0 ${t.padX}px 18px` }}>
+          <div style={{ borderTop: `2px solid ${t.INK}`, paddingTop: 14 }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, lineHeight: 1.15, letterSpacing: '-0.02em', marginBottom: 8 }}>No rankings yet.</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK70, lineHeight: 1.45 }}>Earn Shape Score — log workouts, hit habits, keep streaks — and you'll show up here.</div>
+          </div>
+        </div>
+      )}
+
+      {!loading && entries.length > 0 && (
+        <div style={{ padding: `0 ${t.padX}px 4px` }}>
+          {entries.map((e) => {
+            const top3 = e.rank <= 3;
+            return (
+              <div key={e.userId} style={{
+                display: 'grid', gridTemplateColumns: '34px 38px 1fr auto', alignItems: 'center', gap: 11,
+                padding: '11px 13px', marginBottom: 8, borderRadius: 13,
+                border: `1px solid ${e.isMe ? t.ACCENT : t.RULE}`,
+                background: e.isMe ? `${t.ACCENT}16` : (top3 ? t.PAPER2 : 'transparent'),
+              }}>
+                <span style={{ textAlign: 'center', fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: top3 ? 20 : 16, color: top3 ? t.INK : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{medal(e.rank) || e.rank}</span>
+                <span style={{ width: 38, height: 38, borderRadius: 999, overflow: 'hidden', background: t.INK, color: t.PAPER, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 12, fontWeight: 800 }}>
+                  {e.avatarUrl ? <img src={e.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials(e.name)}
+                </span>
+                <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: e.isMe ? 800 : 600, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.isMe ? 'You' : e.name}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 13, fontWeight: 800, color: t.GREEN, fontVariantNumeric: 'tabular-nums' }}>{e.points.toLocaleString()}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Your rank pinned (when outside the visible top) */}
+      {!loading && me && !entries.some(e => e.isMe) && (
+        <div style={{ padding: `8px ${t.padX}px 0` }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '34px 1fr auto', alignItems: 'center', gap: 11, padding: '12px 13px', borderRadius: 13, border: `1px solid ${t.ACCENT}`, background: `${t.ACCENT}16` }}>
+            <span style={{ textAlign: 'center', fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 16, color: t.INK }}>{me.rank}</span>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 800, color: t.INK }}>You · top {Math.round((me.rank / Math.max(1, me.total)) * 100)}%</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 13, fontWeight: 800, color: t.GREEN }}>{me.points.toLocaleString()}</span>
+          </div>
+        </div>
+      )}
+
+      <BSFooter right="Community" />
+    </BSPage>
+  );
+}
+
 function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
   const t = useBS();
   const [showScore, setShowScore] = useStateBSC(false);
@@ -6057,6 +6149,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
   const [showProgress, setShowProgress] = useStateBSC(false);
   const [showSessions, setShowSessions] = useStateBSC(false);
   const [showNotifications, setShowNotifications] = useStateBSC(false);
+  const [showLeaderboard, setShowLeaderboard] = useStateBSC(false);
   const scoreProfile = SHAPE_SCORE_PROFILES.client;
   const authProfile = window.ShapeAuth?.getCachedState?.().profile || {};
   const displayName = authProfile.full_name || 'Alex Rivera';
@@ -6208,6 +6301,9 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
   }
   if (showProgress) {
     return <BSClientProgress onBack={() => setShowProgress(false)} />;
+  }
+  if (showLeaderboard) {
+    return <BSLeaderboard onBack={() => setShowLeaderboard(false)} />;
   }
   if (showSessions) {
     return <BSSessionsScreen onBack={() => setShowSessions(false)} />;
