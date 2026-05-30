@@ -5844,6 +5844,32 @@ function BSClientProgress({ onBack }) {
         </>
       )}
 
+      {/* Activities — log + recent list with Shape Score points */}
+      <BSSection title="Activities" kicker="Logged & synced" meta={acts && acts.totalMinutes ? `${acts.totalMinutes} min · 30d` : 'Log one'} />
+      <div style={{ padding: `0 ${t.padX}px` }}>
+        <button onClick={() => setShowLog(true)} style={{
+          width: '100%', padding: '12px 0', marginBottom: (acts && acts.activities && acts.activities.length) ? 12 : 0,
+          borderRadius: t.RADIUS_SM, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
+          fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer',
+        }}>+ Log activity</button>
+        {acts && acts.activities && acts.activities.length > 0 && (
+          <div style={{ borderTop: `2px solid ${t.INK}` }}>
+            {acts.activities.slice(0, 12).map((a, i) => (
+              <div key={a.id || i} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', alignItems: 'baseline', gap: 10, padding: '11px 0', borderBottom: i === Math.min(11, acts.activities.length - 1) ? 0 : `1px solid ${t.HAIR}` }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', textTransform: 'capitalize', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.title || a.type}</div>
+                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
+                    {a.startedAt ? _bsFormatScoreDate(a.startedAt) : ''}{a.durationMin ? ` · ${a.durationMin}m` : ''}{a.distanceKm ? ` · ${Math.round((a.distanceKm / 1.609) * 10) / 10} mi` : ''}
+                  </div>
+                </div>
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, alignSelf: 'center' }}>{a.source === 'manual' ? 'Logged' : a.source}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 800, color: t.GREEN, fontVariantNumeric: 'tabular-nums', minWidth: 40, textAlign: 'right', alignSelf: 'center' }}>+{a.points != null ? a.points : 0}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {!loading && prs.length > 0 && (
         <>
           <BSSection title="Strength PRs" kicker="Best logged set" meta={`${prs.length}`} />
@@ -5867,6 +5893,7 @@ function BSClientProgress({ onBack }) {
       )}
 
       <BSFooter right="Progress" />
+      {showLog && <BSLogActivity onClose={() => setShowLog(false)} onSaved={loadActivities} />}
     </BSPage>
   );
 }
