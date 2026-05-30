@@ -443,6 +443,281 @@ function BSClientApp_old({ onLogout }) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// HOME CARDS — customizable stack (pin / customize / remove / add)
+// ═══════════════════════════════════════════════════════════
+// One component, many card types, each speaking the same one-statement
+// language: KICKER · HERO · meta · caption. Pin (⌃) locks a card to the top
+// with its accent outline; unpinned cards auto-order by "most alive today"
+// (a per-card aliveness score from live signals). Customize (⋯) swaps a slot's
+// focus; Remove (×) drops it; + Add a card appends one. Layout persists to
+// client_ui_prefs so it syncs across devices.
+
+const BS_CARD_TYPES = ['training', 'recovery', 'energy', 'consistency', 'protein', 'mood'];
+const BS_CARD_LABEL = { training: 'Training', recovery: 'Recovery', energy: 'Energy', consistency: 'Consistency', protein: 'Protein', mood: 'Mood' };
+const BS_CARD_DEFAULTS = ['training', 'recovery', 'energy'];
+
+// Build a card's display model from live signals (ticker + analytics + energy).
+// Returns { kicker, hero, sub, caption, accent, alive } — `alive` (0..100) is
+// the "most alive today" score used to auto-order unpinned cards.
+function _bsBuildCard(type, ctx) {
+  const { t, ticker, analytics, energy, energyAccent } = ctx;
+  const tk = ticker || {};
+  const k = analytics && analytics.kpis ? analytics.kpis : {};
+  const dash = '—';
+  switch (type) {
+    case 'training': {
+      const wk = analytics && typeof analytics.workouts_this_week === 'number' ? analytics.workouts_this_week : null;
+      const adher = typeof k.workout_adherence_pct === 'number' ? k.workout_adherence_pct : null;
+      const has = wk != null;
+      return {
+        accent: t.AMBER,
+        kicker: 'Training',
+        hero: has ? String(wk) : dash,
+        heroUnit: has ? (wk === 1 ? 'session' : 'sessions') : 'this week',
+        sub: ['This week', adher != null ? `${adher}% adherence` : 'log a workout', 'keep moving'],
+        caption: has && wk > 0 ? 'Sessions in the bank. Stay on the program.' : 'Nothing logged yet — get one in today.',
+        alive: has && wk > 0 ? 70 : 35,
+      };
+    }
+    case 'recovery': {
+      const sleep = typeof tk.sleep_hours === 'number' ? tk.sleep_hours : null;
+      const hrv = typeof tk.hrv_ms === 'number' ? tk.hrv_ms : null;
+      const ready = sleep == null ? null : sleep >= 7;
+      const sleepLabel = sleep != null ? `${Math.floor(sleep)}h ${Math.round((sleep % 1) * 60)}m` : dash;
+      return {
+        accent: t.BLUE,
+        kicker: 'Recovery',
+        hero: sleep == null ? dash : (ready ? 'Ready' : 'Low'),
+        heroUnit: '',
+        sub: ['Sleep', sleepLabel, hrv != null ? `HRV ${Math.round(hrv)}` : 'HRV —'],
+        caption: sleep == null ? 'Connect a wearable or log sleep to see readiness.'
+          : ready ? "Recovered. Body's good to push tomorrow." : 'Under-slept — keep today easy.',
+        // Poor sleep is highly "alive" — it should bubble up.
+        alive: sleep == null ? 30 : (ready ? 55 : 90),
+      };
+    }
+    case 'energy': {
+      return {
+        accent: energyAccent || t.BLUE,
+        kicker: energy ? energy.kicker.replace('Energy · ', 'Energy · ') : 'Energy',
+        hero: energy ? energy.hero : dash,
+        heroUnit: '',
+        sub: energy ? energy.meta : ['Goal', dash, ''],
+        caption: ctx.energyCaption || '',
+        // Off-target energy is alive; on-target / empty is calmer.
+        alive: ctx.noLiveToday ? 40 : 60,
+      };
+    }
+    case 'consistency': {
+      const days = analytics && typeof analytics.protein_hits_this_week === 'number' ? null : null;
+      const pts = typeof k.weekly_points === 'number' ? k.weekly_points : null;
+      const has = pts != null;
+      return {
+        accent: t.GREEN,
+        kicker: 'Consistency',
+        hero: has ? `+${pts}` : dash,
+        heroUnit: has ? 'pts this wk' : 'this week',
+        sub: ['Shape Score', has ? 'this week' : 'log to earn', 'streaks compound'],
+        caption: has && pts > 0 ? 'Showing up. Every log adds to the score.' : 'Log a habit or workout to start the week.',
+        alive: has && pts > 0 ? 50 : 25,
+      };
+    }
+    case 'protein': {
+      const p = typeof tk.protein_g === 'number' ? tk.protein_g : null;
+      const target = 150;
+      const has = p != null;
+      const hit = has && p >= 120;
+      return {
+        accent: t.RUST,
+        kicker: 'Protein',
+        hero: has ? String(p) : dash,
+        heroUnit: has ? `/ ${target} g` : 'g today',
+        sub: ['Today', has ? `${Math.round((p / target) * 100)}% of target` : 'not logged', 'muscle fuel'],
+        caption: !has ? 'Log meals to track protein.' : hit ? 'On target — protein locked in.' : 'Behind on protein — add a source.',
+        alive: !has ? 35 : (hit ? 45 : 75),
+      };
+    }
+    case 'mood': {
+      // mood isn't in the ticker; show a gentle check-in prompt (logged via
+      // the daily check-in flow). Aliveness stays low unless unset.
+      return {
+        accent: t.ACCENT,
+        kicker: 'Mood',
+        hero: dash,
+        heroUnit: 'check in',
+        sub: ['Today', 'tap to log', '1–10'],
+        caption: 'How are you feeling? A quick check-in keeps your coach in the loop.',
+        alive: 20,
+      };
+    }
+    default:
+      return { accent: t.INK, kicker: BS_CARD_LABEL[type] || type, hero: dash, heroUnit: '', sub: [], caption: '', alive: 0 };
+  }
+}
+
+function BSHomeCardItem({ slot, model, t, pinned, onPin, onRemove, onOpen }) {
+  return (
+    <div style={{
+      margin: `0 ${t.padX}px 12px`, borderRadius: 14, overflow: 'hidden',
+      border: pinned ? `1.5px solid ${model.accent}` : `1px solid ${t.RULE}`,
+      background: t.PAPER2,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px 0' }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: model.accent }}>{model.kicker}{pinned ? ' · pinned' : ''}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <button onClick={onPin} title={pinned ? 'Unpin' : 'Pin to top'} style={_bsCardBtn(t, pinned ? model.accent : t.INK50)}>⌃</button>
+          <button onClick={onRemove} title="Hide" style={_bsCardBtn(t, t.INK50)}>×</button>
+        </div>
+      </div>
+      <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: onOpen ? 'pointer' : 'default', padding: '6px 14px 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 46, lineHeight: 0.9, letterSpacing: '-0.045em', color: t.INK }}>{model.hero}</span>
+          {model.heroUnit ? <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{model.heroUnit}</span> : null}
+        </div>
+        {model.sub && model.sub.length > 0 && (
+          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
+            {model.sub.filter(Boolean).map((s, i) => (
+              <React.Fragment key={i}>
+                {i > 0 && <span style={{ opacity: 0.5 }}>·</span>}
+                <span>{s}</span>
+              </React.Fragment>
+            ))}
+          </div>
+        )}
+        {model.caption ? <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: t.body + 1, fontWeight: 500, color: t.INK70, letterSpacing: '-0.01em', lineHeight: 1.3 }}>{model.caption}</div> : null}
+      </button>
+    </div>
+  );
+}
+function _bsCardBtn(t, color) {
+  return { width: 26, height: 26, borderRadius: 7, border: 0, background: 'transparent', color, fontFamily: t.MONO, fontSize: 13, fontWeight: 800, lineHeight: 1, cursor: 'pointer', padding: 0 };
+}
+
+// The stack: header, ordered cards, + Add, footer note. Layout {order[], pinned[]}
+// persists to client_ui_prefs. onOpenEnergy etc. let cards deep-link.
+function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
+  const defaultLayout = { order: BS_CARD_DEFAULTS.slice(), pinned: [] };
+  const [layout, setLayout] = useStateBSC(defaultLayout);
+  const [menuOpen, setMenuOpen] = useStateBSC(false);
+
+  // Load saved layout (best-effort); persist on change.
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
+    window.shapeDb.getUserGoals('client_home_cards').then((saved) => {
+      if (cancelled || !saved || !Array.isArray(saved.order)) return;
+      const order = saved.order.filter(x => BS_CARD_TYPES.includes(x));
+      const pinned = Array.isArray(saved.pinned) ? saved.pinned.filter(x => order.includes(x)) : [];
+      setLayout({ order, pinned });
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  const persist = (next) => {
+    setLayout(next);
+    try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_home_cards', next); } catch (e) {}
+  };
+
+  // Build models, then order: pinned first (in pin order), then unpinned by
+  // aliveness desc (stable by original order on ties).
+  const models = {};
+  layout.order.forEach(type => { models[type] = _bsBuildCard(type, ctx); });
+  const pinnedOrder = layout.pinned.filter(x => layout.order.includes(x));
+  const unpinned = layout.order.filter(x => !layout.pinned.includes(x));
+  unpinned.sort((a, b) => (models[b].alive - models[a].alive) || (layout.order.indexOf(a) - layout.order.indexOf(b)));
+  const ordered = [...pinnedOrder, ...unpinned];
+
+  const togglePin = (type) => {
+    const pinned = layout.pinned.includes(type) ? layout.pinned.filter(x => x !== type) : [...layout.pinned, type];
+    persist({ ...layout, pinned });
+  };
+  const hideCard = (type) => {
+    persist({ order: layout.order.filter(x => x !== type), pinned: layout.pinned.filter(x => x !== type) });
+  };
+  // Dropdown toggles which cards are visible on the home. Keeps BS_CARD_TYPES
+  // order when re-adding so the stack stays stable.
+  const toggleVisible = (type) => {
+    if (layout.order.includes(type)) { hideCard(type); return; }
+    const order = BS_CARD_TYPES.filter(x => layout.order.includes(x) || x === type);
+    persist({ ...layout, order });
+  };
+
+  return (
+    <>
+      <div style={{ padding: `4px ${t.padX}px 12px`, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
+        <div>
+          <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 30, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{todayLabel}.</div>
+          <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Your stack · pin or choose cards</div>
+        </div>
+        {/* Compact dropdown to choose which cards are visible */}
+        <div style={{ position: 'relative' }}>
+          <button onClick={() => setMenuOpen(v => !v)} style={{
+            padding: '8px 12px', borderRadius: 999, border: `1px solid ${t.INK}`, background: menuOpen ? t.INK : 'transparent',
+            color: menuOpen ? t.PAPER : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap',
+          }}>Cards ▾</button>
+          {menuOpen && (
+            <>
+              <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 50 }} />
+              <div style={{
+                position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 51, width: 210,
+                background: t.PAPER, border: `1px solid ${t.INK}`, borderRadius: 12, overflow: 'hidden',
+                boxShadow: '0 16px 40px rgba(0,0,0,0.3)',
+              }}>
+                <div style={{ padding: '10px 12px', borderBottom: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Show on home</div>
+                {BS_CARD_TYPES.map((type) => {
+                  const on = layout.order.includes(type);
+                  const m = models[type] || _bsBuildCard(type, ctx);
+                  return (
+                    <button key={type} onClick={() => toggleVisible(type)} style={{
+                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                      padding: '11px 12px', border: 0, borderTop: `1px solid ${t.HAIR}`, background: 'transparent', cursor: 'pointer', textAlign: 'left',
+                    }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: 2, background: m.accent }} />
+                        <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK }}>{BS_CARD_LABEL[type]}</span>
+                      </span>
+                      <span style={{
+                        width: 34, height: 20, borderRadius: 999, padding: 2, flexShrink: 0,
+                        border: `1px solid ${on ? m.accent : t.RULE}`, background: on ? m.accent : 'transparent',
+                        display: 'flex', alignItems: 'center', justifyContent: on ? 'flex-end' : 'flex-start',
+                      }}>
+                        <span style={{ width: 14, height: 14, borderRadius: 999, background: on ? t.PAPER : t.INK50, display: 'block' }} />
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {ordered.length === 0 && (
+        <div style={{ margin: `0 ${t.padX}px 12px`, padding: '18px 16px', borderRadius: 14, border: `1px dashed ${t.RULE}`, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50, lineHeight: 1.4 }}>
+          No cards on your home. Tap <span style={{ fontWeight: 700, color: t.INK70 }}>Cards ▾</span> to choose what to show.
+        </div>
+      )}
+
+      {ordered.map((type) => (
+        <BSHomeCardItem
+          key={type}
+          slot={type}
+          model={models[type]}
+          t={t}
+          pinned={layout.pinned.includes(type)}
+          onPin={() => togglePin(type)}
+          onRemove={() => hideCard(type)}
+          onOpen={openers[type]}
+        />
+      ))}
+
+      <div style={{ padding: `2px ${t.padX}px 14px`, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK50, lineHeight: 1.4 }}>
+        <span style={{ fontWeight: 700, color: t.INK70 }}>Three defaults, then it's yours.</span> Pin a card to lock it to the top, choose which cards show from <span style={{ fontWeight: 700, color: t.INK70 }}>Cards ▾</span>, or hide what you don't track. Unpinned cards reorder by what's most alive that day.
+      </div>
+    </>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
 // HOME — "The Shape Daily" front page
 // ═══════════════════════════════════════════════════════════
 function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket, goScore, goIntegrations, tweaks = {}, setTweak = () => {} }) {
@@ -476,6 +751,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   const [quickLoggedItems, setQuickLoggedItems] = useStateBSC({});
   const [coachFeed, setCoachFeed] = useStateBSC({ banners: [], items: [] });
   const [ticker, setTicker] = useStateBSC(null);
+  const [analytics, setAnalytics] = useStateBSC(null);
   // The Energy card reads the user's active goal (nutrition + training prefs)
   // and reframes the same balance into one of three states. Default 'maintain'.
   const [energyGoal, setEnergyGoal] = useStateBSC('maintain');
@@ -526,7 +802,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     let cancelled = false;
     fetch('/api/client/analytics', { credentials: 'same-origin' })
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (!cancelled && d && d.ticker) setTicker(d.ticker); })
+      .then(d => { if (!cancelled && d) { if (d.ticker) setTicker(d.ticker); setAnalytics(d); } })
       .catch(() => {});
     return () => { cancelled = true; };
   }, []);
@@ -722,6 +998,18 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   const energyCaption = noLiveToday
     ? 'Log a meal to see where today lands against your goal.'
     : (hasLiveBalance ? energy.tail : `${macros.note} ${energy.tail}`);
+
+  // Context handed to the customizable card stack so each card builds from live
+  // signals. `energy` here is the goal-aware model computed above.
+  const homeCardsCtx = { t, ticker, analytics, energy, energyAccent, energyCaption, noLiveToday };
+  const homeCardOpeners = {
+    training: goTrain,
+    consistency: goScore,
+    energy: undefined,
+    recovery: goIntegrations,
+    protein: undefined,
+    mood: undefined,
+  };
 
   if (previewMeal) {
     return <BSMealPreview meal={previewMeal} onBack={() => setPreviewMeal(null)} />;
@@ -926,60 +1214,14 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         </div>
       </div>
 
-      {/* ENERGY — goal-aware headline (one component, three states) */}
-      <div style={{ padding: `24px ${t.padX}px 22px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-          <BSEyebrow color={energyAccent}>{energy.kicker}</BSEyebrow>
-          <BSEyebrow>{selIdx === todayIdx ? nowTime : fmtDate(selIdx)}</BSEyebrow>
-        </div>
-        {/* Hero — a word, not a fake-precise number */}
-        <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: Math.round(t.headlineHero * 0.86), lineHeight: 0.92, letterSpacing: '-0.045em', color: t.INK }}>
-          {energy.hero}
-        </div>
-        {/* Demoted estimate — quietly admits it's approximate */}
-        <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
-          <span>Goal: {energy.meta[0]}</span>
-          <span style={{ opacity: 0.5 }}>·</span>
-          <span>balance {energy.meta[1]}</span>
-          <span style={{ opacity: 0.5 }}>·</span>
-          <span>{energy.meta[2]}</span>
-        </div>
-        {/* Behavioral caption — the hero's voice */}
-        <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: t.body + 1, fontWeight: 500, color: t.INK70, letterSpacing: '-0.01em', lineHeight: 1.3 }}>
-          {energyCaption}
-        </div>
-
-        {/* Spark — interactive: tap a day to scope the Day log below */}
-        <div style={{ marginTop: 10, display: 'flex', gap: 3, height: 26, alignItems: 'flex-end' }}>
-          {[0.62, 0.78, 0.55, 0.81, 0.69, 0.74, 0.96].map((v, i) => {
-            const today = i === todayIdx;
-            const on = i === selIdx;
-            return (
-              <button
-                key={i}
-                onClick={() => { setSelIdx(i); setActiveDayLogKey(null); }}
-                style={{ borderRadius: t.RADIUS_SM,
-                  flex: 1, padding: 0, border: 0, background: 'transparent', cursor: 'pointer',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                  height: '100%', justifyContent: 'flex-end',
-                }}
-              >
-                <div style={{
-                  width: '100%', height: `${v * 100}%`,
-                  background: on ? energyAccent : (today ? energyAccent : t.INK),
-                  opacity: on ? 1 : (today ? 0.85 : 0.5),
-                }} />
-                <span style={{
-                  fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em',
-                  color: on ? energyAccent : (today ? energyAccent : t.INK50),
-                  fontWeight: on || today ? 700 : 400,
-                }}>
-                  {_BS_DOWL[i]}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+      {/* CUSTOMIZABLE CARD STACK — Training / Recovery / Energy / … */}
+      <div style={{ paddingTop: 16, borderTop: `1px solid ${t.RULE}` }}>
+        <BSHomeCards
+          t={t}
+          todayLabel={['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][_now.getDay()]}
+          ctx={homeCardsCtx}
+          openers={homeCardOpeners}
+        />
       </div>
 
       {/* DAY LOG */}
