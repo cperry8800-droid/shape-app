@@ -5,10 +5,10 @@
 //
 // Each recipe carries:
 //   by      — author name
-//   byRole  — "Nutritionist" | "Dietician" | "Chef"
+//   byRole  — "Nutritionist" | "Dietician"
 //   diet    — "Vegan" | "Vegetarian" | "Plant-based" | "Seafood" | "Poultry" | "Meat"
 //   steps   — detailed, numbered cooking instructions
-//   tip     — a short "chef's tip" surfaced in the modal
+//   tip     — a short "pro tip" surfaced in the modal
 // so the Recipes page can filter by creator type and by diet category.
 
 // One mock recipe per weekday. Index 0 = Sunday to match Date#getDay().
@@ -70,7 +70,7 @@ const RECIPES_BY_WEEKDAY = [
   },
   {
     title: "Sheet-pan salmon, sweet potato and broccoli",
-    by: "Marco Bellini", byRole: "Chef", diet: "Seafood",
+    by: "Marco Bellini", byRole: "Nutritionist", diet: "Seafood",
     time: "35 min", servings: 1, kcal: 620,
     macros: { p: 44, c: 58, f: 22 },
     tags: ["High protein", "GF", "Sheet-pan"],
@@ -89,7 +89,7 @@ const RECIPES_BY_WEEKDAY = [
   },
   {
     title: "Steak and sweet potato hash",
-    by: "Daniel Reyes", byRole: "Chef", diet: "Meat",
+    by: "Daniel Reyes", byRole: "Dietician", diet: "Meat",
     time: "25 min", servings: 1, kcal: 660,
     macros: { p: 46, c: 56, f: 26 },
     tags: ["High protein", "Iron-rich"],
@@ -127,7 +127,7 @@ const RECIPES_BY_WEEKDAY = [
   },
   {
     title: "Black bean and sweet potato tacos",
-    by: "Aisha Bello", byRole: "Chef", diet: "Vegan",
+    by: "Aisha Bello", byRole: "Nutritionist", diet: "Vegan",
     time: "20 min", servings: 1, kcal: 540,
     macros: { p: 24, c: 78, f: 14 },
     tags: ["Vegan", "Fiber", "Quick"],
@@ -147,7 +147,7 @@ const RECIPES_BY_WEEKDAY = [
 ];
 
 // Additional recipes for the full Recipes library — spread across creator
-// types (Nutritionist / Dietician / Chef) and diet categories.
+// types (Nutritionist / Dietician) and diet categories.
 const RECIPES_EXTRA = [
   {
     title: "Red lentil and spinach dahl",
@@ -189,7 +189,7 @@ const RECIPES_EXTRA = [
   },
   {
     title: "Miso-glazed cod with greens",
-    by: "Marco Bellini", byRole: "Chef", diet: "Seafood",
+    by: "Marco Bellini", byRole: "Nutritionist", diet: "Seafood",
     time: "20 min", servings: 1, kcal: 410,
     macros: { p: 42, c: 18, f: 16 },
     tags: ["Seafood", "Low carb", "GF"],
@@ -208,7 +208,7 @@ const RECIPES_EXTRA = [
   },
   {
     title: "Tofu and edamame poke bowl",
-    by: "Aisha Bello", byRole: "Chef", diet: "Plant-based",
+    by: "Aisha Bello", byRole: "Nutritionist", diet: "Plant-based",
     time: "15 min", servings: 1, kcal: 520,
     macros: { p: 26, c: 64, f: 18 },
     tags: ["Plant-based", "No-cook", "Bowl"],
@@ -246,7 +246,7 @@ const RECIPES_EXTRA = [
   },
   {
     title: "Beef and broccoli stir-fry",
-    by: "Daniel Reyes", byRole: "Chef", diet: "Meat",
+    by: "Daniel Reyes", byRole: "Dietician", diet: "Meat",
     time: "20 min", servings: 1, kcal: 600,
     macros: { p: 45, c: 48, f: 24 },
     tags: ["High protein", "Wok"],
@@ -302,7 +302,7 @@ const RECIPES_EXTRA = [
   },
   {
     title: "Roasted veg and halloumi traybake",
-    by: "Marco Bellini", byRole: "Chef", diet: "Vegetarian",
+    by: "Marco Bellini", byRole: "Nutritionist", diet: "Vegetarian",
     time: "35 min", servings: 2, kcal: 520,
     macros: { p: 26, c: 44, f: 28 },
     tags: ["Vegetarian", "Sheet-pan"],
@@ -338,7 +338,7 @@ const RECIPES_EXTRA = [
   },
   {
     title: "Turkey meatballs in marinara",
-    by: "Daniel Reyes", byRole: "Chef", diet: "Poultry",
+    by: "Daniel Reyes", byRole: "Dietician", diet: "Poultry",
     time: "30 min", servings: 2, kcal: 580,
     macros: { p: 44, c: 52, f: 20 },
     tags: ["High protein", "Family"],
@@ -393,7 +393,7 @@ const RECIPES_EXTRA = [
   },
   {
     title: "Cauliflower steak, chimichurri",
-    by: "Aisha Bello", byRole: "Chef", diet: "Plant-based",
+    by: "Aisha Bello", byRole: "Nutritionist", diet: "Plant-based",
     time: "30 min", servings: 2, kcal: 380,
     macros: { p: 12, c: 34, f: 22 },
     tags: ["Plant-based", "Low cal", "GF"],
@@ -430,7 +430,7 @@ const RECIPES_EXTRA = [
   },
   {
     title: "Garlic shrimp linguine",
-    by: "Marco Bellini", byRole: "Chef", diet: "Seafood",
+    by: "Marco Bellini", byRole: "Nutritionist", diet: "Seafood",
     time: "20 min", servings: 1, kcal: 580,
     macros: { p: 34, c: 64, f: 18 },
     tags: ["Seafood", "Quick"],
@@ -487,7 +487,7 @@ const RECIPES_EXTRA = [
   },
   {
     title: "Beef ragu rigatoni",
-    by: "Daniel Reyes", byRole: "Chef", diet: "Meat",
+    by: "Daniel Reyes", byRole: "Dietician", diet: "Meat",
     time: "40 min", servings: 2, kcal: 680,
     macros: { p: 42, c: 70, f: 24 },
     tags: ["High protein", "Family"],
@@ -606,7 +606,7 @@ function Macro({ label, value, color }) {
   );
 }
 
-// Modal with full recipe — ingredients + steps + chef's tip. Closed by clicking
+// Modal with full recipe — ingredients + steps + pro tip. Closed by clicking
 // the backdrop, the × button, or pressing Escape.
 function RecipeModal({ recipe, onClose }) {
   React.useEffect(() => {
@@ -667,7 +667,7 @@ function RecipeModal({ recipe, onClose }) {
           </div>
           {recipe.tip && (
             <div style={{ marginTop: 22, padding: "14px 16px", borderRadius: 10, background: "rgba(46,224,196,0.08)", border: "1px solid rgba(46,224,196,0.25)" }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: TEAL_BRIGHT, marginBottom: 6 }}>CHEF'S TIP</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: TEAL_BRIGHT, marginBottom: 6 }}>PRO TIP</div>
               <div style={{ fontSize: 13.5, color: "rgba(242,237,228,0.88)", lineHeight: 1.5 }}>{recipe.tip}</div>
             </div>
           )}

@@ -1,5 +1,5 @@
 // Public Recipes page — "Shape Kitchen". A browsable library of recipes created
-// by the Shape network of nutritionists, dieticians and chefs. Filterable by
+// by the Shape network of nutritionists and dieticians. Filterable by
 // creator type and diet category, plus a saved "My library" view (gated behind
 // an account). Each card links to that recipe's own page at /recipes/<slug>.
 // Reuses SHAPE_RECIPES / recipeSlug / saved-recipe helpers from recipes.jsx and
@@ -22,7 +22,6 @@ const GOALS = (typeof RECIPE_GOALS !== "undefined" ? RECIPE_GOALS : ["High-prote
 const CREATORS = [
   { key: "Nutritionist", label: "Nutritionists" },
   { key: "Dietician",    label: "Dieticians" },
-  { key: "Chef",         label: "Chefs" },
 ];
 
 function dietColor(diet) {
@@ -149,11 +148,11 @@ function RecipesPage() {
             Shape Kitchen
           </h1>
           <div style={{ fontFamily: serif, fontWeight: 300, fontSize: "clamp(20px, 3vw, 30px)", letterSpacing: "-0.025em", lineHeight: 1.15, marginTop: 16, color: "rgba(242,237,228,0.82)", maxWidth: 720 }}>
-            Recipes from our nutritionists, dieticians and chefs.
+            Recipes from our nutritionists and dieticians.
           </div>
           <p style={{ fontSize: 16, lineHeight: 1.55, color: "rgba(242,237,228,0.7)", maxWidth: 620, marginTop: 16 }}>
             Every recipe is built by a Shape professional — macro-balanced, easy to
-            scale, with step-by-step method and a chef's tip. Tap any recipe for the
+            scale, with step-by-step method and a pro tip. Tap any recipe for the
             full page.
           </p>
         </div>

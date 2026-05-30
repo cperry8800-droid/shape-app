@@ -1,6 +1,6 @@
 // Shape Kitchen recipe library — shared dataset for the mobile app, mirroring
 // the website's /recipes content (public/newdesign/recipes.jsx). Each recipe:
-//   by / byRole (Nutritionist | Dietician | Chef)
+//   by / byRole (Nutritionist | Dietician)
 //   diet (Vegan | Vegetarian | Plant-based | Seafood | Poultry | Meat)
 //   ingredients: string[]   steps: string[] (in-depth method)   tip: string
 //   hero: CSS gradient
@@ -59,7 +59,7 @@ export const SHAPE_KITCHEN_RECIPES = [
   },
   {
     title: "Sheet-pan salmon, sweet potato and broccoli",
-    by: "Marco Bellini", byRole: "Chef", diet: "Seafood",
+    by: "Marco Bellini", byRole: "Nutritionist", diet: "Seafood",
     time: "35 min", servings: 1, kcal: 620, macros: { p: 44, c: 58, f: 22 },
     tags: ["High protein", "GF", "Sheet-pan"],
     hero: "linear-gradient(135deg, #e07856 0%, #f4b860 50%, #1a1612 100%)",
@@ -77,7 +77,7 @@ export const SHAPE_KITCHEN_RECIPES = [
   },
   {
     title: "Steak and sweet potato hash",
-    by: "Daniel Reyes", byRole: "Chef", diet: "Meat",
+    by: "Daniel Reyes", byRole: "Dietician", diet: "Meat",
     time: "25 min", servings: 1, kcal: 660, macros: { p: 46, c: 56, f: 26 },
     tags: ["High protein", "Iron-rich"],
     hero: "linear-gradient(135deg, #8b3a28 0%, #c95a3c 55%, #1a1612 100%)",
@@ -113,7 +113,7 @@ export const SHAPE_KITCHEN_RECIPES = [
   },
   {
     title: "Black bean and sweet potato tacos",
-    by: "Aisha Bello", byRole: "Chef", diet: "Vegan",
+    by: "Aisha Bello", byRole: "Nutritionist", diet: "Vegan",
     time: "20 min", servings: 1, kcal: 540, macros: { p: 24, c: 78, f: 14 },
     tags: ["Vegan", "Fiber", "Quick"],
     hero: "linear-gradient(135deg, #d8a64a 0%, #8b5e30 60%, #1a1612 100%)",
@@ -167,7 +167,7 @@ export const SHAPE_KITCHEN_RECIPES = [
   },
   {
     title: "Miso-glazed cod with greens",
-    by: "Marco Bellini", byRole: "Chef", diet: "Seafood",
+    by: "Marco Bellini", byRole: "Nutritionist", diet: "Seafood",
     time: "20 min", servings: 1, kcal: 410, macros: { p: 42, c: 18, f: 16 },
     tags: ["Seafood", "Low carb", "GF"],
     hero: "linear-gradient(135deg, #6fae8e 0%, #2f6d5b 55%, #1a1612 100%)",
@@ -185,7 +185,7 @@ export const SHAPE_KITCHEN_RECIPES = [
   },
   {
     title: "Tofu and edamame poke bowl",
-    by: "Aisha Bello", byRole: "Chef", diet: "Plant-based",
+    by: "Aisha Bello", byRole: "Nutritionist", diet: "Plant-based",
     time: "15 min", servings: 1, kcal: 520, macros: { p: 26, c: 64, f: 18 },
     tags: ["Plant-based", "No-cook", "Bowl"],
     hero: "linear-gradient(135deg, #5fbf8f 0%, #3a8f6a 50%, #1a1612 100%)",
@@ -221,7 +221,7 @@ export const SHAPE_KITCHEN_RECIPES = [
   },
   {
     title: "Beef and broccoli stir-fry",
-    by: "Daniel Reyes", byRole: "Chef", diet: "Meat",
+    by: "Daniel Reyes", byRole: "Dietician", diet: "Meat",
     time: "20 min", servings: 1, kcal: 600, macros: { p: 45, c: 48, f: 24 },
     tags: ["High protein", "Wok"],
     hero: "linear-gradient(135deg, #7a3320 0%, #b8552f 55%, #1a1612 100%)",
@@ -274,7 +274,7 @@ export const SHAPE_KITCHEN_RECIPES = [
   },
   {
     title: "Roasted veg and halloumi traybake",
-    by: "Marco Bellini", byRole: "Chef", diet: "Vegetarian",
+    by: "Marco Bellini", byRole: "Nutritionist", diet: "Vegetarian",
     time: "35 min", servings: 2, kcal: 520, macros: { p: 26, c: 44, f: 28 },
     tags: ["Vegetarian", "Sheet-pan"],
     hero: "linear-gradient(135deg, #c98a4e 0%, #7e5a2c 55%, #1a1612 100%)",
@@ -308,7 +308,7 @@ export const SHAPE_KITCHEN_RECIPES = [
   },
   {
     title: "Turkey meatballs in marinara",
-    by: "Daniel Reyes", byRole: "Chef", diet: "Poultry",
+    by: "Daniel Reyes", byRole: "Dietician", diet: "Poultry",
     time: "30 min", servings: 2, kcal: 580, macros: { p: 44, c: 52, f: 20 },
     tags: ["High protein", "Family"],
     hero: "linear-gradient(135deg, #c0432f 0%, #832a1c 55%, #1a1612 100%)",
@@ -360,7 +360,7 @@ export const SHAPE_KITCHEN_RECIPES = [
   },
   {
     title: "Cauliflower steak, chimichurri",
-    by: "Aisha Bello", byRole: "Chef", diet: "Plant-based",
+    by: "Aisha Bello", byRole: "Nutritionist", diet: "Plant-based",
     time: "30 min", servings: 2, kcal: 380, macros: { p: 12, c: 34, f: 22 },
     tags: ["Plant-based", "Low cal", "GF"],
     hero: "linear-gradient(135deg, #9abf6a 0%, #4f6d2c 55%, #1a1612 100%)",
@@ -395,7 +395,7 @@ export const SHAPE_KITCHEN_RECIPES = [
   },
   {
     title: "Garlic shrimp linguine",
-    by: "Marco Bellini", byRole: "Chef", diet: "Seafood",
+    by: "Marco Bellini", byRole: "Nutritionist", diet: "Seafood",
     time: "20 min", servings: 1, kcal: 580, macros: { p: 34, c: 64, f: 18 },
     tags: ["Seafood", "Quick"],
     hero: "linear-gradient(135deg, #e6a06a 0%, #b05a3c 55%, #1a1612 100%)",
@@ -449,7 +449,7 @@ export const SHAPE_KITCHEN_RECIPES = [
   },
   {
     title: "Beef ragu rigatoni",
-    by: "Daniel Reyes", byRole: "Chef", diet: "Meat",
+    by: "Daniel Reyes", byRole: "Dietician", diet: "Meat",
     time: "40 min", servings: 2, kcal: 680, macros: { p: 42, c: 70, f: 24 },
     tags: ["High protein", "Family"],
     hero: "linear-gradient(135deg, #7a3320 0%, #4a1f14 55%, #1a1612 100%)",
