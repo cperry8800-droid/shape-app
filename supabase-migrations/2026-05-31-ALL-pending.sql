@@ -1,11 +1,9 @@
 -- ============================================================================
 -- Shape — ALL session migrations, bundled in dependency order (through 05-31).
---
--- Paste into the Supabase SQL editor and Run once. Every statement is
--- idempotent (create if not exists / drop policy if exists / etc.), so this
--- is safe to run even if you've already applied some pieces. Order matters:
--- the notifications table is created before its triggers; calendar-events
--- depends on is_coach_on_client() (already applied earlier).
+-- Paste into the Supabase SQL editor and Run once. Idempotent (safe to re-run
+-- even if some pieces are already applied). Order matters: the notifications
+-- table is created before its triggers; calendar-events depends on
+-- is_coach_on_client() from 2026-05-26-shared-clients.sql (already applied).
 -- ============================================================================
 
 
