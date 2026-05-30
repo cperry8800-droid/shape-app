@@ -1054,6 +1054,49 @@ async function getOwnedProviderId(role = 'trainer') {
   return data?.id || null;
 }
 
+// ─── At-capacity (pause new bookings) ────────────────────────────────────────
+// Read the signed-in coach's own provider row capacity flag. Returns null when
+// the user has no provider row (i.e. not a coach). RLS lets a provider read +
+// update their own row via owner_id = auth.uid().
+async function getProviderCapacity() {
+  if (!supabase || !state.user?.id) return null;
+  for (const role of ['trainer', 'nutritionist']) {
+    const table = role === 'nutritionist' ? 'nutritionists' : 'trainers';
+    const { data } = await supabase
+      .from(table)
+      .select('id, at_capacity, capacity_resume_at')
+      .eq('owner_id', state.user.id)
+      .order('id', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (data) {
+      return { role, providerId: data.id, atCapacity: !!data.at_capacity, resumeAt: data.capacity_resume_at || null };
+    }
+  }
+  return null;
+}
+
+// Flip the coach's at_capacity flag. When turning it ON you can optionally pass
+// an auto-resume date (ISO); turning it OFF clears any resume date.
+async function setProviderCapacity({ atCapacity, resumeAt = null } = {}) {
+  if (!supabase || !state.user?.id) throw new Error('Sign in to update bookings.');
+  let table = null;
+  for (const role of ['trainer', 'nutritionist']) {
+    const tbl = role === 'nutritionist' ? 'nutritionists' : 'trainers';
+    const { data } = await supabase.from(tbl).select('id').eq('owner_id', state.user.id).limit(1).maybeSingle();
+    if (data) { table = tbl; break; }
+  }
+  if (!table) throw new Error('No coach profile found for this account.');
+  const { data, error } = await supabase
+    .from(table)
+    .update({ at_capacity: !!atCapacity, capacity_resume_at: atCapacity ? (resumeAt || null) : null })
+    .eq('owner_id', state.user.id)
+    .select('id, at_capacity, capacity_resume_at')
+    .maybeSingle();
+  if (error) throw error;
+  return { atCapacity: !!data?.at_capacity, resumeAt: data?.capacity_resume_at || null };
+}
+
 function playlistFromRow(row) {
   return {
     id: row.id,
@@ -2225,6 +2268,8 @@ window.ShapeApplications = {
 
 window.ShapeBookings = {
   submitConsultationBooking,
+  getCapacity: getProviderCapacity,
+  setCapacity: setProviderCapacity,
 };
 
 window.ShapeSessions = {
