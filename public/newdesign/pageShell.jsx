@@ -870,3 +870,190 @@ function EventPopover({ selection, role, onClose, onChanged }) {
 }
 
 Object.assign(window, { CalendarOverlay, useCalendarOverlay });
+
+// ═══════════════════════════════════════════════════════════
+// HOME CARD STACK — customizable, live (mirrors the mobile app)
+// Six card types from /api/client/analytics, each KICKER · HERO · meta ·
+// caption. Pin locks to top; drag reorders; a "Cards ▾" menu toggles
+// visibility; unpinned cards auto-order by "most alive today". Layout persists
+// to client_home_cards (same store the app uses) so web ↔ mobile stay in sync.
+// ═══════════════════════════════════════════════════════════
+const SHAPE_CARD_TYPES = ["training", "recovery", "energy", "consistency", "protein", "mood"];
+const SHAPE_CARD_LABEL = { training: "Training", recovery: "Recovery", energy: "Energy", consistency: "Consistency", protein: "Protein", mood: "Mood" };
+const SHAPE_CARD_DEFAULTS = ["training", "recovery", "energy"];
+const SHAPE_CARD_ACCENT = { training: "#e3a544", recovery: "#5b8df9", energy: TEAL, consistency: "#5fb16e", protein: "#e06547", mood: TEAL_BRIGHT };
+
+function shapeBuildCard(type, ticker) {
+  const tk = ticker || {};
+  const dash = "—";
+  const num = (v) => (typeof v === "number" ? v : null);
+  const goal = tk.goal_kind || "maintain";
+  switch (type) {
+    case "training": {
+      const dist = num(tk.today_distance_km), mins = num(tk.today_activity_min), at = tk.today_activity_type;
+      const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : "");
+      if (dist && dist > 0) { const mi = Math.round((dist / 1.609) * 10) / 10; return { kicker: "Training", hero: String(mi), unit: `mi · ${cap(at) || "logged"}`, meta: [cap(at) || "Activity", mins ? `${mins} min` : "today", "in the bank"], caption: "Distance in the bank today. Nice work.", alive: 85 }; }
+      if (mins && mins > 0) return { kicker: "Training", hero: String(mins), unit: `min · ${cap(at) || "trained"}`, meta: [cap(at) || "Trained", "today", "logged"], caption: "Session logged today. Stay on the program.", alive: 82 };
+      const wk = num(tk.workouts_this_week);
+      return { kicker: "Training", hero: wk != null ? String(wk) : dash, unit: wk != null ? (wk === 1 ? "workout this wk" : "workouts this wk") : "this week", meta: ["This week", wk != null ? "logged" : "log a workout", "keep moving"], caption: wk ? "Sessions in the bank. Get today in too." : "Nothing logged yet — get one in today.", alive: wk ? 60 : 38 };
+    }
+    case "recovery": {
+      const sleep = num(tk.sleep_hours), hrv = num(tk.hrv_ms), rec = num(tk.recovery_score);
+      const ready = rec != null ? rec >= 66 : (sleep == null ? null : sleep >= 7);
+      const mid = rec != null && rec >= 40 && rec < 66;
+      const sl = sleep != null ? `${Math.floor(sleep)}h ${Math.round((sleep % 1) * 60)}m` : dash;
+      return { kicker: "Recovery", hero: (rec == null && sleep == null) ? dash : (ready ? "Ready" : mid ? "Steady" : "Low"), unit: rec != null ? `${Math.round(rec)}%` : "", meta: ["Sleep", sl, hrv != null ? `HRV ${Math.round(hrv)}` : "HRV —"], caption: (rec == null && sleep == null) ? "Connect a wearable or log sleep to see readiness." : ready ? "Recovered. Body's good to push tomorrow." : mid ? "Middling — train, but listen to the body." : "Under-recovered — keep today easy.", alive: (rec == null && sleep == null) ? 30 : (ready ? 52 : mid ? 72 : 92) };
+    }
+    case "energy": {
+      const cal = num(tk.cal), target = num(tk.cal_target);
+      const has = cal != null && target != null;
+      const bal = has ? cal - target : null;
+      const est = has ? `~${bal < 0 ? "−" : "+"}${Math.abs(bal)} kcal` : "— kcal";
+      const map = {
+        cut: { kicker: "Energy · On target", hero: has ? (bal < 0 ? "Under" : "Over") : "Open", meta: ["Fat loss", est, "within range"], caption: has ? (bal < 0 ? "You're tracking where you want to be." : "A little over — ease back tomorrow.") : "Log a meal to see where today lands.", accent: "#5fb16e" },
+        maintain: { kicker: "Energy · Balanced", hero: has ? "Even" : "Open", meta: ["Maintain", est, "steady"], caption: has ? "Right in the pocket for holding steady." : "Log a meal to see where today lands.", accent: "#5b8df9" },
+        build: { kicker: "Energy · Fuel up", hero: has ? (bal < 0 ? "Short" : "Built") : "Open", meta: ["Build", est, bal < 0 ? "under surplus" : "on surplus"], caption: has ? (bal < 0 ? "A build day wants more — add a meal." : "Surplus in. That's the fuel for growth.") : "Log a meal to see where today lands.", accent: "#e3a544" },
+      };
+      const m = map[goal] || map.maintain;
+      return { ...m, unit: "", alive: has ? 60 : 40, accentOverride: m.accent };
+    }
+    case "consistency": {
+      const pts = num(tk.weekly_points);
+      return { kicker: "Consistency", hero: pts != null ? `+${pts}` : dash, unit: pts != null ? "pts this wk" : "this week", meta: ["Shape Score", pts != null ? "this week" : "log to earn", "streaks compound"], caption: pts ? "Showing up. Every log adds to the score." : "Log a habit or workout to start the week.", alive: pts ? 50 : 25 };
+    }
+    case "protein": {
+      const p = num(tk.protein_g), target = num(tk.protein_target) || 150;
+      const hit = p != null && p >= target * 0.9;
+      return { kicker: "Protein", hero: p != null ? String(p) : dash, unit: p != null ? `/ ${target} g` : "g today", meta: ["Today", p != null ? `${Math.round((p / target) * 100)}% of target` : "not logged", "muscle fuel"], caption: p == null ? "Log meals to track protein." : hit ? "On target — protein locked in." : `Behind on protein — ${target - p}g to go.`, alive: p == null ? 35 : (hit ? 45 : 75) };
+    }
+    case "mood": {
+      const m = num(tk.mood);
+      const word = m == null ? dash : m >= 8 ? "Great" : m >= 6 ? "Good" : m >= 4 ? "Okay" : "Low";
+      return { kicker: "Mood", hero: word, unit: m != null ? `${m}/10` : "check in", meta: ["Today", m != null ? "logged" : "tap to log", "1–10"], caption: m == null ? "How are you feeling? A quick check-in keeps your coach in the loop." : m >= 6 ? "Feeling good today — keep the momentum." : "Off day — be kind to yourself.", alive: m == null ? 30 : (m < 4 ? 80 : 22) };
+    }
+    default:
+      return { kicker: SHAPE_CARD_LABEL[type] || type, hero: dash, unit: "", meta: [], caption: "", alive: 0 };
+  }
+}
+
+function ShapeHomeCards() {
+  const [ticker, setTicker] = React.useState({});
+  const [layout, setLayout] = React.useState({ order: SHAPE_CARD_DEFAULTS.slice(), pinned: [], manual: false });
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  const [dragType, setDragType] = React.useState(null);
+  const [overType, setOverType] = React.useState(null);
+
+  React.useEffect(() => {
+    fetch("/api/client/analytics", { credentials: "same-origin" })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d && d.ticker) setTicker({ ...d.ticker, workouts_this_week: d.workouts_this_week, weekly_points: d.kpis && d.kpis.weekly_points }); })
+      .catch(() => {});
+    if (window.shapeDb && window.shapeDb.getUserGoals) {
+      window.shapeDb.getUserGoals("client_home_cards").then((s) => {
+        if (s && Array.isArray(s.order)) setLayout({ order: s.order.filter(x => SHAPE_CARD_TYPES.includes(x)), pinned: (s.pinned || []).filter(x => s.order.includes(x)), manual: !!s.manual });
+      }).catch(() => {});
+    }
+  }, []);
+  const persist = (next) => {
+    setLayout(next);
+    try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals("client_home_cards", next); } catch (e) {}
+  };
+
+  const models = {};
+  layout.order.forEach(type => { models[type] = shapeBuildCard(type, ticker); });
+  const pinnedOrder = layout.pinned.filter(x => layout.order.includes(x));
+  const unpinned = layout.order.filter(x => !layout.pinned.includes(x));
+  if (!layout.manual) unpinned.sort((a, b) => (models[b].alive - models[a].alive) || (layout.order.indexOf(a) - layout.order.indexOf(b)));
+  const ordered = [...pinnedOrder, ...unpinned];
+
+  const togglePin = (type) => persist({ ...layout, pinned: layout.pinned.includes(type) ? layout.pinned.filter(x => x !== type) : [...layout.pinned, type] });
+  const hideCard = (type) => persist({ ...layout, order: layout.order.filter(x => x !== type), pinned: layout.pinned.filter(x => x !== type) });
+  const toggleVisible = (type) => { if (layout.order.includes(type)) return hideCard(type); persist({ ...layout, order: SHAPE_CARD_TYPES.filter(x => layout.order.includes(x) || x === type) }); };
+  const onDrop = (target) => { if (!dragType || dragType === target) { setDragType(null); setOverType(null); return; } const next = layout.order.filter(x => x !== dragType); const idx = next.indexOf(target); next.splice(idx < 0 ? next.length : idx, 0, dragType); persist({ ...layout, order: next, manual: true }); setDragType(null); setOverType(null); };
+
+  const card = (type) => {
+    const m = models[type];
+    const accent = m.accentOverride || SHAPE_CARD_ACCENT[type];
+    const pinned = layout.pinned.includes(type);
+    const draggable = !pinned;
+    return (
+      <div key={type}
+        draggable={draggable}
+        onDragStart={draggable ? () => setDragType(type) : undefined}
+        onDragEnd={draggable ? () => { setDragType(null); setOverType(null); } : undefined}
+        onDragOver={draggable ? (e) => { e.preventDefault(); if (overType !== type) setOverType(type); } : undefined}
+        onDrop={draggable ? (e) => { e.preventDefault(); onDrop(type); } : undefined}
+        style={{ borderRadius: 14, marginBottom: 16, background: "rgba(242,237,228,0.04)", overflow: "hidden",
+          border: (overType === type && dragType && dragType !== type) ? `1.5px dashed ${accent}` : (pinned ? `1.5px solid ${accent}` : "1px solid rgba(242,237,228,0.1)"),
+          opacity: dragType === type ? 0.5 : 1 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 22px 0" }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: accent, display: "inline-flex", alignItems: "center", gap: 10 }}>
+            {draggable && <span title="Drag to reorder" style={{ cursor: "grab", color: "rgba(242,237,228,0.4)" }}>⠿</span>}
+            {m.kicker}{pinned ? " · pinned" : ""}
+          </span>
+          <span style={{ display: "inline-flex", gap: 6 }}>
+            <button onClick={() => togglePin(type)} title={pinned ? "Unpin" : "Pin"} style={shapeCardBtn(pinned ? accent : "rgba(242,237,228,0.5)")}>⌃</button>
+            <button onClick={() => hideCard(type)} title="Hide" style={shapeCardBtn("rgba(242,237,228,0.5)")}>×</button>
+          </span>
+        </div>
+        <div style={{ padding: "8px 22px 22px" }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ fontFamily: serif, fontSize: 64, letterSpacing: "-0.035em", color: INK, lineHeight: 0.9 }}>{m.hero}</span>
+            {m.unit ? <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" }}>{m.unit}</span> : null}
+          </div>
+          {m.meta && m.meta.length ? (
+            <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" }}>
+              {m.meta.filter(Boolean).map((s, i) => <React.Fragment key={i}>{i > 0 && <span style={{ opacity: 0.5 }}>·</span>}<span>{s}</span></React.Fragment>)}
+            </div>
+          ) : null}
+          {m.caption ? <div style={{ marginTop: 14, fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.72)", lineHeight: 1.35 }}>{m.caption}</div> : null}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 18 }}>
+        <div>
+          <h2 style={{ fontFamily: serif, fontSize: 36, letterSpacing: "-0.02em", fontWeight: 400, margin: 0 }}>{["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][new Date().getDay()]}.</h2>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)", marginTop: 6 }}>Your stack · pin, drag, or choose cards</div>
+        </div>
+        <div style={{ position: "relative" }}>
+          <button onClick={() => setMenuOpen(v => !v)} style={{ padding: "9px 16px", borderRadius: 999, border: `1px solid ${menuOpen ? TEAL : "rgba(242,237,228,0.2)"}`, background: menuOpen ? TEAL : "transparent", color: menuOpen ? "#0a0f0d" : INK, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", cursor: "pointer" }}>CARDS ▾</button>
+          {menuOpen && (
+            <>
+              <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 50 }} />
+              <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, zIndex: 51, width: 240, background: "#1a1612", border: "1px solid rgba(242,237,228,0.15)", borderRadius: 12, overflow: "hidden", boxShadow: "0 24px 60px rgba(0,0,0,0.5)" }}>
+                <div style={{ padding: "12px 16px", borderBottom: "1px solid rgba(242,237,228,0.08)", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" }}>Show on home</div>
+                {SHAPE_CARD_TYPES.map(type => {
+                  const on = layout.order.includes(type);
+                  return (
+                    <button key={type} onClick={() => toggleVisible(type)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 16px", border: 0, borderTop: "1px solid rgba(242,237,228,0.06)", background: "transparent", cursor: "pointer" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+                        <span style={{ width: 9, height: 9, borderRadius: 2, background: SHAPE_CARD_ACCENT[type] }} />
+                        <span style={{ fontFamily: sans, fontSize: 14, color: INK }}>{SHAPE_CARD_LABEL[type]}</span>
+                      </span>
+                      <span style={{ width: 36, height: 20, borderRadius: 999, padding: 2, border: `1px solid ${on ? SHAPE_CARD_ACCENT[type] : "rgba(242,237,228,0.2)"}`, background: on ? SHAPE_CARD_ACCENT[type] : "transparent", display: "inline-flex", alignItems: "center", justifyContent: on ? "flex-end" : "flex-start" }}>
+                        <span style={{ width: 14, height: 14, borderRadius: 999, background: on ? "#0a0f0d" : "rgba(242,237,228,0.5)", display: "block" }} />
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+      {ordered.length === 0 && <div style={{ padding: "24px", borderRadius: 14, border: "1px dashed rgba(242,237,228,0.15)", fontFamily: sans, fontSize: 15, color: "rgba(242,237,228,0.5)" }}>No cards. Tap <b style={{ color: INK }}>Cards ▾</b> to choose what to show.</div>}
+      {ordered.map(card)}
+      <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.45)", lineHeight: 1.5 }}>
+        <b style={{ color: "rgba(242,237,228,0.7)" }}>Three defaults, then it's yours.</b> Drag ⠿ to reorder, pin to lock to top, or choose cards from Cards ▾.
+        {layout.manual ? <> Order is yours — <a href="#" onClick={(e) => { e.preventDefault(); persist({ ...layout, manual: false }); }} style={{ color: TEAL_BRIGHT }}>switch to auto</a>.</> : " Unpinned cards reorder by what's most alive that day."}
+      </div>
+    </div>
+  );
+}
+function shapeCardBtn(color) { return { width: 28, height: 28, borderRadius: 7, border: 0, background: "transparent", color, fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 800, cursor: "pointer", lineHeight: 1 }; }
+
+Object.assign(window, { ShapeHomeCards });
