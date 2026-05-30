@@ -447,7 +447,27 @@ function BSClientApp_old({ onLogout }) {
 // ═══════════════════════════════════════════════════════════
 function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket, goScore, goIntegrations, tweaks = {}, setTweak = () => {} }) {
   const t = useBS();
-  const [selDay, setSelDay] = useStateBSC(14);
+  // Real current week, computed live so the home reflects today (not demo dates).
+  // Monday-first index 0..6; weekDates = the seven dates of this calendar week.
+  const _BS_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const _BS_DOWL = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  const _now = new Date();
+  const todayIdx = (_now.getDay() + 6) % 7;
+  const weekDates = (() => {
+    const mon = new Date(_now); mon.setHours(0, 0, 0, 0); mon.setDate(_now.getDate() - todayIdx);
+    return Array.from({ length: 7 }, (_, i) => { const d = new Date(mon); d.setDate(mon.getDate() + i); return d; });
+  })();
+  const isoWeek = (() => {
+    const d = new Date(Date.UTC(_now.getFullYear(), _now.getMonth(), _now.getDate()));
+    const day = (d.getUTCDay() + 6) % 7;
+    d.setUTCDate(d.getUTCDate() - day + 3);
+    const firstThu = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+    return 1 + Math.round(((d - firstThu) / 86400000 - 3 + ((firstThu.getUTCDay() + 6) % 7)) / 7);
+  })();
+  const nowTime = `${String(_now.getHours()).padStart(2, '0')}:${String(_now.getMinutes()).padStart(2, '0')}`;
+  const fmtDate = (idx) => `${_BS_MON[weekDates[idx].getMonth()]} ${weekDates[idx].getDate()}`;
+
+  const [selIdx, setSelIdx] = useStateBSC(todayIdx); // selected weekday 0..6 (today by default)
   const [nextMealLogged, setNextMealLogged] = useStateBSC(false);
   const [previewMeal, setPreviewMeal] = useStateBSC(null);
   const [habitsPage, setHabitsPage] = useStateBSC(false);
@@ -572,14 +592,16 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     ],
   };
 
-  const WEEK_DOTS = {
-    20: [t.AMBER, t.BLUE, t.GREEN], 21: [t.AMBER, t.RUST, t.BLUE], 22: [t.AMBER, t.GREEN],
-    23: [t.AMBER], 24: [t.AMBER, t.RUST, t.GREEN], 25: [t.AMBER, t.BLUE], 26: [],
-  };
-  const sourceDayByDate = { 11: 20, 14: 21, 15: 22, 16: 23, 17: 24 };
-  const dataDay = sourceDayByDate[selDay] || selDay;
+  // Editorial demo content is keyed Mon..Sun → 20..26; drive it off the real
+  // weekday index so the same sample plan rides the live week.
+  const WEEK_DOTS_BY_IDX = [
+    [t.AMBER, t.BLUE, t.GREEN], [t.AMBER, t.RUST, t.BLUE], [t.AMBER, t.GREEN],
+    [t.AMBER], [t.AMBER, t.RUST, t.GREEN], [t.AMBER, t.BLUE], [],
+  ];
+  const selDay = weekDates[selIdx].getDate(); // day-of-month for display strings
+  const dataDay = 20 + selIdx;
   const dayLog = DAY_LOGS[dataDay] || [];
-  const dayLogKey = (row, i) => `${selDay}-${row.time}-${row.tag || 'item'}-${i}`;
+  const dayLogKey = (row, i) => `${selIdx}-${row.time}-${row.tag || 'item'}-${i}`;
   const dayLogDetails = (row) => {
     if (row.tag === 'MEAL') return {
       label: 'Nutrition log',
@@ -635,7 +657,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     25: { kcalIn: 1720, kcalBurn: 1850, status: 'long run', note: 'Long run done. Brunch + 3 meals.' },
     26: { kcalIn: 1320, kcalBurn: 1700, status: 'rest day', note: 'Rest day. Three lighter meals.' },
   };
-  const macros = DAY_MACROS[dataDay] || DAY_MACROS[21];
+  const macros = DAY_MACROS[dataDay] || DAY_MACROS[20 + todayIdx] || DAY_MACROS[21];
   const balance = macros.kcalIn - macros.kcalBurn; // negative = deficit
   const balanceSign = balance < 0 ? '−' : '+';
   const balanceValue = Math.abs(balance).toString();
@@ -658,8 +680,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
           <span className="bs-daily-shape" style={{ display: 'inline-block', marginLeft: 8, marginRight: 10, fontFamily: `'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif`, fontWeight: 300, fontStyle: 'normal', fontSize: 37, letterSpacing: '0.18em', textTransform: 'uppercase', transform: 'translateY(1px)' }}>SHAPE</span>
           <span className="bs-daily-daily" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>Daily.</span>
         </span>}
-        leftKicker="Thu · May 21 · 2026"
-        rightKicker="Cut · W6 · D38"
+        leftKicker={`${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][_now.getDay()]} · ${_BS_MON[_now.getMonth()]} ${_now.getDate()} · ${_now.getFullYear()}`}
+        rightKicker={`Cut · W${isoWeek}`}
         trailing={<BSAvatar init="A" size={32} onClick={onProfile} />}
       />
 
@@ -820,26 +842,23 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
       <BSNowPlaying onOpen={goRadio} />
 
       {/* THIS WEEK — calendar preview */}
-      <BSSection title="This week" kicker={`Wk 20 · May 11–17 · May ${selDay}`} meta={<span onClick={goCalendar} style={{ cursor: 'pointer', fontWeight: 800, color: t.INK, marginLeft: 'auto' }}>Month view →</span>} />
+      <BSSection title="This week" kicker={`Wk ${isoWeek} · ${fmtDate(0)}–${weekDates[0].getMonth() === weekDates[6].getMonth() ? weekDates[6].getDate() : fmtDate(6)} · ${fmtDate(selIdx)}`} meta={<span onClick={goCalendar} style={{ cursor: 'pointer', fontWeight: 800, color: t.INK, marginLeft: 'auto' }}>Month view →</span>} />
       <div style={{ padding: `0 ${t.padX}px 14px` }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, borderTop: `2px solid ${t.INK}`, paddingTop: 10 }}>
-          {[
-            { d: 11, l: 'M' }, { d: 12, l: 'T' }, { d: 13, l: 'W' },
-            { d: 14, l: 'T', isToday: true, src: 21 }, { d: 15, l: 'F', src: 22 }, { d: 16, l: 'S', src: 23 }, { d: 17, l: 'S', src: 24 },
-          ].map((day) => {
-            const on    = day.d === selDay;
-            const today = day.isToday;
-            const dots  = WEEK_DOTS[day.src || day.d] || [];
+          {weekDates.map((date, idx) => {
+            const on    = idx === selIdx;
+            const today = idx === todayIdx;
+            const dots  = WEEK_DOTS_BY_IDX[idx] || [];
             return (
-              <button key={day.d} onClick={() => { setSelDay(day.d); setActiveDayLogKey(null); }} style={{ borderRadius: t.RADIUS_SM,
+              <button key={idx} onClick={() => { setSelIdx(idx); setActiveDayLogKey(null); }} style={{ borderRadius: t.RADIUS_SM,
                 border: `1px solid ${on ? t.INK : t.HAIR}`,
                 background: on ? t.INK : (today ? t.PAPER2 : 'transparent'),
                 color: on ? t.PAPER : t.INK,
                 padding: '8px 0 6px', cursor: 'pointer',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
               }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', fontWeight: 600, opacity: today && !on ? 1 : 0.7 }}>{day.l}</span>
-                <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 22, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{day.d}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', fontWeight: 600, opacity: today && !on ? 1 : 0.7 }}>{_BS_DOWL[idx]}</span>
+                <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 22, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{date.getDate()}</span>
                 <span style={{ display: 'flex', gap: 3, height: 4, marginTop: 2 }}>
                   {dots.slice(0, 3).map((c, k) => <span key={k} style={{ width: 4, height: 4, borderRadius: '50%', background: c }} />)}
                 </span>
@@ -853,7 +872,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
       <div style={{ padding: `24px ${t.padX}px 22px`, borderBottom: `1px solid ${t.RULE}` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
           <BSEyebrow color={t.ACCENT}>{leadKicker}</BSEyebrow>
-          <BSEyebrow>{selDay === 14 ? '09:42' : `May ${selDay}`}</BSEyebrow>
+          <BSEyebrow>{selIdx === todayIdx ? nowTime : fmtDate(selIdx)}</BSEyebrow>
         </div>
         <BSHeadlineNumber sign={balanceSign} value={balanceValue} unit="KCAL" size={Math.round(t.headlineHero * 0.78)} />
         <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: t.body + 1, fontWeight: 500, color: t.INK70, letterSpacing: '-0.01em', lineHeight: 1.3, whiteSpace: 'pre-line' }}>
@@ -863,13 +882,12 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         {/* Spark — interactive: tap a day to scope the Day log below */}
         <div style={{ marginTop: 10, display: 'flex', gap: 3, height: 26, alignItems: 'flex-end' }}>
           {[0.62, 0.78, 0.55, 0.81, 0.69, 0.74, 0.96].map((v, i) => {
-            const dayNum = 11 + i;
-            const today = i === 3;
-            const on = dayNum === selDay;
+            const today = i === todayIdx;
+            const on = i === selIdx;
             return (
               <button
                 key={i}
-                onClick={() => { setSelDay(dayNum); setActiveDayLogKey(null); }}
+                onClick={() => { setSelIdx(i); setActiveDayLogKey(null); }}
                 style={{ borderRadius: t.RADIUS_SM,
                   flex: 1, padding: 0, border: 0, background: 'transparent', cursor: 'pointer',
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
@@ -886,7 +904,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                   color: on ? t.INK : (today ? t.ACCENT : t.INK50),
                   fontWeight: on || today ? 700 : 400,
                 }}>
-                  {['M','T','W','T','F','S','S'][i]}
+                  {_BS_DOWL[i]}
                 </span>
               </button>
             );
@@ -895,7 +913,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
       </div>
 
       {/* DAY LOG */}
-      <BSSection title="Day log" kicker={selDay === 14 ? 'Today · May 14' : `May ${selDay}`} meta={`${dayLog.length} item${dayLog.length === 1 ? '' : 's'}`} />
+      <BSSection title="Day log" kicker={selIdx === todayIdx ? `Today · ${fmtDate(selIdx)}` : fmtDate(selIdx)} meta={`${dayLog.length} item${dayLog.length === 1 ? '' : 's'}`} />
       <div style={{ padding: `0 ${t.padX}px` }}>
         <div style={{ borderTop: `2px solid ${t.INK}` }} />
         {dayLog.length === 0 ? (
