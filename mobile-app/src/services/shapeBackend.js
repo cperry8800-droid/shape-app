@@ -2464,6 +2464,20 @@ async function getProgress() {
 }
 window.ShapeAnalytics = { get: getAnalytics, getProgress };
 
+// Prescribed plan — assigned training + meal plan. Bearer in native, cookie
+// on /m/. Returns null on any failure so callers fall back to demo content.
+async function getPlan() {
+  if (!supabase || !state.user?.id) return null;
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/client/plan`, { headers: sessionsAuthHeaders(), credentials: 'same-origin', cache: 'no-store' });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    return null;
+  }
+}
+window.ShapePlan = { get: getPlan };
+
 window.ShapeNotifications = {
   list: listNotifications,
   markRead: markNotificationRead,
