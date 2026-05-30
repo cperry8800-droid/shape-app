@@ -244,10 +244,8 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
   const SPLASH_FACE = "'Saira', 'Arial Narrow', 'Helvetica Neue', sans-serif";
   // Classified is interactive: user must tap "Step inside" — no auto-advance.
   useEffectBSM(() => {
-    // Cosmos + classified are tap-only so the intro is always seen, even when
-    // a native OS splash covers the first moments after mount.
-    if (style === 'classified' || style === 'cosmos' || !style) return;
-    const id = setTimeout(onDone, 1600);
+    if (style === 'classified') return; // classified is tap-only
+    const id = setTimeout(onDone, (style === 'cosmos' || !style) ? 3000 : 1600);
     return () => clearTimeout(id);
   }, [style]);
 
@@ -258,9 +256,6 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
         <BSNightSky />
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <BSShapeMark size={132} />
-        </div>
-        <div style={{ position: 'absolute', bottom: 'calc(34px + env(safe-area-inset-bottom, 0px))', left: 0, right: 0, textAlign: 'center', zIndex: 1, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'rgba(244,239,230,0.42)' }}>
-          Tap to enter
         </div>
       </div>
     );
@@ -771,6 +766,7 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
             </div>
           </div>
 
+          {/* Primary action — sign in or create the account */}
           {isCreate ? (
             isPhone ? (
               <button onClick={otpSent ? verifyPhoneCode : sendPhoneCode} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: '#0ac5a8', color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Working...' : otpSent ? 'Verify & join →' : 'Text me a code →'}</button>
@@ -778,32 +774,31 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
               <button onClick={submitAuth} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: '#0ac5a8', color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Creating...' : 'Time to Shape →'}</button>
             )
           ) : (
-            <>
-              {isPhone ? (
-                <button onClick={otpSent ? verifyPhoneCode : sendPhoneCode} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: '#0ac5a8', color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Working...' : otpSent ? 'Verify & sign in →' : 'Text me a code →'}</button>
-              ) : (
-                <button onClick={submitAuth} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: '#0ac5a8', color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Signing in...' : 'Sign in →'}</button>
-              )}
-
-              {/* Curious-reader path for non-members */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
-                <div style={{ flex: 1, height: 1, background: LINE }} />
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.28em', textTransform: 'uppercase', color: C50 }}>or</div>
-                <div style={{ flex: 1, height: 1, background: LINE }} />
-              </div>
-
-              <div style={{ textAlign: 'center', marginTop: -2 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, color: CREAM, lineHeight: 1.25 }}>
-                  Not yet a member, but curious?
-                </div>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: C50, marginTop: 3 }}>
-                  Take a look around — no account needed.
-                </div>
-              </div>
-
-              <button onClick={onBrowse} style={{ borderRadius: t.RADIUS_SM, padding: '14px 16px', background: 'transparent', color: CREAM, border: `1px solid ${LINE2}`, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: 'pointer' }}>Browse today's edition →</button>
-            </>
+            isPhone ? (
+              <button onClick={otpSent ? verifyPhoneCode : sendPhoneCode} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: '#0ac5a8', color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Working...' : otpSent ? 'Verify & sign in →' : 'Text me a code →'}</button>
+            ) : (
+              <button onClick={submitAuth} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: '#0ac5a8', color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Signing in...' : 'Sign in →'}</button>
+            )
           )}
+
+          {/* Browse path — always available, below the primary button, so anyone
+              can look around before creating an account. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
+            <div style={{ flex: 1, height: 1, background: LINE }} />
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.28em', textTransform: 'uppercase', color: C50 }}>or</div>
+            <div style={{ flex: 1, height: 1, background: LINE }} />
+          </div>
+
+          <div style={{ textAlign: 'center', marginTop: -2 }}>
+            <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, color: CREAM, lineHeight: 1.25 }}>
+              Just want to look around?
+            </div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: C50, marginTop: 3 }}>
+              Browse the app — no account needed.
+            </div>
+          </div>
+
+          <button onClick={onBrowse} style={{ borderRadius: t.RADIUS_SM, padding: '14px 16px', background: 'transparent', color: CREAM, border: `1px solid ${LINE2}`, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: 'pointer' }}>Browse the app →</button>
         </div>
 
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: C50, textAlign: 'center', borderTop: `1px solid ${LINE}`, paddingTop: 12 }}>
@@ -1018,7 +1013,7 @@ function BSAppShell({ tweaks, setTweak }) {
   return (
     <BSRadioProvider>
       <BSPhone>
-        {stage === 'splash' && <BSSplash style="cosmos" bg={tweaks.splashBg || 'plain'} bgColor={tweaks.splashBgColor || 'auto'} onDone={() => setStage(tweaks.startLoggedIn && !authConfigured ? 'app' : 'login')} />}
+        {stage === 'splash' && <BSSplash style="cosmos" bg={tweaks.splashBg || 'plain'} bgColor={tweaks.splashBgColor || 'auto'} onDone={() => setStage('login')} />}
         {stage === 'login'  && <BSLogin
           key={loginMode}
           initialMode={loginMode}
