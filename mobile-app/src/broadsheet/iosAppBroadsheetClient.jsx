@@ -2887,6 +2887,7 @@ function BSClientEat({ onProfile }) {
     }
   });
   const [selectedGroceryList, setSelectedGroceryList] = useStateBSC(null);
+  const [newListName, setNewListName] = useStateBSC(null); // null = sheet closed
   const [day, setDay] = useStateBSC(4); // 0..6 — Fri (idx 4) = today, mirrors Train
   const [liveProgram, setLiveProgram] = useStateBSC(null);
 
@@ -3779,10 +3780,12 @@ function BSClientEat({ onProfile }) {
       : [flat, ...prev]);
   };
 
-  const createGroceryList = () => {
-    const name = window.prompt('Name your new grocery list:');
-    if (!name || !name.trim()) return;
-    const clean = name.trim().slice(0, 60);
+  // Open the in-app naming sheet (replaces window.prompt, which is disabled
+  // in the native WebView).
+  const createGroceryList = () => setNewListName('');
+  const confirmCreateGroceryList = () => {
+    const clean = (newListName || '').trim().slice(0, 60);
+    if (!clean) return;
     const id = 'custom-' + Math.random().toString(36).slice(2, 9);
     const note = `"${clean}" — your custom grocery list.`;
     // In-view copy carries aisles; library/localStorage copy stays flat.
@@ -3795,6 +3798,7 @@ function BSClientEat({ onProfile }) {
       { id, name: clean, kind: 'custom', editable: true, eyebrow: 'Custom · Created today', author: 'You', note, usedCount: 0, preview: 'Empty list', count: 0, items: [] },
       ...prev,
     ]);
+    setNewListName(null);
     setView('grocery');
     window.__bsToast?.(`Created "${clean}"`, 'ok');
   };
@@ -3809,8 +3813,30 @@ function BSClientEat({ onProfile }) {
     if (el) el.scrollTop = 0;
   }, [day, previewMealId, previewRecipe, previewDayBrief, view, skRecipe]);
 
-  if (view === 'grocery') return <BSGrocery list={activeGroceryList} onBack={() => setView('eat')} onLibrary={() => setView('library')} recipeLists={recipeLists} onChangeView={setView} editable={!!activeGroceryList.editable} onUpdate={persistGroceryList} onCreate={createGroceryList} />;
-  if (view === 'library') return <BSGroceryLibrary onBack={() => setView('grocery')} onLoad={loadGroceryList} recipeLists={recipeLists} onCreate={createGroceryList} />;
+  // In-app "name your list" sheet — portaled so it overlays the grocery /
+  // library full-screen views from which it's triggered.
+  const newListSheet = newListName !== null ? createPortal((
+    <div onClick={() => setNewListName(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '10px 18px calc(20px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0 12px' }}>
+          <div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} />
+        </div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: t.W.display, letterSpacing: '-0.025em', marginBottom: 4 }}>New grocery list</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginBottom: 14 }}>Name it to get started</div>
+        <input autoFocus value={newListName} onChange={(e) => setNewListName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') confirmCreateGroceryList(); }}
+          placeholder="e.g. Sunday shop"
+          style={{ width: '100%', height: 48, background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 12, padding: '0 14px', fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, outline: 'none', boxSizing: 'border-box', marginBottom: 14 }} />
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={() => setNewListName(null)} style={{ flex: '0 0 auto', padding: '14px 18px', borderRadius: 999, background: 'transparent', color: t.INK50, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>Cancel</button>
+          <button onClick={confirmCreateGroceryList} disabled={!(newListName || '').trim()} style={{ flex: 1, padding: '14px 0', borderRadius: 999, background: t.ACCENT, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: (newListName || '').trim() ? 'pointer' : 'default', opacity: (newListName || '').trim() ? 1 : 0.5 }}>Create →</button>
+        </div>
+      </div>
+    </div>
+  ), (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body) : null;
+
+  if (view === 'grocery') return <>{newListSheet}<BSGrocery list={activeGroceryList} onBack={() => setView('eat')} onLibrary={() => setView('library')} recipeLists={recipeLists} onChangeView={setView} editable={!!activeGroceryList.editable} onUpdate={persistGroceryList} onCreate={createGroceryList} /></>;
+  if (view === 'library') return <>{newListSheet}<BSGroceryLibrary onBack={() => setView('grocery')} onLoad={loadGroceryList} recipeLists={recipeLists} onCreate={createGroceryList} /></>;
   if (view === 'recipes') {
     if (skRecipe) {
       const gid = 'sk-' + bsSkSlug(skRecipe.title);
