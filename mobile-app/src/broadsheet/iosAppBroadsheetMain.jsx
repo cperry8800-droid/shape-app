@@ -76,6 +76,8 @@ function ensureSkyStyles() {
   .bs-mark-edge.e2 { animation-delay:-1.6s; }
   @keyframes bsMarkEdge { to { stroke-dashoffset:-135; } }
   @media (prefers-reduced-motion: reduce) { .bs-sky-tw,.bs-aurora,.bs-shoot,.bs-shape-mark,.bs-mark-edge{ animation:none!important; } }
+  .bs-hide-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+  .bs-hide-scroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
   `;
   const el = document.createElement('style');
   el.textContent = css;
@@ -140,7 +142,7 @@ function BSCosmicWordmark({ scale = 1 }) {
   return (
     <div className="bs-splash-title" style={{ textAlign: 'center', lineHeight: 1, whiteSpace: 'nowrap', color: '#f4efe6' }}>
       <span className="bs-splash-the" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 31 * scale, letterSpacing: '-0.055em' }}>The</span>
-      <span className="bs-splash-shape" style={{ display: 'inline-block', marginLeft: 8 * scale, marginRight: 10 * scale, fontFamily: `'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif`, fontWeight: 300, fontSize: 37 * scale, letterSpacing: '0.18em', textTransform: 'uppercase', transform: 'translateY(1px)', background: 'linear-gradient(90deg, #2ee0c4, #8a5cf6 70%, #ec4899)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>SHAPE</span>
+      <span className="bs-splash-shape" style={{ display: 'inline-block', marginLeft: 8 * scale, marginRight: 10 * scale, fontFamily: `'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif`, fontWeight: 300, fontSize: 37 * scale, letterSpacing: '0.18em', textTransform: 'uppercase', transform: 'translateY(1px)', color: '#000000' }}>SHAPE</span>
       <span className="bs-splash-daily" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 31 * scale, letterSpacing: '-0.055em' }}>Daily.</span>
     </div>
   );
@@ -236,8 +238,10 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
   const SPLASH_FACE = "'Saira', 'Arial Narrow', 'Helvetica Neue', sans-serif";
   // Classified is interactive: user must tap "Step inside" — no auto-advance.
   useEffectBSM(() => {
-    if (style === 'classified') return;
-    const id = setTimeout(onDone, (style === 'cosmos' || !style) ? 2800 : 1600);
+    // Cosmos + classified are tap-only so the intro is always seen, even when
+    // a native OS splash covers the first moments after mount.
+    if (style === 'classified' || style === 'cosmos' || !style) return;
+    const id = setTimeout(onDone, 1600);
     return () => clearTimeout(id);
   }, [style]);
 
@@ -685,7 +689,7 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
   return (
     <div style={{ position: 'absolute', inset: 0, color: CREAM, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <BSNightSky />
-      <div style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 'max(52px, calc(env(safe-area-inset-top, 0px) + 26px)) 20px calc(28px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div className="bs-hide-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 'max(52px, calc(env(safe-area-inset-top, 0px) + 26px)) 20px calc(28px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', gap: 18 }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C70, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${LINE2}`, paddingBottom: 10 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><BSLogo size={16} color={CREAM} /> Vol. 6 · {isCreate ? 'New subscriber' : 'Subscribe'}</span>
           <span>{isCreate ? 'Time to Shape' : '$5 / mo'}</span>
@@ -698,7 +702,7 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
               {isCreate ? (
                 <>Join the<br/><span style={{ fontWeight: 400, fontStyle: 'italic', letterSpacing: '-0.065em', ...SHAPE_GRAD }}>community.</span></>
               ) : (
-                <>Welcome<br/>to <span style={{ display: 'inline-block', fontFamily: `'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif`, fontWeight: 300, fontStyle: 'normal', fontSize: 48, letterSpacing: '0.16em', textTransform: 'uppercase', transform: 'translateY(2px)', ...SHAPE_GRAD }}>SHAPE</span>.</>
+                <>Welcome<br/>to <span style={{ display: 'inline-block', fontFamily: `'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif`, fontWeight: 300, fontStyle: 'normal', fontSize: 48, letterSpacing: '0.16em', textTransform: 'uppercase', transform: 'translateY(2px)', color: '#000000' }}>SHAPE</span>.</>
               )}
             </div>
           </div>
