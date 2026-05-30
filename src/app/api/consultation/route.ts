@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
+import { createNotification } from '@/lib/notify';
 import { buildIcs, sendEmail } from '@/lib/email';
 import { cleanText as clean, isEmail } from '@/lib/request-utils';
 
@@ -141,6 +142,18 @@ export async function POST(req: NextRequest) {
       { error: 'Could not save your booking. Please email christopher.perry@theshapecommunity.com directly.' },
       { status: 500 }
     );
+  }
+
+  // In-app notification for the coach (best-effort — never blocks the booking).
+  if (provider.owner_id) {
+    await createNotification(admin, {
+      userId: provider.owner_id,
+      type: 'booking_request',
+      title: 'New session request',
+      body: `${clientName} requested a consultation${topic ? ` · ${topic}` : ''}.`,
+      route: 'sessions',
+      data: { sessionId: inserted.id, providerRole },
+    });
   }
 
   // Build .ics + emails. Fire-and-forget — don't fail the booking if
