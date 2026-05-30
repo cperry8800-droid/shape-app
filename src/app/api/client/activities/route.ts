@@ -69,10 +69,32 @@ export async function GET(request: Request) {
   if (error) return NextResponse.json({ activities: [], breakdown: [], totalMinutes: 0 });
 
   const rows = (data ?? []) as ActivityRow[];
+
+  // Shape Score per activity: prefer the real ledger entry (manual logs award
+  // points on create); otherwise compute the same formula so device-synced
+  // activities show the points they'd earn (1 pt / 5 min, clamped 2–20).
+  const ids = rows.map(r => r.id);
+  const ledgerByActivity = new Map<string, number>();
+  if (ids.length) {
+    const { data: led } = await supabase
+      .from('score_ledger')
+      .select('source_id, delta')
+      .eq('user_id', targetUserId)
+      .eq('source_kind', 'activity')
+      .in('source_id', ids);
+    for (const l of (led ?? []) as { source_id: string; delta: number }[]) {
+      ledgerByActivity.set(l.source_id, (ledgerByActivity.get(l.source_id) || 0) + (l.delta || 0));
+    }
+  }
+  const pointsFor = (r: ActivityRow) => {
+    if (ledgerByActivity.has(r.id)) return ledgerByActivity.get(r.id);
+    return Math.max(2, Math.min(20, Math.round((r.duration_min || 10) / 5)));
+  };
+
   const activities = rows.map(r => ({
     id: r.id, source: r.source, type: r.activity_type, title: r.title ?? r.activity_type,
     startedAt: r.started_at, durationMin: r.duration_min, distanceKm: r.distance_km,
-    calories: r.calories, strain: r.strain,
+    calories: r.calories, strain: r.strain, points: pointsFor(r),
   }));
 
   // Breakdown by type over the last 30 days.
