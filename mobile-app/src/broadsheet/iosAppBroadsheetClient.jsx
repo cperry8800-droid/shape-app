@@ -7068,6 +7068,34 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showTerms, setShowTerms] = useStateBSC(false);
   const [showIntegrations, setShowIntegrations] = useStateBSC(initialPage === 'integrations');
 
+  // Coach-only "pause new bookings" (at_capacity). null until loaded / for
+  // non-coach accounts (no provider row), in which case the block is hidden.
+  const [capacity, setCapacityState] = useStateBSC(null);
+  const [capacityBusy, setCapacityBusy] = useStateBSC(false);
+  React.useEffect(() => {
+    let cancelled = false;
+    window.ShapeBookings?.getCapacity?.()
+      .then(c => { if (!cancelled && c) setCapacityState(c); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  const toggleCapacity = async () => {
+    if (!capacity || capacityBusy) return;
+    const next = !capacity.atCapacity;
+    setCapacityBusy(true);
+    setCapacityState({ ...capacity, atCapacity: next }); // optimistic
+    try {
+      const res = await window.ShapeBookings.setCapacity({ atCapacity: next });
+      setCapacityState(c => ({ ...c, atCapacity: res.atCapacity, resumeAt: res.resumeAt }));
+      window.__bsToast?.(next ? 'Paused — new bookings are off' : 'Open for bookings again', 'ok');
+    } catch (e) {
+      setCapacityState(c => ({ ...c, atCapacity: !next })); // revert
+      window.__bsToast?.(e?.message || 'Could not update bookings', 'err');
+    } finally {
+      setCapacityBusy(false);
+    }
+  };
+
   // Identity editing
   const [identity, setIdentity] = useStateBSC({
     name: 'Alex Rivera',
@@ -7218,6 +7246,22 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         title={<>Your<br/>account.</>}
         trailing={<BSAvatar init="A" size={36} fill={t.RUST} />}
       />
+
+      {/* Coach-only — pause new bookings (at capacity) */}
+      {capacity && (
+        <div style={{ padding: `16px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}`, background: capacity.atCapacity ? t.PAPER2 : 'transparent' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ minWidth: 0 }}>
+              <BSEyebrow color={capacity.atCapacity ? t.RUST : t.GREEN}>{capacity.atCapacity ? 'At capacity' : 'Open for bookings'}</BSEyebrow>
+              <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>Pause new bookings</div>
+              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.4 }}>
+                {capacity.atCapacity ? 'New clients see an “at capacity” notice — subscribe, book & buy are blocked.' : 'Turn on to stop new subscriptions, bookings and purchases.'}
+              </div>
+            </div>
+            <Toggle on={capacity.atCapacity} onClick={toggleCapacity} />
+          </div>
+        </div>
+      )}
 
       {/* Identity card */}
       <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
