@@ -99,17 +99,37 @@ const TREND_TABS = [
   { k: "hydration", label: "Hydration",  unit: "L",    color: "#6ec8ff", fmt: (v) => v.toFixed(1) },
 ];
 
+// Small inline sparkline for the Insights summary (folded in from the old
+// Analytics page). points are 0..1 normalized.
+function MiniSpark({ points, color = TEAL }) {
+  const W = 120, H = 30;
+  const pts = (points && points.length ? points : [0.4, 0.5, 0.45, 0.6, 0.66, 0.72, 0.78]);
+  const step = pts.length > 1 ? W / (pts.length - 1) : 0;
+  const path = pts.map((v, i) => `${i === 0 ? "M" : "L"}${(i * step).toFixed(1)},${(H - v * (H - 4) - 2).toFixed(1)}`).join(" ");
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: 120, height: 30, display: "block" }} preserveAspectRatio="none">
+      <path d={path} fill="none" stroke={color} strokeWidth="2" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
 function ClientProgressPage() {
   const [data, setData] = React.useState(MOCK_PROGRESS);
   const [live, setLive] = React.useState(false);
   const [trend, setTrend] = React.useState("weight");
   const [topTab, setTopTab] = React.useState("trends"); // 'trends' | 'records'
+  // Insights summary (folded in from the removed Analytics page).
+  const [insights, setInsights] = React.useState(null);
 
   React.useEffect(() => {
     let cancelled = false;
-    fetch('/api/client/progress', { credentials: 'same-origin' })
+    fetch('/api/client/progress', { credentials: 'same-origin', cache: 'no-store' })
       .then(r => (r.ok ? r.json() : null))
       .then(d => { if (!cancelled && d && d.ok) { setData({ ...MOCK_PROGRESS, ...d, series: { ...MOCK_PROGRESS.series, ...(d.series || {}) } }); setLive(true); } })
+      .catch(() => {});
+    fetch('/api/client/analytics', { credentials: 'same-origin', cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && d && d.has_data) setInsights(d); })
       .catch(() => {});
     return () => { cancelled = true; };
   }, []);
@@ -143,6 +163,42 @@ function ClientProgressPage() {
       title="Progress"
       subtitle="Everything your team tracks — rolled up from your workouts, weigh-ins, wearables and logs."
     >
+      {/* INSIGHTS — adherence + weekly points + 7-day pulse (folded in from
+          the old Analytics page). Live; hidden until there's data. */}
+      {insights && insights.kpis && (
+        <Card style={{ marginBottom: 20, padding: "20px 22px" }}>
+          <SectionTitle right="THIS WEEK">Insights</SectionTitle>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 18 }}>
+            {[
+              { k: `${insights.kpis.workout_adherence_pct}%`, l: "Workout adherence" },
+              { k: `${insights.kpis.macro_adherence_pct}%`, l: "Macro adherence" },
+              { k: insights.kpis.avg_sleep_label, l: "Avg sleep" },
+              { k: `${insights.kpis.weekly_points >= 0 ? "+" : ""}${insights.kpis.weekly_points}`, l: "Weekly points" },
+            ].map((m, i) => (
+              <div key={i}>
+                <div style={{ fontFamily: serif, fontSize: 32, fontWeight: 400, letterSpacing: "-0.02em", lineHeight: 1 }}>{m.k}</div>
+                <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.6)", marginTop: 8 }}>{m.l}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "grid", gap: 12, borderTop: "1px solid rgba(242,237,228,0.08)", paddingTop: 16 }}>
+            {[
+              { who: "Workout consistency", sub: `${insights.workouts_this_week}/5 this week`, trend: insights.pulse && insights.pulse.workout, color: "#e8b14a" },
+              { who: "Nutrition compliance", sub: `Protein hit ${insights.protein_hits_this_week}/7 days`, trend: insights.pulse && insights.pulse.nutrition, color: "#0ac5a8" },
+              { who: "Sleep + recovery", sub: insights.kpis.avg_sleep_label === "—" ? "No data yet" : `Avg ${insights.kpis.avg_sleep_label}`, trend: insights.pulse && insights.pulse.sleep, color: "#a86bc4" },
+            ].map((p, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 500 }}>{p.who}</div>
+                  <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginTop: 2 }}>{p.sub}</div>
+                </div>
+                <MiniSpark points={p.trend} color={p.color} />
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 20 }}>
         {kpiCards.map((k, i) => (
           <Card key={i} style={{ padding: "22px 22px 20px" }}>
