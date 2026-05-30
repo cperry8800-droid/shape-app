@@ -448,11 +448,17 @@ function fmtWeekRange(s) {
   return `${sm} – ${em}, ${e.getFullYear()}`;
 }
 
-function CalendarOverlay({ open, onClose, role = "client", events = [], anchorDate = "2026-04-18" }) {
+function CalendarOverlay({ open, onClose, role = "client", events = [], anchorDate = null }) {
+  // Anchor to the real today unless an explicit anchorDate is passed (kept for
+  // demos/tests). Normalize to local midnight so the "today" highlight is exact.
+  const today = React.useMemo(() => {
+    const d = anchorDate ? new Date(anchorDate + "T00:00:00") : new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, [anchorDate]);
   const [view, setView] = React.useState("week"); // "week" | "month"
-  const [cursor, setCursor] = React.useState(() => new Date(anchorDate + "T00:00:00"));
+  const [cursor, setCursor] = React.useState(() => { const d = anchorDate ? new Date(anchorDate + "T00:00:00") : new Date(); d.setHours(0,0,0,0); return d; });
   const [selected, setSelected] = React.useState(null); // { event, anchor: {x,y,w,h} }
-  const today = new Date(anchorDate + "T00:00:00");
 
   const byDate = React.useMemo(() => {
     const m = {};
