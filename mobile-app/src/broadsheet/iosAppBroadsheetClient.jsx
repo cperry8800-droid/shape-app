@@ -5637,6 +5637,9 @@ function BSProgressSpark({ values, color, h = 40 }) {
 }
 
 const _BS_ACTIVITY_TYPES = ['Run', 'Ride', 'Swim', 'Walk', 'Hike', 'Tennis', 'Pilates', 'Rowing', 'Golf', 'Stairmaster', 'Elliptical', 'Yoga', 'HIIT', 'Strength', 'Other'];
+const _BS_ACTIVITY_ICON = { Run: '🏃', Ride: '🚴', Swim: '🏊', Walk: '🚶', Hike: '🥾', Tennis: '🎾', Pilates: '🧘', Rowing: '🚣', Golf: '⛳', Stairmaster: '🪜', Elliptical: '🏋', Yoga: '🧘', HIIT: '🔥', Strength: '💪', Other: '✦' };
+// Activities that care about distance (km) — others hide that field.
+const _BS_ACTIVITY_DISTANCE = new Set(['Run', 'Ride', 'Swim', 'Walk', 'Hike', 'Rowing']);
 
 // Bottom-sheet for logging an activity by hand (no device needed).
 // Mood check-in sheet — writes today's mood (1–10) via /api/client/checkin.
@@ -5688,19 +5691,23 @@ function BSMoodSheet({ onClose, onSaved }) {
 function BSLogActivity({ onClose, onSaved }) {
   const t = useBS();
   const [type, setType] = useStateBSC('Run');
-  const [duration, setDuration] = useStateBSC('');
+  const [duration, setDuration] = useStateBSC(45);
   const [distance, setDistance] = useStateBSC('');
   const [calories, setCalories] = useStateBSC('');
   const [busy, setBusy] = useStateBSC(false);
 
+  const mins = Math.max(0, Math.round(Number(duration) || 0));
+  const showDistance = _BS_ACTIVITY_DISTANCE.has(type);
+  // Live Shape Score preview — mirrors the server formula (1pt/5min, 2–20).
+  const ptsPreview = mins ? Math.max(2, Math.min(20, Math.round(mins / 5))) : 0;
+
   const save = async () => {
-    const mins = Math.round(Number(duration) || 0);
-    if (!mins) { window.__bsToast?.('Enter a duration', 'err'); return; }
+    if (!mins) { window.__bsToast?.('Set a duration', 'err'); return; }
     setBusy(true);
     try {
       const res = await window.ShapeActivities.log({
         activityType: type.toLowerCase(), durationMin: mins,
-        distanceKm: distance ? Number(distance) : undefined,
+        distanceKm: showDistance && distance ? Number(distance) : undefined,
         calories: calories ? Number(calories) : undefined,
       });
       window.__bsToast?.(`Logged ${type}${res?.pointsAwarded ? ` · +${res.pointsAwarded} pts` : ''}`, 'ok');
@@ -5713,36 +5720,102 @@ function BSLogActivity({ onClose, onSaved }) {
     }
   };
 
-  const field = (label, val, setVal, ph, unit) => (
-    <div style={{ flex: 1 }}>
-      <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 5 }}>{label}</div>
-      <input value={val} onChange={(e) => setVal(e.target.value)} placeholder={ph} type="number" inputMode="decimal"
-        style={{ width: '100%', height: 44, background: t.PAPER2, color: t.INK, border: `1px solid ${t.SURFACE_BORDER || t.RULE}`, borderRadius: 10, padding: '0 12px', fontFamily: t.BODY, fontSize: 15, outline: 'none' }} />
-    </div>
-  );
+  // Big stepper input: − [value unit] + with quick chips.
+  const stepper = (val, setVal, step, unit, chips) => {
+    const n = Number(val) || 0;
+    const setN = (x) => setVal(String(Math.max(0, Math.round(x))));
+    return (
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button onClick={() => setN(n - step)} style={_bsStepBtn(t)}>−</button>
+          <div style={{ flex: 1, textAlign: 'center', background: t.PAPER2, border: `1px solid ${t.RULE}`, borderRadius: 12, padding: '12px 0' }}>
+            <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 30, letterSpacing: '-0.03em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{n || '—'}</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, marginLeft: 6 }}>{unit}</span>
+          </div>
+          <button onClick={() => setN(n + step)} style={_bsStepBtn(t)}>+</button>
+        </div>
+        {chips && (
+          <div style={{ display: 'flex', gap: 6, marginTop: 8, justifyContent: 'center' }}>
+            {chips.map(c => (
+              <button key={c} onClick={() => setVal(String(c))} style={{ padding: '5px 11px', borderRadius: 999, border: `1px solid ${n === c ? t.ACCENT : t.RULE}`, background: n === c ? t.ACCENT : 'transparent', color: n === c ? '#031f1c' : t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', cursor: 'pointer' }}>{c}m</button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const sectionLabel = (s) => <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 9 }}>{s}</div>;
 
   return createPortal((
-    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, maxHeight: '88vh', overflowY: 'auto', background: t.PAPER, color: t.INK, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: '20px 18px calc(26px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -20px 60px rgba(0,0,0,0.5)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em' }}>Log activity</div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 0, color: t.INK50, fontSize: 14, cursor: 'pointer' }}>Cancel</button>
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, maxHeight: '92vh', overflowY: 'auto', background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '10px 18px calc(20px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
+        {/* Grab handle */}
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0 12px' }}>
+          <div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} />
         </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: t.W.display, letterSpacing: '-0.025em' }}>Log activity</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>Counts toward your Shape Score</div>
+          </div>
+          <button onClick={onClose} aria-label="Close" style={{ width: 32, height: 32, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK50, fontSize: 16, cursor: 'pointer', lineHeight: 1 }}>×</button>
+        </div>
+
+        {/* Activity type — icon grid */}
+        {sectionLabel('Activity')}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 7, marginBottom: 20 }}>
           {_BS_ACTIVITY_TYPES.map(a => {
             const on = a === type;
-            return <button key={a} onClick={() => setType(a)} style={{ padding: '8px 12px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? t.ACCENT : 'transparent', color: on ? '#031f1c' : t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{a}</button>;
+            return (
+              <button key={a} onClick={() => setType(a)} style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                padding: '9px 2px 7px', borderRadius: 12, cursor: 'pointer',
+                border: `1px solid ${on ? t.ACCENT : t.RULE}`,
+                background: on ? `${t.ACCENT}22` : 'transparent',
+              }}>
+                <span style={{ fontSize: 18, lineHeight: 1, filter: on ? 'none' : 'grayscale(0.4)' }}>{_BS_ACTIVITY_ICON[a] || '✦'}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: on ? t.INK : t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{a}</span>
+              </button>
+            );
           })}
         </div>
-        <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-          {field('Minutes', duration, setDuration, '45')}
-          {field('Distance (km)', distance, setDistance, '—')}
-          {field('Calories', calories, setCalories, '—')}
+
+        {/* Duration stepper */}
+        {sectionLabel('Duration')}
+        <div style={{ marginBottom: 18 }}>{stepper(duration, setDuration, 5, 'min', [15, 30, 45, 60])}</div>
+
+        {/* Optional: distance (only for distance sports) + calories */}
+        <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+          {showDistance && (
+            <div style={{ flex: 1 }}>
+              {sectionLabel('Distance · km')}
+              <input value={distance} onChange={(e) => setDistance(e.target.value)} placeholder="—" type="number" inputMode="decimal"
+                style={{ width: '100%', height: 48, background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 12, padding: '0 14px', fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, outline: 'none', boxSizing: 'border-box' }} />
+            </div>
+          )}
+          <div style={{ flex: 1 }}>
+            {sectionLabel('Calories')}
+            <input value={calories} onChange={(e) => setCalories(e.target.value)} placeholder="optional" type="number" inputMode="decimal"
+              style={{ width: '100%', height: 48, background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 12, padding: '0 14px', fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, outline: 'none', boxSizing: 'border-box' }} />
+          </div>
         </div>
-        <button onClick={save} disabled={busy} style={{ width: '100%', padding: '14px 0', borderRadius: 999, background: t.ACCENT, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Saving…' : 'Log it →'}</button>
+
+        {/* Points preview + CTA */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ flexShrink: 0, textAlign: 'center', padding: '8px 14px', borderRadius: 12, border: `1px solid ${t.GREEN}`, background: `${t.GREEN}18` }}>
+            <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 20, color: t.GREEN, lineHeight: 1 }}>+{ptsPreview}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>pts</div>
+          </div>
+          <button onClick={save} disabled={busy || !mins} style={{ flex: 1, padding: '16px 0', borderRadius: 999, background: t.ACCENT, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: (busy || !mins) ? 'default' : 'pointer', opacity: (busy || !mins) ? 0.5 : 1 }}>{busy ? 'Saving…' : `Log ${type} →`}</button>
+        </div>
       </div>
     </div>
   ), (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body);
+}
+function _bsStepBtn(t) {
+  return { width: 46, height: 46, borderRadius: 12, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, lineHeight: 1, cursor: 'pointer', flexShrink: 0 };
 }
 
 function BSClientProgress({ onBack }) {
