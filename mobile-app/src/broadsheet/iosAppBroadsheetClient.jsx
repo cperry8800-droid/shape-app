@@ -2152,7 +2152,7 @@ function BSRecipeArchivePage({ recipes, recipeLists, onOpenRecipe, onAddGrocery,
 
 // ── Shape Kitchen — recipe library (mirrors the website /recipes) ──────
 const BS_SK_DIET_COLOR = { Vegan: '#4fae5a', Vegetarian: '#7bc043', 'Plant-based': '#2ee0c4', Seafood: '#3b9ed6', Poultry: '#e0a84e', Meat: '#c0533b' };
-const BS_SK_CREATORS = [['Nutritionist', 'Nutritionists'], ['Dietician', 'Dieticians'], ['Chef', 'Chefs']];
+const BS_SK_CREATORS = [['Nutritionist', 'Nutritionists'], ['Dietician', 'Dieticians']];
 function bsSkSlug(title) {
   return String(title || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
@@ -2290,7 +2290,7 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
       {r.tip && (
         <div style={{ padding: `16px ${t.padX}px 0` }}>
           <div style={{ borderRadius: t.RADIUS_SM, border: `1px solid ${t.ACCENT}`, background: t.PAPER2, padding: 14 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700, marginBottom: 6 }}>Chef's tip</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700, marginBottom: 6 }}>Pro tip</div>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, lineHeight: 1.5 }}>{r.tip}</div>
           </div>
         </div>

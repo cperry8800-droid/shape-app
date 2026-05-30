@@ -229,7 +229,7 @@ function RecipeDetailPage() {
         {recipe.tip && (
           <div style={{ maxWidth: 980, margin: "28px auto 0", padding: "0 24px" }}>
             <div style={{ padding: "18px 20px", borderRadius: 12, background: "rgba(46,224,196,0.08)", border: "1px solid rgba(46,224,196,0.25)" }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.16em", color: TEAL_BRIGHT, marginBottom: 8 }}>CHEF'S TIP</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.16em", color: TEAL_BRIGHT, marginBottom: 8 }}>PRO TIP</div>
               <div style={{ fontSize: 15, color: "rgba(242,237,228,0.9)", lineHeight: 1.55 }}>{recipe.tip}</div>
             </div>
           </div>
