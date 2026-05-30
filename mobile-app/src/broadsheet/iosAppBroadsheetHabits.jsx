@@ -1847,17 +1847,12 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
 
   // Live (Supabase) when signed in, ephemeral tweaks otherwise — shared with
   // the home tracker so completions and edits stay in sync across surfaces.
-  const { habits, create, remove: removeHabit, setVisibility: setHabitVisibility } = _bsUseServerHabits(tweaks, setTweak);
+  const { habits, upsert, remove: removeHabit, setVisibility: setHabitVisibility } = _bsUseServerHabits(tweaks, setTweak);
+  const [adding, setAdding] = useStateBSH(false);
 
-  const addHabit = () => {
-    const name = window.prompt('New habit (prefix with "no " or "avoid " for a habit to break):');
-    if (!name) return;
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    const isAvoid = /^(no |don'?t |avoid )/i.test(trimmed);
-    const cleanName = trimmed.replace(/^(no |don'?t |avoid )/i, '').trim() || trimmed;
-    create({ name: cleanName, type: isAvoid ? 'avoid' : 'do', visibility: 'private' });
-  };
+  // Open the in-app add form. (Previously used window.prompt, which is
+  // disabled in the native WebView — it looked like it tried to leave the app.)
+  const addHabit = () => setAdding(true);
   const doneCount = habits.filter(h => (h.history || []).includes(_bsHabitsToday)).length;
   const sharedCount = habits.filter(h => h.visibility !== 'private').length;
   const publicCount = habits.filter(h => h.visibility === 'public').length;
@@ -1872,6 +1867,12 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
       />
       <div style={{ padding: `12px ${t.padX}px 0` }}>
         <BSHabitInsights habits={habits} accent={accent} onOpenScore={onOpenScore} onAddHabit={addHabit} onDeleteHabit={removeHabit} onSetVisibility={setHabitVisibility} />
+        {adding && (
+          <BSHabitForm
+            onSave={(h) => { upsert(h); setAdding(false); }}
+            onCancel={() => setAdding(false)}
+          />
+        )}
       </div>
     </BSPage>
   );
