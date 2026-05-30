@@ -476,6 +476,25 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   const [quickLoggedItems, setQuickLoggedItems] = useStateBSC({});
   const [coachFeed, setCoachFeed] = useStateBSC({ banners: [], items: [] });
   const [ticker, setTicker] = useStateBSC(null);
+  // The Energy card reads the user's active goal (nutrition + training prefs)
+  // and reframes the same balance into one of three states. Default 'maintain'.
+  const [energyGoal, setEnergyGoal] = useStateBSC('maintain');
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
+    Promise.all([
+      window.shapeDb.getUserGoals('client_nutrition_prefs').catch(() => ({})),
+      window.shapeDb.getUserGoals('client_training_prefs').catch(() => ({})),
+    ]).then(([np, tp]) => {
+      if (cancelled) return;
+      const raw = `${(np && np.primary_goal) || ''} ${(tp && tp.primary_goal) || (tp && tp.goal) || ''}`.toLowerCase();
+      const goal = /fat ?loss|cut|lean|weight ?loss|shred/.test(raw) ? 'cut'
+        : /hypertroph|build|bulk|mass|muscle|strength|gain/.test(raw) ? 'build'
+        : 'maintain';
+      setEnergyGoal(goal);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // Live focus banner + pushed items the coach sent. Initial pull, then a
   // Supabase Realtime subscription on coach_focus_banners / coach_pushed_items
@@ -661,9 +680,33 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   const balance = macros.kcalIn - macros.kcalBurn; // negative = deficit
   const balanceSign = balance < 0 ? '−' : '+';
   const balanceValue = Math.abs(balance).toString();
-  const leadKicker = balance < 0 ? 'Calorie deficit'
-                  : balance > 0 ? 'Calorie surplus'
-                  : 'Maintenance';
+  // The estimate, demoted to a secondary line with a tilde (admits it's approximate).
+  const energyEstimate = `~${balanceSign}${balanceValue} kcal`;
+
+  // ── ENERGY card — one component, three goal-driven states. Same balance,
+  // reframed: a deficit reads as on-target for a cut, balanced for maintenance,
+  // and "fuel up" for a build. Hero is a word, not a fake-precise number.
+  const energyAccents = { cut: t.GREEN, maintain: t.BLUE, build: t.AMBER };
+  const energyAccent = energyAccents[energyGoal] || t.BLUE;
+  const ENERGY_STATES = {
+    cut: {
+      kicker: 'Energy · On target', hero: 'Under',
+      meta: ['Fat loss', energyEstimate, 'within range'],
+      tail: balance < 0 ? "You're tracking where you want to be." : 'A little over today — ease back tomorrow.',
+    },
+    maintain: {
+      kicker: 'Energy · Balanced', hero: 'Even',
+      meta: ['Maintain', energyEstimate, 'steady'],
+      tail: 'Right in the pocket for holding steady.',
+    },
+    build: {
+      kicker: 'Energy · Fuel up', hero: balance < 0 ? 'Short' : 'Built',
+      meta: ['Build', energyEstimate, balance < 0 ? 'under surplus' : 'on surplus'],
+      tail: balance < 0 ? '— but a build day wants more. Add a meal.' : "— surplus in. That's the fuel for growth.",
+    },
+  };
+  const energy = ENERGY_STATES[energyGoal] || ENERGY_STATES.maintain;
+  const energyCaption = `${macros.note} ${energy.tail}`;
 
   if (previewMeal) {
     return <BSMealPreview meal={previewMeal} onBack={() => setPreviewMeal(null)} />;
@@ -868,15 +911,27 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         </div>
       </div>
 
-      {/* LEAD — calorie headline */}
+      {/* ENERGY — goal-aware headline (one component, three states) */}
       <div style={{ padding: `24px ${t.padX}px 22px`, borderBottom: `1px solid ${t.RULE}` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-          <BSEyebrow color={t.ACCENT}>{leadKicker}</BSEyebrow>
+          <BSEyebrow color={energyAccent}>{energy.kicker}</BSEyebrow>
           <BSEyebrow>{selIdx === todayIdx ? nowTime : fmtDate(selIdx)}</BSEyebrow>
         </div>
-        <BSHeadlineNumber sign={balanceSign} value={balanceValue} unit="KCAL" size={Math.round(t.headlineHero * 0.78)} />
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: t.body + 1, fontWeight: 500, color: t.INK70, letterSpacing: '-0.01em', lineHeight: 1.3, whiteSpace: 'pre-line' }}>
-          {macros.note}
+        {/* Hero — a word, not a fake-precise number */}
+        <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: Math.round(t.headlineHero * 0.86), lineHeight: 0.92, letterSpacing: '-0.045em', color: t.INK }}>
+          {energy.hero}
+        </div>
+        {/* Demoted estimate — quietly admits it's approximate */}
+        <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
+          <span>Goal: {energy.meta[0]}</span>
+          <span style={{ opacity: 0.5 }}>·</span>
+          <span>balance {energy.meta[1]}</span>
+          <span style={{ opacity: 0.5 }}>·</span>
+          <span>{energy.meta[2]}</span>
+        </div>
+        {/* Behavioral caption — the hero's voice */}
+        <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: t.body + 1, fontWeight: 500, color: t.INK70, letterSpacing: '-0.01em', lineHeight: 1.3 }}>
+          {energyCaption}
         </div>
 
         {/* Spark — interactive: tap a day to scope the Day log below */}
@@ -896,12 +951,12 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
               >
                 <div style={{
                   width: '100%', height: `${v * 100}%`,
-                  background: on ? t.INK : (today ? t.ACCENT : t.INK),
-                  opacity: on ? 1 : (today ? 1 : 0.5),
+                  background: on ? energyAccent : (today ? energyAccent : t.INK),
+                  opacity: on ? 1 : (today ? 0.85 : 0.5),
                 }} />
                 <span style={{
                   fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em',
-                  color: on ? t.INK : (today ? t.ACCENT : t.INK50),
+                  color: on ? energyAccent : (today ? energyAccent : t.INK50),
                   fontWeight: on || today ? 700 : 400,
                 }}>
                   {_BS_DOWL[i]}
