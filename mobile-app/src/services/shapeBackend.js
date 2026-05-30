@@ -2428,6 +2428,19 @@ async function logCheckin({ mood, stress, soreness } = {}) {
 }
 window.ShapeCheckin = { log: logCheckin };
 
+// Client analytics (home cards + ticker). Bearer in native, cookie on /m/.
+async function getAnalytics() {
+  if (!supabase || !state.user?.id) return null;
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/client/analytics`, { headers: sessionsAuthHeaders(), credentials: 'same-origin' });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    return null;
+  }
+}
+window.ShapeAnalytics = { get: getAnalytics };
+
 window.ShapeNotifications = {
   list: listNotifications,
   markRead: markNotificationRead,
