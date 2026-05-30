@@ -2333,6 +2333,35 @@ function subscribeNotifications(onInsert) {
   return () => { try { supabase.removeChannel(channel); } catch (e) {} };
 }
 
+// ─── Activities (typed log + manual logging) ─────────────────────────────────
+async function listActivities() {
+  if (!supabase || !state.user?.id) return { activities: [], breakdown: [], totalMinutes: 0 };
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/client/activities`, { headers: sessionsAuthHeaders(), credentials: 'same-origin' });
+    if (!res.ok) return { activities: [], breakdown: [], totalMinutes: 0 };
+    const d = await res.json();
+    return { activities: d.activities || [], breakdown: d.breakdown || [], totalMinutes: d.totalMinutes || 0 };
+  } catch (e) {
+    return { activities: [], breakdown: [], totalMinutes: 0 };
+  }
+}
+async function logActivity({ activityType, durationMin, distanceKm, calories, startedAt, title } = {}) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/client/activities`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ activityType, durationMin, distanceKm, calories, startedAt, title }),
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d.error || 'Could not log activity.');
+  return d;
+}
+
+window.ShapeActivities = {
+  list: listActivities,
+  log: logActivity,
+};
+
 window.ShapeNotifications = {
   list: listNotifications,
   markRead: markNotificationRead,

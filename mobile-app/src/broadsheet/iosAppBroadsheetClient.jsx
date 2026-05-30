@@ -5218,11 +5218,77 @@ function BSProgressSpark({ values, color, h = 40 }) {
   );
 }
 
+const _BS_ACTIVITY_TYPES = ['Run', 'Ride', 'Swim', 'Walk', 'Hike', 'Tennis', 'Pilates', 'Rowing', 'Golf', 'Stairmaster', 'Elliptical', 'Yoga', 'HIIT', 'Strength', 'Other'];
+
+// Bottom-sheet for logging an activity by hand (no device needed).
+function BSLogActivity({ onClose, onSaved }) {
+  const t = useBS();
+  const [type, setType] = useStateBSC('Run');
+  const [duration, setDuration] = useStateBSC('');
+  const [distance, setDistance] = useStateBSC('');
+  const [calories, setCalories] = useStateBSC('');
+  const [busy, setBusy] = useStateBSC(false);
+
+  const save = async () => {
+    const mins = Math.round(Number(duration) || 0);
+    if (!mins) { window.__bsToast?.('Enter a duration', 'err'); return; }
+    setBusy(true);
+    try {
+      const res = await window.ShapeActivities.log({
+        activityType: type.toLowerCase(), durationMin: mins,
+        distanceKm: distance ? Number(distance) : undefined,
+        calories: calories ? Number(calories) : undefined,
+      });
+      window.__bsToast?.(`Logged ${type}${res?.pointsAwarded ? ` · +${res.pointsAwarded} pts` : ''}`, 'ok');
+      onSaved?.();
+      onClose?.();
+    } catch (e) {
+      window.__bsToast?.(e?.message || 'Could not log activity', 'err');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const field = (label, val, setVal, ph, unit) => (
+    <div style={{ flex: 1 }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 5 }}>{label}</div>
+      <input value={val} onChange={(e) => setVal(e.target.value)} placeholder={ph} type="number" inputMode="decimal"
+        style={{ width: '100%', height: 44, background: t.PAPER2, color: t.INK, border: `1px solid ${t.SURFACE_BORDER || t.RULE}`, borderRadius: 10, padding: '0 12px', fontFamily: t.BODY, fontSize: 15, outline: 'none' }} />
+    </div>
+  );
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 9000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: '20px 18px calc(26px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -20px 60px rgba(0,0,0,0.5)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em' }}>Log activity</div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 0, color: t.INK50, fontSize: 14, cursor: 'pointer' }}>Cancel</button>
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+          {_BS_ACTIVITY_TYPES.map(a => {
+            const on = a === type;
+            return <button key={a} onClick={() => setType(a)} style={{ padding: '8px 12px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? t.ACCENT : 'transparent', color: on ? '#031f1c' : t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{a}</button>;
+          })}
+        </div>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+          {field('Minutes', duration, setDuration, '45')}
+          {field('Distance (km)', distance, setDistance, '—')}
+          {field('Calories', calories, setCalories, '—')}
+        </div>
+        <button onClick={save} disabled={busy} style={{ width: '100%', padding: '14px 0', borderRadius: 999, background: t.ACCENT, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Saving…' : 'Log it →'}</button>
+      </div>
+    </div>
+  );
+}
+
 function BSClientProgress({ onBack }) {
   const t = useBS();
   const { BSPage, BSDetailHeader } = window;
   const [data, setData] = useStateBSC(null);
   const [loading, setLoading] = useStateBSC(true);
+
+  const [acts, setActs] = useStateBSC(null); // { activities, breakdown, totalMinutes }
+  const [showLog, setShowLog] = useStateBSC(false);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -5232,6 +5298,9 @@ function BSClientProgress({ onBack }) {
       .catch(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);
+
+  const loadActivities = () => window.ShapeActivities?.list?.().then(d => setActs(d)).catch(() => {});
+  React.useEffect(() => { loadActivities(); }, []);
 
   const kpis = (data && data.kpis) || {};
   const series = (data && data.series) || {};
