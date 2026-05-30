@@ -869,12 +869,16 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   // (calories, protein, sleep, HRV, RHR, weight). Falls back to the demo
   // values when the API returns nothing (signed-out / brand-new account).
   const refreshAnalytics = React.useCallback(() => {
-    // Authenticated helper (Bearer in native; cookie on /m/). A bare fetch
-    // without the token 401s in the native shell → empty cards.
-    const p = window.ShapeAnalytics?.get
-      ? window.ShapeAnalytics.get()
-      : fetch('/api/client/analytics', { credentials: 'same-origin' }).then(r => (r.ok ? r.json() : null));
-    Promise.resolve(p)
+    // Try the authenticated helper first (sends Bearer in native). If it yields
+    // nothing — e.g. the helper's own guards, or demo mode — fall back to a
+    // plain same-origin fetch, which authenticates via the bridged cookie on
+    // /m/. This covers both the native shell and the in-browser /m/ preview.
+    const viaHelper = window.ShapeAnalytics?.get ? window.ShapeAnalytics.get() : Promise.resolve(null);
+    Promise.resolve(viaHelper)
+      .then(d => {
+        if (d) return d;
+        return fetch('/api/client/analytics', { credentials: 'same-origin' }).then(r => (r.ok ? r.json() : null));
+      })
       .then(d => { if (d) { if (d.ticker) setTicker(d.ticker); setAnalytics(d); } })
       .catch(() => {});
   }, []);
@@ -5889,16 +5893,20 @@ function BSClientProgress({ onBack }) {
 
   React.useEffect(() => {
     let cancelled = false;
-    const p = window.ShapeAnalytics?.getProgress
-      ? window.ShapeAnalytics.getProgress()
-      : fetch('/api/client/progress', { credentials: 'same-origin' }).then(r => (r.ok ? r.json() : null));
-    Promise.resolve(p)
+    const viaHelper = window.ShapeAnalytics?.getProgress ? window.ShapeAnalytics.getProgress() : Promise.resolve(null);
+    Promise.resolve(viaHelper)
+      .then(d => d || fetch('/api/client/progress', { credentials: 'same-origin' }).then(r => (r.ok ? r.json() : null)))
       .then(d => { if (!cancelled) { setData(d && d.ok ? d : null); setLoading(false); } })
       .catch(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);
 
-  const loadActivities = () => window.ShapeActivities?.list?.().then(d => setActs(d)).catch(() => {});
+  const loadActivities = () => {
+    const viaHelper = window.ShapeActivities?.list ? window.ShapeActivities.list() : Promise.resolve(null);
+    Promise.resolve(viaHelper)
+      .then(d => (d && d.activities) ? d : fetch('/api/client/activities', { credentials: 'same-origin' }).then(r => (r.ok ? r.json() : { activities: [], breakdown: [], totalMinutes: 0 })))
+      .then(d => setActs(d)).catch(() => {});
+  };
   React.useEffect(() => { loadActivities(); }, []);
 
   const kpis = (data && data.kpis) || {};
