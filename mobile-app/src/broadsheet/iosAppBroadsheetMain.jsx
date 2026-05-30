@@ -148,6 +148,12 @@ function BSCosmicWordmark({ scale = 1 }) {
   );
 }
 
+// Share the cosmic background + mark with the role bundles (home, radio).
+if (typeof window !== 'undefined') {
+  window.BSNightSky = BSNightSky;
+  window.BSShapeMark = BSShapeMark;
+}
+
 // Switchable decorative background for the Classified splash.
 // Options: plain | newsprint | watermark | engraved | halftone | grid
 function SplashBackdrop({ bg = 'newsprint', inkRgb, t }) {

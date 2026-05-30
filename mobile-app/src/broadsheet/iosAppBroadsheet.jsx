@@ -324,7 +324,7 @@ function isInteractiveTarget(target) {
 // ═══════════════════════════════════════════════════════════
 
 // Page wrapper — sets paper background and provides scroll
-function BSPage({ children, tabBarHeight = 80 }) {
+function BSPage({ children, tabBarHeight = 80, backdrop = null }) {
   const t = useBS();
   const scrollerRef = useRefBS(null);
 
@@ -381,7 +381,7 @@ function BSPage({ children, tabBarHeight = 80 }) {
     };
   }, []);
 
-  return (
+  const scroller = (
     <div ref={scrollerRef} className="bs-scroll" style={{
       position: 'absolute', inset: 0,
       height: '100%',
@@ -390,13 +390,23 @@ function BSPage({ children, tabBarHeight = 80 }) {
       WebkitOverflowScrolling: 'touch',
       touchAction: 'pan-y',
       overscrollBehaviorY: 'contain',
-      background: t.TEXTURE ? `${t.TEXTURE}, ${t.PAPER_BG}` : t.PAPER_BG,
+      background: backdrop ? 'transparent' : (t.TEXTURE ? `${t.TEXTURE}, ${t.PAPER_BG}` : t.PAPER_BG),
       color: t.INK,
       paddingBottom: `calc(${tabBarHeight + 28}px + env(safe-area-inset-bottom, 0px))`,
       fontFamily: t.BODY,
       scrollbarWidth: 'none', msOverflowStyle: 'none',
     }}>
       {children}
+    </div>
+  );
+
+  // A backdrop (e.g. cosmic night sky, radio photo) sits fixed behind the
+  // scrolling content; the scroller goes transparent so it shows through.
+  if (!backdrop) return scroller;
+  return (
+    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>{backdrop}</div>
+      <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>{scroller}</div>
     </div>
   );
 }
