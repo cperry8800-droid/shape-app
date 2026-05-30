@@ -459,13 +459,34 @@ function CalendarOverlay({ open, onClose, role = "client", events = [], anchorDa
   const [view, setView] = React.useState("week"); // "week" | "month"
   const [cursor, setCursor] = React.useState(() => { const d = anchorDate ? new Date(anchorDate + "T00:00:00") : new Date(); d.setHours(0,0,0,0); return d; });
   const [selected, setSelected] = React.useState(null); // { event, anchor: {x,y,w,h} }
+  const [serverEvents, setServerEvents] = React.useState(null); // live events from /api/calendar
+  const [adding, setAdding] = React.useState(false);
+
+  // Load live events for a wide window around the cursor whenever the calendar
+  // is open. Falls back silently (keeps prop `events`) if the user is signed
+  // out or the API is unavailable. Keyed to the cursor's month so paging refetches.
+  const monthKey = `${cursor.getFullYear()}-${cursor.getMonth()}`;
+  const reload = React.useCallback(() => {
+    if (!open) return;
+    const from = ymd(addDays(cursor, -45));
+    const to = ymd(addDays(cursor, 45));
+    fetch(`/api/calendar?from=${from}&to=${to}`, { credentials: "same-origin" })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d && Array.isArray(d.events)) setServerEvents(d.events); })
+      .catch(() => {});
+  }, [open, monthKey]);
+  React.useEffect(() => { reload(); }, [reload]);
+
+  // Server events win when present; otherwise the static prop events show.
+  const allEvents = serverEvents != null ? serverEvents : events;
+  const live = serverEvents != null;
 
   const byDate = React.useMemo(() => {
     const m = {};
-    events.forEach(e => { (m[e.date] = m[e.date] || []).push(e); });
+    allEvents.forEach(e => { (m[e.date] = m[e.date] || []).push(e); });
     Object.values(m).forEach(list => list.sort((a,b) => (a.time||"00:00").localeCompare(b.time||"00:00")));
     return m;
-  }, [events]);
+  }, [allEvents]);
 
   if (!open) return null;
 
@@ -514,6 +535,9 @@ function CalendarOverlay({ open, onClose, role = "client", events = [], anchorDa
               <button onClick={() => shift(-1)} style={navArrowStyle}>‹</button>
               <button onClick={() => shift(1)} style={navArrowStyle}>›</button>
             </div>
+            {live && (
+              <button onClick={() => setAdding(true)} style={{ background: TEAL, color: "#031f1c", border: 0, padding: "7px 16px", borderRadius: 999, fontFamily: sans, fontSize: 12, fontWeight: 700, cursor: "pointer", letterSpacing: "0.02em" }}>+ Add</button>
+            )}
             <button onClick={onClose} aria-label="Close" style={{ background: "transparent", color: "rgba(242,237,228,0.6)", border: 0, fontSize: 22, padding: "2px 10px", cursor: "pointer", marginLeft: 6 }}>×</button>
           </div>
         </div>
@@ -531,7 +555,63 @@ function CalendarOverlay({ open, onClose, role = "client", events = [], anchorDa
         {/* Body */}
         {view === "week" ? <WeekView start={startOfWeek(cursor)} byDate={byDate} today={today} onSelect={setSelected} /> : <MonthView cursor={cursor} byDate={byDate} today={today} onSelect={setSelected} />}
 
-        {selected && <EventPopover selection={selected} role={role} onClose={() => setSelected(null)} />}
+        {selected && <EventPopover selection={selected} role={role} onClose={() => setSelected(null)} onChanged={reload} />}
+        {adding && <CalAddForm defaultDate={ymd(cursor)} onClose={() => setAdding(false)} onSaved={() => { setAdding(false); reload(); }} />}
+      </div>
+    </div>
+  );
+}
+
+// Add-event modal — writes to /api/calendar (shared with the mobile app).
+function CalAddForm({ defaultDate, onClose, onSaved }) {
+  const KINDS = ["WORKOUT","MEAL","CHECKIN","CONSULT","REVIEW","PLAN","REST","ADMIN"];
+  const [kind, setKind] = React.useState("WORKOUT");
+  const [title, setTitle] = React.useState("");
+  const [sub, setSub] = React.useState("");
+  const [date, setDate] = React.useState(defaultDate);
+  const [time, setTime] = React.useState("");
+  const [dur, setDur] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState("");
+
+  const save = () => {
+    if (!title.trim()) { setErr("Add a title."); return; }
+    setBusy(true); setErr("");
+    fetch("/api/calendar", {
+      method: "POST", credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind, title: title.trim(), sub: sub.trim() || undefined, date, time: /^\d{1,2}:\d{2}$/.test(time) ? time : undefined, durationMin: dur ? Number(dur) : undefined }),
+    })
+      .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
+      .then(() => onSaved())
+      .catch(e => { setErr((e && e.error) || "Could not save."); setBusy(false); });
+  };
+
+  const field = { width: "100%", background: "rgba(242,237,228,0.06)", color: INK, border: "1px solid rgba(242,237,228,0.15)", borderRadius: 10, padding: "11px 12px", fontFamily: sans, fontSize: 14, outline: "none", boxSizing: "border-box" };
+
+  return (
+    <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(10,10,8,0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 10 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: "min(440px, 100%)", background: PAPER, color: INK, border: "1px solid rgba(242,237,228,0.12)", borderRadius: 14, padding: 22, fontFamily: sans }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
+          <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.02em" }}>Add to calendar</div>
+          <button onClick={onClose} style={{ background: "transparent", color: "rgba(242,237,228,0.6)", border: 0, fontSize: 20, cursor: "pointer" }}>×</button>
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+          {KINDS.map(k => (
+            <button key={k} onClick={() => setKind(k)} style={{ padding: "6px 12px", borderRadius: 999, cursor: "pointer", border: `1px solid ${kind===k ? TEAL : "rgba(242,237,228,0.15)"}`, background: kind===k ? TEAL : "transparent", color: kind===k ? "#031f1c" : INK, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em" }}>{k}</button>
+          ))}
+        </div>
+        <div style={{ display: "grid", gap: 10 }}>
+          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Title" style={field} />
+          <input value={sub} onChange={e => setSub(e.target.value)} placeholder="Details (optional)" style={field} />
+          <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 0.8fr", gap: 10 }}>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...field, colorScheme: "dark" }} />
+            <input value={time} onChange={e => setTime(e.target.value)} placeholder="HH:MM" style={field} />
+            <input value={dur} onChange={e => setDur(e.target.value)} placeholder="min" type="number" style={field} />
+          </div>
+        </div>
+        {err && <div style={{ color: "#ff8b7f", fontSize: 12, marginTop: 10, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>{err}</div>}
+        <button onClick={save} disabled={busy} style={{ width: "100%", marginTop: 16, padding: "13px 0", borderRadius: 999, background: TEAL, color: "#031f1c", border: 0, fontFamily: sans, fontSize: 14, fontWeight: 700, cursor: busy ? "wait" : "pointer", opacity: busy ? 0.65 : 1 }}>{busy ? "Saving…" : "Add event"}</button>
       </div>
     </div>
   );
@@ -677,8 +757,14 @@ function fmtLongDate(dateStr) {
   return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 }
 
-function EventPopover({ selection, role, onClose }) {
+function EventPopover({ selection, role, onClose, onChanged }) {
   const { event: e, anchor } = selection;
+  const canDelete = e && e.editable && e.source === "event";
+  const removeEvent = () => {
+    fetch("/api/calendar", { method: "DELETE", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: e.id }) })
+      .then(() => { onClose(); if (onChanged) onChanged(); })
+      .catch(() => {});
+  };
   const popRef = React.useRef(null);
   const [pos, setPos] = React.useState(() => {
     // Initial guess — useLayoutEffect will refine once we know size
@@ -731,7 +817,7 @@ function EventPopover({ selection, role, onClose }) {
         </div>
         <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.02em", lineHeight: 1.15, marginBottom: 8 }}>{e.title}</div>
         <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.65)", marginBottom: 4 }}>{fmtLongDate(e.date)}</div>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)" }}>{fmtTimeRange(e.time, e.duration)}</div>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)" }}>{fmtTimeRange(e.time, e.duration != null ? e.duration : e.durationMin)}</div>
       </div>
 
       {(e.sub || e.with || e.location) && (
@@ -758,6 +844,12 @@ function EventPopover({ selection, role, onClose }) {
       )}
 
       <div style={{ padding: "12px 14px 14px", borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {canDelete && (
+          <button onClick={removeEvent}
+            style={{ background: "transparent", color: "#ff8b7f", border: "1px solid rgba(255,139,127,0.4)", padding: "9px 14px", borderRadius: 4, fontFamily: sans, fontSize: 12, cursor: "pointer" }}>
+            Delete
+          </button>
+        )}
         {actions.map((a, i) => (
           a.primary ? (
             <button key={i} onClick={onClose}
