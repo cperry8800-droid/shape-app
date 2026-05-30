@@ -183,19 +183,66 @@ function eventsFor(role, t) {
 // ═══════════════════════════════════════════════════════════
 // CALENDAR SCREEN — week + month
 // ═══════════════════════════════════════════════════════════
-function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', onBack }) {
+// Map a server /api/calendar event (date 'YYYY-MM-DD', time 'HH:MM') to the
+// component's shape ({ day, time, dur, kind, title, sub, accent, ... }).
+const _BS_CAL_ACCENTS = (t) => ({
+  WORKOUT: t.AMBER, TRN: t.AMBER, SES: t.AMBER, SESSION: t.AMBER,
+  MEAL: t.BLUE, CHECKIN: t.GREEN, CHK: t.GREEN,
+  CONSULT: t.RUST, CON: t.RUST, REVIEW: t.RUST, PLAN: t.RUST, ADMIN: t.RUST, ADM: t.RUST,
+  REST: t.INK50,
+});
+function _bsMapServerCalEvent(ev, t) {
+  const [, , dd] = (ev.date || '').split('-');
+  const accents = _BS_CAL_ACCENTS(t);
+  return {
+    id: ev.id,
+    source: ev.source,
+    editable: ev.editable !== false && ev.source === 'event',
+    day: Number(dd) || null,
+    date: ev.date,
+    time: ev.time || '—',
+    dur: ev.durationMin || 0,
+    kind: ev.kind || 'ADMIN',
+    title: ev.title || '',
+    sub: ev.sub || '',
+    accent: accents[ev.kind] || t.RUST,
+    state: ev.status === 'done' ? 'done' : undefined,
+    meetingUrl: ev.meetingUrl || null,
+  };
+}
+
+function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', onBack, clientId = null }) {
   const t = useBSCal();
-  // month picker state — default to May 2026 (the demo month with data)
-  const [viewYear, setViewYear] = useStateBSCal(2026);
-  const [viewMonth, setViewMonth] = useStateBSCal(4); // 0=Jan ... 4=May
-  const [selDay, setSelDay] = useStateBSCal(14); // May 14
+  const loggedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user);
+  const _today = new Date();
+  // Default to the real current month (live), or the May 2026 demo when logged out.
+  const [viewYear, setViewYear] = useStateBSCal(loggedIn ? _today.getFullYear() : 2026);
+  const [viewMonth, setViewMonth] = useStateBSCal(loggedIn ? _today.getMonth() : 4);
+  const [selDay, setSelDay] = useStateBSCal(loggedIn ? _today.getDate() : 14);
+  const [serverEvents, setServerEvents] = useStateBSCal(null);
+  const [showAdd, setShowAdd] = useStateBSCal(false);
+
+  const pad = (n) => String(n).padStart(2, '0');
+  const loadMonth = React.useCallback(() => {
+    if (!loggedIn || !window.ShapeCalendar) { setServerEvents(null); return; }
+    const from = `${viewYear}-${pad(viewMonth + 1)}-01`;
+    const to = `${viewYear}-${pad(viewMonth + 1)}-${new Date(viewYear, viewMonth + 1, 0).getDate()}`;
+    window.ShapeCalendar.list({ from, to, clientId })
+      .then(d => setServerEvents((d.events || []).map(e => _bsMapServerCalEvent(e, t))))
+      .catch(() => setServerEvents([]));
+  }, [loggedIn, viewYear, viewMonth, clientId]);
+  React.useEffect(() => { loadMonth(); }, [loadMonth]);
+
   const sourceDayByDate = { 20: 11, 21: 14, 22: 15, 23: 16, 24: 17, 25: 18, 26: 19 };
-  const events = eventsFor(role, t).map((event) => {
+  const demoEvents = eventsFor(role, t).map((event) => {
     const day = sourceDayByDate[event.day];
     return day ? { ...event, day } : event;
   });
+  const useServer = loggedIn && serverEvents != null;
+  const events = useServer ? serverEvents : demoEvents;
   const sheet = useBSSheet();
-  const isDemoMonth = viewYear === 2026 && viewMonth === 4;
+  // With live data, "demo month" styling no longer applies — show real month.
+  const isDemoMonth = useServer ? true : (viewYear === 2026 && viewMonth === 4);
   const monthName = ['January','February','March','April','May','June','July','August','September','October','November','December'][viewMonth];
 
   const masthead = role === 'trainer' ? <>The<br/>schedule.</>
@@ -246,6 +293,15 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
         }}>›</button>
       </div>
 
+      {useServer && (
+        <div style={{ padding: `10px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
+          <button onClick={() => setShowAdd(true)} style={{
+            width: '100%', padding: '11px 0', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
+            fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
+          }}>+ Add to calendar</button>
+        </div>
+      )}
+
       <BSCalendarMonth
         events={isDemoMonth ? events : []}
         viewYear={viewYear}
@@ -256,10 +312,83 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
         setSelDay={setSelDay}
         sheet={sheet}
         role={role}
+        live={useServer}
+        onChanged={loadMonth}
       />
 
       <BSFooterCal left="The Shape Daily · Calendar" right={`${monthName} · ${viewYear}`} />
+      {showAdd && (
+        <BSCalAddSheet
+          year={viewYear} month={viewMonth} day={selDay}
+          onClose={() => setShowAdd(false)}
+          onSaved={() => { setShowAdd(false); loadMonth(); }}
+        />
+      )}
     </BSPageCal>
+  );
+}
+
+// Add-event bottom sheet (writes to /api/calendar via ShapeCalendar.create).
+function BSCalAddSheet({ year, month, day, onClose, onSaved }) {
+  const t = useBSCal();
+  const KINDS = ['WORKOUT', 'MEAL', 'CHECKIN', 'CONSULT', 'REVIEW', 'PLAN', 'REST', 'ADMIN'];
+  const [kind, setKind] = useStateBSCal('WORKOUT');
+  const [title, setTitle] = useStateBSCal('');
+  const [sub, setSub] = useStateBSCal('');
+  const [time, setTime] = useStateBSCal('');
+  const [dur, setDur] = useStateBSCal('');
+  const [busy, setBusy] = useStateBSCal(false);
+  const pad = (n) => String(n).padStart(2, '0');
+  const dateStr = `${year}-${pad(month + 1)}-${pad(day)}`;
+
+  const save = async () => {
+    if (!title.trim()) { window.__bsToast?.('Add a title', 'err'); return; }
+    setBusy(true);
+    try {
+      await window.ShapeCalendar.create({
+        kind, title: title.trim(), sub: sub.trim() || undefined,
+        date: dateStr, time: /^\d{1,2}:\d{2}$/.test(time) ? time : undefined,
+        durationMin: dur ? Number(dur) : undefined,
+      });
+      window.__bsToast?.('Added to calendar', 'ok');
+      onSaved?.();
+    } catch (e) {
+      window.__bsToast?.(e?.message || 'Could not save', 'err');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const input = (val, setVal, ph, type = 'text') => (
+    <input value={val} onChange={(e) => setVal(e.target.value)} placeholder={ph} type={type}
+      style={{ width: '100%', height: 44, background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 10, padding: '0 12px', fontFamily: t.BODY || t.DISPLAY, fontSize: 15, outline: 'none' }} />
+  );
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 9000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: '20px 18px calc(26px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -20px 60px rgba(0,0,0,0.5)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em' }}>Add to calendar</div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 0, color: t.INK50, fontSize: 14, cursor: 'pointer' }}>Cancel</button>
+        </div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 14 }}>{dateStr}</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+          {KINDS.map(k => {
+            const on = k === kind;
+            return <button key={k} onClick={() => setKind(k)} style={{ padding: '7px 11px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? t.ACCENT : 'transparent', color: on ? '#031f1c' : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{k}</button>;
+          })}
+        </div>
+        <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
+          {input(title, setTitle, 'Title (e.g. Upper Push)')}
+          {input(sub, setSub, 'Details (optional)')}
+          <div style={{ display: 'flex', gap: 8 }}>
+            {input(time, setTime, 'Time HH:MM', 'text')}
+            {input(dur, setDur, 'Min', 'number')}
+          </div>
+        </div>
+        <button onClick={save} disabled={busy} style={{ width: '100%', padding: '14px 0', borderRadius: 999, background: t.ACCENT, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Saving…' : 'Add event →'}</button>
+      </div>
+    </div>
   );
 }
 
@@ -358,7 +487,7 @@ function BSDayTimeline({ events, sheet, role }) {
 }
 
 // ────────── MONTH VIEW
-function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, selDay, setSelDay, sheet, role }) {
+function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, selDay, setSelDay, sheet, role, live = false, onChanged = () => {} }) {
   const t = useBSCal();
   // Compute first-of-month DOW (Mon=0..Sun=6) and days-in-month for any year/month
   const firstJsDow = new Date(viewYear, viewMonth, 1).getDay(); // 0=Sun..6=Sat
@@ -461,7 +590,7 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
             ) : (
               <div style={{ borderTop: `1px solid ${t.RULE}` }}>
                 {dayEv.map((e, i) => (
-                  <button key={i} onClick={() => sheet && sheet.open(<BSEventSheet event={e} role={role} onClose={() => sheet.close()} />)} style={{
+                  <button key={i} onClick={() => sheet && sheet.open(<BSEventSheet event={e} role={role} live={live} onChanged={onChanged} onClose={() => sheet.close()} />)} style={{
                     width: '100%', padding: `12px ${t.padX}px`, borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}`, borderBottom: 0, borderLeft: 0, borderRight: 0,
                     background: 'transparent', textAlign: 'left', cursor: 'pointer',
                     display: 'grid', gridTemplateColumns: '52px 1fr auto', alignItems: 'center', gap: 12,
@@ -493,9 +622,20 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
 // ═══════════════════════════════════════════════════════════
 // EVENT DETAIL SHEET
 // ═══════════════════════════════════════════════════════════
-function BSEventSheet({ event, role, onClose }) {
+function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {} }) {
   const t = useBSCal();
-  const isWorkout = event.kind === 'TRN' || event.kind === 'SES';
+  const canDelete = live && event.editable && event.source === 'event';
+  const removeEvent = async () => {
+    try {
+      await window.ShapeCalendar?.remove?.(event.id);
+      window.__bsToast?.('Removed', 'ok');
+      onClose();
+      onChanged();
+    } catch (e) {
+      window.__bsToast?.('Could not remove', 'err');
+    }
+  };
+  const isWorkout = event.kind === 'TRN' || event.kind === 'SES' || event.kind === 'WORKOUT';
   const isMeal    = event.kind === 'MEAL';
   const isConsult = event.kind === 'CON';
   const isCheck   = event.kind === 'CHK';
@@ -506,7 +646,7 @@ function BSEventSheet({ event, role, onClose }) {
       <div style={{ padding: `40px ${t.padX}px 18px`, borderBottom: `2px solid ${t.INK}` }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 10 }}>
           <BSTagCal color={event.accent}>{event.kind}</BSTagCal>
-          <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', color: t.INK70, fontWeight: 600 }}>May {event.day} · {event.time}{event.dur ? ` · ${event.dur}m` : ''}</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', color: t.INK70, fontWeight: 600 }}>{event.date ? new Date(event.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : `May ${event.day}`} · {event.time}{event.dur ? ` · ${event.dur}m` : ''}</span>
         </div>
         <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 40, lineHeight: 0.95, letterSpacing: '-0.035em', color: t.INK }}>
           {event.title}
@@ -529,7 +669,9 @@ function BSEventSheet({ event, role, onClose }) {
         {isConsult && <button onClick={() => { onClose(); window.__bsToast?.('Joining call…'); }} style={primaryBtn(t)}>Join consult →</button>}
         {isCheck   && <button onClick={() => { onClose(); window.__bsToast?.('Submitted check-in', 'ok'); }} style={primaryBtn(t)}>Submit check-in</button>}
         {!isWorkout && !isMeal && !isConsult && !isCheck && <button onClick={onClose} style={primaryBtn(t)}>Done</button>}
-        <button onClick={() => { onClose(); window.__bsToast?.('Rescheduled to tomorrow', 'warn'); }} style={secondaryBtn(t)}>Reschedule</button>
+        {canDelete
+          ? <button onClick={removeEvent} style={secondaryBtn(t)}>Delete</button>
+          : <button onClick={() => { onClose(); window.__bsToast?.('Rescheduled to tomorrow', 'warn'); }} style={secondaryBtn(t)}>Reschedule</button>}
       </div>
     </div>
   );

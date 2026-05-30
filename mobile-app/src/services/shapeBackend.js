@@ -2358,6 +2358,58 @@ async function logActivity({ activityType, durationMin, distanceKm, calories, st
   return d;
 }
 
+// ─── Calendar (shared with website via /api/calendar) ────────────────────────
+async function listCalendar({ from, to, clientId } = {}) {
+  if (!supabase || !state.user?.id) return { events: [] };
+  try {
+    const qs = new URLSearchParams();
+    if (from) qs.set('from', from);
+    if (to) qs.set('to', to);
+    if (clientId) qs.set('clientId', clientId);
+    const res = await fetch(`${apiBaseUrl || ''}/api/calendar?${qs.toString()}`, { headers: sessionsAuthHeaders(), credentials: 'same-origin' });
+    if (!res.ok) return { events: [] };
+    const d = await res.json();
+    return { events: Array.isArray(d.events) ? d.events : [] };
+  } catch (e) {
+    return { events: [] };
+  }
+}
+async function createCalendarEvent(body = {}) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/calendar`, {
+    method: 'POST', credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(body),
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d.error || 'Could not save event.');
+  return d.event;
+}
+async function updateCalendarEvent(body = {}) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/calendar`, {
+    method: 'PATCH', credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(body),
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d.error || 'Could not update event.');
+  return d.event;
+}
+async function deleteCalendarEvent(id) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/calendar`, {
+    method: 'DELETE', credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ id }),
+  });
+  return res.ok;
+}
+
+window.ShapeCalendar = {
+  list: listCalendar,
+  create: createCalendarEvent,
+  update: updateCalendarEvent,
+  remove: deleteCalendarEvent,
+};
+
 window.ShapeActivities = {
   list: listActivities,
   log: logActivity,
