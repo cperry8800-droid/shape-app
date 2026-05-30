@@ -869,8 +869,12 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   // (calories, protein, sleep, HRV, RHR, weight). Falls back to the demo
   // values when the API returns nothing (signed-out / brand-new account).
   const refreshAnalytics = React.useCallback(() => {
-    fetch('/api/client/analytics', { credentials: 'same-origin' })
-      .then(r => (r.ok ? r.json() : null))
+    // Authenticated helper (Bearer in native; cookie on /m/). A bare fetch
+    // without the token 401s in the native shell → empty cards.
+    const p = window.ShapeAnalytics?.get
+      ? window.ShapeAnalytics.get()
+      : fetch('/api/client/analytics', { credentials: 'same-origin' }).then(r => (r.ok ? r.json() : null));
+    Promise.resolve(p)
       .then(d => { if (d) { if (d.ticker) setTicker(d.ticker); setAnalytics(d); } })
       .catch(() => {});
   }, []);
@@ -5655,7 +5659,7 @@ function BSMoodSheet({ onClose, onSaved }) {
     }
   };
   return createPortal((
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, maxHeight: '88vh', overflowY: 'auto', background: t.PAPER, color: t.INK, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: '20px 18px calc(26px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -20px 60px rgba(0,0,0,0.5)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em' }}>How are you feeling?</div>
@@ -5678,7 +5682,7 @@ function BSMoodSheet({ onClose, onSaved }) {
         <button onClick={save} disabled={busy} style={{ width: '100%', marginTop: 16, padding: '14px 0', borderRadius: 999, background: t.ACCENT, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Saving…' : 'Log check-in →'}</button>
       </div>
     </div>
-  ), document.body);
+  ), (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body);
 }
 
 function BSLogActivity({ onClose, onSaved }) {
@@ -5718,7 +5722,7 @@ function BSLogActivity({ onClose, onSaved }) {
   );
 
   return createPortal((
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, maxHeight: '88vh', overflowY: 'auto', background: t.PAPER, color: t.INK, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: '20px 18px calc(26px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -20px 60px rgba(0,0,0,0.5)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 }}>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em' }}>Log activity</div>
@@ -5738,7 +5742,7 @@ function BSLogActivity({ onClose, onSaved }) {
         <button onClick={save} disabled={busy} style={{ width: '100%', padding: '14px 0', borderRadius: 999, background: t.ACCENT, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Saving…' : 'Log it →'}</button>
       </div>
     </div>
-  ), document.body);
+  ), (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body);
 }
 
 function BSClientProgress({ onBack }) {

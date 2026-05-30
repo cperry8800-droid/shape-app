@@ -1011,7 +1011,7 @@ function BSPhone({ children }) {
         touchAction: 'auto',
         fontFamily: t.BODY,
       }}>
-        <div className="bs-paper-grain" style={{
+        <div id="bs-phone-surface" className="bs-paper-grain" style={{
           width: '100%',
           height: '100%',
           overflow: 'hidden',
@@ -1043,7 +1043,7 @@ function BSPhone({ children }) {
       position: 'relative',
       fontFamily: t.BODY,
     }}>
-      <div className="bs-paper-grain" style={{
+      <div id="bs-phone-surface" className="bs-paper-grain" style={{
         width: '100%', height: '100%', borderRadius: 42, overflow: 'hidden',
         position: 'relative', background: t.PAPER_BG,
       }}>
