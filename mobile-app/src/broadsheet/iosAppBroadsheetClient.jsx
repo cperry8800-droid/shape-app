@@ -5532,14 +5532,17 @@ function BSSessionsScreen({ onBack }) {
   const upcoming = all.filter(s => s.status === 'confirmed' && new Date(s.scheduledAt).getTime() > now - 60 * 60 * 1000);
   const other = all.filter(s => !requests.includes(s) && !upcoming.includes(s));
 
+  const SESSION_ICON = { video: '🎥', phone: '📞', inperson: '📍', message: '💬' };
+  const statusColor = (st) => st === 'confirmed' ? t.GREEN : st === 'requested' ? t.AMBER : st === 'completed' ? t.BLUE : t.INK50;
+
   const Btn = ({ onClick, label, kind = 'ghost', disabled }) => (
     <button onClick={onClick} disabled={disabled} style={{
-      padding: '8px 12px', borderRadius: t.RADIUS_SM, cursor: disabled ? 'wait' : 'pointer',
-      border: kind === 'solid' ? 0 : `1px solid ${kind === 'danger' ? t.RUST : t.INK}`,
-      background: kind === 'solid' ? t.GREEN : kind === 'danger' ? 'transparent' : 'transparent',
-      color: kind === 'solid' ? '#fff' : kind === 'danger' ? t.RUST : t.INK,
+      flex: kind === 'solid' ? 1 : 'none', padding: '11px 16px', borderRadius: 999, cursor: disabled ? 'wait' : 'pointer',
+      border: kind === 'solid' ? 0 : `1px solid ${kind === 'danger' ? t.RUST : t.RULE}`,
+      background: kind === 'solid' ? t.GREEN : 'transparent',
+      color: kind === 'solid' ? '#031f1c' : kind === 'danger' ? t.RUST : t.INK70,
       fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
-      opacity: disabled ? 0.6 : 1,
+      opacity: disabled ? 0.55 : 1,
     }}>{label}</button>
   );
 
@@ -5547,24 +5550,32 @@ function BSSessionsScreen({ onBack }) {
     const isCoach = s.role === 'coach';
     const who = isCoach ? s.clientName : s.providerName;
     const joinable = s.type === 'video' && s.meetingUrl && (s.status === 'confirmed');
+    const sc = statusColor(s.status);
     return (
-      <div style={{ padding: '13px 0', borderBottom: `1px solid ${t.HAIR}` }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{who}</div>
-            <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>
-              {_bsFormatSessionWhen(s.scheduledAt)} · {s.durationMin}m · {s.type}
+      <div style={{ marginBottom: 10, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, overflow: 'hidden' }}>
+        {/* status accent strip */}
+        <div style={{ height: 3, background: sc }} />
+        <div style={{ padding: '13px 15px 14px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 11, minWidth: 0 }}>
+              <span style={{ fontSize: 22, lineHeight: 1.1, flexShrink: 0 }}>{SESSION_ICON[s.type] || '🗓'}</span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{who}</div>
+                <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
+                  {_bsFormatSessionWhen(s.scheduledAt)} · {s.durationMin}m
+                </div>
+                {s.topic ? <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, fontWeight: 500, lineHeight: 1.3 }}>{s.topic}</div> : null}
+              </div>
             </div>
-            {s.topic ? <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, fontWeight: 500 }}>{s.topic}</div> : null}
+            <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: sc, border: `1px solid ${sc}`, borderRadius: 999, padding: '3px 8px', whiteSpace: 'nowrap' }}>{s.status}</span>
           </div>
-          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: s.status === 'confirmed' ? t.GREEN : s.status === 'requested' ? t.AMBER : t.INK50, whiteSpace: 'nowrap' }}>{s.status}</span>
-        </div>
-        <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {joinable && <Btn kind="solid" label="Join video call" onClick={() => setCall({ url: s.meetingUrl, title: who })} />}
-          {isCoach && s.status === 'requested' && <Btn kind="solid" label="Confirm" disabled={busyId === s.id} onClick={() => act(s.id, 'confirm')} />}
-          {isCoach && s.status === 'requested' && <Btn kind="danger" label="Decline" disabled={busyId === s.id} onClick={() => act(s.id, 'decline')} />}
-          {isCoach && s.status === 'confirmed' && <Btn label="Mark done" disabled={busyId === s.id} onClick={() => act(s.id, 'complete')} />}
-          {(s.status === 'requested' || s.status === 'confirmed') && <Btn kind="danger" label="Cancel" disabled={busyId === s.id} onClick={() => act(s.id, 'cancel')} />}
+          <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            {joinable && <Btn kind="solid" label="Join video call →" onClick={() => setCall({ url: s.meetingUrl, title: who })} />}
+            {isCoach && s.status === 'requested' && <Btn kind="solid" label="Confirm" disabled={busyId === s.id} onClick={() => act(s.id, 'confirm')} />}
+            {isCoach && s.status === 'requested' && <Btn kind="danger" label="Decline" disabled={busyId === s.id} onClick={() => act(s.id, 'decline')} />}
+            {isCoach && s.status === 'confirmed' && <Btn label="Mark done" disabled={busyId === s.id} onClick={() => act(s.id, 'complete')} />}
+            {(s.status === 'requested' || s.status === 'confirmed') && <Btn kind="danger" label="Cancel" disabled={busyId === s.id} onClick={() => act(s.id, 'cancel')} />}
+          </div>
         </div>
       </div>
     );
@@ -5573,7 +5584,7 @@ function BSSessionsScreen({ onBack }) {
   const Group = ({ title, kicker, items }) => items.length ? (
     <>
       <BSSection title={title} kicker={kicker} meta={`${items.length}`} />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+      <div style={{ padding: `12px ${t.padX}px 4px` }}>
         {items.map(s => <Card key={s.id} s={s} />)}
       </div>
     </>
