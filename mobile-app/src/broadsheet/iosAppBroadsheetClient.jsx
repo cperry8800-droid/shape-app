@@ -5387,6 +5387,16 @@ function _bsNotifAgo(iso) {
   return `${Math.floor(s / 86400)}d`;
 }
 
+// Icon + accent per notification type (falls back to a bell).
+function _bsNotifStyle(type, t) {
+  const map = {
+    booking_request: ['🗓', t.AMBER], session_confirmed: ['✅', t.GREEN], session_declined: ['✕', t.RUST],
+    payment: ['💸', t.GREEN], message: ['💬', t.BLUE], workout: ['🏋', t.AMBER],
+    meal_plan: ['🍽', t.RUST], program: ['🗺', t.ACCENT], grocery: ['🛒', t.RUST], general: ['🔔', t.ACCENT],
+  };
+  return map[type] || map.general;
+}
+
 function BSNotifications({ onBack, onRoute = () => {} }) {
   const t = useBS();
   const { BSPage, BSDetailHeader } = window;
@@ -5439,21 +5449,29 @@ function BSNotifications({ onBack, onRoute = () => {} }) {
         </div>
       )}
       {list.length > 0 && (
-        <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
-          {list.map((n, i) => (
-            <button key={n.id} onClick={() => open(n)} style={{
-              width: '100%', textAlign: 'left', display: 'grid', gridTemplateColumns: '8px 1fr auto', alignItems: 'start', gap: 10,
-              padding: '13px 0', borderBottom: i === list.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-              border: 0, borderBottomStyle: 'solid', background: 'transparent', cursor: n.route ? 'pointer' : 'default',
-            }}>
-              <span style={{ width: 7, height: 7, borderRadius: 99, marginTop: 6, background: n.read ? 'transparent' : t.ACCENT, border: n.read ? `1px solid ${t.HAIR}` : 0 }} />
-              <span style={{ minWidth: 0 }}>
-                <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: n.read ? 500 : 700, color: t.INK, letterSpacing: '-0.015em' }}>{n.title}</span>
-                {n.body ? <span style={{ display: 'block', marginTop: 3, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, fontWeight: 500, lineHeight: 1.35 }}>{n.body}</span> : null}
-              </span>
-              <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', marginTop: 2 }}>{_bsNotifAgo(n.createdAt)}</span>
-            </button>
-          ))}
+        <div style={{ padding: `12px ${t.padX}px 4px` }}>
+          {list.map((n) => {
+            const [icon, accent] = _bsNotifStyle(n.type, t);
+            return (
+              <button key={n.id} onClick={() => open(n)} style={{
+                width: '100%', textAlign: 'left', display: 'grid', gridTemplateColumns: '40px 1fr auto', alignItems: 'start', gap: 11,
+                padding: '12px 13px', marginBottom: 9, borderRadius: 13, cursor: n.route ? 'pointer' : 'default',
+                border: `1px solid ${n.read ? t.RULE : accent}`,
+                background: n.read ? 'transparent' : `${accent}14`,
+              }}>
+                <span style={{ width: 36, height: 36, borderRadius: 10, display: 'grid', placeItems: 'center', fontSize: 17, background: `${accent}22`, border: `1px solid ${accent}55` }}>{icon}</span>
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    {!n.read && <span style={{ width: 6, height: 6, borderRadius: 99, background: accent, flexShrink: 0 }} />}
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: n.read ? 600 : 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.title}</span>
+                  </span>
+                  {n.body ? <span style={{ display: 'block', marginTop: 3, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, fontWeight: 500, lineHeight: 1.35 }}>{n.body}</span> : null}
+                  {n.route ? <span style={{ display: 'block', marginTop: 5, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent, fontWeight: 700 }}>Open →</span> : null}
+                </span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', marginTop: 2 }}>{_bsNotifAgo(n.createdAt)}</span>
+              </button>
+            );
+          })}
         </div>
       )}
       <BSFooter right="Activity" />
