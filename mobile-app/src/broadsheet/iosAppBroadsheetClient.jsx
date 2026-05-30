@@ -589,13 +589,13 @@ function BSHomeCardItem({ slot, model, t, pinned, onPin, onRemove, onOpen, dragg
       draggable={draggable}
       {...(dragHandlers || {})}
       style={{
-        margin: `0 ${t.padX}px 12px`, borderRadius: 14, overflow: 'hidden',
+        margin: `0 ${t.padX}px 10px`, borderRadius: 12, overflow: 'hidden',
         border: dragOver ? `1.5px dashed ${model.accent}` : (pinned ? `1.5px solid ${model.accent}` : `1px solid ${t.RULE}`),
         background: t.PAPER2,
         opacity: dragging ? 0.5 : 1,
         transition: 'opacity 0.15s ease',
       }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px 0' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 13px 0' }}>
         <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: model.accent, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
           {draggable && <span title="Drag to reorder" style={{ cursor: 'grab', color: t.INK50, fontSize: 12, letterSpacing: 0 }}>⠿</span>}
           {model.kicker}{pinned ? ' · pinned' : ''}
@@ -605,13 +605,13 @@ function BSHomeCardItem({ slot, model, t, pinned, onPin, onRemove, onOpen, dragg
           <button onClick={onRemove} title="Hide" style={_bsCardBtn(t, t.INK50)}>×</button>
         </div>
       </div>
-      <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: onOpen ? 'pointer' : 'default', padding: '6px 14px 16px' }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 46, lineHeight: 0.9, letterSpacing: '-0.045em', color: t.INK }}>{model.hero}</span>
-          {model.heroUnit ? <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{model.heroUnit}</span> : null}
+      <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: onOpen ? 'pointer' : 'default', padding: '4px 13px 13px' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 7, flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 36, lineHeight: 0.9, letterSpacing: '-0.04em', color: t.INK }}>{model.hero}</span>
+          {model.heroUnit ? <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{model.heroUnit}</span> : null}
         </div>
         {model.sub && model.sub.length > 0 && (
-          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
+          <div style={{ marginTop: 7, display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
             {model.sub.filter(Boolean).map((s, i) => (
               <React.Fragment key={i}>
                 {i > 0 && <span style={{ opacity: 0.5 }}>·</span>}
@@ -620,7 +620,7 @@ function BSHomeCardItem({ slot, model, t, pinned, onPin, onRemove, onOpen, dragg
             ))}
           </div>
         )}
-        {model.caption ? <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: t.body + 1, fontWeight: 500, color: t.INK70, letterSpacing: '-0.01em', lineHeight: 1.3 }}>{model.caption}</div> : null}
+        {model.caption ? <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: t.body, fontWeight: 500, color: t.INK70, letterSpacing: '-0.01em', lineHeight: 1.28 }}>{model.caption}</div> : null}
       </button>
     </div>
   );
@@ -816,6 +816,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   const [previewMeal, setPreviewMeal] = useStateBSC(null);
   const [habitsPage, setHabitsPage] = useStateBSC(false);
   const [showLogActivity, setShowLogActivity] = useStateBSC(false);
+  const [showMood, setShowMood] = useStateBSC(false);
   const [activeDayLogKey, setActiveDayLogKey] = useStateBSC(null);
   const [quickLoggedItems, setQuickLoggedItems] = useStateBSC({});
   const [coachFeed, setCoachFeed] = useStateBSC({ banners: [], items: [] });
@@ -867,14 +868,13 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   // Hydrate the masthead ticker from /api/client/analytics — latest snapshot
   // (calories, protein, sleep, HRV, RHR, weight). Falls back to the demo
   // values when the API returns nothing (signed-out / brand-new account).
-  React.useEffect(() => {
-    let cancelled = false;
+  const refreshAnalytics = React.useCallback(() => {
     fetch('/api/client/analytics', { credentials: 'same-origin' })
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (!cancelled && d) { if (d.ticker) setTicker(d.ticker); setAnalytics(d); } })
+      .then(d => { if (d) { if (d.ticker) setTicker(d.ticker); setAnalytics(d); } })
       .catch(() => {});
-    return () => { cancelled = true; };
   }, []);
+  React.useEffect(() => { refreshAnalytics(); }, [refreshAnalytics]);
 
   // Home-page lunch record (fed to BSMealPreview when user taps the slab).
   // Mirrors the shape of meals in BSClientEat — same preview component.
@@ -1077,7 +1077,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     energy: undefined,
     recovery: goIntegrations,
     protein: undefined,
-    mood: undefined,
+    mood: () => setShowMood(true),
   };
 
   if (previewMeal) {
@@ -1671,7 +1671,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
       })()}
 
       <BSFooter right="Pg 1 of 1" />
-      {showLogActivity && <BSLogActivity onClose={() => setShowLogActivity(false)} onSaved={() => {}} />}
+      {showLogActivity && <BSLogActivity onClose={() => setShowLogActivity(false)} onSaved={refreshAnalytics} />}
+      {showMood && <BSMoodSheet onClose={() => setShowMood(false)} onSaved={refreshAnalytics} />}
     </BSPage>
   );
 }
@@ -5623,6 +5624,52 @@ function BSProgressSpark({ values, color, h = 40 }) {
 const _BS_ACTIVITY_TYPES = ['Run', 'Ride', 'Swim', 'Walk', 'Hike', 'Tennis', 'Pilates', 'Rowing', 'Golf', 'Stairmaster', 'Elliptical', 'Yoga', 'HIIT', 'Strength', 'Other'];
 
 // Bottom-sheet for logging an activity by hand (no device needed).
+// Mood check-in sheet — writes today's mood (1–10) via /api/client/checkin.
+function BSMoodSheet({ onClose, onSaved }) {
+  const t = useBS();
+  const [val, setVal] = useStateBSC(7);
+  const [busy, setBusy] = useStateBSC(false);
+  const labelFor = (m) => m >= 8 ? 'Great' : m >= 6 ? 'Good' : m >= 4 ? 'Okay' : 'Low';
+  const save = async () => {
+    setBusy(true);
+    try {
+      await window.ShapeCheckin.log({ mood: val });
+      window.__bsToast?.(`Logged · ${labelFor(val)}`, 'ok');
+      onSaved?.();
+      onClose?.();
+    } catch (e) {
+      window.__bsToast?.(e?.message || 'Could not save', 'err');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 9000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: '20px 18px calc(26px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -20px 60px rgba(0,0,0,0.5)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em' }}>How are you feeling?</div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 0, color: t.INK50, fontSize: 14, cursor: 'pointer' }}>Cancel</button>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: '10px 0 14px' }}>
+          <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 44, letterSpacing: '-0.04em', color: t.INK }}>{labelFor(val)}</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 12, letterSpacing: '0.1em', color: t.INK50, fontWeight: 700 }}>{val}/10</span>
+        </div>
+        <div style={{ display: 'flex', gap: 5 }}>
+          {[1,2,3,4,5,6,7,8,9,10].map((n) => (
+            <button key={n} onClick={() => setVal(n)} style={{
+              flex: 1, height: 40, borderRadius: 8, cursor: 'pointer',
+              border: `1px solid ${n === val ? t.ACCENT : t.RULE}`,
+              background: n <= val ? t.ACCENT : 'transparent',
+              color: n <= val ? '#031f1c' : t.INK50, fontFamily: t.MONO, fontSize: 11, fontWeight: 800,
+            }}>{n}</button>
+          ))}
+        </div>
+        <button onClick={save} disabled={busy} style={{ width: '100%', marginTop: 16, padding: '14px 0', borderRadius: 999, background: t.ACCENT, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Saving…' : 'Log check-in →'}</button>
+      </div>
+    </div>
+  );
+}
+
 function BSLogActivity({ onClose, onSaved }) {
   const t = useBS();
   const [type, setType] = useStateBSC('Run');
