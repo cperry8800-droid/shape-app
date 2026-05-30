@@ -1290,6 +1290,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
       })()}
 
       <BSFooter right="Pg 1 of 1" />
+      {showLogActivity && <BSLogActivity onClose={() => setShowLogActivity(false)} onSaved={() => {}} />}
     </BSPage>
   );
 }
