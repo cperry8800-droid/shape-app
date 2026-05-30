@@ -8,8 +8,33 @@ import { NextResponse } from 'next/server';
 import type Stripe from 'stripe';
 import { stripe } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { createNotification } from '@/lib/notify';
 
 export const runtime = 'nodejs';
+
+// Notify a coach (provider owner) of revenue. Best-effort; never throws.
+async function notifyProviderOwner(
+  admin: ReturnType<typeof createAdminClient>,
+  providerId: number,
+  providerRole: string,
+  title: string,
+  body: string
+): Promise<void> {
+  try {
+    const table = providerRole === 'nutritionist' ? 'nutritionists' : 'trainers';
+    const { data } = await admin.from(table).select('owner_id').eq('id', providerId).maybeSingle();
+    const ownerId = (data as { owner_id?: string } | null)?.owner_id;
+    if (ownerId) {
+      await createNotification(admin, { userId: ownerId, type: 'payment', title, body, route: 'sessions' });
+    }
+  } catch {
+    /* best-effort */
+  }
+}
+
+function usd(cents: number): string {
+  return `$${(Math.max(0, cents) / 100).toFixed(2)}`;
+}
 
 function isoOrNull(unixSeconds: number | null | undefined): string | null {
   if (!unixSeconds) return null;
@@ -129,6 +154,12 @@ export async function POST(request: Request) {
             },
             { onConflict: 'stripe_checkout_session_id' }
           );
+          // 85% of the gross lands with the coach after the 15% platform fee.
+          await notifyProviderOwner(
+            admin, Number(providerId), providerRole,
+            'Payment received',
+            `${usd(Math.round(priceCents * 0.85))} from a client${kind === 'meal_plan' ? ' for a meal plan' : kind === 'booking' ? ' for a booking' : ''}.`
+          );
           break;
         }
 
@@ -177,6 +208,13 @@ export async function POST(request: Request) {
           },
           { onConflict: 'stripe_subscription_id' }
         );
+        if (providerId && providerRole) {
+          await notifyProviderOwner(
+            admin, Number(providerId), providerRole,
+            'New subscriber',
+            `A new client just subscribed${priceCents ? ` · ${usd(Math.round(priceCents * 0.85))}/mo to you` : ''}.`
+          );
+        }
         break;
       }
 
