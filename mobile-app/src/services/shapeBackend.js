@@ -2266,6 +2266,39 @@ window.ShapeApplications = {
   submitProviderApplication,
 };
 
+// ─── Sessions API (confirm/decline/join via /api/sessions/manage) ────────────
+// Works in both the web (/m/, same-origin cookie) and native (Bearer) contexts.
+function sessionsApiUrl() {
+  return `${apiBaseUrl || ''}/api/sessions/manage`;
+}
+function sessionsAuthHeaders(extra = {}) {
+  const h = { ...extra };
+  if (state.session?.access_token) h.Authorization = `Bearer ${state.session.access_token}`;
+  return h;
+}
+async function getSessions() {
+  if (!supabase || !state.user?.id) return [];
+  try {
+    const res = await fetch(sessionsApiUrl(), { headers: sessionsAuthHeaders(), credentials: 'same-origin' });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.sessions) ? data.sessions : [];
+  } catch (e) {
+    return [];
+  }
+}
+async function manageSession({ sessionId, action } = {}) {
+  const res = await fetch(sessionsApiUrl(), {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ sessionId, action }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Could not update session.');
+  return data;
+}
+
 window.ShapeBookings = {
   submitConsultationBooking,
   getCapacity: getProviderCapacity,
@@ -2276,6 +2309,8 @@ window.ShapeSessions = {
   createSessionRequest,
   listSessions,
   updateSessionStatus,
+  getSessions,
+  manageSession,
 };
 
 window.ShapeAvailability = {

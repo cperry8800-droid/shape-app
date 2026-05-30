@@ -4956,6 +4956,146 @@ function BSEditSheet({ field, onSave, onClose }) {
   );
 }
 
+// ─── SESSIONS & IN-APP VIDEO CALLS ───────────────────────────
+// Live coach↔client bookings from /api/sessions/manage. Coaches confirm /
+// decline requests; confirming a video session mints a Jitsi room into
+// meeting_url. Either party joins the call inside Shape via BSVideoCall.
+function _bsFormatSessionWhen(iso) {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  let h = d.getHours();
+  const m = String(d.getMinutes()).padStart(2, '0');
+  const ap = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${MON[d.getMonth()]} ${d.getDate()} · ${h}:${m} ${ap}`;
+}
+
+// Full-screen embedded call. The Jitsi room loads in an iframe with camera /
+// mic permissions, so the call happens inside Shape.
+function BSVideoCall({ url, onClose, title = 'Live call' }) {
+  const t = useBS();
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: '#000', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: 'calc(env(safe-area-inset-top, 0px) + 10px) 14px 10px', background: '#000', borderBottom: '1px solid rgba(255,255,255,0.12)' }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#fff', fontWeight: 700 }}>Shape · {title}</span>
+        <button onClick={onClose} style={{ padding: '8px 14px', borderRadius: 999, border: 0, background: t.RUST, color: '#fff', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>Leave</button>
+      </div>
+      <iframe
+        src={url}
+        allow="camera; microphone; fullscreen; display-capture; autoplay; speaker; clipboard-write"
+        title="Shape video call"
+        style={{ flex: 1, width: '100%', border: 0, background: '#000' }}
+      />
+    </div>
+  );
+}
+
+function BSSessionsScreen({ onBack }) {
+  const t = useBS();
+  const { BSPage, BSDetailHeader } = window;
+  const [sessions, setSessions] = useStateBSC(null);
+  const [busyId, setBusyId] = useStateBSC(null);
+  const [call, setCall] = useStateBSC(null); // { url, title } when in a call
+
+  const load = () => window.ShapeSessions?.getSessions?.()
+    .then(list => setSessions(Array.isArray(list) ? list : []))
+    .catch(() => setSessions([]));
+  React.useEffect(() => { load(); }, []);
+
+  const act = async (id, action) => {
+    setBusyId(id);
+    try {
+      await window.ShapeSessions.manageSession({ sessionId: id, action });
+      await load();
+      window.__bsToast?.(
+        action === 'confirm' ? 'Confirmed' : action === 'decline' ? 'Declined' : action === 'cancel' ? 'Cancelled' : 'Updated',
+        'ok',
+      );
+    } catch (e) {
+      window.__bsToast?.(e?.message || 'Could not update', 'err');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  if (call) return <BSVideoCall url={call.url} title={call.title} onClose={() => setCall(null)} />;
+
+  const all = sessions || [];
+  const now = Date.now();
+  const requests = all.filter(s => s.status === 'requested');
+  const upcoming = all.filter(s => s.status === 'confirmed' && new Date(s.scheduledAt).getTime() > now - 60 * 60 * 1000);
+  const other = all.filter(s => !requests.includes(s) && !upcoming.includes(s));
+
+  const Btn = ({ onClick, label, kind = 'ghost', disabled }) => (
+    <button onClick={onClick} disabled={disabled} style={{
+      padding: '8px 12px', borderRadius: t.RADIUS_SM, cursor: disabled ? 'wait' : 'pointer',
+      border: kind === 'solid' ? 0 : `1px solid ${kind === 'danger' ? t.RUST : t.INK}`,
+      background: kind === 'solid' ? t.GREEN : kind === 'danger' ? 'transparent' : 'transparent',
+      color: kind === 'solid' ? '#fff' : kind === 'danger' ? t.RUST : t.INK,
+      fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
+      opacity: disabled ? 0.6 : 1,
+    }}>{label}</button>
+  );
+
+  const Card = ({ s }) => {
+    const isCoach = s.role === 'coach';
+    const who = isCoach ? s.clientName : s.providerName;
+    const joinable = s.type === 'video' && s.meetingUrl && (s.status === 'confirmed');
+    return (
+      <div style={{ padding: '13px 0', borderBottom: `1px solid ${t.HAIR}` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{who}</div>
+            <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>
+              {_bsFormatSessionWhen(s.scheduledAt)} · {s.durationMin}m · {s.type}
+            </div>
+            {s.topic ? <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, fontWeight: 500 }}>{s.topic}</div> : null}
+          </div>
+          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: s.status === 'confirmed' ? t.GREEN : s.status === 'requested' ? t.AMBER : t.INK50, whiteSpace: 'nowrap' }}>{s.status}</span>
+        </div>
+        <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {joinable && <Btn kind="solid" label="Join video call" onClick={() => setCall({ url: s.meetingUrl, title: who })} />}
+          {isCoach && s.status === 'requested' && <Btn kind="solid" label="Confirm" disabled={busyId === s.id} onClick={() => act(s.id, 'confirm')} />}
+          {isCoach && s.status === 'requested' && <Btn kind="danger" label="Decline" disabled={busyId === s.id} onClick={() => act(s.id, 'decline')} />}
+          {isCoach && s.status === 'confirmed' && <Btn label="Mark done" disabled={busyId === s.id} onClick={() => act(s.id, 'complete')} />}
+          {(s.status === 'requested' || s.status === 'confirmed') && <Btn kind="danger" label="Cancel" disabled={busyId === s.id} onClick={() => act(s.id, 'cancel')} />}
+        </div>
+      </div>
+    );
+  };
+
+  const Group = ({ title, kicker, items }) => items.length ? (
+    <>
+      <BSSection title={title} kicker={kicker} meta={`${items.length}`} />
+      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+        {items.map(s => <Card key={s.id} s={s} />)}
+      </div>
+    </>
+  ) : null;
+
+  return (
+    <BSPage>
+      <BSDetailHeader onBack={onBack} eyebrow="Section · Bookings" kicker="Coaching" title={<>Your<br/>sessions.</>} />
+      {sessions === null && (
+        <div style={{ padding: `20px ${t.padX}px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
+      )}
+      {sessions !== null && all.length === 0 && (
+        <div style={{ padding: `0 ${t.padX}px 18px` }}>
+          <div style={{ borderTop: `2px solid ${t.INK}`, paddingTop: 14 }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, lineHeight: 1.15, letterSpacing: '-0.02em', marginBottom: 8 }}>No sessions yet.</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK70, lineHeight: 1.45 }}>When a client books a consultation or session, it shows up here to confirm — and video calls happen right inside Shape.</div>
+          </div>
+        </div>
+      )}
+      <Group title="Requests" kicker="Awaiting your confirm" items={requests} />
+      <Group title="Upcoming" kicker="Confirmed" items={upcoming} />
+      <Group title="History" kicker="Past & cancelled" items={other} />
+      <BSFooter right="Bookings" />
+    </BSPage>
+  );
+}
+
 // ─── PROGRESS ────────────────────────────────────────────────
 // Live body + strength progress for the signed-in member, read from
 // /api/client/progress (daily_health_snapshot + workout_set_logs, RLS-scoped).
@@ -5122,6 +5262,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
   const [showContact, setShowContact] = useStateBSC(false);
   const [showTerms, setShowTerms] = useStateBSC(false);
   const [showProgress, setShowProgress] = useStateBSC(false);
+  const [showSessions, setShowSessions] = useStateBSC(false);
   const scoreProfile = SHAPE_SCORE_PROFILES.client;
   const authProfile = window.ShapeAuth?.getCachedState?.().profile || {};
   const displayName = authProfile.full_name || 'Alex Rivera';
@@ -5273,6 +5414,9 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
   }
   if (showProgress) {
     return <BSClientProgress onBack={() => setShowProgress(false)} />;
+  }
+  if (showSessions) {
+    return <BSSessionsScreen onBack={() => setShowSessions(false)} />;
   }
   if (showContact) {
     return <BSContactPage onBack={() => setShowContact(false)} />;
@@ -5475,6 +5619,20 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
         <div>
           <BSEyebrow color={t.GREEN}>Progress &amp; PRs</BSEyebrow>
           <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>Weight, recovery, strength trends</div>
+        </div>
+        <BSEyebrow>View →</BSEyebrow>
+      </button>
+
+      {/* SESSIONS — live bookings + in-app video calls */}
+      <button onClick={() => setShowSessions(true)} style={{
+        width: '100%', textAlign: 'left', padding: `13px ${t.padX}px`,
+        border: 0, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER,
+        color: t.INK, cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+      }}>
+        <div>
+          <BSEyebrow color={t.ACCENT}>Sessions</BSEyebrow>
+          <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>Bookings &amp; video calls</div>
         </div>
         <BSEyebrow>View →</BSEyebrow>
       </button>
@@ -7066,6 +7224,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const r = useBSRadio();
   const [showContact, setShowContact] = useStateBSC(false);
   const [showTerms, setShowTerms] = useStateBSC(false);
+  const [showSessions, setShowSessions] = useStateBSC(false);
   const [showIntegrations, setShowIntegrations] = useStateBSC(initialPage === 'integrations');
 
   // Coach-only "pause new bookings" (at_capacity). null until loaded / for
@@ -7146,6 +7305,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   }
   if (showTerms) {
     return <BSTermsPage onBack={() => setShowTerms(false)} onContact={() => { setShowTerms(false); setShowContact(true); }} />;
+  }
+  if (showSessions) {
+    return <BSSessionsScreen onBack={() => setShowSessions(false)} />;
   }
   if (showIntegrations) {
     return <BSIntegrationsPage onBack={() => setShowIntegrations(false)} />;
@@ -7262,6 +7424,19 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           </div>
         </div>
       )}
+
+      {/* Bookings — confirm requests + in-app video calls */}
+      <button onClick={() => setShowSessions(true)} style={{
+        width: '100%', textAlign: 'left', padding: `14px ${t.padX}px`,
+        border: 0, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER, color: t.INK, cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+      }}>
+        <div>
+          <BSEyebrow color={t.ACCENT}>Sessions</BSEyebrow>
+          <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>Booking requests &amp; video calls</div>
+        </div>
+        <BSEyebrow>View →</BSEyebrow>
+      </button>
 
       {/* Identity card */}
       <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
