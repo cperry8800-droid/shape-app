@@ -2439,7 +2439,17 @@ async function getAnalytics() {
     return null;
   }
 }
-window.ShapeAnalytics = { get: getAnalytics };
+async function getProgress() {
+  if (!supabase || !state.user?.id) return null;
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/client/progress`, { headers: sessionsAuthHeaders(), credentials: 'same-origin' });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    return null;
+  }
+}
+window.ShapeAnalytics = { get: getAnalytics, getProgress };
 
 window.ShapeNotifications = {
   list: listNotifications,

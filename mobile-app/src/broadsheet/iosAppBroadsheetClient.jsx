@@ -5860,8 +5860,10 @@ function BSClientProgress({ onBack }) {
 
   React.useEffect(() => {
     let cancelled = false;
-    fetch('/api/client/progress', { credentials: 'same-origin' })
-      .then(r => (r.ok ? r.json() : null))
+    const p = window.ShapeAnalytics?.getProgress
+      ? window.ShapeAnalytics.getProgress()
+      : fetch('/api/client/progress', { credentials: 'same-origin' }).then(r => (r.ok ? r.json() : null));
+    Promise.resolve(p)
       .then(d => { if (!cancelled) { setData(d && d.ok ? d : null); setLoading(false); } })
       .catch(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
