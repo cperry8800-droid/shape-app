@@ -877,7 +877,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     Promise.resolve(viaHelper)
       .then(d => {
         if (d) return d;
-        return fetch('/api/client/analytics', { credentials: 'same-origin' }).then(r => (r.ok ? r.json() : null));
+        return fetch('/api/client/analytics', { credentials: 'same-origin', cache: 'no-store' }).then(r => (r.ok ? r.json() : null));
       })
       .then(d => { if (d) { if (d.ticker) setTicker(d.ticker); setAnalytics(d); } })
       .catch(() => {});
@@ -1690,8 +1690,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
       })()}
 
       <BSFooter right="Pg 1 of 1" />
-      {showLogActivity && <BSLogActivity onClose={() => setShowLogActivity(false)} onSaved={refreshAnalytics} />}
-      {showMood && <BSMoodSheet onClose={() => setShowMood(false)} onSaved={refreshAnalytics} />}
+      {showLogActivity && <BSLogActivity onClose={() => setShowLogActivity(false)} onSaved={() => { refreshAnalytics(); setTimeout(refreshAnalytics, 700); }} />}
+      {showMood && <BSMoodSheet onClose={() => setShowMood(false)} onSaved={() => { refreshAnalytics(); setTimeout(refreshAnalytics, 700); }} />}
     </BSPage>
   );
 }
@@ -5895,7 +5895,7 @@ function BSClientProgress({ onBack }) {
     let cancelled = false;
     const viaHelper = window.ShapeAnalytics?.getProgress ? window.ShapeAnalytics.getProgress() : Promise.resolve(null);
     Promise.resolve(viaHelper)
-      .then(d => d || fetch('/api/client/progress', { credentials: 'same-origin' }).then(r => (r.ok ? r.json() : null)))
+      .then(d => d || fetch('/api/client/progress', { credentials: 'same-origin', cache: 'no-store' }).then(r => (r.ok ? r.json() : null)))
       .then(d => { if (!cancelled) { setData(d && d.ok ? d : null); setLoading(false); } })
       .catch(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -5904,7 +5904,7 @@ function BSClientProgress({ onBack }) {
   const loadActivities = () => {
     const viaHelper = window.ShapeActivities?.list ? window.ShapeActivities.list() : Promise.resolve(null);
     Promise.resolve(viaHelper)
-      .then(d => (d && d.activities) ? d : fetch('/api/client/activities', { credentials: 'same-origin' }).then(r => (r.ok ? r.json() : { activities: [], breakdown: [], totalMinutes: 0 })))
+      .then(d => (d && d.activities) ? d : fetch('/api/client/activities', { credentials: 'same-origin', cache: 'no-store' }).then(r => (r.ok ? r.json() : { activities: [], breakdown: [], totalMinutes: 0 })))
       .then(d => setActs(d)).catch(() => {});
   };
   React.useEffect(() => { loadActivities(); }, []);
