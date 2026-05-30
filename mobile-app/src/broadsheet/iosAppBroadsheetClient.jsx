@@ -2754,6 +2754,40 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
   );
 }
 
+// Today's prescribed nutrition plan ("Rx receipt") — belongs on the Eat tab,
+// not the Me page. Self-contained editorial sample for now.
+function BSRxPlanWidget() {
+  const t = useBS();
+  return (
+    <div style={{ margin: `16px ${t.padX}px 4px`, padding: 18, background: t.PAPER2, border: `1px solid ${t.SURFACE_BORDER || t.RULE}`, borderRadius: 4, position: 'relative' }}>
+      <div style={{ position: 'absolute', top: -10, right: 14, background: t.ACCENT, color: t.PAPER, padding: '3px 8px', borderRadius: 999, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', fontWeight: 800, textTransform: 'uppercase' }}>Rx · Wk 4</div>
+      <div style={{ textAlign: 'center', paddingBottom: 8, borderBottom: `1px dashed ${t.SURFACE_BORDER || t.RULE}` }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.28em', color: t.ACCENT, textTransform: 'uppercase', fontWeight: 700 }}>Today's plan · from Rae</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 17, color: t.INK, fontStyle: 'italic', marginTop: 4, letterSpacing: '-0.01em' }}>Tuesday · 1,950 kcal</div>
+      </div>
+      <div style={{ display: 'grid', gap: 5, padding: '10px 0 4px' }}>
+        {[
+          { l: 'Protein', v: 112, g: 175, c: t.ACCENT },
+          { l: 'Carbs',   v: 116, g: 180, c: t.AMBER || '#e8b14a' },
+          { l: 'Fat',     v: 42,  g: 65,  c: t.RUST || '#d2693f' },
+        ].map((m, i) => (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '50px 1fr 70px', gap: 8, alignItems: 'center' }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>{m.l}</div>
+            <div style={{ height: 4, background: t.SURFACE_BORDER || t.RULE, borderRadius: 2, overflow: 'hidden' }}>
+              <div style={{ width: `${Math.min(100, (m.v / m.g) * 100)}%`, height: '100%', background: m.c }} />
+            </div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK70, textAlign: 'right' }}>{m.v}<span style={{ color: t.INK50 }}>/{m.g}g</span></div>
+          </div>
+        ))}
+      </div>
+      <div style={{ borderTop: `2px solid ${t.SURFACE_BORDER || t.RULE}`, marginTop: 8, paddingTop: 8, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>
+        <span>Hydration 1.8/3 L</span>
+        <span style={{ color: t.ACCENT }}>On plan ●</span>
+      </div>
+    </div>
+  );
+}
+
 function BSClientEat({ onProfile }) {
   const t = useBS();
   const [view, setView] = useStateBSC('eat'); // 'eat' | 'grocery' | 'library'
@@ -3667,6 +3701,9 @@ function BSClientEat({ onProfile }) {
           );
         })}
       </div>
+
+      {/* Today's prescribed plan from the nutritionist (moved here from Me). */}
+      {day === 4 && <BSRxPlanWidget />}
 
       {/* Halftone hero — accent recolors per day. Tap to open the day brief. */}
       <div onClick={() => setPreviewDayBrief(true)} style={{ padding: `0 ${t.padX}px`, cursor: 'pointer' }}>
@@ -6628,34 +6665,6 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
             <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{l}</div>
           </div>
         ))}
-      </div>
-
-      {/* RX RECEIPT — today's prescribed plan from the client's nutritionist */}
-      <div style={{ margin: `22px ${t.padX}px 0`, padding: 18, background: t.PAPER2, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 4, position: 'relative' }}>
-        <div style={{ position: 'absolute', top: -10, right: 14, background: t.ACCENT, color: t.PAPER, padding: '3px 8px', borderRadius: 999, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', fontWeight: 800, textTransform: 'uppercase' }}>Rx · Wk 4</div>
-        <div style={{ textAlign: 'center', paddingBottom: 8, borderBottom: `1px dashed ${t.SURFACE_BORDER}` }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.28em', color: t.ACCENT, textTransform: 'uppercase', fontWeight: 700 }}>Today's plan · from Rae</div>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 17, color: t.INK, fontStyle: 'italic', marginTop: 4, letterSpacing: '-0.01em' }}>Tuesday · 1,950 kcal</div>
-        </div>
-        <div style={{ display: 'grid', gap: 5, padding: '10px 0 4px' }}>
-          {[
-            { l: 'Protein', v: 112, g: 175, c: t.ACCENT },
-            { l: 'Carbs',   v: 116, g: 180, c: t.AMBER || '#e8b14a' },
-            { l: 'Fat',     v: 42,  g: 65,  c: t.RUST || '#d2693f' },
-          ].map((m, i) => (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '50px 1fr 70px', gap: 8, alignItems: 'center' }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>{m.l}</div>
-              <div style={{ height: 4, background: t.SURFACE_BORDER, borderRadius: 2, overflow: 'hidden' }}>
-                <div style={{ width: `${Math.min(100, (m.v / m.g) * 100)}%`, height: '100%', background: m.c }} />
-              </div>
-              <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK70, textAlign: 'right' }}>{m.v}<span style={{ color: t.INK50 }}>/{m.g}g</span></div>
-            </div>
-          ))}
-        </div>
-        <div style={{ borderTop: `2px solid ${t.SURFACE_BORDER}`, marginTop: 8, paddingTop: 8, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>
-          <span>Hydration 1.8/3 L</span>
-          <span style={{ color: t.ACCENT }}>On plan ●</span>
-        </div>
       </div>
 
       <BSSection title="Profile" meta="Personal info" />
