@@ -52,10 +52,18 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   const supabase = await clientForRequest(request);
 
+  // A coach may pass ?clientId=<uuid> to read one of their subscribers'
+  // activities. The activities provider-read RLS policy only returns rows when
+  // the caller is actually an active coach on that client, so passing someone
+  // else's id just yields an empty set — no extra auth check needed here.
+  const url = new URL(request.url);
+  const clientId = clean(url.searchParams.get('clientId'), 64);
+  const targetUserId = clientId || user.id;
+
   const { data, error } = await supabase
     .from('activities')
     .select('id, source, activity_type, title, started_at, duration_min, distance_km, calories, strain')
-    .eq('user_id', user.id)
+    .eq('user_id', targetUserId)
     .order('started_at', { ascending: false, nullsFirst: false })
     .limit(200);
   if (error) return NextResponse.json({ activities: [], breakdown: [], totalMinutes: 0 });

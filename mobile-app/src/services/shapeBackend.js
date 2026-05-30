@@ -2334,10 +2334,11 @@ function subscribeNotifications(onInsert) {
 }
 
 // ─── Activities (typed log + manual logging) ─────────────────────────────────
-async function listActivities() {
+async function listActivities(clientId) {
   if (!supabase || !state.user?.id) return { activities: [], breakdown: [], totalMinutes: 0 };
   try {
-    const res = await fetch(`${apiBaseUrl || ''}/api/client/activities`, { headers: sessionsAuthHeaders(), credentials: 'same-origin' });
+    const qs = clientId ? `?clientId=${encodeURIComponent(clientId)}` : '';
+    const res = await fetch(`${apiBaseUrl || ''}/api/client/activities${qs}`, { headers: sessionsAuthHeaders(), credentials: 'same-origin' });
     if (!res.ok) return { activities: [], breakdown: [], totalMinutes: 0 };
     const d = await res.json();
     return { activities: d.activities || [], breakdown: d.breakdown || [], totalMinutes: d.totalMinutes || 0 };
