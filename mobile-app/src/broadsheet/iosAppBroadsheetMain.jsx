@@ -1313,6 +1313,39 @@ if (typeof window !== 'undefined') {
   window.addEventListener('unhandledrejection', (e) => bsRecordError(e.reason, null));
 }
 
+// ── Opt-in memory HUD ───────────────────────────────────────────────
+// Safari reloads a tab (white screen) when its JS heap grows too large. This
+// gradual leak can't be seen by reading code — you need live numbers. Enable
+// with ?mem=1 in the URL (or localStorage 'shape.memHud'='1') to float a live
+// JS-heap readout + a peak marker. Watch which screen/action makes it climb
+// and never come back down — that's the leak. Uses performance.memory, which
+// is available in the iOS WKWebView/Safari for this purpose.
+function bsInstallMemHud() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  let on = false;
+  try {
+    on = new URLSearchParams(location.search).get('mem') === '1'
+      || window.localStorage.getItem('shape.memHud') === '1';
+  } catch (e) {}
+  if (!on) return;
+  try { window.localStorage.setItem('shape.memHud', '1'); } catch (e) {}
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;top:env(safe-area-inset-top,6px);left:6px;z-index:2147483647;background:rgba(0,0,0,0.82);color:#2ee0c4;font:700 11px/1.35 ui-monospace,Menlo,monospace;padding:5px 8px;border-radius:7px;pointer-events:auto;letter-spacing:0.04em;white-space:pre;';
+  el.addEventListener('click', () => { try { window.localStorage.removeItem('shape.memHud'); } catch (e) {} el.remove(); });
+  document.addEventListener('DOMContentLoaded', () => document.body.appendChild(el));
+  if (document.body) document.body.appendChild(el);
+  let peak = 0;
+  const mb = (b) => (b / 1048576).toFixed(0);
+  setInterval(() => {
+    const m = performance && performance.memory;
+    if (!m) { el.textContent = 'mem: n/a (tap to hide)'; return; }
+    const used = m.usedJSHeapSize;
+    if (used > peak) peak = used;
+    el.textContent = `JS ${mb(used)}MB  peak ${mb(peak)}MB\nlimit ${mb(m.jsHeapSizeLimit)}MB · tap to hide`;
+  }, 1000);
+}
+bsInstallMemHud();
+
 class BSErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { err: null }; }
   static getDerivedStateFromError(err) { return { err }; }
