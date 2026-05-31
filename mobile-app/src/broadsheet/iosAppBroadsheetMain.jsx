@@ -1288,4 +1288,48 @@ function BSApp() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<BSApp />);
+// ── Crash safety net ────────────────────────────────────────────────
+// Without this, any uncaught render error unmounts the whole React tree and
+// the WKWebView shows a blank/white screen — indistinguishable from a
+// "crash". The boundary catches it, shows a recoverable card, and records the
+// error so it can be surfaced (and read off-device via window.__BS_LAST_ERROR).
+function bsRecordError(err, info) {
+  try {
+    const rec = {
+      when: new Date().toISOString(),
+      message: (err && (err.message || String(err))) || 'Unknown error',
+      stack: (err && err.stack) || null,
+      component: (info && info.componentStack) || null,
+    };
+    window.__BS_LAST_ERROR = rec;
+    const log = JSON.parse(window.localStorage.getItem('shape.errorLog') || '[]');
+    log.unshift(rec);
+    window.localStorage.setItem('shape.errorLog', JSON.stringify(log.slice(0, 20)));
+  } catch (e) {}
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('error', (e) => bsRecordError(e.error || e.message, null));
+  window.addEventListener('unhandledrejection', (e) => bsRecordError(e.reason, null));
+}
+
+class BSErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { err: null }; }
+  static getDerivedStateFromError(err) { return { err }; }
+  componentDidCatch(err, info) { bsRecordError(err, info); }
+  render() {
+    if (!this.state.err) return this.props.children;
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: '#0b0c0c', color: '#f4efe6', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 28, textAlign: 'center', fontFamily: "'Saira', 'Helvetica Neue', sans-serif" }}>
+        <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: '-0.01em' }}>Something went wrong</div>
+        <div style={{ fontSize: 13, opacity: 0.7, maxWidth: 320, lineHeight: 1.5 }}>The app hit an error and recovered. Tap reload to continue.</div>
+        <button onClick={() => { this.setState({ err: null }); }} style={{ marginTop: 4, padding: '13px 26px', borderRadius: 10, background: '#0ac5a8', color: '#031f1c', border: 0, fontWeight: 700, fontSize: 13, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer' }}>Reload</button>
+        <button onClick={() => { try { window.location.reload(); } catch (e) {} }} style={{ background: 'transparent', border: 0, color: 'rgba(244,239,230,0.5)', fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>Restart app</button>
+      </div>
+    );
+  }
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <BSErrorBoundary><BSApp /></BSErrorBoundary>
+);
