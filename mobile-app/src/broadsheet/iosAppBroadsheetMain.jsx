@@ -769,15 +769,15 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
           {/* Primary action — sign in or create the account */}
           {isCreate ? (
             isPhone ? (
-              <button onClick={otpSent ? verifyPhoneCode : sendPhoneCode} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: '#0ac5a8', color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Working...' : otpSent ? 'Verify & join →' : 'Text me a code →'}</button>
+              <button onClick={otpSent ? verifyPhoneCode : sendPhoneCode} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: 'transparent', color: CREAM, border: `1px solid #0ac5a8`, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Working...' : otpSent ? 'Verify & join →' : 'Text me a code →'}</button>
             ) : (
-              <button onClick={submitAuth} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: '#0ac5a8', color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Creating...' : 'Time to Shape →'}</button>
+              <button onClick={submitAuth} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: 'transparent', color: CREAM, border: `1px solid #0ac5a8`, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Creating...' : 'Time to Shape →'}</button>
             )
           ) : (
             isPhone ? (
-              <button onClick={otpSent ? verifyPhoneCode : sendPhoneCode} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: '#0ac5a8', color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Working...' : otpSent ? 'Verify & sign in →' : 'Text me a code →'}</button>
+              <button onClick={otpSent ? verifyPhoneCode : sendPhoneCode} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: 'transparent', color: CREAM, border: `1px solid #0ac5a8`, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Working...' : otpSent ? 'Verify & sign in →' : 'Text me a code →'}</button>
             ) : (
-              <button onClick={submitAuth} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: '#0ac5a8', color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Signing in...' : 'Sign in →'}</button>
+              <button onClick={submitAuth} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: 'transparent', color: CREAM, border: `1px solid #0ac5a8`, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Signing in...' : 'Sign in →'}</button>
             )
           )}
 
@@ -798,7 +798,7 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
             </div>
           </div>
 
-          <button onClick={onBrowse} style={{ borderRadius: t.RADIUS_SM, padding: '14px 16px', background: 'transparent', color: CREAM, border: `1px solid ${LINE2}`, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: 'pointer' }}>Browse the app →</button>
+          <button onClick={onBrowse} style={{ borderRadius: t.RADIUS_SM, padding: '14px 16px', background: '#0ac5a8', color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: 'pointer' }}>Browse the app →</button>
         </div>
 
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: C50, textAlign: 'center', borderTop: `1px solid ${LINE}`, paddingTop: 12 }}>
