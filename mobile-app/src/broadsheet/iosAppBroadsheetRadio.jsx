@@ -379,7 +379,13 @@ function BSRadioPrompt() {
   return (
     <div style={{
       position: 'absolute', inset: 0, zIndex: 90,
-      background: t.PAPER, color: t.INK,
+      color: t.INK,
+      // Website Shape Radio photo backdrop + a teal→violet→magenta colour wash.
+      background: isLight ? t.PAPER : '#0b0c0c',
+      backgroundImage: isLight ? undefined : `linear-gradient(135deg, rgba(10,197,168,0.22), rgba(138,92,246,0.12) 50%, rgba(236,72,153,0.18)), linear-gradient(rgba(8,10,10,0.38), rgba(8,10,10,0.74)), url('${import.meta.env.BASE_URL}radio-bg.jpg')`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center 22%',
+      backgroundRepeat: 'no-repeat',
       display: 'flex', flexDirection: 'column',
       overflow: 'hidden',
     }}>
@@ -454,7 +460,7 @@ function BSRadioPrompt() {
       </div>
       </div>
 
-      <div style={{ padding: `18px ${t.padX}px 28px`, borderTop: `2px solid ${t.INK}`, background: t.PAPER }}>
+      <div style={{ padding: `18px ${t.padX}px 28px`, borderTop: `2px solid ${t.INK}`, background: isLight ? t.PAPER : 'rgba(11,12,12,0.5)', backdropFilter: isLight ? undefined : 'blur(8px)', WebkitBackdropFilter: isLight ? undefined : 'blur(8px)' }}>
         <button
           disabled={!choice}
           onClick={() => r.answerPrompt(choice === 'on')}
