@@ -758,8 +758,8 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
 
           <div>
             <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: C50, marginBottom: 8 }}>I am a…</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
-              {[['client','Client'],['trainer','Trainer'],['nutritionist','Nutri'],['shape_radio','Radio']].map(([k, l]) => {
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+              {[['client','Client'],['trainer','Trainer'],['nutritionist','Nutri']].map(([k, l]) => {
                 const on = role === k;
                 return <button key={k} onClick={() => setRole(k)} style={{ borderRadius: t.RADIUS_SM, padding: 12, border: `1px solid ${on ? '#0ac5a8' : LINE2}`, background: on ? '#0ac5a8' : 'transparent', color: on ? '#031f1c' : CREAM, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>{l}</button>;
               })}
