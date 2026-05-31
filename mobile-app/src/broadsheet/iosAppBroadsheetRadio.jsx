@@ -379,13 +379,7 @@ function BSRadioPrompt() {
   return (
     <div style={{
       position: 'absolute', inset: 0, zIndex: 90,
-      color: t.INK,
-      // Website Shape Radio photo backdrop + a teal→violet→magenta colour wash.
-      background: isLight ? t.PAPER : '#0b0c0c',
-      backgroundImage: isLight ? undefined : `linear-gradient(135deg, rgba(10,197,168,0.22), rgba(138,92,246,0.12) 50%, rgba(236,72,153,0.18)), linear-gradient(rgba(8,10,10,0.38), rgba(8,10,10,0.74)), url('${import.meta.env.BASE_URL}radio-bg.jpg')`,
-      backgroundSize: 'cover',
-      backgroundPosition: 'center 22%',
-      backgroundRepeat: 'no-repeat',
+      background: t.PAPER, color: t.INK,
       display: 'flex', flexDirection: 'column',
       overflow: 'hidden',
     }}>
@@ -460,7 +454,7 @@ function BSRadioPrompt() {
       </div>
       </div>
 
-      <div style={{ padding: `18px ${t.padX}px 28px`, borderTop: `2px solid ${t.INK}`, background: isLight ? t.PAPER : 'rgba(11,12,12,0.5)', backdropFilter: isLight ? undefined : 'blur(8px)', WebkitBackdropFilter: isLight ? undefined : 'blur(8px)' }}>
+      <div style={{ padding: `18px ${t.padX}px 28px`, borderTop: `2px solid ${t.INK}`, background: t.PAPER }}>
         <button
           disabled={!choice}
           onClick={() => r.answerPrompt(choice === 'on')}
@@ -893,13 +887,7 @@ function BSRadioScreen({ onBack }) {
       fontFamily: t.DISPLAY,
       color: CREAM,
       scrollbarWidth: 'none', msOverflowStyle: 'none',
-      // Match the website's Shape Radio: full-bleed photo backdrop (dark mode),
-      // with a dark wash for legibility. Translucent header/hero/cards show it.
-      backgroundColor: isLight ? t.PAPER : '#0b0c0c',
-      backgroundImage: isLight ? undefined : `linear-gradient(rgba(8,10,10,0.46), rgba(8,10,10,0.78)), url('${import.meta.env.BASE_URL}radio-bg.jpg')`,
-      backgroundSize: isLight ? undefined : 'cover',
-      backgroundPosition: isLight ? undefined : 'center 22%',
-      backgroundRepeat: 'no-repeat',
+      backgroundColor: t.PAPER,
     }}>
       {/* Top fade so the masthead area sits cleanly on the portrait */}
       <div aria-hidden style={{
