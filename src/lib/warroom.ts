@@ -437,6 +437,26 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Instacart credentials set (INSTACART_API_KEY)', status: auto(itemPresent('integrations', 'INSTACART')) },
       ],
     },
+    {
+      section: 'Eat/Train redesign & coach swaps',
+      items: [
+        { label: 'Eat/Train rebuilt to the "tracklist" look (hero + macros/moves + plan + shop + playlists)', status: 'done' },
+        { label: 'Client one-tap swaps: coach-approved exercise + meal substitution', status: 'done' },
+        { label: 'Coaches define alternatives in the workout + meal-plan builders', status: 'done' },
+        { label: 'Alternatives round-trip builder → client (train/nutrition read endpoints return them)', status: 'done' },
+        { label: 'Swaps persist to the shared store + notify the trainer/nutritionist', status: 'done' },
+      ],
+    },
+    {
+      section: 'Mobile ↔ website sync',
+      items: [
+        { label: 'window.shapeDb wired on mobile to the shared user_goals table', status: 'done' },
+        { label: 'Swaps/prefs keyed consistently (meal/exercise name) across surfaces', status: 'done' },
+        { label: '/m/ preview falls back to the shared Supabase project URL + publishable key', status: 'done' },
+        { label: 'user_goals migration applied to the live project (PK user_id,kind + RLS)', status: 'manual' },
+        { label: 'Native Capacitor build: VITE_SUPABASE_URL/ANON set at build time', status: 'manual' },
+      ],
+    },
   ];
 }
 

@@ -11,6 +11,29 @@ file is the narrative companion to the live status dashboard in
 
 ---
 
+## Cycle 2 (PRs #727–#745)
+
+### Eat / Train redesign + coach swaps
+- **Tracklist redesign** (#732–#733): Eat and Train day views rebuilt — calorie/today hero, macro cards / move list, plan card, shop-list card, playlists. Shared helpers `BSWeekStrip` / `BSTrackHeader` / `BSPlaylistCard`.
+- **Wired to real data** (#734, #744): goal label from `client_nutrition_prefs`; shop-list card from the nutritionist's grocery list; playlists from `BS_COACH_PLAYLISTS`; `/api/client/train` + `/api/client/nutrition` now return exercises/meals **with `alternatives`**.
+- **Coach-approved swaps** (#736, #742): client one-tap exercise + meal substitution from a coach-defined list; alternatives are authored in the **workout builder** (`newWorkout.jsx`) and **nutritionist console** (`NutritionistLiveConsole.html`) and ride along in the JSONB payload; website got a `ClientTrain` workout-detail modal + `ClientNutri` meal swap.
+- **Persist + notify** (#737): swaps saved to `user_goals` (`client_train_swaps` / `client_meal_swaps` / `client_workout_swaps`) and the trainer/nutritionist is messaged via `ShapeMessages.sendProviderMessage`.
+
+### Mobile ↔ website sync (the important plumbing)
+- **#740**: defined `window.shapeDb` on mobile (was undefined → 21 call sites silently no-op'd) backed by the same `user_goals` table the website uses; swaps keyed by meal/exercise **name** for cross-surface alignment.
+- **#741 (env verification you asked for)**: `user_goals` migration is correct (PK `(user_id,kind)` + RLS). But the `/m/` preview was built **without** `VITE_SUPABASE_URL` (never had it, per git history) and there's **no Vercel mobile rebuild step** — so its supabase client was `null`. Fixed by falling back to the same project URL + publishable key the website hardcodes. Native Capacitor build still overrides via env.
+
+### UI polish
+- `100dvh` shell fit (#727), radio backdrop + `# support` private channel (#728–#729), recipe-filter dropdown (#730), splash glow (#731), home reorder (week strip / Now Playing / ticker) + card compaction + masthead double-rule removal (#736/#738/#743), compact Today/calorie/macro heroes (#745).
+
+### Still manual (owner)
+- Apply `user_goals` migration to the live Supabase project (if not already).
+- Set provider env keys (Spotify / Apple Music / Instacart) + Supabase Apple provider / Confirm email toggles.
+- Native Capacitor build: set `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` at build time.
+- Nutritionist console only captures kcal/protein per meal — coach-alternative meals inherit base macros on swap until carbs/fat are added to the form.
+
+---
+
 ## Workflow & conventions
 
 - **Active feature branch:** `claude/sleepy-feynman-RtyIr`. All work is developed
