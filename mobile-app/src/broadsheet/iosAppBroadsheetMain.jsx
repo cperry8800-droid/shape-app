@@ -72,9 +72,14 @@ function ensureSkyStyles() {
   .bs-shoot.s3 { top:9%;  left:-160px; animation: bsShoot3 11s linear infinite 6.5s; }
   @keyframes bsMarkPulse { 0%,100%{ transform:translateY(0) scale(1); filter:drop-shadow(0 0 16px rgba(10,197,168,0.55)) drop-shadow(0 0 6px rgba(46,224,196,0.5)); } 50%{ transform:translateY(-7px) scale(1.045); filter:drop-shadow(0 0 48px rgba(10,197,168,0.98)) drop-shadow(0 0 20px rgba(46,224,196,0.9)); } }
   .bs-shape-mark { animation: bsMarkPulse 2.6s ease-in-out infinite; }
-  .bs-splash-zoom { transition: transform 0.9s cubic-bezier(0.6,0,0.75,0.15); transform-origin: center center; will-change: transform; }
-  .bs-splash-zoom.zooming { transform: scale(32); }
-  .bs-splash-zoom.zooming .bs-shape-mark { animation: none !important; transform: none !important; filter: drop-shadow(0 0 30px rgba(10,197,168,0.85)); }
+  .bs-splash-zoom { transition: transform 0.7s cubic-bezier(0.5,0,0.7,0.25); transform-origin: center center; will-change: transform; }
+  .bs-splash-zoom.zooming { transform: scale(7); }
+  .bs-splash-zoom.zooming .bs-shape-mark { animation: none !important; transform: none !important; filter: drop-shadow(0 0 36px rgba(10,197,168,0.98)) drop-shadow(0 0 16px rgba(46,224,196,0.95)); }
+  /* Beam: a bright streak that shoots horizontally out of the mark, then
+     flashes vertically to fill the screen as the transition into login. */
+  .bs-splash-beam { position:absolute; left:0; right:0; top:50%; height:5px; transform:translateY(-50%) scaleX(0) scaleY(1); transform-origin:center center; opacity:0; pointer-events:none; z-index:5; background:linear-gradient(90deg, transparent 0%, #0ac5a8 28%, #ffffff 50%, #0ac5a8 72%, transparent 100%); box-shadow:0 0 26px 6px rgba(46,224,196,0.85), 0 0 80px 26px rgba(10,197,168,0.55); }
+  .bs-splash-beam.fire { animation: bsSplashBeam 0.8s cubic-bezier(0.72,0,0.84,0) forwards; }
+  @keyframes bsSplashBeam { 0%{ transform:translateY(-50%) scaleX(0) scaleY(1); opacity:0; } 16%{ opacity:1; } 34%{ transform:translateY(-50%) scaleX(1) scaleY(1); opacity:1; } 52%{ transform:translateY(-50%) scaleX(1) scaleY(1.4); opacity:1; } 100%{ transform:translateY(-50%) scaleX(1) scaleY(260); opacity:1; } }
   .bs-mark-edge { stroke-dasharray:38 97; animation: bsMarkEdge 3.2s linear infinite; }
   .bs-mark-edge.e2 { animation-delay:-1.6s; }
   @keyframes bsMarkEdge { to { stroke-dashoffset:-135; } }
@@ -265,6 +270,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
         <div className={`bs-splash-zoom${zoom ? ' zooming' : ''}`} style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <BSShapeMark size={132} />
         </div>
+        <div aria-hidden className={`bs-splash-beam${zoom ? ' fire' : ''}`} />
       </div>
     );
   }
