@@ -8695,16 +8695,19 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
   const t = useBS();
   _bsScrollTopOnMount();
   const list = bsNormalizeGroceryList(activeList || BS_GROCERY_DEFAULT);
-  // Live coach note — the nutritionist's latest focus banner (coach_focus_banners,
-  // editable from their Live Console). Falls back to the list's own note.
+  // Live coach note — the nutritionist's dedicated grocery note (coach_pushed_items
+  // kind 'grocery_note', editable from their Live Console — separate from the
+  // home Op-ed focus banner). Falls back to the list's own note.
   const [coachNote, setCoachNote] = useStateBSC(null);
   React.useEffect(() => {
     if (!(window.ShapeCoachFeed && window.ShapeCoachFeed.fetch)) return undefined;
     let alive = true;
     window.ShapeCoachFeed.fetch().then(feed => {
       if (!alive || !feed) return;
-      const b = (feed.banners || []).find(x => x.provider_role === 'nutritionist') || (feed.banners || [])[0];
-      if (b && b.text) setCoachNote({ text: b.text, author: b.provider_role === 'trainer' ? 'Your trainer' : 'Your nutritionist' });
+      const notes = (feed.items || []).filter(it => it.kind === 'grocery_note');
+      const latest = notes.sort((a, b) => new Date(b.sent_at || 0) - new Date(a.sent_at || 0))[0];
+      const text = latest && latest.payload && latest.payload.text;
+      if (text) setCoachNote({ text, author: latest.provider_role === 'trainer' ? 'Your trainer' : 'Your nutritionist' });
     }).catch(() => {});
     return () => { alive = false; };
   }, []);

@@ -286,6 +286,29 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   }
 
+  if (action === 'groceryNote') {
+    // Dedicated grocery-list note (separate from the focus banner / home Op-ed).
+    // Replace any prior note for this coach→client, then insert the new one.
+    const text = String(body?.text ?? '').trim();
+    await supabase
+      .from('coach_pushed_items')
+      .delete()
+      .eq('client_id', clientId)
+      .eq('provider_id', providerId)
+      .eq('kind', 'grocery_note');
+    if (text) {
+      const { error } = await supabase.from('coach_pushed_items').insert({
+        provider_role: ROLE,
+        provider_id: providerId,
+        client_id: clientId,
+        kind: 'grocery_note',
+        payload: { text },
+      });
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    return NextResponse.json({ ok: true });
+  }
+
   if (action === 'addItem') {
     const payload = body?.payload && typeof body.payload === 'object' ? (body.payload as Record<string, unknown>) : null;
     const name = payload && typeof payload.name === 'string' ? payload.name.trim() : '';
