@@ -43,7 +43,7 @@ export async function GET() {
 
   const { data: cwRows } = await supabase
     .from('client_workouts')
-    .select('id, title, description, kind, created_at')
+    .select('id, title, description, kind, created_at, payload')
     .eq('client_id', user.id)
     .eq('status', 'published')
     .order('created_at', { ascending: false })
@@ -101,12 +101,25 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true,
-    assignedWorkouts: (cwRows ?? []).map((w) => ({
-      id: w.id,
-      title: w.title,
-      description: w.description ?? '',
-      kind: w.kind,
-    })),
+    assignedWorkouts: (cwRows ?? []).map((w) => {
+      const payload = (w as { payload?: { exercises?: unknown[] } }).payload ?? {};
+      const exercises = Array.isArray(payload.exercises) ? payload.exercises : [];
+      const moves = exercises
+        .map((ex) => ex as { name?: unknown; reps?: unknown; sets?: unknown; load?: unknown; alternatives?: unknown })
+        .filter((ex) => typeof ex.name === 'string' && ex.name)
+        .map((ex) => ({
+          name: String(ex.name),
+          detail: String(ex.reps || ex.sets || '').trim() || (ex.load ? String(ex.load) : ''),
+          alternatives: Array.isArray(ex.alternatives) ? ex.alternatives.map(String).filter(Boolean) : [],
+        }));
+      return {
+        id: w.id,
+        title: w.title,
+        description: w.description ?? '',
+        kind: w.kind,
+        moves,
+      };
+    }),
     stats: {
       completedCount: completed.length,
       thisWeekCount,

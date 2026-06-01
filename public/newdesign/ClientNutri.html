@@ -403,9 +403,15 @@ function ClientNutriPage() {
         const base = (data.todayMeals || [])[swapMealIdx];
         const orig = todayMeals[swapMealIdx];
         if (!base || !orig) return null;
+        // Prefer the nutritionist's own approved alternatives (name-only — they
+        // carry the base meal's macros); fall back to the built-in list.
+        const coachAlts = Array.isArray(base.alternatives) ? base.alternatives.filter(Boolean) : [];
+        const alts = coachAlts.length
+          ? coachAlts.filter(n => n !== orig.name).map(n => ({ name: n, kcal: base.kcal, protein: base.protein, carbs: base.carbs, fat: base.fat }))
+          : MEAL_SWAPS.filter(a => a.name !== orig.name);
         const options = [
           { name: base.name, kcal: base.kcal, protein: base.protein, carbs: base.carbs, fat: base.fat, _keep: true },
-          ...MEAL_SWAPS.filter(a => a.name !== orig.name),
+          ...alts,
         ];
         return (
           <div onClick={() => setSwapMealIdx(null)} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>

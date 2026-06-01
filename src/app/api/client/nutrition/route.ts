@@ -56,5 +56,32 @@ export async function GET() {
 
   const loggedDays7 = week.filter((d) => d.logged).length;
 
-  return NextResponse.json({ ok: true, today, week, loggedDays7 });
+  // Prescribed meals the nutritionist pushed (coach_pushed_items, kind 'meal'),
+  // including any coach-approved swap alternatives saved with each meal.
+  const { data: mealRows } = await supabase
+    .from('coach_pushed_items')
+    .select('id, payload, sent_at')
+    .eq('client_id', user.id)
+    .eq('kind', 'meal')
+    .is('removed_at', null)
+    .order('sent_at', { ascending: true });
+
+  const todayMeals = (mealRows ?? []).map((r) => {
+    const p = (r.payload ?? {}) as {
+      name?: unknown; time?: unknown; kcal?: unknown; protein?: unknown;
+      carbs?: unknown; fat?: unknown; alternatives?: unknown;
+    };
+    return {
+      time: typeof p.time === 'string' ? p.time : '—',
+      name: typeof p.name === 'string' ? p.name : 'Meal',
+      kcal: num(p.kcal) ?? 0,
+      protein: num(p.protein) ?? 0,
+      carbs: num(p.carbs) ?? 0,
+      fat: num(p.fat) ?? 0,
+      alternatives: Array.isArray(p.alternatives) ? p.alternatives.map(String).filter(Boolean) : [],
+      planned: true,
+    };
+  });
+
+  return NextResponse.json({ ok: true, today, week, loggedDays7, todayMeals });
 }
