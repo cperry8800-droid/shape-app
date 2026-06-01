@@ -874,7 +874,7 @@ function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
         )}
 
         {/* Secondary links */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '16px 16px', marginTop: 26 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '22px 16px', marginTop: 42 }}>
           <button onClick={() => { setMode(isCreate ? 'signin' : 'create'); setAuthError(''); }} style={linkBtn}>{isCreate ? 'Have an account? Sign in' : 'New here? Join Shape'}</button>
           {isPhone && <button onClick={() => switchMethod('email')} style={linkBtn}>Use email instead</button>}
           <button onClick={onBrowse} style={{ background: 'rgba(46,224,196,0.12)', border: '1px solid #2ee0c4', borderRadius: 999, color: '#2ee0c4', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '8px 16px' }}>No account? Browse the app →</button>
