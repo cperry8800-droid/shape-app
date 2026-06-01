@@ -783,6 +783,17 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
 // ═══════════════════════════════════════════════════════════
 // HOME — "The Shape Daily" front page
 // ═══════════════════════════════════════════════════════════
+// Home ticker metrics — keys match the labels built in BSClientHome; the
+// Settings editor toggles/reorders these (saved to user_goals 'client_ticker').
+const BS_TICKER_METRICS = [
+  { key: 'CAL', name: 'Calories' },
+  { key: 'PRO', name: 'Protein' },
+  { key: 'SLP', name: 'Sleep' },
+  { key: 'HRV', name: 'HRV' },
+  { key: 'RHR', name: 'Resting HR' },
+  { key: 'WGT', name: 'Weight' },
+];
+
 function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket, goScore, goIntegrations, tweaks = {}, setTweak = () => {} }) {
   const t = useBS();
   // Real current week, computed live so the home reflects today (not demo dates).
@@ -815,6 +826,16 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   const [quickLoggedItems, setQuickLoggedItems] = useStateBSC({});
   const [coachFeed, setCoachFeed] = useStateBSC({ banners: [], items: [] });
   const [ticker, setTicker] = useStateBSC(null);
+  // Which ticker metrics to show + their order — edited in Settings, saved to profile.
+  const [tickerPrefs, setTickerPrefs] = useStateBSC({ hidden: [], order: null });
+  React.useEffect(() => {
+    if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
+    let alive = true;
+    window.shapeDb.getUserGoals('client_ticker').then(s => {
+      if (alive && s && typeof s === 'object') setTickerPrefs({ hidden: Array.isArray(s.hidden) ? s.hidden : [], order: Array.isArray(s.order) ? s.order : null });
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
   const [analytics, setAnalytics] = useStateBSC(null);
   // The Energy card reads the user's active goal (nutrition + training prefs)
   // and reframes the same balance into one of three states. Default 'maintain'.
@@ -1129,7 +1150,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         };
         const pct = tk.cal != null && tk.cal_target ? Math.round((tk.cal / tk.cal_target - 1) * 100) : null;
         const proColor = tk.protein_g != null && tk.protein_g >= 120 ? '#a3e09a' : undefined;
-        return [
+        const all = [
           { label: 'CAL',  value: tk.cal != null ? `${tk.cal}/${tk.cal_target}` : '1568/2100', note: pct != null ? `${pct >= 0 ? '+' : ''}${pct}% TGT` : '-25% TGT' },
           { label: 'PRO',  value: tk.protein_g != null ? `${tk.protein_g}G` : '118G', note: tk.protein_g != null && tk.protein_g >= 120 ? 'ON PACE' : 'BUILD UP', color: proColor },
           { label: 'SLP',  value: fmtSleep(tk.sleep_hours) || '7H24M', note: fmtDelta(tk.sleep_delta_min, 'M VS YEST') || '+28M VS AVG', color: '#a3e09a' },
@@ -1137,6 +1158,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
           { label: 'RHR',  value: tk.resting_hr != null ? `${Math.round(tk.resting_hr)}BPM` : '54BPM', note: tk.resting_hr != null && tk.resting_hr > 60 ? 'ELEV' : 'STEADY', color: tk.resting_hr != null && tk.resting_hr > 60 ? '#ffc56a' : undefined },
           { label: 'WGT',  value: tk.weight_lb != null ? `${tk.weight_lb.toFixed(1)}LB` : '178.2LB', note: tk.weight_delta_7d != null ? fmtDelta(tk.weight_delta_7d, ' 7D') : '-0.4 7D' },
         ];
+        const order = (tickerPrefs.order && tickerPrefs.order.length) ? tickerPrefs.order : all.map(i => i.label);
+        const out = order.map(k => all.find(i => i.label === k)).filter(Boolean).filter(it => !(tickerPrefs.hidden || []).includes(it.label));
+        return out.length ? out : all;
       })()} />
 
       {/* Edition strip — moved below the ticker (which sits under the date masthead) */}
@@ -8985,6 +9009,35 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showNotifications, setShowNotifications] = useStateBSC(false);
   const [showIntegrations, setShowIntegrations] = useStateBSC(initialPage === 'integrations');
 
+  // Home ticker editor — which metrics show + order (saved to user_goals).
+  const [tickerPrefs, setTickerPrefs] = useStateBSC({ hidden: [], order: BS_TICKER_METRICS.map(m => m.key) });
+  React.useEffect(() => {
+    if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
+    let alive = true;
+    window.shapeDb.getUserGoals('client_ticker').then(s => {
+      if (!alive || !s || typeof s !== 'object') return;
+      const order = Array.isArray(s.order) && s.order.length ? s.order : BS_TICKER_METRICS.map(m => m.key);
+      setTickerPrefs({ hidden: Array.isArray(s.hidden) ? s.hidden : [], order });
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  const saveTicker = (next) => {
+    setTickerPrefs(next);
+    try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_ticker', next); } catch (e) {}
+  };
+  const tickerToggle = (key) => {
+    const hidden = tickerPrefs.hidden.includes(key) ? tickerPrefs.hidden.filter(k => k !== key) : [...tickerPrefs.hidden, key];
+    saveTicker({ ...tickerPrefs, hidden });
+  };
+  const tickerMove = (key, dir) => {
+    const order = [...(tickerPrefs.order || BS_TICKER_METRICS.map(m => m.key))];
+    const i = order.indexOf(key);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= order.length) return;
+    [order[i], order[j]] = [order[j], order[i]];
+    saveTicker({ ...tickerPrefs, order });
+  };
+
   // Coach-only "pause new bookings" (at_capacity). null until loaded / for
   // non-coach accounts (no provider row), in which case the block is hidden.
   const [capacity, setCapacityState] = useStateBSC(null);
@@ -9473,6 +9526,29 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             ? '— effects render on top of every screen while radio plays'
             : '— turn on Shape Radio from Home to see the effect'}
         </div>
+      </div>
+
+      {/* Home ticker — choose which stats show on the home strip + reorder. */}
+      <BSSection title="Home ticker" meta={`${BS_TICKER_METRICS.length - tickerPrefs.hidden.length} of ${BS_TICKER_METRICS.length} shown`} />
+      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+        {(tickerPrefs.order || BS_TICKER_METRICS.map(m => m.key)).map((key, idx, arr) => {
+          const m = BS_TICKER_METRICS.find(x => x.key === key);
+          if (!m) return null;
+          const shown = !tickerPrefs.hidden.includes(key);
+          return (
+            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: `${t.rowY}px 0`, borderBottom: idx === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: shown ? t.INK : t.INK50 }}>{m.name}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase', marginTop: 2 }}>{m.key}</div>
+              </div>
+              <button onClick={() => tickerMove(key, -1)} disabled={idx === 0} title="Move up" style={{ background: 'transparent', border: 0, color: idx === 0 ? t.HAIR : t.INK50, fontSize: 15, cursor: idx === 0 ? 'default' : 'pointer', padding: '2px 6px', lineHeight: 1 }}>↑</button>
+              <button onClick={() => tickerMove(key, 1)} disabled={idx === arr.length - 1} title="Move down" style={{ background: 'transparent', border: 0, color: idx === arr.length - 1 ? t.HAIR : t.INK50, fontSize: 15, cursor: idx === arr.length - 1 ? 'default' : 'pointer', padding: '2px 6px', lineHeight: 1 }}>↓</button>
+              <button onClick={() => tickerToggle(key)} title={shown ? 'Hide' : 'Show'} style={{ width: 34, height: 20, borderRadius: 999, padding: 2, flexShrink: 0, border: 0, background: shown ? t.ACCENT : t.RULE, cursor: 'pointer', display: 'flex', justifyContent: shown ? 'flex-end' : 'flex-start' }}>
+                <span style={{ width: 14, height: 14, borderRadius: 999, background: shown ? t.PAPER : t.INK50, display: 'block' }} />
+              </button>
+            </div>
+          );
+        })}
       </div>
 
       {sections.map(sec => (
