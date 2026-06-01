@@ -367,24 +367,10 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
         trailing={<BackButton onClick={onBack} />}
       />
 
-      <div style={{ padding: `0 ${t.padX}px 10px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-        {['trainer', 'nutritionist'].map(next => {
-          const on = role === next;
-          return (
-            <button key={next} onClick={() => setRole(next)} style={{
-              borderRadius: t.RADIUS_SM,
-              minHeight: 36,
-              background: on ? t.INK : 'transparent',
-              color: on ? t.PAPER : t.INK,
-              border: `1px solid ${t.INK}`,
-              fontFamily: t.MONO,
-              fontSize: 9.5,
-              letterSpacing: '0.16em',
-              textTransform: 'uppercase',
-              fontWeight: 800,
-            }}>{next}</button>
-          );
-        })}
+      <div style={{ padding: `0 ${t.padX}px 12px` }}>
+        <span style={{ display: 'inline-block', borderRadius: t.RADIUS_SM, border: `1px solid ${t.INK}`, background: t.INK, color: t.PAPER, padding: '9px 16px', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800 }}>
+          {role} application
+        </span>
       </div>
 
       <div style={{ margin: `0 ${t.padX}px 10px`, padding: 11, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
