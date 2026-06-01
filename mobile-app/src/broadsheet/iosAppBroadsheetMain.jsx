@@ -82,8 +82,8 @@ function ensureSkyStyles() {
   .bs-shoot.s1 { top:14%; left:-160px; animation: bsShoot1 9s linear infinite; }
   .bs-shoot.s2 { top:40%; left:-160px; animation: bsShoot2 12s linear infinite 3.5s; }
   .bs-shoot.s3 { top:9%;  left:-160px; animation: bsShoot3 11s linear infinite 6.5s; }
-  @keyframes bsMarkPulse { 0%,100%{ transform:translateY(0) scale(1); filter:drop-shadow(0 0 16px rgba(10,197,168,0.55)) drop-shadow(0 0 6px rgba(46,224,196,0.5)); } 50%{ transform:translateY(-7px) scale(1.045); filter:drop-shadow(0 0 48px rgba(10,197,168,0.98)) drop-shadow(0 0 20px rgba(46,224,196,0.9)); } }
-  .bs-shape-mark { animation: bsMarkPulse 2.6s ease-in-out infinite; }
+  @keyframes bsMarkPulse { 0%,100%{ transform:translateY(0) scale(1); filter:drop-shadow(0 0 24px rgba(10,197,168,0.75)) drop-shadow(0 0 10px rgba(46,224,196,0.65)); } 50%{ transform:translateY(-10px) scale(1.085); filter:drop-shadow(0 0 78px rgba(10,197,168,1)) drop-shadow(0 0 38px rgba(46,224,196,1)) drop-shadow(0 0 16px rgba(255,255,255,0.6)); } }
+  .bs-shape-mark { animation: bsMarkPulse 2.1s ease-in-out infinite; }
   .bs-splash-zoom { transition: transform 0.7s cubic-bezier(0.5,0,0.7,0.25); transform-origin: center center; will-change: transform; }
   .bs-splash-zoom.zooming { transform: scale(7); }
   .bs-splash-zoom.zooming .bs-shape-mark { animation: none !important; transform: none !important; filter: drop-shadow(0 0 36px rgba(10,197,168,0.98)) drop-shadow(0 0 16px rgba(46,224,196,0.95)); }
