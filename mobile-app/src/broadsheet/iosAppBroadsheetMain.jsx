@@ -762,10 +762,10 @@ function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
       <BSNightSky />
       <div className="bs-hide-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 'max(20px, calc(env(safe-area-inset-top, 0px) + 12px)) 22px calc(20px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 7 }}>
         {/* Logo lockup — top-left */}
-        <img src={`${import.meta.env.BASE_URL}shape-logo.png`} alt="Shape" style={{ width: 120, height: 'auto', display: 'block', marginLeft: -13, marginTop: -44 }} />
+        <img src={`${import.meta.env.BASE_URL}shape-logo.png`} alt="Shape" style={{ width: 120, height: 'auto', display: 'block', marginLeft: -13, marginTop: -72 }} />
 
         {/* Eyebrow + heading */}
-        <div style={{ marginTop: 18 }}>
+        <div style={{ marginTop: 48 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#2ee0c4', fontWeight: 700 }}>
             {isCreate ? 'Join Shape' : 'Sign in'}
           </div>
@@ -879,7 +879,7 @@ function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
         )}
 
         {/* Secondary links */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '8px 16px', marginTop: 2 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '16px 16px', marginTop: 26 }}>
           <button onClick={() => { setMode(isCreate ? 'signin' : 'create'); setAuthError(''); }} style={linkBtn}>{isCreate ? 'Have an account? Sign in' : 'New here? Join Shape'}</button>
           {isPhone && <button onClick={() => switchMethod('email')} style={linkBtn}>Use email instead</button>}
           <button onClick={onBrowse} style={{ background: 'rgba(46,224,196,0.12)', border: '1px solid #2ee0c4', borderRadius: 999, color: '#2ee0c4', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '8px 16px' }}>No account? Browse the app →</button>
