@@ -103,6 +103,9 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/integrations/[provider]/callback', 'GET'],
   ['/api/integrations/[provider]/disconnect', 'POST'],
   ['/api/integrations/apple-music/developer-token', 'GET'],
+  ['/api/integrations/apple-music/connect', 'POST'],
+  ['/api/integrations/apple-music/disconnect', 'POST'],
+  ['/api/integrations/instacart/shopping-list', 'POST'],
   ['/api/integrations/status', 'GET'],
   ['/api/integrations/strava/sync', 'GET'],
   ['/api/integrations/whoop/sync', 'GET'],
@@ -345,7 +348,8 @@ function buildConfig(): ConfigGroup[] {
       { key: 'WHOOP', label: 'Whoop', present: present(env.WHOOP_CLIENT_ID) && present(env.WHOOP_CLIENT_SECRET) },
       { key: 'GARMIN', label: 'Garmin', present: present(env.GARMIN_CLIENT_ID) && present(env.GARMIN_CLIENT_SECRET) },
       { key: 'SPOTIFY', label: 'Spotify', present: present(env.SPOTIFY_CLIENT_ID) && present(env.SPOTIFY_CLIENT_SECRET) },
-      { key: 'APPLE_MUSIC', label: 'Apple Music', present: present(env.APPLE_MUSIC_KEY_ID) && present(env.APPLE_MUSIC_TEAM_ID) },
+      { key: 'APPLE_MUSIC', label: 'Apple Music', present: present(env.APPLE_MUSIC_KEY_ID) && present(env.APPLE_MUSIC_TEAM_ID) && present(env.APPLE_MUSIC_PRIVATE_KEY) },
+      { key: 'INSTACART', label: 'Instacart', present: present(env.INSTACART_API_KEY) },
     ], false, 'integrations', 'Integrations'),
   ];
 }
@@ -354,6 +358,8 @@ function buildConfig(): ConfigGroup[] {
 
 function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSection[] {
   const group = (k: string) => config.find((g) => g.key === k);
+  const itemPresent = (groupKey: string, itemKey: string) =>
+    !!group(groupKey)?.items.find((it) => it.key === itemKey)?.present;
   const stripeReady = !!group('stripe')?.ready && stripeMode(process.env.STRIPE_SECRET_KEY) === 'live';
   const supabaseReady = !!group('supabase')?.ready;
   const pushReady = !!group('push')?.ready;
@@ -403,9 +409,32 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Eat tab crash fixed (PROGRAM TDZ)', status: 'done' },
         { label: 'Stripped 157MB of unused assets from /m', status: 'done' },
         { label: 'Account creation routes pros to the application', status: 'done' },
+        { label: 'Login logo raised + browse section lowered/separated', status: 'done' },
         { label: 'Email verification flow (code) — enable "Confirm email" in Supabase', status: 'manual' },
         { label: 'Continue with Apple (code) — enable Apple provider in Supabase', status: 'manual' },
         { label: 'Native Sign in with Apple plugin (iOS App Store build)', status: 'pending' },
+      ],
+    },
+    {
+      section: 'Community feed & chat',
+      items: [
+        { label: 'Chat tab rebuilt as role-aware "The feed." (Shape / own role / Community)', status: 'done' },
+        { label: 'Teams = Channels/Coaches selector; Friends = people list', status: 'done' },
+        { label: 'Community filter shows Strava-style workout cards (PR/run/workout stats)', status: 'done' },
+        { label: 'Trainer & nutritionist chat uses the shared role-aware feed', status: 'done' },
+        { label: 'Radio intro: flowing sound-wave backdrop + compact/lowered hero', status: 'done' },
+        { label: 'Website chat bubble role-aware (only filters once logged in) + single close', status: 'done' },
+      ],
+    },
+    {
+      section: 'Music & grocery integrations',
+      items: [
+        { label: 'Spotify connect/disconnect surfaced (mobile + web)', status: 'done' },
+        { label: 'Spotify credentials set (SPOTIFY_CLIENT_ID/SECRET)', status: auto(itemPresent('integrations', 'SPOTIFY')) },
+        { label: 'Apple Music MusicKit auth flow (connect/disconnect, status)', status: 'done' },
+        { label: 'Apple Music credentials set (TEAM_ID/KEY_ID/PRIVATE_KEY)', status: auto(itemPresent('integrations', 'APPLE_MUSIC')) },
+        { label: 'Instacart grocery hand-off (products_link shopping list)', status: 'done' },
+        { label: 'Instacart credentials set (INSTACART_API_KEY)', status: auto(itemPresent('integrations', 'INSTACART')) },
       ],
     },
   ];
