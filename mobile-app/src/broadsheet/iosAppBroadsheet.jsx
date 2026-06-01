@@ -862,6 +862,7 @@ function BSTabBar({ tabs, active, onChange }) {
             <span style={{
               fontFamily: t.MONO, fontWeight: 700, fontSize: tab.emoji ? 18 : 10.5, letterSpacing: '-0.01em',
               fontVariantNumeric: 'tabular-nums', lineHeight: 1,
+              filter: tab.emoji ? 'grayscale(1)' : undefined,
             }}>{tab.emoji || String(i + 1).padStart(2, '0')}</span>
             <span style={{
               fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600,
