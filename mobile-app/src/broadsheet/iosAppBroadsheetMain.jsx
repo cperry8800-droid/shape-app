@@ -70,8 +70,11 @@ function ensureSkyStyles() {
   .bs-shoot.s1 { top:14%; left:-160px; animation: bsShoot1 9s linear infinite; }
   .bs-shoot.s2 { top:40%; left:-160px; animation: bsShoot2 12s linear infinite 3.5s; }
   .bs-shoot.s3 { top:9%;  left:-160px; animation: bsShoot3 11s linear infinite 6.5s; }
-  @keyframes bsMarkPulse { 0%,100%{ transform:translateY(0) scale(1); filter:drop-shadow(0 0 12px rgba(10,197,168,0.45)); } 50%{ transform:translateY(-7px) scale(1.035); filter:drop-shadow(0 0 26px rgba(10,197,168,0.65)); } }
-  .bs-shape-mark { animation: bsMarkPulse 3.8s ease-in-out infinite; }
+  @keyframes bsMarkPulse { 0%,100%{ transform:translateY(0) scale(1); filter:drop-shadow(0 0 16px rgba(10,197,168,0.55)) drop-shadow(0 0 6px rgba(46,224,196,0.5)); } 50%{ transform:translateY(-7px) scale(1.045); filter:drop-shadow(0 0 48px rgba(10,197,168,0.98)) drop-shadow(0 0 20px rgba(46,224,196,0.9)); } }
+  .bs-shape-mark { animation: bsMarkPulse 2.6s ease-in-out infinite; }
+  .bs-splash-zoom { transition: transform 0.9s cubic-bezier(0.6,0,0.75,0.15); transform-origin: center center; will-change: transform; }
+  .bs-splash-zoom.zooming { transform: scale(32); }
+  .bs-splash-zoom.zooming .bs-shape-mark { animation: none !important; transform: none !important; filter: drop-shadow(0 0 30px rgba(10,197,168,0.85)); }
   .bs-mark-edge { stroke-dasharray:38 97; animation: bsMarkEdge 3.2s linear infinite; }
   .bs-mark-edge.e2 { animation-delay:-1.6s; }
   @keyframes bsMarkEdge { to { stroke-dashoffset:-135; } }
@@ -243,10 +246,15 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
   const t = useBS();
   const SPLASH_FACE = "'Saira', 'Arial Narrow', 'Helvetica Neue', sans-serif";
   // Classified is interactive: user must tap "Step inside" — no auto-advance.
+  const [zoom, setZoom] = useStateBSM(false);
   useEffectBSM(() => {
     if (style === 'classified') return; // classified is tap-only
-    const id = setTimeout(onDone, (style === 'cosmos' || !style) ? 3000 : 1600);
-    return () => clearTimeout(id);
+    const cosmos = (style === 'cosmos' || !style);
+    const total = cosmos ? 3200 : 1600;
+    const timers = [setTimeout(onDone, total)];
+    // Cosmos: zoom the mark up to fill the screen as a transition into login.
+    if (cosmos) timers.push(setTimeout(() => setZoom(true), total - 900));
+    return () => timers.forEach(clearTimeout);
   }, [style]);
 
   // ── 0. COSMOS (default): colourful night sky + floating Shape mark ──
@@ -254,7 +262,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
     return (
       <div onClick={onDone} style={{ position: 'absolute', inset: 0, color: '#f4efe6', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', cursor: 'pointer' }}>
         <BSNightSky />
-        <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className={`bs-splash-zoom${zoom ? ' zooming' : ''}`} style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <BSShapeMark size={132} />
         </div>
       </div>
@@ -710,7 +718,7 @@ function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
   return (
     <div style={{ position: 'absolute', inset: 0, color: CREAM, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <BSNightSky />
-      <div className="bs-hide-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 'max(32px, calc(env(safe-area-inset-top, 0px) + 18px)) 22px calc(26px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div className="bs-hide-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 'max(28px, calc(env(safe-area-inset-top, 0px) + 16px)) 22px calc(24px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {/* Logo lockup — top-left */}
         <img src={`${import.meta.env.BASE_URL}shape-logo.png`} alt="Shape" style={{ width: 120, height: 'auto', display: 'block', marginLeft: -13 }} />
 
@@ -735,7 +743,7 @@ function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
             {[['client','Client'],['trainer','Trainer'],['nutritionist','Nutritionist']].map(([k, l]) => {
               const on = role === k;
               return <button key={k} onClick={() => setRole(k)} style={{
-                padding: '9px 4px', borderRadius: 999, border: 0,
+                padding: '8px 4px', borderRadius: 999, border: 0,
                 background: on ? '#0ac5a8' : 'transparent', color: on ? '#031f1c' : CREAM,
                 fontFamily: t.DISPLAY, fontSize: 12, fontWeight: on ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap',
               }}>{l}</button>;
@@ -744,7 +752,7 @@ function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
         </div>
 
         {/* Fields */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
           {isCreate && (
             <div><div style={labelStyle}>Full name</div>
               <input placeholder="Your name" value={fullName} onChange={(e) => setFullName(e.target.value)} style={inputStyle} />
@@ -789,7 +797,7 @@ function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
         <button
           onClick={isPhone ? (otpSent ? verifyPhoneCode : sendPhoneCode) : submitAuth}
           disabled={busy}
-          style={{ width: '100%', borderRadius: 12, padding: '12px 16px', background: CREAM, color: '#0b0c0c', border: 0, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1 }}>
+          style={{ width: '100%', borderRadius: 12, padding: '11px 16px', background: CREAM, color: '#0b0c0c', border: 0, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1 }}>
           {busy
             ? (isCreate ? 'Creating…' : 'Signing in…')
             : isPhone
@@ -804,7 +812,7 @@ function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
             setAuthError('');
             if (role === 'trainer' || role === 'nutritionist') { if (onApply) onApply(role); else setMode('create'); }
             else { setMode('create'); }
-          }} style={{ width: '100%', borderRadius: 12, padding: '12px 16px', background: 'transparent', color: CREAM, border: `1px solid ${CREAM}`, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}>
+          }} style={{ width: '100%', borderRadius: 12, padding: '11px 16px', background: 'transparent', color: CREAM, border: `1px solid ${CREAM}`, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}>
             {role === 'client' ? 'Create account →' : `Apply as a ${roleLabel} →`}
           </button>
         )}
@@ -817,13 +825,13 @@ function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
         </div>
 
         {/* Continue with Apple */}
-        <button onClick={continueWithApple} style={{ width: '100%', borderRadius: 12, padding: 12, background: 'rgba(255,255,255,0.04)', color: CREAM, border: `1px solid ${LINE2}`, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9 }}>
+        <button onClick={continueWithApple} style={{ width: '100%', borderRadius: 12, padding: 10, background: 'rgba(255,255,255,0.04)', color: CREAM, border: `1px solid ${LINE2}`, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9 }}>
           <span style={{ fontSize: 17, lineHeight: 1, marginTop: -3 }}></span> Continue with Apple
         </button>
 
         {/* Continue with phone — switches to the SMS one-time-code flow */}
         {!isPhone && (
-          <button onClick={() => switchMethod('phone')} style={{ width: '100%', borderRadius: 12, padding: 12, background: 'rgba(255,255,255,0.04)', color: CREAM, border: `1px solid ${LINE2}`, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>
+          <button onClick={() => switchMethod('phone')} style={{ width: '100%', borderRadius: 12, padding: 10, background: 'rgba(255,255,255,0.04)', color: CREAM, border: `1px solid ${LINE2}`, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>
             Continue with phone number
           </button>
         )}

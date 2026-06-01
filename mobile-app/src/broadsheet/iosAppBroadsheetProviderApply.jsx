@@ -50,13 +50,13 @@ function BSApplyInput({ label, value, onChange, type = 'text', placeholder = '',
     background: t.PAPER2,
     color: t.INK,
     borderRadius: t.RADIUS_SM,
-    padding: '12px 11px',
+    padding: '9px 11px',
     fontFamily: t.DISPLAY,
-    fontSize: 15,
+    fontSize: 14,
     outline: 'none',
   };
   return (
-    <label style={{ display: 'grid', gap: 7 }}>
+    <label style={{ display: 'grid', gap: 5 }}>
       <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{label}</span>
       {multiline ? (
         <textarea value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={4} style={{ ...base, resize: 'vertical', lineHeight: 1.35 }} />
@@ -70,7 +70,7 @@ function BSApplyInput({ label, value, onChange, type = 'text', placeholder = '',
 function BSApplySelect({ label, value, onChange, options }) {
   const t = useBS();
   return (
-    <label style={{ display: 'grid', gap: 7 }}>
+    <label style={{ display: 'grid', gap: 5 }}>
       <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{label}</span>
       <select value={value || options[0]} onChange={(e) => onChange(e.target.value)} style={{
         width: '100%',
@@ -151,7 +151,7 @@ function BSApplyCheck({ checked, onChange, children }) {
 function BSApplyFile({ label, file, onChange, helper }) {
   const t = useBS();
   return (
-    <label style={{ display: 'grid', gap: 7 }}>
+    <label style={{ display: 'grid', gap: 5 }}>
       <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{label}</span>
       <input
         type="file"
@@ -260,7 +260,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
 
   const body = (() => {
     if (step === 0) return (
-      <div style={{ display: 'grid', gap: 12 }}>
+      <div style={{ display: 'grid', gap: 9 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <BSApplyInput label="First name" value={values.firstName} onChange={v => set('firstName', v)} />
           <BSApplyInput label="Last name" value={values.lastName} onChange={v => set('lastName', v)} />
@@ -277,7 +277,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
     );
 
     if (step === 1) return (
-      <div style={{ display: 'grid', gap: 12 }}>
+      <div style={{ display: 'grid', gap: 9 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <BSApplyInput label={isTrainer ? 'Primary certification' : 'License type'} value={values.cert} onChange={v => set('cert', v)} placeholder={isTrainer ? 'NASM, ACE, CSCS' : 'RD, RDN, CNS'} />
           <BSApplyInput label={isTrainer ? 'Expiration / renewal' : 'License state + number'} value={values.certExp} onChange={v => set('certExp', v)} />
@@ -303,7 +303,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
     );
 
     if (step === 2) return (
-      <div style={{ display: 'grid', gap: 16 }}>
+      <div style={{ display: 'grid', gap: 11 }}>
         <BSApplySelect label="Primary specialty" value={values.primary || specialties[0]} onChange={v => set('primary', v)} options={specialties} />
         <BSApplyChips label="Secondary specialties" options={specialties} values={values.secondary || []} onToggle={v => toggle('secondary', v)} />
         <BSApplyChips label="Populations you work best with" options={populations} values={values.populations || []} onToggle={v => toggle('populations', v)} />
@@ -312,7 +312,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
     );
 
     return (
-      <div style={{ display: 'grid', gap: 12 }}>
+      <div style={{ display: 'grid', gap: 9 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <BSApplyInput label="Max clients" value={values.maxClients} onChange={v => set('maxClients', v)} type="number" placeholder="25" />
           <BSApplySelect label="Accepting clients" value={values.accepting} onChange={v => set('accepting', v)} options={['Yes', 'Waitlist', 'Not yet']} />
@@ -367,13 +367,13 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
         trailing={<BackButton onClick={onBack} />}
       />
 
-      <div style={{ padding: `0 ${t.padX}px 14px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+      <div style={{ padding: `0 ${t.padX}px 10px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
         {['trainer', 'nutritionist'].map(next => {
           const on = role === next;
           return (
             <button key={next} onClick={() => setRole(next)} style={{
               borderRadius: t.RADIUS_SM,
-              minHeight: 42,
+              minHeight: 36,
               background: on ? t.INK : 'transparent',
               color: on ? t.PAPER : t.INK,
               border: `1px solid ${t.INK}`,
@@ -387,9 +387,9 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
         })}
       </div>
 
-      <div style={{ margin: `0 ${t.padX}px 14px`, padding: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+      <div style={{ margin: `0 ${t.padX}px 10px`, padding: 11, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
         <BSEyebrow color={t.ACCENT}>Free to join - no upfront costs</BSEyebrow>
-        <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 18, lineHeight: 1.35, color: t.INK }}>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.3, color: t.INK }}>
           Set your own pricing, publish programs, sell sessions, and get reviewed by Shape before going live.
         </div>
       </div>
@@ -401,7 +401,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
         ))}
       </div>
 
-      <div style={{ margin: `0 ${t.padX}px`, padding: 14, border: `1px solid ${t.RULE}`, background: t.PAPER }}>
+      <div style={{ margin: `0 ${t.padX}px`, padding: 12, border: `1px solid ${t.RULE}`, background: t.PAPER }}>
         {body}
       </div>
 
@@ -411,7 +411,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
         </div>
       )}
 
-      <div style={{ padding: `16px ${t.padX}px 20px`, display: 'grid', gridTemplateColumns: '96px 1fr', gap: 8 }}>
+      <div style={{ padding: `12px ${t.padX}px 16px`, display: 'grid', gridTemplateColumns: '96px 1fr', gap: 8 }}>
         <button disabled={step === 0 || submitting} onClick={() => setStep(Math.max(0, step - 1))} style={{
           borderRadius: t.RADIUS_SM,
           border: `1px solid ${t.RULE}`,
