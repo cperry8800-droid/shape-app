@@ -388,7 +388,7 @@ function BSRadioPrompt() {
       {/* Scrollable upper region — hero + choices */}
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }} className="bs-scroll">
       {/* Hero */}
-      <div style={{ position: 'relative', padding: `max(40px, calc(env(safe-area-inset-top, 0px) + 28px)) ${t.padX}px 8px` }}>
+      <div style={{ position: 'relative', padding: `max(112px, calc(env(safe-area-inset-top, 0px) + 96px)) ${t.padX}px 8px` }}>
         <div style={{ position: 'relative', zIndex: 2 }}>
           <div style={{ maxWidth: 230 }}><BSEQ bars={22} color={t.ACCENT} height={56} gap={4} /></div>
         </div>
