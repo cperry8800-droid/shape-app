@@ -2342,6 +2342,38 @@ async function resendConfirmation(email) {
   return true;
 }
 
+// Shared key-value store, backed by the same Supabase `user_goals` table the
+// website's window.shapeDb (public/supabase.js) uses. This is what makes the
+// mobile app and the website "talk to each other": both upsert into
+// user_goals keyed by (user_id, kind), so prefs/swaps saved on one surface are
+// read by the other (same Supabase project + same signed-in user). Many mobile
+// screens already call window.shapeDb.getUserGoals/saveUserGoals; until now it
+// was undefined here, so those calls silently no-op'd and nothing persisted.
+window.shapeDb = window.shapeDb || {
+  async getUser() {
+    if (state.user && state.user.id) return state.user;
+    if (!supabase) return null;
+    try { const { data } = await supabase.auth.getUser(); return data && data.user ? data.user : null; }
+    catch (e) { return null; }
+  },
+  async getUserGoals(kind) {
+    if (!supabase) return null;
+    const u = await window.shapeDb.getUser();
+    if (!u) return null;
+    const res = await supabase.from('user_goals').select('data').eq('user_id', u.id).eq('kind', kind).maybeSingle();
+    if (res.error) { console.warn('[shape] getUserGoals error', res.error); return null; }
+    return (res.data && res.data.data) || {};
+  },
+  async saveUserGoals(kind, data) {
+    if (!supabase) return { error: { message: 'No backend' } };
+    const u = await window.shapeDb.getUser();
+    if (!u) return { error: { message: 'Not logged in' } };
+    const res = await supabase.from('user_goals').upsert({ user_id: u.id, kind, data: data || {} }, { onConflict: 'user_id,kind' });
+    if (res.error) { console.warn('[shape] saveUserGoals error', res.error); return { error: res.error }; }
+    return { ok: true };
+  },
+};
+
 window.ShapeAuth = {
   configured: authConfigured,
   client: supabase,
