@@ -5934,7 +5934,6 @@ function BSProgressSpark({ values, color, h = 40 }) {
 }
 
 const _BS_ACTIVITY_TYPES = ['Run', 'Ride', 'Swim', 'Walk', 'Hike', 'Tennis', 'Pilates', 'Rowing', 'Golf', 'Stairmaster', 'Elliptical', 'Yoga', 'HIIT', 'Strength', 'Other'];
-const _BS_ACTIVITY_ICON = { Run: '🏃', Ride: '🚴', Swim: '🏊', Walk: '🚶', Hike: '🥾', Tennis: '🎾', Pilates: '🧘', Rowing: '🚣', Golf: '⛳', Stairmaster: '🪜', Elliptical: '🏋', Yoga: '🧘', HIIT: '🔥', Strength: '💪', Other: '✦' };
 // Activities that care about distance (km) — others hide that field.
 const _BS_ACTIVITY_DISTANCE = new Set(['Run', 'Ride', 'Swim', 'Walk', 'Hike', 'Rowing']);
 
@@ -6098,13 +6097,12 @@ function BSLogActivity({ onClose, onSaved }) {
             const on = a === type;
             return (
               <button key={a} onClick={() => setType(a)} style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-                padding: '9px 2px 7px', borderRadius: 12, cursor: 'pointer',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
+                minHeight: 46, padding: '9px 2px 7px', borderRadius: 12, cursor: 'pointer',
                 border: `1px solid ${on ? t.ACCENT : t.RULE}`,
                 background: on ? `${t.ACCENT}22` : 'transparent',
               }}>
-                <span style={{ fontSize: 18, lineHeight: 1, filter: on ? 'none' : 'grayscale(0.4)' }}>{_BS_ACTIVITY_ICON[a] || '✦'}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: on ? t.INK : t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{a}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: on ? t.INK : t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{a}</span>
               </button>
             );
           })}
