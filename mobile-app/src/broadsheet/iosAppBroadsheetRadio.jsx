@@ -405,7 +405,8 @@ function BSRadioPrompt() {
         </div>
       </div>
 
-      <div style={{ height: 18 }} />
+      {/* Push the choice cards down so they sit just above Continue (matches mock). */}
+      <div style={{ flex: 1, minHeight: 24 }} />
 
       {/* Choice rows */}
       <div style={{ padding: `16px ${t.padX}px`, display: 'flex', flexDirection: 'column', gap: 10 }}>
