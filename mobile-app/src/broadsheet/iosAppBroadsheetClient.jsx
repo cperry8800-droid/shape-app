@@ -2112,23 +2112,23 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {} })
       <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} />
 
       {/* Today hero — the session at a glance, with the coach + play. */}
-      <div style={{ margin: `16px ${t.padX}px 0`, borderRadius: 18, border: `1px solid ${t.RULE}`, background: `linear-gradient(160deg, rgba(10,197,168,0.10), ${t.PAPER2} 62%)`, padding: 20 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700 }}>
+      <div style={{ margin: `14px ${t.padX}px 0`, borderRadius: 16, border: `1px solid ${t.RULE}`, background: `linear-gradient(160deg, rgba(10,197,168,0.10), ${t.PAPER2} 62%)`, padding: 15 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700 }}>
           <span style={{ color: t.ACCENT }}>Today · 9 AM</span>
           <span style={{ color: t.INK50 }}>W6 · D{day + 1}</span>
         </div>
-        <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 34, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>{cur.headline}</div>
-        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 10.5, color: t.INK70, letterSpacing: '0.06em' }}>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 26, lineHeight: 0.96, letterSpacing: '-0.04em', color: t.INK }}>{cur.headline}</div>
+        <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, color: t.INK70, letterSpacing: '0.06em' }}>
           {effMoves.length > 0 ? `52 min · ${effMoves.length} moves · RPE 8 · ~420 kcal` : cur.copy}
         </div>
-        <div style={{ marginTop: 18, display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 36, height: 36, flexShrink: 0, borderRadius: 999, background: '#c0533b', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14 }}>J</div>
+        <div style={{ marginTop: 13, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, background: '#c0533b', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13 }}>J</div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK }}>Jordan Chen</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>Coach</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 700, color: t.INK }}>Jordan Chen</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>Coach</div>
           </div>
           {effMoves.length > 0 ? (
-            <button onClick={() => setSession(true)} aria-label="Start session" style={{ width: 52, height: 52, flexShrink: 0, borderRadius: 999, border: 0, background: t.ACCENT, color: '#031f1c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>▶</button>
+            <button onClick={() => setSession(true)} aria-label="Start session" style={{ width: 42, height: 42, flexShrink: 0, borderRadius: 999, border: 0, background: t.ACCENT, color: '#031f1c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>▶</button>
           ) : (
             <span style={{ flexShrink: 0, padding: '10px 14px', borderRadius: 999, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Rest</span>
           )}
@@ -4073,33 +4073,33 @@ function BSClientEat({ onProfile, goRadio = () => {} }) {
         return (
           <>
             {/* Calorie hero */}
-            <div style={{ padding: `16px ${t.padX}px 0` }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-                <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 60, lineHeight: 0.9, letterSpacing: '-0.05em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{calNow.toLocaleString()}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 12, letterSpacing: '0.06em', color: t.INK50 }}>/ {calTgt.toLocaleString()} KCAL</span>
+            <div style={{ padding: `14px ${t.padX}px 0` }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 9 }}>
+                <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 44, lineHeight: 0.9, letterSpacing: '-0.05em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{calNow.toLocaleString()}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.06em', color: t.INK50 }}>/ {calTgt.toLocaleString()} KCAL</span>
               </div>
-              <div style={{ marginTop: 14, height: 4, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}>
+              <div style={{ marginTop: 10, height: 3, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}>
                 <div style={{ width: `${calPct}%`, height: '100%', background: t.ACCENT }} />
               </div>
-              <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.08em' }}>
+              <div style={{ marginTop: 7, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em' }}>
                 <span style={{ color: t.ACCENT }}>{calLeft.toLocaleString()} kcal left · on pace</span>
                 <span style={{ color: t.INK50 }}>{calPct}%</span>
               </div>
             </div>
 
             {/* Macro cards */}
-            <div style={{ padding: `16px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+            <div style={{ padding: `12px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
               {macros.map((m) => {
                 const mv = num(m.v), mg = num(m.g);
                 const mp = mg ? Math.min(100, (mv / mg) * 100) : 0;
                 return (
-                  <div key={m.l} style={{ padding: 12, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+                  <div key={m.l} style={{ padding: '9px 10px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 6 }}>
-                      <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', color: m.c, fontWeight: 700 }}>{m.l}</span>
-                      <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50 }}>/ {mg}</span>
+                      <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', color: m.c, fontWeight: 700 }}>{m.l}</span>
+                      <span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50 }}>/ {mg}</span>
                     </div>
-                    <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 26, color: t.INK, letterSpacing: '-0.04em', lineHeight: 1, marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>{mv}</div>
-                    <div style={{ marginTop: 8, height: 3, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}>
+                    <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 21, color: t.INK, letterSpacing: '-0.04em', lineHeight: 1, marginTop: 5, fontVariantNumeric: 'tabular-nums' }}>{mv}</div>
+                    <div style={{ marginTop: 6, height: 3, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}>
                       <div style={{ width: `${mp}%`, height: '100%', background: m.c }} />
                     </div>
                   </div>
