@@ -1795,14 +1795,14 @@ function BSWeekStrip({ activeIdx, onSelect, restFlags = [] }) {
   const mon = new Date(_now); mon.setHours(0, 0, 0, 0); mon.setDate(_now.getDate() - todayIdx);
   const dates = Array.from({ length: 7 }, (_, i) => { const d = new Date(mon); d.setDate(mon.getDate() + i); return d.getDate(); });
   return (
-    <div style={{ padding: `14px ${t.padX}px 8px`, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+    <div style={{ padding: `10px ${t.padX}px 4px`, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5 }}>
       {DOWL.map((L, i) => {
         const on = i === activeIdx;
         return (
-          <button key={i} onClick={() => onSelect(i)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '8px 0 6px', borderRadius: 14, cursor: 'pointer', border: `1px solid ${on ? t.ACCENT : t.HAIR}`, background: on ? 'rgba(10,197,168,0.08)' : 'transparent' }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', color: on ? t.ACCENT : t.INK50 }}>{L}</span>
-            <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 18, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{dates[i]}</span>
-            <span style={{ width: 4, height: 4, borderRadius: 2, background: restFlags[i] ? t.GREEN : (on ? t.ACCENT : 'transparent') }} />
+          <button key={i} onClick={() => onSelect(i)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '5px 0 4px', borderRadius: 12, cursor: 'pointer', border: `1px solid ${on ? t.ACCENT : t.HAIR}`, background: on ? 'rgba(10,197,168,0.08)' : 'transparent' }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', color: on ? t.ACCENT : t.INK50 }}>{L}</span>
+            <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 15, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{dates[i]}</span>
+            <span style={{ width: 3.5, height: 3.5, borderRadius: 2, background: restFlags[i] ? t.GREEN : (on ? t.ACCENT : 'transparent') }} />
           </button>
         );
       })}
@@ -2684,14 +2684,14 @@ function BSNutritionTopTabs({ active, onChange }) {
     ['recipes', 'Recipes'],
   ];
   return (
-    <div style={{ padding: `12px ${t.padX}px`, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, borderBottom: `1px solid ${t.RULE}` }}>
+    <div style={{ padding: `9px ${t.padX}px`, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, borderBottom: `1px solid ${t.RULE}` }}>
       {tabs.map(([key, label]) => {
         const on = active === key;
         return (
           <button key={key} onClick={() => onChange(key)} style={{ borderRadius: t.RADIUS_SM,
-            padding: '11px 8px', border: `1px solid ${on ? t.INK : t.RULE}`,
+            padding: '8px 8px', border: `1px solid ${on ? t.INK : t.RULE}`,
             background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK,
-            fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase',
+            fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase',
             cursor: 'pointer',
           }}>{label}</button>
         );
@@ -8010,20 +8010,20 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
         }}>Score</button>}
       />
 
-      <div style={{ padding: `16px ${t.padX}px 18px`, borderBottom: `1px solid ${t.RULE}`, background: t.INK, color: t.PAPER }}>
+      <div style={{ padding: `12px ${t.padX}px 12px`, borderBottom: `1px solid ${t.RULE}`, background: t.INK, color: t.PAPER }}>
         <BSEyebrow color={t.ACCENT}>Available balance</BSEyebrow>
-        <div style={{ marginTop: 8, display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 58, fontWeight: 700, lineHeight: 0.9, letterSpacing: '-0.05em' }}>{balance.toLocaleString()}</div>
-          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: storeHeroFaint }}>pts</div>
+        <div style={{ marginTop: 5, display: 'flex', alignItems: 'baseline', gap: 7 }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, lineHeight: 0.9, letterSpacing: '-0.05em' }}>{balance.toLocaleString()}</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: storeHeroFaint }}>pts</div>
         </div>
-        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 15.5, lineHeight: 1.35, color: storeHeroMuted, letterSpacing: '-0.01em' }}>
-          Trade Shape Score for Shape merch, training credits, nutrition services, and membership perks. No expiry on points. No third-party merchandise discounts.
+        <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.3, color: storeHeroMuted, letterSpacing: '-0.01em' }}>
+          Trade Shape Score for Shape merch, training credits, nutrition services, and membership perks. No expiry on points.
         </div>
-        <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderTop: `1px solid ${storeHeroRule}` }}>
+        <div style={{ marginTop: 10, paddingTop: 2, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderTop: `1px solid ${storeHeroRule}` }}>
           {[[lifetime.toLocaleString(), 'Lifetime earned'], [redeemedCount, 'Items redeemed'], [profile.tier, 'Current tier']].map(([value, label], i) => (
-            <div key={label} style={{ padding: '10px 8px 0', borderLeft: i ? `1px solid ${storeHeroHair}` : 0 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.PAPER, letterSpacing: '-0.035em' }}>{value}</div>
-              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: storeHeroFaint }}>{label}</div>
+            <div key={label} style={{ padding: '8px 8px 0', borderLeft: i ? `1px solid ${storeHeroHair}` : 0 }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.PAPER, letterSpacing: '-0.035em' }}>{value}</div>
+              <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: storeHeroFaint }}>{label}</div>
             </div>
           ))}
         </div>
