@@ -385,8 +385,31 @@ function BSRadioPrompt() {
       display: 'flex', flexDirection: 'column',
       overflow: 'hidden',
     }}>
+      {/* Flowing sound-wave backdrop — soft teal lines drifting behind the
+          content, echoing the EQ visualiser. Dark theme only. */}
+      {!isLight && (
+        <div aria-hidden style={{ position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+          <svg width="100%" height="100%" viewBox="0 0 400 800" preserveAspectRatio="xMidYMid slice" style={{ position: 'absolute', inset: 0 }}>
+            <defs>
+              <linearGradient id="bsRadioWave" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stopColor={t.ACCENT} stopOpacity="0" />
+                <stop offset="0.5" stopColor={t.ACCENT} stopOpacity="0.55" />
+                <stop offset="1" stopColor={t.ACCENT} stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <g className="bs-radio-waves" fill="none" stroke="url(#bsRadioWave)" strokeLinecap="round">
+              {[120, 205, 290, 380, 470, 560, 650].map((y, i) => {
+                const a = i % 2 === 0 ? 40 : -40;
+                const d = `M -40 ${y} C 60 ${y - a}, 140 ${y + a}, 200 ${y} C 260 ${y - a}, 340 ${y + a}, 460 ${y}`;
+                return <path key={i} d={d} strokeWidth={i % 3 === 0 ? 1.6 : 1} opacity={0.2 + (i % 3) * 0.12} />;
+              })}
+            </g>
+          </svg>
+        </div>
+      )}
+
       {/* Scrollable upper region — hero + choices */}
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }} className="bs-scroll">
+      <div style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }} className="bs-scroll">
       {/* Hero */}
       <div style={{ position: 'relative', padding: `max(112px, calc(env(safe-area-inset-top, 0px) + 96px)) ${t.padX}px 8px` }}>
         <div style={{ position: 'relative', zIndex: 2 }}>
@@ -428,7 +451,7 @@ function BSRadioPrompt() {
       </div>
       </div>
 
-      <div style={{ padding: `18px ${t.padX}px 28px`, borderTop: `2px solid ${t.INK}`, background: isLight ? t.PAPER : 'rgba(11,12,12,0.5)', backdropFilter: isLight ? undefined : 'blur(8px)', WebkitBackdropFilter: isLight ? undefined : 'blur(8px)' }}>
+      <div style={{ position: 'relative', zIndex: 1, padding: `18px ${t.padX}px 28px`, borderTop: `2px solid ${t.INK}`, background: isLight ? t.PAPER : 'rgba(11,12,12,0.5)', backdropFilter: isLight ? undefined : 'blur(8px)', WebkitBackdropFilter: isLight ? undefined : 'blur(8px)' }}>
         <button
           disabled={!choice}
           onClick={() => r.answerPrompt(choice === 'on')}
@@ -448,6 +471,9 @@ function BSRadioPrompt() {
 
       <style>{`
         @keyframes bs-blink { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+        @keyframes bs-radio-wave { 0%,100% { transform: translateX(0); } 50% { transform: translateX(-18px); } }
+        .bs-radio-waves { animation: bs-radio-wave 14s ease-in-out infinite; will-change: transform; }
+        @media (prefers-reduced-motion: reduce) { .bs-radio-waves { animation: none; } }
       `}</style>
     </div>
   );
