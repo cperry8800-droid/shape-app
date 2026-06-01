@@ -4043,7 +4043,9 @@ function BSClientEat({ onProfile, goRadio = () => {} }) {
   // Mon=0..Sun=6 — count meals already logged today (state === 'done')
   const loggedCount = cur.meals.filter(m => m.state === 'done').length;
   // Apply any coach-approved meal swaps the user picked.
-  const effMeals = cur.meals.map(m => (mealOverrides[m.id] ? { ...m, ...mealOverrides[m.id] } : m));
+  // Overrides are keyed by the meal's ORIGINAL name so a swap saved here lines
+  // up with the same meal on the website (shared user_goals store).
+  const effMeals = cur.meals.map(m => { const ov = mealOverrides[m.title]; return ov ? { ...m, ...ov, _baseTitle: m.title } : { ...m, _baseTitle: m.title }; });
 
   return (
     <BSPage>
@@ -4113,7 +4115,7 @@ function BSClientEat({ onProfile, goRadio = () => {} }) {
         {effMeals.map((m, i) => {
           const logged = m.state === 'done';
           const next = m.state === 'next';
-          const swapped = !!mealOverrides[m.id];
+          const swapped = !!mealOverrides[m._baseTitle];
           return (
             <button key={m.id} onClick={() => setPreviewMealId(m.id)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 10, alignItems: 'start', padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}`, background: 'transparent', border: 0 }}>
               <span style={{ fontFamily: t.MONO, fontSize: 10, color: logged ? t.ACCENT : t.INK50, fontWeight: 600, marginTop: 3 }}>{logged ? '✓' : String(i + 1).padStart(2, '0')}</span>
@@ -4138,9 +4140,10 @@ function BSClientEat({ onProfile, goRadio = () => {} }) {
         ];
         return <BSSwapSheet title="Swap meal" subtitle={orig.title} options={options} onClose={() => setSwapMealId(null)}
           onPick={(o) => {
+            const key = base.title;
             const next = { ...mealOverrides };
-            if (o._keep) delete next[swapMealId];
-            else next[swapMealId] = { title: o._alt.title, kcal: o._alt.kcal, p: o._alt.p, c: o._alt.c, f: o._alt.f, sub: `${o._alt.kcal} kcal · ${o._alt.p}P · ${o._alt.c}C · ${o._alt.f}F` };
+            if (o._keep) delete next[key];
+            else next[key] = { title: o._alt.title, kcal: o._alt.kcal, p: o._alt.p, c: o._alt.c, f: o._alt.f, sub: `${o._alt.kcal} kcal · ${o._alt.p}P · ${o._alt.c}C · ${o._alt.f}F` };
             setMealOverrides(next);
             try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_meal_swaps', next); } catch (e) {}
             if (!o._keep) {
