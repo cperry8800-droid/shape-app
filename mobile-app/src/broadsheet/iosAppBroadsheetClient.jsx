@@ -4667,7 +4667,7 @@ function BSCommunityLiveFeed({ role = 'client' }) {
 }
 
 // "The feed." — community feed screen (Feed / Messages / Teams).
-function BSClientFeed({ onProfile }) {
+function BSClientFeed({ onProfile, role: roleProp }) {
   const t = useBS();
   const TEAL = '#0ac5a8', TEALB = '#2ee0c4';
   const [tab, setTab] = useStateBSC('feed');
@@ -4685,7 +4685,7 @@ function BSClientFeed({ onProfile }) {
   };
   // Feed chips depend on the signed-in role: everyone sees Shape + Community,
   // plus only their own role's chip (Client / Trainer / Nutri).
-  const myRole = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().profile && window.ShapeAuth.getCachedState().profile.role) || 'client';
+  const myRole = roleProp || (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().profile && window.ShapeAuth.getCachedState().profile.role) || 'client';
   const myRoleChip = myRole === 'trainer' ? 'TRAINER' : myRole === 'nutritionist' ? 'NUTRI' : 'CLIENT';
   const CHIP_KEYS = ['SHAPE', myRoleChip, 'COMMUNITY'];
   const SAMPLE = [
@@ -4763,7 +4763,7 @@ function BSClientFeed({ onProfile }) {
 
       {tab !== 'feed' ? (
         (() => {
-          const role = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().profile && window.ShapeAuth.getCachedState().profile.role) || 'client';
+          const role = roleProp || (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().profile && window.ShapeAuth.getCachedState().profile.role) || 'client';
           const isCoach = role === 'trainer' || role === 'nutritionist';
           const coaches = [
             { n: 'Maya Okafor', s: 'Trainer · Strength', c: '#c0533b', i: 'M' },
@@ -4783,18 +4783,15 @@ function BSClientFeed({ onProfile }) {
           return (
             <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 18 }}>
               {sections.map((sec, si) => (
-                <div key={si} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div key={si} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: muted, margin: '0 2px 2px' }}>{sec.label}</div>
-                  {sec.items.map((f, i) => (
-                    <button key={i} onClick={() => { if (window.bsRequireAccount && !window.bsRequireAccount('open chats')) return; window.__bsToast && window.__bsToast('Opening ' + f.n, 'ok'); }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, border: `1px solid ${hair}`, background: card, color: cardInk, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
-                      <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: f.c, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 15 }}>{f.i}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15 }}>{f.n}</div>
-                        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, marginTop: 3 }}>{f.s}</div>
-                      </div>
-                      <span style={{ color: muted, fontSize: 16 }}>›</span>
-                    </button>
-                  ))}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {sec.items.map((f, i) => (
+                      <button key={i} title={f.s} onClick={() => { window.__bsToast && window.__bsToast('Opening ' + f.n, 'ok'); }} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '9px 14px', borderRadius: 999, border: `1px solid ${f.c}`, background: `${f.c}1f`, color: cardInk, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        <span style={{ width: 6, height: 6, borderRadius: 3, background: f.c }} />{f.n}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
@@ -4853,7 +4850,16 @@ function BSClientFeed({ onProfile }) {
   );
 }
 
+// Chat tab for ALL roles now renders the role-aware "The feed." screen.
+// Clients route straight to BSClientFeed; trainers/nutritionists reach it
+// through this wrapper (their bundle destructures BSClientChat from window),
+// so passing `role` through gives them the Trainer/Nutri chip + coach sections.
 function BSClientChat({ onProfile, role = 'client' }) {
+  return <BSClientFeed onProfile={onProfile} role={role} />;
+}
+
+// Legacy chat implementation — retained for reference, no longer routed.
+function BSClientChatLegacy({ onProfile, role = 'client' }) {
   const t = useBS();
   const [syncedCoachThreads, setSyncedCoachThreads] = useStateBSC([]);
   const [feedDraft, setFeedDraft] = useStateBSC('');

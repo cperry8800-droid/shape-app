@@ -564,6 +564,8 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
       {screens[tab]}
+      {/* Feed composer portals into this slot (see BSClientFeed). */}
+      <div id="bs-composer-slot" style={{ position: 'absolute', left: 0, right: 0, bottom: 72, zIndex: 60, pointerEvents: 'none' }} />
       <BSTabBar active={tab} onChange={setTab} tabs={[
         { key: 'today',    label: 'Today' },
         { key: 'clients',  label: 'Clients' },
@@ -1588,6 +1590,8 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
       {screens[tab]}
+      {/* Feed composer portals into this slot (see BSClientFeed). */}
+      <div id="bs-composer-slot" style={{ position: 'absolute', left: 0, right: 0, bottom: 72, zIndex: 60, pointerEvents: 'none' }} />
       <BSTabBar active={tab} onChange={setTab} tabs={[
         { key: 'today',    label: 'Today' },
         { key: 'clients',  label: 'Clients' },
