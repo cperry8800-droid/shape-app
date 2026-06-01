@@ -444,10 +444,21 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
             if (t === 'meal' || t === 'nutrition') return 'EAT';
             return 'SHP';
           };
-          const hydrated = d.posts.slice(0, 5).map((p, i) => ({
+          // Only surface REAL, recent posts — skip test/placeholder rows
+          // (generic 'activity'/'update' titles, missing titles, or stale
+          // timestamps). Otherwise keep the curated editorial blurbs.
+          const firstName = (n) => String(n || 'Member').trim().split(/\s+/)[0];
+          const good = d.posts.filter(p => {
+            const tt = String(p.title || p.note || '').trim().toLowerCase();
+            if (!tt || tt === 'activity' || tt === 'update' || tt.length < 3) return false;
+            const ms = Date.now() - new Date(p.created_at).getTime();
+            return ms >= 0 && ms < 30 * 86_400_000;
+          }).slice(0, 5);
+          if (!good.length) return;
+          const hydrated = good.map((p, i) => ({
             tag: `${tagFor(p.activity_type)}-${String(i + 1).padStart(2, '0')}`,
-            title: p.title || p.note || 'Update',
-            meta: `${p.author_name || 'Member'} · ${ago(p.created_at)}`,
+            title: String(p.title || p.note).trim(),
+            meta: `${firstName(p.author_name)} · ${ago(p.created_at)}`,
             col: 1,
           }));
           setInsideItems(hydrated);
