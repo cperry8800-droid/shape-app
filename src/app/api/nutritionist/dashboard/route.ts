@@ -5,18 +5,9 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { DAY_MS, startOfWeek } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
-
-const DAY_MS = 86_400_000;
-
-function startOfWeek(d: Date): number {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  const mondayOffset = (x.getDay() + 6) % 7;
-  x.setDate(x.getDate() - mondayOffset);
-  return x.getTime();
-}
 
 type SessionRow = {
   scheduled_at: string;

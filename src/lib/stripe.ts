@@ -17,3 +17,46 @@ export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? 'sk_missing', 
     url: 'https://theshapecommunity.com',
   },
 });
+
+/** Connect-account balance + recent payouts, as the coach analytics routes shape it. */
+export type StripeSummary = {
+  connected: boolean;
+  status: string;
+  balanceCents: number | null;
+  payouts: Array<{
+    id: string;
+    amountCents: number;
+    currency: string;
+    status: string;
+    arrivalDate: number | null;
+    created: number;
+  }>;
+};
+
+/** Balance + last 12 payouts for a connected account (or an empty/error summary). */
+export async function loadStripe(
+  accountId: string | null,
+  accountStatus: string | null
+): Promise<StripeSummary> {
+  if (!accountId) {
+    return { connected: false, status: accountStatus ?? 'not_connected', balanceCents: null, payouts: [] };
+  }
+  try {
+    const [balance, payoutList] = await Promise.all([
+      stripe.balance.retrieve({}, { stripeAccount: accountId }),
+      stripe.payouts.list({ limit: 12 }, { stripeAccount: accountId }),
+    ]);
+    const balanceCents = (balance.available ?? []).reduce((sum, b) => sum + b.amount, 0);
+    const payouts = payoutList.data.map((p) => ({
+      id: p.id,
+      amountCents: p.amount,
+      currency: p.currency,
+      status: p.status,
+      arrivalDate: p.arrival_date ? p.arrival_date * 1000 : null,
+      created: p.created * 1000,
+    }));
+    return { connected: true, status: accountStatus ?? 'connected', balanceCents, payouts };
+  } catch {
+    return { connected: true, status: accountStatus ?? 'error', balanceCents: null, payouts: [] };
+  }
+}
