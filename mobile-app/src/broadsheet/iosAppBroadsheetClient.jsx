@@ -363,7 +363,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     home:    <BSClientHome     onProfile={goSettings} sheet={sheet} goCalendar={() => setShowCalendar(true)} goRadio={goRadio} goTrain={goTrain} goMarket={goMarket} goScore={goScore} goIntegrations={goIntegrations} tweaks={tweaks} setTweak={setTweak} />,
     train:   <BSClientTrain    onProfile={goSettings} sheet={sheet} />,
     eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} />,
-    chat:    <BSClientChat     onProfile={goSettings} sheet={sheet} />,
+    chat:    <BSClientFeed     onProfile={goSettings} />,
     radio:   <BSRadioScreen    onBack={() => setTab('home')} />,
     market:  <BSMarketplaceScreen onBack={() => setTab('home')} onProfile={goSettings} />,
     store:   storeView === 'score'
@@ -4663,6 +4663,108 @@ function BSCommunityLiveFeed({ role = 'client' }) {
         })}
       </div>
     </>
+  );
+}
+
+// "The feed." — community feed screen (Feed / Messages / Teams).
+function BSClientFeed({ onProfile }) {
+  const t = useBS();
+  const TEAL = '#0ac5a8', TEALB = '#2ee0c4';
+  const [tab, setTab] = useStateBSC('feed');
+  const [filter, setFilter] = useStateBSC('ALL');
+  const [draft, setDraft] = useStateBSC('');
+  const card = '#1a1713', cardInk = '#f7f1e6', muted = 'rgba(247,241,230,0.55)', hair = 'rgba(247,241,230,0.12)';
+  const ROLE = {
+    SHAPE: { color: TEALB, label: 'Shape · Official' },
+    TRAINER: { color: '#ff7a59', label: 'Trainer' },
+    CLIENT: { color: '#2ee0c4', label: 'Client' },
+    NUTRI: { color: '#e0b15a', label: 'Nutri' },
+  };
+  const POSTS = [
+    { who: 'Shape', kind: 'SHAPE', init: '✦', hue: TEAL, time: '1h', pinned: true, official: true, body: "Riverside Runners: Saturday's 6am long run is official. 47 of you RSVP'd. Coffee at Blackbird after — first round on Shape.", hearts: 52, replies: 14 },
+    { who: 'Jordan Chen', kind: 'TRAINER', init: 'J', hue: '#c0533b', time: '2h', body: 'Week 6 check, team: drop a ⚡ if you hit all lifts this week. Coffee for the top 3 adherence scores.', hearts: 34, replies: 12 },
+    { who: 'Sofia Martinez', kind: 'CLIENT', init: 'S', hue: '#147b68', time: '4h', body: 'First sub-9 min mile today!', hearts: 18, replies: 3 },
+  ];
+  const shown = POSTS.filter(p => filter === 'ALL' || p.kind === filter);
+
+  const post = () => {
+    if (window.bsRequireAccount && !window.bsRequireAccount('post to the feed')) return;
+    if (!draft.trim()) return;
+    window.__bsToast?.('Posted to the group', 'ok');
+    setDraft('');
+  };
+  const react = (label) => { if (window.bsRequireAccount && !window.bsRequireAccount(label)) return; };
+
+  const Pill = ({ on, onClick, children }) => (
+    <button onClick={onClick} style={{ padding: '9px 16px', borderRadius: 999, border: 0, background: on ? TEAL : 'transparent', color: on ? '#031f1c' : muted, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{children}</button>
+  );
+
+  return (
+    <BSPage>
+      <div style={{ padding: `max(20px, env(safe-area-inset-top, 0px)) ${t.padX}px 0` }}>
+        <div style={{ fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontWeight: 500, fontSize: 40, lineHeight: 0.9, letterSpacing: '-0.045em', color: cardInk }}>
+          The<br /><span style={{ fontStyle: 'italic', color: TEALB }}>feed.</span>
+        </div>
+      </div>
+
+      {/* Feed / Messages / Teams */}
+      <div style={{ padding: `16px ${t.padX}px 0` }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, border: `1px solid ${hair}`, borderRadius: 999, padding: 4 }}>
+          {[['feed', 'Feed'], ['messages', 'Messages'], ['teams', 'Teams']].map(([k, l]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)}>{l}</Pill>)}
+        </div>
+      </div>
+
+      {tab !== 'feed' ? (
+        <div style={{ padding: `40px ${t.padX}px`, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 14, color: muted }}>
+          {tab === 'messages' ? 'Your direct messages with coaches appear here.' : 'Your teams and group rooms appear here.'}
+        </div>
+      ) : (
+        <>
+          {/* Role filter chips */}
+          <div style={{ display: 'flex', gap: 7, overflowX: 'auto', padding: `14px ${t.padX}px`, scrollbarWidth: 'none' }} className="bs-hide-scroll">
+            {['SHAPE', 'TRAINER', 'CLIENT', 'NUTRI'].map(k => {
+              const on = filter === k;
+              return (
+                <button key={k} onClick={() => setFilter(on ? 'ALL' : k)} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 13px', borderRadius: 999, border: `1px solid ${on ? ROLE[k].color : hair}`, background: on ? `${ROLE[k].color}1f` : 'transparent', color: cardInk, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', cursor: 'pointer' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: 3, background: ROLE[k].color }} />{k}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Composer */}
+          <div style={{ margin: `0 ${t.padX}px 16px`, display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 999, border: `1px solid ${hair}`, background: card }}>
+            <div style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, background: TEAL, color: '#031f1c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13 }}>A</div>
+            <input value={draft} onChange={e => setDraft(e.target.value)} placeholder="Share with the group…" style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, outline: 'none', color: cardInk, fontFamily: t.DISPLAY, fontSize: 14 }} />
+            <button onClick={post} style={{ flexShrink: 0, padding: '9px 16px', borderRadius: 999, border: 0, background: TEAL, color: '#031f1c', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>POST</button>
+          </div>
+
+          <div style={{ padding: `0 ${t.padX}px 24px`, display: 'flex', flexDirection: 'column', gap: 18 }}>
+            {shown.map((p, i) => (
+              <div key={i}>
+                {p.pinned && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', color: TEALB, marginBottom: 8 }}>📌 Pinned</div>}
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                  <span style={{ fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14, color: cardInk }}>{p.who}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: ROLE[p.kind].color, border: `1px solid ${ROLE[p.kind].color}66`, borderRadius: 4, padding: '2px 6px' }}>{ROLE[p.kind].label}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: muted }}>{p.time}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <div style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, background: p.hue, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13 }}>{p.init}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ borderRadius: 14, padding: '14px 16px', background: p.official ? '#f3eee4' : card, color: p.official ? '#1a1713' : cardInk, border: p.official ? 'none' : `1px solid ${hair}`, fontFamily: p.official ? (t.SERIF || `'Newsreader', Georgia, serif`) : t.DISPLAY, fontStyle: p.official ? 'italic' : 'normal', fontSize: p.official ? 17 : 15, lineHeight: 1.4 }}>{p.body}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 8, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.08em', color: muted }}>
+                      <button onClick={() => react('react to posts')} style={{ background: 'transparent', border: 0, color: muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>♥ {p.hearts}</button>
+                      <button onClick={() => react('reply')} style={{ background: 'transparent', border: 0, color: muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>↳ {p.replies}</button>
+                      <button onClick={() => react('save posts')} style={{ background: 'transparent', border: 0, color: TEALB, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: 800, cursor: 'pointer', padding: 0 }}>SAVE</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </BSPage>
   );
 }
 
