@@ -1154,29 +1154,15 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         </span>
       </div>
 
-      {/* From your coach — live focus banner + pushed items pulled from the */}
-      {/* coach_focus_banners + coach_pushed_items tables (RLS-scoped to me). */}
-      {(coachFeed.banners.length > 0 || coachFeed.items.length > 0) && (
+      {/* From your coach — pushed items (meals/workouts) from coach_pushed_items */}
+      {/* (RLS-scoped to me). The coach's focus-banner note renders in the Op-ed below. */}
+      {coachFeed.items.length > 0 && (
         <div style={{ padding: `12px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: t.ACCENT, marginBottom: 10 }}>
             From your coach
           </div>
-          {coachFeed.banners.map(b => (
-            <div key={b.id} style={{
-              padding: '10px 12px',
-              background: t.PAPER,
-              border: `1px solid ${t.RULE}`,
-              borderRadius: t.RADIUS_SM,
-              marginBottom: 8,
-            }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginBottom: 4 }}>
-                {b.provider_role === 'trainer' ? 'YOUR TRAINER' : 'YOUR NUTRITIONIST'}
-              </div>
-              <div style={{ fontSize: 14, lineHeight: 1.45, color: t.INK }}>{b.text}</div>
-            </div>
-          ))}
           {coachFeed.items.length > 0 && (
-            <div style={{ marginTop: coachFeed.banners.length > 0 ? 6 : 0 }}>
+            <div style={{ marginTop: 0 }}>
               <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginBottom: 6 }}>
                 For today
               </div>
@@ -1615,19 +1601,35 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
 
       {/* THIS WEEK — (moved to top) */}
 
-      {/* OP-ED */}
-      <div style={{ margin: `18px ${t.padX}px 0`, padding: '14px 16px', background: t.INK, color: t.PAPER }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.AMBER, marginBottom: 8, fontWeight: 700 }}>
-          ▍ Op-ed · Your coach
-        </div>
-        <div style={{ fontFamily: t.DISPLAY, fontWeight: 500, fontSize: 16, lineHeight: 1.25, letterSpacing: '-0.015em' }}>
-          "You're three weeks in. The tempo is the point — slow eccentric on every press."
-        </div>
-        <div style={{ marginTop: 10, paddingTop: 9, borderTop: `1px solid rgba(245,240,230,0.18)`, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
-          <span>By Jordan Chen · Coach</span>
-          <span style={{ opacity: 0.55 }}>Mon · 8:15</span>
-        </div>
-      </div>
+      {/* OP-ED — the coach's latest focus-banner note (coach_focus_banners),
+          editable from their Live Console. Falls back to an editorial line. */}
+      {(() => {
+        const banner = (coachFeed.banners || [])[0];
+        const text = (banner && banner.text) || "You're three weeks in. The tempo is the point — slow eccentric on every press.";
+        const role = banner && banner.provider_role === 'nutritionist' ? 'Your nutritionist' : 'Your coach';
+        const when = (() => {
+          if (!banner || !banner.sent_at) return 'Mon · 8:15';
+          const ms = Date.now() - new Date(banner.sent_at).getTime();
+          if (ms < 3_600_000) return `${Math.max(1, Math.floor(ms / 60_000))}m ago`;
+          if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h ago`;
+          const d = new Date(banner.sent_at);
+          return `${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]} · ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+        })();
+        return (
+          <div style={{ margin: `18px ${t.padX}px 0`, padding: '14px 16px', background: t.INK, color: t.PAPER }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.AMBER, marginBottom: 8, fontWeight: 700 }}>
+              ▍ Op-ed · {role}
+            </div>
+            <div style={{ fontFamily: t.DISPLAY, fontWeight: 500, fontSize: 16, lineHeight: 1.25, letterSpacing: '-0.015em' }}>
+              &ldquo;{text}&rdquo;
+            </div>
+            <div style={{ marginTop: 10, paddingTop: 9, borderTop: `1px solid rgba(245,240,230,0.18)`, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
+              <span>{banner ? role : 'By Jordan Chen · Coach'}</span>
+              <span style={{ opacity: 0.55 }}>{when}</span>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── HOME WIDGETS — user-added stats & blocks ─────────────── */}
       {(() => {
@@ -2193,7 +2195,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       })()}
 
       {/* Find a trainer — marketplace deep link (Trainer tab), pinned to the bottom */}
-      <div style={{ padding: `18px ${t.padX}px 0` }}>
+      <div style={{ padding: `18px ${t.padX}px 28px` }}>
         <button onClick={() => goMarket('trainer')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 16px', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#c0533b', fontWeight: 700, marginBottom: 4 }}>Marketplace</div>
@@ -2204,7 +2206,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
         </button>
       </div>
 
-      <BSFooter right="Pg 2 of 5" />
+      <BSFooter left="" right="Pg 2 of 5" />
     </BSPage>
   );
 }
@@ -4202,7 +4204,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
       })()}
 
       {/* Find a nutritionist — marketplace deep link (Nutritionist tab), pinned to the bottom */}
-      <div style={{ padding: `18px ${t.padX}px 0` }}>
+      <div style={{ padding: `18px ${t.padX}px 28px` }}>
         <button onClick={() => goMarket('nutritionist')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 16px', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#a07a2e', fontWeight: 700, marginBottom: 4 }}>Marketplace</div>
@@ -4213,7 +4215,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
         </button>
       </div>
 
-      <BSFooter right="Pg 3 of 5" />
+      <BSFooter left="" right="Pg 3 of 5" />
     </BSPage>
   );
 }
