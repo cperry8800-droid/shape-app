@@ -589,14 +589,14 @@ function BSHomeCardItem({ slot, model, t, pinned, onPin, onRemove, onOpen, dragg
       draggable={draggable}
       {...(dragHandlers || {})}
       style={{
-        margin: `0 ${t.padX}px 7px`, borderRadius: 11, overflow: 'hidden',
+        margin: `0 ${t.padX}px 6px`, borderRadius: 11, overflow: 'hidden',
         border: dragOver ? `1.5px dashed ${model.accent}` : (pinned ? `1.5px solid ${model.accent}` : `1px solid ${t.RULE}`),
         background: t.PAPER2,
         opacity: dragging ? 0.5 : 1,
         transition: 'opacity 0.15s ease',
       }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px 0' }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: model.accent, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 12px 0' }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: model.accent, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
           {draggable && <span title="Drag to reorder" style={{ cursor: 'grab', color: t.INK50, fontSize: 12, letterSpacing: 0 }}>⠿</span>}
           {model.kicker}{pinned ? ' · pinned' : ''}
         </span>
@@ -605,13 +605,13 @@ function BSHomeCardItem({ slot, model, t, pinned, onPin, onRemove, onOpen, dragg
           <button onClick={onRemove} title="Hide" style={_bsCardBtn(t, t.INK50)}>×</button>
         </div>
       </div>
-      <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: onOpen ? 'pointer' : 'default', padding: '2px 12px 11px' }}>
+      <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: onOpen ? 'pointer' : 'default', padding: '1px 12px 9px' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 7, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 27, lineHeight: 0.92, letterSpacing: '-0.04em', color: t.INK }}>{model.hero}</span>
+          <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 22, lineHeight: 0.92, letterSpacing: '-0.04em', color: t.INK }}>{model.hero}</span>
           {model.heroUnit ? <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{model.heroUnit}</span> : null}
         </div>
         {model.sub && model.sub.length > 0 && (
-          <div style={{ marginTop: 5, display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
+          <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
             {model.sub.filter(Boolean).map((s, i) => (
               <React.Fragment key={i}>
                 {i > 0 && <span style={{ opacity: 0.5 }}>·</span>}
@@ -620,7 +620,7 @@ function BSHomeCardItem({ slot, model, t, pinned, onPin, onRemove, onOpen, dragg
             ))}
           </div>
         )}
-        {model.caption ? <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: t.body, fontWeight: 500, color: t.INK70, letterSpacing: '-0.01em', lineHeight: 1.25 }}>{model.caption}</div> : null}
+        {model.caption ? <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 500, color: t.INK70, letterSpacing: '-0.01em', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{model.caption}</div> : null}
       </button>
     </div>
   );
