@@ -13,26 +13,6 @@ const { BSPage, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BS
 // ═══════════════════════════════════════════════════════════
 // Data
 // ═══════════════════════════════════════════════════════════
-const BSM_COACHES = {
-  Trainer: [
-    { id: 't1', name: 'Jordan Chen',   loc: 'Brooklyn, NY',   cred: 'NASM-CPT · 9 yrs',  spec: ['Strength', 'Hypertrophy', 'Block periodization'], rate: 180, sessions: '50-min · 1:1', match: 96, rating: 4.9, clients: 28, init: 'J', bio: 'Block-style strength coach. Tempo-driven progressions, weekly RPE check-ins, no fluff.', tag: 'YOUR COACH' },
-    { id: 't2', name: 'Maya Okafor',   loc: 'Brooklyn, NY',   cred: 'NASM-CPT · 9 yrs',  spec: ['Hypertrophy', 'Women 30+', 'Posture'],            rate: 165, sessions: '45-min · 1:1', match: 92, rating: 4.9, clients: 32, init: 'M', bio: 'Hypertrophy-first coach focused on women 30+. Big on posture and joint care.' },
-    { id: 't3', name: 'Diego Morales', loc: 'Austin, TX',     cred: 'CSCS · 7 yrs',      spec: ['Powerlifting', 'Conjugate', 'Masters'],           rate: 195, sessions: '60-min · 1:1', match: 88, rating: 4.8, clients: 21, init: 'D', bio: 'Conjugate-style powerlifting coach. Comfortable with masters lifters and rehab return.' },
-    { id: 't4', name: 'Sana Bhatt',    loc: 'Remote',         cred: 'NSCA-CPT · 5 yrs',  spec: ['Postpartum', 'At-home', 'Kettlebell'],            rate: 130, sessions: '30-min · 1:1', match: 85, rating: 4.9, clients: 28, init: 'S', bio: 'Remote-only. Postpartum return-to-strength. Equipment-light, kettlebell-leaning.' },
-    { id: 't5', name: 'Lena Park',     loc: 'Los Angeles',    cred: 'ACSM-CPT · 6 yrs',  spec: ['Endurance', 'Z2 base', 'Marathon'],               rate: 150, sessions: '45-min · 1:1', match: 78, rating: 4.7, clients: 19, init: 'L', bio: 'Endurance + general strength. Polarized training. Z2 evangelist.' },
-    { id: 't6', name: 'Tariq Osei',    loc: 'Chicago, IL',    cred: 'CSCS · 11 yrs',     spec: ['Olympic lift', 'Mobility', 'Rehab'],              rate: 210, sessions: '60-min · 1:1', match: 73, rating: 4.9, clients: 14, init: 'T', bio: 'Olympic-lift coach. Mobility-first. Works with PTs on shared rehab cases.' },
-  ],
-  Nutritionist: [
-    { id: 'n1', name: 'Dr. Maya Patel',  loc: 'Remote',        cred: 'RD, CSSD · 12 yrs',  spec: ['Sports', 'Body comp', 'Cuts/builds'],          rate: 140, sessions: '30-min · 1:1', match: 94, rating: 5.0, clients: 41, init: 'M', bio: 'Sports-focused RD. Body-composition phases, refeeds, fueling around training.', tag: 'YOUR NUTRITIONIST' },
-    { id: 'n2', name: 'Owen Halverson',  loc: 'Portland, OR',  cred: 'RDN · 8 yrs',        spec: ['Endurance', 'Plant-based'],                    rate: 110, sessions: '30-min · 1:1', match: 86, rating: 4.8, clients: 24, init: 'O', bio: 'Plant-based endurance fueling. Long-form training. Race-day plans.' },
-    { id: 'n3', name: 'Priya Iyer',      loc: 'Remote',        cred: 'CNS · 6 yrs',        spec: ['GI / IBS', 'Anti-inflam.', 'Cuts'],            rate: 125, sessions: '45-min · 1:1', match: 81, rating: 4.9, clients: 18, init: 'P', bio: 'GI-sensitive eaters. Anti-inflammatory protocols, low-FODMAP cuts.' },
-    { id: 'n4', name: 'Jules Bonner',    loc: 'Brooklyn, NY',  cred: 'RDN, CDCES · 7 yrs', spec: ['Diabetes', 'Insulin sens.', 'Family meals'],   rate: 130, sessions: '45-min · 1:1', match: 76, rating: 4.7, clients: 22, init: 'J', bio: 'Type-2 diabetes & insulin-sensitivity work. Family-meal planning that scales.' },
-  ],
-};
-
-const BSM_FILTERS = ['All', 'Strength', 'Hypertrophy', 'Endurance', 'Postpartum', 'Olympic', 'Powerlifting'];
-const BSN_FILTERS = ['All', 'Sports', 'Endurance', 'GI / IBS', 'Plant-based', 'Diabetes'];
-
 const BSM_MARKETPLACE_CATEGORIES = {
   Trainer: ['All Categories', 'Strength & Resistance', 'Cardio & Endurance', 'Marathon', 'Ultra', 'Pure Running', 'Hyrox', 'Mobility, Recovery & Rehab', 'Functional & Hybrid', 'Bodybuilding', 'HIIT', 'Fat Burn', 'At Home', 'Just for Women'],
   Nutritionist: ['All Categories', 'Sports Performance & Hydration', 'Performance Nutrition', 'Medical & Condition-Specific', 'Muscle Gain / Bulking', 'Gut Health & Functional Nutrition', 'Longevity & Healthspan', 'Weight Mgmt', 'Plant-Based', 'Prenatal', 'Meal Prep'],

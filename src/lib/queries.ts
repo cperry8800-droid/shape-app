@@ -8,7 +8,6 @@ import type {
   Gym,
   Profile,
   SessionBooking,
-  ProviderAvailability,
   WorkoutReviewSession,
 } from './types';
 
@@ -204,39 +203,6 @@ export async function getMySessions(): Promise<SessionBooking[]> {
     return [];
   }
   return (data ?? []) as SessionBooking[];
-}
-
-export async function getProviderAvailability(
-  providerRole: 'trainer' | 'nutritionist',
-  providerId: number
-): Promise<ProviderAvailability[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from('provider_availability')
-    .select('*')
-    .eq('provider_role', providerRole)
-    .eq('provider_id', providerId)
-    .order('weekday', { ascending: true })
-    .order('start_minute', { ascending: true });
-  if (error) {
-    console.error('[shape-app] getProviderAvailability error', error);
-    return [];
-  }
-  return (data ?? []) as ProviderAvailability[];
-}
-
-export async function getMyAvailability(): Promise<ProviderAvailability[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from('provider_availability')
-    .select('*')
-    .order('weekday', { ascending: true })
-    .order('start_minute', { ascending: true });
-  if (error) {
-    console.error('[shape-app] getMyAvailability error', error);
-    return [];
-  }
-  return (data ?? []) as ProviderAvailability[];
 }
 
 export async function getMyWorkoutReviewSessions(
