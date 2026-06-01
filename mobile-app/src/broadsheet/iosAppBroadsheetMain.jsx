@@ -612,6 +612,7 @@ function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
   const [otpSent, setOtpSent] = useStateBSM(false);
   const [authError, setAuthError] = useStateBSM('');
   const [busy, setBusy] = useStateBSM(false);
+  const [verifyEmail, setVerifyEmail] = useStateBSM(''); // set → show the "check your email" screen
   const isCreate = mode === 'create';
   const isPhone = authMethod === 'phone';
   const submitAuth = async () => {
@@ -627,6 +628,8 @@ function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
       const result = isCreate
         ? await auth.signUp({ email: trimmedEmail, password, fullName: fullName.trim(), role })
         : await auth.signIn({ email: trimmedEmail, password, role });
+      // New account needs email confirmation → show the verify screen, don't enter the app.
+      if (result?.needsEmailConfirmation) { setVerifyEmail(result.email || trimmedEmail); return; }
       const nextRole = result?.profile?.role;
       if (nextRole && nextRole !== role) setRole(nextRole);
       onLogin(result);
@@ -635,6 +638,10 @@ function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
     } finally {
       setBusy(false);
     }
+  };
+  const resendVerify = async () => {
+    try { await window.ShapeAuth?.resendConfirmation?.(verifyEmail); window.__bsToast?.('Verification email re-sent', 'ok'); }
+    catch (e) { window.__bsToast?.(e?.message || 'Could not resend the email.', 'err'); }
   };
   // Phone — step 1: text the code.
   const sendPhoneCode = async () => {
@@ -715,6 +722,26 @@ function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
       else { window.__bsToast?.('Apple sign-in is coming soon.', 'info'); }
     } catch (err) { setAuthError(err?.message || 'Apple sign-in failed.'); }
   };
+
+  // "Check your email" — shown after a new account needs email verification.
+  if (verifyEmail) {
+    return (
+      <div style={{ position: 'absolute', inset: 0, color: CREAM, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <BSNightSky />
+        <div className="bs-hide-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 'max(40px, calc(env(safe-area-inset-top, 0px) + 24px)) 24px calc(28px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 16 }}>
+          <img src={`${import.meta.env.BASE_URL}shape-logo.png`} alt="Shape" style={{ width: 110, height: 'auto', alignSelf: 'flex-start', marginLeft: -12 }} />
+          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#2ee0c4', fontWeight: 700 }}>Verify email</div>
+          <div style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 500, fontSize: 38, lineHeight: 0.95, letterSpacing: '-0.05em', color: CREAM }}>Check your<br/><span style={{ fontStyle: 'italic', color: '#2ee0c4' }}>inbox.</span></div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.5, color: 'rgba(244,239,230,0.8)' }}>
+            We sent a verification link to <span style={{ color: CREAM, fontWeight: 700 }}>{verifyEmail}</span>. Tap it to finish creating your account, then come back and sign in.
+          </div>
+          <button onClick={resendVerify} style={{ width: '100%', borderRadius: 12, padding: '12px 16px', background: 'transparent', color: CREAM, border: `1px solid ${LINE2}`, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Resend email</button>
+          <button onClick={() => { setVerifyEmail(''); setMode('signin'); setPassword(''); }} style={{ alignSelf: 'center', background: 'transparent', border: 0, color: C50, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '4px 0' }}>← Back to sign in</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ position: 'absolute', inset: 0, color: CREAM, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <BSNightSky />
