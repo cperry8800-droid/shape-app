@@ -202,7 +202,7 @@ function NutritionistLiveConsolePage() {
   const [focusById, setFocusById] = React.useState(() => Object.fromEntries(CONSOLE_CLIENTS.map(c => [c.id, c.focusBanner])));
   const [plansById, setPlansById] = React.useState(() => Object.fromEntries(CONSOLE_CLIENTS.map(c => [c.id, c.plan])));
   // Add-meal form
-  const [meal, setMeal] = React.useState({ name: "", time: "", kcal: "", protein: "", note: "", ingredients: "" });
+  const [meal, setMeal] = React.useState({ name: "", time: "", kcal: "", protein: "", note: "", ingredients: "", alternatives: "" });
   // Transient toast
   const [toast, setToast] = React.useState("");
   const toastTimer = React.useRef(null);
@@ -305,6 +305,10 @@ function NutritionistLiveConsolePage() {
       .split(/\r?\n|,/)
       .map(s => s.trim())
       .filter(Boolean);
+    const alternatives = meal.alternatives
+      .split(/\r?\n|,/)
+      .map(s => s.trim())
+      .filter(Boolean);
     const payload = {
       name: meal.name.trim(),
       time: meal.time.trim() || "—",
@@ -312,10 +316,11 @@ function NutritionistLiveConsolePage() {
       protein: meal.protein ? Number(meal.protein) : null,
       note: meal.note.trim(),
       ingredients,
+      alternatives,
     };
     const tempId = newId();
     setPlansById({ ...plansById, [clientId]: [...plan, { id: tempId, ...payload }] });
-    setMeal({ name: "", time: "", kcal: "", protein: "", note: "", ingredients: "" });
+    setMeal({ name: "", time: "", kcal: "", protein: "", note: "", ingredients: "", alternatives: "" });
     flash("Added to " + firstName(client.name) + "'s plan");
     if (live) {
       fetch('/api/nutritionist/console', {
@@ -562,6 +567,16 @@ function NutritionistLiveConsolePage() {
                 onChange={(e) => setMeal({ ...meal, ingredients: e.target.value })}
                 rows={4}
                 placeholder={"Chicken breast 6 oz\nBroccoli 1 head\nBrown rice 1 cup\nOlive oil 1 tbsp"}
+                style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 8, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", color: "#f2ede4", fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, lineHeight: 1.55, outline: "none", resize: "vertical" }}
+              />
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <FieldLabel>Swap options (optional — meals the client can swap to)</FieldLabel>
+              <textarea
+                value={meal.alternatives}
+                onChange={(e) => setMeal({ ...meal, alternatives: e.target.value })}
+                rows={3}
+                placeholder={"Turkey & rice bowl\nTofu stir-fry + rice\nCod, potato, greens"}
                 style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 8, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", color: "#f2ede4", fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, lineHeight: 1.55, outline: "none", resize: "vertical" }}
               />
             </div>
