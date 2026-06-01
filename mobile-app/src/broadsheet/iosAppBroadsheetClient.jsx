@@ -8671,6 +8671,21 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
   const t = useBS();
   _bsScrollTopOnMount();
   const list = bsNormalizeGroceryList(activeList || BS_GROCERY_DEFAULT);
+  // Live coach note — the nutritionist's latest focus banner (coach_focus_banners,
+  // editable from their Live Console). Falls back to the list's own note.
+  const [coachNote, setCoachNote] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!(window.ShapeCoachFeed && window.ShapeCoachFeed.fetch)) return undefined;
+    let alive = true;
+    window.ShapeCoachFeed.fetch().then(feed => {
+      if (!alive || !feed) return;
+      const b = (feed.banners || []).find(x => x.provider_role === 'nutritionist') || (feed.banners || [])[0];
+      if (b && b.text) setCoachNote({ text: b.text, author: b.provider_role === 'trainer' ? 'Your trainer' : 'Your nutritionist' });
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  const noteText = (coachNote && coachNote.text) || list.note;
+  const noteAuthor = coachNote ? coachNote.author : list.author;
   const [newName, setNewName] = useStateBSC('');
   const [newQty, setNewQty] = useStateBSC('');
   const addItem = () => {
@@ -8728,8 +8743,8 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
           <span>{list.aisles.length} aisles · ~22 min</span>
         </div>
         <div style={{ borderRadius: t.RADIUS_SM, marginTop: 14, padding: 14, background: t.PAPER2, border: `1px solid ${t.INK}` }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.AMBER, fontWeight: 700, marginBottom: 6 }}>▍ From {list.author}</div>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, fontStyle: 'italic', lineHeight: 1.4, letterSpacing: '-0.005em' }}>{list.note}</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.AMBER, fontWeight: 700, marginBottom: 6 }}>▍ From {noteAuthor}</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, fontStyle: 'italic', lineHeight: 1.4, letterSpacing: '-0.005em' }}>{noteText}</div>
         </div>
         <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button style={{ borderRadius: t.RADIUS_SM,
@@ -8824,8 +8839,6 @@ const BS_GROCERY_LIBRARY = [
   { id: 'sun', name: 'Sunday staples',     kind: 'custom',   eyebrow: 'Custom · Updated last Sun', usedCount: 14,  preview: 'Bananas · Eggs · Oats',         count: 11 },
   { id: 'trv', name: 'Travel week',        kind: 'custom',   eyebrow: 'Custom · Airport-friendly', usedCount: 4,   preview: 'Protein bars · Jerky · Apples', count: 7 },
   { id: 'prep',name: 'Meal prep — Sunday', kind: 'custom',   eyebrow: 'Custom · Weekly',            usedCount: 22,  preview: 'Chicken thighs · Rice · Broccoli', count: 10 },
-  { id: 'cut', name: 'Cutting — base cart',kind: 'template', eyebrow: 'Template · Community',       usedCount: 188, preview: 'Spinach · Lean protein · Egg whites', count: 8 },
-  { id: 'blk', name: 'Bulking — base cart',kind: 'template', eyebrow: 'Template · Community',       usedCount: 412, preview: 'Oats · Rice · Peanut butter',   count: 9 },
   { id: 'mp7', name: '7-day Mediterranean',kind: 'mealplan', eyebrow: 'Meal plan · Whole-food',     usedCount: 64,  preview: 'Olive oil · Fish · Whole grains',     count: 28 },
   { id: 'mph', name: 'High-protein cut · 5d',kind: 'mealplan', eyebrow: 'Meal plan · Cutting',       usedCount: 42,  preview: 'Chicken · Greek yogurt · Eggs',       count: 20 },
   { id: 'mpp', name: 'Plant-forward build', kind: 'mealplan', eyebrow: 'Meal plan · Vegan-friendly', usedCount: 18,  preview: 'Tempeh · Lentils · Quinoa',           count: 35 },
@@ -8892,7 +8905,7 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreat
       {/* Filter chips — wrap so they never run off-screen on mobile (the app's
           touch handling blocks horizontal scroll of inner rows). */}
       <div style={{ padding: `12px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}`, display: 'flex', gap: 6, flexWrap: 'wrap', rowGap: 8 }}>
-        {[['all','All'],['recipe','Recipes'],['custom','Custom'],['template','Templates'],['mealplan','Meal Plans']].map(([k, l]) => (
+        {[['all','All'],['recipe','Recipes'],['custom','Custom'],['mealplan','Meal Plans']].map(([k, l]) => (
           <button key={k} onClick={() => setFilter(k)} style={{ borderRadius: t.RADIUS_SM,
             flex: '0 0 auto',
             padding: '8px 12px', border: `1px solid ${t.INK}`,
