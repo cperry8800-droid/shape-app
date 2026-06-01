@@ -4858,7 +4858,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
           ];
           // A chat list row (avatar + name + subtitle), tap to open the thread.
           const Row = (f, i) => (
-            <button key={i} onClick={() => { window.__bsToast && window.__bsToast('Opening chat with ' + f.n, 'ok'); }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, border: `1px solid ${hair}`, background: card, color: cardInk, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
+            <button key={i} onClick={() => { window.__bsToast && window.__bsToast(f.dm ? 'Opening your private Support thread' : (f.n.startsWith('#') ? 'Opening ' + f.n : 'Opening chat with ' + f.n), 'ok'); }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, border: `1px solid ${hair}`, background: card, color: cardInk, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
               <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: f.c, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 15 }}>{f.i}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15 }}>{f.n}</div>
@@ -4881,9 +4881,13 @@ function BSClientFeed({ onProfile, role: roleProp }) {
           }
 
           // Teams: Channels / Coaches chip selector; the chosen one's list shows below.
+          // Support is a PRIVATE 1:1 thread (just this user + the Shape team),
+          // not a shared # channel — flagged with `dm` so the row reads as a
+          // direct line rather than a community room.
+          const support = { n: 'Support', s: 'Private · you & the Shape team', c: TEALB, i: '✦', dm: true };
           const channels = isCoach
-            ? [{ n: '# your-roster', s: 'Your members', c: '#147b68', i: '#' }, { n: '# coaches-lounge', s: 'Trainers & nutritionists', c: TEAL, i: '#' }, { n: '# support', s: 'Get help from Shape', c: TEALB, i: '#' }]
-            : [{ n: '# your-program', s: 'Your coach + you', c: '#c0533b', i: '#' }, { n: '# challenges', s: 'Monthly community goals', c: '#a07a2e', i: '#' }, { n: '# support', s: 'Get help from Shape', c: TEALB, i: '#' }];
+            ? [{ n: '# your-roster', s: 'Your members', c: '#147b68', i: '#' }, { n: '# coaches-lounge', s: 'Trainers & nutritionists', c: TEAL, i: '#' }, support]
+            : [{ n: '# your-program', s: 'Your coach + you', c: '#c0533b', i: '#' }, { n: '# challenges', s: 'Monthly community goals', c: '#a07a2e', i: '#' }, support];
           const selectors = [
             { key: 'channels', label: 'Channels', color: TEALB, items: channels },
             { key: 'coaches', label: 'Coaches', color: '#c0533b', items: coaches },
