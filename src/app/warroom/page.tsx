@@ -9,7 +9,12 @@ import { requireAdminUser } from '@/lib/admin-access';
 import { buildWarRoomSnapshot } from '@/lib/warroom';
 import WarRoomClient from './WarRoomClient';
 
-export const metadata = { title: 'Shape — War Room' };
+// Admin-only. requireAdminUser() below is the real gate; noindex just keeps the
+// URL out of search engines as defence-in-depth.
+export const metadata = {
+  title: 'Shape — War Room',
+  robots: { index: false, follow: false },
+};
 export const dynamic = 'force-dynamic';
 
 export default async function WarRoomPage() {
