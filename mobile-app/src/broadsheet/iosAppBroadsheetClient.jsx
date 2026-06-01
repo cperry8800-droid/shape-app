@@ -3657,6 +3657,7 @@ function BSClientEat({ onProfile }) {
     },
   ];
 
+  const PROGRAM = liveProgram || MOCK_PROGRAM;
   const recipeArchive = PROGRAM
     .filter(p => p.recipe)
     .map((p, idx) => ({
@@ -3743,7 +3744,6 @@ function BSClientEat({ onProfile }) {
     } catch {}
   }, [recipeLists]);
 
-  const PROGRAM = liveProgram || MOCK_PROGRAM;
   const cur = PROGRAM[day] || PROGRAM[0];
   const days = PROGRAM.map(p => p.d);
   const meals = cur.meals;
