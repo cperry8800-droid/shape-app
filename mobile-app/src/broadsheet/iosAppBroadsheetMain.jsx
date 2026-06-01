@@ -712,13 +712,13 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
       <BSNightSky />
       <div className="bs-hide-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 'max(32px, calc(env(safe-area-inset-top, 0px) + 18px)) 22px calc(26px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', gap: 14 }}>
         {/* Logo lockup — top-left */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 7 }}>
+        <div style={{ alignSelf: 'flex-start', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7 }}>
           <BSShapeMark size={32} />
           <div style={{ fontFamily: `'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif`, fontWeight: 300, fontSize: 19, letterSpacing: '0.34em', textTransform: 'uppercase', color: CREAM, lineHeight: 1 }}>Shape</div>
         </div>
 
         {/* Eyebrow + heading */}
-        <div>
+        <div style={{ marginTop: 22 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#2ee0c4', fontWeight: 700 }}>
             {isCreate ? 'Join Shape' : 'Sign in'}
           </div>
