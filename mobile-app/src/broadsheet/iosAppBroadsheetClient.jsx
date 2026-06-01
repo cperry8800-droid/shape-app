@@ -4882,8 +4882,8 @@ function BSClientFeed({ onProfile, role: roleProp }) {
 
           // Teams: Channels / Coaches chip selector; the chosen one's list shows below.
           const channels = isCoach
-            ? [{ n: '# your-roster', s: 'Your members', c: '#147b68', i: '#' }, { n: '# coaches-lounge', s: 'Trainers & nutritionists', c: TEAL, i: '#' }, { n: '# shape-members', s: 'Everyone on Shape', c: TEALB, i: '#' }]
-            : [{ n: '# shape-members', s: 'Everyone on Shape', c: TEALB, i: '#' }, { n: '# your-program', s: 'Your coach + you', c: '#c0533b', i: '#' }, { n: '# challenges', s: 'Monthly community goals', c: '#a07a2e', i: '#' }];
+            ? [{ n: '# your-roster', s: 'Your members', c: '#147b68', i: '#' }, { n: '# coaches-lounge', s: 'Trainers & nutritionists', c: TEAL, i: '#' }, { n: '# support', s: 'Get help from Shape', c: TEALB, i: '#' }]
+            : [{ n: '# your-program', s: 'Your coach + you', c: '#c0533b', i: '#' }, { n: '# challenges', s: 'Monthly community goals', c: '#a07a2e', i: '#' }, { n: '# support', s: 'Get help from Shape', c: TEALB, i: '#' }];
           const selectors = [
             { key: 'channels', label: 'Channels', color: TEALB, items: channels },
             { key: 'coaches', label: 'Coaches', color: '#c0533b', items: coaches },
