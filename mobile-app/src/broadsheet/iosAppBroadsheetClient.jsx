@@ -4909,11 +4909,11 @@ function BSClientFeed({ onProfile, role: roleProp }) {
       ) : (
         <>
           {/* Role filter chips */}
-          <div style={{ display: 'flex', gap: 7, overflowX: 'auto', padding: `14px ${t.padX}px`, scrollbarWidth: 'none' }} className="bs-hide-scroll">
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${CHIP_KEYS.length}, 1fr)`, gap: 7, padding: `14px ${t.padX}px` }}>
             {CHIP_KEYS.map(k => {
               const on = filter === k;
               return (
-                <button key={k} onClick={() => setFilter(on ? 'ALL' : k)} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 13px', borderRadius: 999, border: `1px solid ${on ? ROLE[k].color : hair}`, background: on ? `${ROLE[k].color}1f` : 'transparent', color: cardInk, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', cursor: 'pointer' }}>
+                <button key={k} onClick={() => setFilter(on ? 'ALL' : k)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '8px 13px', borderRadius: 999, border: `1px solid ${on ? ROLE[k].color : hair}`, background: on ? `${ROLE[k].color}1f` : 'transparent', color: cardInk, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', cursor: 'pointer' }}>
                   <span style={{ width: 6, height: 6, borderRadius: 3, background: ROLE[k].color }} />{k}
                 </button>
               );
