@@ -139,7 +139,7 @@ function NewWorkoutPage() {
     rest,
     exercises: blocks
       .filter(b => (b.name || "").trim())
-      .map(b => ({ name: b.name.trim(), sets: "", reps: b.detail || "", rest: rest || "", notes: b.note || "", load: "" })),
+      .map(b => ({ name: b.name.trim(), sets: "", reps: b.detail || "", rest: rest || "", notes: b.note || "", load: "", alternatives: (b.alts || []).map(s => String(s).trim()).filter(Boolean) })),
   });
 
   // Persist to client_workouts via the trainer API (one row per client).
@@ -193,6 +193,7 @@ function NewWorkoutPage() {
         name: block.title || "",
         detail: block.detail || "",
         note: block.note || "",
+        alts: block.alternatives || block.alts || [],
       })));
     }
   };
@@ -250,12 +251,25 @@ function NewWorkoutPage() {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {blocks.map((b, i) => (
-                <div key={i} style={{ display: "grid", gridTemplateColumns: "60px 1fr 1.2fr 1.4fr 28px", gap: 10, alignItems: "center", padding: "10px 12px", background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 8 }}>
-                  <input value={b.label} onChange={(e) => setBlock(i, { label: e.target.value })} style={{ background: "transparent", border: 0, color: TEAL, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, padding: 4, width: "100%", outline: "none" }} />
-                  <TextInput value={b.name} onChange={(v) => setBlock(i, { name: v })} placeholder="Exercise name" compact />
-                  <TextInput value={b.detail} onChange={(v) => setBlock(i, { detail: v })} placeholder="4 × 5 @ 225 lb" compact />
-                  <TextInput value={b.note} onChange={(v) => setBlock(i, { note: v })} placeholder="Cue or tempo" compact />
-                  <button onClick={() => removeBlock(i)} aria-label="Remove" style={{ background: "transparent", border: 0, color: "rgba(242,237,228,0.5)", fontSize: 18, cursor: "pointer", lineHeight: 1 }}>×</button>
+                <div key={i} style={{ padding: "10px 12px", background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 8 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "60px 1fr 1.2fr 1.4fr 28px", gap: 10, alignItems: "center" }}>
+                    <input value={b.label} onChange={(e) => setBlock(i, { label: e.target.value })} style={{ background: "transparent", border: 0, color: TEAL, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, padding: 4, width: "100%", outline: "none" }} />
+                    <TextInput value={b.name} onChange={(v) => setBlock(i, { name: v })} placeholder="Exercise name" compact />
+                    <TextInput value={b.detail} onChange={(v) => setBlock(i, { detail: v })} placeholder="4 × 5 @ 225 lb" compact />
+                    <TextInput value={b.note} onChange={(v) => setBlock(i, { note: v })} placeholder="Cue or tempo" compact />
+                    <button onClick={() => removeBlock(i)} aria-label="Remove" style={{ background: "transparent", border: 0, color: "rgba(242,237,228,0.5)", fontSize: 18, cursor: "pointer", lineHeight: 1 }}>×</button>
+                  </div>
+                  {/* Coach-approved alternatives — clients can one-tap swap to one of these. */}
+                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(242,237,228,0.06)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.45)", textTransform: "uppercase", whiteSpace: "nowrap" }}>Swap options</span>
+                    {(b.alts || []).map((a, ai) => (
+                      <span key={ai} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(46,224,196,0.1)", border: "1px solid rgba(46,224,196,0.3)", color: TEAL_BRIGHT, borderRadius: 999, padding: "4px 10px", fontSize: 12 }}>
+                        {a}
+                        <button onClick={() => setBlock(i, { alts: (b.alts || []).filter((_, j) => j !== ai) })} style={{ background: "transparent", border: 0, color: "inherit", cursor: "pointer", fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
+                      </span>
+                    ))}
+                    <AltInput onAdd={(v) => setBlock(i, { alts: [...(b.alts || []), v] })} />
+                  </div>
                 </div>
               ))}
             </div>
@@ -411,6 +425,12 @@ function Field({ label, children }) {
     </label>
   );
 }
+function AltInput({ onAdd }) {
+  const [v, setV] = React.useState("");
+  const add = () => { const t = v.trim(); if (t) { onAdd(t); setV(""); } };
+  return <input value={v} onChange={(e) => setV(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }} onBlur={add} placeholder="+ add alternative" style={{ background: "transparent", border: 0, borderBottom: "1px dashed rgba(242,237,228,0.2)", color: "#f2ede4", fontSize: 12, padding: "3px 4px", outline: "none", minWidth: 130 }} />;
+}
+
 function TextInput({ value, onChange, placeholder, compact }) {
   return <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={{ width: "100%", background: compact ? "transparent" : "rgba(242,237,228,0.04)", color: INK, border: compact ? 0 : "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: compact ? "6px 8px" : "10px 12px", fontSize: 14, outline: "none" }} />;
 }
