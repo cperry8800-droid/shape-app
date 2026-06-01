@@ -327,12 +327,13 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const [settingsStart, setSettingsStart] = useStateBSC('');
   const [showCalendar, setShowCalendar] = useStateBSC(false);
   const [storeView, setStoreView] = useStateBSC('store');
+  const [marketRole, setMarketRole] = useStateBSC(null); // 'trainer' | 'nutritionist' | null
   const scoreProfile = SHAPE_SCORE_PROFILES.client;
   const goSettings = () => { setSettingsStart(''); setShowSettings(true); };
   const goIntegrations = () => { setSettingsStart('integrations'); setShowSettings(true); };
   const goRadio    = () => setTab('radio');
   const goTrain    = () => setTab('train');
-  const goMarket   = () => setTab('market');
+  const goMarket   = (role) => { setMarketRole(typeof role === 'string' ? role : null); setTab('market'); };
   const goScore    = () => { setStoreView('score'); setTab('store'); };
 
   React.useEffect(() => {
@@ -361,11 +362,11 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   }
   const screens = {
     home:    <BSClientHome     onProfile={goSettings} sheet={sheet} goCalendar={() => setShowCalendar(true)} goRadio={goRadio} goTrain={goTrain} goMarket={goMarket} goScore={goScore} goIntegrations={goIntegrations} tweaks={tweaks} setTweak={setTweak} />,
-    train:   <BSClientTrain    onProfile={goSettings} sheet={sheet} goCalendar={() => setShowCalendar(true)} goRadio={goRadio} />,
-    eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} goRadio={goRadio} />,
+    train:   <BSClientTrain    onProfile={goSettings} sheet={sheet} goCalendar={() => setShowCalendar(true)} goRadio={goRadio} goMarket={goMarket} />,
+    eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} goRadio={goRadio} goMarket={goMarket} />,
     chat:    <BSClientFeed     onProfile={goSettings} />,
     radio:   <BSRadioScreen    onBack={() => setTab('home')} />,
-    market:  <BSMarketplaceScreen onBack={() => setTab('home')} onProfile={goSettings} />,
+    market:  <BSMarketplaceScreen initialRole={marketRole} onBack={() => setTab('home')} onProfile={goSettings} />,
     store:   storeView === 'score'
       ? <BSShapeScorePage profile={scoreProfile} onBack={() => setStoreView('store')} onOpenStore={() => setStoreView('store')} />
       : <BSShapeStorePage profile={scoreProfile} onBack={() => setTab('home')} onOpenScore={() => setStoreView('score')} />,
@@ -1628,38 +1629,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         </div>
       </div>
 
-      {/* MARKETPLACE — full-width feature card */}
-      <BSSection title="Marketplace" />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        <BSCell onClick={goMarket} accent={t.RUST} style={{ padding: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.INK, fontWeight: 800 }}>★ Wanted</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK70 }}>3,100 coaches · 412 nutri</div>
-          </div>
-
-          <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 30, color: t.INK, marginTop: 10, letterSpacing: '-0.025em', lineHeight: 0.95 }}>
-            Find your<br/>next coach.
-          </div>
-
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 13, color: t.INK85, marginTop: 8, lineHeight: 1.3, letterSpacing: '-0.005em' }}>
-            Browse vetted trainers &amp; nutritionists. Filter by goal, location, schedule.
-          </div>
-
-          {/* meta row */}
-          <div style={{ display: 'flex', gap: 14, marginTop: 14, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>
-            <span>Hypertrophy · 412</span>
-            <span>Endurance · 280</span>
-            <span>Postpartum · 96</span>
-          </div>
-
-          {/* CTA chip */}
-          <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: `1px solid ${t.INK}`, paddingTop: 10 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK }}>Browse Marketplace</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 14, color: t.INK }}>→</div>
-          </div>
-        </BSCell>
-      </div>
-
       {/* ── HOME WIDGETS — user-added stats & blocks ─────────────── */}
       {(() => {
         const added = _bsHomeWidgets(tweaks);
@@ -1922,7 +1891,7 @@ function BSSwapSheet({ title, subtitle, options, onPick, onClose }) {
 
 // TRAIN — workout-focused page
 // ═══════════════════════════════════════════════════════════
-function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {} }) {
+function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, goMarket = () => {} }) {
   const t = useBS();
   const [day, setDay] = useStateBSC(4);
   const [session, setSession] = useStateBSC(false);
@@ -2203,6 +2172,18 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {} })
             <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3 }}>{x.r || ''}</span>
           </div>
         ))}
+      </div>
+
+      {/* Find a trainer — marketplace deep link (Trainer tab) */}
+      <div style={{ padding: `16px ${t.padX}px 0` }}>
+        <button onClick={() => goMarket('trainer')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 16px', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#c0533b', fontWeight: 700, marginBottom: 4 }}>Marketplace</div>
+            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 16, color: t.INK }}>Find a trainer</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 3, letterSpacing: '0.06em' }}>Vetted coaches · filter by goal & schedule</div>
+          </div>
+          <span style={{ color: t.INK50, fontSize: 18, flexShrink: 0 }}>→</span>
+        </button>
       </div>
 
       {/* From Jordan — coach playlists (sourced from the Radio coach-playlist feed) */}
@@ -3007,7 +2988,7 @@ function BSRxPlanWidget() {
   );
 }
 
-function BSClientEat({ onProfile, goRadio = () => {} }) {
+function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
   const t = useBS();
   const [view, setView] = useStateBSC('eat'); // 'eat' | 'grocery' | 'library'
   const [skRecipe, setSkRecipe] = useStateBSC(null); // selected Shape Kitchen recipe
@@ -4201,6 +4182,18 @@ function BSClientEat({ onProfile, goRadio = () => {} }) {
           </>
         );
       })()}
+
+      {/* Find a nutritionist — marketplace deep link (Nutritionist tab) */}
+      <div style={{ padding: `16px ${t.padX}px 0` }}>
+        <button onClick={() => goMarket('nutritionist')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 16px', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#a07a2e', fontWeight: 700, marginBottom: 4 }}>Marketplace</div>
+            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 16, color: t.INK }}>Find a nutritionist</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 3, letterSpacing: '0.06em' }}>Vetted RDs · filter by goal & specialty</div>
+          </div>
+          <span style={{ color: t.INK50, fontSize: 18, flexShrink: 0 }}>→</span>
+        </button>
+      </div>
 
       {/* From Maya — nutritionist playlists (sourced from the Radio coach-playlist feed) */}
       {(() => {
