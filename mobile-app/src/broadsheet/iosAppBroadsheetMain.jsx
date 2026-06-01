@@ -70,8 +70,11 @@ function ensureSkyStyles() {
   .bs-shoot.s1 { top:14%; left:-160px; animation: bsShoot1 9s linear infinite; }
   .bs-shoot.s2 { top:40%; left:-160px; animation: bsShoot2 12s linear infinite 3.5s; }
   .bs-shoot.s3 { top:9%;  left:-160px; animation: bsShoot3 11s linear infinite 6.5s; }
-  @keyframes bsMarkPulse { 0%,100%{ transform:translateY(0) scale(1); filter:drop-shadow(0 0 12px rgba(10,197,168,0.45)); } 50%{ transform:translateY(-7px) scale(1.035); filter:drop-shadow(0 0 26px rgba(10,197,168,0.65)); } }
-  .bs-shape-mark { animation: bsMarkPulse 3.8s ease-in-out infinite; }
+  @keyframes bsMarkPulse { 0%,100%{ transform:translateY(0) scale(1); filter:drop-shadow(0 0 16px rgba(10,197,168,0.55)) drop-shadow(0 0 6px rgba(46,224,196,0.5)); } 50%{ transform:translateY(-7px) scale(1.045); filter:drop-shadow(0 0 48px rgba(10,197,168,0.98)) drop-shadow(0 0 20px rgba(46,224,196,0.9)); } }
+  .bs-shape-mark { animation: bsMarkPulse 2.6s ease-in-out infinite; }
+  .bs-splash-zoom { transition: transform 0.9s cubic-bezier(0.6,0,0.75,0.15); transform-origin: center center; will-change: transform; }
+  .bs-splash-zoom.zooming { transform: scale(32); }
+  .bs-splash-zoom.zooming .bs-shape-mark { animation: none !important; transform: none !important; filter: drop-shadow(0 0 30px rgba(10,197,168,0.85)); }
   .bs-mark-edge { stroke-dasharray:38 97; animation: bsMarkEdge 3.2s linear infinite; }
   .bs-mark-edge.e2 { animation-delay:-1.6s; }
   @keyframes bsMarkEdge { to { stroke-dashoffset:-135; } }
@@ -243,10 +246,15 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
   const t = useBS();
   const SPLASH_FACE = "'Saira', 'Arial Narrow', 'Helvetica Neue', sans-serif";
   // Classified is interactive: user must tap "Step inside" — no auto-advance.
+  const [zoom, setZoom] = useStateBSM(false);
   useEffectBSM(() => {
     if (style === 'classified') return; // classified is tap-only
-    const id = setTimeout(onDone, (style === 'cosmos' || !style) ? 3000 : 1600);
-    return () => clearTimeout(id);
+    const cosmos = (style === 'cosmos' || !style);
+    const total = cosmos ? 3200 : 1600;
+    const timers = [setTimeout(onDone, total)];
+    // Cosmos: zoom the mark up to fill the screen as a transition into login.
+    if (cosmos) timers.push(setTimeout(() => setZoom(true), total - 900));
+    return () => timers.forEach(clearTimeout);
   }, [style]);
 
   // ── 0. COSMOS (default): colourful night sky + floating Shape mark ──
@@ -254,7 +262,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
     return (
       <div onClick={onDone} style={{ position: 'absolute', inset: 0, color: '#f4efe6', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', cursor: 'pointer' }}>
         <BSNightSky />
-        <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className={`bs-splash-zoom${zoom ? ' zooming' : ''}`} style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <BSShapeMark size={132} />
         </div>
       </div>
