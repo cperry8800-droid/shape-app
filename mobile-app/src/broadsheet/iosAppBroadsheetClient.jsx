@@ -7292,6 +7292,8 @@ function BSIntegrationsPage({ onBack }) {
   }, {});
   const whoop = providerMap.whoop || { id: 'whoop', label: 'WHOOP', connected: false };
   const strava = providerMap.strava || { id: 'strava', label: 'Strava', connected: false };
+  const spotify = providerMap.spotify || { id: 'spotify', label: 'Spotify', connected: false };
+  const appleMusic = providerMap.apple_music || { id: 'apple_music', label: 'Apple Music', connected: false };
 
   const runAction = async (key, label, action) => {
     setBusy(key);
@@ -7469,11 +7471,57 @@ function BSIntegrationsPage({ onBack }) {
         )}
       </IntegrationCard>
 
+      <BSSection title="Spotify" meta={spotify.connected ? 'Connected' : 'Ready'} />
+      <IntegrationCard
+        id="Music · Playlists"
+        name="Spotify"
+        status={spotify.connected ? 'Connected' : 'Connect'}
+        note="Pick workout playlists from your Spotify library and attach them to programs. Streams in Shape Radio and the workout player."
+      >
+        <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <Button active={!spotify.connected} onClick={() => window.ShapeIntegrations?.connectSpotify?.()}>
+            {spotify.connected ? 'Reconnect' : 'Connect'}
+          </Button>
+          <Button disabled={!spotify.connected} onClick={() => runAction('spotify-disconnect', 'Spotify disconnected', () => window.ShapeIntegrations.disconnect('spotify'))}>
+            Disconnect
+          </Button>
+        </div>
+      </IntegrationCard>
+
+      <BSSection title="Apple Music" meta={appleMusic.connected ? 'Connected' : 'Ready'} />
+      <IntegrationCard
+        id="MusicKit library"
+        name="Apple Music"
+        status={appleMusic.connected ? 'Connected' : 'Connect'}
+        note="Authorize Apple Music with MusicKit to use your library for workout playlists. You grant access right here — no redirect."
+      >
+        <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <Button active={!appleMusic.connected} onClick={() => runAction('apple-connect', appleMusic.connected ? 'Apple Music reconnected' : 'Apple Music connected', () => window.ShapeIntegrations.connectAppleMusic())}>
+            {busy === 'apple-connect' ? 'Authorizing' : (appleMusic.connected ? 'Reconnect' : 'Connect')}
+          </Button>
+          <Button disabled={!appleMusic.connected} onClick={() => runAction('apple-disconnect', 'Apple Music disconnected', () => window.ShapeIntegrations.disconnectAppleMusic())}>
+            Disconnect
+          </Button>
+        </div>
+      </IntegrationCard>
+
+      <BSSection title="Instacart" meta="Grocery hand-off" />
+      <IntegrationCard
+        id="Groceries"
+        name="Instacart"
+        status="Ready"
+        note="Send your coach-built grocery list to Instacart and open a pre-filled cart — review and check out in the Instacart app or site."
+      >
+        <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
+          <Button onClick={() => runAction('instacart-send', 'Opening Instacart', () => window.ShapeIntegrations.sendGroceryToInstacart())}>
+            {busy === 'instacart-send' ? 'Building list' : 'Send grocery list to Instacart →'}
+          </Button>
+        </div>
+      </IntegrationCard>
+
       <BSSection title="Coming later" meta="Same pattern" />
       {[
         ['GARMIN', 'Health + activity export', 'Garmin will use the same sync pattern after developer approval and credentials are live.'],
-        ['SPOTIFY', 'Coach playlists', 'Attach coach-created playlists to workouts and open them directly in Spotify.'],
-        ['APPLE MUSIC', 'MusicKit library', 'Apple Music needs Apple Developer MusicKit credentials before production use.'],
       ].map(([id, name, note]) => (
         <IntegrationCard key={id} id={id} name={name} note={note} status="Next" muted />
       ))}

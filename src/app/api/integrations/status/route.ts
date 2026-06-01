@@ -48,13 +48,30 @@ export async function GET(request: Request) {
     });
   }
 
-  const providers = Object.values(PROVIDERS).map((p) => ({
-    id: p.id,
+  const providers: Array<{
+    id: string;
+    label: string;
+    description: string;
+    connected: boolean;
+    connected_at: string | null;
+  }> = Object.values(PROVIDERS).map((p) => ({
+    id: p.id as string,
     label: p.label,
     description: p.description,
     connected: connected.has(p.id),
     connected_at: connected.get(p.id)?.connected_at ?? null,
   }));
+
+  // Apple Music isn't an OAuth provider in the registry (it uses MusicKit's
+  // own device-side authorization), but we still report its connection state
+  // here so the integrations UI can render it alongside the others.
+  providers.push({
+    id: 'apple_music',
+    label: 'Apple Music',
+    description: 'Connect your Apple Music library for workout playlists.',
+    connected: connected.has('apple_music'),
+    connected_at: connected.get('apple_music')?.connected_at ?? null,
+  });
 
   return NextResponse.json({ providers });
 }
