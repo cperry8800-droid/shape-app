@@ -1049,7 +1049,7 @@ function BSPhone({ children }) {
   return (
     <div data-bs-weight={t.weightKey || 'bold'} style={{
       width: 'min(390px, calc(100vw - 16px))',
-      height: 'min(844px, calc(100vh - 16px))',
+      height: 'min(844px, calc(100dvh - 16px))',
       borderRadius: 54, padding: 12,
       background: t.isLight
         ? (t.paperMode === 'manila' ? '#3d2d12'

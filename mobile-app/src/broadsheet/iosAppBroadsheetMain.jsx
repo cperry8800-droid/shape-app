@@ -762,7 +762,7 @@ function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
       <BSNightSky />
       <div className="bs-hide-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 'max(20px, calc(env(safe-area-inset-top, 0px) + 12px)) 22px calc(20px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 7 }}>
         {/* Logo lockup — top-left */}
-        <img src={`${import.meta.env.BASE_URL}shape-logo.png`} alt="Shape" style={{ width: 120, height: 'auto', display: 'block', marginLeft: -13, marginTop: -72 }} />
+        <img src={`${import.meta.env.BASE_URL}shape-logo.png`} alt="Shape" style={{ width: 120, height: 'auto', display: 'block', marginLeft: -13, marginTop: -50 }} />
 
         {/* Eyebrow + heading */}
         <div style={{ marginTop: 48 }}>
@@ -865,11 +865,6 @@ function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.3em', textTransform: 'uppercase', color: C50 }}>or</div>
           <div style={{ flex: 1, height: 1, background: LINE }} />
         </div>
-
-        {/* Continue with Apple */}
-        <button onClick={continueWithApple} style={{ width: '100%', borderRadius: 12, padding: 9, background: 'rgba(255,255,255,0.04)', color: CREAM, border: `1px solid ${LINE2}`, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9 }}>
-          <span style={{ fontSize: 17, lineHeight: 1, marginTop: -3 }}></span> Continue with Apple
-        </button>
 
         {/* Continue with phone — switches to the SMS one-time-code flow */}
         {!isPhone && (
@@ -1383,7 +1378,7 @@ function BSApp() {
 
   return (
     <BSProvider paperMode={tweaks.paperMode} accentKey={tweaks.accentKey} densityKey="dense" borderKey={tweaks.borderKey} weightKey={tweaks.weightKey} textureKey={tweaks.textureKey} textureColor={tweaks.textureColor} inkOverride={tweaks.inkOverride}>
-      <div style={{ width: '100vw', minHeight: '100vh', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 8, background: '#ffffff' }}>
+      <div style={{ width: '100vw', minHeight: '100dvh', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 8, background: '#ffffff' }}>
         <BSAppShell tweaks={tweaks} setTweak={setTweak} />
         {tweaksOn && <BSTweaksPanel tweaks={tweaks} setTweak={setTweak} onClose={() => { setTweaksOn(false); window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*'); }} />}
       </div>
