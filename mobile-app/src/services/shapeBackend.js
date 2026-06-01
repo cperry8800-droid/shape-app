@@ -698,21 +698,6 @@ async function uploadProviderApplicationFile(file, kind = 'resume') {
   };
 }
 
-function saveApplicationFallback(payload, error) {
-  const item = {
-    id: `local-${Date.now()}`,
-    created_at: new Date().toISOString(),
-    payload,
-    error: error?.message || '',
-  };
-  try {
-    const key = 'shape.providerApplications';
-    const current = JSON.parse(window.localStorage?.getItem(key) || '[]');
-    const next = Array.isArray(current) ? [item, ...current] : [item];
-    window.localStorage?.setItem(key, JSON.stringify(next.slice(0, 25)));
-  } catch {}
-  return item;
-}
 
 function saveLocalRecord(key, payload, error) {
   const item = {
@@ -728,6 +713,8 @@ function saveLocalRecord(key, payload, error) {
   } catch {}
   return item;
 }
+
+const COMMUNITY_POST_SELECT = '*, likes:community_likes(user_id), comments:community_comments(id, user_id, author_name, body, created_at)';
 
 function readLocalRecords(key) {
   try {
@@ -795,7 +782,7 @@ async function submitProviderApplication({ role, values }) {
   }
 
   if (!supabase) {
-    return { stored: 'local', data: saveApplicationFallback(payload) };
+    return { stored: 'local', data: saveLocalRecord('shape.providerApplications', payload) };
   }
 
   const { data, error } = await supabase
@@ -805,7 +792,7 @@ async function submitProviderApplication({ role, values }) {
     .single();
 
   if (error) {
-    return { stored: 'local', data: saveApplicationFallback(payload, error), error };
+    return { stored: 'local', data: saveLocalRecord('shape.providerApplications', payload, error), error };
   }
 
   return { stored: 'supabase', data };
@@ -1692,7 +1679,7 @@ async function listSensorWorkoutLogs() {
 
   const { data, error } = await supabase
     .from('community_posts')
-    .select('*, likes:community_likes(user_id), comments:community_comments(id, user_id, author_name, body, created_at)')
+    .select(COMMUNITY_POST_SELECT)
     .eq('author_id', state.user.id)
     .in('source_provider', SENSOR_PROVIDERS)
     .order('created_at', { ascending: false })
@@ -2007,7 +1994,7 @@ async function listCommunityPosts() {
 
   const { data, error } = await supabase
     .from('community_posts')
-    .select('*, likes:community_likes(user_id), comments:community_comments(id, user_id, author_name, body, created_at)')
+    .select(COMMUNITY_POST_SELECT)
     .order('created_at', { ascending: false })
     .limit(50);
 
@@ -2057,7 +2044,7 @@ async function createCommunityPost({
   const { data, error } = await supabase
     .from('community_posts')
     .insert(payload)
-    .select('*, likes:community_likes(user_id), comments:community_comments(id, user_id, author_name, body, created_at)')
+    .select(COMMUNITY_POST_SELECT)
     .single();
 
   if (error) {

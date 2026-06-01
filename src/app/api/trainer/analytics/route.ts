@@ -8,51 +8,10 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { stripe } from '@/lib/stripe';
+import { loadStripe } from '@/lib/stripe';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-type StripeSummary = {
-  connected: boolean;
-  status: string;
-  balanceCents: number | null;
-  payouts: Array<{
-    id: string;
-    amountCents: number;
-    currency: string;
-    status: string;
-    arrivalDate: number | null;
-    created: number;
-  }>;
-};
-
-async function loadStripe(
-  accountId: string | null,
-  accountStatus: string | null
-): Promise<StripeSummary> {
-  if (!accountId) {
-    return { connected: false, status: accountStatus ?? 'not_connected', balanceCents: null, payouts: [] };
-  }
-  try {
-    const [balance, payoutList] = await Promise.all([
-      stripe.balance.retrieve({}, { stripeAccount: accountId }),
-      stripe.payouts.list({ limit: 12 }, { stripeAccount: accountId }),
-    ]);
-    const balanceCents = (balance.available ?? []).reduce((sum, b) => sum + b.amount, 0);
-    const payouts = payoutList.data.map((p) => ({
-      id: p.id,
-      amountCents: p.amount,
-      currency: p.currency,
-      status: p.status,
-      arrivalDate: p.arrival_date ? p.arrival_date * 1000 : null,
-      created: p.created * 1000,
-    }));
-    return { connected: true, status: accountStatus ?? 'connected', balanceCents, payouts };
-  } catch {
-    return { connected: true, status: accountStatus ?? 'error', balanceCents: null, payouts: [] };
-  }
-}
 
 export async function GET() {
   const supabase = await createClient();

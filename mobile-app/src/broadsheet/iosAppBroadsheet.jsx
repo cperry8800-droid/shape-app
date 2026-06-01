@@ -24,10 +24,6 @@ const DISPLAY_BS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
 const BODY_BS    = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
 const MONO_BS    = "'JetBrains Mono', ui-monospace, monospace";
 
-// Inject web fonts once (only the families this design uses)
-(function injectBSFonts() {
-  // Fonts are bundled through src/fonts.css for offline app-store builds.
-})();
 
 // ─── Theme palette generator ───────────────────────────────
 // "paper" mode swaps cream<->near-black; everything derives from it.

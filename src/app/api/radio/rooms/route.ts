@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js';
-import { createClient } from '@/lib/supabase/server';
+import { type SupabaseClient } from '@supabase/supabase-js';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { cleanText } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
@@ -21,34 +21,6 @@ type RadioRoomRow = {
   room_url: string | null;
   metadata: Record<string, unknown>;
 };
-
-async function clientForRequest(request: Request): Promise<SupabaseClient> {
-  const authHeader = request.headers.get('authorization') ?? '';
-  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
-  if (bearerMatch) {
-    return createSupabaseClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
-      {
-        global: { headers: { Authorization: `Bearer ${bearerMatch[1]}` } },
-        auth: { persistSession: false, autoRefreshToken: false },
-      }
-    );
-  }
-  return createClient() as Promise<SupabaseClient>;
-}
-
-async function currentUser(request: Request) {
-  const authHeader = request.headers.get('authorization') ?? '';
-  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
-  const client = await clientForRequest(request);
-  if (bearerMatch) {
-    const { data } = await client.auth.getUser(bearerMatch[1]);
-    return data.user ?? null;
-  }
-  const { data } = await client.auth.getUser();
-  return data.user ?? null;
-}
 
 function normalizeRole(input: unknown): 'trainer' | 'nutritionist' | 'client' | 'admin' {
   const value = String(input ?? '').toLowerCase();

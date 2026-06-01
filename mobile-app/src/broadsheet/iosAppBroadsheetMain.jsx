@@ -895,108 +895,6 @@ function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
   );
 }
 
-function BSPreviewNotice({ onClose, onSignIn }) {
-  const t = useBS();
-  return (
-    <div style={{ borderRadius: t.RADIUS_SM,
-      position: 'absolute',
-      top: 24, left: 18, right: 18,
-      zIndex: 60,
-      background: t.PAPER,
-      color: t.INK,
-      border: `1.5px solid ${t.INK}`,
-      boxShadow: '0 6px 18px rgba(0,0,0,0.10)',
-      padding: '7px 9px',
-      display: 'flex', alignItems: 'center', gap: 8,
-    }}>
-      <div style={{
-        flex: '0 0 auto',
-        background: t.ACCENT, color: t.INK,
-        fontFamily: t.MONO, fontSize: 9, fontWeight: 800,
-        letterSpacing: '0.18em', textTransform: 'uppercase',
-        padding: '3px 5px',
-      }}>Preview</div>
-
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontWeight: 600, fontSize: 11.5, letterSpacing: '-0.005em', color: t.INK, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          Browsing without an account
-        </div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, marginTop: 2, lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          Stats &amp; activity are AI-generated for preview · Marketplace data is live.
-        </div>
-        {onSignIn && (
-          <button onClick={onSignIn} style={{ borderRadius: t.RADIUS_SM,
-            marginTop: 3, padding: '3px 7px', cursor: 'pointer',
-            background: 'transparent', color: t.INK,
-            border: `1px solid ${t.INK}`,
-            fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700,
-          }}>Sign in →</button>
-        )}
-      </div>
-
-      <button onClick={onClose} aria-label="Dismiss" style={{ borderRadius: t.RADIUS_SM,
-        flex: '0 0 auto',
-        background: 'transparent', border: 0, color: t.INK50,
-        fontFamily: t.MONO, fontSize: 14, lineHeight: 1, cursor: 'pointer', padding: '2px 2px',
-      }}>×</button>
-    </div>
-  );
-}
-
-function BSSubscribeBanner({ onJoin, onClose }) {
-  const t = useBS();
-  // Always sit "opposite" the paper for contrast: dark surface on light paper, paper surface on dark paper.
-  const isDark = !t.isLight;
-  const surface = isDark ? 'rgba(245,240,230,0.86)' : 'rgba(20,18,14,0.72)';
-  const fg      = isDark ? t.INK : t.PAPER;     // text color on the banner
-  const fgMuted = isDark ? 'rgba(15,14,12,0.55)' : 'rgba(242,237,228,0.55)';
-  const borderC = isDark ? 'rgba(15,14,12,0.18)' : 'rgba(242,237,228,0.18)';
-  const btnBg   = isDark ? t.INK   : t.PAPER;
-  const btnFg   = isDark ? t.PAPER : t.INK;
-  return (
-    <div style={{ borderRadius: t.RADIUS_SM,
-      position: 'absolute',
-      // Sit above the tab bar (~58–66px tall depending on safe-area).
-      left: 18, right: 18, bottom: 92,
-      zIndex: 60,
-      background: surface,
-      WebkitBackdropFilter: 'blur(14px) saturate(140%)',
-      backdropFilter: 'blur(14px) saturate(140%)',
-      color: fg,
-      border: `1px solid ${borderC}`,
-      boxShadow: '0 6px 18px rgba(0,0,0,0.16)',
-      padding: '7px 9px',
-      display: 'flex', alignItems: 'center', gap: 10,
-    }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.05, color: fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          Join the Shape community
-        </div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.13em', textTransform: 'uppercase', color: fgMuted, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          $5 / mo · cancel anytime
-        </div>
-      </div>
-      <button onClick={onJoin} style={{ borderRadius: t.RADIUS_SM,
-        padding: '6px 10px', background: btnBg, color: btnFg, border: 0,
-        fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.15em',
-        textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap',
-      }}>Join →</button>
-      <button onClick={onClose} aria-label="Dismiss" style={{ borderRadius: t.RADIUS_SM,
-        background: 'transparent', border: 0, color: fgMuted,
-        fontFamily: t.MONO, fontSize: 13, lineHeight: 1, cursor: 'pointer', padding: '2px 2px',
-      }}>×</button>
-    </div>
-  );
-}
-
-// Browse-mode chrome — gated on radio prompt visibility so it doesn't flash
-// over the "Music while you move?" overlay on first entry.
-function BSBrowseChrome({ noticeDismissed, bannerDismissed, onCloseNotice, onCloseBanner, onJoin, onSignIn }) {
-  // Mobile app hotfix: disable browse overlays so chat composer and thread UI
-  // are never occluded by preview chrome.
-  return null;
-}
-
 function BSAppShell({ tweaks, setTweak }) {
   const authConfigured = Boolean(window.ShapeAuth?.configured);
   // Always open on the splash so the intro is seen on every launch; onDone
@@ -1164,17 +1062,6 @@ function BSAppShell({ tweaks, setTweak }) {
         )}
         {stage === 'app' && !!App && <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />}
 
-        {/* Browse-mode chrome (preview banner + subscribe CTA) — gated below */}
-        {stage === 'app' && !!App && !bundleLoading && browseMode && !tweaks.startLoggedIn && (
-          <BSBrowseChrome
-            noticeDismissed={noticeDismissed}
-            bannerDismissed={bannerDismissed}
-            onCloseNotice={() => setNoticeDismissed(true)}
-            onCloseBanner={() => setBannerDismissed(true)}
-            onJoin={() => { setBrowseMode(false); setLoginMode('create'); setStage('login'); }}
-            onSignIn={() => { setBrowseMode(false); setLoginMode('signin'); setStage('login'); }}
-          />
-        )}
       </BSPhone>
     </BSRadioProvider>
   );

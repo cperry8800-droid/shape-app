@@ -236,10 +236,10 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
   React.useEffect(() => { loadMonth(); }, [loadMonth]);
 
   const sourceDayByDate = { 20: 11, 21: 14, 22: 15, 23: 16, 24: 17, 25: 18, 26: 19 };
-  const demoEvents = eventsFor(role, t).map((event) => {
+  const demoEvents = React.useMemo(() => eventsFor(role, t).map((event) => {
     const day = sourceDayByDate[event.day];
     return day ? { ...event, day } : event;
-  });
+  }), [role, t]);
   const useServer = loggedIn && serverEvents != null;
   const events = useServer ? serverEvents : demoEvents;
   const sheet = useBSSheet();

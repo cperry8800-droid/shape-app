@@ -5,10 +5,9 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { DAY_MS } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
-
-const DAY_MS = 86_400_000;
 
 type ClientEntry = {
   id: string | null;

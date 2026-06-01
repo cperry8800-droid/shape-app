@@ -579,27 +579,6 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   );
 }
 
-function _BSTrainerApp_old({ onLogout }) {
-  const [tab, setTab] = useStateBSP('today');
-  const screens = {
-    today:    <BSTrainerToday onProfile={onLogout} />,
-    clients:  <BSTrainerClients />,
-    programs: <BSTrainerPrograms />,
-    me:       <BSProMe role="trainer" name="Jordan Chen" onLogout={onLogout} />,
-  };
-  return (
-    <div style={{ position: 'absolute', inset: 0 }}>
-      {screens[tab]}
-      <BSTabBar active={tab} onChange={setTab} tabs={[
-        { key: 'today',    label: 'Today' },
-        { key: 'clients',  label: 'Clients' },
-        { key: 'programs', label: 'Plans' },
-        { key: 'me',       label: 'Me' },
-      ]} />
-    </div>
-  );
-}
-
 function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, onWidgetOpen = () => {}, onOpenHabits = () => {}, onOpenScore = () => {}, tweaks = {}, setTweak = () => {} }) {
   const t = useBS();
   const [selDay, setSelDay] = useStateBSP(14);
@@ -1601,27 +1580,6 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
         { key: 'me',       label: 'Me' },
       ]} />
       <BSRadioPrompt />
-    </div>
-  );
-}
-
-function _BSNutritionistApp_old({ onLogout }) {
-  const [tab, setTab] = useStateBSP('today');
-  const screens = {
-    today:    <BSNutriToday onProfile={onLogout} />,
-    clients:  <BSNutriClients />,
-    plans:    <BSNutriPlans />,
-    me:       <BSProMe role="nutritionist" name="Dr. Maya Patel" onLogout={onLogout} />,
-  };
-  return (
-    <div style={{ position: 'absolute', inset: 0 }}>
-      {screens[tab]}
-      <BSTabBar active={tab} onChange={setTab} tabs={[
-        { key: 'today',    label: 'Today' },
-        { key: 'clients',  label: 'Clients' },
-        { key: 'plans',    label: 'Plans' },
-        { key: 'me',       label: 'Me' },
-      ]} />
     </div>
   );
 }
