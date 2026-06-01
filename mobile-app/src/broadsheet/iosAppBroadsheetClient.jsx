@@ -2670,6 +2670,7 @@ function BSShapeKitchen({ onChangeView, onOpenRecipe }) {
   _bsScrollTopOnMount();
   const [diet, setDiet] = useStateBSC('All');
   const [needs, setNeeds] = useStateBSC([]);
+  const [filtersOpen, setFiltersOpen] = useStateBSC(false);
   const all = SHAPE_KITCHEN_RECIPES;
   const toggleNeed = (n) => setNeeds(prev => prev.includes(n) ? prev.filter(x => x !== n) : [...prev, n]);
   const filtered = all.filter(r => recipeMatchesDiet(r, diet) && (needs.length === 0 || needs.every(n => recipeNeeds(r).includes(n))));
@@ -2682,26 +2683,52 @@ function BSShapeKitchen({ onChangeView, onOpenRecipe }) {
       fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase',
     }}>{label}{typeof count === 'number' ? ` ${count}` : ''}</button>
   );
+  const Group = ({ label, children }) => (
+    <div>
+      <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: t.INK50, marginBottom: 7 }}>{label}</div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{children}</div>
+    </div>
+  );
+  const activeCount = (diet !== 'All' ? 1 : 0) + needs.length;
+  const resetFilters = () => { setDiet('All'); setNeeds([]); };
   return (
     <BSPage>
       <BSPageHeader kicker="Section · Nutrition" title={<>Shape<br/>Kitchen.</>} />
       <BSNutritionTopTabs active="recipes" onChange={onChangeView} />
-      <div style={{ padding: `12px ${t.padX}px 8px`, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, marginRight: 2 }}>DIET</span>
-        <Chip label="All" on={diet === 'All'} onClick={() => setDiet('All')} count={all.length} />
-        {RECIPE_DIETS.map(d => <Chip key={d} label={d} on={diet === d} color={BS_SK_DIET_COLOR[d]} onClick={() => setDiet(diet === d ? 'All' : d)} count={dietCount(d)} />)}
-      </div>
-      <div style={{ padding: `0 ${t.padX}px 8px`, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, marginRight: 2 }}>PROTEIN</span>
-        {RECIPE_PROTEINS.map(d => <Chip key={d} label={d} on={diet === d} color={BS_SK_DIET_COLOR[d]} onClick={() => setDiet(diet === d ? 'All' : d)} count={dietCount(d)} />)}
-      </div>
-      <div style={{ padding: `0 ${t.padX}px 8px`, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, marginRight: 2 }}>FREE FROM</span>
-        {RECIPE_FREE_FROM.map(n => <Chip key={n} label={n} on={needs.includes(n)} onClick={() => toggleNeed(n)} count={all.filter(r => recipeNeeds(r).includes(n)).length} />)}
-      </div>
-      <div style={{ padding: `0 ${t.padX}px 12px`, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', borderBottom: `1px solid ${t.RULE}` }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, marginRight: 2 }}>GOALS</span>
-        {RECIPE_GOALS.map(n => <Chip key={n} label={n} on={needs.includes(n)} onClick={() => toggleNeed(n)} count={all.filter(r => recipeNeeds(r).includes(n)).length} />)}
+      {/* Collapsible filter disclosure — keeps the recipe grid front-and-centre. */}
+      <div style={{ borderBottom: `1px solid ${t.RULE}` }}>
+        <div style={{ padding: `12px ${t.padX}px`, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={() => setFiltersOpen(o => !o)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '11px 14px', borderRadius: 12, border: `1px solid ${activeCount ? t.INK : t.RULE}`, background: t.PAPER2, color: t.INK, cursor: 'pointer' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
+              Filters
+              {activeCount > 0 && <span style={{ minWidth: 16, height: 16, padding: '0 4px', borderRadius: 999, background: t.ACCENT, color: '#0a0f0d', fontSize: 9, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{activeCount}</span>}
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', color: t.INK50 }}>
+              {filtered.length} recipes
+              <span style={{ display: 'inline-block', transform: filtersOpen ? 'rotate(180deg)' : 'none', transition: 'transform .18s ease' }}>▾</span>
+            </span>
+          </button>
+          {activeCount > 0 && (
+            <button onClick={resetFilters} style={{ flexShrink: 0, padding: '11px 12px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Clear</button>
+          )}
+        </div>
+        {filtersOpen && (
+          <div style={{ padding: `2px ${t.padX}px 14px`, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <Group label="DIET">
+              <Chip label="All" on={diet === 'All'} onClick={() => setDiet('All')} count={all.length} />
+              {RECIPE_DIETS.map(d => <Chip key={d} label={d} on={diet === d} color={BS_SK_DIET_COLOR[d]} onClick={() => setDiet(diet === d ? 'All' : d)} count={dietCount(d)} />)}
+            </Group>
+            <Group label="PROTEIN">
+              {RECIPE_PROTEINS.map(d => <Chip key={d} label={d} on={diet === d} color={BS_SK_DIET_COLOR[d]} onClick={() => setDiet(diet === d ? 'All' : d)} count={dietCount(d)} />)}
+            </Group>
+            <Group label="FREE FROM">
+              {RECIPE_FREE_FROM.map(n => <Chip key={n} label={n} on={needs.includes(n)} onClick={() => toggleNeed(n)} count={all.filter(r => recipeNeeds(r).includes(n)).length} />)}
+            </Group>
+            <Group label="GOALS">
+              {RECIPE_GOALS.map(n => <Chip key={n} label={n} on={needs.includes(n)} onClick={() => toggleNeed(n)} count={all.filter(r => recipeNeeds(r).includes(n)).length} />)}
+            </Group>
+          </div>
+        )}
       </div>
       <div style={{ padding: `14px ${t.padX}px 6px`, display: 'grid', gap: 12 }}>
         {filtered.map((r, i) => {
