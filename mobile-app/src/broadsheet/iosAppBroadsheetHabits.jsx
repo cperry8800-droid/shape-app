@@ -1816,6 +1816,7 @@ function _bsUseServerHabits(tweaks, setTweak) {
   };
 
   const toggle = (id) => {
+    if (window.bsRequireAccount && !window.bsRequireAccount('track habits')) return;
     const applyToggle = (list) => list.map(h => {
       if (h.id !== id) return h;
       const hist = new Set(h.history || []);

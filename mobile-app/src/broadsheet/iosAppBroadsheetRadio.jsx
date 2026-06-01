@@ -395,13 +395,13 @@ function BSRadioPrompt() {
       <div style={{ position: 'relative', padding: `26px ${t.padX}px 8px` }}>
         <BSStageLight color={t.ACCENT} opacity={0.18} />
         <div style={{ position: 'relative', zIndex: 2 }}>
-          <BSEQ bars={22} color={t.ACCENT} height={62} gap={4} />
+          <div style={{ maxWidth: 280 }}><BSEQ bars={22} color={t.ACCENT} height={80} gap={4} /></div>
         </div>
         <div style={{ marginTop: 18, position: 'relative', zIndex: 2 }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700, marginBottom: 12 }}>
             <span style={{ width: 6, height: 6, borderRadius: 3, background: t.ACCENT, animation: 'bs-blink 1.2s ease-in-out infinite' }} /> Shape Radio · Live now
           </div>
-          <h1 style={{ margin: 0, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 38, letterSpacing: '-0.035em', lineHeight: 0.98, color: t.INK }}>
+          <h1 style={{ margin: 0, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 44, letterSpacing: '-0.035em', lineHeight: 0.95, color: t.INK }}>
             Want music<br/><span style={{ fontStyle: 'italic', fontWeight: 500, color: t.ACCENT }}>while you move?</span>
           </h1>
           <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 13.5, lineHeight: 1.45, color: t.INK70, maxWidth: 340 }}>
@@ -471,7 +471,7 @@ function PromptChoice({ on, onClick, eyebrow, title, meta, icon, accent }) {
     }}>
       <div style={{
         width: 44, height: 44, flexShrink: 0, borderRadius: 11,
-        background: accent ? t.ACCENT : 'transparent',
+        background: accent ? 'linear-gradient(135deg, #0ac5a8, #14806f)' : 'transparent',
         border: accent ? 'none' : `1px solid ${t.RULE}`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>

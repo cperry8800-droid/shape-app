@@ -1200,6 +1200,9 @@ function BSCoachDetailPublic({ coach, onBack }) {
   };
 
   const confirmAction = async (current) => {
+    // Browse / no-account users can view coaches but must create an account to commit.
+    const gateLabel = current.type === 'Booking' ? 'book a session' : current.type === 'Checkout' ? 'check out' : 'continue';
+    if (window.bsRequireAccount && !window.bsRequireAccount(gateLabel)) return;
     if (current.type === 'Checkout') {
       setCheckoutBusy(true);
       try {

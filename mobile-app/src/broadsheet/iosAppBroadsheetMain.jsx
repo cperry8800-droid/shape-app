@@ -1030,6 +1030,24 @@ function BSAppShell({ tweaks, setTweak }) {
     return () => { cancelled = true; };
   }, [role]);
 
+  // Account gate for browse / no-account users. Deep screens call
+  // window.bsRequireAccount('book a session') before any committing action;
+  // if there's no signed-in user it nudges them to create an account.
+  useEffectBSM(() => {
+    window.__bsGoAuth = (mode) => {
+      setBrowseMode(false); setNoticeDismissed(false); setBannerDismissed(false);
+      setLoginMode(mode === 'signin' ? 'signin' : 'create'); setStage('login');
+    };
+    window.bsRequireAccount = (label) => {
+      const u = window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user;
+      if (u) return true;
+      try { window.__bsToast && window.__bsToast(label ? `Create a free account to ${label}.` : 'Create a free account to continue.', 'info'); } catch (e) {}
+      if (window.__bsGoAuth) window.__bsGoAuth('create');
+      return false;
+    };
+    return () => { try { delete window.__bsGoAuth; delete window.bsRequireAccount; } catch (e) {} };
+  }, []);
+
   const appByRole = {
     client: window.BSClientApp,
     trainer: window.BSTrainerApp,

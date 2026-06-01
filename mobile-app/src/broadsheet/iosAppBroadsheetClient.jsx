@@ -5380,6 +5380,7 @@ function BSChatThread({ thread, eyebrow, onBack }) {
 
   const send = () => {
     if (!text.trim()) return;
+    if (window.bsRequireAccount && !window.bsRequireAccount('message a coach')) return;
     setExtras(e => [...e, { who: 'You', t: text.trim(), time: 'now', me: true }]);
     setText('');
   };
@@ -6028,6 +6029,7 @@ function BSLogActivity({ onClose, onSaved }) {
   const ptsPreview = mins ? Math.max(2, Math.min(20, Math.round(mins / 5))) : 0;
 
   const save = async () => {
+    if (window.bsRequireAccount && !window.bsRequireAccount('log activity')) return;
     if (!mins) { window.__bsToast?.('Set a duration', 'err'); return; }
     setBusy(true);
     try {
