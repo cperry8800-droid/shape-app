@@ -352,7 +352,7 @@ function buildConfig(): ConfigGroup[] {
 
 // ── Go-live checklist (config-derived where possible) ───────────────────────
 
-function buildChecklist(config: ConfigGroup[]): ChecklistSection[] {
+function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSection[] {
   const group = (k: string) => config.find((g) => g.key === k);
   const stripeReady = !!group('stripe')?.ready && stripeMode(process.env.STRIPE_SECRET_KEY) === 'live';
   const supabaseReady = !!group('supabase')?.ready;
@@ -391,9 +391,21 @@ function buildChecklist(config: ConfigGroup[]): ChecklistSection[] {
     {
       section: 'Apps & Release',
       items: [
-        { label: 'Mobile web build present (/m)', status: 'manual' },
+        { label: 'Mobile web build present (/m)', status: auto(mobileBuild) },
         { label: 'Android signed release secrets', status: 'manual' },
         { label: 'End-to-end smoke test passed', status: 'manual' },
+      ],
+    },
+    {
+      section: 'Mobile onboarding & auth',
+      items: [
+        { label: 'Login redesign + splash zoom/glow + compact UI', status: 'done' },
+        { label: 'Eat tab crash fixed (PROGRAM TDZ)', status: 'done' },
+        { label: 'Stripped 157MB of unused assets from /m', status: 'done' },
+        { label: 'Account creation routes pros to the application', status: 'done' },
+        { label: 'Email verification flow (code) — enable "Confirm email" in Supabase', status: 'manual' },
+        { label: 'Continue with Apple (code) — enable Apple provider in Supabase', status: 'manual' },
+        { label: 'Native Sign in with Apple plugin (iOS App Store build)', status: 'pending' },
       ],
     },
   ];
@@ -408,7 +420,7 @@ export async function buildWarRoomSnapshot(): Promise<WarRoomSnapshot> {
   ]);
   // The embedded list is the source of truth for the count too.
   inventory.apiRoutes = RAW_ROUTES.length;
-  const checklist = buildChecklist(config);
+  const checklist = buildChecklist(config, inventory.mobileBuild);
 
   // Readiness = required config groups that are fully wired.
   const requiredGroups = config.filter((g) => g.required);
