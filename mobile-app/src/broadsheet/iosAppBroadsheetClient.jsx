@@ -4673,6 +4673,8 @@ function BSClientFeed({ onProfile }) {
   const [tab, setTab] = useStateBSC('feed');
   const [filter, setFilter] = useStateBSC('ALL');
   const [draft, setDraft] = useStateBSC('');
+  const [composerSlot, setComposerSlot] = useStateBSC(null);
+  React.useEffect(() => { setComposerSlot(document.getElementById('bs-composer-slot')); }, []);
   const card = '#1a1713', cardInk = '#f7f1e6', muted = 'rgba(247,241,230,0.55)', hair = 'rgba(247,241,230,0.12)';
   const ROLE = {
     SHAPE: { color: TEALB, label: 'Shape · Official' },
@@ -4733,11 +4735,14 @@ function BSClientFeed({ onProfile }) {
 
   return (
     <BSPage>
-      <div style={{ padding: `max(20px, env(safe-area-inset-top, 0px)) ${t.padX}px 0` }}>
-        <div style={{ fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontWeight: 500, fontSize: 40, lineHeight: 0.9, letterSpacing: '-0.045em', color: cardInk }}>
-          The<br /><span style={{ fontStyle: 'italic', color: TEALB }}>feed.</span>
-        </div>
-      </div>
+      <BSMasthead
+        title={<span style={{ display: 'block', textAlign: 'center', lineHeight: 0.92, fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 500, fontSize: 38, letterSpacing: '-0.045em' }}>
+          The <span style={{ fontStyle: 'italic', color: TEALB }}>feed.</span>
+        </span>}
+        leftKicker="Section · Community"
+        rightKicker="Live"
+        trailing={<BSAvatar init="A" size={32} onClick={onProfile} />}
+      />
 
       {/* Feed / Messages / Teams */}
       <div style={{ padding: `16px ${t.padX}px 0` }}>
@@ -4764,14 +4769,7 @@ function BSClientFeed({ onProfile }) {
             })}
           </div>
 
-          {/* Composer */}
-          <div style={{ margin: `0 ${t.padX}px 16px`, display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 999, border: `1px solid ${hair}`, background: card }}>
-            <div style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, background: TEAL, color: '#031f1c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13 }}>A</div>
-            <input value={draft} onChange={e => setDraft(e.target.value)} placeholder="Share with the group…" style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, outline: 'none', color: cardInk, fontFamily: t.DISPLAY, fontSize: 14 }} />
-            <button onClick={post} style={{ flexShrink: 0, padding: '9px 16px', borderRadius: 999, border: 0, background: TEAL, color: '#031f1c', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>POST</button>
-          </div>
-
-          <div style={{ padding: `0 ${t.padX}px 24px`, display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <div style={{ padding: `14px ${t.padX}px 84px`, display: 'flex', flexDirection: 'column', gap: 18 }}>
             {shown.map((p, i) => (
               <div key={i}>
                 {p.pinned && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', color: TEALB, marginBottom: 8 }}>📌 Pinned</div>}
@@ -4795,6 +4793,16 @@ function BSClientFeed({ onProfile }) {
             ))}
           </div>
         </>
+      )}
+      {tab === 'feed' && composerSlot && createPortal(
+        <div style={{ pointerEvents: 'auto', padding: `8px ${t.padX}px 10px`, background: 'linear-gradient(180deg, rgba(11,12,12,0), #0b0c0c 45%)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 999, border: `1px solid ${hair}`, background: card }}>
+            <div style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, background: TEAL, color: '#031f1c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13 }}>A</div>
+            <input value={draft} onChange={e => setDraft(e.target.value)} placeholder="Share with the group…" style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, outline: 'none', color: cardInk, fontFamily: t.DISPLAY, fontSize: 14 }} />
+            <button onClick={post} style={{ flexShrink: 0, padding: '9px 16px', borderRadius: 999, border: 0, background: TEAL, color: '#031f1c', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>POST</button>
+          </div>
+        </div>,
+        composerSlot
       )}
     </BSPage>
   );
