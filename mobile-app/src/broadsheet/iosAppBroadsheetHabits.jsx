@@ -163,7 +163,7 @@ function _bsHabitInsightStats(habits) {
   };
 }
 
-function BSHabitInsights({ habits, accent, onOpenScore, onToggle, onDeleteHabit, onSetVisibility }) {
+function BSHabitInsights({ habits, accent, onOpenScore, onToggle, onDeleteHabit, onSetVisibility, onAddHabit = () => {} }) {
   const t = useBS();
   const model = _bsHabitGridModel(habits);
   const stats = _bsHabitInsightStats(habits);
@@ -266,7 +266,20 @@ function BSHabitInsights({ habits, accent, onOpenScore, onToggle, onDeleteHabit,
                   whiteSpace: 'nowrap',
                 }}>{row.name}</span>
               </div>
-              {row.pattern.map((value, i) => <Cell key={`${row.id}_${i}`} value={value} />)}
+              {row.pattern.map((value, i) => {
+                const isToday = i === row.pattern.length - 1;
+                return isToday && !model.demo ? (
+                  <button key={`${row.id}_${i}`} type="button" onClick={() => onToggle(row.id)}
+                    aria-label={`Toggle ${row.name} for today`} style={{
+                    height: 28, minWidth: 0, borderRadius: 999, cursor: 'pointer', padding: 0,
+                    background: value === 2 ? hot : value ? teal : missed,
+                    border: value ? 'none' : `1px solid ${border}`,
+                    boxShadow: value === 2 ? `0 0 0 1px ${hot}` : 'none',
+                  }} />
+                ) : (
+                  <Cell key={`${row.id}_${i}`} value={value} />
+                );
+              })}
               {showVis && (
                 <button type="button" onClick={() => onSetVisibility(row.id, VIS_NEXT[row.visibility] || 'friends')}
                   aria-label={`Visibility: ${vis.full}. Tap to change.`} title={`${vis.full} — tap to change`} style={{
@@ -286,9 +299,12 @@ function BSHabitInsights({ habits, accent, onOpenScore, onToggle, onDeleteHabit,
             );
           })}
         </div>
-        {!model.demo && habits.length > 0 && (
-          <BSHabitLogBox habits={habits} onToggle={onToggle} onRemove={onDeleteHabit} />
-        )}
+        <button type="button" onClick={onAddHabit} aria-label="Add habit" style={{
+          marginTop: 14, width: '100%', padding: 12, borderRadius: 10,
+          border: `1px dashed ${teal}`, background: 'transparent', color: teal,
+          fontFamily: t.MONO, fontSize: 10, fontWeight: 900, letterSpacing: '0.18em',
+          textTransform: 'uppercase', cursor: 'pointer',
+        }}>+ Add habit</button>
       </div>
 
       <div style={{
@@ -297,19 +313,21 @@ function BSHabitInsights({ habits, accent, onOpenScore, onToggle, onDeleteHabit,
         border: `1px solid ${teal}`,
         background: scoreBg,
         color: cardInk,
-        padding: 12,
+        padding: 10,
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)',
       }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 900, letterSpacing: '0.22em', color: hot, textTransform: 'uppercase' }}>
-          Shape Score · From Habits
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <div style={{ fontFamily: t.SERIF || t.DISPLAY, fontSize: 22, lineHeight: 0.95, color: hot, letterSpacing: '-0.05em' }}>
+            +{stats.score}
+          </div>
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 900, letterSpacing: '0.2em', color: hot, textTransform: 'uppercase' }}>
+            Shape Score · From Habits
+          </div>
         </div>
-        <div style={{ fontFamily: t.SERIF || t.DISPLAY, fontSize: 34, lineHeight: 0.95, marginTop: 8, color: hot, letterSpacing: '-0.06em' }}>
-          +{stats.score}
-        </div>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 12, lineHeight: 1.4, marginTop: 8, color: 'rgba(247,241,230,0.78)' }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 10.5, lineHeight: 1.35, marginTop: 6, color: 'rgba(247,241,230,0.78)' }}>
           Earned from habits this week. Each row's +pts rolls into your Shape Score nightly.
         </div>
-        <button type="button" onClick={onOpenScore || (() => window.__bsToast?.('Shape Score opened', 'ok'))} style={{ display: 'inline-flex', alignItems: 'center', marginTop: 12, padding: 0, border: 0, background: 'transparent', color: hot, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 900, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: 'pointer' }}>
+        <button type="button" onClick={onOpenScore || (() => window.__bsToast?.('Shape Score opened', 'ok'))} style={{ display: 'inline-flex', alignItems: 'center', marginTop: 8, padding: 0, border: 0, background: 'transparent', color: hot, fontFamily: t.MONO, fontSize: 9, fontWeight: 900, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer' }}>
           See full breakdown →
         </button>
       </div>
@@ -329,21 +347,6 @@ function BSHabitInsights({ habits, accent, onOpenScore, onToggle, onDeleteHabit,
         </div>
       </div>
 
-      <div style={{
-        borderRadius: 10,
-        border: `1px solid ${border}`,
-        background: cardBg,
-        color: cardInk,
-        padding: 18,
-        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)',
-      }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 900, letterSpacing: '0.22em', color: hot, textTransform: 'uppercase' }}>
-          From Maya · Mon
-        </div>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1.45, marginTop: 12 }}>
-          {stats.coach}
-        </div>
-      </div>
     </div>
   );
 }
@@ -1913,7 +1916,9 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
 
   // Live (Supabase) when signed in, ephemeral tweaks otherwise — shared with
   // the home tracker so completions and edits stay in sync across surfaces.
-  const { habits, remove: removeHabit, setVisibility: setHabitVisibility, toggle } = _bsUseServerHabits(tweaks, setTweak);
+  const { habits, upsert, remove: removeHabit, setVisibility: setHabitVisibility, toggle } = _bsUseServerHabits(tweaks, setTweak);
+  const [editingId, setEditingId] = useStateBSH(null); // 'new' | habit.id | null
+  const editing = editingId === 'new' ? null : habits.find(h => h.id === editingId);
   return (
     <BSPage>
       <BSDetailHeader
@@ -1922,7 +1927,16 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
         title={<>Habits</>}
       />
       <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <BSHabitInsights habits={habits} accent={accent} onOpenScore={onOpenScore} onToggle={toggle} onDeleteHabit={removeHabit} onSetVisibility={setHabitVisibility} />
+        {editingId !== null ? (
+          <BSHabitForm
+            initial={editing}
+            onSave={(h) => { upsert(h); setEditingId(null); }}
+            onCancel={() => setEditingId(null)}
+            onDelete={editing ? () => { removeHabit(editing.id); setEditingId(null); } : undefined}
+          />
+        ) : (
+          <BSHabitInsights habits={habits} accent={accent} onOpenScore={onOpenScore} onToggle={toggle} onDeleteHabit={removeHabit} onSetVisibility={setHabitVisibility} onAddHabit={() => setEditingId('new')} />
+        )}
       </div>
     </BSPage>
   );
