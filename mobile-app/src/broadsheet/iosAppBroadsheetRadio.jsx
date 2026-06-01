@@ -371,7 +371,7 @@ function BSStageLight({ color, opacity = 0.18, paused = false }) {
 function BSRadioPrompt() {
   const t = useBS();
   const r = useBSRadio();
-  const [choice, setChoice] = useStateBR(null);
+  const [choice, setChoice] = useStateBR('on'); // pre-select the recommended "play Radio" option
   const isLight = !!t.isLight;
 
   if (!r.showPrompt) return null;
