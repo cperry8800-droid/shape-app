@@ -393,7 +393,7 @@ function BSRadioPrompt() {
             <defs>
               <linearGradient id="bsRadioWave" x1="0" y1="0" x2="1" y2="0">
                 <stop offset="0" stopColor={t.ACCENT} stopOpacity="0" />
-                <stop offset="0.5" stopColor={t.ACCENT} stopOpacity="0.55" />
+                <stop offset="0.5" stopColor={t.ACCENT} stopOpacity="0.8" />
                 <stop offset="1" stopColor={t.ACCENT} stopOpacity="0" />
               </linearGradient>
             </defs>
@@ -401,7 +401,7 @@ function BSRadioPrompt() {
               {[120, 205, 290, 380, 470, 560, 650].map((y, i) => {
                 const a = i % 2 === 0 ? 40 : -40;
                 const d = `M -40 ${y} C 60 ${y - a}, 140 ${y + a}, 200 ${y} C 260 ${y - a}, 340 ${y + a}, 460 ${y}`;
-                return <path key={i} d={d} strokeWidth={i % 3 === 0 ? 1.6 : 1} opacity={0.2 + (i % 3) * 0.12} />;
+                return <path key={i} d={d} strokeWidth={i % 3 === 0 ? 2 : 1.4} opacity={0.38 + (i % 3) * 0.16} />;
               })}
             </g>
           </svg>
