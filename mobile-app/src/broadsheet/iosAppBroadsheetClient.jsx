@@ -872,6 +872,27 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   }, []);
   React.useEffect(() => { refreshAnalytics(); }, [refreshAnalytics]);
 
+  // Today's Shape Score additions for the home "Score" chip. Sums the score
+  // ledger entries earned *today* (local day) so the chip reflects what's been
+  // added so far this day and grows as the day goes on. null = not loaded /
+  // demo, in which case the chip keeps its sample value.
+  const [todayScore, setTodayScore] = useStateBSC(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/client/score', { credentials: 'same-origin', cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (cancelled || !d || !Array.isArray(d.recent)) return;
+        const todayKey = new Date().toDateString();
+        const sum = d.recent
+          .filter(e => e && e.earned_at && new Date(e.earned_at).toDateString() === todayKey)
+          .reduce((acc, e) => acc + (Number(e.delta) || 0), 0);
+        setTodayScore(sum);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
   // Home-page lunch record (fed to BSMealPreview when user taps the slab).
   // Mirrors the shape of meals in BSClientEat — same preview component.
   const HOME_LUNCH = {
@@ -1234,7 +1255,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
             { label: 'Today', meta: `${dayLog.length} logs`, active: true, onClick: () => setActiveDayLogKey(null) },
             { label: 'Log', meta: 'Activity', accent: t.AMBER, onClick: () => setShowLogActivity(true) },
             { label: 'Habits', meta: '1/3 done', accent: t.GREEN, onClick: () => setHabitsPage(true) },
-            { label: 'Score', meta: '+4 pts', accent: t.ACCENT, onClick: () => goScore?.() },
+            { label: 'Score', meta: todayScore == null ? '+4 pts' : `+${todayScore} pts`, accent: t.ACCENT, onClick: () => goScore?.() },
           ].map((item) => (
             <button
               key={item.label}
