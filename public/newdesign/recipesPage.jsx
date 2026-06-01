@@ -138,7 +138,7 @@ function RecipesPage() {
 
   return (
     <div style={{ background: INK_DEEP, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
-      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", background: "radial-gradient(120% 90% at 50% 0%, rgba(26,24,19,0.5) 0%, rgba(11,14,12,0.85) 60%, #0b0e0c 100%)" }} />
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", background: "radial-gradient(120% 90% at 50% 0%, rgba(11,14,12,0.55) 0%, rgba(11,14,12,0.82) 58%, rgba(11,14,12,0.92) 100%), url('/newdesign/shape-kitchen-bg.png') center center / cover no-repeat", backgroundColor: INK_DEEP }} />
       <div style={{ position: "relative", zIndex: 1 }}>
         <Header active="Recipes" />
 
