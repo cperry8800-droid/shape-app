@@ -2185,6 +2185,92 @@ async function connectStrava(options = {}) {
   return connectProvider('strava', options);
 }
 
+async function connectSpotify(options = {}) {
+  return connectProvider('spotify', options);
+}
+
+// Inject the MusicKit v3 script once and resolve when window.MusicKit exists.
+let _musicKitPromise = null;
+function loadMusicKit() {
+  if (typeof window !== 'undefined' && window.MusicKit) return Promise.resolve(window.MusicKit);
+  if (_musicKitPromise) return _musicKitPromise;
+  _musicKitPromise = new Promise((resolve, reject) => {
+    if (typeof document === 'undefined') { reject(new Error('MusicKit unavailable.')); return; }
+    const done = () => (window.MusicKit ? resolve(window.MusicKit) : reject(new Error('MusicKit failed to load.')));
+    const existing = document.querySelector('script[data-musickit]');
+    if (existing) { document.addEventListener('musickitloaded', done, { once: true }); return; }
+    const s = document.createElement('script');
+    s.src = 'https://js-cdn.music.apple.com/musickit/v3/musickit.js';
+    s.async = true;
+    s.setAttribute('data-musickit', '1');
+    document.addEventListener('musickitloaded', done, { once: true });
+    s.onerror = () => reject(new Error('Could not load Apple MusicKit.'));
+    document.head.appendChild(s);
+  });
+  return _musicKitPromise;
+}
+
+// Apple Music: mint a developer token, run MusicKit's device-side authorize
+// to get a Music-User-Token, then persist it server-side. Not an OAuth
+// redirect flow — everything happens in-page.
+async function connectAppleMusic() {
+  if (!apiBaseUrl) throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
+  if (!state.session?.access_token) throw new Error('Sign in before connecting Apple Music.');
+
+  const tokenRes = await fetch(`${apiBaseUrl}/api/integrations/apple-music/developer-token`);
+  const tokenJson = await tokenRes.json().catch(() => ({}));
+  if (!tokenRes.ok || !tokenJson.developerToken) {
+    throw new Error(tokenJson.error || 'Apple Music is not configured yet.');
+  }
+
+  const MusicKit = await loadMusicKit();
+  await MusicKit.configure({
+    developerToken: tokenJson.developerToken,
+    app: { name: 'Shape', build: '1.0.0' },
+  });
+  const music = MusicKit.getInstance();
+  const musicUserToken = await music.authorize();
+  if (!musicUserToken) throw new Error('Apple Music authorization was cancelled.');
+
+  const res = await fetch(`${apiBaseUrl}/api/integrations/apple-music/connect`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${state.session.access_token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ musicUserToken, storefront: music.storefrontId || null }),
+  });
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(payload.error || 'Unable to connect Apple Music.');
+  return payload;
+}
+
+async function disconnectAppleMusic() {
+  if (!apiBaseUrl) throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
+  if (!state.session?.access_token) throw new Error('Sign in before disconnecting Apple Music.');
+  const res = await fetch(`${apiBaseUrl}/api/integrations/apple-music/disconnect`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${state.session.access_token}` },
+  });
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(payload.error || 'Unable to disconnect Apple Music.');
+  return payload;
+}
+
+// Instacart: hand the user's grocery list to Instacart and return a URL that
+// opens a pre-filled shopping-list page. `items` is optional — when omitted
+// the server builds the list from coach-pushed meals.
+async function sendGroceryToInstacart({ items, title } = {}) {
+  if (!apiBaseUrl) throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
+  if (!state.session?.access_token) throw new Error('Sign in before sending your grocery list.');
+  const res = await fetch(`${apiBaseUrl}/api/integrations/instacart/shopping-list`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${state.session.access_token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items, title }),
+  });
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok || !payload.url) throw new Error(payload.error || 'Unable to send list to Instacart.');
+  try { window.open(payload.url, '_blank', 'noopener'); } catch (e) {}
+  return payload;
+}
+
 async function getIntegrationStatus() {
   if (!apiBaseUrl) {
     throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
@@ -2581,6 +2667,10 @@ window.ShapeIntegrations = {
   connectProvider,
   connectWhoop,
   connectStrava,
+  connectSpotify,
+  connectAppleMusic,
+  disconnectAppleMusic,
+  sendGroceryToInstacart,
   syncWhoop,
   syncStrava,
   getStatus: getIntegrationStatus,
