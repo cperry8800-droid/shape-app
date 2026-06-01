@@ -238,9 +238,9 @@ const BSM_MARKETPLACE_COACHES = {
 // ═══════════════════════════════════════════════════════════
 // Marketplace screen
 // ═══════════════════════════════════════════════════════════
-function BSMarketplaceScreen({ onBack, onProfile }) {
+function BSMarketplaceScreen({ onBack, onProfile, initialRole }) {
   const t = useBS();
-  const [tab, setTab]             = useStateBSM2('Trainer');
+  const [tab, setTab]             = useStateBSM2(initialRole === 'nutritionist' ? 'Nutritionist' : 'Trainer');
   const [selectedCategories, setSelectedCategories] = useStateBSM2([]);
   const [selectedFormats, setSelectedFormats]       = useStateBSM2([]);
   const [selectedCertifications, setSelectedCertifications] = useStateBSM2([]);
