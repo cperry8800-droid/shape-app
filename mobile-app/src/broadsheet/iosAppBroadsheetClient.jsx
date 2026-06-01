@@ -361,8 +361,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   }
   const screens = {
     home:    <BSClientHome     onProfile={goSettings} sheet={sheet} goCalendar={() => setShowCalendar(true)} goRadio={goRadio} goTrain={goTrain} goMarket={goMarket} goScore={goScore} goIntegrations={goIntegrations} tweaks={tweaks} setTweak={setTweak} />,
-    train:   <BSClientTrain    onProfile={goSettings} sheet={sheet} />,
-    eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} />,
+    train:   <BSClientTrain    onProfile={goSettings} sheet={sheet} goCalendar={() => setShowCalendar(true)} goRadio={goRadio} />,
+    eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} goRadio={goRadio} />,
     chat:    <BSClientFeed     onProfile={goSettings} />,
     radio:   <BSRadioScreen    onBack={() => setTab('home')} />,
     market:  <BSMarketplaceScreen onBack={() => setTab('home')} onProfile={goSettings} />,
@@ -1870,7 +1870,7 @@ function BSPlaylistCard({ kicker, title, meta, color, onPlay }) {
 
 // TRAIN — workout-focused page
 // ═══════════════════════════════════════════════════════════
-function BSClientTrain({ onProfile }) {
+function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {} }) {
   const t = useBS();
   const [day, setDay] = useStateBSC(4);
   const [session, setSession] = useStateBSC(false);
@@ -2074,7 +2074,7 @@ function BSClientTrain({ onProfile }) {
       {/* Workout — the moves */}
       {cur.moves.length > 0 && (
         <>
-          <BSTrackHeader kicker="Workout" title={`${cur.moves.length} moves`} actionLabel="Swap" onAction={() => window.__bsToast && window.__bsToast('Swap workout', 'ok')} />
+          <BSTrackHeader kicker="Workout" title={`${cur.moves.length} moves`} actionLabel="Swap" onAction={() => setPreviewing(true)} />
           <div style={{ padding: `10px ${t.padX}px 0` }}>
             {cur.moves.map((r, i) => (
               <div key={i} style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 10, alignItems: 'start', padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
@@ -2091,7 +2091,7 @@ function BSClientTrain({ onProfile }) {
       )}
 
       {/* This week — on deck */}
-      <BSTrackHeader kicker="This week" title="On deck" actionLabel="Plan" onAction={() => window.__bsToast && window.__bsToast('Open plan', 'ok')} />
+      <BSTrackHeader kicker="This week" title="On deck" actionLabel="Plan" onAction={goCalendar} />
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         {[
           { done: true, m: 'Conditioning', s: 'Thu · 25 min · Z2' },
@@ -2120,7 +2120,7 @@ function BSClientTrain({ onProfile }) {
             <BSTrackHeader kicker="From Jordan" title="Playlists" />
             <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
               {items.map((p, i) => (
-                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#c0533b" onPlay={() => window.__bsToast && window.__bsToast('Play ' + p.title, 'ok')} />
+                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#c0533b" onPlay={goRadio} />
               ))}
             </div>
           </>
@@ -2911,7 +2911,7 @@ function BSRxPlanWidget() {
   );
 }
 
-function BSClientEat({ onProfile }) {
+function BSClientEat({ onProfile, goRadio = () => {} }) {
   const t = useBS();
   const [view, setView] = useStateBSC('eat'); // 'eat' | 'grocery' | 'library'
   const [skRecipe, setSkRecipe] = useStateBSC(null); // selected Shape Kitchen recipe
@@ -4000,8 +4000,8 @@ function BSClientEat({ onProfile }) {
         );
       })()}
 
-      {/* Tracklist — today's meals */}
-      <BSTrackHeader kicker="Tracklist" title={day === 4 ? "Today's meals" : `${cur.d} meals`} actionLabel="Log" onAction={() => window.__bsToast && window.__bsToast('Open meal logger', 'ok')} />
+      {/* Tracklist — today's meals. LOG opens the next unlogged meal to record it. */}
+      <BSTrackHeader kicker="Tracklist" title={day === 4 ? "Today's meals" : `${cur.d} meals`} actionLabel="Log" onAction={() => { const m = cur.meals.find(x => x.state === 'next') || cur.meals.find(x => x.state !== 'done') || cur.meals[0]; if (m) setPreviewMealId(m.id); }} />
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         {cur.meals.map((m, i) => {
           const logged = m.state === 'done';
@@ -4034,7 +4034,7 @@ function BSClientEat({ onProfile }) {
           <div style={{ fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontStyle: 'italic', fontSize: 17, lineHeight: 1.4, color: t.INK }}>&ldquo;{cur.coachLine}&rdquo;</div>
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
             <button onClick={() => setView('grocery')} style={{ flex: 1, padding: '11px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Shop list →</button>
-            <button onClick={() => window.__bsToast && window.__bsToast('Swap meal', 'ok')} style={{ flex: 1, padding: '11px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Swap meal</button>
+            <button onClick={() => setView('recipes')} style={{ flex: 1, padding: '11px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Swap meal</button>
           </div>
         </div>
       </div>
@@ -4077,7 +4077,7 @@ function BSClientEat({ onProfile }) {
             <BSTrackHeader kicker="From Maya" title="Playlists" />
             <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
               {items.map((p, i) => (
-                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#a07a2e" onPlay={() => window.__bsToast && window.__bsToast('Play ' + p.title, 'ok')} />
+                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#a07a2e" onPlay={goRadio} />
               ))}
             </div>
           </>
