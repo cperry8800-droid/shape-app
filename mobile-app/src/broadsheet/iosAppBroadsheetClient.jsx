@@ -2016,12 +2016,34 @@ function BSClientTrain({ onProfile }) {
         })}
       </div>
 
-      {/* Halftone hero — accent recolors per day */}
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        <div style={{ borderRadius: t.RADIUS_SM, overflow: 'hidden', border: `1px solid ${t.INK}` }}>
-          <BSHalftone height={170} accent={cur.accent} pattern="dots" />
-        </div>
-      </div>
+      {/* The card — moved to the top, directly below the weekly calendar. */}
+      {cur.moves.length > 0 && (
+        <>
+          <BSSection title="The card" meta={cur.total} />
+          <div style={{ padding: `0 ${t.padX}px 4px` }}>
+            <div style={{
+              display: 'grid', gridTemplateColumns: '24px 1fr 70px',
+              padding: '6px 0', borderTop: `2px solid ${t.INK}`, borderBottom: `1px solid ${t.RULE}`,
+              fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50,
+            }}>
+              <span>#</span><span>Move · Sets / Reps</span><span style={{ textAlign: 'right' }}>Load</span>
+            </div>
+            {cur.moves.map((r, i) => (
+              <div key={i} style={{
+                display: 'grid', gridTemplateColumns: '24px 1fr 70px', alignItems: 'center', padding: `${t.rowY}px 0`,
+                borderBottom: i === cur.moves.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+              }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50, fontWeight: 600 }}>{r.n}</span>
+                <div>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em' }}>{r.m}</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 2, letterSpacing: '0.06em' }}>{r.s}</div>
+                </div>
+                <div style={{ textAlign: 'right', fontFamily: t.MONO, fontSize: 12, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em' }}>{r.l}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* Headline workout */}
       <div style={{ borderRadius: t.RADIUS_SM, margin: `18px ${t.padX}px 0`, padding: 18, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
@@ -2052,35 +2074,6 @@ function BSClientTrain({ onProfile }) {
           }}>✓ Take the day</div>
         )}
       </div>
-
-      {/* MOVES — broadsheet table (only when there are moves) */}
-      {cur.moves.length > 0 && (
-        <>
-          <BSSection title="The card" meta={cur.total} />
-          <div style={{ padding: `0 ${t.padX}px` }}>
-            <div style={{
-              display: 'grid', gridTemplateColumns: '24px 1fr 70px',
-              padding: '6px 0', borderTop: `2px solid ${t.INK}`, borderBottom: `1px solid ${t.RULE}`,
-              fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50,
-            }}>
-              <span>#</span><span>Move · Sets / Reps</span><span style={{ textAlign: 'right' }}>Load</span>
-            </div>
-            {cur.moves.map((r, i) => (
-              <div key={i} style={{
-                display: 'grid', gridTemplateColumns: '24px 1fr 70px', alignItems: 'center', padding: `${t.rowY}px 0`,
-                borderBottom: i === cur.moves.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-              }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50, fontWeight: 600 }}>{r.n}</span>
-                <div>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em' }}>{r.m}</div>
-                  <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 2, letterSpacing: '0.06em' }}>{r.s}</div>
-                </div>
-                <div style={{ textAlign: 'right', fontFamily: t.MONO, fontSize: 12, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em' }}>{r.l}</div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
 
       {/* Coach notes — pull quote */}
       <div style={{ borderRadius: t.RADIUS_SM, margin: `22px ${t.padX}px 0`, padding: 20, background: t.INK, color: t.PAPER }}>
@@ -3946,6 +3939,22 @@ function BSClientEat({ onProfile }) {
         })}
       </div>
 
+      {/* Macro headline — moved to the top, directly below the weekly calendar. */}
+      <div style={{ borderRadius: t.RADIUS_SM, margin: `14px ${t.padX}px 0`, padding: `16px 14px`, border: `1px solid ${t.RULE}`, background: t.PAPER2, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
+        {[
+          { l: 'CAL',   v: cur.totals.cal, s: `/${cur.totals.target.cal}` },
+          { l: 'PRO',   v: cur.totals.p,   s: `/${cur.totals.target.p}g` },
+          { l: 'CARB',  v: cur.totals.c,   s: `/${cur.totals.target.c}g` },
+          { l: 'FAT',   v: cur.totals.f,   s: `/${cur.totals.target.f}g`  },
+        ].map((m, i) => (
+          <div key={m.l} style={{ borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0, paddingLeft: i > 0 ? 10 : 0 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase' }}>{m.l}</div>
+            <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 28, color: t.INK, marginTop: 4, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{m.v}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.08em' }}>{m.s}</div>
+          </div>
+        ))}
+      </div>
+
       {/* Live plan → one-tap grocery list from every ingredient in the week. */}
       {liveProgram && (
         <div style={{ padding: `12px ${t.padX}px 0` }}>
@@ -3954,16 +3963,6 @@ function BSClientEat({ onProfile }) {
           </button>
         </div>
       )}
-
-      {/* Today's prescribed plan from the nutritionist (moved here from Me). */}
-      {day === 4 && <BSRxPlanWidget />}
-
-      {/* Halftone hero — accent recolors per day. Tap to open the day brief. */}
-      <div onClick={() => setPreviewDayBrief(true)} style={{ padding: `0 ${t.padX}px`, cursor: 'pointer' }}>
-        <div style={{ borderRadius: t.RADIUS_SM, overflow: 'hidden', border: `1px solid ${t.INK}` }}>
-          <BSHalftone height={170} accent={cur.accent} pattern="dots" />
-        </div>
-      </div>
 
       {/* Headline meal block — tap-through to day brief */}
       <div onClick={() => setPreviewDayBrief(true)} style={{ borderRadius: t.RADIUS_SM, margin: `18px ${t.padX}px 0`, padding: 18, border: `1px solid ${t.RULE}`, background: t.PAPER2, cursor: 'pointer', position: 'relative' }}>
@@ -3980,22 +3979,6 @@ function BSClientEat({ onProfile }) {
         <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 9.5, color: t.ACCENT, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
           Read the day brief →
         </div>
-      </div>
-
-      {/* Macro headline — driven by cur.totals */}
-      <div style={{ borderRadius: t.RADIUS_SM, margin: `18px ${t.padX}px 0`, padding: `16px 14px`, border: `1px solid ${t.RULE}`, background: t.PAPER2, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
-        {[
-          { l: 'CAL',   v: cur.totals.cal, s: `/${cur.totals.target.cal}` },
-          { l: 'PRO',   v: cur.totals.p,   s: `/${cur.totals.target.p}g` },
-          { l: 'CARB',  v: cur.totals.c,   s: `/${cur.totals.target.c}g` },
-          { l: 'FAT',   v: cur.totals.f,   s: `/${cur.totals.target.f}g`  },
-        ].map((m, i) => (
-          <div key={m.l} style={{ borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0, paddingLeft: i > 0 ? 10 : 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase' }}>{m.l}</div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 28, color: t.INK, marginTop: 4, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{m.v}</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.08em' }}>{m.s}</div>
-          </div>
-        ))}
       </div>
 
       <BSSection title={day === 4 ? "Today's menu" : `${cur.d} menu`} meta={`${cur.meals.length} services · ${loggedCount} logged`} />
