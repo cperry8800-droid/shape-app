@@ -712,9 +712,6 @@ function ChatWidget(props) {
                   {active?.role && <div style={{ fontSize: 11, color: "rgba(242,237,228,0.55)", marginTop: 2 }}>{active.role}</div>}
                 </div>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <button onClick={closePanel} aria-label="Close" style={{ background: "transparent", color: "rgba(242,237,228,0.6)", border: 0, fontSize: 20, padding: "2px 6px", cursor: "pointer", lineHeight: 1 }}>×</button>
-              </div>
             </div>
 
             <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "18px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
