@@ -36,9 +36,9 @@ function FilterChip({ label, active, color, onClick, count }) {
         fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.1em",
         textTransform: "uppercase", cursor: "pointer", whiteSpace: "nowrap",
         padding: "8px 14px", borderRadius: 999,
-        border: `1px solid ${active ? accent : "rgba(242,237,228,0.18)"}`,
-        background: active ? accent : "transparent",
-        color: active ? "#0a0f0d" : "rgba(242,237,228,0.78)",
+        border: `1px solid ${active ? accent : "rgba(20,17,13,0.28)"}`,
+        background: active ? accent : "rgba(255,255,255,0.35)",
+        color: active ? "#0a0f0d" : "rgba(20,17,13,0.82)",
         display: "inline-flex", alignItems: "center", gap: 7, lineHeight: 1,
         transition: "all 120ms ease",
       }}>
@@ -137,20 +137,16 @@ function RecipesPage() {
   const countFor = (predicate) => all.filter(predicate).length;
 
   return (
-    <div style={{ background: INK_DEEP, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
-      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", background: "radial-gradient(120% 90% at 50% 0%, rgba(26,24,19,0.5) 0%, rgba(11,14,12,0.85) 60%, #0b0e0c 100%)" }} />
+    <div style={{ background: "#e9e2d4", color: "#14110d", fontFamily: sans, minHeight: "100vh", position: "relative" }}>
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", background: "linear-gradient(rgba(244,239,230,0.3), rgba(244,239,230,0.34)), url('/newdesign/shape-kitchen-bg.png') center center / cover no-repeat", backgroundColor: "#e9e2d4" }} />
       <div style={{ position: "relative", zIndex: 1 }}>
         <Header active="Recipes" />
 
         {/* Hero — Shape Kitchen banner over the kitchen backdrop image */}
-        <div style={{ maxWidth: 1180, margin: "28px auto 0", padding: "0 24px" }}>
+        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 24px" }}>
           <div style={{
-            position: "relative", overflow: "hidden", borderRadius: 18,
-            padding: "clamp(40px, 7vw, 84px) clamp(24px, 5vw, 56px)",
-            backgroundColor: "#efe9dd",
-            backgroundImage: "linear-gradient(90deg, rgba(244,239,230,0.42) 0%, rgba(244,239,230,0.16) 55%, rgba(244,239,230,0.04) 100%), url('/newdesign/shape-kitchen-bg.png')",
-            backgroundSize: "cover", backgroundPosition: "center",
-            border: "1px solid rgba(20,17,13,0.08)",
+            position: "relative",
+            padding: "clamp(52px, 9vw, 92px) 0 clamp(20px, 3vw, 28px)",
           }}>
             <h1 style={{ fontFamily: serif, fontWeight: 300, fontSize: "clamp(46px, 7.4vw, 92px)", letterSpacing: "-0.04em", lineHeight: 0.98, margin: 0, color: "#14110d" }}>
               Shape <span style={{ fontStyle: "italic", color: TEAL_BRIGHT }}>Kitchen.</span>
@@ -168,7 +164,7 @@ function RecipesPage() {
 
         {/* View toggle: all recipes vs your saved library */}
         <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 24px 6px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: "rgba(242,237,228,0.45)", width: 96 }}>LIBRARY</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: "rgba(20,17,13,0.6)", width: 96 }}>LIBRARY</span>
           <FilterChip label="All recipes" active={view === "all"} onClick={() => setView("all")} count={all.length} />
           <FilterChip label="♥ Saved" active={view === "saved"} onClick={() => { setView("saved"); if (!loggedIn) setAuthNudge(true); }} count={savedCount} />
         </div>
@@ -176,26 +172,26 @@ function RecipesPage() {
         {/* Filters — Diet · Protein (single-select) + Free From · Goals (multi) */}
         <div style={{ maxWidth: 1180, margin: "0 auto", padding: "8px 24px 4px", display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: "rgba(242,237,228,0.45)", width: 96 }}>DIET</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: "rgba(20,17,13,0.6)", width: 96 }}>DIET</span>
             <FilterChip label="All" active={diet === "All"} onClick={() => setDiet("All")} count={all.length} />
             {DIETS.map(d => (
               <FilterChip key={d} label={d} active={diet === d} color={dietColor(d)} onClick={() => setDiet(d)} count={dietCount(d)} />
             ))}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: "rgba(242,237,228,0.45)", width: 96 }}>PROTEIN</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: "rgba(20,17,13,0.6)", width: 96 }}>PROTEIN</span>
             {PROTEINS.map(d => (
               <FilterChip key={d} label={d} active={diet === d} color={dietColor(d)} onClick={() => setDiet(d)} count={dietCount(d)} />
             ))}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: "rgba(242,237,228,0.45)", width: 96 }}>FREE FROM</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: "rgba(20,17,13,0.6)", width: 96 }}>FREE FROM</span>
             {FREE_FROM.map(n => (
               <FilterChip key={n} label={n} active={needs.includes(n)} onClick={() => toggleNeed(n)} count={countFor(r => recipeNeeds(r).includes(n))} />
             ))}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: "rgba(242,237,228,0.45)", width: 96 }}>GOALS</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: "rgba(20,17,13,0.6)", width: 96 }}>GOALS</span>
             {GOALS.map(n => (
               <FilterChip key={n} label={n} active={needs.includes(n)} onClick={() => toggleNeed(n)} count={countFor(r => recipeNeeds(r).includes(n))} />
             ))}
@@ -206,10 +202,10 @@ function RecipesPage() {
         {authNudge && !loggedIn && (
           <div style={{ maxWidth: 1180, margin: "16px auto 0", padding: "0 24px" }}>
             <div style={{ padding: "14px 16px", borderRadius: 12, background: "rgba(46,224,196,0.08)", border: "1px solid rgba(46,224,196,0.25)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 14, color: "rgba(242,237,228,0.9)" }}>Create a free account to save recipes to your library.</span>
+              <span style={{ fontSize: 14, color: "rgba(20,17,13,0.88)" }}>Create a free account to save recipes to your library.</span>
               <span style={{ display: "flex", gap: 10 }}>
                 <a href="/signup" style={{ background: TEAL, color: "#0a0f0d", padding: "9px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 600, textDecoration: "none" }}>Create account</a>
-                <a href="/login" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "9px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, textDecoration: "none" }}>Log in</a>
+                <a href="/login" style={{ background: "transparent", color: "#14110d", border: "1px solid rgba(20,17,13,0.3)", padding: "9px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, textDecoration: "none" }}>Log in</a>
               </span>
             </div>
           </div>
@@ -217,7 +213,7 @@ function RecipesPage() {
 
         {/* Result count */}
         <div style={{ maxWidth: 1180, margin: "0 auto", padding: "20px 24px 0", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", color: "rgba(242,237,228,0.55)" }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", color: "rgba(20,17,13,0.62)" }}>
             {filtered.length} {filtered.length === 1 ? "RECIPE" : "RECIPES"}
             {(diet !== "All" || needs.length > 0 || view === "saved") ? " · FILTERED" : ""}
           </div>
@@ -240,13 +236,13 @@ function RecipesPage() {
           ) : view === "saved" ? (
             <div style={{ padding: "60px 0", textAlign: "center" }}>
               <div style={{ fontFamily: serif, fontWeight: 300, fontSize: 30, letterSpacing: "-0.02em", marginBottom: 10 }}>Your recipe library is empty</div>
-              <p style={{ color: "rgba(242,237,228,0.65)", fontSize: 15, marginBottom: 18 }}>
+              <p style={{ color: "rgba(20,17,13,0.7)", fontSize: 15, marginBottom: 18 }}>
                 {loggedIn ? "Tap the ♥ on any recipe to save it here." : "Create a free account, then tap the ♥ on any recipe to save it here."}
               </p>
               {!loggedIn && <a href="/signup" style={{ background: TEAL, color: "#0a0f0d", padding: "11px 22px", borderRadius: 999, fontFamily: sans, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Create account</a>}
             </div>
           ) : (
-            <div style={{ padding: "60px 0", textAlign: "center", color: "rgba(242,237,228,0.6)", fontFamily: sans, fontSize: 15 }}>
+            <div style={{ padding: "60px 0", textAlign: "center", color: "rgba(20,17,13,0.65)", fontFamily: sans, fontSize: 15 }}>
               No recipes match those filters yet.
             </div>
           )}
