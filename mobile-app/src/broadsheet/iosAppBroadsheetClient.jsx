@@ -1203,6 +1203,39 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         </div>
       )}
 
+      {/* THIS WEEK — calendar preview (moved above the Today/Log/Habits/Score row) */}
+      <div style={{ padding: `${t.sectGap}px ${t.padX}px 8px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 9, minWidth: 0, flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>▍ This week</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, whiteSpace: 'nowrap' }}>Wk {isoWeek} · {fmtDate(0)}–{weekDates[0].getMonth() === weekDates[6].getMonth() ? weekDates[6].getDate() : fmtDate(6)}</span>
+        </span>
+        <button onClick={goCalendar} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 999, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>Month view →</button>
+      </div>
+      <div style={{ padding: `0 ${t.padX}px 14px` }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, borderTop: `2px solid ${t.INK}`, paddingTop: 8 }}>
+          {weekDates.map((date, idx) => {
+            const on    = idx === selIdx;
+            const today = idx === todayIdx;
+            const dots  = WEEK_DOTS_BY_IDX[idx] || [];
+            return (
+              <button key={idx} onClick={() => { setSelIdx(idx); setActiveDayLogKey(null); }} style={{ borderRadius: t.RADIUS_SM,
+                border: `1px solid ${on ? t.INK : t.HAIR}`,
+                background: on ? t.INK : (today ? t.PAPER2 : 'transparent'),
+                color: on ? t.PAPER : t.INK,
+                padding: '5px 0 4px', cursor: 'pointer',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+              }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', fontWeight: 600, opacity: today && !on ? 1 : 0.7 }}>{_BS_DOWL[idx]}</span>
+                <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 17, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{date.getDate()}</span>
+                <span style={{ display: 'flex', gap: 2.5, height: 3, marginTop: 1 }}>
+                  {dots.slice(0, 3).map((c, k) => <span key={k} style={{ width: 3.5, height: 3.5, borderRadius: '50%', background: c }} />)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div style={{
         padding: `10px ${t.padX}px 12px`,
         borderBottom: `1px solid ${t.RULE}`,
@@ -1267,39 +1300,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
 
       {/* NOW PLAYING — Shape Radio */}
       <BSNowPlaying onOpen={goRadio} />
-
-      {/* THIS WEEK — calendar preview */}
-      <div style={{ padding: `${t.sectGap}px ${t.padX}px 8px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-        <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 9, minWidth: 0, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>▍ This week</span>
-          <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, whiteSpace: 'nowrap' }}>Wk {isoWeek} · {fmtDate(0)}–{weekDates[0].getMonth() === weekDates[6].getMonth() ? weekDates[6].getDate() : fmtDate(6)}</span>
-        </span>
-        <button onClick={goCalendar} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 999, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>Month view →</button>
-      </div>
-      <div style={{ padding: `0 ${t.padX}px 14px` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, borderTop: `2px solid ${t.INK}`, paddingTop: 8 }}>
-          {weekDates.map((date, idx) => {
-            const on    = idx === selIdx;
-            const today = idx === todayIdx;
-            const dots  = WEEK_DOTS_BY_IDX[idx] || [];
-            return (
-              <button key={idx} onClick={() => { setSelIdx(idx); setActiveDayLogKey(null); }} style={{ borderRadius: t.RADIUS_SM,
-                border: `1px solid ${on ? t.INK : t.HAIR}`,
-                background: on ? t.INK : (today ? t.PAPER2 : 'transparent'),
-                color: on ? t.PAPER : t.INK,
-                padding: '5px 0 4px', cursor: 'pointer',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-              }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', fontWeight: 600, opacity: today && !on ? 1 : 0.7 }}>{_BS_DOWL[idx]}</span>
-                <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 17, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{date.getDate()}</span>
-                <span style={{ display: 'flex', gap: 2.5, height: 3, marginTop: 1 }}>
-                  {dots.slice(0, 3).map((c, k) => <span key={k} style={{ width: 3.5, height: 3.5, borderRadius: '50%', background: c }} />)}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
 
       {/* CUSTOMIZABLE CARD STACK — Training / Recovery / Energy / … */}
       <div style={{ paddingTop: 16, borderTop: `1px solid ${t.RULE}` }}>
@@ -1868,6 +1868,57 @@ function BSPlaylistCard({ kicker, title, meta, color, onPlay }) {
   );
 }
 
+// Coach-approved exercise substitutions, keyed by lowercased move name.
+// Each alternate keeps the same training intent (pattern / muscle) so a swap
+// is a like-for-like replacement, not a free-for-all.
+const BS_MOVE_SWAPS = {
+  'pull-up': [{ m: 'Lat pulldown', s: '4 × 8-10 · 3:00' }, { m: 'Assisted pull-up', s: '4 × 8 · 3:00' }, { m: 'Neutral-grip pulldown', s: '4 × 10 · 2:30' }],
+  'barbell row': [{ m: 'Dumbbell row', s: '4 × 8 ea · 2:00' }, { m: 'Chest-sup. row', s: '4 × 10 · 2:00' }, { m: 'Cable row', s: '4 × 12 · 1:30' }],
+  'chest-sup. row': [{ m: 'Cable row', s: '3 × 12 · 1:30' }, { m: 'Dumbbell row', s: '3 × 10 ea · 1:30' }, { m: 'Inverted row', s: '3 × 12 · 1:30' }],
+  'face pull': [{ m: 'Rear-delt fly', s: '3 × 15 · 1:00' }, { m: 'Band pull-apart', s: '3 × 20 · 0:45' }],
+  'incline curl': [{ m: 'Dumbbell curl', s: '3 × 12 · 1:00' }, { m: 'Cable curl', s: '3 × 12 · 1:00' }, { m: 'Hammer curl', s: '3 × 12 · 1:00' }],
+  'farmer carry': [{ m: 'Suitcase carry', s: '3 × 40 m · 1:00' }, { m: 'Trap-bar hold', s: '3 × 30 s · 1:00' }],
+  'back squat': [{ m: 'Front squat', s: '5 × 5 · 3:00' }, { m: 'Hack squat', s: '4 × 8 · 2:30' }, { m: 'Goblet squat', s: '4 × 10 · 2:00' }],
+  'rdl': [{ m: 'Dumbbell RDL', s: '4 × 8 · 2:00' }, { m: 'Good morning', s: '4 × 8 · 2:00' }, { m: 'Back extension', s: '3 × 12 · 1:30' }],
+  'lunge': [{ m: 'Split squat', s: '3 × 12 ea · 1:30' }, { m: 'Step-up', s: '3 × 12 ea · 1:30' }],
+  'leg curl': [{ m: 'Nordic curl', s: '3 × 8 · 1:30' }, { m: 'Glute-ham raise', s: '3 × 10 · 1:30' }],
+  'bench press': [{ m: 'Dumbbell press', s: '4 × 8 · 2:30' }, { m: 'Machine press', s: '4 × 10 · 2:00' }, { m: 'Incline press', s: '4 × 8 · 2:30' }],
+  'deadlift': [{ m: 'Trap-bar deadlift', s: '3 × 3 · 3:00' }, { m: 'Rack pull', s: '3 × 5 · 2:30' }, { m: 'RDL', s: '4 × 6 · 2:30' }],
+};
+const BS_MOVE_SWAPS_FALLBACK = [{ m: 'Dumbbell variant' }, { m: 'Machine variant' }, { m: 'Cable variant' }];
+
+// Coach-approved meal substitutions — same macro neighbourhood as a planned meal.
+const BS_MEAL_SWAPS = [
+  { title: 'Turkey & rice bowl', kcal: 610, p: 48, c: 66, f: 14 },
+  { title: 'Cod, potato, greens', kcal: 560, p: 46, c: 52, f: 16 },
+  { title: 'Tofu stir-fry + rice', kcal: 580, p: 34, c: 72, f: 16 },
+  { title: 'Chicken wrap + side salad', kcal: 600, p: 44, c: 58, f: 18 },
+  { title: 'Lean steak + sweet potato', kcal: 640, p: 50, c: 54, f: 20 },
+];
+
+// Reusable bottom-sheet picker (used for exercise + meal swaps).
+function BSSwapSheet({ title, subtitle, options, onPick, onClose }) {
+  const t = useBS();
+  return createPortal(
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div onClick={e => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, maxHeight: '78%', overflowY: 'auto', borderTop: `1px solid ${t.RULE}` }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>{title}</div>
+        {subtitle && <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, color: t.INK, marginTop: 4, letterSpacing: '-0.02em' }}>{subtitle}</div>}
+        <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {options.map((o, i) => (
+            <button key={i} onClick={() => onPick(o)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', padding: '13px 14px', borderRadius: 14, border: `1px solid ${o.current ? t.ACCENT : t.RULE}`, background: o.current ? 'rgba(10,197,168,0.07)' : t.PAPER2 }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK }}>{o.label}{o.current ? '  ·  current' : ''}</div>
+              {o.sub && <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3, letterSpacing: '0.04em' }}>{o.sub}</div>}
+            </button>
+          ))}
+        </div>
+        <button onClick={onClose} style={{ width: '100%', marginTop: 12, padding: '13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer' }}>Cancel</button>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // TRAIN — workout-focused page
 // ═══════════════════════════════════════════════════════════
 function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {} }) {
@@ -1875,6 +1926,8 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {} })
   const [day, setDay] = useStateBSC(4);
   const [session, setSession] = useStateBSC(false);
   const [previewing, setPreviewing] = useStateBSC(false);
+  const [swapIdx, setSwapIdx] = useStateBSC(null);          // move to swap: number | 'pick' | null
+  const [moveOverrides, setMoveOverrides] = useStateBSC({}); // `${day}:${i}` → { m, s }
   const [liveProgram, setLiveProgram] = useStateBSC(null);
 
   // Pull the client's assigned plan; fall back to the demo program below when
@@ -2033,9 +2086,11 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {} })
   const PROGRAM = liveProgram || MOCK_PROGRAM;
   const cur = PROGRAM[day] || PROGRAM[0];
   const days = PROGRAM.map(p => p.d);
+  // Apply any coach-approved exercise swaps the user picked for this day.
+  const effMoves = (cur.moves || []).map((r, i) => ({ ...r, ...(moveOverrides[`${day}:${i}`] || {}) }));
 
-  if (session) return <BSSession moves={cur.moves.map(m => ({ ...m, sets: 4, reps: '6-8' }))} onBack={() => setSession(false)} />;
-  if (previewing) return <BSWorkoutPreview program={cur} onBack={() => setPreviewing(false)} onStart={() => { setPreviewing(false); setSession(true); }} />;
+  if (session) return <BSSession moves={effMoves.map(m => ({ ...m, sets: 4, reps: '6-8' }))} onBack={() => setSession(false)} />;
+  if (previewing) return <BSWorkoutPreview program={{ ...cur, moves: effMoves }} onBack={() => setPreviewing(false)} onStart={() => { setPreviewing(false); setSession(true); }} />;
 
   return (
     <BSPage>
@@ -2055,7 +2110,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {} })
         </div>
         <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 34, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>{cur.headline}</div>
         <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 10.5, color: t.INK70, letterSpacing: '0.06em' }}>
-          {cur.moves.length > 0 ? `52 min · ${cur.moves.length} moves · RPE 8 · ~420 kcal` : cur.copy}
+          {effMoves.length > 0 ? `52 min · ${effMoves.length} moves · RPE 8 · ~420 kcal` : cur.copy}
         </div>
         <div style={{ marginTop: 18, display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 36, height: 36, flexShrink: 0, borderRadius: 999, background: '#c0533b', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14 }}>J</div>
@@ -2063,7 +2118,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {} })
             <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK }}>Jordan Chen</div>
             <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>Coach</div>
           </div>
-          {cur.moves.length > 0 ? (
+          {effMoves.length > 0 ? (
             <button onClick={() => setSession(true)} aria-label="Start session" style={{ width: 52, height: 52, flexShrink: 0, borderRadius: 999, border: 0, background: t.ACCENT, color: '#031f1c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>▶</button>
           ) : (
             <span style={{ flexShrink: 0, padding: '10px 14px', borderRadius: 999, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Rest</span>
@@ -2071,24 +2126,53 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {} })
         </div>
       </div>
 
-      {/* Workout — the moves */}
-      {cur.moves.length > 0 && (
+      {/* Workout — the moves. Tap a move (or Swap) to pick a coach-approved sub. */}
+      {effMoves.length > 0 && (
         <>
-          <BSTrackHeader kicker="Workout" title={`${cur.moves.length} moves`} actionLabel="Swap" onAction={() => setPreviewing(true)} />
+          <BSTrackHeader kicker="Workout" title={`${effMoves.length} moves`} actionLabel="Swap" onAction={() => setSwapIdx('pick')} />
           <div style={{ padding: `10px ${t.padX}px 0` }}>
-            {cur.moves.map((r, i) => (
-              <div key={i} style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 10, alignItems: 'start', padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 600, marginTop: 3 }}>{r.n}</span>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{r.m}</div>
-                  <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3, letterSpacing: '0.04em' }}>{r.s}</div>
-                </div>
-                <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK, fontWeight: 600, marginTop: 3 }}>{r.l}</span>
-              </div>
-            ))}
+            {effMoves.map((r, i) => {
+              const swapped = !!moveOverrides[`${day}:${i}`];
+              return (
+                <button key={i} onClick={() => setSwapIdx(i)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 10, alignItems: 'start', padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 600, marginTop: 3 }}>{r.n}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{r.m}{swapped && <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', color: t.ACCENT, marginLeft: 7 }}>SWAPPED</span>}</div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3, letterSpacing: '0.04em' }}>{r.s}</div>
+                  </div>
+                  <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK, fontWeight: 600, marginTop: 3 }}>{r.l}</span>
+                </button>
+              );
+            })}
           </div>
         </>
       )}
+
+      {/* Exercise swap sheet — pick which move, then a coach-approved alternate. */}
+      {swapIdx != null && (() => {
+        if (swapIdx === 'pick') {
+          return <BSSwapSheet title="Swap" subtitle="Swap an exercise" options={effMoves.map((r, i) => ({ label: r.m, sub: r.s, _i: i }))} onPick={(o) => setSwapIdx(o._i)} onClose={() => setSwapIdx(null)} />;
+        }
+        const orig = effMoves[swapIdx];
+        if (!orig) return null;
+        const alts = BS_MOVE_SWAPS[String(orig.m || '').toLowerCase().trim()] || BS_MOVE_SWAPS_FALLBACK;
+        const baseName = (cur.moves[swapIdx] || {}).m;
+        const options = [
+          { label: baseName, sub: (cur.moves[swapIdx] || {}).s, current: true, _keep: true },
+          ...alts.filter(a => a.m !== orig.m).map(a => ({ label: a.m, sub: a.s || orig.s, _alt: a })),
+        ];
+        return <BSSwapSheet title="Swap exercise" subtitle={orig.m} options={options} onClose={() => setSwapIdx(null)}
+          onPick={(o) => {
+            setMoveOverrides(prev => {
+              const next = { ...prev };
+              if (o._keep) delete next[`${day}:${swapIdx}`];
+              else next[`${day}:${swapIdx}`] = { m: o._alt.m, s: o._alt.s || orig.s };
+              return next;
+            });
+            if (!o._keep) window.__bsToast && window.__bsToast('Swapped to ' + o._alt.m, 'ok');
+            setSwapIdx(null);
+          }} />;
+      })()}
 
       {/* This week — on deck */}
       <BSTrackHeader kicker="This week" title="On deck" actionLabel="Plan" onAction={goCalendar} />
@@ -2945,6 +3029,8 @@ function BSClientEat({ onProfile, goRadio = () => {} }) {
     return () => { cancelled = true; };
   }, []);
   const planGoalLabel = planGoal === 'cut' ? 'Cutting' : planGoal === 'build' ? 'Building' : 'Maintaining';
+  const [swapMealId, setSwapMealId] = useStateBSC(null);     // meal id being swapped, or null
+  const [mealOverrides, setMealOverrides] = useStateBSC({}); // meal id → { title, kcal, p, c, f }
 
   // ── Compact builder for non-anchor days. Generates a full BSMealPreview-shaped record.
   const mk = ({ id, time, tag, tagColor, title, kcal, p, c, f, state, last, hero, brief, ingredients, steps, coachNote, prep = '10 min', portion = '1 plate', score = 'A' }) => ({
@@ -3937,6 +4023,8 @@ function BSClientEat({ onProfile, goRadio = () => {} }) {
 
   // Mon=0..Sun=6 — count meals already logged today (state === 'done')
   const loggedCount = cur.meals.filter(m => m.state === 'done').length;
+  // Apply any coach-approved meal swaps the user picked.
+  const effMeals = cur.meals.map(m => (mealOverrides[m.id] ? { ...m, ...mealOverrides[m.id] } : m));
 
   return (
     <BSPage>
@@ -4001,16 +4089,17 @@ function BSClientEat({ onProfile, goRadio = () => {} }) {
       })()}
 
       {/* Tracklist — today's meals. LOG opens the next unlogged meal to record it. */}
-      <BSTrackHeader kicker="Tracklist" title={day === 4 ? "Today's meals" : `${cur.d} meals`} actionLabel="Log" onAction={() => { const m = cur.meals.find(x => x.state === 'next') || cur.meals.find(x => x.state !== 'done') || cur.meals[0]; if (m) setPreviewMealId(m.id); }} />
+      <BSTrackHeader kicker="Tracklist" title={day === 4 ? "Today's meals" : `${cur.d} meals`} actionLabel="Log" onAction={() => { const m = effMeals.find(x => x.state === 'next') || effMeals.find(x => x.state !== 'done') || effMeals[0]; if (m) setPreviewMealId(m.id); }} />
       <div style={{ padding: `10px ${t.padX}px 0` }}>
-        {cur.meals.map((m, i) => {
+        {effMeals.map((m, i) => {
           const logged = m.state === 'done';
           const next = m.state === 'next';
+          const swapped = !!mealOverrides[m.id];
           return (
             <button key={m.id} onClick={() => setPreviewMealId(m.id)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 10, alignItems: 'start', padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}`, background: 'transparent', border: 0 }}>
               <span style={{ fontFamily: t.MONO, fontSize: 10, color: logged ? t.ACCENT : t.INK50, fontWeight: 600, marginTop: 3 }}>{logged ? '✓' : String(i + 1).padStart(2, '0')}</span>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: logged ? t.INK50 : t.INK, letterSpacing: '-0.01em', textDecoration: logged ? 'line-through' : 'none' }}>{m.title}</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: logged ? t.INK50 : t.INK, letterSpacing: '-0.01em', textDecoration: logged ? 'line-through' : 'none' }}>{m.title}{swapped && <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', color: t.ACCENT, marginLeft: 7 }}>SWAPPED</span>}</div>
                 <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: next ? t.ACCENT : t.INK50, marginTop: 3, letterSpacing: '0.04em' }}>{m.kcal} kcal · {m.p}P · {m.c}C · {m.f}F{next ? ' · LOG NOW' : ''}</div>
               </div>
               <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3 }}>{m.time}</span>
@@ -4018,6 +4107,28 @@ function BSClientEat({ onProfile, goRadio = () => {} }) {
           );
         })}
       </div>
+
+      {/* Meal swap sheet — coach-approved alternates for the chosen meal. */}
+      {swapMealId != null && (() => {
+        const orig = effMeals.find(m => m.id === swapMealId);
+        if (!orig) return null;
+        const base = cur.meals.find(m => m.id === swapMealId) || orig;
+        const options = [
+          { label: base.title, sub: `${base.kcal} kcal · ${base.p}P · ${base.c}C · ${base.f}F`, current: true, _keep: true },
+          ...BS_MEAL_SWAPS.filter(a => a.title !== orig.title).map(a => ({ label: a.title, sub: `${a.kcal} kcal · ${a.p}P · ${a.c}C · ${a.f}F`, _alt: a })),
+        ];
+        return <BSSwapSheet title="Swap meal" subtitle={orig.title} options={options} onClose={() => setSwapMealId(null)}
+          onPick={(o) => {
+            setMealOverrides(prev => {
+              const next = { ...prev };
+              if (o._keep) delete next[swapMealId];
+              else next[swapMealId] = { title: o._alt.title, kcal: o._alt.kcal, p: o._alt.p, c: o._alt.c, f: o._alt.f, sub: `${o._alt.kcal} kcal · ${o._alt.p}P · ${o._alt.c}C · ${o._alt.f}F` };
+              return next;
+            });
+            if (!o._keep) window.__bsToast && window.__bsToast('Swapped to ' + o._alt.title, 'ok');
+            setSwapMealId(null);
+          }} />;
+      })()}
 
       {/* Your plan — nutritionist card */}
       <BSTrackHeader kicker="Your plan" title={`${planGoalLabel} · ${(parseInt(String(cur.totals.target.cal).replace(/[^0-9]/g, ''), 10) || 0).toLocaleString()}`} />
@@ -4034,7 +4145,7 @@ function BSClientEat({ onProfile, goRadio = () => {} }) {
           <div style={{ fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontStyle: 'italic', fontSize: 17, lineHeight: 1.4, color: t.INK }}>&ldquo;{cur.coachLine}&rdquo;</div>
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
             <button onClick={() => setView('grocery')} style={{ flex: 1, padding: '11px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Shop list →</button>
-            <button onClick={() => setView('recipes')} style={{ flex: 1, padding: '11px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Swap meal</button>
+            <button onClick={() => { const m = effMeals.find(x => x.state === 'next') || effMeals.find(x => x.state !== 'done') || effMeals[0]; if (m) setSwapMealId(m.id); }} style={{ flex: 1, padding: '11px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Swap meal</button>
           </div>
         </div>
       </div>
