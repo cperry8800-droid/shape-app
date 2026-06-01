@@ -1318,4 +1318,5 @@ Object.assign(window, {
   BSRadioProvider, useBSRadio,
   BSRadioPrompt, BSNowPlaying, BSRadioScreen,
   BSEQ, BSHalftoneAurora, BSBeatRing, BSStageLight,
+  BS_COACH_PLAYLISTS,
 });

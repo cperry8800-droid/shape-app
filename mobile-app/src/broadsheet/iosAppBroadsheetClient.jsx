@@ -2071,10 +2071,10 @@ function BSClientTrain({ onProfile }) {
         </div>
       </div>
 
-      {/* Tracklist — the moves */}
+      {/* Workout — the moves */}
       {cur.moves.length > 0 && (
         <>
-          <BSTrackHeader kicker="Tracklist" title={`${cur.moves.length} moves`} actionLabel="Swap" onAction={() => window.__bsToast && window.__bsToast('Swap workout', 'ok')} />
+          <BSTrackHeader kicker="Workout" title={`${cur.moves.length} moves`} actionLabel="Swap" onAction={() => window.__bsToast && window.__bsToast('Swap workout', 'ok')} />
           <div style={{ padding: `10px ${t.padX}px 0` }}>
             {cur.moves.map((r, i) => (
               <div key={i} style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 10, alignItems: 'start', padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
@@ -2109,17 +2109,23 @@ function BSClientTrain({ onProfile }) {
         ))}
       </div>
 
-      {/* From Jordan — playlists */}
-      <BSTrackHeader kicker="From Jordan" title="Playlists" />
-      <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {[
-          { k: 'Attached · Pull day', title: 'Pull heavy.', meta: '95-138 BPM · 31 tracks · 1h 48m' },
-          { k: 'Jordan Chen · Your coach', title: 'Riverside long run', meta: '1h 50m · 160-172 BPM · 24 tracks · Sat Z2 run' },
-          { k: 'Jordan Chen · Your coach', title: 'Deload mobility', meta: '35m · 80-95 BPM · 11 tracks · Wed recovery' },
-        ].map((p, i) => (
-          <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#c0533b" onPlay={() => window.__bsToast && window.__bsToast('Play ' + p.title, 'ok')} />
-        ))}
-      </div>
+      {/* From Jordan — coach playlists (sourced from the Radio coach-playlist feed) */}
+      {(() => {
+        const all = Array.isArray(window.BS_COACH_PLAYLISTS) ? window.BS_COACH_PLAYLISTS : [];
+        const lists = all.filter(p => p.role === 'Coach');
+        const items = lists.length ? lists.map(p => ({ k: `${p.by} · Your coach`, title: p.name, meta: `${p.len} · ${p.bpm} BPM · ${p.tracks} tracks${p.attached ? ` · ${p.attached}` : ''}` }))
+          : [{ k: 'Jordan Chen · Your coach', title: 'Pull heavy.', meta: '52m · 95-138 BPM · 14 tracks' }];
+        return (
+          <>
+            <BSTrackHeader kicker="From Jordan" title="Playlists" />
+            <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {items.map((p, i) => (
+                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#c0533b" onPlay={() => window.__bsToast && window.__bsToast('Play ' + p.title, 'ok')} />
+              ))}
+            </div>
+          </>
+        );
+      })()}
 
       <BSFooter right="Pg 2 of 5" />
     </BSPage>
@@ -2926,6 +2932,19 @@ function BSClientEat({ onProfile }) {
   const [newListName, setNewListName] = useStateBSC(null); // null = sheet closed
   const [day, setDay] = useStateBSC(4); // 0..6 — Fri (idx 4) = today, mirrors Train
   const [liveProgram, setLiveProgram] = useStateBSC(null);
+  // Goal label for the "Your plan" header, read from the client's nutrition prefs.
+  const [planGoal, setPlanGoal] = useStateBSC('maintain');
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
+    window.shapeDb.getUserGoals('client_nutrition_prefs').then((np) => {
+      if (cancelled) return;
+      const raw = String((np && np.primary_goal) || '').toLowerCase();
+      setPlanGoal(/fat ?loss|cut|lean|weight ?loss|shred|deficit/.test(raw) ? 'cut' : /gain|build|bulk|mass|muscle|surplus/.test(raw) ? 'build' : 'maintain');
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  const planGoalLabel = planGoal === 'cut' ? 'Cutting' : planGoal === 'build' ? 'Building' : 'Maintaining';
 
   // ── Compact builder for non-anchor days. Generates a full BSMealPreview-shaped record.
   const mk = ({ id, time, tag, tagColor, title, kcal, p, c, f, state, last, hero, brief, ingredients, steps, coachNote, prep = '10 min', portion = '1 plate', score = 'A' }) => ({
@@ -4001,7 +4020,7 @@ function BSClientEat({ onProfile }) {
       </div>
 
       {/* Your plan — nutritionist card */}
-      <BSTrackHeader kicker="Your plan" title={`Cutting · ${(parseInt(String(cur.totals.target.cal).replace(/[^0-9]/g, ''), 10) || 0).toLocaleString()}`} />
+      <BSTrackHeader kicker="Your plan" title={`${planGoalLabel} · ${(parseInt(String(cur.totals.target.cal).replace(/[^0-9]/g, ''), 10) || 0).toLocaleString()}`} />
       <div style={{ padding: `12px ${t.padX}px 0` }}>
         <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
@@ -4020,31 +4039,50 @@ function BSClientEat({ onProfile }) {
         </div>
       </div>
 
-      {/* For the week — shop list */}
-      <BSTrackHeader kicker="For the week" title="Shop list" actionLabel="Open" onAction={() => setView('grocery')} />
-      <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <button onClick={() => setView('grocery')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 13, padding: 14, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
-          <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 11, background: t.RUST || '#d2693f', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>◎</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.RUST || '#d2693f', fontWeight: 700, marginBottom: 4 }}>Refreshed Sun · Maya</div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 16, color: t.INK }}>12 items for the week.</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 4, letterSpacing: '0.06em' }}>5 done · 7 left · produce, protein, pantry</div>
-          </div>
-          <span style={{ color: t.INK50, fontSize: 16 }}>→</span>
-        </button>
-      </div>
+      {/* For the week — shop list (live from the nutritionist's grocery list) */}
+      {(() => {
+        const aisles = activeGroceryList.aisles || [];
+        const total = activeGroceryCount;
+        const have = aisles.reduce((s, a) => s + a.items.filter(it => it.have).length, 0);
+        const left = Math.max(0, total - have);
+        const cats = aisles.filter(a => a.items.some(it => !it.have)).map(a => a.aisle).slice(0, 3).join(', ').toLowerCase();
+        const who = String(activeGroceryList.author || 'Your nutritionist').replace(/^Dr\.?\s+/i, '').split(' ')[0];
+        const title = left > 0 ? `${left} item${left === 1 ? '' : 's'} to get.` : 'All set for the week.';
+        return (
+          <>
+            <BSTrackHeader kicker="For the week" title="Shop list" actionLabel="Open" onAction={() => setView('grocery')} />
+            <div style={{ padding: `12px ${t.padX}px 0` }}>
+              <button onClick={() => setView('grocery')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 13, padding: 14, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+                <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 11, background: t.RUST || '#d2693f', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>◎</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.RUST || '#d2693f', fontWeight: 700, marginBottom: 4 }}>From {who} · this week</div>
+                  <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 16, color: t.INK }}>{title}</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 4, letterSpacing: '0.06em' }}>{have} got · {left} left{cats ? ` · ${cats}` : ''}</div>
+                </div>
+                <span style={{ color: t.INK50, fontSize: 16 }}>→</span>
+              </button>
+            </div>
+          </>
+        );
+      })()}
 
-      {/* From Maya — playlists */}
-      <BSTrackHeader kicker="From Maya" title="Playlists" />
-      <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {[
-          { title: 'Sunday prep, low-pressure', meta: '45m · 85-100 BPM · 12 tracks · 8 meals prep' },
-          { title: 'Weeknight cook', meta: '30m · 95-110 BPM · 9 tracks · Tue/Thu dinners' },
-          { title: 'Slow breakfast', meta: '20m · 80 BPM · 6 tracks · Weekend mornings' },
-        ].map((p, i) => (
-          <BSPlaylistCard key={i} kicker="Maya Patel · Your nutritionist" title={p.title} meta={p.meta} color="#a07a2e" onPlay={() => window.__bsToast && window.__bsToast('Play ' + p.title, 'ok')} />
-        ))}
-      </div>
+      {/* From Maya — nutritionist playlists (sourced from the Radio coach-playlist feed) */}
+      {(() => {
+        const all = Array.isArray(window.BS_COACH_PLAYLISTS) ? window.BS_COACH_PLAYLISTS : [];
+        const lists = all.filter(p => p.role === 'Nutritionist');
+        const items = lists.length ? lists.map(p => ({ k: `${p.by} · Your nutritionist`, title: p.name, meta: `${p.len} · ${p.bpm} BPM · ${p.tracks} tracks${p.attached ? ` · ${p.attached}` : ''}` }))
+          : [{ k: 'Dr. Maya Patel · Your nutritionist', title: 'Meal prep, low-key', meta: '45m · 85-100 BPM · 12 tracks · Sun prep' }];
+        return (
+          <>
+            <BSTrackHeader kicker="From Maya" title="Playlists" />
+            <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {items.map((p, i) => (
+                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#a07a2e" onPlay={() => window.__bsToast && window.__bsToast('Play ' + p.title, 'ok')} />
+              ))}
+            </div>
+          </>
+        );
+      })()}
 
       <BSFooter right="Pg 3 of 5" />
     </BSPage>
