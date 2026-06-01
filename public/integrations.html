@@ -404,6 +404,58 @@
             <button class="btn-connect" id="whoopBtn" onclick="toggleIntegration('whoop')">Connect</button>
           </div>
         </div>
+
+        <!-- Apple Music -->
+        <div class="integration-card" id="appleMusicCard" data-provider="apple_music">
+          <div class="integration-card-header">
+            <div class="integration-logo" style="background:linear-gradient(135deg,#fa233b,#fb5c74);">&#9834;</div>
+            <div>
+              <h3>Apple Music</h3>
+              <p>MusicKit library</p>
+            </div>
+          </div>
+          <div class="integration-card-body">
+            <p>Authorize your Apple Music library with MusicKit so coaches can attach playlists to workouts and Shape Radio can stream them. You grant access right here &mdash; no redirect.</p>
+            <div class="integration-features">
+              <div class="integration-feature"><div class="check">&#10003;</div><span>Browse your Apple Music playlists in Shape</span></div>
+              <div class="integration-feature"><div class="check">&#10003;</div><span>Attach a playlist to each program or workout</span></div>
+              <div class="integration-feature"><div class="check">&#10003;</div><span>Play in Shape Radio and the workout player</span></div>
+            </div>
+          </div>
+          <div class="integration-status">
+            <div class="status-badge" id="apple_musicStatus">
+              <span class="status-dot disconnected"></span>
+              <span style="color:var(--text-muted);">Not Connected</span>
+            </div>
+            <button class="btn-connect" id="apple_musicBtn" onclick="appleMusicToggle()">Connect</button>
+          </div>
+        </div>
+
+        <!-- Instacart -->
+        <div class="integration-card" id="instacartCard" data-provider="instacart">
+          <div class="integration-card-header">
+            <div class="integration-logo" style="background:#108910;">&#128722;</div>
+            <div>
+              <h3>Instacart</h3>
+              <p>Grocery hand-off</p>
+            </div>
+          </div>
+          <div class="integration-card-body">
+            <p>Send your coach-built grocery list straight to Instacart and open a pre-filled cart. Review the matches, swap brands, and check out in the Instacart app or site.</p>
+            <div class="integration-features">
+              <div class="integration-feature"><div class="check">&#10003;</div><span>Builds a cart from your pushed meal ingredients</span></div>
+              <div class="integration-feature"><div class="check">&#10003;</div><span>Opens a ready-to-checkout shopping list page</span></div>
+              <div class="integration-feature"><div class="check">&#10003;</div><span>No account linking required</span></div>
+            </div>
+          </div>
+          <div class="integration-status">
+            <div class="status-badge">
+              <span class="status-dot connected" style="background:#108910;"></span>
+              <span style="color:var(--text-muted);">Ready</span>
+            </div>
+            <button class="btn-connect" id="instacartBtn" onclick="sendInstacartWeb()">Send grocery list</button>
+          </div>
+        </div>
       </div>
 
       <!-- Sync Settings -->
@@ -649,6 +701,77 @@
     }
     window.toggleIntegration = toggleIntegration;
 
+    // ── Apple Music (MusicKit) ─────────────────────────────────────────────
+    // Apple Music authorizes on-device, not via OAuth redirect: mint a
+    // developer token, run MusicKit authorize(), then persist the token.
+    let musicKitPromise = null;
+    function loadMusicKit() {
+      if (window.MusicKit) return Promise.resolve(window.MusicKit);
+      if (musicKitPromise) return musicKitPromise;
+      musicKitPromise = new Promise((resolve, reject) => {
+        const done = () => (window.MusicKit ? resolve(window.MusicKit) : reject(new Error('MusicKit failed to load.')));
+        if (document.querySelector('script[data-musickit]')) { document.addEventListener('musickitloaded', done, { once: true }); return; }
+        const s = document.createElement('script');
+        s.src = 'https://js-cdn.music.apple.com/musickit/v3/musickit.js';
+        s.async = true; s.setAttribute('data-musickit', '1');
+        document.addEventListener('musickitloaded', done, { once: true });
+        s.onerror = () => reject(new Error('Could not load Apple MusicKit.'));
+        document.head.appendChild(s);
+      });
+      return musicKitPromise;
+    }
+
+    async function appleMusicToggle() {
+      const btn = document.getElementById('apple_musicBtn');
+      const isConnected = btn && btn.className === 'btn-disconnect';
+      const bearer = await getBearer();
+      if (!bearer) { toast('Sign in to manage integrations'); return; }
+      if (isConnected) {
+        if (!confirm('Disconnect Apple Music?')) return;
+        const res = await fetch('/api/integrations/apple-music/disconnect', { method: 'POST', headers: { Authorization: 'Bearer ' + bearer } });
+        if (res.ok) { setCardState('apple_music', false); toast('Apple Music disconnected'); } else { toast('Could not disconnect'); }
+        return;
+      }
+      try {
+        const tokRes = await fetch('/api/integrations/apple-music/developer-token');
+        const tok = await tokRes.json().catch(() => ({}));
+        if (!tokRes.ok || !tok.developerToken) { toast(tok.error || 'Apple Music is not configured yet'); return; }
+        const MK = await loadMusicKit();
+        await MK.configure({ developerToken: tok.developerToken, app: { name: 'Shape', build: '1.0.0' } });
+        const music = MK.getInstance();
+        const musicUserToken = await music.authorize();
+        if (!musicUserToken) { toast('Apple Music authorization cancelled'); return; }
+        const res = await fetch('/api/integrations/apple-music/connect', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + bearer, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ musicUserToken, storefront: music.storefrontId || null }),
+        });
+        if (res.ok) { setCardState('apple_music', true); toast('Apple Music connected'); }
+        else { const j = await res.json().catch(() => ({})); toast(j.error || 'Could not connect Apple Music'); }
+      } catch (e) { toast((e && e.message) || 'Could not connect Apple Music'); }
+    }
+    window.appleMusicToggle = appleMusicToggle;
+
+    // ── Instacart grocery hand-off ─────────────────────────────────────────
+    async function sendInstacartWeb() {
+      const bearer = await getBearer();
+      if (!bearer) { toast('Sign in to send your grocery list'); return; }
+      const btn = document.getElementById('instacartBtn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Building list…'; }
+      try {
+        const res = await fetch('/api/integrations/instacart/shopping-list', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + bearer, 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        const j = await res.json().catch(() => ({}));
+        if (res.ok && j.url) { window.open(j.url, '_blank', 'noopener'); toast('Opening Instacart'); }
+        else { toast(j.error || 'Could not build Instacart list'); }
+      } catch (e) { toast((e && e.message) || 'Could not reach Instacart'); }
+      finally { if (btn) { btn.disabled = false; btn.textContent = 'Send grocery list'; } }
+    }
+    window.sendInstacartWeb = sendInstacartWeb;
+
     async function loadStatus() {
       const bearer = await getBearer();
       if (!bearer) return; // leave default disconnected state
@@ -658,6 +781,7 @@
         const json = await res.json();
         const connected = new Set((json.providers || []).filter(p => p.connected).map(p => p.id));
         Object.keys(PROVIDER_LABELS).forEach(id => setCardState(id, connected.has(id)));
+        setCardState('apple_music', connected.has('apple_music'));
       } catch (e) { /* stay with default state */ }
     }
 

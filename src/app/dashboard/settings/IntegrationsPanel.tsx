@@ -34,6 +34,36 @@ type StravaSyncResponse = {
   error?: string;
 };
 
+// Minimal MusicKit surface we touch. The SDK is loaded on demand below.
+type MusicKitInstance = { authorize: () => Promise<string>; storefrontId?: string };
+type MusicKitGlobal = {
+  configure: (opts: { developerToken: string; app: { name: string; build: string } }) => Promise<unknown>;
+  getInstance: () => MusicKitInstance;
+};
+
+// Inject the MusicKit v3 script once and resolve when window.MusicKit exists.
+let musicKitPromise: Promise<MusicKitGlobal> | null = null;
+function loadMusicKit(): Promise<MusicKitGlobal> {
+  const w = window as unknown as { MusicKit?: MusicKitGlobal };
+  if (w.MusicKit) return Promise.resolve(w.MusicKit);
+  if (musicKitPromise) return musicKitPromise;
+  musicKitPromise = new Promise<MusicKitGlobal>((resolve, reject) => {
+    const done = () => (w.MusicKit ? resolve(w.MusicKit) : reject(new Error('MusicKit failed to load.')));
+    if (document.querySelector('script[data-musickit]')) {
+      document.addEventListener('musickitloaded', done, { once: true });
+      return;
+    }
+    const s = document.createElement('script');
+    s.src = 'https://js-cdn.music.apple.com/musickit/v3/musickit.js';
+    s.async = true;
+    s.setAttribute('data-musickit', '1');
+    document.addEventListener('musickitloaded', done, { once: true });
+    s.onerror = () => reject(new Error('Could not load Apple MusicKit.'));
+    document.head.appendChild(s);
+  });
+  return musicKitPromise;
+}
+
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...init,
@@ -71,6 +101,14 @@ export default function IntegrationsPanel() {
     () => providers.find((provider) => provider.id === 'strava'),
     [providers]
   );
+  const spotify = useMemo(
+    () => providers.find((provider) => provider.id === 'spotify'),
+    [providers]
+  );
+  const appleMusic = useMemo(
+    () => providers.find((provider) => provider.id === 'apple_music'),
+    [providers]
+  );
 
   async function loadStatus() {
     setLoading(true);
@@ -106,6 +144,35 @@ export default function IntegrationsPanel() {
 
   function connectProvider(provider: string) {
     window.location.assign(`/api/integrations/${provider}/authorize?return=/dashboard/settings`);
+  }
+
+  // Apple Music authorizes on-device via MusicKit (no OAuth redirect): mint a
+  // developer token, run authorize(), then persist the Music-User-Token.
+  async function connectAppleMusic() {
+    const tok = await fetchJson<{ developerToken?: string; error?: string }>(
+      '/api/integrations/apple-music/developer-token'
+    );
+    if (!tok.developerToken) throw new Error(tok.error || 'Apple Music is not configured yet.');
+    const MK = await loadMusicKit();
+    await MK.configure({ developerToken: tok.developerToken, app: { name: 'Shape', build: '1.0.0' } });
+    const music = MK.getInstance();
+    const musicUserToken = await music.authorize();
+    if (!musicUserToken) throw new Error('Apple Music authorization was cancelled.');
+    await fetchJson('/api/integrations/apple-music/connect', {
+      method: 'POST',
+      body: JSON.stringify({ musicUserToken, storefront: music.storefrontId ?? null }),
+    });
+  }
+
+  // Instacart: build a pre-filled shopping-list page from the grocery list and
+  // open it in a new tab.
+  async function sendInstacart() {
+    const r = await fetchJson<{ url?: string }>('/api/integrations/instacart/shopping-list', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+    if (r.url) window.open(r.url, '_blank', 'noopener');
+    return r;
   }
 
   const recovery = result?.whoop?.recoveries?.records?.[0]?.score;
@@ -268,21 +335,105 @@ export default function IntegrationsPanel() {
           )}
         </div>
 
-        {[
-          ['Garmin', 'Health + activity export', 'Next'],
-          ['Spotify', 'Coach playlists', 'Next'],
-          ['Apple Music', 'MusicKit library', 'Next'],
-        ].map(([name, note, status]) => (
-          <div key={name} className="border border-neutral-800 bg-neutral-950/40 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h3 className="text-base font-medium">{name}</h3>
-                <p className="mt-1 text-sm text-neutral-500">{note}</p>
-              </div>
-              <span className="text-xs uppercase tracking-[0.16em] text-neutral-500">{status}</span>
+        {/* Spotify */}
+        <div className="border border-neutral-800 bg-neutral-950/40 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-medium">Spotify</h3>
+              <p className="mt-1 text-sm text-neutral-500">
+                Workout playlists from your library, streamed in Shape Radio.
+              </p>
             </div>
+            <span className="text-xs uppercase tracking-[0.16em] text-neutral-500">
+              {spotify?.connected ? 'Connected' : 'Ready'}
+            </span>
           </div>
-        ))}
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => connectProvider('spotify')}
+              disabled={Boolean(busy)}
+              className="border border-neutral-700 px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-200 hover:border-teal-400 hover:text-teal-300 disabled:opacity-40"
+            >
+              {spotify?.connected ? 'Reconnect' : 'Connect'}
+            </button>
+            <button
+              type="button"
+              disabled={!spotify?.connected || Boolean(busy)}
+              onClick={() => run('Disconnecting Spotify', () => fetchJson('/api/integrations/spotify/disconnect', { method: 'POST' }))}
+              className="border border-neutral-700 px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-400 hover:border-red-400 hover:text-red-300 disabled:opacity-40"
+            >
+              Disconnect
+            </button>
+          </div>
+        </div>
+
+        {/* Apple Music */}
+        <div className="border border-neutral-800 bg-neutral-950/40 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-medium">Apple Music</h3>
+              <p className="mt-1 text-sm text-neutral-500">
+                Authorize your MusicKit library — granted right here, no redirect.
+              </p>
+            </div>
+            <span className="text-xs uppercase tracking-[0.16em] text-neutral-500">
+              {appleMusic?.connected ? 'Connected' : 'Ready'}
+            </span>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => run('Connecting Apple Music', connectAppleMusic)}
+              disabled={Boolean(busy)}
+              className="border border-neutral-700 px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-200 hover:border-teal-400 hover:text-teal-300 disabled:opacity-40"
+            >
+              {busy === 'Connecting Apple Music' ? 'Authorizing' : appleMusic?.connected ? 'Reconnect' : 'Connect'}
+            </button>
+            <button
+              type="button"
+              disabled={!appleMusic?.connected || Boolean(busy)}
+              onClick={() => run('Disconnecting Apple Music', () => fetchJson('/api/integrations/apple-music/disconnect', { method: 'POST' }))}
+              className="border border-neutral-700 px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-400 hover:border-red-400 hover:text-red-300 disabled:opacity-40"
+            >
+              Disconnect
+            </button>
+          </div>
+        </div>
+
+        {/* Instacart */}
+        <div className="border border-neutral-800 bg-neutral-950/40 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-medium">Instacart</h3>
+              <p className="mt-1 text-sm text-neutral-500">
+                Send your coach-built grocery list to a pre-filled Instacart cart.
+              </p>
+            </div>
+            <span className="text-xs uppercase tracking-[0.16em] text-neutral-500">Hand-off</span>
+          </div>
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={() => run('Building Instacart list', sendInstacart)}
+              disabled={Boolean(busy)}
+              className="w-full border border-teal-400 px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-teal-300 hover:bg-teal-400 hover:text-neutral-950 disabled:opacity-50"
+            >
+              {busy === 'Building Instacart list' ? 'Building list' : 'Send grocery list to Instacart →'}
+            </button>
+          </div>
+        </div>
+
+        {/* Garmin — still placeholder until credentials are live */}
+        <div className="border border-neutral-800 bg-neutral-950/40 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-medium">Garmin</h3>
+              <p className="mt-1 text-sm text-neutral-500">Health + activity export</p>
+            </div>
+            <span className="text-xs uppercase tracking-[0.16em] text-neutral-500">Next</span>
+          </div>
+        </div>
       </div>
     </section>
   );
