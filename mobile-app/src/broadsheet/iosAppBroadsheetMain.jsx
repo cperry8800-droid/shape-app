@@ -839,7 +839,7 @@ function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
         <button
           onClick={isPhone ? (otpSent ? verifyPhoneCode : sendPhoneCode) : submitAuth}
           disabled={busy}
-          style={{ width: '100%', borderRadius: 12, padding: '11px 16px', background: CREAM, color: '#0b0c0c', border: 0, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1 }}>
+          style={{ width: '100%', borderRadius: 12, padding: '11px 16px', background: '#0ac5a8', color: '#031f1c', border: 0, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1 }}>
           {busy
             ? (isCreate ? 'Creating…' : 'Signing in…')
             : isPhone
