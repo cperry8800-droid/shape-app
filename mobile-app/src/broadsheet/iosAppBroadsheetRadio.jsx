@@ -392,70 +392,40 @@ function BSRadioPrompt() {
       {/* Scrollable upper region — hero + choices */}
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }} className="bs-scroll">
       {/* Hero — masthead-style */}
-      <div style={{
-        position: 'relative',
-        padding: `40px ${t.padX}px 0`,
-        borderBottom: `2px solid ${t.INK}`,
-      }}>
-        <BSStageLight color={t.ACCENT} opacity={0.22} />
-        <div style={{
-          fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em',
-          textTransform: 'uppercase', color: t.INK50, fontWeight: 700,
-          display: 'flex', justifyContent: 'space-between',
-          paddingBottom: 10, borderBottom: `1px solid ${t.RULE}`,
-          position: 'relative', zIndex: 2,
-        }}>
-          <span>Vol. 1 · No. 1</span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 6, height: 6, borderRadius: 3, background: '#d83a2c', animation: 'bs-blink 1.2s ease-in-out infinite' }} />
-            LIVE NOW
-          </span>
+      <div style={{ position: 'relative', padding: `26px ${t.padX}px 8px` }}>
+        <BSStageLight color={t.ACCENT} opacity={0.18} />
+        <div style={{ position: 'relative', zIndex: 2 }}>
+          <BSEQ bars={22} color={t.ACCENT} height={54} gap={4} />
         </div>
-
-        {/* Big EQ as hero visual */}
-        <div style={{ marginTop: 22, position: 'relative', zIndex: 2 }}>
-          <BSEQ bars={28} color={t.INK} height={84} gap={4} />
-        </div>
-
-        <div style={{ marginTop: 18, paddingBottom: 18, position: 'relative', zIndex: 2 }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700, marginBottom: 10 }}>
-            ▍ Shape Radio · 3,472 listening
+        <div style={{ marginTop: 18, position: 'relative', zIndex: 2 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700, marginBottom: 12 }}>
+            <span style={{ width: 6, height: 6, borderRadius: 3, background: t.ACCENT, animation: 'bs-blink 1.2s ease-in-out infinite' }} /> Shape Radio · Live now
           </div>
-          <h1 style={{
-            margin: 0,
-            fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 44, letterSpacing: '-0.035em',
-            lineHeight: 0.94, color: t.INK,
-          }}>
-            Music while<br/>
-            <span style={{ fontStyle: 'italic', fontWeight: 500 }}>you move?</span>
+          <h1 style={{ margin: 0, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 38, letterSpacing: '-0.035em', lineHeight: 0.98, color: t.INK }}>
+            Want music<br/><span style={{ fontStyle: 'italic', fontWeight: 500, color: t.ACCENT }}>while you move?</span>
           </h1>
-          <div style={{
-            marginTop: 12, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.45,
-            color: t.INK70, maxWidth: 320,
-          }}>
-            We'll stream Shape Radio in the background while the app is open. Ad-free, BPM-tagged. Pause it anytime from the home screen.
+          <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 13.5, lineHeight: 1.45, color: t.INK70, maxWidth: 340 }}>
+            Radio will stream in the background — on your workouts, meal preps, or whenever the app is open. Always ad-free. You can pause anytime.
           </div>
         </div>
       </div>
 
       {/* Choice rows */}
-      <div style={{ padding: `18px ${t.padX}px`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ padding: `16px ${t.padX}px`, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <PromptChoice
           on={choice === 'on'}
           onClick={() => setChoice('on')}
-          eyebrow="OPTION A · RECOMMENDED"
-          title={<>Yes, <span style={{ fontStyle: 'italic' }}>play Radio.</span></>}
-          meta="STREAMS IN APP · AD-FREE · PAUSE FROM HOME"
-          icon={<span style={{ fontSize: 24, lineHeight: 1 }}>🎶</span>}
+          title="Yes, play Radio."
+          meta="PLAYS IN APP · AD-FREE · PAUSE ANYTIME"
+          icon={<BSEQ bars={5} height={22} gap={2} color="#ffffff" paused={false} />}
           accent
         />
         <PromptChoice
           on={choice === 'off'}
           onClick={() => setChoice('off')}
-          eyebrow="OPTION B"
           title="Keep it muted."
-          meta="START SILENT · TURN ON LATER FROM HOME"
-          icon={<span style={{ fontSize: 23, lineHeight: 1 }}>🔇</span>}
+          meta="START SILENT · TURN ON ANYTIME FROM HOME"
+          icon={<span style={{ fontSize: 20, color: t.INK, opacity: 0.7, lineHeight: 1 }}>⏸</span>}
         />
       </div>
       </div>
@@ -489,34 +459,31 @@ function PromptChoice({ on, onClick, eyebrow, title, meta, icon, accent }) {
   const t = useBS();
   return (
     <button onClick={onClick} style={{
-      display: 'flex', alignItems: 'center', gap: 14,
-      padding: '18px 16px', cursor: 'pointer', textAlign: 'left',
-      background: on ? (accent ? t.INK : t.PAPER2) : 'transparent',
-      color: on && accent ? t.PAPER : t.INK,
-      border: `1px solid ${on ? t.INK : t.RULE}`,
-      borderRadius: 0,
+      display: 'flex', alignItems: 'center', gap: 13, width: '100%',
+      padding: '14px 14px', cursor: 'pointer', textAlign: 'left',
+      background: on ? 'rgba(10,197,168,0.08)' : 'transparent',
+      color: t.INK,
+      border: `1px solid ${on ? t.ACCENT : t.RULE}`,
+      borderRadius: 14,
     }}>
       <div style={{
-        width: 48, height: 48, flexShrink: 0, borderRadius: 10,
-        background: accent ? (on ? t.PAPER : t.INK) : 'transparent',
-        border: accent ? 'none' : `1px solid ${t.INK}`,
+        width: 44, height: 44, flexShrink: 0, borderRadius: 11,
+        background: accent ? t.ACCENT : 'transparent',
+        border: accent ? 'none' : `1px solid ${t.RULE}`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 24, lineHeight: 1,
       }}>
         {icon}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, opacity: 0.65, marginBottom: 4 }}>{eyebrow}</div>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.05 }}>{title}</div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', opacity: 0.6, marginTop: 6 }}>{meta}</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.1 }}>{title}</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', opacity: 0.55, marginTop: 5, lineHeight: 1.4 }}>{meta}</div>
       </div>
       <div style={{
-        width: 18, height: 18, flexShrink: 0,
-        border: `1px solid ${on && accent ? t.PAPER : t.INK}`,
-        background: on ? (accent ? t.PAPER : t.INK) : 'transparent',
+        width: 22, height: 22, flexShrink: 0, borderRadius: 999,
+        border: `1px solid ${on ? t.ACCENT : t.RULE}`,
+        background: on ? t.ACCENT : 'transparent',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: on ? (accent ? t.INK : t.PAPER) : 'transparent',
-        fontSize: 12, fontWeight: 700,
+        color: on ? '#04211c' : 'transparent', fontSize: 12, fontWeight: 800,
       }}>✓</div>
     </button>
   );
