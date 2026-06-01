@@ -87,11 +87,14 @@ function ensureSkyStyles() {
   .bs-splash-zoom { transition: transform 0.7s cubic-bezier(0.5,0,0.7,0.25); transform-origin: center center; will-change: transform; }
   .bs-splash-zoom.zooming { transform: scale(7); }
   .bs-splash-zoom.zooming .bs-shape-mark { animation: none !important; transform: none !important; filter: drop-shadow(0 0 36px rgba(10,197,168,0.98)) drop-shadow(0 0 16px rgba(46,224,196,0.95)); }
-  /* Beam: a bright streak that shoots horizontally out of the mark, then
-     flashes vertically to fill the screen as the transition into login. */
+  /* The mark charges, then FIRES from its centre: a radial burst pops at the
+     triangle and a bright beam shoots out of it, expanding to fill (→ login). */
+  .bs-splash-burst { position:absolute; left:50%; top:50%; width:170px; height:170px; transform:translate(-50%,-50%) scale(0); border-radius:50%; opacity:0; pointer-events:none; z-index:4; background:radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(46,224,196,0.9) 26%, rgba(10,197,168,0) 70%); }
+  .bs-splash-burst.fire { animation: bsSplashBurst 0.55s ease-out 0.26s forwards; }
+  @keyframes bsSplashBurst { 0%{ transform:translate(-50%,-50%) scale(0); opacity:0.95; } 100%{ transform:translate(-50%,-50%) scale(3.6); opacity:0; } }
   .bs-splash-beam { position:absolute; left:0; right:0; top:50%; height:5px; transform:translateY(-50%) scaleX(0) scaleY(1); transform-origin:center center; opacity:0; pointer-events:none; z-index:5; background:linear-gradient(90deg, transparent 0%, #0ac5a8 28%, #ffffff 50%, #0ac5a8 72%, transparent 100%); box-shadow:0 0 26px 6px rgba(46,224,196,0.85), 0 0 80px 26px rgba(10,197,168,0.55); }
-  .bs-splash-beam.fire { animation: bsSplashBeam 0.8s cubic-bezier(0.72,0,0.84,0) forwards; }
-  @keyframes bsSplashBeam { 0%{ transform:translateY(-50%) scaleX(0) scaleY(1); opacity:0; } 16%{ opacity:1; } 34%{ transform:translateY(-50%) scaleX(1) scaleY(1); opacity:1; } 52%{ transform:translateY(-50%) scaleX(1) scaleY(1.4); opacity:1; } 100%{ transform:translateY(-50%) scaleX(1) scaleY(260); opacity:1; } }
+  .bs-splash-beam.fire { animation: bsSplashBeam 0.78s cubic-bezier(0.72,0,0.84,0) 0.3s forwards; }
+  @keyframes bsSplashBeam { 0%{ transform:translateY(-50%) scaleX(0) scaleY(1); opacity:0; } 18%{ opacity:1; } 38%{ transform:translateY(-50%) scaleX(1) scaleY(1); opacity:1; } 56%{ transform:translateY(-50%) scaleX(1) scaleY(1.4); opacity:1; } 100%{ transform:translateY(-50%) scaleX(1) scaleY(260); opacity:1; } }
   .bs-mark-edge { stroke-dasharray:38 97; animation: bsMarkEdge 3.2s linear infinite; }
   .bs-mark-edge.e2 { animation-delay:-1.6s; }
   @keyframes bsMarkEdge { to { stroke-dashoffset:-135; } }
@@ -270,7 +273,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
     const total = cosmos ? 3200 : 1600;
     const timers = [setTimeout(onDone, total)];
     // Cosmos: zoom the mark up to fill the screen as a transition into login.
-    if (cosmos) timers.push(setTimeout(() => setZoom(true), total - 900));
+    if (cosmos) timers.push(setTimeout(() => setZoom(true), total - 1150));
     return () => timers.forEach(clearTimeout);
   }, [style]);
 
@@ -282,6 +285,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
         <div className={`bs-splash-zoom${zoom ? ' zooming' : ''}`} style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <BSShapeMark size={132} />
         </div>
+        <div aria-hidden className={`bs-splash-burst${zoom ? ' fire' : ''}`} />
         <div aria-hidden className={`bs-splash-beam${zoom ? ' fire' : ''}`} />
       </div>
     );
