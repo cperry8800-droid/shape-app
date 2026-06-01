@@ -380,28 +380,23 @@ function BSRadioPrompt() {
     <div style={{
       position: 'absolute', inset: 0, zIndex: 90,
       color: t.INK,
-      // Teal→violet→magenta colour wash over the deep base (photo backdrop removed).
+      // Plain black screen — no colour wash, no decorative glow.
       background: isLight ? t.PAPER : '#0b0c0c',
-      backgroundImage: isLight ? undefined : `linear-gradient(135deg, rgba(10,197,168,0.22), rgba(138,92,246,0.12) 50%, rgba(236,72,153,0.18))`,
-      backgroundSize: 'cover',
-      backgroundPosition: 'center 22%',
-      backgroundRepeat: 'no-repeat',
       display: 'flex', flexDirection: 'column',
       overflow: 'hidden',
     }}>
       {/* Scrollable upper region — hero + choices */}
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }} className="bs-scroll">
-      {/* Hero — masthead-style */}
+      {/* Hero */}
       <div style={{ position: 'relative', padding: `26px ${t.padX}px 8px` }}>
-        <BSStageLight color={t.ACCENT} opacity={0.18} />
         <div style={{ position: 'relative', zIndex: 2 }}>
-          <div style={{ maxWidth: 280 }}><BSEQ bars={22} color={t.ACCENT} height={80} gap={4} /></div>
+          <div style={{ maxWidth: 230 }}><BSEQ bars={22} color={t.ACCENT} height={56} gap={4} /></div>
         </div>
         <div style={{ marginTop: 18, position: 'relative', zIndex: 2 }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700, marginBottom: 12 }}>
             <span style={{ width: 6, height: 6, borderRadius: 3, background: t.ACCENT, animation: 'bs-blink 1.2s ease-in-out infinite' }} /> Shape Radio · Live now
           </div>
-          <h1 style={{ margin: 0, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 44, letterSpacing: '-0.035em', lineHeight: 0.95, color: t.INK }}>
+          <h1 style={{ margin: 0, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 34, letterSpacing: '-0.035em', lineHeight: 0.96, color: t.INK }}>
             Want music<br/><span style={{ fontStyle: 'italic', fontWeight: 500, color: t.ACCENT }}>while you move?</span>
           </h1>
           <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 13.5, lineHeight: 1.45, color: t.INK70, maxWidth: 340 }}>
