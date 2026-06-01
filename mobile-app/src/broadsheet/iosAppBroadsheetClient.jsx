@@ -8257,6 +8257,8 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
     if (next.has(k)) next.delete(k); else next.add(k);
     setChecked(next);
   };
+  // Clear the checked items for a single aisle (keys are `${aisleIdx}-${itemIdx}`).
+  const resetAisle = (ai) => setChecked(prev => new Set([...prev].filter(k => !k.startsWith(`${ai}-`))));
   const total = allKeys.length;
   const done = checked.size;
   const pct = Math.round((done / total) * 100);
@@ -8279,12 +8281,9 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
         <div style={{ height: 4, background: t.HAIR, position: 'relative', marginBottom: 10 }}>
           <div style={{ width: `${pct}%`, height: '100%', background: t.ACCENT }} />
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
           <span>{pct}% complete</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span>{list.aisles.length} aisles · ~22 min</span>
-            <button onClick={() => setChecked(new Set())} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700, color: t.INK }}>Reset ↺</button>
-          </div>
+          <span>{list.aisles.length} aisles · ~22 min</span>
         </div>
         <div style={{ borderRadius: t.RADIUS_SM, marginTop: 14, padding: 14, background: t.PAPER2, border: `1px solid ${t.INK}` }}>
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.AMBER, fontWeight: 700, marginBottom: 6 }}>▍ From {noteAuthor}</div>
@@ -8314,7 +8313,17 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
         const aisleDone = aisle.items.filter((_, ii) => checked.has(`${ai}-${ii}`)).length;
         return (
           <div key={aisle.aisle}>
-            <BSSection title={aisle.aisle} meta={`${aisleDone}/${aisle.items.length}`} />
+            <div style={{ padding: `${t.sectGap}px ${t.padX}px 10px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK }}>▍ {aisle.aisle}</span>
+              <button onClick={() => resetAisle(ai)} aria-label={`Reset ${aisle.aisle}`} style={{
+                flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', gap: 5,
+                padding: '7px 12px', borderRadius: 999, cursor: 'pointer',
+                background: aisleDone > 0 ? t.INK : 'transparent',
+                color: aisleDone > 0 ? t.PAPER : t.INK50,
+                border: `1px solid ${aisleDone > 0 ? t.INK : t.RULE}`,
+                fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase',
+              }}>Reset ↺</button>
+            </div>
             <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
               {aisle.items.map((it, ii, arr) => {
                 const k = `${ai}-${ii}`;
