@@ -9,6 +9,44 @@
   var PANEL_VISIBLE_GRAB = 84;
   var panelDrag = null;
 
+  // ── Role-aware chat ──────────────────────────────────────────────────────
+  // The chat tabs depend on who's signed in: everyone keeps Circle (coaches),
+  // Friends, Community, and Help, but the peer tab is filtered to the viewer's
+  // OWN role — a client sees only "Clients", a trainer only "Trainers", a
+  // nutritionist only "Nutri". Role is cached on window/localStorage and
+  // refreshed from the Supabase profile on load; logged-out visitors (most
+  // marketing pages) default to the client view.
+  var ROLE_KEY = "shape.viewerRole";
+  var PEER_TABS = ["clients", "trainers", "nutritionists"];
+  var PEER_FOR = { client: "clients", trainer: "trainers", nutritionist: "nutritionists" };
+  function viewerRoleSync() {
+    try { return window.__shapeViewerRole || localStorage.getItem(ROLE_KEY) || "client"; }
+    catch (e) { return window.__shapeViewerRole || "client"; }
+  }
+  window.shapeViewerRole = viewerRoleSync;
+  function filterTabsForRole(tabs, role) {
+    var mine = PEER_FOR[role] || "clients";
+    return (tabs || []).filter(function (t) {
+      return PEER_TABS.indexOf(t.id) === -1 || t.id === mine;
+    });
+  }
+  window.__shapeFilterChatTabs = filterTabsForRole;
+  function resolveViewerRole() {
+    try {
+      if (!window.shapeDb || !window.shapeDb.client || !window.shapeDb.getProfile) return;
+      window.shapeDb.client.auth.getSession().then(function (res) {
+        var u = res && res.data && res.data.session && res.data.session.user;
+        if (!u) return null;
+        return window.shapeDb.getProfile(u.id);
+      }).then(function (profile) {
+        if (profile && profile.role) {
+          window.__shapeViewerRole = profile.role;
+          try { localStorage.setItem(ROLE_KEY, profile.role); } catch (e) {}
+        }
+      }).catch(function () {});
+    } catch (e) {}
+  }
+
   function unreadCount() {
     try {
       if (!window.clientChatTabs) return 24;
@@ -144,7 +182,7 @@
   // Self-contained chat data — embedded so the panel is IDENTICAL on every
   // page (independent of whatever page scripts are or aren't loaded).
   function chatData() {
-    return [
+    return filterTabsForRole([
       { id:"circle", label:"Circle", eyebrow:"DIRECT CHAT", title:"Your coaches", threads:[
         { who:"Maya Okafor", role:"Head trainer · Tempo + hybrid", last:"Stick with 185 for top set. Drop backoffs to 165.", time:"2m", unread:0, messages:[
           { who:"Maya", t:"How'd the warmups feel this morning?", time:"8:48 AM", me:false },
@@ -207,7 +245,7 @@
         { who:"Shape Support", role:"Coaches · billing · the app · your account", last:"How can we help?", time:"now", unread:0,
           quick:["Find a coach","Billing help","App support"], messages:[
           { who:"Shape", t:"Welcome to Shape. Send a question about coaches, billing, the app, or your account.", time:"now", me:false } ] } ] }
-    ];
+    ], viewerRoleSync());
   }
 
   function panel() {
@@ -456,6 +494,14 @@
     // No chat bubble on mobile — matches the mobile-redirect breakpoint.
     if (isMobileViewport()) return;
     injectStyles();
+
+    // Resolve the signed-in role early so the chat tabs are filtered to it
+    // by the time the user opens the panel. Waits briefly for shapeDb.
+    (function waitRole(n) {
+      if (window.shapeDb && window.shapeDb.client) { resolveViewerRole(); return; }
+      if (n > 50) return;
+      window.setTimeout(function () { waitRole(n + 1); }, 120);
+    })(0);
 
     var button = document.createElement("button");
     button.id = ID;

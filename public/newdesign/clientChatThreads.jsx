@@ -157,4 +157,10 @@ const clientChatTabs = [
     ],
   },
 ];
-Object.assign(window, { clientChatTabs });
+// Role-aware: keep Circle / Friends / Community / Help for everyone, but show
+// only the viewer's own peer tab (Clients / Trainers / Nutri). The filter +
+// resolved role live on window (set by globalChatButton.js); default = client.
+const _shapeRoleAwareTabs = (typeof window !== "undefined" && window.__shapeFilterChatTabs)
+  ? window.__shapeFilterChatTabs(clientChatTabs, window.shapeViewerRole ? window.shapeViewerRole() : "client")
+  : clientChatTabs;
+Object.assign(window, { clientChatTabs: _shapeRoleAwareTabs });
