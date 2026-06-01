@@ -4671,7 +4671,7 @@ function BSClientFeed({ onProfile }) {
   const t = useBS();
   const TEAL = '#0ac5a8', TEALB = '#2ee0c4';
   const [tab, setTab] = useStateBSC('feed');
-  const [filter, setFilter] = useStateBSC('ALL');
+  const [filter, setFilter] = useStateBSC('SHAPE');
   const [draft, setDraft] = useStateBSC('');
   const [composerSlot, setComposerSlot] = useStateBSC(null);
   React.useEffect(() => { setComposerSlot(document.getElementById('bs-composer-slot')); }, []);
@@ -4681,7 +4681,13 @@ function BSClientFeed({ onProfile }) {
     TRAINER: { color: '#ff7a59', label: 'Trainer' },
     CLIENT: { color: '#2ee0c4', label: 'Client' },
     NUTRI: { color: '#e0b15a', label: 'Nutri' },
+    COMMUNITY: { color: '#8a5cf6', label: 'Community' },
   };
+  // Feed chips depend on the signed-in role: everyone sees Shape + Community,
+  // plus only their own role's chip (Client / Trainer / Nutri).
+  const myRole = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().profile && window.ShapeAuth.getCachedState().profile.role) || 'client';
+  const myRoleChip = myRole === 'trainer' ? 'TRAINER' : myRole === 'nutritionist' ? 'NUTRI' : 'CLIENT';
+  const CHIP_KEYS = ['SHAPE', myRoleChip, 'COMMUNITY'];
   const SAMPLE = [
     { id: 's1', who: 'Shape', kind: 'SHAPE', init: '✦', hue: TEAL, time: '1h', pinned: true, official: true, body: "Riverside Runners: Saturday's 6am long run is official. 47 of you RSVP'd. Coffee at Blackbird after — first round on Shape.", hearts: 52, replies: 14 },
     { id: 's2', who: 'Jordan Chen', kind: 'TRAINER', init: 'J', hue: '#c0533b', time: '2h', body: 'Week 6 check, team: drop a ⚡ if you hit all lifts this week. Coffee for the top 3 adherence scores.', hearts: 34, replies: 12 },
@@ -4711,7 +4717,11 @@ function BSClientFeed({ onProfile }) {
     })();
     return () => { active = false; };
   }, []);
-  const shown = posts.filter(p => filter === 'ALL' || p.kind === filter);
+  const shown = posts.filter(p => {
+    if (filter === 'SHAPE') return true;                    // all Shape members
+    if (filter === 'COMMUNITY') return p.kind !== 'SHAPE';  // members' public / friends posts
+    return p.kind === filter;                                 // your role only
+  });
 
   const post = async () => {
     if (window.bsRequireAccount && !window.bsRequireAccount('post to the feed')) return;
@@ -4755,25 +4765,37 @@ function BSClientFeed({ onProfile }) {
         (() => {
           const role = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().profile && window.ShapeAuth.getCachedState().profile.role) || 'client';
           const isCoach = role === 'trainer' || role === 'nutritionist';
-          const rows = tab === 'messages'
-            ? (isCoach
-                ? [{ n: 'Your clients', s: 'Direct · your members', c: '#147b68', i: 'C' }, { n: 'Shape Support', s: 'Avg reply · 4 min', c: TEALB, i: '✦' }]
-                : [{ n: 'Your trainer', s: 'Direct · training', c: '#c0533b', i: 'T' }, { n: 'Your nutritionist', s: 'Direct · nutrition', c: '#a07a2e', i: 'N' }, { n: 'Shape Support', s: 'Avg reply · 4 min', c: TEALB, i: '✦' }])
-            : (isCoach
-                ? [{ n: '# your-roster', s: 'Your members', c: '#147b68', i: '#' }, { n: '# coaches-lounge', s: 'Trainers & nutritionists', c: TEAL, i: '#' }, { n: '# shape-members', s: 'Everyone on Shape', c: TEALB, i: '#' }]
-                : [{ n: '# shape-members', s: 'Everyone on Shape', c: TEALB, i: '#' }, { n: '# your-program', s: 'Your coach + you', c: '#c0533b', i: '#' }, { n: '# challenges', s: 'Monthly community goals', c: '#a07a2e', i: '#' }]);
+          const coaches = [
+            { n: 'Maya Okafor', s: 'Trainer · Strength', c: '#c0533b', i: 'M' },
+            { n: 'Rae Lindqvist', s: 'Nutritionist · Sports nutrition', c: '#a07a2e', i: 'R' },
+            { n: 'Dr. Sam Huang', s: 'Coach · Endurance', c: '#147b68', i: 'S' },
+          ];
+          const sections = tab === 'messages'
+            ? [{ label: 'Direct messages', items: isCoach
+                  ? [{ n: 'Your clients', s: 'Direct · your members', c: '#147b68', i: 'C' }, { n: 'Shape Support', s: 'Avg reply · 4 min', c: TEALB, i: '✦' }]
+                  : [{ n: 'Your trainer', s: 'Direct · training', c: '#c0533b', i: 'T' }, { n: 'Your nutritionist', s: 'Direct · nutrition', c: '#a07a2e', i: 'N' }, { n: 'Shape Support', s: 'Avg reply · 4 min', c: TEALB, i: '✦' }] }]
+            : [
+                { label: 'Channels', items: isCoach
+                  ? [{ n: '# your-roster', s: 'Your members', c: '#147b68', i: '#' }, { n: '# coaches-lounge', s: 'Trainers & nutritionists', c: TEAL, i: '#' }, { n: '# shape-members', s: 'Everyone on Shape', c: TEALB, i: '#' }]
+                  : [{ n: '# shape-members', s: 'Everyone on Shape', c: TEALB, i: '#' }, { n: '# your-program', s: 'Your coach + you', c: '#c0533b', i: '#' }, { n: '# challenges', s: 'Monthly community goals', c: '#a07a2e', i: '#' }] },
+                { label: 'Coaches', items: coaches },
+              ];
           return (
-            <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: muted, margin: '0 2px 4px' }}>{tab === 'teams' ? 'Channels' : 'Direct messages'}</div>
-              {rows.map((f, i) => (
-                <button key={i} onClick={() => { if (window.bsRequireAccount && !window.bsRequireAccount('open chats')) return; window.__bsToast && window.__bsToast('Opening ' + f.n, 'ok'); }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, border: `1px solid ${hair}`, background: card, color: cardInk, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
-                  <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: f.c, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 15 }}>{f.i}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15 }}>{f.n}</div>
-                    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, marginTop: 3 }}>{f.s}</div>
-                  </div>
-                  <span style={{ color: muted, fontSize: 16 }}>›</span>
-                </button>
+            <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 18 }}>
+              {sections.map((sec, si) => (
+                <div key={si} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: muted, margin: '0 2px 2px' }}>{sec.label}</div>
+                  {sec.items.map((f, i) => (
+                    <button key={i} onClick={() => { if (window.bsRequireAccount && !window.bsRequireAccount('open chats')) return; window.__bsToast && window.__bsToast('Opening ' + f.n, 'ok'); }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, border: `1px solid ${hair}`, background: card, color: cardInk, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
+                      <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: f.c, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 15 }}>{f.i}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15 }}>{f.n}</div>
+                        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, marginTop: 3 }}>{f.s}</div>
+                      </div>
+                      <span style={{ color: muted, fontSize: 16 }}>›</span>
+                    </button>
+                  ))}
+                </div>
               ))}
             </div>
           );
@@ -4782,7 +4804,7 @@ function BSClientFeed({ onProfile }) {
         <>
           {/* Role filter chips */}
           <div style={{ display: 'flex', gap: 7, overflowX: 'auto', padding: `14px ${t.padX}px`, scrollbarWidth: 'none' }} className="bs-hide-scroll">
-            {['SHAPE', 'TRAINER', 'CLIENT', 'NUTRI'].map(k => {
+            {CHIP_KEYS.map(k => {
               const on = filter === k;
               return (
                 <button key={k} onClick={() => setFilter(on ? 'ALL' : k)} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 13px', borderRadius: 999, border: `1px solid ${on ? ROLE[k].color : hair}`, background: on ? `${ROLE[k].color}1f` : 'transparent', color: cardInk, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', cursor: 'pointer' }}>
