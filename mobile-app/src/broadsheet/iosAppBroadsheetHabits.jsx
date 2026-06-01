@@ -1895,12 +1895,12 @@ function BSHabitLogBox({ habits, onToggle, onAdd, onRemove }) {
           No {tab} habits yet. Tap + to add one.
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
           {shown.map((h) => {
             const done = (h.history || []).includes(_bsHabitsToday);
             return (
               <div key={h.id} style={{
-                position: 'relative', borderRadius: 8,
+                position: 'relative', minWidth: 0, borderRadius: 8,
                 border: `1px solid ${done ? hot : border}`,
                 background: done ? 'rgba(16,200,177,0.10)' : 'transparent',
                 padding: '12px 10px', minHeight: 66,
@@ -1908,7 +1908,7 @@ function BSHabitLogBox({ habits, onToggle, onAdd, onRemove }) {
                 {onRemove && (
                   <button type="button" onClick={() => { if (window.confirm(`Delete "${h.name}"?`)) onRemove(h.id); }} aria-label="Remove habit" style={{ position: 'absolute', top: 4, right: 5, border: 0, background: 'transparent', color: 'rgba(247,241,230,0.4)', fontSize: 14, lineHeight: 1, cursor: 'pointer', padding: 3 }}>×</button>
                 )}
-                <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: h.type === 'avoid' ? '#ff6a5c' : muted, paddingRight: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.name}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: h.type === 'avoid' ? '#ff6a5c' : muted, paddingRight: 16, overflowWrap: 'anywhere', lineHeight: 1.35 }}>{h.name}</div>
                 <button type="button" onClick={() => onToggle(h.id)} style={{ marginTop: 10, border: 0, background: 'transparent', padding: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, color: done ? hot : cardInk }}>
                   {done ? 'Logged' : 'Log now'}
                 </button>
