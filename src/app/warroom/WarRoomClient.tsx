@@ -1,32 +1,19 @@
 'use client';
 
 // War Room dashboard UI. Self-contained dark control-panel styling (inline so
-// it doesn't depend on global classes). Three live layers:
+// it doesn't depend on global classes). Live layers:
 //   • polls /api/warroom every 30s for fresh config + Supabase/Stripe pings
-//   • pings safe read-only GET endpoints straight from the browser for liveness
-//   • lets you tick the manual go-live items (persisted in localStorage) and
-//     rolls everything still-open into a "Next steps to go live" list.
+//   • browsable list of EVERY API route, grouped + collapsible, with method
+//     chips and click-to-probe on any safe GET endpoint (real status + latency)
+//   • tick the manual go-live items (localStorage) → rolls open items into a
+//     "Next steps to go live" list.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { WarRoomSnapshot, ServiceStatus } from '@/lib/warroom';
-
-// Read-only GET endpoints that are safe to probe from the browser. We only care
-// that the route *responds* — 401/403/405 still means "alive", only a network
-// failure or 5xx is "down".
-const PING_ENDPOINTS = [
-  { path: '/api/health', label: 'Health / env' },
-  { path: '/api/marketplace-stats', label: 'Marketplace stats' },
-  { path: '/api/leaderboard', label: 'Leaderboard' },
-  { path: '/api/community/feed', label: 'Community feed' },
-  { path: '/api/radio', label: 'Radio' },
-  { path: '/api/me', label: 'Me / session' },
-  { path: '/api/notifications', label: 'Notifications' },
-  { path: '/api/integrations/status', label: 'Integrations' },
-];
+import type { WarRoomSnapshot, ServiceStatus, ApiRouteInfo } from '@/lib/warroom';
 
 const TICKS_KEY = 'shape.warroom.ticks';
 
-type EndpointState = { path: string; label: string; status: 'ok' | 'alive' | 'down' | 'pending'; code: number | null; ms: number | null };
+type ProbeResult = { status: 'ok' | 'alive' | 'down' | 'loading'; code: number | null; ms: number | null };
 
 const C = {
   bg: '#0b0f17',
@@ -41,27 +28,38 @@ const C = {
   accent: '#5aa9ff',
 };
 
+const METHOD_COLOR: Record<string, string> = {
+  GET: C.ok, POST: C.accent, PUT: C.warn, PATCH: C.warn, DELETE: C.bad, OPTIONS: C.dim, HEAD: C.dim,
+};
+
 function dot(color: string, size = 9) {
   return <span style={{ display: 'inline-block', width: size, height: size, borderRadius: '50%', background: color, boxShadow: `0 0 8px ${color}` }} />;
 }
 
-function statusColor(s: ServiceStatus | EndpointState['status']): string {
+function statusColor(s: ServiceStatus | ProbeResult['status']): string {
   if (s === 'ok') return C.ok;
   if (s === 'degraded' || s === 'alive') return C.warn;
   if (s === 'down') return C.bad;
-  if (s === 'missing') return C.dim;
+  if (s === 'missing' || s === 'loading') return C.dim;
   return C.dim;
+}
+
+// Why a GET-less / special route can't be auto-probed (shown as a muted tag).
+function nonProbeReason(r: ApiRouteInfo): string {
+  if (!r.methods.includes('GET')) return 'write-only';
+  if (r.path.includes('[')) return 'needs id';
+  if (r.path.startsWith('/api/integrations/')) return 'oauth/sync';
+  return 'protected';
 }
 
 export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot }) {
   const [snap, setSnap] = useState<WarRoomSnapshot>(initial);
   const [refreshing, setRefreshing] = useState(false);
-  const [endpoints, setEndpoints] = useState<EndpointState[]>(
-    PING_ENDPOINTS.map((e) => ({ ...e, status: 'pending', code: null, ms: null })),
-  );
   const [ticks, setTicks] = useState<Record<string, boolean>>({});
+  const [probes, setProbes] = useState<Record<string, ProbeResult>>({});
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [filter, setFilter] = useState('');
 
-  // Load manual ticks once.
   useEffect(() => {
     try {
       const raw = localStorage.getItem(TICKS_KEY);
@@ -86,31 +84,37 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
     setRefreshing(false);
   }, []);
 
-  const pingEndpoints = useCallback(async () => {
-    const results = await Promise.all(
-      PING_ENDPOINTS.map(async (e) => {
-        const started = performance.now();
-        try {
-          const res = await fetch(e.path, { cache: 'no-store' });
-          const ms = Math.round(performance.now() - started);
-          const status: EndpointState['status'] = res.ok ? 'ok' : res.status >= 500 ? 'down' : 'alive';
-          return { ...e, status, code: res.status, ms };
-        } catch {
-          return { ...e, status: 'down' as const, code: null, ms: Math.round(performance.now() - started) };
-        }
-      }),
-    );
-    setEndpoints(results);
+  const probeRoute = useCallback(async (path: string) => {
+    setProbes((p) => ({ ...p, [path]: { status: 'loading', code: null, ms: null } }));
+    const started = performance.now();
+    try {
+      const res = await fetch(path, { cache: 'no-store' });
+      const ms = Math.round(performance.now() - started);
+      const status: ProbeResult['status'] = res.ok ? 'ok' : res.status >= 500 ? 'down' : 'alive';
+      setProbes((p) => ({ ...p, [path]: { status, code: res.status, ms } }));
+    } catch {
+      setProbes((p) => ({ ...p, [path]: { status: 'down', code: null, ms: Math.round(performance.now() - started) } }));
+    }
   }, []);
 
-  // Initial browser pings + 30s auto-refresh of everything.
-  useEffect(() => {
-    pingEndpoints();
-    const id = setInterval(() => { refreshSnapshot(); pingEndpoints(); }, 30000);
-    return () => clearInterval(id);
-  }, [pingEndpoints, refreshSnapshot]);
+  const probeAll = useCallback(async () => {
+    const targets = snap.apiRoutes.flatMap((g) => g.routes).filter((r) => r.probeable).map((r) => r.path);
+    // small concurrency cap so we don't hammer the origin
+    const queue = [...targets];
+    const workers = Array.from({ length: 6 }, async () => {
+      while (queue.length) {
+        const path = queue.shift()!;
+        await probeRoute(path);
+      }
+    });
+    await Promise.all(workers);
+  }, [snap.apiRoutes, probeRoute]);
 
-  // Effective checklist status (auto 'done' OR manually ticked).
+  useEffect(() => {
+    const id = setInterval(() => { refreshSnapshot(); }, 30000);
+    return () => clearInterval(id);
+  }, [refreshSnapshot]);
+
   const checklistWithTicks = useMemo(
     () => snap.checklist.map((sec) => ({
       ...sec,
@@ -119,25 +123,34 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
     [snap.checklist, ticks],
   );
 
-  // Everything still open → ordered "next steps".
   const nextSteps = useMemo(() => {
     const out: { section: string; label: string }[] = [];
-    for (const sec of checklistWithTicks) {
-      for (const it of sec.items) {
-        if (!it.done) out.push({ section: sec.section, label: it.label });
-      }
-    }
+    for (const sec of checklistWithTicks) for (const it of sec.items) if (!it.done) out.push({ section: sec.section, label: it.label });
     return out;
   }, [checklistWithTicks]);
 
   const totalChecklist = checklistWithTicks.reduce((n, s) => n + s.items.length, 0);
   const doneChecklist = totalChecklist - nextSteps.length;
 
+  const filteredGroups = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    if (!q) return snap.apiRoutes;
+    return snap.apiRoutes
+      .map((g) => ({ ...g, routes: g.routes.filter((r) => r.path.toLowerCase().includes(q) || r.methods.join(',').toLowerCase().includes(q)) }))
+      .filter((g) => g.routes.length > 0);
+  }, [snap.apiRoutes, filter]);
+
+  const allExpanded = filteredGroups.length > 0 && filteredGroups.every((g) => open[g.group]);
+  const toggleAll = () => {
+    const next: Record<string, boolean> = {};
+    for (const g of snap.apiRoutes) next[g.group] = !allExpanded;
+    setOpen(next);
+  };
+
   return (
     <div style={{ minHeight: '100vh', background: C.bg, color: C.text, fontFamily: 'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif', padding: '24px 20px 64px' }}>
       <div style={{ maxWidth: 1180, margin: '0 auto' }}>
 
-        {/* Header */}
         <header style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 16, marginBottom: 22 }}>
           <div style={{ flex: 1, minWidth: 240 }}>
             <div style={{ fontSize: 12, letterSpacing: 3, color: C.dim, textTransform: 'uppercase' }}>Shape · Operations</div>
@@ -147,19 +160,18 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
             <div>env <b style={{ color: C.text }}>{snap.runtime.vercelEnv ?? snap.runtime.nodeEnv ?? 'local'}</b> · node {snap.runtime.nodeVersion}{snap.runtime.region ? ` · ${snap.runtime.region}` : ''}</div>
             <div>updated {new Date(snap.generatedAt).toLocaleTimeString()}</div>
           </div>
-          <button onClick={() => { refreshSnapshot(); pingEndpoints(); }} disabled={refreshing}
+          <button onClick={refreshSnapshot} disabled={refreshing}
             style={{ background: C.accent, color: '#04101f', border: 'none', borderRadius: 8, padding: '9px 16px', fontWeight: 700, cursor: 'pointer', opacity: refreshing ? 0.6 : 1 }}>
             {refreshing ? 'Refreshing…' : 'Refresh'}
           </button>
         </header>
 
-        {/* Top stat strip */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 22 }}>
           <Stat label="Config readiness" value={`${snap.readiness.score}/${snap.readiness.total}`} sub={snap.readiness.label}
             color={snap.readiness.score === snap.readiness.total ? C.ok : snap.readiness.score === 0 ? C.bad : C.warn} />
           <Stat label="Go-live steps" value={`${doneChecklist}/${totalChecklist}`} sub={nextSteps.length === 0 ? 'all clear' : `${nextSteps.length} open`}
             color={nextSteps.length === 0 ? C.ok : C.warn} />
-          <Stat label="API routes" value={String(snap.inventory.apiRoutes)} sub="handlers" color={C.accent} />
+          <Stat label="API routes" value={String(snap.inventory.apiRoutes)} sub={`${snap.apiRoutes.length} groups`} color={C.accent} />
           <Stat label="Migrations" value={String(snap.inventory.migrations)} sub="SQL files" color={C.accent} />
           <Stat label="Mobile build" value={snap.inventory.mobileBuild ? 'Present' : 'Missing'} sub={`${snap.inventory.mobileAssets} assets`}
             color={snap.inventory.mobileBuild ? C.ok : C.bad} />
@@ -181,20 +193,82 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
             ))}
           </Panel>
 
-          {/* Endpoint liveness */}
-          <Panel title="API endpoints" hint="browser GET probe">
-            {endpoints.map((e) => (
-              <Row key={e.path}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                  {dot(statusColor(e.status === 'pending' ? 'unknown' : e.status))}
-                  <span><b>{e.label}</b><br /><code style={{ fontSize: 11, color: C.dim }}>{e.path}</code></span>
-                </span>
-                <span style={{ textAlign: 'right', fontSize: 12, color: C.dim }}>
-                  {e.code != null ? <span style={{ color: statusColor(e.status), fontWeight: 700 }}>{e.code}</span> : (e.status === 'pending' ? '…' : '—')}
-                  {e.ms != null ? <><br /><span style={{ fontSize: 11 }}>{e.ms}ms</span></> : null}
-                </span>
-              </Row>
-            ))}
+          {/* Next steps to go live */}
+          <Panel title="Next steps to go live" hint={`${nextSteps.length} open`}>
+            {nextSteps.length === 0 ? (
+              <div style={{ color: C.ok, fontWeight: 700, padding: '8px 2px' }}>✓ Everything tracked here is done. Run the live smoke test and ship.</div>
+            ) : (
+              <ol style={{ margin: 0, paddingLeft: 20, lineHeight: 1.7 }}>
+                {nextSteps.map((s, i) => (
+                  <li key={i} style={{ fontSize: 13.5 }}>
+                    <span style={{ color: C.dim, fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>{s.section}</span><br />{s.label}
+                  </li>
+                ))}
+              </ol>
+            )}
+          </Panel>
+
+          {/* ── ALL API ROUTES (browsable + probeable) ── */}
+          <Panel title="All API routes" hint={`${snap.inventory.apiRoutes} endpoints`} wide>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+              <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter by path or method…"
+                style={{ flex: 1, minWidth: 180, background: C.panel2, border: `1px solid ${C.border}`, color: C.text, borderRadius: 8, padding: '8px 11px', fontSize: 13 }} />
+              <button onClick={toggleAll} style={btn(C.border, C.text)}>{allExpanded ? 'Collapse all' : 'Expand all'}</button>
+              <button onClick={probeAll} style={btn(C.ok, '#04101f')}>Probe all GET</button>
+            </div>
+            <div style={{ fontSize: 11.5, color: C.dim, marginBottom: 10 }}>
+              Tap a group to expand. <b style={{ color: C.ok }}>GET</b> routes have a <b>Probe</b> button — it sends a real request from your browser (any response = the route is alive; 401/403 just means it needs the right session). Write routes (POST/PUT/DELETE), webhooks, and dynamic <code>[id]</code> paths aren’t auto-called to avoid side effects.
+            </div>
+
+            {filteredGroups.map((g) => {
+              const isOpen = !!open[g.group];
+              const probeable = g.routes.filter((r) => r.probeable).length;
+              return (
+                <div key={g.group} style={{ border: `1px solid ${C.border}`, borderRadius: 10, marginBottom: 8, overflow: 'hidden' }}>
+                  <button onClick={() => setOpen((o) => ({ ...o, [g.group]: !o[g.group] }))}
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: C.panel2, border: 'none', color: C.text, padding: '11px 13px', cursor: 'pointer', fontSize: 13.5 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                      <span style={{ color: C.dim, transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform .15s', display: 'inline-block' }}>▶</span>
+                      <b>{g.group}</b>
+                    </span>
+                    <span style={{ fontSize: 11.5, color: C.dim }}>{g.routes.length} routes · {probeable} GET</span>
+                  </button>
+                  {isOpen && (
+                    <div style={{ padding: '4px 0' }}>
+                      {g.routes.map((r) => {
+                        const pr = probes[r.path];
+                        return (
+                          <div key={r.path} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 13px', borderTop: `1px solid ${C.border}`, flexWrap: 'wrap' }}>
+                            <span style={{ display: 'flex', gap: 4 }}>
+                              {r.methods.map((m) => (
+                                <span key={m} style={{ fontSize: 10, fontWeight: 800, color: METHOD_COLOR[m] ?? C.dim, border: `1px solid ${METHOD_COLOR[m] ?? C.dim}`, borderRadius: 5, padding: '1px 5px' }}>{m}</span>
+                              ))}
+                            </span>
+                            <code style={{ flex: 1, minWidth: 200, fontSize: 12.5 }}>{r.path}</code>
+                            {r.probeable ? (
+                              <>
+                                <button onClick={() => probeRoute(r.path)} style={btn(C.border, C.text, true)}>
+                                  {pr?.status === 'loading' ? '…' : 'Probe'}
+                                </button>
+                                {pr && pr.status !== 'loading' && (
+                                  <span style={{ fontSize: 12, minWidth: 78, textAlign: 'right' }}>
+                                    <b style={{ color: statusColor(pr.status) }}>{pr.code ?? 'ERR'}</b>
+                                    <span style={{ color: C.dim }}>{pr.ms != null ? ` · ${pr.ms}ms` : ''}</span>
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <span style={{ fontSize: 10.5, color: C.dim, border: `1px dashed ${C.border}`, borderRadius: 5, padding: '2px 6px' }}>{nonProbeReason(r)}</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {filteredGroups.length === 0 && <div style={{ color: C.dim, fontSize: 13, padding: '8px 2px' }}>No routes match “{filter}”.</div>}
           </Panel>
 
           {/* Config & secrets */}
@@ -219,25 +293,6 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
                   ))}
                 </div>
               ))}
-            </div>
-          </Panel>
-
-          {/* Next steps to go live */}
-          <Panel title="Next steps to go live" hint={`${nextSteps.length} open`} wide>
-            {nextSteps.length === 0 ? (
-              <div style={{ color: C.ok, fontWeight: 700, padding: '8px 2px' }}>✓ Everything tracked here is done. Run the live smoke test and ship.</div>
-            ) : (
-              <ol style={{ margin: 0, paddingLeft: 20, lineHeight: 1.7 }}>
-                {nextSteps.map((s, i) => (
-                  <li key={i} style={{ fontSize: 13.5 }}>
-                    <span style={{ color: C.dim, fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>{s.section}</span><br />
-                    {s.label}
-                  </li>
-                ))}
-              </ol>
-            )}
-            <div style={{ marginTop: 10, fontSize: 11.5, color: C.dim }}>
-              Auto-derived items flip to done when their config lands. Tick manual items below — saved in this browser.
             </div>
           </Panel>
 
@@ -271,6 +326,10 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
       </div>
     </div>
   );
+}
+
+function btn(bg: string, fg: string, small = false): React.CSSProperties {
+  return { background: bg, color: fg, border: 'none', borderRadius: 7, padding: small ? '4px 10px' : '8px 13px', fontWeight: 700, fontSize: small ? 11.5 : 12.5, cursor: 'pointer' };
 }
 
 function Stat({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {

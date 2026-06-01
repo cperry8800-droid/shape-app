@@ -36,6 +36,9 @@ export type ServiceCheck = {
 export type ChecklistItem = { label: string; status: 'done' | 'pending' | 'manual' };
 export type ChecklistSection = { section: string; items: ChecklistItem[] };
 
+export type ApiRouteInfo = { path: string; methods: string[]; group: string; probeable: boolean };
+export type ApiRouteGroup = { group: string; routes: ApiRouteInfo[] };
+
 export type WarRoomSnapshot = {
   generatedAt: string;
   runtime: {
@@ -53,9 +56,142 @@ export type WarRoomSnapshot = {
     mobileBuild: boolean;
     mobileAssets: number;
   };
+  apiRoutes: ApiRouteGroup[];
   checklist: ChecklistSection[];
   readiness: { score: number; total: number; label: string };
 };
+
+// ── Full API surface ────────────────────────────────────────────────────────
+// Embedded so the War Room can list every route reliably in production (the
+// src/app/api source tree isn't traced into the serverless bundle, so a runtime
+// fs walk can't be trusted there). Keep in sync when routes are added/removed.
+// [path, comma-separated HTTP methods]
+const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
+  ['/api/ai/generate-plan', 'POST'],
+  ['/api/ai/weekly-readout', 'POST'],
+  ['/api/app-waitlist', 'POST'],
+  ['/api/apply', 'POST,OPTIONS'],
+  ['/api/auth/session', 'GET,POST,DELETE'],
+  ['/api/auth/signout', 'POST'],
+  ['/api/availability', 'GET'],
+  ['/api/calendar', 'GET,POST,PATCH,DELETE'],
+  ['/api/client/activities', 'GET,POST'],
+  ['/api/client/analytics', 'GET'],
+  ['/api/client/checkin', 'POST'],
+  ['/api/client/dashboard', 'GET'],
+  ['/api/client/grocery', 'GET'],
+  ['/api/client/habits', 'GET,POST'],
+  ['/api/client/nutrition', 'GET'],
+  ['/api/client/plan', 'GET'],
+  ['/api/client/progress', 'GET'],
+  ['/api/client/score', 'GET'],
+  ['/api/client/team', 'GET'],
+  ['/api/client/train', 'GET'],
+  ['/api/clients/[id]/shared-overview', 'GET'],
+  ['/api/coach/score', 'GET'],
+  ['/api/coaches/reviews', 'GET,POST'],
+  ['/api/community/feed/[postId]/comments', 'POST'],
+  ['/api/community/feed/[postId]/like', 'POST'],
+  ['/api/community/feed', 'GET,POST'],
+  ['/api/consultation', 'POST'],
+  ['/api/contact', 'POST'],
+  ['/api/conversations/[id]/messages', 'GET,POST'],
+  ['/api/health', 'GET'],
+  ['/api/insights/correlations', 'GET'],
+  ['/api/intake', 'POST'],
+  ['/api/integrations/[provider]/authorize', 'GET'],
+  ['/api/integrations/[provider]/callback', 'GET'],
+  ['/api/integrations/[provider]/disconnect', 'POST'],
+  ['/api/integrations/apple-music/developer-token', 'GET'],
+  ['/api/integrations/status', 'GET'],
+  ['/api/integrations/strava/sync', 'GET'],
+  ['/api/integrations/whoop/sync', 'GET'],
+  ['/api/lead-boosts', 'GET,POST'],
+  ['/api/leaderboard', 'GET'],
+  ['/api/league', 'GET,POST'],
+  ['/api/marketplace-stats', 'GET'],
+  ['/api/me/account-action', 'POST'],
+  ['/api/me/role', 'POST'],
+  ['/api/me', 'GET'],
+  ['/api/me/shared-clients/[clientId]/ack', 'POST,DELETE'],
+  ['/api/me/shared-clients/[clientId]/thread', 'POST'],
+  ['/api/me/shared-clients', 'GET'],
+  ['/api/messages/direct', 'GET,POST'],
+  ['/api/my-availability', 'GET,POST'],
+  ['/api/notifications', 'GET,POST'],
+  ['/api/notify-app', 'POST'],
+  ['/api/nutritionist/analytics', 'GET'],
+  ['/api/nutritionist/clients', 'GET'],
+  ['/api/nutritionist/console', 'GET,POST'],
+  ['/api/nutritionist/dashboard', 'GET'],
+  ['/api/nutritionist/meal-plan', 'POST'],
+  ['/api/nutritionist/messages', 'GET,POST'],
+  ['/api/nutritionist/programs', 'GET'],
+  ['/api/program-tools/templates', 'POST'],
+  ['/api/push/dispatch', 'POST'],
+  ['/api/push/register', 'POST,DELETE'],
+  ['/api/radio/rooms', 'GET,POST'],
+  ['/api/recipes/reviews', 'GET,POST'],
+  ['/api/sessions/manage', 'GET,POST'],
+  ['/api/stripe/billing-portal', 'POST'],
+  ['/api/stripe/checkout-session', 'POST'],
+  ['/api/stripe/connect-account', 'POST'],
+  ['/api/stripe/connect/onboard', 'POST'],
+  ['/api/stripe/connect/refresh', 'GET'],
+  ['/api/stripe/platform-checkout', 'POST'],
+  ['/api/stripe/webhook', 'POST'],
+  ['/api/trainer/analytics', 'GET'],
+  ['/api/trainer/clients', 'GET'],
+  ['/api/trainer/console', 'GET,POST'],
+  ['/api/trainer/dashboard', 'GET'],
+  ['/api/trainer/messages', 'GET,POST'],
+  ['/api/trainer/programs', 'GET'],
+  ['/api/trainer/workout', 'POST'],
+  ['/api/warroom', 'GET'],
+];
+
+function groupOf(p: string): string {
+  if (p.startsWith('/api/stripe')) return 'Payments · Stripe';
+  if (p.startsWith('/api/integrations')) return 'Integrations';
+  if (p.startsWith('/api/ai') || p.startsWith('/api/insights')) return 'AI & Insights';
+  if (p.startsWith('/api/client')) return 'Client app';
+  if (p.startsWith('/api/trainer')) return 'Trainer';
+  if (p.startsWith('/api/nutritionist')) return 'Nutritionist';
+  if (p.startsWith('/api/coach')) return 'Coach';
+  if (p.startsWith('/api/push') || p === '/api/notifications' || p === '/api/notify-app') return 'Push & notifications';
+  if (p.startsWith('/api/community') || p.startsWith('/api/messages') || p.startsWith('/api/conversations') ||
+      p.startsWith('/api/radio') || p === '/api/league' || p === '/api/leaderboard') return 'Community & social';
+  if (p.startsWith('/api/auth') || p.startsWith('/api/me')) return 'Auth & account';
+  if (p.startsWith('/api/recipes')) return 'Content';
+  if (p === '/api/contact' || p === '/api/app-waitlist') return 'Marketing & forms';
+  if (p === '/api/health' || p === '/api/warroom') return 'System';
+  // Remaining provider/marketplace plumbing.
+  return 'Marketplace & providers';
+}
+
+// GET routes we won't auto-probe from the browser: dynamic-param paths (need a
+// real id), OAuth dances, syncs, and secret-gated webhooks (side effects).
+function isProbeable(path: string, methods: string[]): boolean {
+  if (!methods.includes('GET')) return false;
+  if (path.includes('[')) return false;
+  if (path.startsWith('/api/integrations/')) return false;
+  if (path === '/api/auth/signout' || path === '/api/stripe/webhook' || path === '/api/push/dispatch') return false;
+  return true;
+}
+
+function buildApiRoutes(): ApiRouteGroup[] {
+  const byGroup = new Map<string, ApiRouteInfo[]>();
+  for (const [path, methodsCsv] of RAW_ROUTES) {
+    const methods = methodsCsv.split(',');
+    const group = groupOf(path);
+    const info: ApiRouteInfo = { path, methods, group, probeable: isProbeable(path, methods) };
+    if (!byGroup.has(group)) byGroup.set(group, []);
+    byGroup.get(group)!.push(info);
+  }
+  return Array.from(byGroup.entries())
+    .map(([group, routes]) => ({ group, routes: routes.sort((a, b) => a.path.localeCompare(b.path)) }))
+    .sort((a, b) => b.routes.length - a.routes.length);
+}
 
 function present(v: string | undefined): boolean {
   return !!v && v.trim().length > 0;
@@ -265,10 +401,13 @@ function buildChecklist(config: ConfigGroup[]): ChecklistSection[] {
 
 export async function buildWarRoomSnapshot(): Promise<WarRoomSnapshot> {
   const config = buildConfig();
+  const apiRoutes = buildApiRoutes();
   const [services, inventory] = await Promise.all([
     Promise.all([pingSupabase(), pingStripe()]),
     buildInventory(),
   ]);
+  // The embedded list is the source of truth for the count too.
+  inventory.apiRoutes = RAW_ROUTES.length;
   const checklist = buildChecklist(config);
 
   // Readiness = required config groups that are fully wired.
@@ -290,6 +429,7 @@ export async function buildWarRoomSnapshot(): Promise<WarRoomSnapshot> {
     config,
     services,
     inventory,
+    apiRoutes,
     checklist,
     readiness: { score, total, label },
   };
