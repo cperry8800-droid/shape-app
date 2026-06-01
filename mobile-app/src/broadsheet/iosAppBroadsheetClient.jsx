@@ -775,13 +775,6 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
           />
         );
       })}
-
-      <div style={{ padding: `0 ${t.padX}px 10px`, fontFamily: t.DISPLAY, fontSize: 11.5, color: t.INK50, lineHeight: 1.35 }}>
-        <span style={{ fontWeight: 700, color: t.INK70 }}>Three defaults, then it's yours.</span> Drag the ⠿ handle to reorder, pin a card to lock it to the top, or choose which cards show from <span style={{ fontWeight: 700, color: t.INK70 }}>Cards ▾</span>.
-        {layout.manual
-          ? <> Order is set by you — <button onClick={() => persist({ ...layout, manual: false })} style={{ background: 'transparent', border: 0, padding: 0, color: t.ACCENT, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit' }}>switch back to auto</button>.</>
-          : ' Unpinned cards reorder by what\'s most alive that day.'}
-      </div>
     </>
   );
 }
