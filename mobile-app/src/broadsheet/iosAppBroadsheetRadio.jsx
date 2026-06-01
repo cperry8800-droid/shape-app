@@ -446,7 +446,7 @@ function BSRadioPrompt() {
           eyebrow="OPTION A · RECOMMENDED"
           title={<>Yes, <span style={{ fontStyle: 'italic' }}>play Radio.</span></>}
           meta="STREAMS IN APP · AD-FREE · PAUSE FROM HOME"
-          icon={<BSEQ bars={5} height={26} gap={2} color={t.PAPER} paused={false} />}
+          icon={<span style={{ fontSize: 24, lineHeight: 1 }}>🎶</span>}
           accent
         />
         <PromptChoice
@@ -455,7 +455,7 @@ function BSRadioPrompt() {
           eyebrow="OPTION B"
           title="Keep it muted."
           meta="START SILENT · TURN ON LATER FROM HOME"
-          icon={<span style={{ fontFamily: t.DISPLAY, fontSize: 22, color: t.INK }}>⏸</span>}
+          icon={<span style={{ fontSize: 23, lineHeight: 1 }}>🔇</span>}
         />
       </div>
       </div>
@@ -487,7 +487,6 @@ function BSRadioPrompt() {
 
 function PromptChoice({ on, onClick, eyebrow, title, meta, icon, accent }) {
   const t = useBS();
-  const clearIcon = title === 'Keep it muted.';
   return (
     <button onClick={onClick} style={{
       display: 'flex', alignItems: 'center', gap: 14,
@@ -498,14 +497,13 @@ function PromptChoice({ on, onClick, eyebrow, title, meta, icon, accent }) {
       borderRadius: 0,
     }}>
       <div style={{
-        width: 48, height: 48, flexShrink: 0,
+        width: 48, height: 48, flexShrink: 0, borderRadius: 10,
         background: accent ? (on ? t.PAPER : t.INK) : 'transparent',
-        border: accent || clearIcon ? 'none' : `1px solid ${t.INK}`,
+        border: accent ? 'none' : `1px solid ${t.INK}`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 24, lineHeight: 1,
       }}>
-        <div style={{ width: 26, color: on && accent ? t.INK : (accent ? t.PAPER : t.INK), display: 'flex', alignItems: 'flex-end' }}>
-          {clearIcon ? null : icon}
-        </div>
+        {icon}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, opacity: 0.65, marginBottom: 4 }}>{eyebrow}</div>
