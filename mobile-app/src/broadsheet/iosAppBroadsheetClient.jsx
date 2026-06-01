@@ -2174,18 +2174,6 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
         ))}
       </div>
 
-      {/* Find a trainer — marketplace deep link (Trainer tab) */}
-      <div style={{ padding: `16px ${t.padX}px 0` }}>
-        <button onClick={() => goMarket('trainer')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 16px', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#c0533b', fontWeight: 700, marginBottom: 4 }}>Marketplace</div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 16, color: t.INK }}>Find a trainer</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 3, letterSpacing: '0.06em' }}>Vetted coaches · filter by goal & schedule</div>
-          </div>
-          <span style={{ color: t.INK50, fontSize: 18, flexShrink: 0 }}>→</span>
-        </button>
-      </div>
-
       {/* From Jordan — coach playlists (sourced from the Radio coach-playlist feed) */}
       {(() => {
         const all = Array.isArray(window.BS_COACH_PLAYLISTS) ? window.BS_COACH_PLAYLISTS : [];
@@ -2203,6 +2191,18 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
           </>
         );
       })()}
+
+      {/* Find a trainer — marketplace deep link (Trainer tab), pinned to the bottom */}
+      <div style={{ padding: `18px ${t.padX}px 0` }}>
+        <button onClick={() => goMarket('trainer')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 16px', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#c0533b', fontWeight: 700, marginBottom: 4 }}>Marketplace</div>
+            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 16, color: t.INK }}>Find a trainer</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 3, letterSpacing: '0.06em' }}>Vetted coaches · filter by goal & schedule</div>
+          </div>
+          <span style={{ color: t.INK50, fontSize: 18, flexShrink: 0 }}>→</span>
+        </button>
+      </div>
 
       <BSFooter right="Pg 2 of 5" />
     </BSPage>
@@ -4183,18 +4183,6 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
         );
       })()}
 
-      {/* Find a nutritionist — marketplace deep link (Nutritionist tab) */}
-      <div style={{ padding: `16px ${t.padX}px 0` }}>
-        <button onClick={() => goMarket('nutritionist')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 16px', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#a07a2e', fontWeight: 700, marginBottom: 4 }}>Marketplace</div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 16, color: t.INK }}>Find a nutritionist</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 3, letterSpacing: '0.06em' }}>Vetted RDs · filter by goal & specialty</div>
-          </div>
-          <span style={{ color: t.INK50, fontSize: 18, flexShrink: 0 }}>→</span>
-        </button>
-      </div>
-
       {/* From Maya — nutritionist playlists (sourced from the Radio coach-playlist feed) */}
       {(() => {
         const all = Array.isArray(window.BS_COACH_PLAYLISTS) ? window.BS_COACH_PLAYLISTS : [];
@@ -4212,6 +4200,18 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
           </>
         );
       })()}
+
+      {/* Find a nutritionist — marketplace deep link (Nutritionist tab), pinned to the bottom */}
+      <div style={{ padding: `18px ${t.padX}px 0` }}>
+        <button onClick={() => goMarket('nutritionist')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 16px', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#a07a2e', fontWeight: 700, marginBottom: 4 }}>Marketplace</div>
+            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 16, color: t.INK }}>Find a nutritionist</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 3, letterSpacing: '0.06em' }}>Vetted RDs · filter by goal & specialty</div>
+          </div>
+          <span style={{ color: t.INK50, fontSize: 18, flexShrink: 0 }}>→</span>
+        </button>
+      </div>
 
       <BSFooter right="Pg 3 of 5" />
     </BSPage>
