@@ -1349,14 +1349,27 @@ bsInstallMemHud();
 class BSErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { err: null }; }
   static getDerivedStateFromError(err) { return { err }; }
-  componentDidCatch(err, info) { bsRecordError(err, info); }
+  componentDidCatch(err, info) { this.setState({ info }); bsRecordError(err, info); }
   render() {
     if (!this.state.err) return this.props.children;
+    const err = this.state.err;
+    const info = this.state.info;
+    // Surface the actual error so it can be read/copied off-device (no console
+    // needed). message + first stack frames + the React component stack.
+    const detail = [
+      (err && (err.message || String(err))) || 'Unknown error',
+      err && err.stack ? '\n' + String(err.stack).split('\n').slice(0, 6).join('\n') : '',
+      info && info.componentStack ? '\nComponent stack:' + String(info.componentStack).split('\n').slice(0, 6).join('\n') : '',
+    ].join('');
     return (
-      <div style={{ position: 'fixed', inset: 0, background: '#0b0c0c', color: '#f4efe6', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 28, textAlign: 'center', fontFamily: "'Saira', 'Helvetica Neue', sans-serif" }}>
+      <div style={{ position: 'fixed', inset: 0, background: '#0b0c0c', color: '#f4efe6', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: 24, textAlign: 'center', fontFamily: "'Saira', 'Helvetica Neue', sans-serif" }}>
         <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: '-0.01em' }}>Something went wrong</div>
-        <div style={{ fontSize: 13, opacity: 0.7, maxWidth: 320, lineHeight: 1.5 }}>The app hit an error and recovered. Tap reload to continue.</div>
-        <button onClick={() => { this.setState({ err: null }); }} style={{ marginTop: 4, padding: '13px 26px', borderRadius: 10, background: '#0ac5a8', color: '#031f1c', border: 0, fontWeight: 700, fontSize: 13, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer' }}>Reload</button>
+        <div style={{ fontSize: 13, opacity: 0.7, maxWidth: 320, lineHeight: 1.5 }}>The app hit an error and recovered. Details below — tap Copy and send them over.</div>
+        <pre style={{ width: '100%', maxWidth: 360, maxHeight: 200, overflow: 'auto', textAlign: 'left', background: '#15110d', border: '1px solid rgba(244,239,230,0.15)', borderRadius: 8, padding: 12, fontSize: 11, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#ff8a7a', fontFamily: "ui-monospace, Menlo, monospace" }}>{detail}</pre>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <button onClick={() => { try { navigator.clipboard.writeText(detail); window.__bsToast?.('Error copied', 'ok'); } catch (e) {} }} style={{ padding: '11px 20px', borderRadius: 10, background: 'transparent', color: '#f4efe6', border: '1px solid rgba(244,239,230,0.3)', fontWeight: 700, fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Copy</button>
+          <button onClick={() => { this.setState({ err: null, info: null }); }} style={{ padding: '11px 22px', borderRadius: 10, background: '#0ac5a8', color: '#031f1c', border: 0, fontWeight: 700, fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Reload</button>
+        </div>
         <button onClick={() => { try { window.location.reload(); } catch (e) {} }} style={{ background: 'transparent', border: 0, color: 'rgba(244,239,230,0.5)', fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>Restart app</button>
       </div>
     );
