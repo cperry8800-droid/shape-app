@@ -4680,18 +4680,50 @@ function BSClientFeed({ onProfile }) {
     CLIENT: { color: '#2ee0c4', label: 'Client' },
     NUTRI: { color: '#e0b15a', label: 'Nutri' },
   };
-  const POSTS = [
-    { who: 'Shape', kind: 'SHAPE', init: '✦', hue: TEAL, time: '1h', pinned: true, official: true, body: "Riverside Runners: Saturday's 6am long run is official. 47 of you RSVP'd. Coffee at Blackbird after — first round on Shape.", hearts: 52, replies: 14 },
-    { who: 'Jordan Chen', kind: 'TRAINER', init: 'J', hue: '#c0533b', time: '2h', body: 'Week 6 check, team: drop a ⚡ if you hit all lifts this week. Coffee for the top 3 adherence scores.', hearts: 34, replies: 12 },
-    { who: 'Sofia Martinez', kind: 'CLIENT', init: 'S', hue: '#147b68', time: '4h', body: 'First sub-9 min mile today!', hearts: 18, replies: 3 },
+  const SAMPLE = [
+    { id: 's1', who: 'Shape', kind: 'SHAPE', init: '✦', hue: TEAL, time: '1h', pinned: true, official: true, body: "Riverside Runners: Saturday's 6am long run is official. 47 of you RSVP'd. Coffee at Blackbird after — first round on Shape.", hearts: 52, replies: 14 },
+    { id: 's2', who: 'Jordan Chen', kind: 'TRAINER', init: 'J', hue: '#c0533b', time: '2h', body: 'Week 6 check, team: drop a ⚡ if you hit all lifts this week. Coffee for the top 3 adherence scores.', hearts: 34, replies: 12 },
+    { id: 's3', who: 'Sofia Martinez', kind: 'CLIENT', init: 'S', hue: '#147b68', time: '4h', body: 'First sub-9 min mile today!', hearts: 18, replies: 3 },
   ];
-  const shown = POSTS.filter(p => filter === 'ALL' || p.kind === filter);
+  // Map a live community post into the feed-card shape.
+  const KIND_OF = (r) => { const s = String(r || '').toLowerCase(); if (s.includes('shape') || s.includes('mod') || s.includes('official')) return 'SHAPE'; if (s.includes('train') || s.includes('coach')) return 'TRAINER'; if (s.includes('nutri') || s.includes('diet')) return 'NUTRI'; return 'CLIENT'; };
+  const HUE = { SHAPE: TEAL, TRAINER: '#c0533b', CLIENT: '#147b68', NUTRI: '#a07a2e' };
+  const mapPost = (p) => {
+    const kind = KIND_OF(p.role);
+    return {
+      id: p.id, who: p.name || 'Member', kind, init: (p.avatar || p.name || '?').toString().trim().charAt(0).toUpperCase(),
+      hue: HUE[kind], time: p.time || 'now', pinned: !!p.pinned, official: kind === 'SHAPE',
+      body: p.note || p.status || p.body || p.workout || '',
+      hearts: typeof p.likes === 'number' ? p.likes : (p.likeCount || 0),
+      replies: Array.isArray(p.comments) ? p.comments.length : (p.commentCount || 0),
+    };
+  };
+  const [posts, setPosts] = useStateBSC(SAMPLE);
+  React.useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const res = await window.ShapeCommunity?.listPosts?.();
+        if (active && Array.isArray(res?.data) && res.data.length) setPosts(res.data.map(mapPost).filter(p => p.body));
+      } catch { /* keep sample */ }
+    })();
+    return () => { active = false; };
+  }, []);
+  const shown = posts.filter(p => filter === 'ALL' || p.kind === filter);
 
-  const post = () => {
+  const post = async () => {
     if (window.bsRequireAccount && !window.bsRequireAccount('post to the feed')) return;
-    if (!draft.trim()) return;
-    window.__bsToast?.('Posted to the group', 'ok');
+    const body = draft.trim();
+    if (!body) return;
     setDraft('');
+    setPosts(prev => [{ id: 'tmp-' + Date.now(), who: 'You', kind: 'CLIENT', init: 'Y', hue: HUE.CLIENT, time: 'now', body, hearts: 0, replies: 0 }, ...prev]);
+    try { await window.ShapeCommunity?.createPost?.({ body }); window.__bsToast?.('Posted to the group', 'ok'); }
+    catch (e) { window.__bsToast?.(e?.message || 'Could not post.', 'err'); }
+  };
+  const like = (p) => {
+    if (window.bsRequireAccount && !window.bsRequireAccount('react to posts')) return;
+    setPosts(prev => prev.map(x => x.id === p.id ? { ...x, hearts: (x.hearts || 0) + 1 } : x));
+    if (p.id && !String(p.id).startsWith('tmp') && !String(p.id).startsWith('s')) window.ShapeCommunity?.toggleLike?.({ postId: p.id }).catch(() => {});
   };
   const react = (label) => { if (window.bsRequireAccount && !window.bsRequireAccount(label)) return; };
 
@@ -4753,7 +4785,7 @@ function BSClientFeed({ onProfile }) {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ borderRadius: 14, padding: '14px 16px', background: p.official ? '#f3eee4' : card, color: p.official ? '#1a1713' : cardInk, border: p.official ? 'none' : `1px solid ${hair}`, fontFamily: p.official ? (t.SERIF || `'Newsreader', Georgia, serif`) : t.DISPLAY, fontStyle: p.official ? 'italic' : 'normal', fontSize: p.official ? 17 : 15, lineHeight: 1.4 }}>{p.body}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 8, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.08em', color: muted }}>
-                      <button onClick={() => react('react to posts')} style={{ background: 'transparent', border: 0, color: muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>♥ {p.hearts}</button>
+                      <button onClick={() => like(p)} style={{ background: 'transparent', border: 0, color: muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>♥ {p.hearts}</button>
                       <button onClick={() => react('reply')} style={{ background: 'transparent', border: 0, color: muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>↳ {p.replies}</button>
                       <button onClick={() => react('save posts')} style={{ background: 'transparent', border: 0, color: TEALB, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: 800, cursor: 'pointer', padding: 0 }}>SAVE</button>
                     </div>
