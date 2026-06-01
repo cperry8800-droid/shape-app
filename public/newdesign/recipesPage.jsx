@@ -138,23 +138,32 @@ function RecipesPage() {
 
   return (
     <div style={{ background: INK_DEEP, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
-      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", background: "radial-gradient(120% 90% at 50% 0%, rgba(11,14,12,0.55) 0%, rgba(11,14,12,0.82) 58%, rgba(11,14,12,0.92) 100%), url('/newdesign/shape-kitchen-bg.png') center center / cover no-repeat", backgroundColor: INK_DEEP }} />
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", background: "radial-gradient(120% 90% at 50% 0%, rgba(26,24,19,0.5) 0%, rgba(11,14,12,0.85) 60%, #0b0e0c 100%)" }} />
       <div style={{ position: "relative", zIndex: 1 }}>
         <Header active="Recipes" />
 
-        {/* Hero — Shape Kitchen header (matches the site's thin Fraunces display) */}
-        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "56px 24px 28px" }}>
-          <h1 style={{ fontFamily: serif, fontWeight: 300, fontSize: "clamp(46px, 7.4vw, 92px)", letterSpacing: "-0.04em", lineHeight: 0.98, margin: 0 }}>
-            Shape Kitchen
-          </h1>
-          <div style={{ fontFamily: serif, fontWeight: 300, fontSize: "clamp(20px, 3vw, 30px)", letterSpacing: "-0.025em", lineHeight: 1.15, marginTop: 16, color: "rgba(242,237,228,0.82)", maxWidth: 720 }}>
-            Recipes from our nutritionists and dieticians.
+        {/* Hero — Shape Kitchen banner over the kitchen backdrop image */}
+        <div style={{ maxWidth: 1180, margin: "28px auto 0", padding: "0 24px" }}>
+          <div style={{
+            position: "relative", overflow: "hidden", borderRadius: 18,
+            padding: "clamp(40px, 7vw, 84px) clamp(24px, 5vw, 56px)",
+            backgroundColor: "#efe9dd",
+            backgroundImage: "linear-gradient(90deg, rgba(244,239,230,0.42) 0%, rgba(244,239,230,0.16) 55%, rgba(244,239,230,0.04) 100%), url('/newdesign/shape-kitchen-bg.png')",
+            backgroundSize: "cover", backgroundPosition: "center",
+            border: "1px solid rgba(20,17,13,0.08)",
+          }}>
+            <h1 style={{ fontFamily: serif, fontWeight: 300, fontSize: "clamp(46px, 7.4vw, 92px)", letterSpacing: "-0.04em", lineHeight: 0.98, margin: 0, color: "#14110d" }}>
+              Shape <span style={{ fontStyle: "italic", color: TEAL_BRIGHT }}>Kitchen.</span>
+            </h1>
+            <div style={{ fontFamily: serif, fontWeight: 300, fontSize: "clamp(20px, 3vw, 30px)", letterSpacing: "-0.025em", lineHeight: 1.15, marginTop: 16, color: "rgba(20,17,13,0.82)", maxWidth: 720 }}>
+              Recipes from our nutritionists and dieticians.
+            </div>
+            <p style={{ fontSize: 16, lineHeight: 1.55, color: "rgba(20,17,13,0.72)", maxWidth: 620, marginTop: 16 }}>
+              Every recipe is built by a Shape professional — macro-balanced, easy to
+              scale, with step-by-step method and a pro tip. Tap any recipe for the
+              full page.
+            </p>
           </div>
-          <p style={{ fontSize: 16, lineHeight: 1.55, color: "rgba(242,237,228,0.7)", maxWidth: 620, marginTop: 16 }}>
-            Every recipe is built by a Shape professional — macro-balanced, easy to
-            scale, with step-by-step method and a pro tip. Tap any recipe for the
-            full page.
-          </p>
         </div>
 
         {/* View toggle: all recipes vs your saved library */}
