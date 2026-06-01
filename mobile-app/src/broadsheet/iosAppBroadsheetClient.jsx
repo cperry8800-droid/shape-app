@@ -1203,6 +1203,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         </div>
       )}
 
+      {/* NOW PLAYING — Shape Radio (moved above This week) */}
+      <BSNowPlaying onOpen={goRadio} />
+
       {/* THIS WEEK — calendar preview (moved above the Today/Log/Habits/Score row) */}
       <div style={{ padding: `${t.sectGap}px ${t.padX}px 8px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 9, minWidth: 0, flexWrap: 'wrap' }}>
@@ -1297,9 +1300,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
           ))}
         </div>
       </div>
-
-      {/* NOW PLAYING — Shape Radio */}
-      <BSNowPlaying onOpen={goRadio} />
 
       {/* CUSTOMIZABLE CARD STACK — Training / Recovery / Energy / … */}
       <div style={{ paddingTop: 16, borderTop: `1px solid ${t.RULE}` }}>
@@ -1928,6 +1928,14 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {} })
   const [previewing, setPreviewing] = useStateBSC(false);
   const [swapIdx, setSwapIdx] = useStateBSC(null);          // move to swap: number | 'pick' | null
   const [moveOverrides, setMoveOverrides] = useStateBSC({}); // `${day}:${i}` → { m, s }
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
+    window.shapeDb.getUserGoals('client_train_swaps').then((saved) => {
+      if (!cancelled && saved && typeof saved === 'object') setMoveOverrides(saved);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
   const [liveProgram, setLiveProgram] = useStateBSC(null);
 
   // Pull the client's assigned plan; fall back to the demo program below when
@@ -2163,13 +2171,16 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {} })
         ];
         return <BSSwapSheet title="Swap exercise" subtitle={orig.m} options={options} onClose={() => setSwapIdx(null)}
           onPick={(o) => {
-            setMoveOverrides(prev => {
-              const next = { ...prev };
-              if (o._keep) delete next[`${day}:${swapIdx}`];
-              else next[`${day}:${swapIdx}`] = { m: o._alt.m, s: o._alt.s || orig.s };
-              return next;
-            });
-            if (!o._keep) window.__bsToast && window.__bsToast('Swapped to ' + o._alt.m, 'ok');
+            const key = `${day}:${swapIdx}`;
+            const next = { ...moveOverrides };
+            if (o._keep) delete next[key];
+            else next[key] = { m: o._alt.m, s: o._alt.s || orig.s };
+            setMoveOverrides(next);
+            try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_train_swaps', next); } catch (e) {}
+            if (!o._keep) {
+              window.__bsToast && window.__bsToast('Swapped to ' + o._alt.m, 'ok');
+              try { window.ShapeMessages && window.ShapeMessages.sendProviderMessage && window.ShapeMessages.sendProviderMessage({ coach: { name: 'Jordan Chen', provider_role: 'trainer' }, text: `Swapped ${baseName} → ${o._alt.m} · ${cur.d}` }).catch(() => {}); } catch (e) {}
+            }
             setSwapIdx(null);
           }} />;
       })()}
@@ -3031,6 +3042,14 @@ function BSClientEat({ onProfile, goRadio = () => {} }) {
   const planGoalLabel = planGoal === 'cut' ? 'Cutting' : planGoal === 'build' ? 'Building' : 'Maintaining';
   const [swapMealId, setSwapMealId] = useStateBSC(null);     // meal id being swapped, or null
   const [mealOverrides, setMealOverrides] = useStateBSC({}); // meal id → { title, kcal, p, c, f }
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
+    window.shapeDb.getUserGoals('client_meal_swaps').then((saved) => {
+      if (!cancelled && saved && typeof saved === 'object') setMealOverrides(saved);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   // ── Compact builder for non-anchor days. Generates a full BSMealPreview-shaped record.
   const mk = ({ id, time, tag, tagColor, title, kcal, p, c, f, state, last, hero, brief, ingredients, steps, coachNote, prep = '10 min', portion = '1 plate', score = 'A' }) => ({
@@ -4119,13 +4138,15 @@ function BSClientEat({ onProfile, goRadio = () => {} }) {
         ];
         return <BSSwapSheet title="Swap meal" subtitle={orig.title} options={options} onClose={() => setSwapMealId(null)}
           onPick={(o) => {
-            setMealOverrides(prev => {
-              const next = { ...prev };
-              if (o._keep) delete next[swapMealId];
-              else next[swapMealId] = { title: o._alt.title, kcal: o._alt.kcal, p: o._alt.p, c: o._alt.c, f: o._alt.f, sub: `${o._alt.kcal} kcal · ${o._alt.p}P · ${o._alt.c}C · ${o._alt.f}F` };
-              return next;
-            });
-            if (!o._keep) window.__bsToast && window.__bsToast('Swapped to ' + o._alt.title, 'ok');
+            const next = { ...mealOverrides };
+            if (o._keep) delete next[swapMealId];
+            else next[swapMealId] = { title: o._alt.title, kcal: o._alt.kcal, p: o._alt.p, c: o._alt.c, f: o._alt.f, sub: `${o._alt.kcal} kcal · ${o._alt.p}P · ${o._alt.c}C · ${o._alt.f}F` };
+            setMealOverrides(next);
+            try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_meal_swaps', next); } catch (e) {}
+            if (!o._keep) {
+              window.__bsToast && window.__bsToast('Swapped to ' + o._alt.title, 'ok');
+              try { window.ShapeMessages && window.ShapeMessages.sendProviderMessage && window.ShapeMessages.sendProviderMessage({ coach: { name: 'Dr. Maya Patel', provider_role: 'nutritionist' }, text: `Swapped ${base.title} → ${o._alt.title} · ${day === 4 ? 'today' : cur.d}` }).catch(() => {}); } catch (e) {}
+            }
             setSwapMealId(null);
           }} />;
       })()}
