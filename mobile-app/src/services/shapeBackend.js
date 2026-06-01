@@ -1040,10 +1040,15 @@ async function getOwnedTrainerId() {
   return data?.id || null;
 }
 
+// trainer/nutritionist -> the provider table that holds that role's rows.
+function providerTable(role) {
+  return role === 'nutritionist' ? 'nutritionists' : 'trainers';
+}
+
 async function getOwnedProviderId(role = 'trainer') {
   if (!supabase || !state.user?.id) return null;
   const normalizedRole = normalizeRole(role);
-  const table = normalizedRole === 'nutritionist' ? 'nutritionists' : 'trainers';
+  const table = providerTable(normalizedRole);
   const { data, error } = await supabase
     .from(table)
     .select('id')
@@ -1062,7 +1067,7 @@ async function getOwnedProviderId(role = 'trainer') {
 async function getProviderCapacity() {
   if (!supabase || !state.user?.id) return null;
   for (const role of ['trainer', 'nutritionist']) {
-    const table = role === 'nutritionist' ? 'nutritionists' : 'trainers';
+    const table = providerTable(role);
     const { data } = await supabase
       .from(table)
       .select('id, at_capacity, capacity_resume_at')
@@ -1083,7 +1088,7 @@ async function setProviderCapacity({ atCapacity, resumeAt = null } = {}) {
   if (!supabase || !state.user?.id) throw new Error('Sign in to update bookings.');
   let table = null;
   for (const role of ['trainer', 'nutritionist']) {
-    const tbl = role === 'nutritionist' ? 'nutritionists' : 'trainers';
+    const tbl = providerTable(role);
     const { data } = await supabase.from(tbl).select('id').eq('owner_id', state.user.id).limit(1).maybeSingle();
     if (data) { table = tbl; break; }
   }
