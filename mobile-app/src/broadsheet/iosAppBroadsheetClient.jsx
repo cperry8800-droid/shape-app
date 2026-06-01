@@ -5052,7 +5052,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   };
 
   const Pill = ({ on, onClick, children }) => (
-    <button onClick={onClick} style={{ padding: '9px 16px', borderRadius: 999, border: 0, background: on ? TEAL : 'transparent', color: on ? '#031f1c' : muted, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{children}</button>
+    <button onClick={onClick} style={{ padding: '7px 12px', borderRadius: 999, border: 0, background: on ? TEAL : 'transparent', color: on ? '#031f1c' : muted, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{children}</button>
   );
 
   return (
@@ -5069,8 +5069,8 @@ function BSClientFeed({ onProfile, role: roleProp }) {
       />
 
       {/* Feed / Messages / Teams */}
-      <div style={{ padding: `16px ${t.padX}px 0` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, border: `1px solid ${hair}`, borderRadius: 999, padding: 4 }}>
+      <div style={{ padding: `10px ${t.padX}px 0` }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, border: `1px solid ${hair}`, borderRadius: 999, padding: 3 }}>
           {[['feed', 'Feed'], ['messages', 'Friends'], ['teams', 'Teams']].map(([k, l]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)}>{l}</Pill>)}
         </div>
       </div>
@@ -5142,12 +5142,12 @@ function BSClientFeed({ onProfile, role: roleProp }) {
       ) : (
         <>
           {/* Role filter chips */}
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${CHIP_KEYS.length}, 1fr)`, gap: 7, padding: `14px ${t.padX}px` }}>
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${CHIP_KEYS.length}, 1fr)`, gap: 6, padding: `10px ${t.padX}px` }}>
             {CHIP_KEYS.map(k => {
               const on = filter === k;
               return (
-                <button key={k} onClick={() => setFilter(on ? 'ALL' : k)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '8px 13px', borderRadius: 999, border: `1px solid ${on ? ROLE[k].color : hair}`, background: on ? `${ROLE[k].color}1f` : 'transparent', color: cardInk, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', cursor: 'pointer' }}>
-                  <span style={{ width: 6, height: 6, borderRadius: 3, background: ROLE[k].color }} />{k}
+                <button key={k} onClick={() => setFilter(on ? 'ALL' : k)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 10px', borderRadius: 999, border: `1px solid ${on ? ROLE[k].color : hair}`, background: on ? `${ROLE[k].color}1f` : 'transparent', color: cardInk, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', cursor: 'pointer' }}>
+                  <span style={{ width: 5, height: 5, borderRadius: 3, background: ROLE[k].color }} />{k}
                 </button>
               );
             })}
@@ -5158,20 +5158,20 @@ function BSClientFeed({ onProfile, role: roleProp }) {
               {COMMUNITY_ACTIVITIES.map((a, i) => <ActivityCard key={i} a={a} />)}
             </div>
           ) : (
-          <div style={{ padding: `14px ${t.padX}px 84px`, display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <div style={{ padding: `10px ${t.padX}px 84px`, display: 'flex', flexDirection: 'column', gap: 13 }}>
             {shown.map((p, i) => (
               <div key={i}>
-                {p.pinned && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', color: TEALB, marginBottom: 8 }}>📌 Pinned</div>}
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-                  <span style={{ fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14, color: cardInk }}>{p.who}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: ROLE[p.kind].color, border: `1px solid ${ROLE[p.kind].color}66`, borderRadius: 4, padding: '2px 6px' }}>{ROLE[p.kind].label}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: muted }}>{p.time}</span>
+                {p.pinned && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', color: TEALB, marginBottom: 6 }}>📌 Pinned</div>}
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+                  <span style={{ fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk }}>{p.who}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: ROLE[p.kind].color, border: `1px solid ${ROLE[p.kind].color}66`, borderRadius: 4, padding: '1px 5px' }}>{ROLE[p.kind].label}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, color: muted }}>{p.time}</span>
                 </div>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                  <div style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, background: p.hue, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13 }}>{p.init}</div>
+                <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
+                  <div style={{ width: 26, height: 26, flexShrink: 0, borderRadius: 999, background: p.hue, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 12 }}>{p.init}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ borderRadius: 14, padding: '14px 16px', background: p.official ? '#f3eee4' : card, color: p.official ? '#1a1713' : cardInk, border: p.official ? 'none' : `1px solid ${hair}`, fontFamily: p.official ? (t.SERIF || `'Newsreader', Georgia, serif`) : t.DISPLAY, fontStyle: p.official ? 'italic' : 'normal', fontSize: p.official ? 17 : 15, lineHeight: 1.4 }}>{p.body}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 8, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.08em', color: muted }}>
+                    <div style={{ borderRadius: 13, padding: '11px 13px', background: p.official ? '#f3eee4' : card, color: p.official ? '#1a1713' : cardInk, border: p.official ? 'none' : `1px solid ${hair}`, fontFamily: p.official ? (t.SERIF || `'Newsreader', Georgia, serif`) : t.DISPLAY, fontStyle: p.official ? 'italic' : 'normal', fontSize: p.official ? 15 : 14, lineHeight: 1.38 }}>{p.body}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 6, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: muted }}>
                       <button onClick={() => like(p)} style={{ background: 'transparent', border: 0, color: muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>♥ {p.hearts}</button>
                       <button onClick={() => react('reply')} style={{ background: 'transparent', border: 0, color: muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>↳ {p.replies}</button>
                       <button onClick={() => react('save posts')} style={{ background: 'transparent', border: 0, color: TEALB, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: 800, cursor: 'pointer', padding: 0 }}>SAVE</button>
@@ -5185,8 +5185,8 @@ function BSClientFeed({ onProfile, role: roleProp }) {
         </>
       )}
       {tab === 'feed' && composerSlot && createPortal(
-        <div style={{ pointerEvents: 'auto', padding: `8px ${t.padX}px 10px`, background: 'linear-gradient(180deg, rgba(11,12,12,0), #0b0c0c 45%)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 999, border: `1px solid ${hair}`, background: card }}>
+        <div style={{ pointerEvents: 'auto', padding: '8px 0 10px', background: 'linear-gradient(180deg, rgba(11,12,12,0), #0b0c0c 45%)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: `8px ${t.padX}px`, borderTop: `1px solid ${hair}`, background: card }}>
             <div style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, background: TEAL, color: '#031f1c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13 }}>A</div>
             <input value={draft} onChange={e => setDraft(e.target.value)} placeholder="Share with the group…" style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, outline: 'none', color: cardInk, fontFamily: t.DISPLAY, fontSize: 14 }} />
             <button onClick={post} style={{ flexShrink: 0, padding: '9px 16px', borderRadius: 999, border: 0, background: TEAL, color: '#031f1c', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>POST</button>
