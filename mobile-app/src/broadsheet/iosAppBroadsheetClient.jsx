@@ -1913,7 +1913,7 @@ function BSSwapSheet({ title, subtitle, options, onPick, onClose }) {
 // ═══════════════════════════════════════════════════════════
 function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, goMarket = () => {} }) {
   const t = useBS();
-  const [day, setDay] = useStateBSC(4);
+  const [day, setDay] = useStateBSC(bsWeekdayIdx()); // default to today (0=Mon..6=Sun)
   const [session, setSession] = useStateBSC(false);
   const [previewing, setPreviewing] = useStateBSC(false);
   const [swapIdx, setSwapIdx] = useStateBSC(null);          // move to swap: number | 'pick' | null
@@ -3036,7 +3036,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
   });
   const [selectedGroceryList, setSelectedGroceryList] = useStateBSC(null);
   const [newListName, setNewListName] = useStateBSC(null); // null = sheet closed
-  const [day, setDay] = useStateBSC(4); // 0..6 — Fri (idx 4) = today, mirrors Train
+  const [day, setDay] = useStateBSC(bsWeekdayIdx()); // default to today (0=Mon..6=Sun)
   const [liveProgram, setLiveProgram] = useStateBSC(null);
   // Goal label for the "Your plan" header, read from the client's nutrition prefs.
   const [planGoal, setPlanGoal] = useStateBSC('maintain');
