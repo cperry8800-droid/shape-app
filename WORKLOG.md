@@ -11,6 +11,35 @@ file is the narrative companion to the live status dashboard in
 
 ---
 
+## Cycle 3 (PRs #759–#766)
+
+### Coach-editable client surfaces
+- **#759**: home **ticker editor in Settings** — client chooses which metrics show (persisted to `shapeDb` `client_ticker`); also fixed the "Inside Shape" data on the Shape Daily intro (filter to real recent posts, first-name authors).
+- **#760**: split the **grocery coach note** and the **home Op-ed** into two separate coach-editable messages (`coach_pushed_items` kind `grocery_note` vs `coach_focus_banners`), so editing one no longer overwrites the other.
+- **#761**: the nutritionist **Live Console pre-fills the existing grocery note** per client (GET returns `groceryNoteByClient`).
+
+### Grocery library overhaul (#762)
+- Tap a list row to **preview** its items (falls back to `bsLibraryPreviewItems` for built-ins without an explicit `items` array); **Load** now opens the list's real contents; **Edit** opens an editable copy (seeded for built-ins so edits persist); **Duplicate** shown only for meal-plan lists; **Delete** removes custom lists and hides built-ins via a persisted `shape.deletedGroceryIds` set.
+
+### Code-health pass — behavior-preserving cleanup (#762–#766)
+A review of both the mobile-app and website for inefficiency/duplication, applying **only** changes verified not to alter behavior (build + `tsc --noEmit`, every deletion grep-confirmed to have zero call-sites first).
+- **Dead code (#762, ~860 lines mobile):** `BSClientChatLegacy` (~540), `BSClientApp_old`, `_BSTrainerApp_old`, `_BSNutritionistApp_old`, the inert `BSBrowseChrome` (+mount+orphaned `BSPreviewNotice`/`BSSubscribeBanner`), the empty `injectBSFonts` IIFE, the stale `BSM_COACHES`/`BSM_FILTERS`/`BSN_FILTERS` dataset; website: unused `queries.ts` exports `getProviderAvailability`/`getMyAvailability`, dead `PublicHero`, orphaned `bgEditor.jsx`/`radioRooms.jsx`.
+- **Shared helpers (new `src/lib` modules):** `request-auth.ts` (`clientForRequest`/`currentUser`) replacing **22** identical copies across API routes — the 2 `console` routes were left alone (semantically different, no `persistSession`/`autoRefresh` flags); `time.ts` (`DAY_MS`/`startOfWeek`) replacing 6+4 copies; `loadStripe`/`StripeSummary` moved into `stripe.ts`; `coach-roster.ts` (`coachClientsResponse(role)`) collapsing the twin trainer/nutritionist **clients** routes (#766). Mobile `shapeBackend.js`: `getJsonOrDefault` for 8 best-effort reads (#763), `providerTable(role)` (#764), `COMMUNITY_POST_SELECT`, `saveApplicationFallback`→`saveLocalRecord`.
+- **Perf (#765):** memoized the large Train/Eat `MOCK_PROGRAM` demo literals (`useMemo(..., [t])`) so ~800 lines aren't re-allocated each render.
+- **Bug:** `t.RED` was undefined in the palette (error text rendered colorless) → switched Marketplace / ProviderApply error states to `t.RUST`.
+
+### Deliberately NOT done (would change behavior — left as-is)
+- `normalizeRole`/`normalizeProviderRole` (8 copies) are **genuinely divergent** (different return sets/defaults; `stripe/connect-account` uses fuzzy `.includes()`; `radio/rooms` defaults to `trainer`) — not safe to unify.
+- `mean`/`avg` copies are domain-specific inline math, not one helper.
+- **`dashboard` twins** emit role-specific output keys (`sessionsThisWeek` vs `consultsThisWeek`); **`analytics` twins** diverge substantially (different KPIs/queries) — neither is a safe merge.
+- Bearer-token POST helpers in `shapeBackend.js` differ per call site (throw vs return on missing URL) — left separate.
+
+### Still deferred (higher risk, want a manual pass)
+- `useUserGoals` hook to fold ~19 duplicated guarded `getUserGoals` effects in `iosAppBroadsheetClient.jsx` (heavy edits in a 9.9k-line file, no tests).
+- `newdesign` shared-includes (Goal/LiveConsole twins ~92% identical; lazy-load the heavy chat bundle on the ~32 pages that only need the button) — unbuilt browser-Babel pages, changes load order → needs per-page browser testing.
+
+---
+
 ## Cycle 2 (PRs #727–#745)
 
 ### Eat / Train redesign + coach swaps

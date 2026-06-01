@@ -457,6 +457,26 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Native Capacitor build: VITE_SUPABASE_URL/ANON set at build time', status: 'manual' },
       ],
     },
+    {
+      section: 'Client surfaces & library',
+      items: [
+        { label: 'Home ticker editor in Settings (client picks which metrics show)', status: 'done' },
+        { label: 'Grocery coach-note split from the home Op-ed (two separate coach-editable messages)', status: 'done' },
+        { label: 'Nutritionist Live Console pre-fills the existing grocery note per client', status: 'done' },
+        { label: 'Grocery library: tap-to-preview, Load real contents, Edit, meal-plan Duplicate, Delete', status: 'done' },
+        { label: '"Inside Shape" intro shows real recent community posts', status: 'done' },
+      ],
+    },
+    {
+      section: 'Code health (behavior-preserving)',
+      items: [
+        { label: 'Dead code removed (~860 lines mobile + website orphans), verified zero call-sites', status: 'done' },
+        { label: 'Shared API helpers: request-auth (22 routes), time, stripe loadStripe, coach-roster clients twin', status: 'done' },
+        { label: 'Mobile data-layer de-dup: getJsonOrDefault, providerTable, COMMUNITY_POST_SELECT', status: 'done' },
+        { label: 'Train/Eat MOCK_PROGRAM memoized; t.RED palette bug fixed (error text now renders)', status: 'done' },
+        { label: 'Deferred: useUserGoals hook + newdesign shared-includes (need a manual browser/device pass)', status: 'pending' },
+      ],
+    },
   ];
 }
 
