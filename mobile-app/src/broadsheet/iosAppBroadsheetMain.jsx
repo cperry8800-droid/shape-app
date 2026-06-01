@@ -708,16 +708,8 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
     } catch (err) { setAuthError(err?.message || 'Apple sign-in failed.'); }
   };
   return (
-    <div style={{ position: 'absolute', inset: 0, color: CREAM, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: '#0a0b0e' }}>
-      {/* Clean dark backdrop — soft purple glow + thin teal waves, top-right */}
-      <div aria-hidden style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', background: '#0a0b0e' }}>
-        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(135% 80% at 84% -8%, rgba(78,52,116,0.5) 0%, rgba(26,22,38,0.45) 36%, rgba(10,11,14,0) 68%), radial-gradient(120% 70% at 50% 120%, rgba(10,197,168,0.10), transparent 60%)' }} />
-        <svg style={{ position: 'absolute', top: 0, right: 0, width: '80%', maxWidth: 360, height: 'auto' }} viewBox="0 0 400 230" fill="none" aria-hidden>
-          <path d="M30,150 C150,86 250,66 430,24" stroke="#0ac5a8" strokeWidth="1.3" opacity="0.45" />
-          <path d="M60,184 C180,118 280,98 450,50" stroke="#2ee0c4" strokeWidth="1" opacity="0.3" />
-          <path d="M10,116 C140,64 260,46 440,4" stroke="#0ac5a8" strokeWidth="0.8" opacity="0.2" />
-        </svg>
-      </div>
+    <div style={{ position: 'absolute', inset: 0, color: CREAM, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <BSNightSky />
       <div className="bs-hide-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 'max(32px, calc(env(safe-area-inset-top, 0px) + 18px)) 22px calc(26px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', gap: 14 }}>
         {/* Logo lockup — top-left */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 5 }}>
