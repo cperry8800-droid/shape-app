@@ -1841,13 +1841,93 @@ function _bsUseServerHabits(tweaks, setTweak) {
   return { loggedIn, useServer, habits, create, upsert, remove, setVisibility, toggle };
 }
 
+// The "HABITS" log box from the design: a today counter + add button, a
+// Public/Friends/Private segmented filter, and tap-to-log tiles per habit
+// (Logged / Log now) with a × to remove. Logging persists via the shared
+// toggle() so it stays in sync with the grid + home tracker.
+function BSHabitLogBox({ habits, onToggle, onAdd, onRemove }) {
+  const t = useBS();
+  const hot = '#10c8b1';
+  const cardBg = '#1a1713';
+  const cardInk = '#f7f1e6';
+  const border = 'rgba(247,241,230,0.12)';
+  const muted = 'rgba(247,241,230,0.58)';
+  const TABS = [['public', 'Public'], ['friends', 'Friends'], ['private', 'Private']];
+  const visOf = (h) => (['private', 'friends', 'public'].includes(h.visibility) ? h.visibility : 'private');
+  // Default to a tab that actually has habits so the box isn't empty on open.
+  const firstVis = (habits[0] && visOf(habits[0])) || 'public';
+  const [tab, setTab] = useStateBSH(firstVis);
+  const shown = habits.filter((h) => visOf(h) === tab);
+  const doneCount = habits.filter((h) => (h.history || []).includes(_bsHabitsToday)).length;
+
+  return (
+    <div style={{ marginTop: 12, borderRadius: 10, border: `1px solid ${border}`, background: cardBg, color: cardInk, padding: 16, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 900, letterSpacing: '0.22em', textTransform: 'uppercase' }}>Habits</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: muted, textTransform: 'uppercase' }}>{doneCount}/{habits.length} Today</span>
+          {onAdd && (
+            <button type="button" onClick={onAdd} aria-label="Add habit" style={{ width: 28, height: 28, borderRadius: 999, border: `1px solid ${hot}`, background: 'transparent', color: hot, fontSize: 16, lineHeight: 1, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}>+</button>
+          )}
+        </div>
+      </div>
+
+      <div style={{ height: 1, background: border, margin: '12px 0 14px' }} />
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
+        {TABS.map(([key, label]) => {
+          const on = tab === key;
+          return (
+            <button key={key} type="button" onClick={() => setTab(key)} style={{
+              padding: '9px 8px', borderRadius: 999,
+              border: `1px solid ${on ? hot : border}`,
+              background: on ? 'rgba(16,200,177,0.12)' : 'transparent',
+              color: on ? hot : muted,
+              fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em',
+              textTransform: 'uppercase', cursor: 'pointer',
+            }}>{label}</button>
+          );
+        })}
+      </div>
+
+      {shown.length === 0 ? (
+        <div style={{ padding: '16px 4px', color: muted, fontFamily: t.DISPLAY, fontSize: 13 }}>
+          No {tab} habits yet. Tap + to add one.
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+          {shown.map((h) => {
+            const done = (h.history || []).includes(_bsHabitsToday);
+            return (
+              <div key={h.id} style={{
+                position: 'relative', borderRadius: 8,
+                border: `1px solid ${done ? hot : border}`,
+                background: done ? 'rgba(16,200,177,0.10)' : 'transparent',
+                padding: '12px 10px', minHeight: 66,
+              }}>
+                {onRemove && (
+                  <button type="button" onClick={() => { if (window.confirm(`Delete "${h.name}"?`)) onRemove(h.id); }} aria-label="Remove habit" style={{ position: 'absolute', top: 4, right: 5, border: 0, background: 'transparent', color: 'rgba(247,241,230,0.4)', fontSize: 14, lineHeight: 1, cursor: 'pointer', padding: 3 }}>×</button>
+                )}
+                <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: h.type === 'avoid' ? '#ff6a5c' : muted, paddingRight: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.name}</div>
+                <button type="button" onClick={() => onToggle(h.id)} style={{ marginTop: 10, border: 0, background: 'transparent', padding: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, color: done ? hot : cardInk }}>
+                  {done ? 'Logged' : 'Log now'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
   const t = useBS();
   const { BSPage, BSDetailHeader } = window;
 
   // Live (Supabase) when signed in, ephemeral tweaks otherwise — shared with
   // the home tracker so completions and edits stay in sync across surfaces.
-  const { habits, upsert, remove: removeHabit, setVisibility: setHabitVisibility } = _bsUseServerHabits(tweaks, setTweak);
+  const { habits, upsert, remove: removeHabit, setVisibility: setHabitVisibility, toggle } = _bsUseServerHabits(tweaks, setTweak);
   const [adding, setAdding] = useStateBSH(false);
 
   // Open the in-app add form. (Previously used window.prompt, which is
@@ -1867,6 +1947,7 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
       />
       <div style={{ padding: `12px ${t.padX}px 0` }}>
         <BSHabitInsights habits={habits} accent={accent} onOpenScore={onOpenScore} onAddHabit={addHabit} onDeleteHabit={removeHabit} onSetVisibility={setHabitVisibility} />
+        <BSHabitLogBox habits={habits} onToggle={toggle} onAdd={addHabit} onRemove={removeHabit} />
         {adding && (
           <BSHabitForm
             onSave={(h) => { upsert(h); setAdding(false); }}
