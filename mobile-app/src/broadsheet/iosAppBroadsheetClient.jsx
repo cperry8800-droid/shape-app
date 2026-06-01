@@ -8010,7 +8010,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
         }}>Score</button>}
       />
 
-      <div style={{ padding: `12px ${t.padX}px 12px`, borderBottom: `1px solid ${t.RULE}`, background: t.INK, color: t.PAPER }}>
+      <div style={{ margin: `12px ${t.padX}px`, padding: '14px 16px', borderRadius: 16, background: t.INK, color: t.PAPER }}>
         <BSEyebrow color={t.ACCENT}>Available balance</BSEyebrow>
         <div style={{ marginTop: 5, display: 'flex', alignItems: 'baseline', gap: 7 }}>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, lineHeight: 0.9, letterSpacing: '-0.05em' }}>{balance.toLocaleString()}</div>
