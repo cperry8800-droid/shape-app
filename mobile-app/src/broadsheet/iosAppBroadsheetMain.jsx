@@ -13,20 +13,32 @@ let _prosBundlePromise = null;
 
 function loadClientBundle() {
   if (_clientBundlePromise) return _clientBundlePromise;
+  // Load the feature modules FIRST so their window globals (BSSheetProvider,
+  // BSCalendarScreen, BSMarketplaceScreen, …) exist before the client module
+  // evaluates and destructures them at module-load. Otherwise the client can
+  // evaluate first, capture `undefined`, and crash with React #130.
   _clientBundlePromise = Promise.all([
     import('./iosAppBroadsheetCalendar.jsx'),
     import('./iosAppBroadsheetProviderApply.jsx'),
     import('./iosAppBroadsheetMarketplace.jsx'),
     import('./iosAppBroadsheetWidgets.jsx'),
     import('./iosAppBroadsheetHabits.jsx'),
-    import('./iosAppBroadsheetClient.jsx'),
-  ]).then(() => true);
+  ]).then(() => import('./iosAppBroadsheetClient.jsx')).then(() => true);
   return _clientBundlePromise;
 }
 
 function loadProsBundle() {
   if (_prosBundlePromise) return _prosBundlePromise;
-  _prosBundlePromise = import('./iosAppBroadsheetPros.jsx').then(() => true);
+  // Same as the client bundle: feature modules first (they define the window
+  // globals pros destructures at load — BSSheetProvider, BSCalendarScreen, …),
+  // then the pros module last.
+  _prosBundlePromise = Promise.all([
+    import('./iosAppBroadsheetCalendar.jsx'),
+    import('./iosAppBroadsheetProviderApply.jsx'),
+    import('./iosAppBroadsheetMarketplace.jsx'),
+    import('./iosAppBroadsheetWidgets.jsx'),
+    import('./iosAppBroadsheetHabits.jsx'),
+  ]).then(() => import('./iosAppBroadsheetPros.jsx')).then(() => true);
   return _prosBundlePromise;
 }
 
