@@ -2423,16 +2423,21 @@ function sessionsAuthHeaders(extra = {}) {
   if (state.session?.access_token) h.Authorization = `Bearer ${state.session.access_token}`;
   return h;
 }
-async function getSessions() {
-  if (!supabase || !state.user?.id) return [];
+// Best-effort authenticated GET: returns `fallback` on missing session, a
+// non-OK response, or any error. `transform` shapes a successful JSON body.
+async function getJsonOrDefault(url, fallback, transform) {
+  if (!supabase || !state.user?.id) return fallback;
   try {
-    const res = await fetch(sessionsApiUrl(), { headers: sessionsAuthHeaders(), credentials: 'same-origin', cache: 'no-store' });
-    if (!res.ok) return [];
+    const res = await fetch(url, { headers: sessionsAuthHeaders(), credentials: 'same-origin', cache: 'no-store' });
+    if (!res.ok) return fallback;
     const data = await res.json();
-    return Array.isArray(data.sessions) ? data.sessions : [];
+    return transform ? transform(data) : data;
   } catch (e) {
-    return [];
+    return fallback;
   }
+}
+async function getSessions() {
+  return getJsonOrDefault(sessionsApiUrl(), [], (data) => (Array.isArray(data.sessions) ? data.sessions : []));
 }
 async function manageSession({ sessionId, action } = {}) {
   const res = await fetch(sessionsApiUrl(), {
@@ -2448,15 +2453,8 @@ async function manageSession({ sessionId, action } = {}) {
 
 // ─── Notifications (in-app feed + live bell) ─────────────────────────────────
 async function listNotifications() {
-  if (!supabase || !state.user?.id) return { notifications: [], unread: 0 };
-  try {
-    const res = await fetch(`${apiBaseUrl || ''}/api/notifications`, { headers: sessionsAuthHeaders(), credentials: 'same-origin', cache: 'no-store' });
-    if (!res.ok) return { notifications: [], unread: 0 };
-    const data = await res.json();
-    return { notifications: Array.isArray(data.notifications) ? data.notifications : [], unread: data.unread || 0 };
-  } catch (e) {
-    return { notifications: [], unread: 0 };
-  }
+  return getJsonOrDefault(`${apiBaseUrl || ''}/api/notifications`, { notifications: [], unread: 0 },
+    (data) => ({ notifications: Array.isArray(data.notifications) ? data.notifications : [], unread: data.unread || 0 }));
 }
 async function markNotificationRead({ id, all } = {}) {
   const res = await fetch(`${apiBaseUrl || ''}/api/notifications`, {
@@ -2482,16 +2480,9 @@ function subscribeNotifications(onInsert) {
 
 // ─── Activities (typed log + manual logging) ─────────────────────────────────
 async function listActivities(clientId) {
-  if (!supabase || !state.user?.id) return { activities: [], breakdown: [], totalMinutes: 0 };
-  try {
-    const qs = clientId ? `?clientId=${encodeURIComponent(clientId)}` : '';
-    const res = await fetch(`${apiBaseUrl || ''}/api/client/activities${qs}`, { headers: sessionsAuthHeaders(), credentials: 'same-origin', cache: 'no-store' });
-    if (!res.ok) return { activities: [], breakdown: [], totalMinutes: 0 };
-    const d = await res.json();
-    return { activities: d.activities || [], breakdown: d.breakdown || [], totalMinutes: d.totalMinutes || 0 };
-  } catch (e) {
-    return { activities: [], breakdown: [], totalMinutes: 0 };
-  }
+  const qs = clientId ? `?clientId=${encodeURIComponent(clientId)}` : '';
+  return getJsonOrDefault(`${apiBaseUrl || ''}/api/client/activities${qs}`, { activities: [], breakdown: [], totalMinutes: 0 },
+    (d) => ({ activities: d.activities || [], breakdown: d.breakdown || [], totalMinutes: d.totalMinutes || 0 }));
 }
 async function logActivity({ activityType, durationMin, distanceKm, calories, startedAt, title } = {}) {
   const res = await fetch(`${apiBaseUrl || ''}/api/client/activities`, {
@@ -2507,19 +2498,12 @@ async function logActivity({ activityType, durationMin, distanceKm, calories, st
 
 // ─── Calendar (shared with website via /api/calendar) ────────────────────────
 async function listCalendar({ from, to, clientId } = {}) {
-  if (!supabase || !state.user?.id) return { events: [] };
-  try {
-    const qs = new URLSearchParams();
-    if (from) qs.set('from', from);
-    if (to) qs.set('to', to);
-    if (clientId) qs.set('clientId', clientId);
-    const res = await fetch(`${apiBaseUrl || ''}/api/calendar?${qs.toString()}`, { headers: sessionsAuthHeaders(), credentials: 'same-origin', cache: 'no-store' });
-    if (!res.ok) return { events: [] };
-    const d = await res.json();
-    return { events: Array.isArray(d.events) ? d.events : [] };
-  } catch (e) {
-    return { events: [] };
-  }
+  const qs = new URLSearchParams();
+  if (from) qs.set('from', from);
+  if (to) qs.set('to', to);
+  if (clientId) qs.set('clientId', clientId);
+  return getJsonOrDefault(`${apiBaseUrl || ''}/api/calendar?${qs.toString()}`, { events: [] },
+    (d) => ({ events: Array.isArray(d.events) ? d.events : [] }));
 }
 async function createCalendarEvent(body = {}) {
   const res = await fetch(`${apiBaseUrl || ''}/api/calendar`, {
@@ -2577,51 +2561,23 @@ window.ShapeCheckin = { log: logCheckin };
 
 // Shape Score leaderboard (cross-user ranking via SECURITY DEFINER RPC).
 async function getLeaderboard(period = 'month') {
-  if (!supabase || !state.user?.id) return { entries: [], me: null };
-  try {
-    const res = await fetch(`${apiBaseUrl || ''}/api/leaderboard?period=${encodeURIComponent(period)}`, { headers: sessionsAuthHeaders(), credentials: 'same-origin', cache: 'no-store' });
-    if (!res.ok) return { entries: [], me: null };
-    return await res.json();
-  } catch (e) {
-    return { entries: [], me: null };
-  }
+  return getJsonOrDefault(`${apiBaseUrl || ''}/api/leaderboard?period=${encodeURIComponent(period)}`, { entries: [], me: null });
 }
 window.ShapeLeaderboard = { get: getLeaderboard };
 
 // Client analytics (home cards + ticker). Bearer in native, cookie on /m/.
 async function getAnalytics() {
-  if (!supabase || !state.user?.id) return null;
-  try {
-    const res = await fetch(`${apiBaseUrl || ''}/api/client/analytics`, { headers: sessionsAuthHeaders(), credentials: 'same-origin', cache: 'no-store' });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (e) {
-    return null;
-  }
+  return getJsonOrDefault(`${apiBaseUrl || ''}/api/client/analytics`, null);
 }
 async function getProgress() {
-  if (!supabase || !state.user?.id) return null;
-  try {
-    const res = await fetch(`${apiBaseUrl || ''}/api/client/progress`, { headers: sessionsAuthHeaders(), credentials: 'same-origin', cache: 'no-store' });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (e) {
-    return null;
-  }
+  return getJsonOrDefault(`${apiBaseUrl || ''}/api/client/progress`, null);
 }
 window.ShapeAnalytics = { get: getAnalytics, getProgress };
 
 // Prescribed plan — assigned training + meal plan. Bearer in native, cookie
 // on /m/. Returns null on any failure so callers fall back to demo content.
 async function getPlan() {
-  if (!supabase || !state.user?.id) return null;
-  try {
-    const res = await fetch(`${apiBaseUrl || ''}/api/client/plan`, { headers: sessionsAuthHeaders(), credentials: 'same-origin', cache: 'no-store' });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (e) {
-    return null;
-  }
+  return getJsonOrDefault(`${apiBaseUrl || ''}/api/client/plan`, null);
 }
 window.ShapePlan = { get: getPlan };
 
