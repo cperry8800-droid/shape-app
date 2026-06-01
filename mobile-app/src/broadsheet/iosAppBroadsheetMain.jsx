@@ -266,15 +266,10 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
   const t = useBS();
   const SPLASH_FACE = "'Saira', 'Arial Narrow', 'Helvetica Neue', sans-serif";
   // Classified is interactive: user must tap "Step inside" — no auto-advance.
-  const [zoom, setZoom] = useStateBSM(false);
   useEffectBSM(() => {
     if (style === 'classified') return; // classified is tap-only
-    const cosmos = (style === 'cosmos' || !style);
-    const total = cosmos ? 3200 : 1600;
-    const timers = [setTimeout(onDone, total)];
-    // Cosmos: zoom the mark up to fill the screen as a transition into login.
-    if (cosmos) timers.push(setTimeout(() => setZoom(true), total - 1150));
-    return () => timers.forEach(clearTimeout);
+    const id = setTimeout(onDone, (style === 'cosmos' || !style) ? 2600 : 1600);
+    return () => clearTimeout(id);
   }, [style]);
 
   // ── 0. COSMOS (default): colourful night sky + floating Shape mark ──
@@ -282,11 +277,9 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
     return (
       <div onClick={onDone} style={{ position: 'absolute', inset: 0, color: '#f4efe6', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', cursor: 'pointer' }}>
         <BSNightSky />
-        <div className={`bs-splash-zoom${zoom ? ' zooming' : ''}`} style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <BSShapeMark size={132} />
         </div>
-        <div aria-hidden className={`bs-splash-burst${zoom ? ' fire' : ''}`} />
-        <div aria-hidden className={`bs-splash-beam${zoom ? ' fire' : ''}`} />
       </div>
     );
   }
@@ -889,7 +882,7 @@ function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
         <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '8px 16px', marginTop: 2 }}>
           <button onClick={() => { setMode(isCreate ? 'signin' : 'create'); setAuthError(''); }} style={linkBtn}>{isCreate ? 'Have an account? Sign in' : 'New here? Join Shape'}</button>
           {isPhone && <button onClick={() => switchMethod('email')} style={linkBtn}>Use email instead</button>}
-          <button onClick={onBrowse} style={{ ...linkBtn, color: '#2ee0c4' }}>No account? Browse the app →</button>
+          <button onClick={onBrowse} style={{ background: 'rgba(46,224,196,0.12)', border: '1px solid #2ee0c4', borderRadius: 999, color: '#2ee0c4', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '8px 16px' }}>No account? Browse the app →</button>
         </div>
       </div>
     </div>

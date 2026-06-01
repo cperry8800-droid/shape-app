@@ -388,12 +388,12 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
         active={tab}
         onChange={setTab}
         tabs={[
-          { key: 'home',  label: 'Home' },
-          { key: 'train', label: 'Train' },
-          { key: 'eat',   label: 'Eat' },
-          { key: 'chat',  label: 'Chat' },
-          { key: 'store', label: 'Store' },
-          { key: 'me',    label: 'Me' },
+          { key: 'home',  label: 'Home',  emoji: '🏠' },
+          { key: 'train', label: 'Train', emoji: '🏋️' },
+          { key: 'eat',   label: 'Eat',   emoji: '🍎' },
+          { key: 'chat',  label: 'Chat',  emoji: '💬' },
+          { key: 'store', label: 'Store', emoji: '🛒' },
+          { key: 'me',    label: 'Me',    emoji: '👤' },
         ]}
       />
       <BSRadioPrompt />
