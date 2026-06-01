@@ -8258,31 +8258,33 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
         <div style={{ height: 4, background: t.HAIR, position: 'relative', marginBottom: 10 }}>
           <div style={{ width: `${pct}%`, height: '100%', background: t.ACCENT }} />
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
           <span>{pct}% complete</span>
-          <span>{list.aisles.length} aisles · ~22 min</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span>{list.aisles.length} aisles · ~22 min</span>
+            <button onClick={() => setChecked(new Set())} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700, color: t.INK }}>Reset ↺</button>
+          </div>
         </div>
         <div style={{ borderRadius: t.RADIUS_SM, marginTop: 14, padding: 14, background: t.PAPER2, border: `1px solid ${t.INK}` }}>
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.AMBER, fontWeight: 700, marginBottom: 6 }}>▍ From {noteAuthor}</div>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, fontStyle: 'italic', lineHeight: 1.4, letterSpacing: '-0.005em' }}>{noteText}</div>
         </div>
-        <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'nowrap' }}>
           <button style={{ borderRadius: t.RADIUS_SM,
-            flex: 1, padding: '12px 14px', background: t.INK, color: t.PAPER, border: 0, cursor: 'pointer',
-            fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
+            flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            padding: '12px 12px', background: t.INK, color: t.PAPER, border: 0, cursor: 'pointer',
+            fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700,
           }}>Send to Instacart →</button>
           <button onClick={onLibrary} style={{ borderRadius: t.RADIUS_SM,
-            padding: '12px 14px', background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, cursor: 'pointer',
-            fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
+            flex: '0 0 auto', whiteSpace: 'nowrap',
+            padding: '12px 12px', background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, cursor: 'pointer',
+            fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700,
           }}>Library {recipeLists.length ? `(${recipeLists.length})` : ''}</button>
           <button onClick={onCreate} style={{ borderRadius: t.RADIUS_SM,
-            padding: '12px 14px', background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, cursor: 'pointer',
-            fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
+            flex: '0 0 auto', whiteSpace: 'nowrap',
+            padding: '12px 12px', background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, cursor: 'pointer',
+            fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700,
           }}>+ New</button>
-          <button onClick={() => setChecked(new Set())} style={{ borderRadius: t.RADIUS_SM,
-            padding: '12px 14px', background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, cursor: 'pointer',
-            fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
-          }}>Reset</button>
         </div>
       </div>
 
