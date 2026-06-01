@@ -1923,7 +1923,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   }, []);
 
   // ── Per-day program (demo fallback, May 8–14, 2026) ──
-  const MOCK_PROGRAM = [
+  const MOCK_PROGRAM = React.useMemo(() => [
     {
       d: 'M 17',
       kicker: 'The Training',
@@ -2058,7 +2058,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       total: '0 sessions',
       coachLine: 'A skipped rest day is a skipped peak. Take it.',
     },
-  ];
+  ], [t]);
 
   const PROGRAM = liveProgram || MOCK_PROGRAM;
   const cur = PROGRAM[day] || PROGRAM[0];
@@ -3134,7 +3134,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
   }, []);
 
   // ── 7-day menu program (demo fallback, May 8–14, 2026 — same week as Train)
-  const MOCK_PROGRAM = [
+  const MOCK_PROGRAM = React.useMemo(() => [
     {
       d: 'M 17',
       kicker: 'Section · Nutrition',
@@ -3805,7 +3805,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
         }),
       ],
     },
-  ];
+  ], [t]);
 
   const PROGRAM = liveProgram || MOCK_PROGRAM;
   const recipeArchive = PROGRAM
