@@ -222,7 +222,13 @@ export async function GET(request: Request) {
     .order('sent_at', { ascending: true });
 
   const itemsByClient: Record<string, Array<Record<string, unknown>>> = {};
+  const groceryNoteByClient: Record<string, string> = {};
   for (const r of (itemRows ?? []) as PushedItemRow[]) {
+    if (r.kind === 'grocery_note') {
+      const text = r.payload && typeof r.payload.text === 'string' ? r.payload.text : '';
+      if (text) groceryNoteByClient[r.client_id] = text; // ascending order → last wins = latest
+      continue;
+    }
     const list = itemsByClient[r.client_id] ?? [];
     list.push({ id: r.id, ...(r.payload ?? {}) });
     itemsByClient[r.client_id] = list;
@@ -232,6 +238,7 @@ export async function GET(request: Request) {
     isNutritionist: true,
     clients,
     focusByClient,
+    groceryNoteByClient,
     itemsByClient,
     snapshotByClient,
     seriesByClient,
