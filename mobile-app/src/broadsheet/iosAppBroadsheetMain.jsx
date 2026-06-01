@@ -682,127 +682,137 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
   const LINE2 = 'rgba(244,239,230,0.34)';
   const FIELD = 'rgba(255,255,255,0.05)';
   const SHAPE_GRAD = { background: 'linear-gradient(90deg, #2ee0c4, #8a5cf6 70%, #ec4899)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' };
-  const inputStyle = { borderRadius: t.RADIUS_SM, background: FIELD, border: `1px solid ${LINE}`, borderBottom: `1px solid ${LINE2}`, padding: '12px 12px', fontFamily: t.DISPLAY, fontSize: 16, color: CREAM, outline: 'none' };
+  const inputStyle = { width: '100%', boxSizing: 'border-box', borderRadius: t.RADIUS_SM, background: FIELD, border: `1px solid ${LINE}`, borderBottom: `1px solid ${LINE2}`, padding: '14px 14px', fontFamily: t.DISPLAY, fontSize: 16, color: CREAM, outline: 'none' };
+  const labelStyle = { fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C50, marginBottom: 7 };
+  const linkBtn = { background: 'transparent', border: 0, color: C50, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '2px 0' };
+  const roleLabel = { client: 'Client', trainer: 'Trainer', nutritionist: 'Nutritionist' }[role] || 'Client';
+  // Forgot password — best effort via the auth layer; degrades to a neutral notice.
+  const forgotPassword = async () => {
+    setAuthError('');
+    const auth = window.ShapeAuth;
+    const e = email.trim();
+    if (!e) { setAuthError('Enter your email first, then tap forgot password.'); return; }
+    try {
+      if (auth?.resetPassword) { await auth.resetPassword(e); }
+      window.__bsToast?.('If that account exists, a reset link is on its way.', 'ok');
+    } catch (err) { setAuthError(err?.message || 'Could not send the reset email.'); }
+  };
+  // Continue with Apple — uses the auth layer if wired, else a graceful notice.
+  const continueWithApple = async () => {
+    setAuthError('');
+    const auth = window.ShapeAuth;
+    try {
+      if (auth?.signInWithApple) { const result = await auth.signInWithApple({ role }); onLogin(result); }
+      else if (auth?.signInWithOAuth) { await auth.signInWithOAuth('apple', { role }); }
+      else { window.__bsToast?.('Apple sign-in is coming soon.', 'info'); }
+    } catch (err) { setAuthError(err?.message || 'Apple sign-in failed.'); }
+  };
   return (
     <div style={{ position: 'absolute', inset: 0, color: CREAM, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <BSNightSky />
       <div className="bs-hide-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 'max(52px, calc(env(safe-area-inset-top, 0px) + 26px)) 20px calc(28px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', gap: 18 }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C70, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${LINE2}`, paddingBottom: 10 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><BSLogo size={16} color={CREAM} /> Vol. 6 · {isCreate ? 'New subscriber' : 'Subscribe'}</span>
-          <span>{isCreate ? 'Time to Shape' : '$5 / mo'}</span>
+        {/* Logo */}
+        <div><BSLogo size={20} color={CREAM} /></div>
+
+        {/* Eyebrow + heading */}
+        <div>
+          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#2ee0c4', fontWeight: 700 }}>
+            {isCreate ? 'Join Shape' : 'Sign in'}
+          </div>
+          <div style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 500, fontSize: 52, lineHeight: 0.9, letterSpacing: '-0.055em', color: CREAM, marginTop: 10 }}>
+            {isCreate ? (
+              <>Join the<br/><span style={{ fontWeight: 400, fontStyle: 'italic', letterSpacing: '-0.065em', color: '#2ee0c4' }}>community.</span></>
+            ) : (
+              <>Welcome<br/><span style={{ fontWeight: 400, fontStyle: 'italic', letterSpacing: '-0.065em', color: '#2ee0c4' }}>back.</span></>
+            )}
+          </div>
         </div>
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 18 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-            <BSShapeMark size={64} />
-            <div style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 500, fontSize: 48, lineHeight: 0.9, letterSpacing: '-0.055em', color: CREAM, textAlign: 'center' }}>
-              {isCreate ? (
-                <>Join the<br/><span style={{ fontWeight: 400, fontStyle: 'italic', letterSpacing: '-0.065em', ...SHAPE_GRAD }}>community.</span></>
-              ) : (
-                <>Welcome<br/>to <span style={{ display: 'inline-block', fontFamily: `'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif`, fontWeight: 300, fontStyle: 'normal', fontSize: 48, letterSpacing: '0.16em', textTransform: 'uppercase', transform: 'translateY(2px)', color: '#ffffff' }}>SHAPE</span>.</>
-              )}
-            </div>
-          </div>
-
-          {/* Sign in / Create account toggle */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', border: `1px solid ${LINE2}`, borderRadius: t.RADIUS_SM, overflow: 'hidden' }}>
-            {[['signin','Sign in'],['create','Join Shape']].map(([k, l]) => {
-              const on = mode === k;
-              return <button key={k} onClick={() => setMode(k)} style={{
-                padding: '11px 4px', border: 0, background: on ? '#0ac5a8' : 'transparent',
-                color: on ? '#031f1c' : CREAM, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 700,
-                letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
+        {/* Role */}
+        <div>
+          <div style={labelStyle}>I'm a</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, border: `1px solid ${LINE2}`, borderRadius: 999, padding: 4 }}>
+            {[['client','Client'],['trainer','Trainer'],['nutritionist','Nutritionist']].map(([k, l]) => {
+              const on = role === k;
+              return <button key={k} onClick={() => setRole(k)} style={{
+                padding: '11px 4px', borderRadius: 999, border: 0,
+                background: on ? '#0ac5a8' : 'transparent', color: on ? '#031f1c' : CREAM,
+                fontFamily: t.DISPLAY, fontSize: 13, fontWeight: on ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap',
               }}>{l}</button>;
             })}
           </div>
+        </div>
 
-          {/* Email / Phone method switch */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 2 }}>
-            {[['email', 'Email'], ['phone', 'Phone']].map(([k, l]) => {
-              const on = authMethod === k;
-              return <button key={k} onClick={() => switchMethod(k)} style={{ borderRadius: t.RADIUS_SM,
-                padding: '9px 4px', border: `1px solid ${on ? '#0ac5a8' : LINE}`,
-                background: on ? 'rgba(10,197,168,0.14)' : 'transparent',
-                color: CREAM, fontFamily: t.MONO, fontSize: 10, fontWeight: 700,
-                letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer',
-              }}>{l}</button>;
-            })}
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 2 }}>
-            {isCreate && (
-              <input placeholder="Full name" value={fullName} onChange={(e) => setFullName(e.target.value)} style={inputStyle} />
-            )}
-            {isPhone ? (
-              <>
-                <input placeholder="Phone (+1 555 123 4567)" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" disabled={otpSent} style={{ ...inputStyle, color: otpSent ? C50 : CREAM }} />
-                {otpSent && (
-                  <input placeholder="6-digit code" type="tel" inputMode="numeric" value={otpCode} onChange={(e) => setOtpCode(e.target.value)} autoComplete="one-time-code" style={{ ...inputStyle, fontSize: 22, letterSpacing: '0.3em' }} />
-                )}
-                {otpSent && (
-                  <button onClick={() => { setOtpSent(false); setOtpCode(''); setAuthError(''); }} style={{ alignSelf: 'flex-start', background: 'transparent', border: 0, color: C50, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '2px 0' }}>← Change number</button>
-                )}
-              </>
-            ) : (
-              <>
-                <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" style={inputStyle} />
-                <input placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={isCreate ? 'new-password' : 'current-password'} style={inputStyle} />
-              </>
-            )}
-            {authError && (
-              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#ff9b7a', lineHeight: 1.35 }}>
-                {authError}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: C50, marginBottom: 8 }}>I am a…</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-              {[['client','Client'],['trainer','Trainer'],['nutritionist','Nutri']].map(([k, l]) => {
-                const on = role === k;
-                return <button key={k} onClick={() => setRole(k)} style={{ borderRadius: t.RADIUS_SM, padding: 12, border: `1px solid ${on ? '#0ac5a8' : LINE2}`, background: on ? '#0ac5a8' : 'transparent', color: on ? '#031f1c' : CREAM, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>{l}</button>;
-              })}
+        {/* Fields */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {isCreate && (
+            <div><div style={labelStyle}>Full name</div>
+              <input placeholder="Your name" value={fullName} onChange={(e) => setFullName(e.target.value)} style={inputStyle} />
             </div>
-          </div>
-
-          {/* Primary action — sign in or create the account */}
-          {isCreate ? (
-            isPhone ? (
-              <button onClick={otpSent ? verifyPhoneCode : sendPhoneCode} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: 'transparent', color: CREAM, border: `1px solid #0ac5a8`, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Working...' : otpSent ? 'Verify & join →' : 'Text me a code →'}</button>
-            ) : (
-              <button onClick={submitAuth} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: 'transparent', color: CREAM, border: `1px solid #0ac5a8`, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Creating...' : 'Time to Shape →'}</button>
-            )
-          ) : (
-            isPhone ? (
-              <button onClick={otpSent ? verifyPhoneCode : sendPhoneCode} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: 'transparent', color: CREAM, border: `1px solid #0ac5a8`, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Working...' : otpSent ? 'Verify & sign in →' : 'Text me a code →'}</button>
-            ) : (
-              <button onClick={submitAuth} disabled={busy} style={{ borderRadius: t.RADIUS_SM, marginTop: 8, padding: 16, background: 'transparent', color: CREAM, border: `1px solid #0ac5a8`, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Signing in...' : 'Sign in →'}</button>
-            )
           )}
-
-          {/* Browse path — always available, below the primary button, so anyone
-              can look around before creating an account. */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
-            <div style={{ flex: 1, height: 1, background: LINE }} />
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.28em', textTransform: 'uppercase', color: C50 }}>or</div>
-            <div style={{ flex: 1, height: 1, background: LINE }} />
-          </div>
-
-          <div style={{ textAlign: 'center', marginTop: -2 }}>
-            <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, color: CREAM, lineHeight: 1.25 }}>
-              Just want to look around?
+          {isPhone ? (
+            <>
+              <div><div style={labelStyle}>Phone</div>
+                <input placeholder="+1 555 123 4567" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" disabled={otpSent} style={{ ...inputStyle, color: otpSent ? C50 : CREAM }} />
+              </div>
+              {otpSent && (
+                <div><div style={labelStyle}>Code</div>
+                  <input placeholder="6-digit code" type="tel" inputMode="numeric" value={otpCode} onChange={(e) => setOtpCode(e.target.value)} autoComplete="one-time-code" style={{ ...inputStyle, fontSize: 20, letterSpacing: '0.3em' }} />
+                </div>
+              )}
+              {otpSent && (
+                <button onClick={() => { setOtpSent(false); setOtpCode(''); setAuthError(''); }} style={{ alignSelf: 'flex-start', ...linkBtn }}>← Change number</button>
+              )}
+            </>
+          ) : (
+            <>
+              <div><div style={labelStyle}>Email</div>
+                <input placeholder="you@example.com" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" style={inputStyle} />
+              </div>
+              <div><div style={labelStyle}>Password</div>
+                <input placeholder="••••••••" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={isCreate ? 'new-password' : 'current-password'} style={inputStyle} />
+              </div>
+            </>
+          )}
+          {authError && (
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#ff9b7a', lineHeight: 1.35 }}>
+              {authError}
             </div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: C50, marginTop: 3 }}>
-              Browse the app — no account needed.
-            </div>
-          </div>
-
-          <button onClick={onBrowse} style={{ borderRadius: t.RADIUS_SM, padding: '14px 16px', background: '#0ac5a8', color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: 'pointer' }}>Browse the app →</button>
+          )}
+          {!isCreate && !isPhone && (
+            <button onClick={forgotPassword} style={{ alignSelf: 'flex-end', background: 'transparent', border: 0, color: '#2ee0c4', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer', padding: '2px 0' }}>Forgot password →</button>
+          )}
         </div>
 
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: C50, textAlign: 'center', borderTop: `1px solid ${LINE}`, paddingTop: 12 }}>
-          {isCreate ? 'Already a subscriber · Forgot password · Help' : 'New reader · Forgot password · Help'}
+        {/* Primary action — cream button */}
+        <button
+          onClick={isPhone ? (otpSent ? verifyPhoneCode : sendPhoneCode) : submitAuth}
+          disabled={busy}
+          style={{ width: '100%', borderRadius: 14, padding: '17px 16px', background: CREAM, color: '#0b0c0c', border: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1 }}>
+          {busy
+            ? (isCreate ? 'Creating…' : 'Signing in…')
+            : isPhone
+              ? (otpSent ? (isCreate ? 'Verify & join →' : 'Verify & sign in →') : 'Text me a code →')
+              : (isCreate ? `Join as ${roleLabel} →` : `Sign in as ${roleLabel} →`)}
+        </button>
+
+        {/* OR */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ flex: 1, height: 1, background: LINE }} />
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.3em', textTransform: 'uppercase', color: C50 }}>or</div>
+          <div style={{ flex: 1, height: 1, background: LINE }} />
+        </div>
+
+        {/* Continue with Apple */}
+        <button onClick={continueWithApple} style={{ width: '100%', borderRadius: 14, padding: 16, background: 'rgba(255,255,255,0.04)', color: CREAM, border: `1px solid ${LINE2}`, fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9 }}>
+          <span style={{ fontSize: 17, lineHeight: 1, marginTop: -3 }}></span> Continue with Apple
+        </button>
+
+        {/* Secondary links */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '8px 16px', marginTop: 2 }}>
+          <button onClick={() => { setMode(isCreate ? 'signin' : 'create'); setAuthError(''); }} style={linkBtn}>{isCreate ? 'Have an account? Sign in' : 'New here? Join Shape'}</button>
+          <button onClick={() => switchMethod(isPhone ? 'email' : 'phone')} style={linkBtn}>{isPhone ? 'Use email' : 'Use phone'}</button>
+          <button onClick={onBrowse} style={linkBtn}>Browse the app</button>
         </div>
       </div>
     </div>

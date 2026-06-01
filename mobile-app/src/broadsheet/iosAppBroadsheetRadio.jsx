@@ -380,9 +380,9 @@ function BSRadioPrompt() {
     <div style={{
       position: 'absolute', inset: 0, zIndex: 90,
       color: t.INK,
-      // Website Shape Radio photo backdrop + a teal→violet→magenta colour wash.
+      // Teal→violet→magenta colour wash over the deep base (photo backdrop removed).
       background: isLight ? t.PAPER : '#0b0c0c',
-      backgroundImage: isLight ? undefined : `linear-gradient(135deg, rgba(10,197,168,0.22), rgba(138,92,246,0.12) 50%, rgba(236,72,153,0.18)), linear-gradient(rgba(8,10,10,0.38), rgba(8,10,10,0.74)), url('${import.meta.env.BASE_URL}radio-bg.jpg')`,
+      backgroundImage: isLight ? undefined : `linear-gradient(135deg, rgba(10,197,168,0.22), rgba(138,92,246,0.12) 50%, rgba(236,72,153,0.18))`,
       backgroundSize: 'cover',
       backgroundPosition: 'center 22%',
       backgroundRepeat: 'no-repeat',
