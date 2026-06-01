@@ -43,9 +43,22 @@ const D_FWD = (n) => new Date(Date.now() + n * 86400000).toISOString();
 // Mock data — shown while the API loads, or when the viewer is signed out.
 const MOCK_TRAIN = {
   assignedWorkouts: [
-    { id: "w1", title: "Lower strength — Block 3", description: "Squat-focused session, 5 exercises, ~52 min.", kind: "custom" },
-    { id: "w2", title: "Upper pull", description: "Row and vertical-pull volume.", kind: "template" },
-    { id: "w3", title: "Long run prep", description: "Zone 2 base with closing strides.", kind: "template" },
+    { id: "w1", title: "Lower strength — Block 3", description: "Squat-focused session, 5 exercises, ~52 min.", kind: "custom", programmedBy: "Marcus",
+      moves: [
+        { name: "Back squat", detail: "5 × 5 @ 225 lb", alternatives: ["Front squat", "Hack squat", "Goblet squat"] },
+        { name: "Romanian deadlift", detail: "4 × 8 @ 155 lb", alternatives: ["Dumbbell RDL", "Good morning"] },
+        { name: "Walking lunge", detail: "3 × 12 ea", alternatives: ["Split squat", "Step-up"] },
+        { name: "Leg curl", detail: "3 × 12", alternatives: ["Nordic curl", "Glute-ham raise"] },
+        { name: "Standing calf raise", detail: "4 × 15", alternatives: ["Seated calf raise"] },
+      ] },
+    { id: "w2", title: "Upper pull", description: "Row and vertical-pull volume.", kind: "template", programmedBy: "Marcus",
+      moves: [
+        { name: "Pull-up", detail: "4 × 6-8", alternatives: ["Lat pulldown", "Assisted pull-up"] },
+        { name: "Barbell row", detail: "4 × 8 @ 155 lb", alternatives: ["Dumbbell row", "Cable row"] },
+        { name: "Face pull", detail: "3 × 15", alternatives: ["Rear-delt fly", "Band pull-apart"] },
+        { name: "Incline curl", detail: "3 × 12", alternatives: ["Dumbbell curl", "Hammer curl"] },
+      ] },
+    { id: "w3", title: "Long run prep", description: "Zone 2 base with closing strides.", kind: "template", programmedBy: "Marcus" },
   ],
   stats: {
     completedCount: 42, thisWeekCount: 3, totalVolumeLb: 38450, volume7dLb: 9120,
@@ -59,21 +72,8 @@ const MOCK_TRAIN = {
     { title: "Lower pull", at: D_AGO(8), durationMin: 51, volumeLb: 3890, avgRpe: 7.6, exercises: 5, prCount: 1, focus: "Deadlift, RDL" },
   ],
   upcoming: [
-    { title: "Lower strength — Block 3", at: D_FWD(0), time: "5:30 PM", durationMin: 60, kind: "custom", programmedBy: "Marcus", exercises: 5,
-      moves: [
-        { name: "Back squat", detail: "5 × 5 @ 225 lb", alternatives: ["Front squat", "Hack squat", "Goblet squat"] },
-        { name: "Romanian deadlift", detail: "4 × 8 @ 155 lb", alternatives: ["Dumbbell RDL", "Good morning"] },
-        { name: "Walking lunge", detail: "3 × 12 ea", alternatives: ["Split squat", "Step-up"] },
-        { name: "Leg curl", detail: "3 × 12", alternatives: ["Nordic curl", "Glute-ham raise"] },
-        { name: "Standing calf raise", detail: "4 × 15", alternatives: ["Seated calf raise"] },
-      ] },
-    { title: "Upper pull", at: D_FWD(2), time: "7:00 AM", durationMin: 45, kind: "template", programmedBy: "Marcus", exercises: 6,
-      moves: [
-        { name: "Pull-up", detail: "4 × 6-8", alternatives: ["Lat pulldown", "Assisted pull-up"] },
-        { name: "Barbell row", detail: "4 × 8 @ 155 lb", alternatives: ["Dumbbell row", "Cable row"] },
-        { name: "Face pull", detail: "3 × 15", alternatives: ["Rear-delt fly", "Band pull-apart"] },
-        { name: "Incline curl", detail: "3 × 12", alternatives: ["Dumbbell curl", "Hammer curl"] },
-      ] },
+    { title: "Lower strength — Block 3", at: D_FWD(0), time: "5:30 PM", durationMin: 60, kind: "custom", programmedBy: "Marcus", exercises: 5 },
+    { title: "Upper pull", at: D_FWD(2), time: "7:00 AM", durationMin: 45, kind: "template", programmedBy: "Marcus", exercises: 6 },
     { title: "Long run prep", at: D_FWD(3), time: "8:00 AM", durationMin: 50, kind: "template", programmedBy: "Marcus", exercises: 3 },
     { title: "Lower power", at: D_FWD(5), time: "5:30 PM", durationMin: 55, kind: "custom", programmedBy: "Marcus", exercises: 5 },
   ],
@@ -141,6 +141,7 @@ function ClientTrainPage() {
 
   const stats = data.stats || {};
   const recent = data.recentSessions || [];
+  const assignedWorkouts = data.assignedWorkouts || [];
   const upcoming = data.upcoming || [];
   const volumeByDay = data.volumeByDay || [];
   const prs = data.prs || [];
@@ -241,6 +242,25 @@ function ClientTrainPage() {
       </div>
 
       {/* Upcoming + Recent sessions */}
+      {/* Assigned workouts — tap to view exercises and swap to a coach-approved alternative. */}
+      {assignedWorkouts.length > 0 && (
+        <Card style={{ marginBottom: 20 }}>
+          <SectionTitle right={assignedWorkouts.length + " ASSIGNED"}>Your workouts</SectionTitle>
+          {assignedWorkouts.map((w, i) => {
+            const hasMoves = Array.isArray(w.moves) && w.moves.length;
+            return (
+              <div key={w.id || i} onClick={() => { if (hasMoves) { setSwapExIdx(null); setOpenWorkout(w); } }} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center", padding: "14px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)", cursor: hasMoves ? "pointer" : "default" }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 500 }}>{w.title}{hasMoves ? <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: TEAL_BRIGHT, marginLeft: 8 }}>VIEW · SWAP</span> : null}</div>
+                  <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginTop: 2 }}>{hasMoves ? w.moves.length + " exercises" : (w.description || "")}</div>
+                </div>
+                <Pill tone={w.kind === "custom" ? "teal" : undefined}>{String(w.kind || "").toUpperCase()}</Pill>
+              </div>
+            );
+          })}
+        </Card>
+      )}
+
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
         <Card>
           <SectionTitle right={upcoming.length + " UPCOMING"}>Upcoming workouts</SectionTitle>
@@ -250,14 +270,14 @@ function ClientTrainPage() {
             </div>
           )}
           {upcoming.map((w, i) => (
-            <div key={i} onClick={() => { if (w.moves && w.moves.length) { setSwapExIdx(null); setOpenWorkout(w); } }} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 14, alignItems: "center", padding: "14px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)", cursor: (w.moves && w.moves.length) ? "pointer" : "default" }}>
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 14, alignItems: "center", padding: "14px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
               <div style={{ textAlign: "center", minWidth: 56 }}>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>{new Date(w.at).toLocaleDateString([], { weekday: "short" }).toUpperCase()}</div>
                 <div style={{ fontFamily: serif, fontSize: 20, marginTop: 2 }}>{new Date(w.at).getDate()}</div>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: "rgba(242,237,228,0.5)", marginTop: 2 }}>{w.time}</div>
               </div>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 500 }}>{w.title}{(w.moves && w.moves.length) ? <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: TEAL_BRIGHT, marginLeft: 8 }}>VIEW · SWAP</span> : null}</div>
+                <div style={{ fontSize: 13.5, fontWeight: 500 }}>{w.title}</div>
                 <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginTop: 2 }}>{w.durationMin} min · {w.exercises} exercises · by {w.programmedBy}</div>
               </div>
               <Pill tone={w.kind === "custom" ? "teal" : undefined}>{String(w.kind || "").toUpperCase()}</Pill>
@@ -321,9 +341,9 @@ function ClientTrainPage() {
         return (
           <div onClick={() => { setOpenWorkout(null); setSwapExIdx(null); }} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
             <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 520, background: "#1a1612", border: "1px solid rgba(242,237,228,0.14)", borderRadius: 16, padding: 22, maxHeight: "85vh", overflowY: "auto" }}>
-              <div style={{ fontFamily: M, fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: TEAL_BRIGHT }}>Workout · by {w.programmedBy}</div>
+              <div style={{ fontFamily: M, fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: TEAL_BRIGHT }}>Workout · by {w.programmedBy || "your coach"}</div>
               <div style={{ fontFamily: serif, fontSize: 24, fontWeight: 500, color: "#f2ede4", marginTop: 4 }}>{w.title}</div>
-              <div style={{ fontFamily: M, fontSize: 11, color: "rgba(242,237,228,0.55)", marginTop: 4 }}>{w.durationMin} min · {moves.length} exercises</div>
+              <div style={{ fontFamily: M, fontSize: 11, color: "rgba(242,237,228,0.55)", marginTop: 4 }}>{w.durationMin ? w.durationMin + " min · " : ""}{moves.length} exercises</div>
               <div style={{ marginTop: 16 }}>
                 {moves.map((m, i) => (
                   <div key={i} style={{ padding: "13px 0", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
