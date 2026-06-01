@@ -682,7 +682,7 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
   const LINE2 = 'rgba(244,239,230,0.34)';
   const FIELD = 'rgba(255,255,255,0.05)';
   const SHAPE_GRAD = { background: 'linear-gradient(90deg, #2ee0c4, #8a5cf6 70%, #ec4899)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' };
-  const inputStyle = { width: '100%', boxSizing: 'border-box', borderRadius: t.RADIUS_SM, background: FIELD, border: `1px solid ${LINE}`, borderBottom: `1px solid ${LINE2}`, padding: '12px 13px', fontFamily: t.DISPLAY, fontSize: 15, color: CREAM, outline: 'none' };
+  const inputStyle = { width: '100%', boxSizing: 'border-box', borderRadius: t.RADIUS_SM, background: FIELD, border: `1px solid ${LINE}`, borderBottom: `1px solid ${LINE2}`, padding: '10px 12px', fontFamily: t.DISPLAY, fontSize: 14, color: CREAM, outline: 'none' };
   const labelStyle = { fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C50, marginBottom: 7 };
   const linkBtn = { background: 'transparent', border: 0, color: C50, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '2px 0' };
   const roleLabel = { client: 'Client', trainer: 'Trainer', nutritionist: 'Nutritionist' }[role] || 'Client';
@@ -735,16 +735,16 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
             {[['client','Client'],['trainer','Trainer'],['nutritionist','Nutritionist']].map(([k, l]) => {
               const on = role === k;
               return <button key={k} onClick={() => setRole(k)} style={{
-                padding: '11px 4px', borderRadius: 999, border: 0,
+                padding: '9px 4px', borderRadius: 999, border: 0,
                 background: on ? '#0ac5a8' : 'transparent', color: on ? '#031f1c' : CREAM,
-                fontFamily: t.DISPLAY, fontSize: 13, fontWeight: on ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap',
+                fontFamily: t.DISPLAY, fontSize: 12, fontWeight: on ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap',
               }}>{l}</button>;
             })}
           </div>
         </div>
 
         {/* Fields */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
           {isCreate && (
             <div><div style={labelStyle}>Full name</div>
               <input placeholder="Your name" value={fullName} onChange={(e) => setFullName(e.target.value)} style={inputStyle} />
@@ -788,7 +788,7 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
         <button
           onClick={isPhone ? (otpSent ? verifyPhoneCode : sendPhoneCode) : submitAuth}
           disabled={busy}
-          style={{ width: '100%', borderRadius: 13, padding: '14px 16px', background: CREAM, color: '#0b0c0c', border: 0, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1 }}>
+          style={{ width: '100%', borderRadius: 12, padding: '12px 16px', background: CREAM, color: '#0b0c0c', border: 0, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1 }}>
           {busy
             ? (isCreate ? 'Creating…' : 'Signing in…')
             : isPhone
@@ -804,13 +804,13 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
         </div>
 
         {/* Continue with Apple */}
-        <button onClick={continueWithApple} style={{ width: '100%', borderRadius: 13, padding: 14, background: 'rgba(255,255,255,0.04)', color: CREAM, border: `1px solid ${LINE2}`, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9 }}>
+        <button onClick={continueWithApple} style={{ width: '100%', borderRadius: 12, padding: 12, background: 'rgba(255,255,255,0.04)', color: CREAM, border: `1px solid ${LINE2}`, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9 }}>
           <span style={{ fontSize: 17, lineHeight: 1, marginTop: -3 }}></span> Continue with Apple
         </button>
 
         {/* Continue with phone — switches to the SMS one-time-code flow */}
         {!isPhone && (
-          <button onClick={() => switchMethod('phone')} style={{ width: '100%', borderRadius: 13, padding: 14, background: 'rgba(255,255,255,0.04)', color: CREAM, border: `1px solid ${LINE2}`, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+          <button onClick={() => switchMethod('phone')} style={{ width: '100%', borderRadius: 12, padding: 12, background: 'rgba(255,255,255,0.04)', color: CREAM, border: `1px solid ${LINE2}`, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>
             Continue with phone number
           </button>
         )}
