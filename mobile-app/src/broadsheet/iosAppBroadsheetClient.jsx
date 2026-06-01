@@ -4672,6 +4672,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   const TEAL = '#0ac5a8', TEALB = '#2ee0c4';
   const [tab, setTab] = useStateBSC('feed');
   const [filter, setFilter] = useStateBSC('SHAPE');
+  const [teamsSel, setTeamsSel] = useStateBSC('channels');
   const [draft, setDraft] = useStateBSC('');
   const [composerSlot, setComposerSlot] = useStateBSC(null);
   React.useEffect(() => { setComposerSlot(document.getElementById('bs-composer-slot')); }, []);
@@ -4739,6 +4740,90 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   };
   const react = (label) => { if (window.bsRequireAccount && !window.bsRequireAccount(label)) return; };
 
+  // Community = the live, Strava-style activity feed (mirrors the website's
+  // "Today on Shape" community page): real workouts logged by members, with
+  // the actual stats — PRs, runs with splits, logged sessions.
+  const COMMUNITY_ACTIVITIES = [
+    { kind: 'pr', who: 'Marcus J.', hue: '#147b68', city: 'Brooklyn, NY', tier: 'TEMPO', ago: '2m', body: 'Eight months in. First time the bar moved this clean.', lift: 'Bench Press', load: '225 lb', delta: '+10 lb', sets: [['1', '5 × 5 @ 185'], ['2', '3 × 3 @ 205'], ['TOP', '1 × 5 @ 225 ✓']], kudos: 142, replies: 18 },
+    { kind: 'run', who: 'Diego A.', hue: '#2e6fa0', city: 'Austin, TX', tier: 'FORM', ago: '6m', body: 'Easy long. Brooklyn Half is Sunday — taper feels good.', distance: '8.4 mi', pace: '7:42/mi', duration: '1h 04m', elev: '+412 ft', hr: '152 avg', splits: [7.8, 7.6, 7.7, 7.4, 7.5, 7.8, 7.6, 7.9], kudos: 64, replies: 5 },
+    { kind: 'workout', who: 'Elena R.', hue: '#8a5cf6', city: 'London, UK', tier: 'PEAK', ago: '11m', body: 'Squats felt locked in today. RPE 8 across the board, no missed reps.', title: 'Lower strength · Block 3', duration: '52 min', exercises: 6, rpe: 8.5, moves: [['Back squat', '5 × 5 @ 185 lb'], ['RDL', '4 × 8 @ 155 lb'], ['Lunge', '3 × 12 ea'], ['Leg curl', '3 × 12']], kudos: 38, replies: 4 },
+    { kind: 'pr', who: 'Tomás R.', hue: '#c0533b', city: 'Miami, FL', tier: 'PEAK', ago: '31m', body: 'Conventional, no belt. Felt like nothing.', lift: 'Deadlift', load: '405 lb', delta: '+15 lb', sets: [['WARM', '5 × 5 @ 245'], ['BUILD', '3 × 3 @ 335'], ['TOP', '1 × 1 @ 405 ✓']], kudos: 90, replies: 9 },
+  ];
+  const ActivityCard = ({ a }) => {
+    let chart = null;
+    if (a.kind === 'run') {
+      const max = Math.max(...a.splits), min = Math.min(...a.splits), W = 300, H = 60;
+      const pts = a.splits.map((p, i) => [(i / (a.splits.length - 1)) * W, H - ((max - p) / (max - min || 1)) * (H - 10) - 5]);
+      chart = { path: pts.map(([x, y], i) => (i === 0 ? `M ${x} ${y}` : `L ${x} ${y}`)).join(' '), pts, W, H };
+    }
+    return (
+      <div style={{ borderRadius: 16, border: `1px solid ${hair}`, background: card, padding: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: a.hue, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 15 }}>{a.who[0]}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14, color: cardInk }}>{a.who}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', color: TEALB }}>{a.tier}</span>
+            </div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, color: muted, marginTop: 3 }}>{a.city} · {a.ago} ago</div>
+          </div>
+        </div>
+        {a.body && <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: cardInk, lineHeight: 1.45, marginBottom: 12 }}>{a.body}</div>}
+        {a.kind === 'pr' && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 14, padding: 14, background: 'rgba(46,224,196,0.06)', border: '1px solid rgba(46,224,196,0.2)', borderRadius: 10 }}>
+            <div>
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: TEALB, fontWeight: 800 }}>NEW PR</div>
+              <div style={{ fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontSize: 26, color: cardInk, marginTop: 4, lineHeight: 1 }}>{a.delta}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, color: muted, marginTop: 6 }}>{a.lift} · {a.load}</div>
+            </div>
+            <div style={{ paddingLeft: 14, borderLeft: '1px solid rgba(46,224,196,0.18)' }}>
+              {a.sets.map(([l, line], i) => (
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '48px 1fr', gap: 8, padding: '3px 0', fontFamily: t.MONO, fontSize: 10.5 }}>
+                  <span style={{ color: muted }}>{l}</span><span style={{ color: cardInk }}>{line}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {a.kind === 'run' && (
+          <div style={{ padding: 14, background: 'rgba(106,140,255,0.10)', border: '1px solid rgba(106,140,255,0.22)', borderRadius: 10 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: '#9ab2ff', fontWeight: 800, marginBottom: 8 }}>RUN</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, marginBottom: 10 }}>
+              {[['DIST', a.distance], ['PACE', a.pace], ['TIME', a.duration], ['ELEV', a.elev], ['HR', a.hr]].map(([l, v]) => (
+                <div key={l}><div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', color: muted }}>{l}</div><div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 12.5, color: cardInk, marginTop: 2 }}>{v}</div></div>
+              ))}
+            </div>
+            <svg viewBox={`0 0 ${chart.W} ${chart.H}`} width="100%" height="46" preserveAspectRatio="none">
+              <path d={chart.path} stroke="#9ab2ff" strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              {chart.pts.map(([x, y], i) => <circle key={i} cx={x} cy={y} r="3" fill="#9ab2ff" />)}
+            </svg>
+          </div>
+        )}
+        {a.kind === 'workout' && (
+          <div style={{ padding: 14, background: 'rgba(247,241,230,0.04)', border: `1px solid ${hair}`, borderRadius: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10, gap: 8 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', color: TEALB, fontWeight: 800, marginBottom: 3 }}>WORKOUT LOGGED</div>
+                <div style={{ fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 15, color: cardInk }}>{a.title}</div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, fontFamily: t.MONO, fontSize: 9, color: muted, flexShrink: 0 }}><span>{a.duration.toUpperCase()}</span><span>{a.exercises} EX</span><span>RPE {a.rpe}</span></div>
+            </div>
+            {a.moves.map(([n, line], i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, padding: '6px 0', borderTop: i === 0 ? 'none' : `1px solid ${hair}`, fontSize: 12.5 }}>
+                <span style={{ color: cardInk }}>{n}</span><span style={{ fontFamily: t.MONO, fontSize: 10, color: muted }}>{line}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 12, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.08em', color: muted }}>
+          <button onClick={() => react('give kudos')} style={{ background: 'transparent', border: 0, color: muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>♥ {a.kudos}</button>
+          <button onClick={() => react('reply')} style={{ background: 'transparent', border: 0, color: muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>↳ {a.replies}</button>
+          <button onClick={() => react('save posts')} style={{ background: 'transparent', border: 0, color: TEALB, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: 800, cursor: 'pointer', padding: 0 }}>SAVE</button>
+        </div>
+      </div>
+    );
+  };
+
   const Pill = ({ on, onClick, children }) => (
     <button onClick={onClick} style={{ padding: '9px 16px', borderRadius: 999, border: 0, background: on ? TEAL : 'transparent', color: on ? '#031f1c' : muted, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{children}</button>
   );
@@ -4770,30 +4855,54 @@ function BSClientFeed({ onProfile, role: roleProp }) {
             { n: 'Rae Lindqvist', s: 'Nutritionist · Sports nutrition', c: '#a07a2e', i: 'R' },
             { n: 'Dr. Sam Huang', s: 'Coach · Endurance', c: '#147b68', i: 'S' },
           ];
-          const sections = tab === 'messages'
-            ? [{ label: 'Direct messages', items: isCoach
-                  ? [{ n: 'Your clients', s: 'Direct · your members', c: '#147b68', i: 'C' }, { n: 'Shape Support', s: 'Avg reply · 4 min', c: TEALB, i: '✦' }]
-                  : [{ n: 'Your trainer', s: 'Direct · training', c: '#c0533b', i: 'T' }, { n: 'Your nutritionist', s: 'Direct · nutrition', c: '#a07a2e', i: 'N' }, { n: 'Shape Support', s: 'Avg reply · 4 min', c: TEALB, i: '✦' }] }]
-            : [
-                { label: 'Channels', items: isCoach
-                  ? [{ n: '# your-roster', s: 'Your members', c: '#147b68', i: '#' }, { n: '# coaches-lounge', s: 'Trainers & nutritionists', c: TEAL, i: '#' }, { n: '# shape-members', s: 'Everyone on Shape', c: TEALB, i: '#' }]
-                  : [{ n: '# shape-members', s: 'Everyone on Shape', c: TEALB, i: '#' }, { n: '# your-program', s: 'Your coach + you', c: '#c0533b', i: '#' }, { n: '# challenges', s: 'Monthly community goals', c: '#a07a2e', i: '#' }] },
-                { label: 'Coaches', items: coaches },
-              ];
+          // A chat list row (avatar + name + subtitle), tap to open the thread.
+          const Row = (f, i) => (
+            <button key={i} onClick={() => { window.__bsToast && window.__bsToast('Opening chat with ' + f.n, 'ok'); }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, border: `1px solid ${hair}`, background: card, color: cardInk, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
+              <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: f.c, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 15 }}>{f.i}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15 }}>{f.n}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, marginTop: 3 }}>{f.s}</div>
+              </div>
+              <span style={{ color: muted, fontSize: 16 }}>›</span>
+            </button>
+          );
+
+          if (tab === 'messages') {
+            // Friends: a simple list of people — tap one to open the chat.
+            const friends = isCoach
+              ? [{ n: 'Sofia Martinez', s: 'Active now', c: '#147b68', i: 'S' }, { n: 'Dev Patel', s: '2h ago', c: '#2e6fa0', i: 'D' }, { n: 'Aria Kim', s: 'Yesterday', c: '#8a5cf6', i: 'A' }]
+              : [{ n: 'Sofia Martinez', s: 'Active now', c: '#147b68', i: 'S' }, { n: 'Jordan Chen', s: '2h ago', c: '#c0533b', i: 'J' }, { n: 'Maya Okafor', s: 'Active now', c: '#a07a2e', i: 'M' }, { n: 'Dev Patel', s: 'Yesterday', c: '#2e6fa0', i: 'D' }, { n: 'Aria Kim', s: '3h ago', c: '#8a5cf6', i: 'A' }];
+            return (
+              <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {friends.map(Row)}
+              </div>
+            );
+          }
+
+          // Teams: Channels / Coaches chip selector; the chosen one's list shows below.
+          const channels = isCoach
+            ? [{ n: '# your-roster', s: 'Your members', c: '#147b68', i: '#' }, { n: '# coaches-lounge', s: 'Trainers & nutritionists', c: TEAL, i: '#' }, { n: '# shape-members', s: 'Everyone on Shape', c: TEALB, i: '#' }]
+            : [{ n: '# shape-members', s: 'Everyone on Shape', c: TEALB, i: '#' }, { n: '# your-program', s: 'Your coach + you', c: '#c0533b', i: '#' }, { n: '# challenges', s: 'Monthly community goals', c: '#a07a2e', i: '#' }];
+          const selectors = [
+            { key: 'channels', label: 'Channels', color: TEALB, items: channels },
+            { key: 'coaches', label: 'Coaches', color: '#c0533b', items: coaches },
+          ];
+          const active = selectors.find(s => s.key === teamsSel) || selectors[0];
           return (
-            <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 18 }}>
-              {sections.map((sec, si) => (
-                <div key={si} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: muted, margin: '0 2px 2px' }}>{sec.label}</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    {sec.items.map((f, i) => (
-                      <button key={i} title={f.s} onClick={() => { window.__bsToast && window.__bsToast('Opening ' + f.n, 'ok'); }} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '9px 14px', borderRadius: 999, border: `1px solid ${f.c}`, background: `${f.c}1f`, color: cardInk, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                        <span style={{ width: 6, height: 6, borderRadius: 3, background: f.c }} />{f.n}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
+            <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {selectors.map(sec => {
+                  const on = active.key === sec.key;
+                  return (
+                    <button key={sec.key} onClick={() => setTeamsSel(sec.key)} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '9px 14px', borderRadius: 999, border: `1px solid ${on ? sec.color : hair}`, background: on ? `${sec.color}1f` : 'transparent', color: cardInk, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                      <span style={{ width: 6, height: 6, borderRadius: 3, background: sec.color }} />{sec.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {active.items.map(Row)}
+              </div>
             </div>
           );
         })()
@@ -4811,6 +4920,11 @@ function BSClientFeed({ onProfile, role: roleProp }) {
             })}
           </div>
 
+          {filter === 'COMMUNITY' ? (
+            <div style={{ padding: `14px ${t.padX}px 84px`, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {COMMUNITY_ACTIVITIES.map((a, i) => <ActivityCard key={i} a={a} />)}
+            </div>
+          ) : (
           <div style={{ padding: `14px ${t.padX}px 84px`, display: 'flex', flexDirection: 'column', gap: 18 }}>
             {shown.map((p, i) => (
               <div key={i}>
@@ -4834,6 +4948,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
               </div>
             ))}
           </div>
+          )}
         </>
       )}
       {tab === 'feed' && composerSlot && createPortal(
