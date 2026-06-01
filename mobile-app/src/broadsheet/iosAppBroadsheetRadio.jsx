@@ -405,7 +405,7 @@ function BSRadioPrompt() {
           paddingBottom: 10, borderBottom: `1px solid ${t.RULE}`,
           position: 'relative', zIndex: 2,
         }}>
-          <span>Vol. 6 · No. 38</span>
+          <span>Vol. 1 · No. 1</span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <span style={{ width: 6, height: 6, borderRadius: 3, background: '#d83a2c', animation: 'bs-blink 1.2s ease-in-out infinite' }} />
             LIVE NOW
@@ -906,7 +906,7 @@ function BSRadioScreen({ onBack }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <BSLogo size={16} color={CREAM} />
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: CREAM70 }}>
-              Vol. 6 · No. 38
+              Vol. 1 · No. 1
             </div>
           </div>
           <button onClick={onBack} style={{ borderRadius: t.RADIUS_SM,

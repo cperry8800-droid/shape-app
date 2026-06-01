@@ -491,7 +491,7 @@ function BSWordmark({ size = 18, color, full = false, vertical = false, align = 
 }
 
 // Masthead — newspaper-style header with vol/no, optional title block
-function BSMasthead({ vol = 'Vol. 6', no = 'No. 38', title, leftKicker, rightKicker, trailing, showDotTexture = true }) {
+function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKicker, trailing, showDotTexture = true }) {
   const t = useBS();
   const inkRgb = t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
   // Hero background — only when there's a title (i.e. home pages).
@@ -576,7 +576,7 @@ function BSMasthead({ vol = 'Vol. 6', no = 'No. 38', title, leftKicker, rightKic
 }
 
 // Compact page header (non-masthead, for inner tabs)
-function BSPageHeader({ vol = 'Vol. 6', no = 'No. 38', kicker, title, trailing }) {
+function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing }) {
   const t = useBS();
   return (
     <div style={{ padding: `54px ${t.padX}px 14px`, borderBottom: `2px solid ${t.INK}` }}>

@@ -687,7 +687,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
           Coaches Edition · No. 14
         </span>
         <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600, color: t.INK50 }}>
-          Vol. VI
+          Vol. I
         </span>
       </div>
 
@@ -1713,7 +1713,7 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
           Coaches Edition · No. 14
         </span>
         <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600, color: t.INK50 }}>
-          Vol. VI
+          Vol. I
         </span>
       </div>
 
