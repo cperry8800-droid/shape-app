@@ -1271,7 +1271,15 @@ function PublicProfilePage({ kind }) {
   const [tweaksVisible, setTweaksVisible] = React.useState(true);
 
   React.useEffect(() => {
-    window.__openBookIntro = () => setBookOpen(true);
+    // Browse / no-account visitors must sign in before they can book.
+    window.__openBookIntro = async () => {
+      try {
+        const r = await fetch("/api/me", { credentials: "same-origin" });
+        const d = r.ok ? await r.json() : null;
+        if (!d || !d.user) { window.location.href = "/login?next=" + encodeURIComponent(window.location.pathname); return; }
+      } catch { window.location.href = "/login"; return; }
+      setBookOpen(true);
+    };
     return () => { delete window.__openBookIntro; };
   }, []);
 
