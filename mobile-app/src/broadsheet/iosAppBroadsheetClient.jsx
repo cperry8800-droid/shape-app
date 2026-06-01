@@ -4836,6 +4836,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
         </span>}
         leftKicker="Section · Community"
         rightKicker="Live"
+        showDotTexture={false}
         trailing={<BSAvatar init="A" size={32} onClick={onProfile} />}
       />
 
