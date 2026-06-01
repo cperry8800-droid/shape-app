@@ -834,6 +834,21 @@ function BSHalftone({ height = 180, accent, pattern = 'dots' }) {
 }
 
 // Tab bar — Broadsheet style: thick top rule, mono labels, accent active
+// Line-art tab icons — monochrome, inherit color via currentColor.
+const BS_TAB_ICON_KEYS = new Set(['home', 'train', 'eat', 'chat', 'store', 'me']);
+function BSTabIcon({ name, size = 22 }) {
+  const p = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true };
+  switch (name) {
+    case 'home': return <svg {...p}><path d="M3 10.5 12 3l9 7.5" /><path d="M5.5 9.5V20h13V9.5" /></svg>;
+    case 'train': return <svg {...p}><path d="M4 9v6M7 7.5v9M17 7.5v9M20 9v6M7 12h10" /></svg>;
+    case 'eat': return <svg {...p}><path d="M12 8c-1-2-4-2.4-5.6-.9C4 8.8 4.6 13 7 16.4c1 1.4 1.9 1.9 2.7 1.5.8-.4 1.8-.4 2.6 0 .8.4 1.7-.1 2.7-1.5 2.4-3.4 3-7.6.6-9.3C16 5.6 13 6 12 8Z" /><path d="M12 8c0-1.8 1-3.2 3-3.7" /></svg>;
+    case 'chat': return <svg {...p}><path d="M4.5 5.5h15v10h-10l-4 3.5v-3.5h-1z" /></svg>;
+    case 'store': return <svg {...p}><path d="M5.5 8h13l-1 11.5h-11z" /><path d="M9 8V6.5a3 3 0 0 1 6 0V8" /></svg>;
+    case 'me': return <svg {...p}><circle cx="12" cy="8.2" r="3.3" /><path d="M5.6 20c0-3.5 3-5.5 6.4-5.5S18.4 16.5 18.4 20" /></svg>;
+    default: return null;
+  }
+}
+
 function BSTabBar({ tabs, active, onChange }) {
   const t = useBS();
   return (
@@ -851,19 +866,15 @@ function BSTabBar({ tabs, active, onChange }) {
       {tabs.map((tab, i) => {
         const on = tab.key === active;
         return (
-          <button key={tab.key} onClick={() => onChange(tab.key)} style={{ borderRadius: 14,
-            border: on ? `1px solid ${t.SURFACE_BORDER}` : '1px solid transparent',
-            background: on ? t.INK : 'transparent',
-            cursor: 'pointer', padding: '8px 0',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
-            color: on ? t.PAPER : t.INK70, position: 'relative',
-            boxShadow: on ? t.ELEVATION_SOFT : 'none',
+          <button key={tab.key} onClick={() => onChange(tab.key)} style={{ borderRadius: 12,
+            border: 0, background: 'transparent',
+            cursor: 'pointer', padding: '6px 0',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 5,
+            color: on ? t.ACCENT : t.INK50, position: 'relative',
           }}>
-            <span style={{
-              fontFamily: t.MONO, fontWeight: 700, fontSize: tab.emoji ? 18 : 10.5, letterSpacing: '-0.01em',
-              fontVariantNumeric: 'tabular-nums', lineHeight: 1,
-              filter: tab.emoji ? 'grayscale(1)' : undefined,
-            }}>{tab.emoji || String(i + 1).padStart(2, '0')}</span>
+            {BS_TAB_ICON_KEYS.has(tab.key)
+              ? <BSTabIcon name={tab.key} size={22} />
+              : <span style={{ fontFamily: t.MONO, fontWeight: 700, fontSize: 10.5, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{String(i + 1).padStart(2, '0')}</span>}
             <span style={{
               fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600,
             }}>{tab.label}</span>
