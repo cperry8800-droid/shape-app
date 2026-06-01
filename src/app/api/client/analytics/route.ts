@@ -9,8 +9,7 @@
 //          sleep + recovery
 
 import { NextResponse } from 'next/server';
-import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js';
-import { createClient } from '@/lib/supabase/server';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -18,31 +17,6 @@ export const dynamic = 'force-dynamic';
 // Cookie session OR Bearer token (the native app sends a Bearer; /m/ uses the
 // bridged cookie). Without this the native shell 401s and the home cards stay
 // empty.
-async function clientForRequest(request: Request): Promise<SupabaseClient> {
-  const authHeader = request.headers.get('authorization') ?? '';
-  const bearer = authHeader.match(/^Bearer\s+(.+)$/i);
-  if (bearer) {
-    return createSupabaseClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
-      { global: { headers: { Authorization: `Bearer ${bearer[1]}` } }, auth: { persistSession: false, autoRefreshToken: false } }
-    );
-  }
-  return createClient() as Promise<SupabaseClient>;
-}
-async function currentUser(request: Request) {
-  const authHeader = request.headers.get('authorization') ?? '';
-  const bearer = authHeader.match(/^Bearer\s+(.+)$/i);
-  if (bearer) {
-    const client = await clientForRequest(request);
-    const { data } = await client.auth.getUser(bearer[1]);
-    return data.user ?? null;
-  }
-  const client = await createClient();
-  const { data } = await client.auth.getUser();
-  return data.user ?? null;
-}
-
 type Snap = {
   snapshot_date: string;
   sleep_hours: number | null;

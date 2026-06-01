@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js';
-import { createClient } from '@/lib/supabase/server';
+import { type SupabaseClient } from '@supabase/supabase-js';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { getFreshAccessToken } from '@/lib/integrations/tokens';
 import { writeStravaSnapshots } from '@/lib/health-snapshot';
 
@@ -46,35 +46,6 @@ type ProfileRow = {
   full_name?: string | null;
   role?: string | null;
 };
-
-async function clientForRequest(request: Request): Promise<SupabaseClient> {
-  const authHeader = request.headers.get('authorization') ?? '';
-  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
-  if (bearerMatch) {
-    return createSupabaseClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
-      {
-        global: { headers: { Authorization: `Bearer ${bearerMatch[1]}` } },
-        auth: { persistSession: false, autoRefreshToken: false },
-      }
-    );
-  }
-  return createClient() as Promise<SupabaseClient>;
-}
-
-async function currentUser(request: Request) {
-  const authHeader = request.headers.get('authorization') ?? '';
-  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
-  if (bearerMatch) {
-    const client = await clientForRequest(request);
-    const { data } = await client.auth.getUser(bearerMatch[1]);
-    return data.user ?? null;
-  }
-  const client = await createClient();
-  const { data } = await client.auth.getUser();
-  return data.user ?? null;
-}
 
 async function stravaGet<T>(accessToken: string, path: string): Promise<T> {
   const res = await fetch(`${STRAVA_API_BASE}${path}`, {

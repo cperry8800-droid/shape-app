@@ -366,7 +366,7 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole }) {
           Browse certified trainers and nutritionists. Direct booking. No agency in the middle.
         </div>
         {(providersLoading || providersError) && (
-          <div style={{ position: 'relative', zIndex: 1, marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: providersError ? t.RED : t.INK50, fontWeight: 700 }}>
+          <div style={{ position: 'relative', zIndex: 1, marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: providersError ? t.RUST : t.INK50, fontWeight: 700 }}>
             {providersLoading ? 'Syncing live providers...' : `Demo fallback - ${providersError}`}
           </div>
         )}

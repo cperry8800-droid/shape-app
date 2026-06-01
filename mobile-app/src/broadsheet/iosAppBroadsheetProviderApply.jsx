@@ -392,7 +392,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
       </div>
 
       {error && (
-        <div style={{ margin: `12px ${t.padX}px 0`, color: t.RED, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', lineHeight: 1.45 }}>
+        <div style={{ margin: `12px ${t.padX}px 0`, color: t.RUST, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', lineHeight: 1.45 }}>
           {error}
         </div>
       )}
