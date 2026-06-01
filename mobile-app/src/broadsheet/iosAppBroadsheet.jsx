@@ -491,7 +491,7 @@ function BSWordmark({ size = 18, color, full = false, vertical = false, align = 
 }
 
 // Masthead — newspaper-style header with vol/no, optional title block
-function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKicker, trailing, showDotTexture = true }) {
+function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKicker, trailing, showDotTexture = true, showDoubleRule = true }) {
   const t = useBS();
   const inkRgb = t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
   // Hero background — only when there's a title (i.e. home pages).
@@ -537,11 +537,11 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
             background: `rgba(${inkRgb},0.5)`,
           }} />
           {/* Bottom double-rule strip */}
-          <div aria-hidden style={{
+          {showDoubleRule && <div aria-hidden style={{
             position: 'absolute', left: 0, right: 0, bottom: 0, height: 4,
             borderTop: `1px solid ${t.INK}`, borderBottom: `1px solid ${t.INK}`,
             background: t.PAPER_BG,
-          }} />
+          }} />}
         </>
       )}
 

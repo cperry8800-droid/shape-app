@@ -1110,22 +1110,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         leftKicker={`${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][_now.getDay()]} · ${_BS_MON[_now.getMonth()]} ${_now.getDate()} · ${_now.getFullYear()}`}
         rightKicker={`Cut · W${isoWeek}`}
         trailing={<BSAvatar init="A" size={32} onClick={onProfile} />}
+        showDoubleRule={false}
       />
-
-      {/* Edition strip — sub-hero under the masthead */}
-      <div style={{
-        padding: `8px ${t.padX}px 12px`,
-        borderBottom: `1px solid ${t.RULE}`,
-        display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
-        background: t.PAPER2,
-      }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: t.GREEN }}>
-          Clients Edition · No. 14
-        </span>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600, color: t.INK50 }}>
-          Vol. I
-        </span>
-      </div>
 
       <BSTicker items={(() => {
         const tk = ticker || {};
@@ -1151,6 +1137,21 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
           { label: 'WGT',  value: tk.weight_lb != null ? `${tk.weight_lb.toFixed(1)}LB` : '178.2LB', note: tk.weight_delta_7d != null ? fmtDelta(tk.weight_delta_7d, ' 7D') : '-0.4 7D' },
         ];
       })()} />
+
+      {/* Edition strip — moved below the ticker (which sits under the date masthead) */}
+      <div style={{
+        padding: `8px ${t.padX}px 12px`,
+        borderBottom: `1px solid ${t.RULE}`,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+        background: t.PAPER2,
+      }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: t.GREEN }}>
+          Clients Edition · No. 14
+        </span>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600, color: t.INK50 }}>
+          Vol. I
+        </span>
+      </div>
 
       {/* From your coach — live focus banner + pushed items pulled from the */}
       {/* coach_focus_banners + coach_pushed_items tables (RLS-scoped to me). */}
