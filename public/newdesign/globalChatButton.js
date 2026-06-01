@@ -19,13 +19,17 @@
   var ROLE_KEY = "shape.viewerRole";
   var PEER_TABS = ["clients", "trainers", "nutritionists"];
   var PEER_FOR = { client: "clients", trainer: "trainers", nutritionist: "nutritionists" };
+  // Returns the signed-in role, or "" when logged out / unknown. An empty
+  // role means "don't change the chat" — the full default tab set is shown.
   function viewerRoleSync() {
-    try { return window.__shapeViewerRole || localStorage.getItem(ROLE_KEY) || "client"; }
-    catch (e) { return window.__shapeViewerRole || "client"; }
+    try { return window.__shapeViewerRole || localStorage.getItem(ROLE_KEY) || ""; }
+    catch (e) { return window.__shapeViewerRole || ""; }
   }
   window.shapeViewerRole = viewerRoleSync;
   function filterTabsForRole(tabs, role) {
-    var mine = PEER_FOR[role] || "clients";
+    // Only filter once we know a signed-in role; otherwise leave chat as-is.
+    if (!role || !PEER_FOR[role]) return tabs || [];
+    var mine = PEER_FOR[role];
     return (tabs || []).filter(function (t) {
       return PEER_TABS.indexOf(t.id) === -1 || t.id === mine;
     });
@@ -36,7 +40,12 @@
       if (!window.shapeDb || !window.shapeDb.client || !window.shapeDb.getProfile) return;
       window.shapeDb.client.auth.getSession().then(function (res) {
         var u = res && res.data && res.data.session && res.data.session.user;
-        if (!u) return null;
+        if (!u) {
+          // Logged out — clear any cached role so the chat reverts to default.
+          window.__shapeViewerRole = "";
+          try { localStorage.removeItem(ROLE_KEY); } catch (e) {}
+          return null;
+        }
         return window.shapeDb.getProfile(u.id);
       }).then(function (profile) {
         if (profile && profile.role) {
