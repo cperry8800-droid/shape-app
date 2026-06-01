@@ -1812,6 +1812,62 @@ function bsBuildTrainProgram(workouts, t) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// ── Shared "tracklist" UI for the Train + Eat day views ────────────────────
+// Rounded weekly calendar: day letter, date number, status dot; active tile
+// gets a teal outline + faint wash.
+function BSWeekStrip({ activeIdx, onSelect, restFlags = [] }) {
+  const t = useBS();
+  const DOWL = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  const _now = new Date();
+  const todayIdx = (_now.getDay() + 6) % 7;
+  const mon = new Date(_now); mon.setHours(0, 0, 0, 0); mon.setDate(_now.getDate() - todayIdx);
+  const dates = Array.from({ length: 7 }, (_, i) => { const d = new Date(mon); d.setDate(mon.getDate() + i); return d.getDate(); });
+  return (
+    <div style={{ padding: `14px ${t.padX}px 8px`, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+      {DOWL.map((L, i) => {
+        const on = i === activeIdx;
+        return (
+          <button key={i} onClick={() => onSelect(i)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '8px 0 6px', borderRadius: 14, cursor: 'pointer', border: `1px solid ${on ? t.ACCENT : t.HAIR}`, background: on ? 'rgba(10,197,168,0.08)' : 'transparent' }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', color: on ? t.ACCENT : t.INK50 }}>{L}</span>
+            <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 18, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{dates[i]}</span>
+            <span style={{ width: 4, height: 4, borderRadius: 2, background: restFlags[i] ? t.GREEN : (on ? t.ACCENT : 'transparent') }} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Section header: teal kicker, big serif title, optional right-aligned action.
+function BSTrackHeader({ kicker, title, actionLabel, onAction }) {
+  const t = useBS();
+  return (
+    <div style={{ padding: `20px ${t.padX}px 0` }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700, marginBottom: 6 }}>{kicker}</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 26, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{title}</div>
+        {actionLabel && <button onClick={onAction} style={{ background: 'transparent', border: 0, color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}>{actionLabel} →</button>}
+      </div>
+    </div>
+  );
+}
+
+// Coach/nutritionist playlist card.
+function BSPlaylistCard({ kicker, title, meta, color, onPlay }) {
+  const t = useBS();
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 13, padding: 14, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+      <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 11, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 18 }}>♪</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color, fontWeight: 700, marginBottom: 4 }}>{kicker}</div>
+        <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 16, color: t.INK, letterSpacing: '-0.01em' }}>{title}</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 4, letterSpacing: '0.06em', lineHeight: 1.45 }}>{meta}</div>
+      </div>
+      <button onClick={onPlay} aria-label="Play" style={{ width: 36, height: 36, flexShrink: 0, borderRadius: 999, border: `1px solid ${color}`, background: 'transparent', color, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>▶</button>
+    </div>
+  );
+}
+
 // TRAIN — workout-focused page
 // ═══════════════════════════════════════════════════════════
 function BSClientTrain({ onProfile }) {
@@ -1989,118 +2045,79 @@ function BSClientTrain({ onProfile }) {
         trailing={<BSAvatar init="A" size={32} onClick={onProfile} />}
       />
 
-      {/* Day strip — like sports schedule */}
-      <div style={{ padding: `12px ${t.padX}px 18px`, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, borderBottom: `1px solid ${t.RULE}` }}>
-        {days.map((d, i) => {
-          const on = i === day;
-          const isRest = PROGRAM[i].tag === 'REST';
-          return (
-            <button key={i} onClick={() => setDay(i)} style={{ borderRadius: t.RADIUS_SM,
-              border: `1px solid ${on ? t.INK : t.HAIR}`,
-              background: on ? t.INK : 'transparent',
-              color: on ? t.PAPER : t.INK,
-              padding: '10px 0', cursor: 'pointer',
-              fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.1em',
-              position: 'relative',
-            }}>
-              {d}
-              {isRest && (
-                <span style={{
-                  position: 'absolute', top: 3, right: 4,
-                  width: 4, height: 4, borderRadius: 2,
-                  background: on ? t.PAPER : t.GREEN, opacity: on ? 0.7 : 1,
-                }} />
-              )}
-            </button>
-          );
-        })}
+      <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} />
+
+      {/* Today hero — the session at a glance, with the coach + play. */}
+      <div style={{ margin: `16px ${t.padX}px 0`, borderRadius: 18, border: `1px solid ${t.RULE}`, background: `linear-gradient(160deg, rgba(10,197,168,0.10), ${t.PAPER2} 62%)`, padding: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700 }}>
+          <span style={{ color: t.ACCENT }}>Today · 9 AM</span>
+          <span style={{ color: t.INK50 }}>W6 · D{day + 1}</span>
+        </div>
+        <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 34, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>{cur.headline}</div>
+        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 10.5, color: t.INK70, letterSpacing: '0.06em' }}>
+          {cur.moves.length > 0 ? `52 min · ${cur.moves.length} moves · RPE 8 · ~420 kcal` : cur.copy}
+        </div>
+        <div style={{ marginTop: 18, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 36, height: 36, flexShrink: 0, borderRadius: 999, background: '#c0533b', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14 }}>J</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK }}>Jordan Chen</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>Coach</div>
+          </div>
+          {cur.moves.length > 0 ? (
+            <button onClick={() => setSession(true)} aria-label="Start session" style={{ width: 52, height: 52, flexShrink: 0, borderRadius: 999, border: 0, background: t.ACCENT, color: '#031f1c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>▶</button>
+          ) : (
+            <span style={{ flexShrink: 0, padding: '10px 14px', borderRadius: 999, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Rest</span>
+          )}
+        </div>
       </div>
 
-      {/* The card — moved to the top, directly below the weekly calendar. */}
+      {/* Tracklist — the moves */}
       {cur.moves.length > 0 && (
         <>
-          <BSSection title="The card" meta={cur.total} />
-          <div style={{ padding: `0 ${t.padX}px 4px` }}>
-            <div style={{
-              display: 'grid', gridTemplateColumns: '24px 1fr 70px',
-              padding: '6px 0', borderTop: `2px solid ${t.INK}`, borderBottom: `1px solid ${t.RULE}`,
-              fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50,
-            }}>
-              <span>#</span><span>Move · Sets / Reps</span><span style={{ textAlign: 'right' }}>Load</span>
-            </div>
+          <BSTrackHeader kicker="Tracklist" title={`${cur.moves.length} moves`} actionLabel="Swap" onAction={() => window.__bsToast && window.__bsToast('Swap workout', 'ok')} />
+          <div style={{ padding: `10px ${t.padX}px 0` }}>
             {cur.moves.map((r, i) => (
-              <div key={i} style={{
-                display: 'grid', gridTemplateColumns: '24px 1fr 70px', alignItems: 'center', padding: `${t.rowY}px 0`,
-                borderBottom: i === cur.moves.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-              }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50, fontWeight: 600 }}>{r.n}</span>
-                <div>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em' }}>{r.m}</div>
-                  <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 2, letterSpacing: '0.06em' }}>{r.s}</div>
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 10, alignItems: 'start', padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 600, marginTop: 3 }}>{r.n}</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{r.m}</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3, letterSpacing: '0.04em' }}>{r.s}</div>
                 </div>
-                <div style={{ textAlign: 'right', fontFamily: t.MONO, fontSize: 12, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em' }}>{r.l}</div>
+                <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK, fontWeight: 600, marginTop: 3 }}>{r.l}</span>
               </div>
             ))}
           </div>
         </>
       )}
 
-      {/* Headline workout */}
-      <div style={{ borderRadius: t.RADIUS_SM, margin: `18px ${t.padX}px 0`, padding: 18, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <BSTag color={cur.tagColor}>{cur.tag}</BSTag>
-          <BSEyebrow color={t.ACCENT}>{cur.meta}</BSEyebrow>
-        </div>
-        <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: t.headlineLead + 4, lineHeight: 0.95, letterSpacing: '-0.035em', color: t.INK, marginTop: 10 }}>
-          {cur.headline}
-        </div>
-        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: t.body, color: t.INK70, lineHeight: 1.4, letterSpacing: '-0.005em' }}>
-          {cur.copy}
-        </div>
-        {cur.moves.length > 0 ? (
-          <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
-            <button onClick={() => setSession(true)} style={{ borderRadius: t.RADIUS_SM,
-              flex: 1, padding: '14px', border: 0, background: t.INK, color: t.PAPER,
-              fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
-            }}>Start session →</button>
-            <button onClick={() => setPreviewing(true)} style={{ borderRadius: t.RADIUS_SM,
-              padding: '14px 18px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
-              fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
-            }}>Preview</button>
-          </div>
-        ) : (
-          <div style={{ marginTop: 14, padding: '14px', border: `1px solid ${t.INK}`, textAlign: 'center',
-            fontFamily: t.MONO, fontSize: 11, color: t.INK, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700,
-          }}>✓ Take the day</div>
-        )}
-      </div>
-
-      {/* Coach notes — pull quote */}
-      <div style={{ borderRadius: t.RADIUS_SM, margin: `22px ${t.padX}px 0`, padding: 20, background: t.INK, color: t.PAPER }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.AMBER, marginBottom: 12, fontWeight: 700 }}>
-          ▍ Notes from Jordan
-        </div>
-        <div style={{ fontFamily: t.DISPLAY, fontWeight: 500, fontSize: 18, lineHeight: 1.3, letterSpacing: '-0.01em' }}>
-          {cur.coachLine}
-        </div>
-      </div>
-
-      {/* RECENT SESSIONS — index */}
-      <BSSection title="Recent" meta="Last 4 sessions" />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+      {/* This week — on deck */}
+      <BSTrackHeader kicker="This week" title="On deck" actionLabel="Plan" onAction={() => window.__bsToast && window.__bsToast('Open plan', 'ok')} />
+      <div style={{ padding: `10px ${t.padX}px 0` }}>
         {[
-          { d: 'Wed May 13', m: 'Lower Pull — Peak',  v: '54 min · 5 moves · RPE 8' },
-          { d: 'Mon May 11', m: 'Conditioning',       v: '45 min · threshold · RPE 8' },
-          { d: 'Fri May 8', m: 'Upper Pull — Vol.',  v: '54 min · 6 moves · RPE 7' },
-          { d: 'Wed May 6', m: 'Lower Push — Vol.',  v: '50 min · 5 moves · RPE 7' },
-        ].map((r, i, arr) => (
-          <div key={i} style={{ padding: `${t.rowY}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{r.m}</div>
-              <BSEyebrow>{r.d}</BSEyebrow>
+          { done: true, m: 'Conditioning', s: 'Thu · 25 min · Z2' },
+          { m: 'Lower Body — Peak', s: 'Fri · 55 min', r: 'W6 · D5' },
+          { m: 'Active rest', s: 'Sat · walk + mobility', r: '40 min' },
+        ].map((x, i) => (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 10, alignItems: 'start', padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 10, color: x.done ? t.ACCENT : t.INK50, fontWeight: 600, marginTop: 3 }}>{x.done ? '✓' : String(i + 1).padStart(2, '0')}</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: x.done ? t.INK50 : t.INK, letterSpacing: '-0.01em', textDecoration: x.done ? 'line-through' : 'none' }}>{x.m}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3, letterSpacing: '0.04em' }}>{x.s}</div>
             </div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3, letterSpacing: '0.06em' }}>{r.v}</div>
+            <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3 }}>{x.r || ''}</span>
           </div>
+        ))}
+      </div>
+
+      {/* From Jordan — playlists */}
+      <BSTrackHeader kicker="From Jordan" title="Playlists" />
+      <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {[
+          { k: 'Attached · Pull day', title: 'Pull heavy.', meta: '95-138 BPM · 31 tracks · 1h 48m' },
+          { k: 'Jordan Chen · Your coach', title: 'Riverside long run', meta: '1h 50m · 160-172 BPM · 24 tracks · Sat Z2 run' },
+          { k: 'Jordan Chen · Your coach', title: 'Deload mobility', meta: '35m · 80-95 BPM · 11 tracks · Wed recovery' },
+        ].map((p, i) => (
+          <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#c0533b" onPlay={() => window.__bsToast && window.__bsToast('Play ' + p.title, 'ok')} />
         ))}
       </div>
 
@@ -3912,90 +3929,121 @@ function BSClientEat({ onProfile }) {
 
       <BSNutritionTopTabs active="eat" onChange={setView} />
 
-      {/* Day strip — mirrors Train tab */}
-      <div style={{ padding: `12px ${t.padX}px 18px`, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, borderBottom: `1px solid ${t.RULE}` }}>
-        {days.map((d, i) => {
-          const on = i === day;
-          const isRest = PROGRAM[i].tag === 'REST';
+      <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} />
+
+      {(() => {
+        const num = (x) => parseInt(String(x).replace(/[^0-9]/g, ''), 10) || 0;
+        const calNow = num(cur.totals.cal), calTgt = num(cur.totals.target.cal);
+        const calLeft = Math.max(0, calTgt - calNow);
+        const calPct = calTgt ? Math.min(100, Math.round((calNow / calTgt) * 100)) : 0;
+        const macros = [
+          { l: 'PROTEIN', v: cur.totals.p, g: cur.totals.target.p, c: t.RUST || '#d2693f' },
+          { l: 'CARBS', v: cur.totals.c, g: cur.totals.target.c, c: t.AMBER || '#e8b14a' },
+          { l: 'FAT', v: cur.totals.f, g: cur.totals.target.f, c: '#8a5cf6' },
+        ];
+        return (
+          <>
+            {/* Calorie hero */}
+            <div style={{ padding: `16px ${t.padX}px 0` }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+                <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 60, lineHeight: 0.9, letterSpacing: '-0.05em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{calNow.toLocaleString()}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 12, letterSpacing: '0.06em', color: t.INK50 }}>/ {calTgt.toLocaleString()} KCAL</span>
+              </div>
+              <div style={{ marginTop: 14, height: 4, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}>
+                <div style={{ width: `${calPct}%`, height: '100%', background: t.ACCENT }} />
+              </div>
+              <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.08em' }}>
+                <span style={{ color: t.ACCENT }}>{calLeft.toLocaleString()} kcal left · on pace</span>
+                <span style={{ color: t.INK50 }}>{calPct}%</span>
+              </div>
+            </div>
+
+            {/* Macro cards */}
+            <div style={{ padding: `16px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+              {macros.map((m) => {
+                const mv = num(m.v), mg = num(m.g);
+                const mp = mg ? Math.min(100, (mv / mg) * 100) : 0;
+                return (
+                  <div key={m.l} style={{ padding: 12, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 6 }}>
+                      <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', color: m.c, fontWeight: 700 }}>{m.l}</span>
+                      <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50 }}>/ {mg}</span>
+                    </div>
+                    <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 26, color: t.INK, letterSpacing: '-0.04em', lineHeight: 1, marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>{mv}</div>
+                    <div style={{ marginTop: 8, height: 3, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}>
+                      <div style={{ width: `${mp}%`, height: '100%', background: m.c }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        );
+      })()}
+
+      {/* Tracklist — today's meals */}
+      <BSTrackHeader kicker="Tracklist" title={day === 4 ? "Today's meals" : `${cur.d} meals`} actionLabel="Log" onAction={() => window.__bsToast && window.__bsToast('Open meal logger', 'ok')} />
+      <div style={{ padding: `10px ${t.padX}px 0` }}>
+        {cur.meals.map((m, i) => {
+          const logged = m.state === 'done';
+          const next = m.state === 'next';
           return (
-            <button key={i} onClick={() => setDay(i)} style={{ borderRadius: t.RADIUS_SM,
-              border: `1px solid ${on ? t.INK : t.HAIR}`,
-              background: on ? t.INK : 'transparent',
-              color: on ? t.PAPER : t.INK,
-              padding: '10px 0', cursor: 'pointer',
-              fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.1em',
-              position: 'relative',
-            }}>
-              {d}
-              {isRest && (
-                <span style={{
-                  position: 'absolute', top: 3, right: 4,
-                  width: 4, height: 4, borderRadius: 2,
-                  background: on ? t.PAPER : t.GREEN, opacity: on ? 0.7 : 1,
-                }} />
-              )}
+            <button key={m.id} onClick={() => setPreviewMealId(m.id)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 10, alignItems: 'start', padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}`, background: 'transparent', border: 0 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 10, color: logged ? t.ACCENT : t.INK50, fontWeight: 600, marginTop: 3 }}>{logged ? '✓' : String(i + 1).padStart(2, '0')}</span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: logged ? t.INK50 : t.INK, letterSpacing: '-0.01em', textDecoration: logged ? 'line-through' : 'none' }}>{m.title}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: next ? t.ACCENT : t.INK50, marginTop: 3, letterSpacing: '0.04em' }}>{m.kcal} kcal · {m.p}P · {m.c}C · {m.f}F{next ? ' · LOG NOW' : ''}</div>
+              </div>
+              <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3 }}>{m.time}</span>
             </button>
           );
         })}
       </div>
 
-      {/* Macro headline — moved to the top, directly below the weekly calendar. */}
-      <div style={{ borderRadius: t.RADIUS_SM, margin: `14px ${t.padX}px 0`, padding: `16px 14px`, border: `1px solid ${t.RULE}`, background: t.PAPER2, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
-        {[
-          { l: 'CAL',   v: cur.totals.cal, s: `/${cur.totals.target.cal}` },
-          { l: 'PRO',   v: cur.totals.p,   s: `/${cur.totals.target.p}g` },
-          { l: 'CARB',  v: cur.totals.c,   s: `/${cur.totals.target.c}g` },
-          { l: 'FAT',   v: cur.totals.f,   s: `/${cur.totals.target.f}g`  },
-        ].map((m, i) => (
-          <div key={m.l} style={{ borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0, paddingLeft: i > 0 ? 10 : 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase' }}>{m.l}</div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 28, color: t.INK, marginTop: 4, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{m.v}</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.08em' }}>{m.s}</div>
+      {/* Your plan — nutritionist card */}
+      <BSTrackHeader kicker="Your plan" title={`Cutting · ${(parseInt(String(cur.totals.target.cal).replace(/[^0-9]/g, ''), 10) || 0).toLocaleString()}`} />
+      <div style={{ padding: `12px ${t.padX}px 0` }}>
+        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 999, background: '#a07a2e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14 }}>M</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK }}>Dr. Maya Patel</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>Nutritionist</div>
+            </div>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>Apr plan</span>
           </div>
+          <div style={{ fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontStyle: 'italic', fontSize: 17, lineHeight: 1.4, color: t.INK }}>&ldquo;{cur.coachLine}&rdquo;</div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+            <button onClick={() => setView('grocery')} style={{ flex: 1, padding: '11px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Shop list →</button>
+            <button onClick={() => window.__bsToast && window.__bsToast('Swap meal', 'ok')} style={{ flex: 1, padding: '11px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Swap meal</button>
+          </div>
+        </div>
+      </div>
+
+      {/* For the week — shop list */}
+      <BSTrackHeader kicker="For the week" title="Shop list" actionLabel="Open" onAction={() => setView('grocery')} />
+      <div style={{ padding: `12px ${t.padX}px 0` }}>
+        <button onClick={() => setView('grocery')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 13, padding: 14, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+          <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 11, background: t.RUST || '#d2693f', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>◎</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.RUST || '#d2693f', fontWeight: 700, marginBottom: 4 }}>Refreshed Sun · Maya</div>
+            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 16, color: t.INK }}>12 items for the week.</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 4, letterSpacing: '0.06em' }}>5 done · 7 left · produce, protein, pantry</div>
+          </div>
+          <span style={{ color: t.INK50, fontSize: 16 }}>→</span>
+        </button>
+      </div>
+
+      {/* From Maya — playlists */}
+      <BSTrackHeader kicker="From Maya" title="Playlists" />
+      <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {[
+          { title: 'Sunday prep, low-pressure', meta: '45m · 85-100 BPM · 12 tracks · 8 meals prep' },
+          { title: 'Weeknight cook', meta: '30m · 95-110 BPM · 9 tracks · Tue/Thu dinners' },
+          { title: 'Slow breakfast', meta: '20m · 80 BPM · 6 tracks · Weekend mornings' },
+        ].map((p, i) => (
+          <BSPlaylistCard key={i} kicker="Maya Patel · Your nutritionist" title={p.title} meta={p.meta} color="#a07a2e" onPlay={() => window.__bsToast && window.__bsToast('Play ' + p.title, 'ok')} />
         ))}
-      </div>
-
-      {/* Live plan → one-tap grocery list from every ingredient in the week. */}
-      {liveProgram && (
-        <div style={{ padding: `12px ${t.padX}px 0` }}>
-          <button onClick={addPlanToGrocery} style={{ width: '100%', borderRadius: t.RADIUS_SM, padding: '12px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer' }}>
-            Add week's ingredients to groceries
-          </button>
-        </div>
-      )}
-
-      {/* Headline meal block — tap-through to day brief */}
-      <div onClick={() => setPreviewDayBrief(true)} style={{ borderRadius: t.RADIUS_SM, margin: `18px ${t.padX}px 0`, padding: 18, border: `1px solid ${t.RULE}`, background: t.PAPER2, cursor: 'pointer', position: 'relative' }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <BSTag color={cur.tagColor}>{cur.tag}</BSTag>
-          <BSEyebrow color={t.ACCENT}>{cur.meta}</BSEyebrow>
-        </div>
-        <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: t.headlineLead + 4, lineHeight: 0.95, letterSpacing: '-0.035em', color: t.INK, marginTop: 10 }}>
-          {cur.headline}
-        </div>
-        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: t.body, color: t.INK70, lineHeight: 1.4, letterSpacing: '-0.005em' }}>
-          {cur.copy}
-        </div>
-        <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 9.5, color: t.ACCENT, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
-          Read the day brief →
-        </div>
-      </div>
-
-      <BSSection title={day === 4 ? "Today's menu" : `${cur.d} menu`} meta={`${cur.meals.length} services · ${loggedCount} logged`} />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
-        {cur.meals.map((m) => (
-          <BSRow key={m.id} {...m} onClick={() => setPreviewMealId(m.id)} />
-        ))}
-      </div>
-
-      {/* Coach pull quote — mirrors Train tab */}
-      <div style={{ borderRadius: t.RADIUS_SM, margin: `22px ${t.padX}px 0`, padding: 20, background: t.INK, color: t.PAPER }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.AMBER, marginBottom: 12, fontWeight: 700 }}>
-          ▍ Notes from Maya
-        </div>
-        <div style={{ fontFamily: t.DISPLAY, fontWeight: 500, fontSize: 18, lineHeight: 1.3, letterSpacing: '-0.01em' }}>
-          {cur.coachLine}
-        </div>
       </div>
 
       <BSFooter right="Pg 3 of 5" />
