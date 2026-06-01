@@ -6,8 +6,15 @@ import {
   REQUIRED_PROVIDER_EXPERIENCE_YEARS,
 } from '../config/providerApplications.js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Supabase config. The native Capacitor build injects these via env at build
+// time; the /m/ web preview is built without them, so fall back to the SAME
+// project URL + publishable (anon) key the website hardcodes in
+// public/supabase.js. This is what lets the /m/ preview reach the same backend
+// as the website — without it, `supabase` is null and auth + the shared
+// user_goals store (window.shapeDb) silently no-op. The publishable key is
+// RLS-protected and already public on the website.
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://zznufekgjngecelwxndw.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_vuOq-03RJHruIz0PWtXiUA_R4zvTJcR';
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 const providerApplicationFileBucket = 'provider-credentials';
 
