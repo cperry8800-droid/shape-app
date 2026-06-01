@@ -268,7 +268,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
   // Classified is interactive: user must tap "Step inside" — no auto-advance.
   useEffectBSM(() => {
     if (style === 'classified') return; // classified is tap-only
-    const id = setTimeout(onDone, (style === 'cosmos' || !style) ? 2600 : 1600);
+    const id = setTimeout(onDone, style === 'classified' ? 4200 : (style === 'cosmos' || !style) ? 2600 : 1600);
     return () => clearTimeout(id);
   }, [style]);
 
@@ -460,8 +460,8 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
     const _bgRGB = bgColor && bgColor !== 'auto' ? _hexToRGBmain(bgColor) : null;
     const inkRgbCl = _bgRGB || t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
     return (
-      <div onClick={onDone} style={{ position: 'absolute', inset: 0, background: t.PAPER, color: t.INK, padding: '50px 18px 24px', display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden', cursor: 'pointer' }}>
-        <SplashBackdrop bg="plain" inkRgb={inkRgbCl} t={t} />
+      <div onClick={onDone} style={{ position: 'absolute', inset: 0, background: '#02030a', color: t.INK, padding: '50px 18px 24px', display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden', cursor: 'pointer' }}>
+        <BSNightSky />
 
         <div style={{ position: 'relative', zIndex: 1, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, display: 'flex', justifyContent: 'space-between', borderBottom: `2px solid ${t.INK}`, paddingBottom: 8 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><BSLogo size={16} color={t.INK} /> Classifieds</span>
@@ -1107,7 +1107,8 @@ function BSAppShell({ tweaks, setTweak }) {
   return (
     <BSRadioProvider>
       <BSPhone>
-        {stage === 'splash' && <BSSplash style="cosmos" bg={tweaks.splashBg || 'plain'} bgColor={tweaks.splashBgColor || 'auto'} onDone={() => setStage('login')} />}
+        {stage === 'splash' && <BSSplash style="cosmos" bg={tweaks.splashBg || 'plain'} bgColor={tweaks.splashBgColor || 'auto'} onDone={() => setStage('daily')} />}
+        {stage === 'daily' && <BSSplash style="classified" bg={tweaks.splashBg || 'plain'} bgColor={tweaks.splashBgColor || 'auto'} onDone={() => setStage('login')} />}
         {stage === 'login'  && <BSLogin
           key={loginMode}
           initialMode={loginMode}
