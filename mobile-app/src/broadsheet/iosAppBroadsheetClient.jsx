@@ -4747,14 +4747,37 @@ function BSClientFeed({ onProfile }) {
       {/* Feed / Messages / Teams */}
       <div style={{ padding: `16px ${t.padX}px 0` }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, border: `1px solid ${hair}`, borderRadius: 999, padding: 4 }}>
-          {[['feed', 'Feed'], ['messages', 'Messages'], ['teams', 'Teams']].map(([k, l]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)}>{l}</Pill>)}
+          {[['feed', 'Feed'], ['messages', 'Friends'], ['teams', 'Teams']].map(([k, l]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)}>{l}</Pill>)}
         </div>
       </div>
 
       {tab !== 'feed' ? (
-        <div style={{ padding: `40px ${t.padX}px`, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 14, color: muted }}>
-          {tab === 'messages' ? 'Your direct messages with coaches appear here.' : 'Your teams and group rooms appear here.'}
-        </div>
+        (() => {
+          const role = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().profile && window.ShapeAuth.getCachedState().profile.role) || 'client';
+          const isCoach = role === 'trainer' || role === 'nutritionist';
+          const rows = tab === 'messages'
+            ? (isCoach
+                ? [{ n: 'Your clients', s: 'Direct · your members', c: '#147b68', i: 'C' }, { n: 'Shape Support', s: 'Avg reply · 4 min', c: TEALB, i: '✦' }]
+                : [{ n: 'Your trainer', s: 'Direct · training', c: '#c0533b', i: 'T' }, { n: 'Your nutritionist', s: 'Direct · nutrition', c: '#a07a2e', i: 'N' }, { n: 'Shape Support', s: 'Avg reply · 4 min', c: TEALB, i: '✦' }])
+            : (isCoach
+                ? [{ n: '# your-roster', s: 'Your members', c: '#147b68', i: '#' }, { n: '# coaches-lounge', s: 'Trainers & nutritionists', c: TEAL, i: '#' }, { n: '# shape-members', s: 'Everyone on Shape', c: TEALB, i: '#' }]
+                : [{ n: '# shape-members', s: 'Everyone on Shape', c: TEALB, i: '#' }, { n: '# your-program', s: 'Your coach + you', c: '#c0533b', i: '#' }, { n: '# challenges', s: 'Monthly community goals', c: '#a07a2e', i: '#' }]);
+          return (
+            <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: muted, margin: '0 2px 4px' }}>{tab === 'teams' ? 'Channels' : 'Direct messages'}</div>
+              {rows.map((f, i) => (
+                <button key={i} onClick={() => { if (window.bsRequireAccount && !window.bsRequireAccount('open chats')) return; window.__bsToast && window.__bsToast('Opening ' + f.n, 'ok'); }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, border: `1px solid ${hair}`, background: card, color: cardInk, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
+                  <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: f.c, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 15 }}>{f.i}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15 }}>{f.n}</div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, marginTop: 3 }}>{f.s}</div>
+                  </div>
+                  <span style={{ color: muted, fontSize: 16 }}>›</span>
+                </button>
+              ))}
+            </div>
+          );
+        })()
       ) : (
         <>
           {/* Role filter chips */}
