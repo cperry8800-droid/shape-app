@@ -95,8 +95,32 @@ const MOCK_NUTRI = {
   },
 };
 
+// Coach-approved meal substitutions — same macro neighbourhood as a planned meal.
+const MEAL_SWAPS = [
+  { name: "Turkey & rice bowl", kcal: 610, protein: 48, carbs: 66, fat: 14 },
+  { name: "Cod, potato, greens", kcal: 560, protein: 46, carbs: 52, fat: 16 },
+  { name: "Tofu stir-fry + rice", kcal: 580, protein: 34, carbs: 72, fat: 16 },
+  { name: "Chicken wrap + side salad", kcal: 600, protein: 44, carbs: 58, fat: 18 },
+  { name: "Lean steak + sweet potato", kcal: 640, protein: 50, carbs: 54, fat: 20 },
+];
+
 function ClientNutriPage() {
   const [data, setData] = React.useState(MOCK_NUTRI);
+  const [mealOverrides, setMealOverrides] = React.useState({});
+  const [swapMealIdx, setSwapMealIdx] = React.useState(null);
+  React.useEffect(() => {
+    if (!(window.shapeDb && window.shapeDb.getUserGoals)) return;
+    window.shapeDb.getUserGoals("client_meal_swaps").then(s => { if (s && typeof s === "object") setMealOverrides(s); }).catch(() => {});
+  }, []);
+  const applyMealSwap = (idx, alt, baseName) => {
+    const next = { ...mealOverrides };
+    if (!alt) delete next[idx];
+    else next[idx] = { name: alt.name, kcal: alt.kcal, protein: alt.protein, carbs: alt.carbs, fat: alt.fat };
+    setMealOverrides(next);
+    setSwapMealIdx(null);
+    try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals("client_meal_swaps", next); } catch (e) {}
+    if (alt) { try { window.ShapeMessages && window.ShapeMessages.sendProviderMessage && window.ShapeMessages.sendProviderMessage({ coach: { name: "Dr. Maya Patel", provider_role: "nutritionist" }, text: "Swapped " + baseName + " → " + alt.name + " · today" }).catch(() => {}); } catch (e) {} }
+  };
   const [live, setLive] = React.useState(false);
 
   React.useEffect(() => {
@@ -111,7 +135,7 @@ function ClientNutriPage() {
   const today = data.today;
   const targets = data.targets || {};
   const week = data.week || [];
-  const todayMeals = data.todayMeals || [];
+  const todayMeals = (data.todayMeals || []).map((m, i) => (mealOverrides[i] ? { ...m, ...mealOverrides[i] } : m));
   const upcomingMeals = data.upcomingMeals || [];
   const topFoods = data.topFoods || [];
   const grocery = data.grocery || [];
@@ -291,10 +315,15 @@ function ClientNutriPage() {
             <div key={i} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 12, alignItems: "center", padding: "13px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
               <div style={{ width: 52, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: m.logged ? TEAL_BRIGHT : "rgba(242,237,228,0.55)" }}>{m.time}</div>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.name}</div>
+                <div style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.name}{mealOverrides[i] && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", color: TEAL_BRIGHT, marginLeft: 8 }}>SWAPPED</span>}</div>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(242,237,228,0.55)", marginTop: 3 }}>{m.kcal} kcal · {m.protein}P · {m.carbs}C · {m.fat}F</div>
               </div>
-              {m.logged ? <Pill tone="done">DONE</Pill> : <Pill tone="teal">PLANNED</Pill>}
+              {m.logged ? <Pill tone="done">DONE</Pill> : (
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <button onClick={() => setSwapMealIdx(i)} style={{ background: "transparent", border: "1px solid rgba(46,224,196,0.4)", color: TEAL_BRIGHT, borderRadius: 999, padding: "5px 11px", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.1em", cursor: "pointer", whiteSpace: "nowrap" }}>SWAP</button>
+                  <Pill tone="teal">PLANNED</Pill>
+                </div>
+              )}
             </div>
           ))}
         </Card>
@@ -368,6 +397,34 @@ function ClientNutriPage() {
           <a href="ClientGrocery.html" style={{ display: "block", textAlign: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(242,237,228,0.08)" }}>OPEN FULL LIST →</a>
         </Card>
       </div>
+
+      {/* Meal swap — coach-approved alternates for the chosen planned meal. */}
+      {swapMealIdx != null && (() => {
+        const base = (data.todayMeals || [])[swapMealIdx];
+        const orig = todayMeals[swapMealIdx];
+        if (!base || !orig) return null;
+        const options = [
+          { name: base.name, kcal: base.kcal, protein: base.protein, carbs: base.carbs, fat: base.fat, _keep: true },
+          ...MEAL_SWAPS.filter(a => a.name !== orig.name),
+        ];
+        return (
+          <div onClick={() => setSwapMealIdx(null)} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+            <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 460, background: "#1a1612", border: "1px solid rgba(242,237,228,0.14)", borderRadius: 16, padding: 22, maxHeight: "80vh", overflowY: "auto" }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: TEAL_BRIGHT, fontWeight: 600 }}>Swap meal</div>
+              <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 500, color: "#f2ede4", marginTop: 4 }}>{orig.name}</div>
+              <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+                {options.map((o, k) => (
+                  <button key={k} onClick={() => applyMealSwap(swapMealIdx, o._keep ? null : o, base.name)} style={{ width: "100%", textAlign: "left", cursor: "pointer", padding: "13px 14px", borderRadius: 12, border: "1px solid " + (o._keep ? "rgba(46,224,196,0.5)" : "rgba(242,237,228,0.12)"), background: o._keep ? "rgba(46,224,196,0.07)" : "rgba(242,237,228,0.03)" }}>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: "#f2ede4" }}>{o.name}{o._keep ? "  ·  current" : ""}</div>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(242,237,228,0.55)", marginTop: 3 }}>{o.kcal} kcal · {o.protein}P · {o.carbs}C · {o.fat}F</div>
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setSwapMealIdx(null)} style={{ width: "100%", marginTop: 14, padding: "12px", borderRadius: 10, border: "1px solid rgba(242,237,228,0.14)", background: "transparent", color: "rgba(242,237,228,0.7)", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", cursor: "pointer" }}>Cancel</button>
+            </div>
+          </div>
+        );
+      })()}
     </DashPage>
   );
 }
