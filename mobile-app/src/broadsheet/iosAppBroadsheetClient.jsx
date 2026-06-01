@@ -3031,6 +3031,15 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
       return [];
     }
   });
+  const [deletedGroceryIds, setDeletedGroceryIds] = useStateBSC(() => {
+    try {
+      const raw = window.localStorage && window.localStorage.getItem('shape.deletedGroceryIds');
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
   const [selectedGroceryList, setSelectedGroceryList] = useStateBSC(null);
   const [newListName, setNewListName] = useStateBSC(null); // null = sheet closed
   const [day, setDay] = useStateBSC(4); // 0..6 — Fri (idx 4) = today, mirrors Train
@@ -3912,6 +3921,12 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
     } catch {}
   }, [recipeLists]);
 
+  React.useEffect(() => {
+    try {
+      window.localStorage && window.localStorage.setItem('shape.deletedGroceryIds', JSON.stringify(deletedGroceryIds));
+    } catch {}
+  }, [deletedGroceryIds]);
+
   const cur = PROGRAM[day] || PROGRAM[0];
   const days = PROGRAM.map(p => p.d);
   const meals = cur.meals;
@@ -3922,6 +3937,50 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
   const loadGroceryList = (list) => {
     setSelectedGroceryList(bsNormalizeGroceryList(list));
     setView('grocery');
+  };
+
+  // Open a library list as an editable grocery view. For built-in lists this
+  // also seeds an editable copy into recipeLists so edits persist.
+  const editGroceryList = (list) => {
+    const normalized = { ...bsNormalizeGroceryList(list), editable: true };
+    setSelectedGroceryList(normalized);
+    if (!recipeLists.some(l => l.id === list.id)) {
+      const items = list.items || bsLibraryPreviewItems(list);
+      setRecipeLists(prev => [{ ...list, editable: true, items }, ...prev]);
+    } else {
+      setRecipeLists(prev => prev.map(l => l.id === list.id ? { ...l, editable: true } : l));
+    }
+    setView('grocery');
+    window.__bsToast?.(`Editing "${list.name}"`, 'ok');
+  };
+
+  // Duplicate a list into recipeLists with a fresh id (used for meal plans).
+  const duplicateGroceryList = (list) => {
+    const id = 'custom-' + Math.random().toString(36).slice(2, 9);
+    const items = (list.items || bsLibraryPreviewItems(list)).map((it, idx) => ({ ...it, id: `${id}-${idx}` }));
+    const copy = {
+      ...list, id, editable: true,
+      name: `${list.name} (copy)`,
+      eyebrow: 'Custom · Duplicated',
+      kind: 'custom',
+      usedCount: 0,
+      count: items.length,
+      preview: items.slice(0, 3).map(it => it.n).join(' · ') || 'Empty list',
+      items,
+    };
+    setRecipeLists(prev => [copy, ...prev]);
+    window.__bsToast?.(`Duplicated "${list.name}"`, 'ok');
+  };
+
+  // Remove a custom list. recipeLists-backed lists are dropped outright;
+  // built-ins are hidden via the deleted-ids set.
+  const deleteGroceryList = (list) => {
+    if (recipeLists.some(l => l.id === list.id)) {
+      setRecipeLists(prev => prev.filter(l => l.id !== list.id));
+    } else {
+      setDeletedGroceryIds(prev => prev.includes(list.id) ? prev : [...prev, list.id]);
+    }
+    window.__bsToast?.(`Deleted "${list.name}"`, 'ok');
   };
 
   // Persist an edited/created custom list. Keeps the in-view (aisle-shaped)
@@ -4004,7 +4063,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
   ), (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body) : null;
 
   if (view === 'grocery') return <>{newListSheet}<BSGrocery list={activeGroceryList} onBack={() => setView('eat')} onLibrary={() => setView('library')} recipeLists={recipeLists} onChangeView={setView} editable={!!activeGroceryList.editable} onUpdate={persistGroceryList} onCreate={createGroceryList} /></>;
-  if (view === 'library') return <>{newListSheet}<BSGroceryLibrary onBack={() => setView('grocery')} onLoad={loadGroceryList} recipeLists={recipeLists} onCreate={createGroceryList} /></>;
+  if (view === 'library') return <>{newListSheet}<BSGroceryLibrary onBack={() => setView('grocery')} onLoad={loadGroceryList} recipeLists={recipeLists} onCreate={createGroceryList} onEdit={editGroceryList} onDuplicate={duplicateGroceryList} onDelete={deleteGroceryList} deletedIds={deletedGroceryIds} /></>;
   if (view === 'recipes') {
     if (skRecipe) {
       const gid = 'sk-' + bsSkSlug(skRecipe.title);
@@ -8863,12 +8922,24 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
 // GROCERY LIBRARY — saved templates
 // ═══════════════════════════════════════════════════════════
 const BS_GROCERY_LIBRARY = [
-  { id: 'sun', name: 'Sunday staples',     kind: 'custom',   eyebrow: 'Custom · Updated last Sun', usedCount: 14,  preview: 'Bananas · Eggs · Oats',         count: 11 },
-  { id: 'trv', name: 'Travel week',        kind: 'custom',   eyebrow: 'Custom · Airport-friendly', usedCount: 4,   preview: 'Protein bars · Jerky · Apples', count: 7 },
-  { id: 'prep',name: 'Meal prep — Sunday', kind: 'custom',   eyebrow: 'Custom · Weekly',            usedCount: 22,  preview: 'Chicken thighs · Rice · Broccoli', count: 10 },
-  { id: 'mp7', name: '7-day Mediterranean',kind: 'mealplan', eyebrow: 'Meal plan · Whole-food',     usedCount: 64,  preview: 'Olive oil · Fish · Whole grains',     count: 28 },
-  { id: 'mph', name: 'High-protein cut · 5d',kind: 'mealplan', eyebrow: 'Meal plan · Cutting',       usedCount: 42,  preview: 'Chicken · Greek yogurt · Eggs',       count: 20 },
-  { id: 'mpp', name: 'Plant-forward build', kind: 'mealplan', eyebrow: 'Meal plan · Vegan-friendly', usedCount: 18,  preview: 'Tempeh · Lentils · Quinoa',           count: 35 },
+  { id: 'sun', name: 'Sunday staples',     kind: 'custom',   eyebrow: 'Custom · Updated last Sun', usedCount: 14,  preview: 'Bananas · Eggs · Oats', items: [
+    { n: 'Bananas', q: '1 bunch' }, { n: 'Eggs', q: '18 ct' }, { n: 'Rolled oats', q: '1 tub' }, { n: 'Greek yogurt', q: '32 oz' }, { n: 'Baby spinach', q: '2 bags' }, { n: 'Chicken breast', q: '2 lb' }, { n: 'Jasmine rice', q: '2 lb' }, { n: 'Almond butter', q: '1 jar' }, { n: 'Blueberries', q: '2 pints' }, { n: 'Whole milk', q: '1 gal' }, { n: 'Coffee', q: '1 bag' },
+  ] },
+  { id: 'trv', name: 'Travel week',        kind: 'custom',   eyebrow: 'Custom · Airport-friendly', usedCount: 4, preview: 'Protein bars · Jerky · Apples', items: [
+    { n: 'Protein bars', q: '1 box' }, { n: 'Beef jerky', q: '2 bags' }, { n: 'Apples', q: '6' }, { n: 'Mixed nuts', q: '1 bag' }, { n: 'Tuna packets', q: '4' }, { n: 'Rice cakes', q: '1 pack' }, { n: 'Electrolyte mix', q: '1 box' },
+  ] },
+  { id: 'prep',name: 'Meal prep — Sunday', kind: 'custom',   eyebrow: 'Custom · Weekly', usedCount: 22, preview: 'Chicken thighs · Rice · Broccoli', items: [
+    { n: 'Chicken thighs', q: '3 lb' }, { n: 'Jasmine rice', q: '2 lb' }, { n: 'Broccoli', q: '2 heads' }, { n: 'Sweet potato', q: '4' }, { n: 'Olive oil', q: '1 btl' }, { n: 'Eggs', q: '12 ct' }, { n: 'Bell peppers', q: '4' }, { n: 'Black beans', q: '2 cans' }, { n: 'Salsa', q: '1 jar' }, { n: 'Greek yogurt', q: '32 oz' },
+  ] },
+  { id: 'mp7', name: '7-day Mediterranean',kind: 'mealplan', eyebrow: 'Meal plan · Whole-food', usedCount: 64, preview: 'Olive oil · Fish · Whole grains', items: [
+    { n: 'Extra-virgin olive oil', q: '1 btl' }, { n: 'Wild salmon', q: '2 lb' }, { n: 'Whole-grain bread', q: '1 loaf' }, { n: 'Chickpeas', q: '3 cans' }, { n: 'Tomatoes', q: '6' }, { n: 'Cucumber', q: '3' }, { n: 'Feta', q: '8 oz' }, { n: 'Kalamata olives', q: '1 jar' }, { n: 'Lemons', q: '4' }, { n: 'Baby spinach', q: '2 bags' }, { n: 'Quinoa', q: '1 lb' }, { n: 'Hummus', q: '1 tub' },
+  ] },
+  { id: 'mph', name: 'High-protein cut · 5d',kind: 'mealplan', eyebrow: 'Meal plan · Cutting', usedCount: 42, preview: 'Chicken · Greek yogurt · Eggs', items: [
+    { n: 'Chicken breast', q: '3 lb' }, { n: 'Greek yogurt (0%)', q: '32 oz' }, { n: 'Eggs', q: '18 ct' }, { n: 'Egg whites', q: '32 oz' }, { n: 'Cottage cheese', q: '16 oz' }, { n: 'Lean ground beef (93%)', q: '2 lb' }, { n: 'Broccoli', q: '2 heads' }, { n: 'Asparagus', q: '2 bunches' }, { n: 'Jasmine rice', q: '2 lb' }, { n: 'Berries', q: '2 pints' },
+  ] },
+  { id: 'mpp', name: 'Plant-forward build', kind: 'mealplan', eyebrow: 'Meal plan · Vegan-friendly', usedCount: 18, preview: 'Tempeh · Lentils · Quinoa', items: [
+    { n: 'Tempeh', q: '3 blocks' }, { n: 'Lentils', q: '2 lb' }, { n: 'Quinoa', q: '2 lb' }, { n: 'Firm tofu', q: '2 blocks' }, { n: 'Black beans', q: '3 cans' }, { n: 'Chickpeas', q: '3 cans' }, { n: 'Baby spinach', q: '2 bags' }, { n: 'Sweet potato', q: '5' }, { n: 'Peanut butter', q: '1 jar' }, { n: 'Rolled oats', q: '1 tub' }, { n: 'Soy milk', q: '2 cartons' },
+  ] },
 ];
 
 function bsLibraryPreviewItems(list) {
@@ -8904,12 +8975,12 @@ function bsNormalizeGroceryList(list) {
   };
 }
 
-function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreate = () => {} }) {
+function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreate = () => {}, onEdit = () => {}, onDuplicate = () => {}, onDelete = () => {}, deletedIds = [] }) {
   const t = useBS();
   _bsScrollTopOnMount();
   const [filter, setFilter] = useStateBSC('all'); // all | custom | template | mealplan | recipe
   const [openList, setOpenList] = useStateBSC(null);
-  const allLists = [...recipeLists, ...BS_GROCERY_LIBRARY];
+  const allLists = [...recipeLists, ...BS_GROCERY_LIBRARY].filter(l => !deletedIds.includes(l.id));
   const filtered = allLists.filter(l => filter === 'all' || l.kind === filter);
 
   return (
@@ -8947,47 +9018,54 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreat
         {filtered.map((l, i, arr) => {
           const color = l.kind === 'template' ? t.AMBER : l.kind === 'mealplan' ? t.GREEN : l.kind === 'recipe' ? t.RUST : t.ACCENT;
           const open = openList === l.id;
+          const previewItems = l.items || bsLibraryPreviewItems(l);
+          const btn = {
+            borderRadius: t.RADIUS_SM, padding: '8px 12px', cursor: 'pointer',
+            fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase',
+          };
           return (
             <div key={l.id} style={{
               padding: `${t.rowY + 6}px 0`,
               borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-                <BSEyebrow color={color}>{l.eyebrow}</BSEyebrow>
-                <BSEyebrow>{l.usedCount} uses</BSEyebrow>
+              <div
+                onClick={() => setOpenList(open ? null : l.id)}
+                style={{ cursor: 'pointer' }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                  <BSEyebrow color={color}>{l.eyebrow}</BSEyebrow>
+                  <BSEyebrow>{l.usedCount} uses</BSEyebrow>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', marginBottom: 4 }}>{l.name}</div>
+                  <span style={{ fontFamily: t.MONO, fontSize: 14, color: t.INK50, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>▾</span>
+                </div>
+                <div style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK70, letterSpacing: '0.06em', marginBottom: 10 }}>{l.count} items · {l.preview}</div>
               </div>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', marginBottom: 4 }}>{l.name}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK70, letterSpacing: '0.06em', marginBottom: 10 }}>{l.count} items · {l.preview}</div>
-              {l.items && open && (
+              {open && previewItems && previewItems.length > 0 && (
                 <div style={{ borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, marginBottom: 10, overflow: 'hidden' }}>
-                  {l.items.map((it, idx) => (
+                  {previewItems.map((it, idx) => (
                     <div key={it.id || idx} style={{
                       display: 'grid', gridTemplateColumns: '64px 1fr', gap: 10, padding: '10px 12px',
-                      borderBottom: idx === l.items.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+                      borderBottom: idx === previewItems.length - 1 ? 0 : `1px solid ${t.HAIR}`,
                     }}>
                       <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK70, fontWeight: 700, letterSpacing: '0.06em' }}>{it.q}</span>
                       <span>
                         <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, fontWeight: 700, letterSpacing: '-0.01em' }}>{it.n}</span>
-                        <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.08em', marginTop: 2, textTransform: 'uppercase' }}>{it.meals}</span>
+                        {it.meals && <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.08em', marginTop: 2, textTransform: 'uppercase' }}>{it.meals}</span>}
                       </span>
                     </div>
                   ))}
                 </div>
               )}
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={() => onLoad(l)} style={{ borderRadius: t.RADIUS_SM,
-                  padding: '8px 12px', background: t.INK, color: t.PAPER, border: 0, cursor: 'pointer',
-                  fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase',
-                }}>Load →</button>
-                <button style={{ borderRadius: t.RADIUS_SM,
-                  padding: '8px 12px', background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, cursor: 'pointer',
-                  fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase',
-                }}>Duplicate</button>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <button onClick={() => onLoad(l)} style={{ ...btn, background: t.INK, color: t.PAPER, border: 0 }}>Load →</button>
+                <button onClick={() => onEdit(l)} style={{ ...btn, background: 'transparent', color: t.INK, border: `1px solid ${t.INK}` }}>Edit</button>
+                {l.kind === 'mealplan' && (
+                  <button onClick={() => onDuplicate(l)} style={{ ...btn, background: 'transparent', color: t.INK, border: `1px solid ${t.INK}` }}>Duplicate</button>
+                )}
                 {l.kind === 'custom' && (
-                  <button style={{ borderRadius: t.RADIUS_SM,
-                    padding: '8px 12px', background: 'transparent', color: t.RUST, border: `1px solid ${t.RUST}`, cursor: 'pointer',
-                    fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase',
-                  }}>Delete</button>
+                  <button onClick={() => onDelete(l)} style={{ ...btn, background: 'transparent', color: t.RUST, border: `1px solid ${t.RUST}` }}>Delete</button>
                 )}
               </div>
             </div>
