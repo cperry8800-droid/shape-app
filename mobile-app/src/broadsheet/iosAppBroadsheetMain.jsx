@@ -592,7 +592,7 @@ function _bsNormalizePhone(raw) {
   return '+' + digits;
 }
 
-function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
+function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
   const t = useBS();
   const [mode, setMode] = useStateBSM(initialMode || 'signin'); // 'signin' | 'create'
   const [authMethod, setAuthMethod] = useStateBSM('email'); // 'email' | 'phone'
@@ -797,6 +797,18 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
               : (isCreate ? `Join as ${roleLabel} →` : `Sign in as ${roleLabel} →`)}
         </button>
 
+        {/* Create account / apply — role-aware: clients create an account,
+            trainers & nutritionists route to the Apply to Shape application. */}
+        {!isCreate && (
+          <button onClick={() => {
+            setAuthError('');
+            if (role === 'trainer' || role === 'nutritionist') { if (onApply) onApply(role); else setMode('create'); }
+            else { setMode('create'); }
+          }} style={{ width: '100%', borderRadius: 12, padding: '12px 16px', background: 'transparent', color: CREAM, border: `1px solid ${CREAM}`, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}>
+            {role === 'client' ? 'Create account →' : `Apply as a ${roleLabel} →`}
+          </button>
+        )}
+
         {/* OR */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ flex: 1, height: 1, background: LINE }} />
@@ -940,6 +952,7 @@ function BSAppShell({ tweaks, setTweak }) {
   const [bannerDismissed, setBannerDismissed] = useStateBSM(false);
   const [noticeDismissed, setNoticeDismissed] = useStateBSM(false);
   const [loginMode, setLoginMode] = useStateBSM('signin'); // initial tab on next login mount
+  const [applyRole, setApplyRole] = useStateBSM(null); // pro role applying for → opens the application screen
   const [bundleLoading, setBundleLoading] = useStateBSM(false);
   const [bundleError, setBundleError] = useStateBSM('');
   const t = useBS();
@@ -1039,7 +1052,11 @@ function BSAppShell({ tweaks, setTweak }) {
           setRole={(r) => { setRole(r); setTweak('role', r); }}
           onLogin={handleLogin}
           onBrowse={() => { setBrowseMode(true); setBannerDismissed(false); setNoticeDismissed(false); setLoginMode('signin'); setStage('app'); }}
+          onApply={(r) => { setApplyRole(r); loadClientBundle().then(() => setStage('apply')); }}
         />}
+        {stage === 'apply' && (window.BSProviderApplicationScreen
+          ? <window.BSProviderApplicationScreen initialRole={applyRole || 'trainer'} onBack={() => setStage('login')} />
+          : <div style={{ margin: 18, padding: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Loading application…</div>)}
         {stage === 'app' && !!bundleError && (
           <div style={{
             margin: 18,
