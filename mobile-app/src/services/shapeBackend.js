@@ -150,6 +150,7 @@ async function signUp({ email, password, fullName, role }) {
     email,
     password,
     options: {
+      emailRedirectTo: (typeof window !== 'undefined') ? `${window.location.origin}${window.location.pathname}` : undefined,
       data: {
         full_name: fullName,
         role: normalizedRole,
@@ -158,6 +159,12 @@ async function signUp({ email, password, fullName, role }) {
     },
   });
   if (error) throw error;
+
+  // Email confirmation enabled: Supabase returns a user but no session until
+  // the link is clicked. Surface that so the UI shows "check your email".
+  if (data.user && !data.session) {
+    return { needsEmailConfirmation: true, email, role: normalizedRole };
+  }
 
   const profile = data.user ? await upsertProfile(data.user, { fullName, role }) : null;
   const cached = setCached({ user: data.user, session: data.session, profile });
@@ -2238,6 +2245,17 @@ async function signInWithApple({ role } = {}) {
   return data;
 }
 
+// Re-send the signup confirmation email (for the "check your email" screen).
+async function resendConfirmation(email) {
+  if (!supabase) throw new Error('Email verification is not configured.');
+  const cleanEmail = String(email || '').trim();
+  if (!cleanEmail) throw new Error('No email to resend to.');
+  const emailRedirectTo = (typeof window !== 'undefined') ? `${window.location.origin}${window.location.pathname}` : undefined;
+  const { error } = await supabase.auth.resend({ type: 'signup', email: cleanEmail, options: { emailRedirectTo } });
+  if (error) throw error;
+  return true;
+}
+
 window.ShapeAuth = {
   configured: authConfigured,
   client: supabase,
@@ -2246,6 +2264,7 @@ window.ShapeAuth = {
   signInWithPhone,
   verifyPhoneOtp,
   signInWithApple,
+  resendConfirmation,
   signOut,
   getCurrentSession,
   updateProfileRoles,
