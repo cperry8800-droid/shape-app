@@ -712,7 +712,7 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
       <BSNightSky />
       <div className="bs-hide-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 'max(32px, calc(env(safe-area-inset-top, 0px) + 18px)) 22px calc(26px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', gap: 14 }}>
         {/* Logo lockup — top-left */}
-        <img src={`${import.meta.env.BASE_URL}shape-logo.png`} alt="Shape" style={{ width: 150, height: 'auto', display: 'block', marginLeft: -10, mixBlendMode: 'screen' }} />
+        <img src={`${import.meta.env.BASE_URL}shape-logo.png`} alt="Shape" style={{ width: 120, height: 'auto', display: 'block', marginLeft: -13 }} />
 
         {/* Eyebrow + heading */}
         <div style={{ marginTop: 32 }}>
