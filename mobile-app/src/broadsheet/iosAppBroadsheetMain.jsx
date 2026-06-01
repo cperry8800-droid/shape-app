@@ -752,6 +752,7 @@ function BSLogin({ onLogin, onBrowse, role, setRole, initialMode }) {
           )}
           {isPhone ? (
             <>
+              <button type="button" onClick={() => switchMethod('email')} style={{ alignSelf: 'flex-start', background: 'transparent', border: 0, color: '#2ee0c4', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '0 0 2px' }}>← Back to email</button>
               <div><div style={labelStyle}>Phone</div>
                 <input placeholder="+1 555 123 4567" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" disabled={otpSent} style={{ ...inputStyle, color: otpSent ? C50 : CREAM }} />
               </div>
