@@ -2223,6 +2223,21 @@ async function disconnectIntegration(provider) {
   return payload;
 }
 
+// Sign in with Apple via Supabase OAuth. Redirects to Apple and returns to
+// the /m/ app, where detectSessionInUrl establishes the session on load.
+// Requires the Apple provider to be enabled in the Supabase project.
+async function signInWithApple({ role } = {}) {
+  if (!supabase) throw new Error('Apple sign-in is not configured.');
+  try { if (role) window.localStorage && window.localStorage.setItem('shape.pendingRole', normalizeRole(role)); } catch (e) {}
+  const redirectTo = `${window.location.origin}${window.location.pathname}`;
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'apple',
+    options: { redirectTo },
+  });
+  if (error) throw error;
+  return data;
+}
+
 window.ShapeAuth = {
   configured: authConfigured,
   client: supabase,
@@ -2230,6 +2245,7 @@ window.ShapeAuth = {
   signUp,
   signInWithPhone,
   verifyPhoneOtp,
+  signInWithApple,
   signOut,
   getCurrentSession,
   updateProfileRoles,
