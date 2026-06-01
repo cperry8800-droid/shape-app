@@ -163,7 +163,7 @@ function _bsHabitInsightStats(habits) {
   };
 }
 
-function BSHabitInsights({ habits, accent, onOpenScore, onAddHabit, onDeleteHabit, onSetVisibility }) {
+function BSHabitInsights({ habits, accent, onOpenScore, onToggle, onDeleteHabit, onSetVisibility }) {
   const t = useBS();
   const model = _bsHabitGridModel(habits);
   const stats = _bsHabitInsightStats(habits);
@@ -212,16 +212,9 @@ function BSHabitInsights({ habits, accent, onOpenScore, onAddHabit, onDeleteHabi
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 18 }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 800 }}>Grid</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', color: muted, textTransform: 'uppercase' }}>Last 7 days</div>
-            {onAddHabit && (
-              <button type="button" onClick={onAddHabit} aria-label="Add habit" style={{
-                width: 26, height: 26, borderRadius: 999, border: `1px solid ${teal}`,
-                background: 'transparent', color: teal, fontSize: 16, lineHeight: 1, fontWeight: 700,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0,
-              }}>+</button>
-            )}
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 800 }}>Habits</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', color: muted, textTransform: 'uppercase' }}>
+            {model.demo ? 'Last 7 days' : `${habits.filter(h => (h.history || []).includes(_bsHabitsToday)).length}/${habits.length} Today`}
           </div>
         </div>
 
@@ -293,6 +286,9 @@ function BSHabitInsights({ habits, accent, onOpenScore, onAddHabit, onDeleteHabi
             );
           })}
         </div>
+        {!model.demo && habits.length > 0 && (
+          <BSHabitLogBox habits={habits} onToggle={onToggle} onRemove={onDeleteHabit} />
+        )}
       </div>
 
       <div style={{
@@ -1845,36 +1841,25 @@ function _bsUseServerHabits(tweaks, setTweak) {
 // Public/Friends/Private segmented filter, and tap-to-log tiles per habit
 // (Logged / Log now) with a × to remove. Logging persists via the shared
 // toggle() so it stays in sync with the grid + home tracker.
-function BSHabitLogBox({ habits, onToggle, onAdd, onRemove }) {
+// Bottom of the merged Habits box: a Public/Friends/Private filter + tap-to-log
+// tiles (Logged / Log now) for the habits in the selected sharing group, each
+// with a × to remove. Logging persists via the shared toggle().
+function BSHabitLogBox({ habits, onToggle, onRemove }) {
   const t = useBS();
   const hot = '#10c8b1';
-  const cardBg = '#1a1713';
   const cardInk = '#f7f1e6';
   const border = 'rgba(247,241,230,0.12)';
   const muted = 'rgba(247,241,230,0.58)';
   const TABS = [['public', 'Public'], ['friends', 'Friends'], ['private', 'Private']];
   const visOf = (h) => (['private', 'friends', 'public'].includes(h.visibility) ? h.visibility : 'private');
-  // Default to a tab that actually has habits so the box isn't empty on open.
+  // Default to a tab that actually has habits so the section isn't empty on open.
   const firstVis = (habits[0] && visOf(habits[0])) || 'public';
   const [tab, setTab] = useStateBSH(firstVis);
   const shown = habits.filter((h) => visOf(h) === tab);
-  const doneCount = habits.filter((h) => (h.history || []).includes(_bsHabitsToday)).length;
 
   return (
-    <div style={{ marginTop: 12, borderRadius: 10, border: `1px solid ${border}`, background: cardBg, color: cardInk, padding: 16, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 900, letterSpacing: '0.22em', textTransform: 'uppercase' }}>Habits</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: muted, textTransform: 'uppercase' }}>{doneCount}/{habits.length} Today</span>
-          {onAdd && (
-            <button type="button" onClick={onAdd} aria-label="Add habit" style={{ width: 28, height: 28, borderRadius: 999, border: `1px solid ${hot}`, background: 'transparent', color: hot, fontSize: 16, lineHeight: 1, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}>+</button>
-          )}
-        </div>
-      </div>
-
-      <div style={{ height: 1, background: border, margin: '12px 0 14px' }} />
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
+    <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${border}` }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8, marginBottom: 12 }}>
         {TABS.map(([key, label]) => {
           const on = tab === key;
           return (
@@ -1891,8 +1876,8 @@ function BSHabitLogBox({ habits, onToggle, onAdd, onRemove }) {
       </div>
 
       {shown.length === 0 ? (
-        <div style={{ padding: '16px 4px', color: muted, fontFamily: t.DISPLAY, fontSize: 13 }}>
-          No {tab} habits yet. Tap + to add one.
+        <div style={{ padding: '12px 4px', color: muted, fontFamily: t.DISPLAY, fontSize: 13 }}>
+          No {tab} habits.
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
@@ -1927,17 +1912,7 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
 
   // Live (Supabase) when signed in, ephemeral tweaks otherwise — shared with
   // the home tracker so completions and edits stay in sync across surfaces.
-  const { habits, upsert, remove: removeHabit, setVisibility: setHabitVisibility, toggle } = _bsUseServerHabits(tweaks, setTweak);
-  const [adding, setAdding] = useStateBSH(false);
-
-  // Open the in-app add form. (Previously used window.prompt, which is
-  // disabled in the native WebView — it looked like it tried to leave the app.)
-  const addHabit = () => setAdding(true);
-  const doneCount = habits.filter(h => (h.history || []).includes(_bsHabitsToday)).length;
-  const sharedCount = habits.filter(h => h.visibility !== 'private').length;
-  const publicCount = habits.filter(h => h.visibility === 'public').length;
-  const friendsCount = habits.filter(h => h.visibility === 'friends').length;
-  const missedTodayShared = habits.filter(h => h.visibility !== 'private' && h.type === 'do' && !(h.history || []).includes(_bsHabitsToday));
+  const { habits, remove: removeHabit, setVisibility: setHabitVisibility, toggle } = _bsUseServerHabits(tweaks, setTweak);
   return (
     <BSPage>
       <BSDetailHeader
@@ -1946,63 +1921,7 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
         title={<>Habits</>}
       />
       <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <BSHabitInsights habits={habits} accent={accent} onOpenScore={onOpenScore} onAddHabit={addHabit} onDeleteHabit={removeHabit} onSetVisibility={setHabitVisibility} />
-        <BSHabitLogBox habits={habits} onToggle={toggle} onAdd={addHabit} onRemove={removeHabit} />
-        {adding && (
-          <BSHabitForm
-            onSave={(h) => { upsert(h); setAdding(false); }}
-            onCancel={() => setAdding(false)}
-          />
-        )}
-      </div>
-    </BSPage>
-  );
-
-  return (
-    <BSPage>
-      <BSDetailHeader
-        onBack={onBack}
-        eyebrow="Section · Daily ledger"
-        title={<>Habits<br/>& streaks.</>}
-      />
-      <div style={{ marginTop: 12 }}>
-        <BSHabitTracker tweaks={tweaks} setTweak={setTweak} accent={accent} mode="full" />
-      </div>
-      <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <BSHabitInsights habits={habits} accent={accent} onOpenScore={onOpenScore} onAddHabit={addHabit} onDeleteHabit={removeHabit} />
-
-        <div style={{ marginTop: 12, borderRadius: 10, border: '1px solid rgba(247,241,230,0.12)', background: '#1a1713', color: '#f7f1e6', padding: 16, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-          {[
-            ['Today',   `${doneCount}/${habits.length}`],
-            ['Tracked', String(habits.length)],
-            ['Shared',  String(sharedCount)],
-          ].map(([l, v], i) => (
-            <div key={l} style={{ borderLeft: i > 0 ? '1px solid rgba(247,241,230,0.10)' : 0, paddingLeft: i > 0 ? 12 : 0 }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', color: 'rgba(247,241,230,0.52)', textTransform: 'uppercase' }}>{l}</div>
-              <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 26, color: '#f7f1e6', marginTop: 4, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Public-habits accountability explainer */}
-        <div style={{ marginTop: 12, borderRadius: 10, border: '1px solid rgba(247,241,230,0.12)', background: '#1a1713', color: '#f7f1e6', padding: '12px 14px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 16, lineHeight: 1, marginTop: 1 }}>⚡</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#10c8b1' }}>
-              Public accountability
-            </div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 13, lineHeight: 1.4, marginTop: 4 }}>
-              {sharedCount === 0
-                ? 'Keep habits private, share with friends only, or make them public. Privacy is the default.'
-                : missedTodayShared.length === 0
-                  ? `${sharedCount} shared ${sharedCount === 1 ? 'habit' : 'habits'} - ${friendsCount} friends-only, ${publicCount} public.`
-                  : `${missedTodayShared.length} shared ${missedTodayShared.length === 1 ? 'habit' : 'habits'} not done today. Friends can support the streak.`}
-            </div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#10c8b1', marginTop: 8 }}>
-              + Every completed habit adds to your Shape score
-            </div>
-          </div>
-        </div>
+        <BSHabitInsights habits={habits} accent={accent} onOpenScore={onOpenScore} onToggle={toggle} onDeleteHabit={removeHabit} onSetVisibility={setHabitVisibility} />
       </div>
     </BSPage>
   );
