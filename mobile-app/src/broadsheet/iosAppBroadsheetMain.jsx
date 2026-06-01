@@ -266,7 +266,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
     return (
       <div style={{ position: 'absolute', inset: 0, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '54px 20px 40px' }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${t.INK}`, paddingBottom: 10 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><BSLogo size={22} color={t.INK} /> Vol. 6 · No. 38</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><BSLogo size={22} color={t.INK} /> Vol. 1 · No. 1</span>
           <span>Thu · May 21 · 2026</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -300,7 +300,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
           </div>
         </div>
         <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, textAlign: 'left', borderTop: `1px solid ${t.RULE}`, paddingTop: 14 }}>
-          Loading · Vol. 6
+          Loading · Vol. 1
         </div>
       </div>
     );
@@ -312,7 +312,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
       <div style={{ position: 'absolute', inset: 0, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '50px 18px 8px' }}>
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, display: 'flex', justifyContent: 'space-between', borderBottom: `1px solid ${t.RULE}`, paddingBottom: 6 }}>
-            <span>Vol. 6 · No. 38</span><span>May 21 · 2026</span><span>$0 · Daily</span>
+            <span>Vol. 1 · No. 1</span><span>May 21 · 2026</span><span>$0 · Daily</span>
           </div>
           <div style={{ borderBottom: `3px double ${t.INK}`, padding: '12px 0 14px', display: 'flex', justifyContent: 'center' }}>
             <BSWordmark size={42} full color={t.INK} />
@@ -363,7 +363,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
           <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 120, lineHeight: 0.86, letterSpacing: '-0.06em', color: t.PAPER, marginTop: 10, marginBottom: 14, textAlign: 'center' }}>
             SD
           </div>
-          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.32em', textTransform: 'uppercase', color: t.PAPER, opacity: 0.7 }}>Vol. 6 · No. 38</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.32em', textTransform: 'uppercase', color: t.PAPER, opacity: 0.7 }}>Vol. 1 · No. 1</div>
           <div style={{ marginTop: 24, width: 90, height: 1, background: t.PAPER, opacity: 0.4 }} />
           <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.PAPER, opacity: 0.5 }}>Loading edition…</div>
         </div>
@@ -568,7 +568,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
         <div style={{ background: t.INK, color: t.PAPER, padding: '10px 16px', display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase' }}>
           <span style={{ color: t.AMBER, fontWeight: 700 }}>● Live</span>
           <span style={{ opacity: 0.6 }}>Loading edition…</span>
-          <span style={{ opacity: 0.6 }}>Vol. 6</span>
+          <span style={{ opacity: 0.6 }}>Vol. 1</span>
         </div>
 
         <style>{`@keyframes bs-tape { from { transform: translateX(0); } to { transform: translateX(-50%); } }`}</style>
