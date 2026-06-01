@@ -854,7 +854,7 @@ function BSTabBar({ tabs, active, onChange }) {
   return (
     <div style={{
       position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 55,
-      height: 88, padding: '10px 10px calc(16px + env(safe-area-inset-bottom, 0px))',
+      height: 72, padding: '6px 10px calc(10px + env(safe-area-inset-bottom, 0px))',
       background: `linear-gradient(180deg, rgba(${t.inkRGB},0.03), ${t.PAPER} 78%)`,
       color: t.INK,
       borderTop: `1px solid ${t.SURFACE_BORDER}`,
@@ -868,12 +868,12 @@ function BSTabBar({ tabs, active, onChange }) {
         return (
           <button key={tab.key} onClick={() => onChange(tab.key)} style={{ borderRadius: 12,
             border: 0, background: 'transparent',
-            cursor: 'pointer', padding: '6px 0',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 5,
+            cursor: 'pointer', padding: '3px 0',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
             color: on ? t.ACCENT : t.INK50, position: 'relative',
           }}>
             {BS_TAB_ICON_KEYS.has(tab.key)
-              ? <BSTabIcon name={tab.key} size={22} />
+              ? <BSTabIcon name={tab.key} size={20} />
               : <span style={{ fontFamily: t.MONO, fontWeight: 700, fontSize: 10.5, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{String(i + 1).padStart(2, '0')}</span>}
             <span style={{
               fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600,
