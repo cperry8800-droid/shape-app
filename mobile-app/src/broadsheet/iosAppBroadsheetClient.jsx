@@ -589,13 +589,13 @@ function BSHomeCardItem({ slot, model, t, pinned, onPin, onRemove, onOpen, dragg
       draggable={draggable}
       {...(dragHandlers || {})}
       style={{
-        margin: `0 ${t.padX}px 10px`, borderRadius: 12, overflow: 'hidden',
+        margin: `0 ${t.padX}px 7px`, borderRadius: 11, overflow: 'hidden',
         border: dragOver ? `1.5px dashed ${model.accent}` : (pinned ? `1.5px solid ${model.accent}` : `1px solid ${t.RULE}`),
         background: t.PAPER2,
         opacity: dragging ? 0.5 : 1,
         transition: 'opacity 0.15s ease',
       }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 13px 0' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px 0' }}>
         <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: model.accent, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
           {draggable && <span title="Drag to reorder" style={{ cursor: 'grab', color: t.INK50, fontSize: 12, letterSpacing: 0 }}>⠿</span>}
           {model.kicker}{pinned ? ' · pinned' : ''}
@@ -605,13 +605,13 @@ function BSHomeCardItem({ slot, model, t, pinned, onPin, onRemove, onOpen, dragg
           <button onClick={onRemove} title="Hide" style={_bsCardBtn(t, t.INK50)}>×</button>
         </div>
       </div>
-      <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: onOpen ? 'pointer' : 'default', padding: '4px 13px 13px' }}>
+      <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: onOpen ? 'pointer' : 'default', padding: '2px 12px 11px' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 7, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 36, lineHeight: 0.9, letterSpacing: '-0.04em', color: t.INK }}>{model.hero}</span>
+          <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 27, lineHeight: 0.92, letterSpacing: '-0.04em', color: t.INK }}>{model.hero}</span>
           {model.heroUnit ? <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{model.heroUnit}</span> : null}
         </div>
         {model.sub && model.sub.length > 0 && (
-          <div style={{ marginTop: 7, display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
+          <div style={{ marginTop: 5, display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
             {model.sub.filter(Boolean).map((s, i) => (
               <React.Fragment key={i}>
                 {i > 0 && <span style={{ opacity: 0.5 }}>·</span>}
@@ -620,7 +620,7 @@ function BSHomeCardItem({ slot, model, t, pinned, onPin, onRemove, onOpen, dragg
             ))}
           </div>
         )}
-        {model.caption ? <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: t.body, fontWeight: 500, color: t.INK70, letterSpacing: '-0.01em', lineHeight: 1.28 }}>{model.caption}</div> : null}
+        {model.caption ? <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: t.body, fontWeight: 500, color: t.INK70, letterSpacing: '-0.01em', lineHeight: 1.25 }}>{model.caption}</div> : null}
       </button>
     </div>
   );
@@ -702,10 +702,10 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
 
   return (
     <>
-      <div style={{ padding: `4px ${t.padX}px 12px`, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
+      <div style={{ padding: `2px ${t.padX}px 8px`, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
         <div>
-          <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 30, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{todayLabel}.</div>
-          <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Your stack · pin or choose cards</div>
+          <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 24, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{todayLabel}.</div>
+          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Your stack · pin or choose cards</div>
         </div>
         {/* Compact dropdown to choose which cards are visible */}
         <div style={{ position: 'relative' }}>
@@ -776,7 +776,7 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
         );
       })}
 
-      <div style={{ padding: `2px ${t.padX}px 14px`, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK50, lineHeight: 1.4 }}>
+      <div style={{ padding: `0 ${t.padX}px 10px`, fontFamily: t.DISPLAY, fontSize: 11.5, color: t.INK50, lineHeight: 1.35 }}>
         <span style={{ fontWeight: 700, color: t.INK70 }}>Three defaults, then it's yours.</span> Drag the ⠿ handle to reorder, pin a card to lock it to the top, or choose which cards show from <span style={{ fontWeight: 700, color: t.INK70 }}>Cards ▾</span>.
         {layout.manual
           ? <> Order is set by you — <button onClick={() => persist({ ...layout, manual: false })} style={{ background: 'transparent', border: 0, padding: 0, color: t.ACCENT, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit' }}>switch back to auto</button>.</>
@@ -1276,7 +1276,13 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
       <BSNowPlaying onOpen={goRadio} />
 
       {/* THIS WEEK — calendar preview */}
-      <BSSection title="This week" kicker={`Wk ${isoWeek} · ${fmtDate(0)}–${weekDates[0].getMonth() === weekDates[6].getMonth() ? weekDates[6].getDate() : fmtDate(6)} · ${fmtDate(selIdx)}`} meta={<span onClick={goCalendar} style={{ cursor: 'pointer', fontWeight: 800, color: t.INK, marginLeft: 'auto' }}>Month view →</span>} />
+      <div style={{ padding: `${t.sectGap}px ${t.padX}px 8px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 9, minWidth: 0, flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>▍ This week</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, whiteSpace: 'nowrap' }}>Wk {isoWeek} · {fmtDate(0)}–{weekDates[0].getMonth() === weekDates[6].getMonth() ? weekDates[6].getDate() : fmtDate(6)}</span>
+        </span>
+        <button onClick={goCalendar} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 999, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>Month view →</button>
+      </div>
       <div style={{ padding: `0 ${t.padX}px 14px` }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, borderTop: `2px solid ${t.INK}`, paddingTop: 10 }}>
           {weekDates.map((date, idx) => {
