@@ -1616,14 +1616,14 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
       {/* THIS WEEK — (moved to top) */}
 
       {/* OP-ED */}
-      <div style={{ margin: `22px ${t.padX}px 0`, padding: 20, background: t.INK, color: t.PAPER }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.AMBER, marginBottom: 12, fontWeight: 700 }}>
+      <div style={{ margin: `18px ${t.padX}px 0`, padding: '14px 16px', background: t.INK, color: t.PAPER }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.AMBER, marginBottom: 8, fontWeight: 700 }}>
           ▍ Op-ed · Your coach
         </div>
-        <div style={{ fontFamily: t.DISPLAY, fontWeight: 500, fontSize: 22, lineHeight: 1.2, letterSpacing: '-0.02em' }}>
+        <div style={{ fontFamily: t.DISPLAY, fontWeight: 500, fontSize: 16, lineHeight: 1.25, letterSpacing: '-0.015em' }}>
           "You're three weeks in. The tempo is the point — slow eccentric on every press."
         </div>
-        <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid rgba(245,240,230,0.18)`, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
+        <div style={{ marginTop: 10, paddingTop: 9, borderTop: `1px solid rgba(245,240,230,0.18)`, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
           <span>By Jordan Chen · Coach</span>
           <span style={{ opacity: 0.55 }}>Mon · 8:15</span>
         </div>
