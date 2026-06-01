@@ -390,12 +390,12 @@ function BSRadioPrompt() {
       overflow: 'hidden',
     }}>
       {/* Scrollable upper region — hero + choices */}
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }} className="bs-scroll">
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }} className="bs-scroll">
       {/* Hero — masthead-style */}
       <div style={{ position: 'relative', padding: `26px ${t.padX}px 8px` }}>
         <BSStageLight color={t.ACCENT} opacity={0.18} />
         <div style={{ position: 'relative', zIndex: 2 }}>
-          <BSEQ bars={22} color={t.ACCENT} height={54} gap={4} />
+          <BSEQ bars={22} color={t.ACCENT} height={62} gap={4} />
         </div>
         <div style={{ marginTop: 18, position: 'relative', zIndex: 2 }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700, marginBottom: 12 }}>
@@ -409,6 +409,9 @@ function BSRadioPrompt() {
           </div>
         </div>
       </div>
+
+      {/* Spacer pushes the choices down to sit just above Continue (matches mock) */}
+      <div style={{ flex: 1, minHeight: 20 }} />
 
       {/* Choice rows */}
       <div style={{ padding: `16px ${t.padX}px`, display: 'flex', flexDirection: 'column', gap: 10 }}>
