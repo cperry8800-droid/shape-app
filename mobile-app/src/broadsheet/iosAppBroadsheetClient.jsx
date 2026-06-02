@@ -5075,6 +5075,8 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   const [channels, setChannels] = useStateBSC(null);
   const [newChannel, setNewChannel] = useStateBSC(null);      // null = closed; string = create-form open
   const [newChannelPrivate, setNewChannelPrivate] = useStateBSC(false);
+  const [channelQuery, setChannelQuery] = useStateBSC('');
+  const [pinOverride, setPinOverride] = useStateBSC({}); // id -> bool, so pin reorders demo + live alike
   const [addMemberFor, setAddMemberFor] = useStateBSC(null);  // channel being added-to
   const [memberQuery, setMemberQuery] = useStateBSC('');
   const [memberResults, setMemberResults] = useStateBSC([]);
@@ -5101,7 +5103,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   };
   const pinChannelNow = (ch) => {
     const next = !ch.pinned;
-    setChannels(prev => { const list = (prev || []).map(c => c.id === ch.id ? { ...c, pinned: next, joined: true } : c); list.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)); return list; });
+    setPinOverride(o => ({ ...o, [ch.id]: next }));
     window.__bsToast?.(next ? 'Pinned to top' : 'Unpinned', 'ok');
     const p = window.ShapeChannels?.pin?.(ch.id, next);
     if (p && p.then) p.then(() => refreshChannels()).catch(() => {});
@@ -5484,6 +5486,11 @@ function BSClientFeed({ onProfile, role: roleProp }) {
           // direct line rather than a community room.
           const support = { n: 'Support', s: 'Private · you & the Shape team', c: TEALB, i: '✦', dm: true };
           const chList = (channels && channels.length) ? channels : (loggedIn ? [] : BS_SAMPLE_CHANNELS);
+          const _chQ = channelQuery.trim().toLowerCase();
+          const chDisplay = chList
+            .map(c => ({ ...c, pinned: (c.id in pinOverride) ? pinOverride[c.id] : !!c.pinned }))
+            .filter(c => !_chQ || (c.name || '').toLowerCase().includes(_chQ))
+            .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
           const selectors = [
             { key: 'channels', label: 'Channels', color: TEALB },
             { key: 'coaches', label: 'Coaches', color: '#c0533b' },
@@ -5501,7 +5508,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
                   <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, marginTop: 3 }}>{ch.memberCount} member{ch.memberCount === 1 ? '' : 's'}{ch.last ? ` · ${ch.last.slice(0, 26)}` : ''}</div>
                 </button>
                 {unreadBadge('ch:' + ch.id)}
-                {ch.joined && !isSample && <button onClick={() => pinChannelNow(ch)} aria-label={ch.pinned ? 'Unpin' : 'Pin'} title={ch.pinned ? 'Unpin' : 'Pin to top'} style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 999, border: `1px solid ${ch.pinned ? TEALB : hair}`, background: ch.pinned ? `${TEALB}1f` : 'transparent', cursor: 'pointer', padding: 0, fontSize: 13, opacity: ch.pinned ? 1 : 0.55 }}>📌</button>}
+                <button onClick={() => pinChannelNow(ch)} aria-label={ch.pinned ? 'Unpin' : 'Pin'} title={ch.pinned ? 'Unpin' : 'Pin to top'} style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 999, border: `1px solid ${ch.pinned ? TEALB : hair}`, background: ch.pinned ? `${TEALB}1f` : 'transparent', cursor: 'pointer', padding: 0, fontSize: 13, opacity: ch.pinned ? 1 : 0.5 }}>📌</button>
                 {ch.isHost && !isSample && <button onClick={() => { setAddMemberFor(ch); setMemberQuery(''); setMemberResults([]); }} style={{ flexShrink: 0, padding: '7px 11px', borderRadius: 999, background: 'transparent', color: cardInk, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Add</button>}
                 {!ch.joined && <button onClick={() => joinChannelNow(ch)} style={{ flexShrink: 0, padding: '7px 13px', borderRadius: 999, background: TEAL, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Join</button>}
                 {ch.joined && <span style={{ color: muted, fontSize: 16, flexShrink: 0 }}>›</span>}
@@ -5538,7 +5545,17 @@ function BSClientFeed({ onProfile, role: roleProp }) {
                       </div>
                     </div>
                   )}
-                  {chList.map(chRow)}
+                  {chList.length > 0 && (
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <span style={{ position: 'absolute', left: 13, fontSize: 13, color: muted, pointerEvents: 'none' }}>⌕</span>
+                      <input value={channelQuery} onChange={(e) => setChannelQuery(e.target.value)} placeholder="Search channels…" style={{ width: '100%', height: 36, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 34px', fontFamily: t.BODY, fontSize: 13.5, color: t.INK, outline: 'none' }} />
+                      {channelQuery && <button onClick={() => setChannelQuery('')} aria-label="Clear search" style={{ position: 'absolute', right: 10, width: 22, height: 22, borderRadius: 999, border: 0, background: 'transparent', color: muted, cursor: 'pointer', fontSize: 14, padding: 0 }}>×</button>}
+                    </div>
+                  )}
+                  {chDisplay.map(chRow)}
+                  {_chQ && chDisplay.length === 0 && (
+                    <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, padding: '4px 2px' }}>No channels match “{channelQuery.trim()}”.</div>
+                  )}
                   {channels && chList.length === 0 && newChannel === null && (
                     <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, padding: '4px 2px' }}>No channels yet — start one.</div>
                   )}
