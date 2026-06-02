@@ -16,7 +16,16 @@ import {
 // RLS-protected and already public on the website.
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://zznufekgjngecelwxndw.supabase.co';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_vuOq-03RJHruIz0PWtXiUA_R4zvTJcR';
-const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+// Backend base URL. An explicit VITE_API_BASE_URL always wins (required for the
+// native app, which has no same origin). Otherwise default to the page's own
+// origin — the hosted /m/ web build is served from the same site that hosts
+// /api, so same-origin requests just work without a build-time env.
+const _apiEnvBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const _isNative = (() => { try { return !!(Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()); } catch (e) { return false; } })();
+const apiBaseUrl = _apiEnvBase
+  || ((!_isNative && typeof window !== 'undefined' && window.location && window.location.origin)
+      ? window.location.origin.replace(/\/$/, '')
+      : '');
 const providerApplicationFileBucket = 'provider-credentials';
 
 const authConfigured = Boolean(supabaseUrl && supabaseAnonKey);
