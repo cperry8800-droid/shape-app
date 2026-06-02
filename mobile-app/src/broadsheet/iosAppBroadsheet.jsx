@@ -851,6 +851,15 @@ function BSTabIcon({ name, size = 22 }) {
 
 function BSTabBar({ tabs, active, onChange }) {
   const t = useBS();
+  // Chat-tab unread badge — read from the app-wide ShapeUnread manager (the tab
+  // bar is always mounted, so this is where we start + watch it).
+  const [chatUnread, setChatUnread] = React.useState(() => (window.ShapeUnread?.total?.() || 0));
+  React.useEffect(() => {
+    if (window.ShapeUnread?.start) window.ShapeUnread.start();
+    const off = window.ShapeUnread?.onChange?.(() => setChatUnread(window.ShapeUnread?.total?.() || 0));
+    setChatUnread(window.ShapeUnread?.total?.() || 0);
+    return () => { try { off && off(); } catch (e) {} };
+  }, []);
   return (
     <div style={{
       position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 55,
@@ -878,6 +887,9 @@ function BSTabBar({ tabs, active, onChange }) {
             <span style={{
               fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600,
             }}>{tab.label}</span>
+            {tab.key === 'chat' && chatUnread > 0 && (
+              <span style={{ position: 'absolute', top: 0, left: '52%', minWidth: 15, height: 15, borderRadius: 999, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 }}>{chatUnread > 9 ? '9+' : chatUnread}</span>
+            )}
           </button>
         );
       })}

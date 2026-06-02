@@ -2776,6 +2776,38 @@ window.ShapeChannels = {
   pin: pinChannel,
 };
 
+// ── Unread manager — app-wide so the Chat-tab badge + per-row badges work even
+//    when the chat screen isn't mounted. Seeds persisted counts, then keeps a
+//    live map via realtime. Keys: `ch:<id>` / `dm:<id>`.
+const _unread = { map: {}, started: false, listeners: new Set(), myChannels: new Set(), subs: [] };
+function _unreadEmit() { _unread.listeners.forEach(fn => { try { fn(_unread.map); } catch (e) {} }); }
+async function startUnread() {
+  if (_unread.started || !supabase || !state.user?.id) return;
+  _unread.started = true;
+  try { const ch = await listChannels(); (ch.data || []).forEach(c => { if (c.joined) _unread.myChannels.add(c.id); }); } catch (e) {}
+  try { const { data } = await supabase.rpc('channel_unread'); (data || []).forEach(r => { _unread.map['ch:' + r.channel_id] = Number(r.unread) || 0; }); } catch (e) {}
+  try { const { data } = await supabase.rpc('dm_unread'); (data || []).forEach(r => { _unread.map['dm:' + r.conversation_id] = Number(r.unread) || 0; }); } catch (e) {}
+  _unreadEmit();
+  _unread.subs.push(subscribeChannelMessages((row) => {
+    if (!row || row.sender_id === state.user?.id || !_unread.myChannels.has(row.channel_id)) return;
+    const k = 'ch:' + row.channel_id; _unread.map[k] = (_unread.map[k] || 0) + 1; _unreadEmit();
+  }));
+  _unread.subs.push(subscribeDirectMessages((row) => {
+    if (!row || row.sender_id === state.user?.id) return;
+    const k = 'dm:' + row.conversation_id; _unread.map[k] = (_unread.map[k] || 0) + 1; _unreadEmit();
+  }));
+}
+window.ShapeUnread = {
+  start: startUnread,
+  all: () => _unread.map,
+  get: (kind, id) => _unread.map[(kind === 'channel' ? 'ch:' : 'dm:') + id] || 0,
+  total: () => Object.values(_unread.map).reduce((a, b) => a + (b || 0), 0),
+  onChange: (cb) => { _unread.listeners.add(cb); return () => _unread.listeners.delete(cb); },
+  noteChannel: (id) => { if (id) _unread.myChannels.add(id); },
+  markChannelRead: (id) => { _unread.map['ch:' + id] = 0; _unread.myChannels.add(id); _unreadEmit(); if (supabase) supabase.rpc('mark_channel_read', { p_channel_id: id }).then(() => {}).catch(() => {}); },
+  markConversationRead: (id) => { _unread.map['dm:' + id] = 0; _unreadEmit(); if (supabase) supabase.rpc('mark_conversation_read', { p_conversation_id: id }).then(() => {}).catch(() => {}); },
+};
+
 window.ShapeWorkoutLogs = {
   saveSessionLog: saveWorkoutSessionLog,
   saveStructuredSession: saveStructuredWorkoutSession,
