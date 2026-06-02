@@ -2652,38 +2652,45 @@ async function listChannels() {
   const uid = state.user.id;
   const { data: channels, error } = await supabase
     .from('channels')
-    .select('id, name, description, created_by, last_message, last_message_at, created_at')
+    .select('id, name, description, created_by, visibility, last_message, last_message_at, created_at')
     .order('last_message_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false });
   if (error) throw error;
   const ids = (channels || []).map(c => c.id);
   let members = [];
   if (ids.length) {
-    const { data: mem } = await supabase.from('channel_members').select('channel_id, user_id, role').in('channel_id', ids);
+    const { data: mem } = await supabase.from('channel_members').select('channel_id, user_id, role, pinned').in('channel_id', ids);
     members = mem || [];
   }
   const byChannel = {};
   members.forEach(m => { (byChannel[m.channel_id] = byChannel[m.channel_id] || []).push(m); });
-  return {
-    stored: 'supabase',
-    data: (channels || []).map(c => {
-      const ms = byChannel[c.id] || [];
-      const mine = ms.find(m => m.user_id === uid);
-      return {
-        id: c.id, name: c.name, description: c.description || '',
-        memberCount: ms.length,
-        joined: !!mine,
-        isHost: (mine && mine.role === 'host') || c.created_by === uid,
-        last: c.last_message || '', lastAt: c.last_message_at,
-      };
-    }),
-  };
+  const rows = (channels || []).map(c => {
+    const ms = byChannel[c.id] || [];
+    const mine = ms.find(m => m.user_id === uid);
+    return {
+      id: c.id, name: c.name, description: c.description || '',
+      memberCount: ms.length,
+      joined: !!mine,
+      isHost: (mine && mine.role === 'host') || c.created_by === uid,
+      private: c.visibility === 'private',
+      pinned: !!(mine && mine.pinned),
+      last: c.last_message || '', lastAt: c.last_message_at,
+    };
+  });
+  rows.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)); // pinned first; stable otherwise
+  return { stored: 'supabase', data: rows };
 }
-async function createChannel({ name, description } = {}) {
+async function createChannel({ name, description, visibility } = {}) {
   if (!supabase || !state.user?.id) throw new Error('Sign in to create a channel.');
-  const { data, error } = await supabase.rpc('create_channel', { p_name: name, p_description: description || null });
+  const { data, error } = await supabase.rpc('create_channel', { p_name: name, p_description: description || null, p_visibility: visibility === 'private' ? 'private' : 'public' });
   if (error) throw error;
   return { stored: 'supabase', data };
+}
+async function pinChannel(channelId, pinned) {
+  if (!supabase || !state.user?.id) throw new Error('Sign in.');
+  const { error } = await supabase.rpc('set_channel_pinned', { p_channel_id: channelId, p_pinned: !!pinned });
+  if (error) throw error;
+  return { ok: true };
 }
 async function joinChannel(channelId) {
   if (!supabase || !state.user?.id) throw new Error('Sign in to join.');
@@ -2766,6 +2773,7 @@ window.ShapeChannels = {
   listMessages: listChannelMessages,
   sendMessage: sendChannelMessage,
   subscribeMessages: subscribeChannelMessages,
+  pin: pinChannel,
 };
 
 window.ShapeWorkoutLogs = {

@@ -5007,6 +5007,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   // Member-created community channels ("run club" style).
   const [channels, setChannels] = useStateBSC(null);
   const [newChannel, setNewChannel] = useStateBSC(null);      // null = closed; string = create-form open
+  const [newChannelPrivate, setNewChannelPrivate] = useStateBSC(false);
   const [addMemberFor, setAddMemberFor] = useStateBSC(null);  // channel being added-to
   const [memberQuery, setMemberQuery] = useStateBSC('');
   const [memberResults, setMemberResults] = useStateBSC([]);
@@ -5018,13 +5019,21 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   const createChannelNow = () => {
     const name = (newChannel || '').trim();
     if (!name) return;
-    setNewChannel(null);
+    const isPrivate = newChannelPrivate;
+    setNewChannel(null); setNewChannelPrivate(false);
     // Optimistic: show it immediately (also lets the demo/preview work without a
     // signed-in session). The backend call persists it when authenticated.
-    setChannels(prev => [{ id: 'tmp-ch-' + Date.now(), name, description: '', memberCount: 1, joined: true, isHost: true, last: '' }, ...(prev || [])]);
+    setChannels(prev => [{ id: 'tmp-ch-' + Date.now(), name, description: '', memberCount: 1, joined: true, isHost: true, private: isPrivate, pinned: false, last: '' }, ...(prev || [])]);
     window.__bsToast?.(`Created “${name}”`, 'ok');
-    const p = window.ShapeChannels?.create?.({ name });
+    const p = window.ShapeChannels?.create?.({ name, visibility: isPrivate ? 'private' : 'public' });
     if (p && p.then) p.then(() => refreshChannels()).catch((e) => window.__bsToast?.(e?.message || 'Saved locally — sign in to sync.', 'info'));
+  };
+  const pinChannelNow = (ch) => {
+    const next = !ch.pinned;
+    setChannels(prev => { const list = (prev || []).map(c => c.id === ch.id ? { ...c, pinned: next, joined: true } : c); list.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)); return list; });
+    window.__bsToast?.(next ? 'Pinned to top' : 'Unpinned', 'ok');
+    const p = window.ShapeChannels?.pin?.(ch.id, next);
+    if (p && p.then) p.then(() => refreshChannels()).catch(() => {});
   };
   const joinChannelNow = (ch) => {
     setChannels(prev => (prev || []).map(c => c.id === ch.id ? { ...c, joined: true, memberCount: (c.memberCount || 0) + 1 } : c));
@@ -5430,10 +5439,11 @@ function BSClientFeed({ onProfile, role: roleProp }) {
               <div key={ch.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, border: `1px solid ${hair}`, background: card }}>
                 <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 16 }}>#</div>
                 <button onClick={() => ch.joined ? openChannelNow(ch) : joinChannelNow(ch)} style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, textAlign: 'left', cursor: 'pointer', color: cardInk }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15 }}># {ch.name}{ch.isHost && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: TEALB, marginLeft: 8 }}>HOST</span>}</div>
+                  <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15 }}># {ch.name}{ch.pinned && <span title="Pinned" style={{ marginLeft: 6 }}>📌</span>}{ch.private && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: muted, marginLeft: 8 }}>🔒 PRIVATE</span>}{ch.isHost && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: TEALB, marginLeft: 8 }}>HOST</span>}</div>
                   <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, marginTop: 3 }}>{ch.memberCount} member{ch.memberCount === 1 ? '' : 's'}{ch.last ? ` · ${ch.last.slice(0, 26)}` : ''}</div>
                 </button>
                 {unreadBadge(ch.id)}
+                {ch.joined && <button onClick={() => pinChannelNow(ch)} aria-label={ch.pinned ? 'Unpin' : 'Pin'} title={ch.pinned ? 'Unpin' : 'Pin to top'} style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 999, border: `1px solid ${ch.pinned ? TEALB : hair}`, background: ch.pinned ? `${TEALB}1f` : 'transparent', cursor: 'pointer', padding: 0, fontSize: 13, opacity: ch.pinned ? 1 : 0.55 }}>📌</button>}
                 {ch.isHost && <button onClick={() => { setAddMemberFor(ch); setMemberQuery(''); setMemberResults([]); }} style={{ flexShrink: 0, padding: '7px 11px', borderRadius: 999, background: 'transparent', color: cardInk, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Add</button>}
                 {!ch.joined && <button onClick={() => joinChannelNow(ch)} style={{ flexShrink: 0, padding: '7px 13px', borderRadius: 999, background: TEAL, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Join</button>}
                 {ch.joined && <span style={{ color: muted, fontSize: 16, flexShrink: 0 }}>›</span>}
@@ -5457,9 +5467,17 @@ function BSClientFeed({ onProfile, role: roleProp }) {
                   {newChannel === null ? (
                     <button onClick={() => setNewChannel('')} style={{ width: '100%', padding: '11px 12px', borderRadius: 12, border: `1px dashed ${TEALB}`, background: 'transparent', color: TEALB, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Create new channel</button>
                   ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'center' }}>
-                      <input autoFocus value={newChannel} onChange={(e) => setNewChannel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') createChannelNow(); if (e.key === 'Escape') setNewChannel(null); }} placeholder="Channel name — e.g. Sunday Run Club" style={{ minWidth: 0, height: 38, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 14px', fontFamily: t.BODY, fontSize: 14, color: t.INK, outline: 'none' }} />
-                      <button onClick={createChannelNow} style={{ height: 38, padding: '0 16px', borderRadius: 999, background: TEAL, color: '#031f1c', border: 0, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, cursor: 'pointer' }}>Create</button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'center' }}>
+                        <input autoFocus value={newChannel} onChange={(e) => setNewChannel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') createChannelNow(); if (e.key === 'Escape') { setNewChannel(null); setNewChannelPrivate(false); } }} placeholder="Channel name — e.g. Sunday Run Club" style={{ minWidth: 0, height: 38, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 14px', fontFamily: t.BODY, fontSize: 14, color: t.INK, outline: 'none' }} />
+                        <button onClick={createChannelNow} style={{ height: 38, padding: '0 16px', borderRadius: 999, background: TEAL, color: '#031f1c', border: 0, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, cursor: 'pointer' }}>Create</button>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                        {[['public', 'Public · anyone can join'], ['private', 'Private · invite only']].map(([k, l]) => {
+                          const on = (k === 'private') === newChannelPrivate;
+                          return <button key={k} onClick={() => setNewChannelPrivate(k === 'private')} style={{ padding: '8px 8px', borderRadius: 999, border: `1px solid ${on ? TEALB : hair}`, background: on ? `${TEALB}1f` : 'transparent', color: on ? cardInk : muted, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{l}</button>;
+                        })}
+                      </div>
                     </div>
                   )}
                   {chList.map(chRow)}
