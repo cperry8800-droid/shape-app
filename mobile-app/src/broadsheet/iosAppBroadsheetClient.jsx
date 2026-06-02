@@ -7464,6 +7464,8 @@ function BSIntegrationsPage({ onBack }) {
   const appleMusic = providerMap.apple_music || { id: 'apple_music', label: 'Apple Music', connected: false };
   const garmin = providerMap.garmin || { id: 'garmin', label: 'Garmin', connected: false };
   const oura = providerMap.oura || { id: 'oura', label: 'Oura', connected: false };
+  const appleHealth = providerMap.apple_health || { id: 'apple_health', label: 'Apple Health', connected: false };
+  const healthKitNative = !!(window.ShapeIntegrations?.appleHealthAvailable?.());
 
   const runAction = async (key, label, action) => {
     setBusy(key);
@@ -7727,6 +7729,27 @@ function BSIntegrationsPage({ onBack }) {
             Disconnect
           </Button>
         </div>
+      </IntegrationCard>
+
+      <BSSection title="Apple Health" meta={appleHealth.connected ? 'Connected' : (healthKitNative ? 'Ready' : 'iOS app')} />
+      <IntegrationCard
+        id="Apple Watch · Health"
+        name="Apple Health"
+        status={appleHealth.connected ? 'Connected' : (healthKitNative ? 'Connect' : 'iOS app')}
+        note={healthKitNative
+          ? 'Read steps, heart rate, HRV, resting HR, sleep, active energy, and workouts from Apple Health (including your Apple Watch) into your daily snapshot.'
+          : 'Apple Health (and Apple Watch) data is only available in the Shape iOS app. Open Shape on your iPhone to connect.'}
+      >
+        {healthKitNative ? (
+          <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <Button active={!appleHealth.connected} onClick={() => runAction('apple-health-connect', appleHealth.connected ? 'Apple Health synced' : 'Apple Health connected', () => window.ShapeIntegrations.syncAppleHealth())}>
+              {busy === 'apple-health-connect' ? 'Authorizing' : (appleHealth.connected ? 'Sync now' : 'Connect')}
+            </Button>
+            <Button disabled={!appleHealth.connected} onClick={() => runAction('apple-health-disconnect', 'Apple Health disconnected', () => window.ShapeIntegrations.disconnect('apple_health'))}>
+              Disconnect
+            </Button>
+          </div>
+        ) : null}
       </IntegrationCard>
 
       <BSFooter right="Integrations" />

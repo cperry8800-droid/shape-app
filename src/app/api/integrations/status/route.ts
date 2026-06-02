@@ -73,5 +73,15 @@ export async function GET(request: Request) {
     connected_at: connected.get('apple_music')?.connected_at ?? null,
   });
 
+  // Apple Health (HealthKit) is device-side only too; its connection marker is
+  // written by the apple-health sync route once the user grants permission.
+  providers.push({
+    id: 'apple_health',
+    label: 'Apple Health',
+    description: 'Sync Apple Watch & Health data (steps, HR, sleep, workouts).',
+    connected: connected.has('apple_health'),
+    connected_at: connected.get('apple_health')?.connected_at ?? null,
+  });
+
   return NextResponse.json({ providers });
 }
