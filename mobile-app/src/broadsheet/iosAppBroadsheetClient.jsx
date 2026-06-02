@@ -5000,6 +5000,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
     c: _threadPalette[i % _threadPalette.length],
     i: (th.who || 'C').toString().trim().charAt(0).toUpperCase(),
     last: th.last,
+    conversation_id: th.conversation_id,
     messages: (th.messages || []).map(m => ({ who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', me: m.me || m.who === 'You' })),
   }));
   const [composerSlot, setComposerSlot] = useStateBSC(null);
@@ -5062,6 +5063,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
       body: p.note || p.status || p.body || p.workout || '',
       hearts: typeof p.likes === 'number' ? p.likes : (p.likeCount || 0),
       replies: Array.isArray(p.comments) ? p.comments.length : (p.commentCount || 0),
+      comments: Array.isArray(p.comments) ? p.comments.map(c => ({ who: c.author_name || c.who || 'Member', body: c.body || c.text || '' })) : [],
     };
   };
   const [posts, setPosts] = useStateBSC(SAMPLE);
@@ -5109,6 +5111,11 @@ function BSClientFeed({ onProfile, role: roleProp }) {
     if (!body) return;
     setActComments(prev => ({ ...prev, [key]: [...(prev[key] || []), { who: 'You', body }] }));
     setActCmtDraft('');
+    // Persist to the backend when `key` is a real community post id (activity
+    // keys contain '|'; sample posts start with 's'/'tmp').
+    if (key && !String(key).includes('|') && !/^(s|tmp)/.test(String(key))) {
+      window.ShapeCommunity?.addComment?.({ postId: key, body }).catch(() => {});
+    }
   };
 
   // Community = the live, Strava-style activity feed (mirrors the website's
@@ -5206,9 +5213,9 @@ function BSClientFeed({ onProfile, role: roleProp }) {
                       <span style={{ fontFamily: t.BODY, fontSize: 13, color: cardInk, lineHeight: 1.35 }}>{c.body}</span>
                     </div>
                   ))}
-                  <div style={{ display: 'flex', gap: 8, marginTop: comments.length ? 4 : 0 }}>
-                    <input value={actCmtDraft} onChange={(e) => setActCmtDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendActComment(key); }} placeholder="Add a comment..." style={{ flex: 1, minWidth: 0, background: t.PAPER2, color: cardInk, border: `1px solid ${hair}`, borderRadius: 999, padding: '8px 12px', fontFamily: t.BODY, fontSize: 13, outline: 'none' }} />
-                    <button onClick={() => sendActComment(key)} style={{ flexShrink: 0, padding: '8px 14px', borderRadius: 999, background: TEAL, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Post</button>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 58px', gap: 8, alignItems: 'center', marginTop: comments.length ? 4 : 0 }}>
+                    <input value={actCmtDraft} onChange={(e) => setActCmtDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendActComment(key); }} placeholder="Message…" style={{ minWidth: 0, height: 38, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 14px', fontFamily: t.BODY, fontSize: 14, color: t.INK, outline: 'none', letterSpacing: '-0.005em' }} />
+                    <button onClick={() => sendActComment(key)} disabled={!actCmtDraft.trim()} style={{ height: 38, border: 0, borderRadius: 999, background: actCmtDraft.trim() ? t.ACCENT : t.SURFACE, color: actCmtDraft.trim() ? '#031f1c' : t.INK50, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, cursor: actCmtDraft.trim() ? 'pointer' : 'default', opacity: actCmtDraft.trim() ? 1 : 0.86 }}>Send</button>
                   </div>
                 </div>
               )}
@@ -5227,7 +5234,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
     const isCh = String(openChat.n || '').startsWith('#');
     return (
       <BSChatThread
-        thread={{ who: openChat.n, role: openChat.s || (isCh ? 'Channel' : 'Direct message'), last: openChat.last, time: '', messages: openChat.messages || [], group: isCh }}
+        thread={{ who: openChat.n, role: openChat.s || (isCh ? 'Channel' : 'Direct message'), last: openChat.last, time: '', messages: openChat.messages || [], group: isCh, conversationId: openChat.conversation_id }}
         eyebrow={isCh ? 'Channel' : openChat.dm ? 'Private thread' : 'Direct message'}
         onBack={() => setOpenChat(null)}
       />
@@ -5352,9 +5359,23 @@ function BSClientFeed({ onProfile, role: roleProp }) {
                     <div style={{ borderRadius: 13, padding: '11px 13px', background: p.official ? '#f3eee4' : card, color: p.official ? '#1a1713' : cardInk, border: p.official ? 'none' : `1px solid ${hair}`, fontFamily: p.official ? (t.SERIF || `'Newsreader', Georgia, serif`) : t.DISPLAY, fontStyle: p.official ? 'italic' : 'normal', fontSize: p.official ? 15 : 14, lineHeight: 1.38 }}>{p.body}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 6, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: muted }}>
                       <button onClick={() => like(p)} style={{ background: 'transparent', border: 0, color: muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>♥ {p.hearts}</button>
-                      <button onClick={() => react('reply')} style={{ background: 'transparent', border: 0, color: muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>↳ {p.replies}</button>
+                      <button onClick={() => openActComments(p.id, actCmtOpen === p.id)} style={{ background: 'transparent', border: 0, color: actCmtOpen === p.id ? TEALB : muted, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: actCmtOpen === p.id ? 800 : 400, cursor: 'pointer', padding: 0 }}>↳ {(p.replies || 0) + (actComments[p.id] || []).length}</button>
                       <button onClick={() => react('save posts')} style={{ background: 'transparent', border: 0, color: TEALB, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: 800, cursor: 'pointer', padding: 0 }}>SAVE</button>
                     </div>
+                    {actCmtOpen === p.id && (
+                      <div style={{ marginTop: 10, borderTop: `1px solid ${hair}`, paddingTop: 10 }}>
+                        {[...(p.comments || []), ...(actComments[p.id] || [])].map((c, ci) => (
+                          <div key={ci} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: c.who === 'You' ? TEALB : muted, flexShrink: 0, marginTop: 2 }}>{c.who}</span>
+                            <span style={{ fontFamily: t.BODY, fontSize: 13, color: cardInk, lineHeight: 1.35 }}>{c.body}</span>
+                          </div>
+                        ))}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 58px', gap: 8, alignItems: 'center', marginTop: (actComments[p.id] || []).length ? 4 : 0 }}>
+                          <input value={actCmtDraft} onChange={(e) => setActCmtDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendActComment(p.id); }} placeholder="Message…" style={{ minWidth: 0, height: 38, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 14px', fontFamily: t.BODY, fontSize: 14, color: t.INK, outline: 'none', letterSpacing: '-0.005em' }} />
+                          <button onClick={() => sendActComment(p.id)} disabled={!actCmtDraft.trim()} style={{ height: 38, border: 0, borderRadius: 999, background: actCmtDraft.trim() ? t.ACCENT : t.SURFACE, color: actCmtDraft.trim() ? '#031f1c' : t.INK50, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, cursor: actCmtDraft.trim() ? 'pointer' : 'default', opacity: actCmtDraft.trim() ? 1 : 0.86 }}>Send</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -5363,15 +5384,8 @@ function BSClientFeed({ onProfile, role: roleProp }) {
           )}
         </>
       )}
-      {tab === 'feed' && composerSlot && createPortal(
-        <div style={{ pointerEvents: 'auto', padding: '8px 0 10px', background: 'linear-gradient(180deg, rgba(11,12,12,0), #0b0c0c 45%)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: `8px ${t.padX}px`, borderTop: `1px solid ${hair}`, background: card }}>
-            <div style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, background: TEAL, color: '#031f1c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13 }}>A</div>
-            <input value={draft} onChange={e => setDraft(e.target.value)} placeholder="Share with the group…" style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, outline: 'none', color: cardInk, fontFamily: t.DISPLAY, fontSize: 14 }} />
-            <button onClick={post} style={{ flexShrink: 0, padding: '9px 16px', borderRadius: 999, border: 0, background: TEAL, color: '#031f1c', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>POST</button>
-          </div>
-        </div>,
-        composerSlot
+      {tab === 'feed' && (
+        <BSMessageComposer value={draft} onChange={setDraft} onSend={post} pinned placeholder="Share with the group…" />
       )}
     </BSPage>
   );
@@ -5561,8 +5575,11 @@ function BSChatThread({ thread, eyebrow, onBack }) {
 
   const send = () => {
     if (!text.trim()) return;
-    setExtras(e => [...e, { who: 'You', t: text.trim(), time: 'now', me: true }]);
+    const body = text.trim();
+    setExtras(e => [...e, { who: 'You', t: body, time: 'now', me: true }]);
     setText('');
+    // Persist to the backend when this thread maps to a real conversation.
+    if (thread.conversationId) window.ShapeMessages?.sendMessage?.({ conversationId: thread.conversationId, body }).catch(() => {});
   };
 
   return (
