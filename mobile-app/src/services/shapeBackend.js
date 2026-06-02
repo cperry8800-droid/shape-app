@@ -2640,6 +2640,114 @@ window.ShapeCommunity = {
   addComment: addCommunityComment,
 };
 
+// ── Member-created community channels ("run club" style) ─────────────────────
+function channelDisplayName() {
+  return (state.profile && (state.profile.full_name || state.profile.fullName))
+    || (state.user && (state.user.user_metadata?.full_name || state.user.email))
+    || 'Member';
+}
+async function listChannels() {
+  if (!supabase || !state.user?.id) return { stored: 'local', data: [] };
+  const uid = state.user.id;
+  const { data: channels, error } = await supabase
+    .from('channels')
+    .select('id, name, description, created_by, last_message, last_message_at, created_at')
+    .order('last_message_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  const ids = (channels || []).map(c => c.id);
+  let members = [];
+  if (ids.length) {
+    const { data: mem } = await supabase.from('channel_members').select('channel_id, user_id, role').in('channel_id', ids);
+    members = mem || [];
+  }
+  const byChannel = {};
+  members.forEach(m => { (byChannel[m.channel_id] = byChannel[m.channel_id] || []).push(m); });
+  return {
+    stored: 'supabase',
+    data: (channels || []).map(c => {
+      const ms = byChannel[c.id] || [];
+      const mine = ms.find(m => m.user_id === uid);
+      return {
+        id: c.id, name: c.name, description: c.description || '',
+        memberCount: ms.length,
+        joined: !!mine,
+        isHost: (mine && mine.role === 'host') || c.created_by === uid,
+        last: c.last_message || '', lastAt: c.last_message_at,
+      };
+    }),
+  };
+}
+async function createChannel({ name, description } = {}) {
+  if (!supabase || !state.user?.id) throw new Error('Sign in to create a channel.');
+  const { data, error } = await supabase.rpc('create_channel', { p_name: name, p_description: description || null });
+  if (error) throw error;
+  return { stored: 'supabase', data };
+}
+async function joinChannel(channelId) {
+  if (!supabase || !state.user?.id) throw new Error('Sign in to join.');
+  const { error } = await supabase.from('channel_members').insert({ channel_id: channelId, user_id: state.user.id, role: 'member' });
+  if (error && !/duplicate|conflict/i.test(error.message || '')) throw error;
+  return { ok: true };
+}
+async function leaveChannel(channelId) {
+  if (!supabase || !state.user?.id) throw new Error('Sign in.');
+  const { error } = await supabase.from('channel_members').delete().eq('channel_id', channelId).eq('user_id', state.user.id);
+  if (error) throw error;
+  return { ok: true };
+}
+async function addChannelMember({ channelId, userId } = {}) {
+  if (!supabase || !state.user?.id) throw new Error('Sign in.');
+  const { error } = await supabase.from('channel_members').insert({ channel_id: channelId, user_id: userId, role: 'member' });
+  if (error && !/duplicate|conflict/i.test(error.message || '')) throw error;
+  return { ok: true };
+}
+async function searchChannelMembers(q = '') {
+  if (!supabase || !state.user?.id) return { data: [] };
+  const { data, error } = await supabase.rpc('search_members', { p_q: q || '' });
+  if (error) throw error;
+  return { data: (data || []).map(m => ({ id: m.id, name: m.full_name || 'Member' })) };
+}
+async function listChannelMessages(channelId) {
+  if (!supabase || !state.user?.id || !channelId) return { stored: 'local', data: [] };
+  const { data, error } = await supabase
+    .from('channel_messages')
+    .select('id, sender_id, author_name, body, created_at')
+    .eq('channel_id', channelId)
+    .order('created_at', { ascending: true })
+    .limit(200);
+  if (error) throw error;
+  return {
+    stored: 'supabase',
+    data: (data || []).map(m => ({
+      who: m.sender_id === state.user.id ? 'You' : (m.author_name || 'Member'),
+      t: m.body, time: 'synced', me: m.sender_id === state.user.id,
+    })),
+  };
+}
+async function sendChannelMessage({ channelId, body } = {}) {
+  if (!supabase || !state.user?.id) throw new Error('Sign in to post.');
+  const clean = String(body || '').trim();
+  if (!clean) throw new Error('Message is empty.');
+  const { data, error } = await supabase
+    .from('channel_messages')
+    .insert({ channel_id: channelId, sender_id: state.user.id, author_name: channelDisplayName(), body: clean })
+    .select('id')
+    .maybeSingle();
+  if (error) throw error;
+  return { stored: 'supabase', data };
+}
+window.ShapeChannels = {
+  list: listChannels,
+  create: createChannel,
+  join: joinChannel,
+  leave: leaveChannel,
+  addMember: addChannelMember,
+  searchMembers: searchChannelMembers,
+  listMessages: listChannelMessages,
+  sendMessage: sendChannelMessage,
+};
+
 window.ShapeWorkoutLogs = {
   saveSessionLog: saveWorkoutSessionLog,
   saveStructuredSession: saveStructuredWorkoutSession,
