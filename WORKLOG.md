@@ -11,6 +11,30 @@ file is the narrative companion to the live status dashboard in
 
 ---
 
+## Cycle 4 (PRs #768–#790) — Community chat + channels
+
+### Community feed → scoped, live channels
+- **Scoped chat channels** (#775): the feed chips became real channels — **SHAPE = individual members**, and the middle chip is your role's peers only (**TRAINER** trainers-only, **NUTRI** nutritionists-only); COMMUNITY = the activity feed. Fixed the chip not following the active profile (#773).
+- **Everything live + wired** (#778, #781, #785): Friends/Coaches lists pull real DM threads (`listDirectCoachThreads`); tapping any row opens a real **thread** (#779); **comments work on every post** (persist via `ShapeCommunity.addComment`, show real comments); **DM sends persist** (`sendMessage`); the **COMMUNITY tab renders live `community_posts`** with persistent likes/comments. Unified the composer to one Message…/Send pill; removed the SAVE action; enlarged like/comment.
+- **No more login bounces** (#780): dropped `bsRequireAccount` from chat interactions (liking/commenting/sending no longer redirects to the create-account screen).
+
+### Member-created channels ("run club")
+- **Channels** (#783): any member creates a channel (hosts it), anyone discovers + joins, the host adds other Shape members, members post. New tables `channels` / `channel_members` / `channel_messages` + RLS + `create_channel`/`search_members` RPCs; mobile `window.ShapeChannels`; full Teams→Channels UI. Fixed a dead Create button (optimistic + crash-proofed the `?.fn?.().then` chains) (#786).
+- **Public / private + pin** (#788): visibility toggle on create (private = members-only, invite-only via host-add; public = discoverable/joinable), `🔒 PRIVATE` tag, and per-user **📌 pin-to-top** (`set_channel_pinned`).
+
+### Realtime + unread
+- **Realtime** (#787): `channel_messages` / `messages` added to the `supabase_realtime` publication; new messages drop into an open thread live and drive per-row **"N new"** badges on channels + friends/coaches.
+- **Persisted unread + Chat-tab badge** (#789): app-wide `ShapeUnread` manager seeds counts from `channel_unread`/`dm_unread` RPCs (survive reload), keeps them live, and powers an unread count on the bottom-nav **Chat** icon (started from the always-mounted tab bar). `mark_*_read` on open.
+- **Demo content** (#790): seeded conversations in the sample friend/coach chats + a few marketing channels (Shape HQ / Sunday Run Club / Macro Mondays / PR Wall).
+
+### Migrations to apply (Supabase) — all idempotent
+`2026-06-02-channels.sql`, `2026-06-02-channels-visibility.sql`, `2026-06-02-chat-realtime.sql`, `2026-06-02-chat-unread.sql`. (Owner has applied these.) Channels talk to Supabase directly under RLS — **no new API routes**.
+
+### UI polish this cycle
+Grocery action row to one line + per-aisle Reset (#768/#771); Habits page (compact Score card, removed coach note + log box, tap-to-log today, "+ Add habit") (#769); home **Score chip shows today's points** (#770); Train/Eat **day selector defaults to today** (#772); **pro nav line-icons** instead of 01/02/03 (#776); **pro Today uses the real current week/date** instead of hardcoded May (#777); thinner rule under the feed header (#784).
+
+---
+
 ## Cycle 3 (PRs #759–#766)
 
 ### Coach-editable client surfaces

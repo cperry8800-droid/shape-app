@@ -477,6 +477,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Deferred: useUserGoals hook + newdesign shared-includes (need a manual browser/device pass)', status: 'pending' },
       ],
     },
+    {
+      section: 'Community chat & channels',
+      items: [
+        { label: 'Feed scoped into channels (members / trainers-only / nutritionists-only) + live COMMUNITY feed', status: 'done' },
+        { label: 'DMs, comments, and posts are live + persist; tapping a row opens a real thread', status: 'done' },
+        { label: 'Member-created channels: create / discover / join / host add-members / channel chat', status: 'done' },
+        { label: 'Public/private channels + per-user pin-to-top', status: 'done' },
+        { label: 'Realtime messages + per-row unread badges + persisted unread + Chat-tab badge', status: 'done' },
+        { label: 'Channel migrations applied in Supabase (channels, visibility, realtime publication, unread RPCs)', status: 'manual' },
+      ],
+    },
   ];
 }
 
