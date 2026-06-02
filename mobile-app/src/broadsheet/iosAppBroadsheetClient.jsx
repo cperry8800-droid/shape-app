@@ -5156,13 +5156,14 @@ function BSClientFeed({ onProfile, role: roleProp }) {
     if (!n) return null;
     return <span style={{ flexShrink: 0, padding: '3px 8px', borderRadius: 999, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{n === 1 ? '1 new' : `${n} new`}</span>;
   };
-  // Pushpin icon — only the head is tinted (faint teal, brighter when pinned);
-  // the needle stays neutral. Replaces the flat 📍 emoji so we can colour it.
+  // Pushpin icon. PINNED → solid teal head (a clear status). NOT pinned → a
+  // hollow outline (a subtle "tap to pin" affordance), so an unpinned channel
+  // never looks pinned.
   const PinIcon = ({ filled, size = 18 }) => (
     <svg viewBox="0 0 24 24" width={size} height={size} style={{ display: 'block' }} aria-hidden="true">
-      <path d="M10.7 13 L13.3 13 L12 22.5 Z" fill="#9aa0a6" />
-      <circle cx="12" cy="8" r="6.4" fill={filled ? TEALB : '#9ad9cd'} />
-      <circle cx="9.9" cy="5.9" r="1.7" fill="#ffffff" opacity="0.45" />
+      <path d="M10.7 13 L13.3 13 L12 22.5 Z" fill={filled ? '#9aa0a6' : 'none'} stroke={filled ? 'none' : muted} strokeWidth="1.3" strokeLinejoin="round" />
+      <circle cx="12" cy="8" r="6.4" fill={filled ? TEALB : 'none'} stroke={filled ? 'none' : muted} strokeWidth="1.5" />
+      {filled && <circle cx="9.9" cy="5.9" r="1.7" fill="#ffffff" opacity="0.45" />}
     </svg>
   );
   const [composerSlot, setComposerSlot] = useStateBSC(null);
@@ -5491,7 +5492,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
                 <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, marginTop: 3 }}>{f.s}</div>
               </div>
               {unreadBadge('dm:' + f.conversation_id)}
-              {f.pinKey && <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); pinChannelNow({ id: f.pinKey, name: f.n, pinned: f.pinned }); }} aria-label={f.pinned ? 'Unpin' : 'Pin'} title={f.pinned ? 'Unpin' : 'Pin to top'} style={{ flexShrink: 0, width: 26, height: 26, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: f.pinned ? 1 : 0.85 }}><PinIcon filled={f.pinned} size={20} /></span>}
+              {f.pinKey && <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); pinChannelNow({ id: f.pinKey, name: f.n, pinned: f.pinned }); }} aria-label={f.pinned ? 'Unpin' : 'Pin'} title={f.pinned ? 'Unpin' : 'Pin to top'} style={{ flexShrink: 0, width: 26, height: 26, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: f.pinned ? 1 : 0.4 }}><PinIcon filled={f.pinned} size={20} /></span>}
               <span style={{ color: muted, fontSize: 16 }}>›</span>
             </button>
           );
@@ -5536,7 +5537,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
                   <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, marginTop: 3 }}>{ch.memberCount} member{ch.memberCount === 1 ? '' : 's'}{ch.last ? ` · ${ch.last.slice(0, 26)}` : ''}</div>
                 </button>
                 {unreadBadge('ch:' + ch.id)}
-                <button onClick={() => pinChannelNow(ch)} aria-label={ch.pinned ? 'Unpin' : 'Pin'} title={ch.pinned ? 'Unpin' : 'Pin to top'} style={{ position: 'absolute', top: 8, right: 8, zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, border: 0, background: 'transparent', cursor: 'pointer', padding: 0, opacity: ch.pinned ? 1 : 0.85 }}><PinIcon filled={ch.pinned} size={20} /></button>
+                <button onClick={() => pinChannelNow(ch)} aria-label={ch.pinned ? 'Unpin' : 'Pin'} title={ch.pinned ? 'Unpin' : 'Pin to top'} style={{ position: 'absolute', top: 8, right: 8, zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, border: 0, background: 'transparent', cursor: 'pointer', padding: 0, opacity: ch.pinned ? 1 : 0.4 }}><PinIcon filled={ch.pinned} size={20} /></button>
                 {ch.isHost && !isSample && <button onClick={() => { setAddMemberFor(ch); setMemberQuery(''); setMemberResults([]); }} style={{ flexShrink: 0, padding: '7px 11px', borderRadius: 999, background: 'transparent', color: cardInk, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Add</button>}
                 {!ch.joined && <button onClick={() => joinChannelNow(ch)} style={{ flexShrink: 0, padding: '7px 13px', borderRadius: 999, background: TEAL, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Join</button>}
                 {ch.joined && <span style={{ color: muted, fontSize: 16, flexShrink: 0 }}>›</span>}
@@ -7461,6 +7462,7 @@ function BSIntegrationsPage({ onBack }) {
   const strava = providerMap.strava || { id: 'strava', label: 'Strava', connected: false };
   const spotify = providerMap.spotify || { id: 'spotify', label: 'Spotify', connected: false };
   const appleMusic = providerMap.apple_music || { id: 'apple_music', label: 'Apple Music', connected: false };
+  const garmin = providerMap.garmin || { id: 'garmin', label: 'Garmin', connected: false };
 
   const runAction = async (key, label, action) => {
     setBusy(key);
@@ -7686,12 +7688,22 @@ function BSIntegrationsPage({ onBack }) {
         </div>
       </IntegrationCard>
 
-      <BSSection title="Coming later" meta="Same pattern" />
-      {[
-        ['GARMIN', 'Health + activity export', 'Garmin will use the same sync pattern after developer approval and credentials are live.'],
-      ].map(([id, name, note]) => (
-        <IntegrationCard key={id} id={id} name={name} note={note} status="Next" muted />
-      ))}
+      <BSSection title="Garmin" meta={garmin.connected ? 'Connected' : 'Ready'} />
+      <IntegrationCard
+        id="Activities · HR · Sleep"
+        name="Garmin"
+        status={garmin.connected ? 'Connected' : 'Connect'}
+        note="Pull Garmin Connect activities, heart rate, and sleep into your profile. Requires Garmin Health API approval on the developer account."
+      >
+        <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <Button active={!garmin.connected} onClick={() => window.ShapeIntegrations?.connectProvider?.('garmin')}>
+            {garmin.connected ? 'Reconnect' : 'Connect'}
+          </Button>
+          <Button disabled={!garmin.connected} onClick={() => runAction('garmin-disconnect', 'Garmin disconnected', () => window.ShapeIntegrations.disconnect('garmin'))}>
+            Disconnect
+          </Button>
+        </div>
+      </IntegrationCard>
 
       <BSFooter right="Integrations" />
     </BSPage>
