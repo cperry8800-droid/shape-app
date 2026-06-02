@@ -5063,9 +5063,37 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   const t = useBS();
   const TEAL = '#0ac5a8', TEALB = '#2ee0c4';
   const [tab, setTab] = useStateBSC('feed');
-  const [filter, setFilter] = useStateBSC('SHAPE');
+  const [filter, setFilter] = useStateBSC('COMMUNITY');
   const [teamsSel, setTeamsSel] = useStateBSC('channels');
   const [draft, setDraft] = useStateBSC('');
+  // Support assistant — one continuous AI-backed thread per user, persisted
+  // locally so it survives reloads. The bot handles first-line questions and
+  // escalates to the Shape team.
+  const _supportKey = () => 'shape.support.' + ((window.ShapeAuth?.getCachedState?.() || {}).user?.id || 'anon');
+  const SUPPORT_GREETING = { who: 'Shape Assistant', t: "Hi! I'm the Shape assistant 🤖 Ask me anything — connecting integrations, your plan, billing, or your account. I'll bring in the Shape team if I can't sort it out.", time: 'now', me: false, bot: true };
+  const [supportMsgs, setSupportMsgs] = useStateBSC(() => {
+    try { const raw = window.localStorage?.getItem(_supportKey()); if (raw) { const arr = JSON.parse(raw); if (Array.isArray(arr) && arr.length) return arr; } } catch (e) {}
+    return [SUPPORT_GREETING];
+  });
+  const [supportDraft, setSupportDraft] = useStateBSC('');
+  const [supportBusy, setSupportBusy] = useStateBSC(false);
+  React.useEffect(() => { try { window.localStorage?.setItem(_supportKey(), JSON.stringify(supportMsgs.slice(-60))); } catch (e) {} }, [supportMsgs]);
+  const sendSupport = async () => {
+    const body = supportDraft.trim();
+    if (!body || supportBusy) return;
+    setSupportDraft('');
+    const next = [...supportMsgs, { who: 'You', t: body, time: 'now', me: true }];
+    setSupportMsgs(next);
+    setSupportBusy(true);
+    try {
+      const hist = next.map(m => ({ role: m.me ? 'user' : 'assistant', content: m.t }));
+      const res = await window.ShapeSupport?.ask?.(hist);
+      const reply = (res && res.reply) || "Thanks — I've flagged this for the Shape team and they'll follow up here.";
+      setSupportMsgs(m => [...m, { who: 'Shape Assistant', t: reply, time: 'now', me: false, bot: true }]);
+    } catch (e) {
+      setSupportMsgs(m => [...m, { who: 'Shape Assistant', t: "I'm having trouble reaching support right now — I've flagged this for the Shape team to follow up.", time: 'now', me: false, bot: true }]);
+    } finally { setSupportBusy(false); }
+  };
   // Live direct-message threads (real coaches/conversations). Falls back to the
   // sample people lists below when there are none (demo / not signed in).
   const [coachThreads, setCoachThreads] = useStateBSC(null);
@@ -5204,7 +5232,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   // logged out; once signed in the whole chat page is live (real data or empty).
   const loggedIn = !!(window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id);
   const myRoleChip = myRole === 'trainer' ? 'TRAINER' : myRole === 'nutritionist' ? 'NUTRI' : 'CLIENT';
-  const CHIP_KEYS = ['SHAPE', myRoleChip, 'COMMUNITY'];
+  const CHIP_KEYS = ['COMMUNITY', myRoleChip, 'SHAPE'];
   const SAMPLE = [
     // SHAPE = individual members (the general community)
     { id: 's1', who: 'Emma Rivera', kind: 'SHAPE', init: 'E', hue: '#2e6fa0', time: '1h', body: 'New to Shape this week, coming off a long layoff. Any tips for not going too hard the first couple weeks?', hearts: 22, replies: 15 },
@@ -5491,7 +5519,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
       {/* Feed / Messages / Teams */}
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, border: `1px solid ${hair}`, borderRadius: 999, padding: 3 }}>
-          {[['feed', 'Feed', 0], ['messages', 'Friends', dmUnread], ['teams', 'Teams', chUnread]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
+          {[['feed', 'Feed', 0], ['teams', 'Team', chUnread], ['messages', 'Friends', dmUnread]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
         </div>
       </div>
 
@@ -5530,11 +5558,8 @@ function BSClientFeed({ onProfile, role: roleProp }) {
             );
           }
 
-          // Teams: Channels / Coaches chip selector; the chosen one's list shows below.
-          // Support is a PRIVATE 1:1 thread (just this user + the Shape team),
-          // not a shared # channel — flagged with `dm` so the row reads as a
-          // direct line rather than a community room.
-          const support = { n: 'Support', s: 'Private · you & the Shape team', c: TEALB, i: '✦', dm: true, pinKey: 'support', pinned: !!pinOverride['support'] };
+          // Teams: Channels / Coaches / Support selector. Support is its own
+          // continuous AI-backed thread (rendered inline below), not a channel.
           const chList = (channels && channels.length) ? channels : (loggedIn ? [] : BS_SAMPLE_CHANNELS);
           const _chQ = channelQuery.trim().toLowerCase();
           const chDisplay = chList
@@ -5617,9 +5642,15 @@ function BSClientFeed({ onProfile, role: roleProp }) {
                   {coaches.map(Row)}
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {Row(support, 'support')}
-                  <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: muted, padding: '2px 2px', lineHeight: 1.5 }}>A private thread with the Shape team — questions, bug reports, billing, anything.</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 96 }}>
+                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>Support · you & the Shape team</div>
+                  {supportMsgs.map((m, i) => (
+                    <div key={i} style={{ alignSelf: m.me ? 'flex-end' : 'flex-start', maxWidth: '86%' }}>
+                      {!m.me && <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#2e6fa0', fontWeight: 700, marginBottom: 3 }}>{m.who}{m.bot ? ' · Bot' : ''}</div>}
+                      <div style={{ padding: '9px 12px', borderRadius: 14, background: m.me ? TEAL : card, color: m.me ? '#031f1c' : cardInk, border: m.me ? 0 : `1px solid ${hair}`, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>{m.t}</div>
+                    </div>
+                  ))}
+                  {supportBusy && <div style={{ alignSelf: 'flex-start', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted }}>Shape Assistant is typing…</div>}
                 </div>
               )}
             </div>
@@ -5652,6 +5683,9 @@ function BSClientFeed({ onProfile, role: roleProp }) {
       )}
       {tab === 'feed' && (
         <BSMessageComposer value={draft} onChange={setDraft} onSend={post} pinned placeholder="Share with the group…" />
+      )}
+      {tab === 'teams' && teamsSel === 'support' && (
+        <BSMessageComposer value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} pinned placeholder="Message the Shape team…" />
       )}
       {addMemberFor && createPortal(
         <div onClick={() => setAddMemberFor(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
