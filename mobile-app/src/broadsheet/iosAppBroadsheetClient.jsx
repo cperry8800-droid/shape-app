@@ -6945,6 +6945,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
   const [showStore, setShowStore] = useStateBSC(false);
   const [showContact, setShowContact] = useStateBSC(false);
   const [showTerms, setShowTerms] = useStateBSC(false);
+  const [showPrivacy, setShowPrivacy] = useStateBSC(false);
   const [showProgress, setShowProgress] = useStateBSC(false);
   const [showSessions, setShowSessions] = useStateBSC(false);
   const [showNotifications, setShowNotifications] = useStateBSC(false);
@@ -7115,6 +7116,9 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
   }
   if (showTerms) {
     return <BSTermsPage onBack={() => setShowTerms(false)} onContact={() => { setShowTerms(false); setShowContact(true); }} />;
+  }
+  if (showPrivacy) {
+    return <BSPrivacyPage onBack={() => setShowPrivacy(false)} onContact={() => { setShowPrivacy(false); setShowContact(true); }} />;
   }
 
   const renderRows = (rows) => (
@@ -7459,7 +7463,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
           { l: 'Health integrations',     r: 'Apple · WHOOP · …',    onClick: onIntegrations },
           { l: 'Contact support',         r: '24h reply',            onClick: () => setShowContact(true) },
           { l: 'Terms of service',        r: 'Legal',                onClick: () => setShowTerms(true) },
-          { l: 'Privacy policy',          r: 'Legal',                onClick: () => window.open('https://www.theshapecommunity.com/privacy.html', '_blank') },
+          { l: 'Privacy policy',          r: 'Legal',                onClick: () => setShowPrivacy(true) },
           { l: 'Privacy & data',          r: 'Manage',               onClick: () => openEdit('privacy', 'profile_visibility', 'Profile visibility', { type: 'select', options: ['Public', 'Community only', 'Coaches only', 'Private'] }) },
           { l: 'Sign out',                r: '',                     alert: true, onClick: onLogout },
         ].map((s, i, arr) => (
@@ -9073,6 +9077,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const r = useBSRadio();
   const [showContact, setShowContact] = useStateBSC(false);
   const [showTerms, setShowTerms] = useStateBSC(false);
+  const [showHelp, setShowHelp] = useStateBSC(false);
+  const [showPrivacy, setShowPrivacy] = useStateBSC(false);
   const [showSessions, setShowSessions] = useStateBSC(false);
   const [showNotifications, setShowNotifications] = useStateBSC(false);
   const [showIntegrations, setShowIntegrations] = useStateBSC(initialPage === 'integrations');
@@ -9185,6 +9191,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   if (showTerms) {
     return <BSTermsPage onBack={() => setShowTerms(false)} onContact={() => { setShowTerms(false); setShowContact(true); }} />;
   }
+  if (showHelp) {
+    return <BSHelpPage onBack={() => setShowHelp(false)} onContact={() => { setShowHelp(false); setShowContact(true); }} />;
+  }
+  if (showPrivacy) {
+    return <BSPrivacyPage onBack={() => setShowPrivacy(false)} onContact={() => { setShowPrivacy(false); setShowContact(true); }} />;
+  }
   if (showSessions) {
     return <BSSessionsScreen onBack={() => setShowSessions(false)} />;
   }
@@ -9272,10 +9284,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       title: 'About',
       meta: 'v6.38.2',
       rows: [
-        { l: 'Help center',     r: 'Visit' },
+        { l: 'Help center',     r: 'Visit', action: () => setShowHelp(true) },
         { l: 'Contact support', r: '24h reply', action: () => setShowContact(true) },
         { l: 'Terms of service',r: 'Legal', action: () => setShowTerms(true) },
-        { l: 'Privacy policy',  r: 'Legal', action: () => window.open('https://www.theshapecommunity.com/privacy.html', '_blank') },
+        { l: 'Privacy policy',  r: 'Legal', action: () => setShowPrivacy(true) },
         { l: 'Open-source',     r: '' },
       ],
     },
@@ -9913,6 +9925,113 @@ function BSTermsPage({ onBack, onContact }) {
       </div>
 
       <BSFooter right="Terms" />
+    </BSPage>
+  );
+}
+
+function BSPrivacyPage({ onBack, onContact }) {
+  const t = useBS();
+  const sections = [
+    ['01', 'What we collect', 'Account details (name, email), your profile and goals, the workouts, meals, and habits you log, messages with your coach, payment info processed by Stripe, and basic device/usage data.'],
+    ['02', 'How we use it', 'To run your account, deliver coaching, personalize your plans and Shape Score, process payments, keep the platform safe, and improve the product.'],
+    ['03', 'Wearables & integrations', 'If you connect Strava, Whoop, Oura, Garmin, Apple Health, or Spotify, we access only what those scopes allow — to show your activity, recovery, and music. Disconnect any time in Settings.'],
+    ['04', 'Sharing', 'Your coach sees the data needed to coach you. We rely on processors like Supabase and Stripe to run the service. We do not sell your personal data.'],
+    ['05', 'Your choices', 'You can view, edit, export, or delete your data from Settings, and control notifications and profile visibility.'],
+    ['06', 'Security', 'Data is encrypted in transit, access is row-level restricted per user, and integration tokens are stored server-side — never in the app bundle.'],
+    ['07', 'Retention', 'We keep your data while your account is active and for a reasonable period afterward, unless you ask us to delete it sooner.'],
+    ['08', 'Children', 'Shape is for users 18 and older. We do not knowingly collect data from children.'],
+    ['09', 'Changes & contact', 'Material changes are announced in advance. Questions: christopher.perry@theshapecommunity.com.'],
+  ];
+
+  return (
+    <BSPage>
+      <BSDetailHeader
+        onBack={onBack}
+        eyebrow="Legal"
+        kicker="Privacy policy"
+        title={<>Privacy<br/>policy.</>}
+        trailing={<BSAvatar init="P" size={36} fill={t.INK} ink={t.PAPER} />}
+      />
+
+      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
+        <BSEyebrow color={t.ACCENT}>Last updated - May 21, 2026</BSEyebrow>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>
+          How Shape collects, uses, and protects your data — across training, nutrition, recovery, payments, and the coaches you work with.
+        </div>
+      </div>
+
+      <BSSection title="Summary" meta="At a glance" />
+      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+        {sections.map(([num, title, body], i, arr) => (
+          <div key={num} style={{
+            display: 'grid',
+            gridTemplateColumns: '34px 1fr',
+            gap: 12,
+            padding: `${t.rowY + 7}px 0`,
+            borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+          }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.12em', color: t.ACCENT, fontWeight: 900 }}>{num}</div>
+            <div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{title}</div>
+              <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK70, lineHeight: 1.4 }}>{body}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ padding: `18px ${t.padX}px 22px`, display: 'grid', gap: 8 }}>
+        <button onClick={() => { window.location.href = 'https://www.theshapecommunity.com/privacy.html'; }} style={{ borderRadius: t.RADIUS_SM, width: '100%', padding: '14px', border: `1px solid ${t.INK}`, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase' }}>Open full policy</button>
+        {onContact && <button onClick={onContact} style={{ borderRadius: t.RADIUS_SM, width: '100%', padding: '14px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase' }}>Contact support</button>}
+      </div>
+
+      <BSFooter right="Privacy" />
+    </BSPage>
+  );
+}
+
+function BSHelpPage({ onBack, onContact }) {
+  const t = useBS();
+  const faqs = [
+    ['Getting started', 'Set your goals in Settings, then explore Train, Eat, and Habits. Your coach builds your plan and it appears on each tab.'],
+    ['Connect a wearable', 'Settings → Manage integrations. Connect Strava, Whoop, Oura, Garmin, or Apple Health (iOS) — your recovery, sleep, and workouts flow into your daily snapshot.'],
+    ['Music & playlists', 'Connect Spotify in Manage integrations, then save a coach\'s workout playlist straight to your own Spotify profile.'],
+    ['Billing & membership', 'Manage your membership and payment method under Account & billing (handled securely by Stripe). Coaches set their own pricing.'],
+    ['Shape Score', 'Earn points for logging workouts, meals, habits, and PRs — then redeem them in the Shape Store.'],
+    ['Your data & privacy', 'View, export, or delete your data any time under Settings → Privacy & data.'],
+  ];
+
+  return (
+    <BSPage>
+      <BSDetailHeader
+        onBack={onBack}
+        eyebrow="Support"
+        kicker="Help center"
+        title={<>Help<br/>center.</>}
+        trailing={<BSAvatar init="?" size={36} fill={t.ACCENT} ink={t.INK} />}
+      />
+
+      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
+        <BSEyebrow color={t.ACCENT}>Quick answers</BSEyebrow>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>
+          The fastest way to get help: ask <b>Nora</b> in Chat → Team → Support — she answers most questions instantly. The basics are below.
+        </div>
+      </div>
+
+      <BSSection title="Common questions" meta="FAQ" />
+      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+        {faqs.map(([q, a], i, arr) => (
+          <div key={q} style={{ padding: `${t.rowY + 7}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{q}</div>
+            <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK70, lineHeight: 1.4 }}>{a}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ padding: `18px ${t.padX}px 22px`, display: 'grid', gap: 8 }}>
+        {onContact && <button onClick={onContact} style={{ borderRadius: t.RADIUS_SM, width: '100%', padding: '14px', border: `1px solid ${t.INK}`, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase' }}>Contact support</button>}
+      </div>
+
+      <BSFooter right="Help" />
     </BSPage>
   );
 }
