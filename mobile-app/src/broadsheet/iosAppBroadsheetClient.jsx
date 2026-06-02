@@ -6793,31 +6793,6 @@ function BSClientProgress({ onBack }) {
         </>
       )}
 
-      {/* Activities — log + recent list with Shape Score points */}
-      <BSSection title="Activities" kicker="Logged & synced" meta={acts && acts.totalMinutes ? `${acts.totalMinutes} min · 30d` : 'Log one'} />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        <button onClick={() => setShowLog(true)} style={{
-          width: '100%', padding: '12px 0', marginBottom: (acts && acts.activities && acts.activities.length) ? 12 : 0,
-          borderRadius: t.RADIUS_SM, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
-          fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer',
-        }}>+ Log activity</button>
-        {acts && acts.activities && acts.activities.length > 0 && (
-          <div style={{ borderTop: `2px solid ${t.INK}` }}>
-            {acts.activities.slice(0, 12).map((a, i) => (
-              <div key={a.id || i} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', alignItems: 'baseline', gap: 10, padding: '11px 0', borderBottom: i === Math.min(11, acts.activities.length - 1) ? 0 : `1px solid ${t.HAIR}` }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', textTransform: 'capitalize', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.title || a.type}</div>
-                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
-                    {a.startedAt ? _bsFormatScoreDate(a.startedAt) : ''}{a.durationMin ? ` · ${a.durationMin}m` : ''}{a.distanceKm ? ` · ${Math.round((a.distanceKm / 1.609) * 10) / 10} mi` : ''}
-                  </div>
-                </div>
-                <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, alignSelf: 'center' }}>{a.source === 'manual' ? 'Logged' : a.source}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 800, color: t.GREEN, fontVariantNumeric: 'tabular-nums', minWidth: 40, textAlign: 'right', alignSelf: 'center' }}>+{a.points != null ? a.points : 0}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
 
       {!loading && prs.length > 0 && (
         <>
@@ -7411,26 +7386,9 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
       <BSSection title="Social & links" meta="Public profile" />
       {renderRows(socialRows)}
 
-      {/* All account, billing, integrations, privacy, and danger-zone controls
-          live in the dedicated Settings screen (opened via the profile avatar
-          or here) — the Me page no longer duplicates them. */}
-      <BSSection title="Settings" meta="Account · billing · privacy" />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
-        {[
-          { l: 'Open settings', r: 'Account · billing · privacy · legal', onClick: onProfile },
-          { l: 'Sign out', r: '', alert: true, onClick: onLogout },
-        ].map((s, i, arr) => (
-          <div key={i} onClick={s.onClick} style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: `${t.rowY + 4}px 0`,
-            borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-            cursor: 'pointer',
-          }}>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em' }}>{s.l}</span>
-            {s.r && <BSEyebrow>{s.r}</BSEyebrow>}
-          </div>
-        ))}
-      </div>
+      {/* Account, billing, integrations, privacy, legal, and danger-zone
+          controls live only in the dedicated Settings screen (open it via the
+          profile avatar in the header). */}
 
       <BSFooter right="Pg 5 of 5" />
       <BSEditSheet field={editField} onSave={saveEdit} onClose={() => setEditField(null)} />
@@ -9122,11 +9080,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // Appearance / Effects controls — render natively
   const Pill = ({ on, onClick, children, color }) => (
     <button onClick={onClick} style={{ borderRadius: t.RADIUS_SM,
-      flex: 1, padding: '10px 8px', cursor: 'pointer',
+      flex: 1, padding: '6px 7px', cursor: 'pointer',
       border: `1px solid ${on ? t.INK : t.RULE}`,
       background: on ? t.INK : 'transparent',
       color: on ? t.PAPER : t.INK,
-      fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase',
+      fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
     }}>{children}</button>
   );
 
@@ -9142,12 +9100,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
 
   const Swatch = ({ k, color, label }) => (
     <button onClick={() => setTweak('accentKey', k)} style={{ borderRadius: t.RADIUS_SM,
-      flex: 1, padding: 8, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+      flex: 1, padding: 5, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
       border: `1px solid ${tweaks.accentKey === k ? t.INK : t.RULE}`,
       background: tweaks.accentKey === k ? t.PAPER2 : 'transparent',
     }}>
-      <span style={{ width: 28, height: 28, background: color, border: `1px solid ${t.INK}` }} />
-      <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700 }}>{label}</span>
+      <span style={{ width: 20, height: 20, background: color, border: `1px solid ${t.INK}` }} />
+      <span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700 }}>{label}</span>
     </button>
   );
 
@@ -9372,14 +9330,14 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {/* APPEARANCE */}
       <BSSection title="Appearance" meta={`${({light:'Cream',dark:'Black',teal:'Teal',manila:'Manila',blueprint:'Blueprint',carbon:'Carbon',steel:'Steel',bone:'Bone',oxblood:'Oxblood'})[tweaks.paperMode] || 'Cream'} · ${tweaks.accentKey || 'blue'}`} />
       <div style={{ padding: `14px ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8, fontWeight: 700 }}>Paper</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 6, fontWeight: 700 }}>Paper</div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {[['light','Cream'],['dark','Black'],['teal','Teal'],['manila','Manila'],['blueprint','Blueprint'],['carbon','Carbon'],['steel','Steel'],['bone','Bone'],['oxblood','Oxblood']].map(([k,l]) => (
             <Pill key={k} on={tweaks.paperMode === k} onClick={() => setTweak('paperMode', k)}>{l}</Pill>
           ))}
         </div>
 
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginTop: 18, marginBottom: 8, fontWeight: 700 }}>Texture</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginTop: 12, marginBottom: 6, fontWeight: 700 }}>Texture</div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {[
             ['none','None'],['newsprint','Newsprint'],['ledger','Ledger'],
@@ -9395,7 +9353,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           ))}
         </div>
 
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginTop: 18, marginBottom: 8, fontWeight: 700 }}>Accent color</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginTop: 12, marginBottom: 6, fontWeight: 700 }}>Accent color</div>
         <div style={{ display: 'flex', gap: 6 }}>
           <Swatch k="blue"  color="#1e7ad6" label="Blue" />
           <Swatch k="amber" color="#d99033" label="Amber" />
@@ -9406,7 +9364,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           <Swatch k="black" color="#000000" label="Black" />
         </div>
 
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginTop: 18, marginBottom: 8, fontWeight: 700 }}>Ink color <span style={{ color: t.INK30, marginLeft: 6, letterSpacing: '0.16em' }}>· text</span></div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginTop: 12, marginBottom: 6, fontWeight: 700 }}>Ink color <span style={{ color: t.INK30, marginLeft: 6, letterSpacing: '0.16em' }}>· text</span></div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
           {[
             ['default', null,        'Default'],
@@ -9456,7 +9414,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           </label>
         </div>
 
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginTop: 18, marginBottom: 8, fontWeight: 700 }}>Display weight</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginTop: 12, marginBottom: 6, fontWeight: 700 }}>Display weight</div>
         <div style={{ display: 'flex', gap: 6 }}>
           {['regular','bold'].map(k => (
             <Pill key={k} on={tweaks.weightKey === k} onClick={() => setTweak('weightKey', k)}>{k}</Pill>
