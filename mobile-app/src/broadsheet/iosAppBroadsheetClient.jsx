@@ -5070,7 +5070,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   // locally so it survives reloads. The bot handles first-line questions and
   // escalates to the Shape team.
   const _supportKey = () => 'shape.support.' + ((window.ShapeAuth?.getCachedState?.() || {}).user?.id || 'anon');
-  const SUPPORT_GREETING = { who: 'Shape Assistant', t: "Hi! I'm the Shape assistant 🤖 Ask me anything — connecting integrations, your plan, billing, or your account. I'll bring in the Shape team if I can't sort it out.", time: 'now', me: false, bot: true };
+  const SUPPORT_GREETING = { who: 'Nora', t: "Hi, I'm Nora — Shape's assistant 🤖 Ask me anything: connecting integrations, your plan, billing, or your account. I'll bring in the Shape team if I can't sort it out.", time: 'now', me: false, bot: true };
   const [supportMsgs, setSupportMsgs] = useStateBSC(() => {
     try { const raw = window.localStorage?.getItem(_supportKey()); if (raw) { const arr = JSON.parse(raw); if (Array.isArray(arr) && arr.length) return arr; } } catch (e) {}
     return [SUPPORT_GREETING];
@@ -5089,9 +5089,9 @@ function BSClientFeed({ onProfile, role: roleProp }) {
       const hist = next.map(m => ({ role: m.me ? 'user' : 'assistant', content: m.t }));
       const res = await window.ShapeSupport?.ask?.(hist);
       const reply = (res && res.reply) || "Thanks — I've flagged this for the Shape team and they'll follow up here.";
-      setSupportMsgs(m => [...m, { who: 'Shape Assistant', t: reply, time: 'now', me: false, bot: true }]);
+      setSupportMsgs(m => [...m, { who: 'Nora', t: reply, time: 'now', me: false, bot: true }]);
     } catch (e) {
-      setSupportMsgs(m => [...m, { who: 'Shape Assistant', t: "I'm having trouble reaching support right now — I've flagged this for the Shape team to follow up.", time: 'now', me: false, bot: true }]);
+      setSupportMsgs(m => [...m, { who: 'Nora', t: "I'm having trouble reaching support right now — I've flagged this for the Shape team to follow up.", time: 'now', me: false, bot: true }]);
     } finally { setSupportBusy(false); }
   };
   // Live direct-message threads (real coaches/conversations). Falls back to the
@@ -5646,11 +5646,11 @@ function BSClientFeed({ onProfile, role: roleProp }) {
                   <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>Support · you & the Shape team</div>
                   {supportMsgs.map((m, i) => (
                     <div key={i} style={{ alignSelf: m.me ? 'flex-end' : 'flex-start', maxWidth: '86%' }}>
-                      {!m.me && <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#2e6fa0', fontWeight: 700, marginBottom: 3 }}>{m.who}{m.bot ? ' · Bot' : ''}</div>}
+                      {!m.me && <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#2e6fa0', fontWeight: 700, marginBottom: 3 }}>{m.who}{m.bot ? ' · Shape AI' : ''}</div>}
                       <div style={{ padding: '9px 12px', borderRadius: 14, background: m.me ? TEAL : card, color: m.me ? '#031f1c' : cardInk, border: m.me ? 0 : `1px solid ${hair}`, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>{m.t}</div>
                     </div>
                   ))}
-                  {supportBusy && <div style={{ alignSelf: 'flex-start', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted }}>Shape Assistant is typing…</div>}
+                  {supportBusy && <div style={{ alignSelf: 'flex-start', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted }}>Nora is typing…</div>}
                 </div>
               )}
             </div>
