@@ -92,6 +92,7 @@ export default function IntegrationsPanel() {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [result, setResult] = useState<(WhoopSyncResponse & StravaSyncResponse) | null>(null);
+  const [playlistUrl, setPlaylistUrl] = useState('');
 
   const whoop = useMemo(
     () => providers.find((provider) => provider.id === 'whoop'),
@@ -366,6 +367,42 @@ export default function IntegrationsPanel() {
               Disconnect
             </button>
           </div>
+          {spotify?.connected && (
+            <div className="mt-4 border-t border-neutral-800 pt-4">
+              <label className="text-xs uppercase tracking-[0.16em] text-neutral-500">
+                Save a coach playlist to your Spotify
+              </label>
+              <div className="mt-2 flex gap-2">
+                <input
+                  type="url"
+                  value={playlistUrl}
+                  onChange={(event) => setPlaylistUrl(event.target.value)}
+                  placeholder="Paste a Spotify playlist link"
+                  className="flex-1 border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-600 focus:border-teal-400 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  disabled={!playlistUrl.trim() || Boolean(busy)}
+                  onClick={() =>
+                    run('Saving playlist', async () => {
+                      const payload = await fetchJson('/api/integrations/spotify/save-playlist', {
+                        method: 'POST',
+                        body: JSON.stringify({ url: playlistUrl.trim() }),
+                      });
+                      setPlaylistUrl('');
+                      return payload;
+                    })
+                  }
+                  className="border border-neutral-700 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-200 hover:border-teal-400 hover:text-teal-300 disabled:opacity-40"
+                >
+                  {busy === 'Saving playlist' ? 'Saving' : 'Save'}
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-neutral-500">
+                Adds the playlist to your Spotify library — it appears on your profile.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Apple Music */}

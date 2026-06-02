@@ -1842,9 +1842,27 @@ function BSTrackHeader({ kicker, title, actionLabel, onAction }) {
   );
 }
 
-// Coach/nutritionist playlist card.
-function BSPlaylistCard({ kicker, title, meta, color, onPlay }) {
+// Coach/nutritionist playlist card. When the playlist has a Spotify URL, the
+// client can save it straight into their own Spotify library (follow).
+function BSPlaylistCard({ kicker, title, meta, color, onPlay, spotifyUrl }) {
   const t = useBS();
+  const [saving, setSaving] = React.useState(false);
+  const [saved, setSaved] = React.useState(false);
+  const isSpotify = typeof spotifyUrl === 'string' && /spotify/i.test(spotifyUrl);
+  const saveToSpotify = async () => {
+    if (saving || saved) return;
+    if (window.bsRequireAccount && !window.bsRequireAccount('save playlists')) return;
+    setSaving(true);
+    try {
+      await window.ShapeIntegrations?.saveSpotifyPlaylist?.(spotifyUrl);
+      setSaved(true);
+      window.__bsToast?.('Saved to your Spotify', 'ok');
+    } catch (e) {
+      window.__bsToast?.(e?.message || 'Could not save to Spotify', 'err');
+    } finally {
+      setSaving(false);
+    }
+  };
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 13, padding: 14, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
       <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 11, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 18 }}>♪</div>
@@ -1853,6 +1871,9 @@ function BSPlaylistCard({ kicker, title, meta, color, onPlay }) {
         <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 16, color: t.INK, letterSpacing: '-0.01em' }}>{title}</div>
         <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 4, letterSpacing: '0.06em', lineHeight: 1.45 }}>{meta}</div>
       </div>
+      {isSpotify && (
+        <button onClick={saveToSpotify} disabled={saving || saved} aria-label={saved ? 'Saved to Spotify' : 'Save to Spotify'} title={saved ? 'Saved to your Spotify' : 'Save to your Spotify'} style={{ flexShrink: 0, padding: '7px 11px', borderRadius: 999, border: `1px solid ${saved ? '#1DB954' : t.RULE}`, background: saved ? 'rgba(29,185,84,0.12)' : 'transparent', color: saved ? '#1DB954' : t.INK, cursor: saving || saved ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{saved ? '✓ Saved' : (saving ? 'Saving…' : '＋ Spotify')}</button>
+      )}
       <button onClick={onPlay} aria-label="Play" style={{ width: 36, height: 36, flexShrink: 0, borderRadius: 999, border: `1px solid ${color}`, background: 'transparent', color, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>▶</button>
     </div>
   );
@@ -2198,14 +2219,14 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       {(() => {
         const all = Array.isArray(window.BS_COACH_PLAYLISTS) ? window.BS_COACH_PLAYLISTS : [];
         const lists = all.filter(p => p.role === 'Coach');
-        const items = lists.length ? lists.map(p => ({ k: `${p.by} · Your coach`, title: p.name, meta: `${p.len} · ${p.bpm} BPM · ${p.tracks} tracks${p.attached ? ` · ${p.attached}` : ''}` }))
+        const items = lists.length ? lists.map(p => ({ k: `${p.by} · Your coach`, title: p.name, meta: `${p.len} · ${p.bpm} BPM · ${p.tracks} tracks${p.attached ? ` · ${p.attached}` : ''}`, url: p.url }))
           : [{ k: 'Jordan Chen · Your coach', title: 'Pull heavy.', meta: '52m · 95-138 BPM · 14 tracks' }];
         return (
           <>
             <BSTrackHeader kicker="From Jordan" title="Playlists" />
             <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
               {items.map((p, i) => (
-                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#c0533b" onPlay={goRadio} />
+                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#c0533b" onPlay={goRadio} spotifyUrl={p.url} />
               ))}
             </div>
           </>
@@ -4266,14 +4287,14 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
       {(() => {
         const all = Array.isArray(window.BS_COACH_PLAYLISTS) ? window.BS_COACH_PLAYLISTS : [];
         const lists = all.filter(p => p.role === 'Nutritionist');
-        const items = lists.length ? lists.map(p => ({ k: `${p.by} · Your nutritionist`, title: p.name, meta: `${p.len} · ${p.bpm} BPM · ${p.tracks} tracks${p.attached ? ` · ${p.attached}` : ''}` }))
+        const items = lists.length ? lists.map(p => ({ k: `${p.by} · Your nutritionist`, title: p.name, meta: `${p.len} · ${p.bpm} BPM · ${p.tracks} tracks${p.attached ? ` · ${p.attached}` : ''}`, url: p.url }))
           : [{ k: 'Dr. Maya Patel · Your nutritionist', title: 'Meal prep, low-key', meta: '45m · 85-100 BPM · 12 tracks · Sun prep' }];
         return (
           <>
             <BSTrackHeader kicker="From Maya" title="Playlists" />
             <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
               {items.map((p, i) => (
-                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#a07a2e" onPlay={goRadio} />
+                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#a07a2e" onPlay={goRadio} spotifyUrl={p.url} />
               ))}
             </div>
           </>
