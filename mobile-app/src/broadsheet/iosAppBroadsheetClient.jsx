@@ -7703,10 +7703,10 @@ function BSIntegrationsPage({ onBack }) {
         id="Groceries"
         name="Instacart"
         status="Ready"
-        note="Send your coach-built grocery list to Instacart and open a pre-filled cart — review and check out in the Instacart app or site."
+        note="Send your coach-built grocery list to Instacart and open a pre-filled cart. While Instacart access is pending, the list is copied to your clipboard instead."
       >
         <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
-          <Button onClick={() => runAction('instacart-send', 'Opening Instacart', () => window.ShapeIntegrations.sendGroceryToInstacart())}>
+          <Button onClick={async () => { setBusy('instacart-send'); setError(''); try { await window.ShapeIntegrations.sendGroceryToInstacart(); } catch (e) { const m = e?.message || 'Could not build grocery list.'; setError(m); window.__bsToast?.(m, 'error'); } finally { setBusy(''); } }}>
             {busy === 'instacart-send' ? 'Building list' : 'Send grocery list to Instacart →'}
           </Button>
         </div>
@@ -8767,7 +8767,13 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
           <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, fontStyle: 'italic', lineHeight: 1.4, letterSpacing: '-0.005em' }}>{noteText}</div>
         </div>
         <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'nowrap' }}>
-          <button style={{ borderRadius: t.RADIUS_SM,
+          <button onClick={async () => {
+            try {
+              const items = (list.aisles || []).flatMap(a => a.items || []).map(it => ({ name: it.n, display_text: [it.q, it.n].filter(Boolean).join(' ') })).filter(it => it.name);
+              if (!items.length) { window.__bsToast?.('Your grocery list is empty.', 'error'); return; }
+              await window.ShapeIntegrations?.sendGroceryToInstacart?.({ items, title: list.name });
+            } catch (e) { window.__bsToast?.(e?.message || 'Could not send list.', 'error'); }
+          }} style={{ borderRadius: t.RADIUS_SM,
             flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             padding: '12px 12px', background: t.INK, color: t.PAPER, border: 0, cursor: 'pointer',
             fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700,

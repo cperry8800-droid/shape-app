@@ -68,9 +68,6 @@ function dedupe(items: LineItem[]): LineItem[] {
 
 export async function POST(request: Request) {
   const apiKey = process.env.INSTACART_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: 'Instacart is not configured (missing INSTACART_API_KEY).' }, { status: 500 });
-  }
 
   const user = await resolveUser(request);
   if (!user) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
@@ -98,6 +95,13 @@ export async function POST(request: Request) {
   lineItems = dedupe(lineItems);
   if (!lineItems.length) {
     return NextResponse.json({ error: 'Your grocery list is empty.' }, { status: 422 });
+  }
+
+  // Instacart access is gated (they aren't issuing new Developer Platform keys
+  // right now). Without a key, hand the resolved list back so the client can
+  // fall back to copying it — no dead-end for the user.
+  if (!apiKey) {
+    return NextResponse.json({ configured: false, title: body.title || 'Shape grocery list', items: lineItems });
   }
 
   const base = (process.env.INSTACART_CONNECT_URL || 'https://connect.instacart.com').replace(/\/$/, '');
