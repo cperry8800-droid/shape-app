@@ -866,11 +866,11 @@ function BSTabBar({ tabs, active, onChange }) {
   return (
     <div style={{
       position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 55,
-      height: 72, padding: '6px 10px calc(10px + env(safe-area-inset-bottom, 0px))',
+      height: 72, padding: '6px 20px calc(10px + env(safe-area-inset-bottom, 0px))',
       background: `linear-gradient(180deg, rgba(${t.inkRGB},0.03), ${t.PAPER} 78%)`,
       color: t.INK,
       borderTop: `1px solid ${t.SURFACE_BORDER}`,
-      display: 'grid', gridTemplateColumns: `repeat(${tabs.length}, 1fr)`, gap: 4,
+      display: 'grid', gridTemplateColumns: `repeat(${tabs.length}, 1fr)`, gap: 10,
       backdropFilter: 'blur(18px)',
       WebkitBackdropFilter: 'blur(18px)',
       boxShadow: `0 -16px 40px ${t.isLight ? 'rgba(15,14,12,0.08)' : 'rgba(0,0,0,0.26)'}`,

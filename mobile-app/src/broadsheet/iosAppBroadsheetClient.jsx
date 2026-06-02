@@ -393,7 +393,6 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
           { key: 'train', label: 'Train', emoji: '🏋️' },
           { key: 'eat',   label: 'Eat',   emoji: '🍎' },
           { key: 'chat',  label: 'Chat',  emoji: '💬' },
-          { key: 'store', label: 'Store', emoji: '🛒' },
           { key: 'me',    label: 'Me',    emoji: '👤' },
         ]}
       />
