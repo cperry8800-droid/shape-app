@@ -7463,6 +7463,7 @@ function BSIntegrationsPage({ onBack }) {
   const spotify = providerMap.spotify || { id: 'spotify', label: 'Spotify', connected: false };
   const appleMusic = providerMap.apple_music || { id: 'apple_music', label: 'Apple Music', connected: false };
   const garmin = providerMap.garmin || { id: 'garmin', label: 'Garmin', connected: false };
+  const oura = providerMap.oura || { id: 'oura', label: 'Oura', connected: false };
 
   const runAction = async (key, label, action) => {
     setBusy(key);
@@ -7700,6 +7701,29 @@ function BSIntegrationsPage({ onBack }) {
             {garmin.connected ? 'Reconnect' : 'Connect'}
           </Button>
           <Button disabled={!garmin.connected} onClick={() => runAction('garmin-disconnect', 'Garmin disconnected', () => window.ShapeIntegrations.disconnect('garmin'))}>
+            Disconnect
+          </Button>
+        </div>
+      </IntegrationCard>
+
+      <BSSection title="Oura" meta={oura.connected ? 'Connected' : 'Ready'} />
+      <IntegrationCard
+        id="Sleep · Readiness · HR"
+        name="Oura"
+        status={oura.connected ? 'Connected' : 'Connect'}
+        note="Sync Oura Ring sleep, readiness, and heart-rate data into your daily health snapshot. Workouts import privately, like WHOOP."
+      >
+        <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <Button active={!oura.connected} onClick={() => window.ShapeIntegrations?.connectProvider?.('oura')}>
+            {oura.connected ? 'Reconnect' : 'Connect'}
+          </Button>
+          <Button disabled={!oura.connected} onClick={() => runAction('oura-sync', 'Oura synced', () => window.ShapeIntegrations.syncOura())}>
+            {busy === 'oura-sync' ? 'Syncing' : 'Sync'}
+          </Button>
+          <Button disabled={!oura.connected} onClick={() => runAction('oura-import', 'Oura workouts imported', () => window.ShapeIntegrations.syncOura({ importWorkouts: true }))}>
+            {busy === 'oura-import' ? 'Importing' : 'Import workouts'}
+          </Button>
+          <Button disabled={!oura.connected} onClick={() => runAction('oura-disconnect', 'Oura disconnected', () => window.ShapeIntegrations.disconnect('oura'))}>
             Disconnect
           </Button>
         </div>

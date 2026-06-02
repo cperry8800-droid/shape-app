@@ -203,6 +203,93 @@ export async function writeWhoopSnapshots(
   return { days: written };
 }
 
+// Oura sync helper. Oura v2 records are keyed by a `day` (YYYY-MM-DD) field, so
+// mapping onto the snapshot date is direct. Readiness → recovery_score; the
+// detailed sleep session → hours / efficiency / resting HR / HRV / avg HR;
+// daily_sleep → Oura's sleep score (sleep_performance_pct); daily_activity →
+// active calories; workouts → workout minutes.
+type OuraCollection = { data?: unknown[] };
+type OuraSyncShape = {
+  readiness?: OuraCollection;
+  sleep?: OuraCollection;
+  dailySleep?: OuraCollection;
+  dailyActivity?: OuraCollection;
+  workouts?: OuraCollection;
+};
+
+export async function writeOuraSnapshots(
+  client: SupabaseClient,
+  userId: string,
+  oura: OuraSyncShape
+): Promise<{ days: number }> {
+  const byDate = new Map<string, SnapshotPatch>();
+  const merge = (date: string, patch: SnapshotPatch) => {
+    byDate.set(date, { ...(byDate.get(date) ?? {}), ...patch });
+  };
+  // Oura records carry an explicit `day`; fall back to a timestamp field.
+  const dayOf = (record: Record<string, unknown>): string | null => {
+    const day = asString(record.day);
+    if (day) return day;
+    const ts = asString(record.bedtime_start) ?? asString(record.start_datetime) ?? asString(record.timestamp);
+    return ts ? isoDate(ts) : null;
+  };
+
+  for (const raw of oura.readiness?.data ?? []) {
+    const record = asRecord(raw);
+    const date = dayOf(record);
+    if (!date) continue;
+    merge(date, { recovery_score: asNumber(record.score) });
+  }
+
+  for (const raw of oura.dailySleep?.data ?? []) {
+    const record = asRecord(raw);
+    const date = dayOf(record);
+    if (!date) continue;
+    merge(date, { sleep_performance_pct: asNumber(record.score) });
+  }
+
+  for (const raw of oura.sleep?.data ?? []) {
+    const record = asRecord(raw);
+    const date = dayOf(record);
+    if (!date) continue;
+    const totalSec = asNumber(record.total_sleep_duration);
+    const avgHr = asNumber(record.average_heart_rate);
+    merge(date, {
+      sleep_hours: totalSec !== null ? Number((totalSec / 3600).toFixed(2)) : null,
+      sleep_efficiency_pct: asNumber(record.efficiency),
+      resting_hr: asNumber(record.lowest_heart_rate),
+      hrv_ms: asNumber(record.average_hrv),
+      avg_heart_rate: avgHr !== null ? Math.round(avgHr) : null,
+    });
+  }
+
+  for (const raw of oura.dailyActivity?.data ?? []) {
+    const record = asRecord(raw);
+    const date = dayOf(record);
+    if (!date) continue;
+    merge(date, { calories: asNumber(record.active_calories) });
+  }
+
+  for (const raw of oura.workouts?.data ?? []) {
+    const record = asRecord(raw);
+    const date = dayOf(record);
+    if (!date) continue;
+    const start = asString(record.start_datetime);
+    const end = asString(record.end_datetime);
+    const minutes = start && end
+      ? Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60_000))
+      : null;
+    if (minutes !== null) merge(date, { workout_minutes: minutes });
+  }
+
+  let written = 0;
+  for (const [date, patch] of byDate) {
+    const result = await upsertSnapshot(client, { userId, date, source: 'oura', patch });
+    if (result.written > 0) written += 1;
+  }
+  return { days: written };
+}
+
 // Strava sync helper. Each activity contributes workout minutes / HR to its
 // start date. Multiple activities on the same day sum the minutes and keep
 // the highest avg HR.

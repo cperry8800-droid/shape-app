@@ -2166,6 +2166,28 @@ async function syncStrava({ importActivities = false } = {}) {
   return payload;
 }
 
+async function syncOura({ importWorkouts = false } = {}) {
+  if (!apiBaseUrl) {
+    throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
+  }
+  if (!state.session?.access_token) {
+    throw new Error('Sign in before syncing Oura.');
+  }
+
+  const query = importWorkouts ? '?import=1' : '';
+  const response = await fetch(`${apiBaseUrl}/api/integrations/oura/sync${query}`, {
+    headers: {
+      Authorization: `Bearer ${state.session.access_token}`,
+    },
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.error || 'Oura sync failed.');
+  }
+  return payload;
+}
+
 async function connectProvider(provider, { returnTo = '/newdesign/GetApp.html' } = {}) {
   if (!apiBaseUrl) {
     throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
@@ -2848,6 +2870,7 @@ window.ShapeIntegrations = {
   sendGroceryToInstacart,
   syncWhoop,
   syncStrava,
+  syncOura,
   getStatus: getIntegrationStatus,
   disconnect: disconnectIntegration,
 };

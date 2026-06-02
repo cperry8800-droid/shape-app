@@ -53,6 +53,16 @@ send a `localhost` redirect_uri and the exchange would fail. Set it in prod.
 | Redirect URI to register | `https://your-production-domain.com/api/integrations/whoop/callback` |
 | Scopes (already configured) | `read:recovery read:cycles read:workout read:sleep read:profile read:body_measurement` |
 
+## 2b. Oura Ring  ✅ code ready (full sync)
+
+| | |
+|---|---|
+| Env vars | `OURA_CLIENT_ID`, `OURA_CLIENT_SECRET` |
+| Dashboard | https://cloud.ouraring.com/oauth/applications |
+| Redirect URI to register | `https://your-production-domain.com/api/integrations/oura/callback` |
+| Scopes (already configured) | `personal daily heartrate workout session` |
+| Sync | `GET /api/integrations/oura/sync` (add `?import=1` to import workouts as private activity rows). Maps readiness → recovery score; detailed sleep → hours / efficiency / resting HR / HRV / avg HR; daily_sleep → sleep score; daily_activity → active calories; workouts → minutes, all into `daily_health_snapshot`. Mobile: Connect / Sync / Import workouts / Disconnect. |
+
 ## 3. Garmin  ✅ code ready (needs program approval)
 
 | | |
