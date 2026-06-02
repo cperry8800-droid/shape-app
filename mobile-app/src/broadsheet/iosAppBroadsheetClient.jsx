@@ -5105,6 +5105,9 @@ function BSClientFeed({ onProfile, role: roleProp }) {
     const next = !ch.pinned;
     setPinOverride(o => ({ ...o, [ch.id]: next }));
     window.__bsToast?.(next ? 'Pinned to top' : 'Unpinned', 'ok');
+    // Only persist for real backend channels — sample/support rows are local-only.
+    const local = String(ch.id || '').startsWith('sample') || ch.id === 'support';
+    if (local) return;
     const p = window.ShapeChannels?.pin?.(ch.id, next);
     if (p && p.then) p.then(() => refreshChannels()).catch(() => {});
   };
@@ -5204,7 +5207,10 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   const KIND_OF = (r) => { const s = String(r || '').toLowerCase(); if (s.includes('shape') || s.includes('mod') || s.includes('official')) return 'SHAPE'; if (s.includes('train') || s.includes('coach')) return 'TRAINER'; if (s.includes('nutri') || s.includes('diet')) return 'NUTRI'; return 'CLIENT'; };
   const HUE = { SHAPE: TEAL, TRAINER: '#c0533b', CLIENT: '#147b68', NUTRI: '#a07a2e' };
   const mapPost = (p) => {
-    const kind = KIND_OF(p.role);
+    // Prefer the channel the post was made on (stored on the post); fall back to
+    // inferring from the author's role for older posts without a channel.
+    const ch = String(p.channel || '').toUpperCase();
+    const kind = (ch && ROLE[ch]) ? ch : KIND_OF(p.role);
     return {
       id: p.id, who: p.name || 'Member', kind, init: (p.avatar || p.name || '?').toString().trim().charAt(0).toUpperCase(),
       hue: HUE[kind], time: p.time || 'now', pinned: !!p.pinned, official: kind === 'SHAPE',
@@ -5235,8 +5241,12 @@ function BSClientFeed({ onProfile, role: roleProp }) {
     const body = draft.trim();
     if (!body) return;
     setDraft('');
-    setPosts(prev => [{ id: 'tmp-' + Date.now(), who: 'You', kind: 'CLIENT', init: 'Y', hue: HUE.CLIENT, time: 'now', body, hearts: 0, replies: 0 }, ...prev]);
-    try { await window.ShapeCommunity?.createPost?.({ body }); window.__bsToast?.('Posted to the group', 'ok'); }
+    // Tag the post with the chip you're posting from (Shape / Community / your
+    // role channel) so it lands on that feed — not always the Client feed.
+    const kind = (filter && ROLE[filter]) ? filter : myRoleChip;
+    const where = ROLE[kind] ? ROLE[kind].label : 'the group';
+    setPosts(prev => [{ id: 'tmp-' + Date.now(), who: 'You', kind, init: 'Y', hue: HUE[kind] || ROLE[kind].color, time: 'now', body, hearts: 0, replies: 0 }, ...prev]);
+    try { await window.ShapeCommunity?.createPost?.({ title: body, note: body, channel: kind, privacy: 'community' }); window.__bsToast?.(`Posted to ${where}`, 'ok'); }
     catch (e) { window.__bsToast?.(e?.message || 'Could not post.', 'err'); }
   };
   const like = (p) => {
@@ -5464,6 +5474,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
                 <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, marginTop: 3 }}>{f.s}</div>
               </div>
               {unreadBadge('dm:' + f.conversation_id)}
+              {f.pinKey && <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); pinChannelNow({ id: f.pinKey, name: f.n, pinned: f.pinned }); }} aria-label={f.pinned ? 'Unpin' : 'Pin'} title={f.pinned ? 'Unpin' : 'Pin to top'} style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 999, border: `1px solid ${f.pinned ? TEALB : hair}`, background: f.pinned ? `${TEALB}1f` : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, opacity: f.pinned ? 1 : 0.5 }}>📌</span>}
               <span style={{ color: muted, fontSize: 16 }}>›</span>
             </button>
           );
@@ -5484,7 +5495,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
           // Support is a PRIVATE 1:1 thread (just this user + the Shape team),
           // not a shared # channel — flagged with `dm` so the row reads as a
           // direct line rather than a community room.
-          const support = { n: 'Support', s: 'Private · you & the Shape team', c: TEALB, i: '✦', dm: true };
+          const support = { n: 'Support', s: 'Private · you & the Shape team', c: TEALB, i: '✦', dm: true, pinKey: 'support', pinned: !!pinOverride['support'] };
           const chList = (channels && channels.length) ? channels : (loggedIn ? [] : BS_SAMPLE_CHANNELS);
           const _chQ = channelQuery.trim().toLowerCase();
           const chDisplay = chList
