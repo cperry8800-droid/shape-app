@@ -5280,7 +5280,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   // One feed-post card — used by the role channels AND the live COMMUNITY feed.
   const renderPost = (p, i) => (
     <div key={p.id || i}>
-      {p.pinned && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', color: TEALB, marginBottom: 6 }}>📌 Pinned</div>}
+      {p.pinned && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', color: TEALB, marginBottom: 6 }}><span style={{ filter: 'grayscale(1)' }}>📍</span> Pinned</div>}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
         <span style={{ fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk }}>{p.who}</span>
         <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: ROLE[p.kind].color, border: `1px solid ${ROLE[p.kind].color}66`, borderRadius: 4, padding: '1px 5px' }}>{ROLE[p.kind].label}</span>
@@ -5474,7 +5474,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
                 <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, marginTop: 3 }}>{f.s}</div>
               </div>
               {unreadBadge('dm:' + f.conversation_id)}
-              {f.pinKey && <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); pinChannelNow({ id: f.pinKey, name: f.n, pinned: f.pinned }); }} aria-label={f.pinned ? 'Unpin' : 'Pin'} title={f.pinned ? 'Unpin' : 'Pin to top'} style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 999, border: `1px solid ${f.pinned ? TEALB : hair}`, background: f.pinned ? `${TEALB}1f` : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, opacity: f.pinned ? 1 : 0.5 }}>📌</span>}
+              {f.pinKey && <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); pinChannelNow({ id: f.pinKey, name: f.n, pinned: f.pinned }); }} aria-label={f.pinned ? 'Unpin' : 'Pin'} title={f.pinned ? 'Unpin' : 'Pin to top'} style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 999, border: `1px solid ${f.pinned ? TEALB : hair}`, background: f.pinned ? `${TEALB}1f` : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, filter: 'grayscale(1)', opacity: f.pinned ? 1 : 0.5 }}>📍</span>}
               <span style={{ color: muted, fontSize: 16 }}>›</span>
             </button>
           );
@@ -5515,11 +5515,11 @@ function BSClientFeed({ onProfile, role: roleProp }) {
               <div key={ch.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, border: `1px solid ${hair}`, background: card }}>
                 <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 16 }}>#</div>
                 <button onClick={() => ch.joined ? openChannelNow(ch) : joinChannelNow(ch)} style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, textAlign: 'left', cursor: 'pointer', color: cardInk }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15 }}># {ch.name}{ch.pinned && <span title="Pinned" style={{ marginLeft: 6 }}>📌</span>}{ch.private && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: muted, marginLeft: 8 }}>🔒 PRIVATE</span>}{ch.isHost && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: TEALB, marginLeft: 8 }}>HOST</span>}</div>
+                  <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15 }}># {ch.name}{ch.private &&<span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: muted, marginLeft: 8 }}>🔒 PRIVATE</span>}{ch.isHost && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: TEALB, marginLeft: 8 }}>HOST</span>}</div>
                   <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, marginTop: 3 }}>{ch.memberCount} member{ch.memberCount === 1 ? '' : 's'}{ch.last ? ` · ${ch.last.slice(0, 26)}` : ''}</div>
                 </button>
                 {unreadBadge('ch:' + ch.id)}
-                <button onClick={() => pinChannelNow(ch)} aria-label={ch.pinned ? 'Unpin' : 'Pin'} title={ch.pinned ? 'Unpin' : 'Pin to top'} style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 999, border: `1px solid ${ch.pinned ? TEALB : hair}`, background: ch.pinned ? `${TEALB}1f` : 'transparent', cursor: 'pointer', padding: 0, fontSize: 13, opacity: ch.pinned ? 1 : 0.5 }}>📌</button>
+                <button onClick={() => pinChannelNow(ch)} aria-label={ch.pinned ? 'Unpin' : 'Pin'} title={ch.pinned ? 'Unpin' : 'Pin to top'} style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 999, border: `1px solid ${ch.pinned ? TEALB : hair}`, background: ch.pinned ? `${TEALB}1f` : 'transparent', cursor: 'pointer', padding: 0, fontSize: 13, filter: 'grayscale(1)', opacity: ch.pinned ? 1 : 0.5 }}>📍</button>
                 {ch.isHost && !isSample && <button onClick={() => { setAddMemberFor(ch); setMemberQuery(''); setMemberResults([]); }} style={{ flexShrink: 0, padding: '7px 11px', borderRadius: 999, background: 'transparent', color: cardInk, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Add</button>}
                 {!ch.joined && <button onClick={() => joinChannelNow(ch)} style={{ flexShrink: 0, padding: '7px 13px', borderRadius: 999, background: TEAL, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Join</button>}
                 {ch.joined && <span style={{ color: muted, fontSize: 16, flexShrink: 0 }}>›</span>}
