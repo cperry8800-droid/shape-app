@@ -4981,6 +4981,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   // Live direct-message threads (real coaches/conversations). Falls back to the
   // sample people lists below when there are none (demo / not signed in).
   const [coachThreads, setCoachThreads] = useStateBSC(null);
+  const [openChat, setOpenChat] = useStateBSC(null); // selected DM/channel row → thread view
   React.useEffect(() => {
     let active = true;
     (async () => {
@@ -4998,6 +4999,8 @@ function BSClientFeed({ onProfile, role: roleProp }) {
     s: th.provider_role === 'nutritionist' ? 'Nutritionist' : th.provider_role === 'trainer' ? 'Trainer' : (th.last || 'Direct message'),
     c: _threadPalette[i % _threadPalette.length],
     i: (th.who || 'C').toString().trim().charAt(0).toUpperCase(),
+    last: th.last,
+    messages: (th.messages || []).map(m => ({ who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', me: m.me || m.who === 'You' })),
   }));
   const [composerSlot, setComposerSlot] = useStateBSC(null);
   React.useEffect(() => { setComposerSlot(document.getElementById('bs-composer-slot')); }, []);
@@ -5181,6 +5184,17 @@ function BSClientFeed({ onProfile, role: roleProp }) {
     <button onClick={onClick} style={{ padding: '7px 12px', borderRadius: 999, border: 0, background: on ? TEAL : 'transparent', color: on ? '#031f1c' : muted, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{children}</button>
   );
 
+  if (openChat) {
+    const isCh = String(openChat.n || '').startsWith('#');
+    return (
+      <BSChatThread
+        thread={{ who: openChat.n, role: openChat.s || (isCh ? 'Channel' : 'Direct message'), last: openChat.last, time: '', messages: openChat.messages || [], group: isCh }}
+        eyebrow={isCh ? 'Channel' : openChat.dm ? 'Private thread' : 'Direct message'}
+        onBack={() => setOpenChat(null)}
+      />
+    );
+  }
+
   return (
     <BSPage>
       <BSMasthead
@@ -5212,7 +5226,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
           ];
           // A chat list row (avatar + name + subtitle), tap to open the thread.
           const Row = (f, i) => (
-            <button key={i} onClick={() => { window.__bsToast && window.__bsToast(f.dm ? 'Opening your private Support thread' : (f.n.startsWith('#') ? 'Opening ' + f.n : 'Opening chat with ' + f.n), 'ok'); }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, border: `1px solid ${hair}`, background: card, color: cardInk, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
+            <button key={i} onClick={() => setOpenChat(f)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, border: `1px solid ${hair}`, background: card, color: cardInk, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
               <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: f.c, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 15 }}>{f.i}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15 }}>{f.n}</div>
