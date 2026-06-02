@@ -94,6 +94,39 @@ a developer token from your MusicKit key.
 | `APPLE_MUSIC_PRIVATE_KEY` | The `.p8` contents with newlines escaped as `\n`, e.g. `-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----` |
 | Domain registration | Register your production domain on the MusicKit identifier so the browser grant works. |
 
+## 5b. Apple Health / Apple Watch (HealthKit)  ✅ code ready — native iOS only
+
+**No env vars, no OAuth, no developer keys.** Apple Watch / Health data is only
+reachable from the native iOS app via the HealthKit entitlement — there is no
+web API. Reading happens on-device and per-day roll-ups are POSTed to the server.
+
+What's already wired (a **thin in-app native plugin** — no external pod, so no
+Capacitor-version / peer-dependency conflicts):
+- `ios/App/App/ShapeHealthPlugin.swift` — a `CAPBridgedPlugin` exposing
+  `isAvailable`, `requestAuthorization`, and `querySamples`. It's added to the
+  Xcode target in `project.pbxproj`, so Capacitor auto-registers it as
+  `ShapeHealth`.
+- `ios/App/App/App.entitlements` enables `com.apple.developer.healthkit`, and the
+  Xcode project points `CODE_SIGN_ENTITLEMENTS` at it.
+- `Info.plist` has `NSHealthShareUsageDescription` / `NSHealthUpdateUsageDescription`.
+- `mobile-app/src/services/healthkit.js` requests authorization and reads steps,
+  heart rate, HRV, resting HR, sleep, active energy, distance, and workouts.
+- `POST /api/integrations/apple-health/sync` writes `daily_health_snapshot` rows
+  (same as WHOOP/Oura) and imports workouts privately.
+- Mobile "Manage integrations" → **Apple Health** card (Connect / Sync /
+  Disconnect on device; shows "iOS app" on web).
+
+To finish enabling it (one-time, requires a Mac + Xcode):
+1. `cd mobile-app && npm run build && npx cap sync ios`.
+2. Open `ios/App/App.xcworkspace` in Xcode → **Signing & Capabilities** → confirm
+   the **HealthKit** capability is present (the entitlement file already adds it).
+3. Build to a real device (HealthKit isn't on the simulator) and ship via
+   TestFlight / App Store. On first **Connect**, iOS shows the Health permission
+   sheet; granting it lets Shape read the listed types.
+
+> Android equivalent (not included here): the same on-device pattern via **Health
+> Connect** would be a separate native plugin.
+
 ## 6. Instacart (grocery hand-off)  ✅ code ready
 
 Server-to-server — **no user OAuth, no redirect URI**.

@@ -8,6 +8,11 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { getProvider, type ProviderId } from '@/lib/integrations/providers';
 import { deleteTokens } from '@/lib/integrations/tokens';
+import { createAdminClient } from '@/lib/supabase/admin';
+
+// Device-side "providers" that aren't in the OAuth registry but still own a
+// user_integrations row (no token to revoke — just remove the marker).
+const SYNTHETIC_PROVIDERS = new Set(['apple_health', 'apple_music']);
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -37,11 +42,18 @@ export async function POST(
 ) {
   const { provider } = await ctx.params;
   const cfg = getProvider(provider);
-  if (!cfg) return NextResponse.json({ error: 'Unknown provider.' }, { status: 404 });
+  if (!cfg && !SYNTHETIC_PROVIDERS.has(provider)) {
+    return NextResponse.json({ error: 'Unknown provider.' }, { status: 404 });
+  }
 
   const user = await resolveUser(request);
   if (!user) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
 
-  await deleteTokens(user.id, cfg.id as ProviderId);
+  if (cfg) {
+    await deleteTokens(user.id, cfg.id as ProviderId);
+  } else {
+    const admin = createAdminClient();
+    await admin.from('user_integrations').delete().eq('user_id', user.id).eq('provider', provider);
+  }
   return NextResponse.json({ ok: true });
 }

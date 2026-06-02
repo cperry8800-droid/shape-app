@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { createClient } from '@supabase/supabase-js';
+import { isHealthKitPlatform, requestHealthKitAuth, collectHealthKitSnapshots } from './healthkit.js';
 import {
   DEFAULT_BACKGROUND_CHECK_PROVIDER,
   PROVIDER_APPLICATION_MAX_FILE_BYTES,
@@ -2188,6 +2189,35 @@ async function syncOura({ importWorkouts = false } = {}) {
   return payload;
 }
 
+// Apple Health (HealthKit) — reads samples on-device and posts daily roll-ups.
+// Connecting and syncing are the same flow: prompt for permission, read, upload.
+async function syncAppleHealth({ importWorkouts = true } = {}) {
+  if (!isHealthKitPlatform()) {
+    throw new Error('Apple Health is only available in the iOS app.');
+  }
+  if (!apiBaseUrl) {
+    throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
+  }
+  if (!state.session?.access_token) {
+    throw new Error('Sign in before syncing Apple Health.');
+  }
+  await requestHealthKitAuth();
+  const { days, workouts } = await collectHealthKitSnapshots();
+  const response = await fetch(`${apiBaseUrl}/api/integrations/apple-health/sync`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${state.session.access_token}`,
+    },
+    body: JSON.stringify({ days, workouts: importWorkouts ? workouts : [] }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.error || 'Apple Health sync failed.');
+  }
+  return payload;
+}
+
 async function connectProvider(provider, { returnTo = '/newdesign/GetApp.html' } = {}) {
   if (!apiBaseUrl) {
     throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
@@ -2871,6 +2901,9 @@ window.ShapeIntegrations = {
   syncWhoop,
   syncStrava,
   syncOura,
+  syncAppleHealth,
+  connectAppleHealth: syncAppleHealth,
+  appleHealthAvailable: isHealthKitPlatform,
   getStatus: getIntegrationStatus,
   disconnect: disconnectIntegration,
 };
