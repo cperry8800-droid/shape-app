@@ -4971,6 +4971,73 @@ function BSCommunityLiveFeed({ role = 'client' }) {
 }
 
 // "The feed." — community feed screen (Feed / Messages / Teams).
+// Sample conversations + channels shown in demo (when there's no live data).
+const BS_SAMPLE_DMS = {
+  'Sofia Martinez': [
+    { who: 'Sofia Martinez', t: 'You in for the Saturday long run?', time: '9:02', me: false },
+    { who: 'You', t: 'Yeah — what pace are we thinking?', time: '9:05', me: true },
+    { who: 'Sofia Martinez', t: 'Easy 8:00ish. Coffee at Blackbird after ☕', time: '9:06', me: false },
+    { who: 'You', t: 'Perfect, see you at 6 🏃', time: '9:07', me: true },
+  ],
+  'Jordan Chen': [
+    { who: 'Jordan Chen', t: 'Great session today — how are the legs?', time: '2h', me: false },
+    { who: 'You', t: 'Sore but good 😅 those tempo squats…', time: '2h', me: true },
+    { who: 'Jordan Chen', t: "Haha that's the deload working. Rest up.", time: '2h', me: false },
+  ],
+  'Maya Okafor': [
+    { who: 'Maya Okafor', t: 'Sent your week-7 block over — check the press cue.', time: '1h', me: false },
+    { who: 'You', t: 'Got it. Ribs down, right?', time: '1h', me: true },
+    { who: 'Maya Okafor', t: 'Exactly 💪', time: '1h', me: false },
+  ],
+  'Dev Patel': [
+    { who: 'Dev Patel', t: 'Did you try that protein recipe?', time: 'Yesterday', me: false },
+    { who: 'You', t: 'The overnight oats? Yeah — 40g and actually good', time: 'Yesterday', me: true },
+    { who: 'Dev Patel', t: 'Right?? Game changer.', time: 'Yesterday', me: false },
+  ],
+  'Aria Kim': [
+    { who: 'Aria Kim', t: 'Hit a 5k PR this morning 🎉', time: '3h', me: false },
+    { who: 'You', t: "Let's gooo — what time?", time: '3h', me: true },
+    { who: 'Aria Kim', t: '24:10! Two weeks ahead of plan.', time: '3h', me: false },
+  ],
+};
+const BS_SAMPLE_COACH_DMS = {
+  'Maya Okafor': [
+    { who: 'Maya Okafor', t: 'Nice work hitting all your lifts this week 💪', time: 'Mon', me: false },
+    { who: 'You', t: 'Thanks! Tempo squats were brutal', time: 'Mon', me: true },
+    { who: 'Maya Okafor', t: "That's the point 😅 keep bar speed up next block.", time: 'Mon', me: false },
+  ],
+  'Rae Lindqvist': [
+    { who: 'Rae Lindqvist', t: "Your protein average is up to 0.9g/lb — great consistency.", time: 'Tue', me: false },
+    { who: 'You', t: 'Meal prep is finally a habit', time: 'Tue', me: true },
+    { who: 'Rae Lindqvist', t: "It shows. Let's nudge carbs up around training days.", time: 'Tue', me: false },
+  ],
+  'Dr. Sam Huang': [
+    { who: 'Dr. Sam Huang', t: 'Zone 2 looked clean on the watch this week.', time: 'Wed', me: false },
+    { who: 'You', t: 'Felt easy — kept it conversational', time: 'Wed', me: true },
+    { who: 'Dr. Sam Huang', t: 'Perfect. Adding one tempo session next week.', time: 'Wed', me: false },
+  ],
+};
+const BS_SAMPLE_CHANNELS = [
+  { id: 'sample-shapehq', name: 'Shape HQ', description: '', memberCount: 2841, joined: true, isHost: false, private: false, pinned: false, last: 'Coach grocery lists → Instacart', messages: [
+    { who: 'Shape', t: '👋 Welcome to Shape HQ — product news, drops, and events live here.', time: 'Mon', me: false },
+    { who: 'Shape', t: 'New: coach-built grocery lists hand off straight to Instacart.', time: 'Tue', me: false },
+    { who: 'Shape', t: 'Shape Radio is live Thursdays at 7pm 🎧', time: 'Wed', me: false },
+  ] },
+  { id: 'sample-runclub', name: 'Sunday Run Club', description: '', memberCount: 184, joined: true, isHost: false, private: false, pinned: false, last: "6am long run — 47 RSVP'd", messages: [
+    { who: 'Marcus J.', t: 'Saturday 6am long run is on! Coffee at Blackbird after.', time: '1d', me: false },
+    { who: 'Diego A.', t: 'In. Holding ~8:00 if anyone wants company.', time: '1d', me: false },
+    { who: 'You', t: "I'm in 🏃", time: '1d', me: true },
+  ] },
+  { id: 'sample-macros', name: 'Macro Mondays', description: '', memberCount: 312, joined: true, isHost: false, private: false, pinned: false, last: 'Protein-first, every day.', messages: [
+    { who: 'Dr. Maya Patel', t: 'Protein first, fill the rest with volume — 0.8–1g/lb, daily.', time: '2d', me: false },
+    { who: 'Owen H.', t: 'Adding: fiber is the most under-eaten macro I see.', time: '2d', me: false },
+  ] },
+  { id: 'sample-prwall', name: 'PR Wall', description: '', memberCount: 526, joined: true, isHost: false, private: false, pinned: false, last: '405 deadlift, no belt 🔥', messages: [
+    { who: 'Tomás R.', t: '405 deadlift, conventional, no belt. Felt like nothing 🔥', time: '5h', me: false },
+    { who: 'You', t: 'Huge 👏', time: '5h', me: true },
+  ] },
+];
+
 function BSClientFeed({ onProfile, role: roleProp }) {
   const t = useBS();
   const TEAL = '#0ac5a8', TEALB = '#2ee0c4';
@@ -5049,6 +5116,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   const openChannelNow = (ch) => {
     window.ShapeUnread?.markChannelRead?.(ch.id);
     const finish = (msgs) => setOpenChat({ n: ch.name, s: `${ch.memberCount} member${ch.memberCount === 1 ? '' : 's'}`, channelId: ch.id, messages: msgs, isHost: ch.isHost });
+    if (ch.messages && ch.messages.length) { finish(ch.messages); return; }   // demo/sample channel
     if (window.ShapeChannels?.listMessages) window.ShapeChannels.listMessages(ch.id).then(r => finish(r?.data || [])).catch(() => finish([]));
     else finish([]);
   };
@@ -5378,9 +5446,9 @@ function BSClientFeed({ onProfile, role: roleProp }) {
           const role = roleProp || (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().profile && window.ShapeAuth.getCachedState().profile.role) || 'client';
           const isCoach = role === 'trainer' || role === 'nutritionist';
           const coaches = threadRows.length ? threadRows : [
-            { n: 'Maya Okafor', s: 'Trainer · Strength', c: '#c0533b', i: 'M' },
-            { n: 'Rae Lindqvist', s: 'Nutritionist · Sports nutrition', c: '#a07a2e', i: 'R' },
-            { n: 'Dr. Sam Huang', s: 'Coach · Endurance', c: '#147b68', i: 'S' },
+            { n: 'Maya Okafor', s: 'Trainer · Strength', c: '#c0533b', i: 'M', messages: BS_SAMPLE_COACH_DMS['Maya Okafor'] },
+            { n: 'Rae Lindqvist', s: 'Nutritionist · Sports nutrition', c: '#a07a2e', i: 'R', messages: BS_SAMPLE_COACH_DMS['Rae Lindqvist'] },
+            { n: 'Dr. Sam Huang', s: 'Coach · Endurance', c: '#147b68', i: 'S', messages: BS_SAMPLE_COACH_DMS['Dr. Sam Huang'] },
           ];
           // A chat list row (avatar + name + subtitle), tap to open the thread.
           const Row = (f, i) => (
@@ -5398,8 +5466,8 @@ function BSClientFeed({ onProfile, role: roleProp }) {
           if (tab === 'messages') {
             // Friends: a simple list of people — tap one to open the chat.
             const friends = threadRows.length ? threadRows : (isCoach
-              ? [{ n: 'Sofia Martinez', s: 'Active now', c: '#147b68', i: 'S' }, { n: 'Dev Patel', s: '2h ago', c: '#2e6fa0', i: 'D' }, { n: 'Aria Kim', s: 'Yesterday', c: '#8a5cf6', i: 'A' }]
-              : [{ n: 'Sofia Martinez', s: 'Active now', c: '#147b68', i: 'S' }, { n: 'Jordan Chen', s: '2h ago', c: '#c0533b', i: 'J' }, { n: 'Maya Okafor', s: 'Active now', c: '#a07a2e', i: 'M' }, { n: 'Dev Patel', s: 'Yesterday', c: '#2e6fa0', i: 'D' }, { n: 'Aria Kim', s: '3h ago', c: '#8a5cf6', i: 'A' }]);
+              ? [{ n: 'Sofia Martinez', s: 'Active now', c: '#147b68', i: 'S', messages: BS_SAMPLE_DMS['Sofia Martinez'] }, { n: 'Dev Patel', s: '2h ago', c: '#2e6fa0', i: 'D', messages: BS_SAMPLE_DMS['Dev Patel'] }, { n: 'Aria Kim', s: 'Yesterday', c: '#8a5cf6', i: 'A', messages: BS_SAMPLE_DMS['Aria Kim'] }]
+              : [{ n: 'Sofia Martinez', s: 'Active now', c: '#147b68', i: 'S', messages: BS_SAMPLE_DMS['Sofia Martinez'] }, { n: 'Jordan Chen', s: '2h ago', c: '#c0533b', i: 'J', messages: BS_SAMPLE_DMS['Jordan Chen'] }, { n: 'Maya Okafor', s: 'Active now', c: '#a07a2e', i: 'M', messages: BS_SAMPLE_DMS['Maya Okafor'] }, { n: 'Dev Patel', s: 'Yesterday', c: '#2e6fa0', i: 'D', messages: BS_SAMPLE_DMS['Dev Patel'] }, { n: 'Aria Kim', s: '3h ago', c: '#8a5cf6', i: 'A', messages: BS_SAMPLE_DMS['Aria Kim'] }]);
             return (
               <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {friends.map(Row)}
@@ -5412,7 +5480,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
           // not a shared # channel — flagged with `dm` so the row reads as a
           // direct line rather than a community room.
           const support = { n: 'Support', s: 'Private · you & the Shape team', c: TEALB, i: '✦', dm: true };
-          const chList = channels || [];
+          const chList = (channels && channels.length) ? channels : BS_SAMPLE_CHANNELS;
           const selectors = [
             { key: 'channels', label: 'Channels', color: TEALB },
             { key: 'coaches', label: 'Coaches', color: '#c0533b' },
@@ -5421,6 +5489,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
           const _chPalette = ['#147b68', '#c0533b', '#a07a2e', '#2e6fa0', '#8a5cf6'];
           const chRow = (ch) => {
             const color = _chPalette[(ch.name || '').length % _chPalette.length];
+            const isSample = String(ch.id || '').startsWith('sample');
             return (
               <div key={ch.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, border: `1px solid ${hair}`, background: card }}>
                 <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 16 }}>#</div>
@@ -5429,8 +5498,8 @@ function BSClientFeed({ onProfile, role: roleProp }) {
                   <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, marginTop: 3 }}>{ch.memberCount} member{ch.memberCount === 1 ? '' : 's'}{ch.last ? ` · ${ch.last.slice(0, 26)}` : ''}</div>
                 </button>
                 {unreadBadge('ch:' + ch.id)}
-                {ch.joined && <button onClick={() => pinChannelNow(ch)} aria-label={ch.pinned ? 'Unpin' : 'Pin'} title={ch.pinned ? 'Unpin' : 'Pin to top'} style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 999, border: `1px solid ${ch.pinned ? TEALB : hair}`, background: ch.pinned ? `${TEALB}1f` : 'transparent', cursor: 'pointer', padding: 0, fontSize: 13, opacity: ch.pinned ? 1 : 0.55 }}>📌</button>}
-                {ch.isHost && <button onClick={() => { setAddMemberFor(ch); setMemberQuery(''); setMemberResults([]); }} style={{ flexShrink: 0, padding: '7px 11px', borderRadius: 999, background: 'transparent', color: cardInk, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Add</button>}
+                {ch.joined && !isSample && <button onClick={() => pinChannelNow(ch)} aria-label={ch.pinned ? 'Unpin' : 'Pin'} title={ch.pinned ? 'Unpin' : 'Pin to top'} style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 999, border: `1px solid ${ch.pinned ? TEALB : hair}`, background: ch.pinned ? `${TEALB}1f` : 'transparent', cursor: 'pointer', padding: 0, fontSize: 13, opacity: ch.pinned ? 1 : 0.55 }}>📌</button>}
+                {ch.isHost && !isSample && <button onClick={() => { setAddMemberFor(ch); setMemberQuery(''); setMemberResults([]); }} style={{ flexShrink: 0, padding: '7px 11px', borderRadius: 999, background: 'transparent', color: cardInk, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Add</button>}
                 {!ch.joined && <button onClick={() => joinChannelNow(ch)} style={{ flexShrink: 0, padding: '7px 13px', borderRadius: 999, background: TEAL, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Join</button>}
                 {ch.joined && <span style={{ color: muted, fontSize: 16, flexShrink: 0 }}>›</span>}
               </div>
