@@ -1644,6 +1644,7 @@ function communityPostFromRow(row) {
     id: row.id,
     created_at: row.created_at || null,
     name: authorName,
+    channel: typeof metrics.channel === 'string' ? metrics.channel : '',
     role: row.author_role === 'trainer' ? 'Trainer' : row.author_role === 'nutritionist' ? 'Nutritionist' : 'Client',
     avatar: authorName.trim()[0]?.toUpperCase() || 'S',
     time: row.created_at ? new Date(row.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'now',
@@ -2020,6 +2021,7 @@ async function createCommunityPost({
   route = {},
   sourceProvider = '',
   sourceActivityId = '',
+  channel = '',
 } = {}) {
   if (!state.user?.id) throw new Error('Sign in before posting to the community feed.');
   const cleanTitle = String(title || '').trim();
@@ -2027,6 +2029,11 @@ async function createCommunityPost({
 
   const profile = state.profile || {};
   const authorName = profile.full_name || state.user.email?.split('@')[0] || 'Shape member';
+  // Stash the feed channel (SHAPE / CLIENT / TRAINER / NUTRI / COMMUNITY) in the
+  // jsonb metrics so a post made on the Shape or Community tab stays on that tab
+  // — author_role alone would collapse every post into the user's own role feed.
+  const cleanChannel = String(channel || '').trim().toUpperCase();
+  const mergedMetrics = cleanChannel ? { ...(metrics || {}), channel: cleanChannel } : (metrics || {});
   const payload = {
     author_id: state.user.id,
     author_name: authorName,
@@ -2036,7 +2043,7 @@ async function createCommunityPost({
     title: cleanTitle,
     status: String(status || '').trim() || null,
     note: String(note || '').trim() || null,
-    metrics: metrics || {},
+    metrics: mergedMetrics,
     route: route || {},
     source_provider: sourceProvider || null,
     source_activity_id: sourceActivityId || null,
