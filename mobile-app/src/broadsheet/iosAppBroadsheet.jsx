@@ -901,7 +901,7 @@ function BSTabBar({ tabs, active, onChange }) {
 }
 
 // Footer masthead — closes a page like a paper footer
-function BSFooter({ left = 'The Shape Daily', right }) {
+function BSFooter({ left = 'Shape', right }) {
   const t = useBS();
   return (
     <div style={{

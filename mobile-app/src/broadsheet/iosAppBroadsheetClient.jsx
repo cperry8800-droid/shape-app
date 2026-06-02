@@ -2245,7 +2245,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
         </button>
       </div>
 
-      <BSFooter left="" right="Pg 2 of 5" />
+      <BSFooter right="Pg 2 of 5" />
     </BSPage>
   );
 }
@@ -4313,7 +4313,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
         </button>
       </div>
 
-      <BSFooter left="" right="Pg 3 of 5" />
+      <BSFooter right="Pg 3 of 5" />
     </BSPage>
   );
 }
@@ -8987,6 +8987,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showSessions, setShowSessions] = useStateBSC(false);
   const [showNotifications, setShowNotifications] = useStateBSC(false);
   const [showIntegrations, setShowIntegrations] = useStateBSC(initialPage === 'integrations');
+  const [showAppearance, setShowAppearance] = useStateBSC(false);
 
   const requestAccountAction = async (action) => {
     const confirms = {
@@ -9217,7 +9218,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   ];
 
   return (
-    <BSPage>
+    <BSPage tabBarHeight={0}>
       <BSDetailHeader
         onBack={onBack}
         eyebrow="Member · Pro"
@@ -9329,8 +9330,19 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       </div>
 
       {/* APPEARANCE */}
-      <BSSection title="Appearance" meta={`${({light:'Cream',dark:'Black',teal:'Teal',manila:'Manila',blueprint:'Blueprint',carbon:'Carbon',steel:'Steel',bone:'Bone',oxblood:'Oxblood'})[tweaks.paperMode] || 'Cream'} · ${tweaks.accentKey || 'blue'}`} />
-      <div style={{ padding: `14px ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+      <button onClick={() => setShowAppearance(v => !v)} aria-expanded={showAppearance} style={{
+        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+        padding: `13px ${t.padX}px`, borderTop: `2px solid ${t.INK}`, borderBottom: `1px solid ${t.RULE}`,
+        background: t.PAPER, border: 0, cursor: 'pointer', color: t.INK, textAlign: 'left',
+      }}>
+        <div>
+          <BSEyebrow color={t.ACCENT}>Appearance</BSEyebrow>
+          <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>Theme, texture &amp; colors</div>
+        </div>
+        <BSEyebrow>{`${({light:'Cream',dark:'Black',teal:'Teal',manila:'Manila',blueprint:'Blueprint',carbon:'Carbon',steel:'Steel',bone:'Bone',oxblood:'Oxblood'})[tweaks.paperMode] || 'Cream'} · ${tweaks.accentKey || 'blue'}  ${showAppearance ? '▾' : '▸'}`}</BSEyebrow>
+      </button>
+      {showAppearance && (
+      <div style={{ padding: `14px ${t.padX}px` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 6, fontWeight: 700 }}>Paper</div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {[['light','Cream'],['dark','Black'],['teal','Teal'],['manila','Manila'],['blueprint','Blueprint'],['carbon','Carbon'],['steel','Steel'],['bone','Bone'],['oxblood','Oxblood']].map(([k,l]) => (
@@ -9423,6 +9435,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         </div>
 
       </div>
+      )}
 
       {/* SHAPE RADIO */}
       <BSSection
@@ -9460,7 +9473,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         </div>
 
         {/* 2×2 grid of mode cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
           {[
             { k: 'off',       glyph: '○',  title: 'Off',       sub: 'Clean · no animation' },
             { k: 'subtle',    glyph: '◐',  title: 'Subtle',    sub: 'Edge glow · island EQ' },
@@ -9473,24 +9486,24 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 key={m.k}
                 onClick={() => r.setFxMode(m.k)}
                 style={{ borderRadius: t.RADIUS_SM,
-                  textAlign: 'left', cursor: 'pointer', padding: '12px 12px 14px',
+                  textAlign: 'left', cursor: 'pointer', padding: '8px 10px 9px',
                   border: `1px solid ${active ? t.INK : t.RULE}`,
                   background: active ? t.PAPER2 : 'transparent',
-                  display: 'flex', flexDirection: 'column', gap: 4,
+                  display: 'flex', flexDirection: 'column', gap: 2,
                   borderLeft: active ? `4px solid ${t.ACCENT}` : `1px solid ${t.RULE}`,
-                  paddingLeft: active ? 9 : 12,
+                  paddingLeft: active ? 7 : 10,
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 16, color: t.INK }}>{m.glyph}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 13, color: t.INK }}>{m.glyph}</span>
                   {active && (
-                    <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.ACCENT }}>● ON</span>
+                    <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.ACCENT }}>● ON</span>
                   )}
                 </div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', marginTop: 2 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', marginTop: 1 }}>
                   {m.title}
                 </div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 11.5, color: t.INK70, fontWeight: 500, lineHeight: 1.3 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 10, color: t.INK70, fontWeight: 500, lineHeight: 1.25 }}>
                   {m.sub}
                 </div>
               </button>
@@ -9567,8 +9580,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         ))}
       </div>
 
-      {/* Sign out */}
-      <div style={{ padding: `22px ${t.padX}px 0` }}>
+      {/* Sign out — pushed down with breathing room before the footer */}
+      <div style={{ padding: `44px ${t.padX}px 32px` }}>
         <button onClick={onLogout} style={{ borderRadius: t.RADIUS_SM,
           width: '100%', padding: '14px', background: 'transparent', color: t.RUST, border: `1px solid ${t.RUST}`, cursor: 'pointer',
           fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
