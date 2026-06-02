@@ -5018,9 +5018,20 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   const createChannelNow = () => {
     const name = (newChannel || '').trim();
     if (!name) return;
-    window.ShapeChannels?.create?.({ name }).then(() => { setNewChannel(null); refreshChannels(); window.__bsToast?.('Channel created', 'ok'); }).catch(e => window.__bsToast?.(e?.message || 'Could not create channel', 'err'));
+    setNewChannel(null);
+    // Optimistic: show it immediately (also lets the demo/preview work without a
+    // signed-in session). The backend call persists it when authenticated.
+    setChannels(prev => [{ id: 'tmp-ch-' + Date.now(), name, description: '', memberCount: 1, joined: true, isHost: true, last: '' }, ...(prev || [])]);
+    window.__bsToast?.(`Created “${name}”`, 'ok');
+    const p = window.ShapeChannels?.create?.({ name });
+    if (p && p.then) p.then(() => refreshChannels()).catch((e) => window.__bsToast?.(e?.message || 'Saved locally — sign in to sync.', 'info'));
   };
-  const joinChannelNow = (ch) => { window.ShapeChannels?.join?.(ch.id).then(() => { refreshChannels(); window.__bsToast?.(`Joined ${ch.name}`, 'ok'); }).catch(() => {}); };
+  const joinChannelNow = (ch) => {
+    setChannels(prev => (prev || []).map(c => c.id === ch.id ? { ...c, joined: true, memberCount: (c.memberCount || 0) + 1 } : c));
+    window.__bsToast?.(`Joined ${ch.name}`, 'ok');
+    const p = window.ShapeChannels?.join?.(ch.id);
+    if (p && p.then) p.then(() => refreshChannels()).catch(() => {});
+  };
   const openChannelNow = (ch) => {
     const finish = (msgs) => setOpenChat({ n: ch.name, s: `${ch.memberCount} member${ch.memberCount === 1 ? '' : 's'}`, channelId: ch.id, messages: msgs, isHost: ch.isHost });
     if (window.ShapeChannels?.listMessages) window.ShapeChannels.listMessages(ch.id).then(r => finish(r?.data || [])).catch(() => finish([]));
@@ -5032,7 +5043,11 @@ function BSClientFeed({ onProfile, role: roleProp }) {
     window.ShapeChannels.searchMembers(memberQuery).then(r => { if (active) setMemberResults(r?.data || []); }).catch(() => {});
     return () => { active = false; };
   }, [addMemberFor, memberQuery]);
-  const addMemberNow = (m) => { window.ShapeChannels?.addMember?.({ channelId: addMemberFor.id, userId: m.id }).then(() => { refreshChannels(); window.__bsToast?.(`Added ${m.name}`, 'ok'); }).catch(() => {}); };
+  const addMemberNow = (m) => {
+    window.__bsToast?.(`Added ${m.name}`, 'ok');
+    const p = window.ShapeChannels?.addMember?.({ channelId: addMemberFor.id, userId: m.id });
+    if (p && p.then) p.then(() => refreshChannels()).catch(() => {});
+  };
   const [composerSlot, setComposerSlot] = useStateBSC(null);
   React.useEffect(() => { setComposerSlot(document.getElementById('bs-composer-slot')); }, []);
   const card = '#1a1713', cardInk = '#f7f1e6', muted = 'rgba(247,241,230,0.55)', hair = 'rgba(247,241,230,0.12)';
@@ -5123,7 +5138,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   };
   const like = (p) => {
     setPosts(prev => prev.map(x => x.id === p.id ? { ...x, hearts: (x.hearts || 0) + 1 } : x));
-    if (p.id && !String(p.id).startsWith('tmp') && !String(p.id).startsWith('s')) window.ShapeCommunity?.toggleLike?.({ postId: p.id }).catch(() => {});
+    if (p.id && !String(p.id).startsWith('tmp') && !String(p.id).startsWith('s')) { const lk = window.ShapeCommunity?.toggleLike?.({ postId: p.id }); if (lk && lk.catch) lk.catch(() => {}); }
   };
 
   // Like + comment on community activity cards (local, demo-side: these Strava-
@@ -5144,7 +5159,8 @@ function BSClientFeed({ onProfile, role: roleProp }) {
     // Persist to the backend when `key` is a real community post id (activity
     // keys contain '|'; sample posts start with 's'/'tmp').
     if (key && !String(key).includes('|') && !/^(s|tmp)/.test(String(key))) {
-      window.ShapeCommunity?.addComment?.({ postId: key, body }).catch(() => {});
+      const c = window.ShapeCommunity?.addComment?.({ postId: key, body });
+      if (c && c.catch) c.catch(() => {});
     }
   };
 
@@ -5661,8 +5677,9 @@ function BSChatThread({ thread, eyebrow, onBack }) {
     setExtras(e => [...e, { who: 'You', t: body, time: 'now', me: true }]);
     setText('');
     // Persist to the backend: direct conversation or community channel.
-    if (thread.conversationId) window.ShapeMessages?.sendMessage?.({ conversationId: thread.conversationId, body }).catch(() => {});
-    else if (thread.channelId) window.ShapeChannels?.sendMessage?.({ channelId: thread.channelId, body }).catch(() => {});
+    const sent = thread.conversationId ? window.ShapeMessages?.sendMessage?.({ conversationId: thread.conversationId, body })
+      : thread.channelId ? window.ShapeChannels?.sendMessage?.({ channelId: thread.channelId, body }) : null;
+    if (sent && sent.catch) sent.catch(() => {});
   };
 
   return (
