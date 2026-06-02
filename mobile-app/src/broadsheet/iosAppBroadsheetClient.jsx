@@ -5003,6 +5003,36 @@ function BSClientFeed({ onProfile, role: roleProp }) {
     conversation_id: th.conversation_id,
     messages: (th.messages || []).map(m => ({ who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', me: m.me || m.who === 'You' })),
   }));
+
+  // Member-created community channels ("run club" style).
+  const [channels, setChannels] = useStateBSC(null);
+  const [newChannel, setNewChannel] = useStateBSC(null);      // null = closed; string = create-form open
+  const [addMemberFor, setAddMemberFor] = useStateBSC(null);  // channel being added-to
+  const [memberQuery, setMemberQuery] = useStateBSC('');
+  const [memberResults, setMemberResults] = useStateBSC([]);
+  const refreshChannels = React.useCallback(() => {
+    if (!window.ShapeChannels?.list) return;
+    window.ShapeChannels.list().then(r => setChannels(Array.isArray(r?.data) ? r.data : [])).catch(() => {});
+  }, []);
+  React.useEffect(() => { refreshChannels(); }, [refreshChannels]);
+  const createChannelNow = () => {
+    const name = (newChannel || '').trim();
+    if (!name) return;
+    window.ShapeChannels?.create?.({ name }).then(() => { setNewChannel(null); refreshChannels(); window.__bsToast?.('Channel created', 'ok'); }).catch(e => window.__bsToast?.(e?.message || 'Could not create channel', 'err'));
+  };
+  const joinChannelNow = (ch) => { window.ShapeChannels?.join?.(ch.id).then(() => { refreshChannels(); window.__bsToast?.(`Joined ${ch.name}`, 'ok'); }).catch(() => {}); };
+  const openChannelNow = (ch) => {
+    const finish = (msgs) => setOpenChat({ n: ch.name, s: `${ch.memberCount} member${ch.memberCount === 1 ? '' : 's'}`, channelId: ch.id, messages: msgs, isHost: ch.isHost });
+    if (window.ShapeChannels?.listMessages) window.ShapeChannels.listMessages(ch.id).then(r => finish(r?.data || [])).catch(() => finish([]));
+    else finish([]);
+  };
+  React.useEffect(() => {
+    if (addMemberFor == null || !window.ShapeChannels?.searchMembers) return undefined;
+    let active = true;
+    window.ShapeChannels.searchMembers(memberQuery).then(r => { if (active) setMemberResults(r?.data || []); }).catch(() => {});
+    return () => { active = false; };
+  }, [addMemberFor, memberQuery]);
+  const addMemberNow = (m) => { window.ShapeChannels?.addMember?.({ channelId: addMemberFor.id, userId: m.id }).then(() => { refreshChannels(); window.__bsToast?.(`Added ${m.name}`, 'ok'); }).catch(() => {}); };
   const [composerSlot, setComposerSlot] = useStateBSC(null);
   React.useEffect(() => { setComposerSlot(document.getElementById('bs-composer-slot')); }, []);
   const card = '#1a1713', cardInk = '#f7f1e6', muted = 'rgba(247,241,230,0.55)', hair = 'rgba(247,241,230,0.12)';
@@ -5229,11 +5259,11 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   );
 
   if (openChat) {
-    const isCh = String(openChat.n || '').startsWith('#');
+    const isCh = !!openChat.channelId || String(openChat.n || '').startsWith('#');
     return (
       <BSChatThread
-        thread={{ who: openChat.n, role: openChat.s || (isCh ? 'Channel' : 'Direct message'), last: openChat.last, time: '', messages: openChat.messages || [], group: isCh, conversationId: openChat.conversation_id }}
-        eyebrow={isCh ? 'Channel' : openChat.dm ? 'Private thread' : 'Direct message'}
+        thread={{ who: isCh && !String(openChat.n || '').startsWith('#') ? `# ${openChat.n}` : openChat.n, role: openChat.s || (isCh ? 'Channel' : 'Direct message'), last: openChat.last, time: '', messages: openChat.messages || [], group: isCh, conversationId: openChat.conversation_id, channelId: openChat.channelId }}
+        eyebrow={openChat.channelId ? 'Channel' : openChat.dm ? 'Private thread' : 'Direct message'}
         onBack={() => setOpenChat(null)}
       />
     );
@@ -5297,14 +5327,28 @@ function BSClientFeed({ onProfile, role: roleProp }) {
           // not a shared # channel — flagged with `dm` so the row reads as a
           // direct line rather than a community room.
           const support = { n: 'Support', s: 'Private · you & the Shape team', c: TEALB, i: '✦', dm: true };
-          const channels = isCoach
-            ? [{ n: '# your-roster', s: 'Your members', c: '#147b68', i: '#' }, { n: '# coaches-lounge', s: 'Trainers & nutritionists', c: TEAL, i: '#' }, support]
-            : [{ n: '# your-program', s: 'Your coach + you', c: '#c0533b', i: '#' }, { n: '# challenges', s: 'Monthly community goals', c: '#a07a2e', i: '#' }, support];
+          const chList = channels || [];
           const selectors = [
-            { key: 'channels', label: 'Channels', color: TEALB, items: channels },
-            { key: 'coaches', label: 'Coaches', color: '#c0533b', items: coaches },
+            { key: 'channels', label: 'Channels', color: TEALB },
+            { key: 'coaches', label: 'Coaches', color: '#c0533b' },
           ];
           const active = selectors.find(s => s.key === teamsSel) || selectors[0];
+          const _chPalette = ['#147b68', '#c0533b', '#a07a2e', '#2e6fa0', '#8a5cf6'];
+          const chRow = (ch) => {
+            const color = _chPalette[(ch.name || '').length % _chPalette.length];
+            return (
+              <div key={ch.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, border: `1px solid ${hair}`, background: card }}>
+                <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 16 }}>#</div>
+                <button onClick={() => ch.joined ? openChannelNow(ch) : joinChannelNow(ch)} style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, textAlign: 'left', cursor: 'pointer', color: cardInk }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15 }}># {ch.name}{ch.isHost && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: TEALB, marginLeft: 8 }}>HOST</span>}</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, marginTop: 3 }}>{ch.memberCount} member{ch.memberCount === 1 ? '' : 's'}{ch.last ? ` · ${ch.last.slice(0, 26)}` : ''}</div>
+                </button>
+                {ch.isHost && <button onClick={() => { setAddMemberFor(ch); setMemberQuery(''); setMemberResults([]); }} style={{ flexShrink: 0, padding: '7px 11px', borderRadius: 999, background: 'transparent', color: cardInk, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Add</button>}
+                {!ch.joined && <button onClick={() => joinChannelNow(ch)} style={{ flexShrink: 0, padding: '7px 13px', borderRadius: 999, background: TEAL, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Join</button>}
+                {ch.joined && <span style={{ color: muted, fontSize: 16, flexShrink: 0 }}>›</span>}
+              </div>
+            );
+          };
           return (
             <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
@@ -5317,9 +5361,27 @@ function BSClientFeed({ onProfile, role: roleProp }) {
                   );
                 })}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {active.items.map(Row)}
-              </div>
+              {active.key === 'channels' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {newChannel === null ? (
+                    <button onClick={() => setNewChannel('')} style={{ width: '100%', padding: '11px 12px', borderRadius: 12, border: `1px dashed ${TEALB}`, background: 'transparent', color: TEALB, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>+ New channel</button>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'center' }}>
+                      <input autoFocus value={newChannel} onChange={(e) => setNewChannel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') createChannelNow(); if (e.key === 'Escape') setNewChannel(null); }} placeholder="Channel name — e.g. Sunday Run Club" style={{ minWidth: 0, height: 38, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 14px', fontFamily: t.BODY, fontSize: 14, color: t.INK, outline: 'none' }} />
+                      <button onClick={createChannelNow} style={{ height: 38, padding: '0 16px', borderRadius: 999, background: TEAL, color: '#031f1c', border: 0, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, cursor: 'pointer' }}>Create</button>
+                    </div>
+                  )}
+                  {chList.map(chRow)}
+                  {channels && chList.length === 0 && newChannel === null && (
+                    <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, padding: '4px 2px' }}>No channels yet — start one.</div>
+                  )}
+                  <div style={{ borderTop: `1px solid ${hair}`, paddingTop: 8 }}>{Row(support, 'support')}</div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {coaches.map(Row)}
+                </div>
+              )}
             </div>
           );
         })()
@@ -5383,6 +5445,24 @@ function BSClientFeed({ onProfile, role: roleProp }) {
       )}
       {tab === 'feed' && (
         <BSMessageComposer value={draft} onChange={setDraft} onSend={post} pinned placeholder="Share with the group…" />
+      )}
+      {addMemberFor && createPortal(
+        <div onClick={() => setAddMemberFor(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '14px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '2px 0 12px' }}><div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} /></div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>Add to # {addMemberFor.name}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, margin: '4px 0 14px' }}>Add Shape members</div>
+            <input autoFocus value={memberQuery} onChange={(e) => setMemberQuery(e.target.value)} placeholder="Search members…" style={{ width: '100%', height: 44, background: t.PAPER2, border: `1px solid ${t.RULE}`, borderRadius: 12, padding: '0 14px', fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, outline: 'none', boxSizing: 'border-box', marginBottom: 12 }} />
+            {memberResults.map((m) => (
+              <button key={m.id} onClick={() => addMemberNow(m)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '11px 12px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, marginBottom: 8, cursor: 'pointer' }}>
+                <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15 }}>{m.name}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: TEALB }}>+ ADD</span>
+              </button>
+            ))}
+            {memberResults.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK50, padding: '8px 2px' }}>No matches yet — type a name.</div>}
+          </div>
+        </div>,
+        (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
       )}
     </BSPage>
   );
@@ -5575,8 +5655,9 @@ function BSChatThread({ thread, eyebrow, onBack }) {
     const body = text.trim();
     setExtras(e => [...e, { who: 'You', t: body, time: 'now', me: true }]);
     setText('');
-    // Persist to the backend when this thread maps to a real conversation.
+    // Persist to the backend: direct conversation or community channel.
     if (thread.conversationId) window.ShapeMessages?.sendMessage?.({ conversationId: thread.conversationId, body }).catch(() => {});
+    else if (thread.channelId) window.ShapeChannels?.sendMessage?.({ channelId: thread.channelId, body }).catch(() => {});
   };
 
   return (
