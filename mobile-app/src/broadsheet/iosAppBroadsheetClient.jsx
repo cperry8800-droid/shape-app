@@ -7294,7 +7294,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
       {/* YOUR TEAM / Coaches */}
       <div style={{ padding: `22px ${t.padX}px 4px` }}>
         <BSEyebrow color={t.ACCENT}>Your team</BSEyebrow>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 500, color: t.INK, letterSpacing: '-0.025em', marginTop: 2 }}>Coaches</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', marginTop: 2 }}>Coaches</div>
       </div>
       <div style={{ padding: `0 ${t.padX}px` }}>
         {[
@@ -7304,7 +7304,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
           <div key={i} style={{ display: 'grid', gridTemplateColumns: '26px 1fr auto', alignItems: 'center', gap: 12, padding: `${t.rowY + 5}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
             <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</div>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>{p.name}</div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 750, color: t.INK, letterSpacing: '-0.015em' }}>{p.name}</div>
               <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{p.role}</div>
             </div>
             <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: p.d === '—' ? t.INK50 : t.ACCENT, fontWeight: 700 }}>{p.d}</span>
@@ -7315,7 +7315,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
       {/* SHORTCUTS / Your stuff */}
       <div style={{ padding: `22px ${t.padX}px 4px` }}>
         <BSEyebrow color={t.ACCENT}>Shortcuts</BSEyebrow>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 500, color: t.INK, letterSpacing: '-0.025em', marginTop: 2 }}>Your stuff</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', marginTop: 2 }}>Your stuff</div>
       </div>
       <div style={{ padding: `0 ${t.padX}px` }}>
         {[
@@ -7329,7 +7329,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
           <button key={i} onClick={r.onClick} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, display: 'grid', gridTemplateColumns: '26px 1fr auto', alignItems: 'center', gap: 12, padding: `${t.rowY + 5}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, color: t.INK }}>
             <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</div>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>{r.l}</div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 750, color: t.INK, letterSpacing: '-0.015em' }}>{r.l}</div>
               <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{r.s}</div>
             </div>
             <span style={{ color: t.INK50, fontSize: 15 }}>→</span>
