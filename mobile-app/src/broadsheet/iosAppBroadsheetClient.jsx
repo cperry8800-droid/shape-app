@@ -7246,10 +7246,22 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
         trailing={<BSAvatar init="A" size={32} fill={t.RUST} onClick={onProfile} />}
       />
 
-      {/* SHAPE SCORE — hero number */}
+      {/* BIO — compact, directly under the header */}
+      <div style={{ padding: `10px ${t.padX}px 12px`, borderBottom: `1px solid ${t.RULE}` }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+          <BSEyebrow color={t.AMBER}>Bio</BSEyebrow>
+          <button onClick={() => openEdit('profile', 'bio', 'Bio', { type: 'textarea', placeholder: 'Tell your team about you…' })} style={{ border: 0, background: 'transparent', cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Edit →</button>
+        </div>
+        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 500, color: t.INK70, lineHeight: 1.4 }}>
+          {profileData.bio || 'Product designer by day, lifter by evening. Working with Jordan on strength and hypertrophy, and Maya on protein targets that do not feel like homework. Goals this year: a real 1.5x bodyweight squat, a credible 5K, and better fueling for long rides.'}
+        </div>
+      </div>
+
+      {/* SHAPE SCORE + leaderboard — one combined box */}
+      <div style={{ borderBottom: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
       <button onClick={() => setShowScore(true)} style={{ borderRadius: 0,
-        width: '100%', textAlign: 'left', padding: `16px ${t.padX}px 18px`,
-        border: 0, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER2,
+        width: '100%', textAlign: 'left', padding: `16px ${t.padX}px 16px`,
+        border: 0, background: 'transparent',
         color: t.INK, cursor: 'pointer',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
@@ -7279,6 +7291,19 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
           ))}
         </div>
       </button>
+      <button onClick={() => setShowLeaderboard(true)} style={{
+        width: '100%', textAlign: 'left', padding: `11px ${t.padX}px`,
+        border: 0, borderTop: `1px solid ${t.HAIR}`, background: 'transparent',
+        color: t.INK, cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <BSEyebrow color={t.AMBER}>Leaderboard</BSEyebrow>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>Shape Score ranking</span>
+        </div>
+        <BSEyebrow>View →</BSEyebrow>
+      </button>
+      </div>
 
       {/* PROGRESS — live body + strength trends */}
       <button onClick={() => setShowProgress(true)} style={{
@@ -7290,19 +7315,6 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
         <div>
           <BSEyebrow color={t.GREEN}>Progress &amp; PRs</BSEyebrow>
           <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>Weight, recovery, strength trends</div>
-        </div>
-        <BSEyebrow>View →</BSEyebrow>
-      </button>
-
-      <button onClick={() => setShowLeaderboard(true)} style={{
-        width: '100%', textAlign: 'left', padding: `13px ${t.padX}px`,
-        border: 0, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER,
-        color: t.INK, cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-      }}>
-        <div>
-          <BSEyebrow color={t.AMBER}>Leaderboard</BSEyebrow>
-          <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>Shape Score ranking</div>
         </div>
         <BSEyebrow>View →</BSEyebrow>
       </button>
@@ -7353,17 +7365,6 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
             <BSEyebrow color={t.ACCENT}>{p.d}</BSEyebrow>
           </div>
         ))}
-      </div>
-
-      <BSSection title="Bio" meta="500 chars" />
-      <div style={{ padding: `14px ${t.padX}px 18px`, borderTop: `2px solid ${t.INK}`, borderBottom: `1px solid ${t.RULE}` }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK70, lineHeight: 1.45 }}>
-          {profileData.bio || 'Product designer by day, lifter by evening. Working with Jordan on strength and hypertrophy, and Maya on protein targets that do not feel like homework. Goals this year: a real 1.5x bodyweight squat, a credible 5K, and better fueling for long rides.'}
-        </div>
-        <button onClick={() => openEdit('profile', 'bio', 'Bio', { type: 'textarea', placeholder: 'Tell your team about you…' })} style={{ borderRadius: t.RADIUS_SM,
-          marginTop: 12, padding: '9px 12px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
-          fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
-        }}>Edit bio</button>
       </div>
 
       <div style={{ padding: `18px ${t.padX}px`, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, borderTop: `1px solid ${t.RULE}`, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
