@@ -5064,7 +5064,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   const TEAL = '#0ac5a8', TEALB = '#2ee0c4';
   const [tab, setTab] = useStateBSC('feed');
   const [filter, setFilter] = useStateBSC('COMMUNITY');
-  const [teamsSel, setTeamsSel] = useStateBSC('channels');
+  const [teamsSel, setTeamsSel] = useStateBSC('coaches');
   const [draft, setDraft] = useStateBSC('');
   // Support assistant — one continuous AI-backed thread that lives for the
   // session. It stays put while you move between tabs, but a fresh app load /
@@ -5484,7 +5484,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   const Pill = ({ on, onClick, children, badge = 0 }) => (
     <button onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '7px 12px', borderRadius: 999, border: 0, background: on ? TEAL : 'transparent', color: on ? '#031f1c' : muted, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
       {children}
-      {badge > 0 && <span style={{ minWidth: 15, height: 15, borderRadius: 999, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', lineHeight: 1 }}>{badge > 9 ? '9+' : badge}</span>}
+      {badge > 0 && <span style={{ minWidth: 13, height: 13, borderRadius: 999, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 }}>{badge > 9 ? '9+' : badge}</span>}
     </button>
   );
 
@@ -5563,10 +5563,11 @@ function BSClientFeed({ onProfile, role: roleProp }) {
             .map(c => ({ ...c, pinned: (c.id in pinOverride) ? pinOverride[c.id] : !!c.pinned }))
             .filter(c => !_chQ || (c.name || '').toLowerCase().includes(_chQ))
             .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+          const _coachUnread = (coaches || []).reduce((a, c) => a + (unread['dm:' + (c.conversation_id || '')] || 0), 0);
           const selectors = [
-            { key: 'channels', label: 'Channels', color: TEALB },
-            { key: 'coaches', label: 'Coaches', color: '#c0533b' },
-            { key: 'support', label: 'Support', color: '#2e6fa0' },
+            { key: 'coaches', label: 'Coaches', color: '#c0533b', badge: _coachUnread },
+            { key: 'channels', label: 'Channels', color: TEALB, badge: chUnread },
+            { key: 'support', label: 'Support', color: '#2e6fa0', badge: 0 },
           ];
           const active = selectors.find(s => s.key === teamsSel) || selectors[0];
           const _chPalette = ['#147b68', '#c0533b', '#a07a2e', '#2e6fa0', '#8a5cf6'];
@@ -5594,8 +5595,9 @@ function BSClientFeed({ onProfile, role: roleProp }) {
                 {selectors.map(sec => {
                   const on = active.key === sec.key;
                   return (
-                    <button key={sec.key} onClick={() => setTeamsSel(sec.key)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 8px', borderRadius: 999, border: `1px solid ${on ? sec.color : hair}`, background: on ? `${sec.color}1f` : 'transparent', color: cardInk, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    <button key={sec.key} onClick={() => setTeamsSel(sec.key)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '9px 8px', borderRadius: 999, border: `1px solid ${on ? sec.color : hair}`, background: on ? `${sec.color}1f` : 'transparent', color: cardInk, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                       <span style={{ width: 6, height: 6, borderRadius: 3, background: sec.color }} />{sec.label}
+                      {sec.badge > 0 && <span style={{ minWidth: 13, height: 13, borderRadius: 999, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 }}>{sec.badge > 9 ? '9+' : sec.badge}</span>}
                     </button>
                   );
                 })}
@@ -5603,7 +5605,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
               {active.key === 'channels' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {newChannel === null ? (
-                    <button onClick={() => setNewChannel('')} style={{ width: '100%', padding: '11px 12px', borderRadius: 12, border: `1px dashed ${TEALB}`, background: 'transparent', color: TEALB, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Create new channel</button>
+                    <button onClick={() => setNewChannel('')} style={{ width: '100%', padding: '8px 12px', borderRadius: 10, border: `1px dashed ${TEALB}`, background: 'transparent', color: TEALB, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Create new channel</button>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 8, alignItems: 'center' }}>
