@@ -9029,6 +9029,26 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showNotifications, setShowNotifications] = useStateBSC(false);
   const [showIntegrations, setShowIntegrations] = useStateBSC(initialPage === 'integrations');
 
+  const requestAccountAction = async (action) => {
+    const confirms = {
+      Export: 'Email a copy of all your data to the address on file?',
+      Pause: 'Pause your membership? You keep your data and can resume anytime.',
+      Delete: 'Permanently delete your account and all data? This cannot be undone.',
+    };
+    if (!window.confirm(confirms[action] || `Confirm ${action}?`)) return;
+    try {
+      await fetch('/api/me/account-action', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      }).catch(() => null);
+      window.__bsToast?.(`${action} request submitted — we’ll email a confirmation.`, 'ok');
+      if (action === 'Delete') setTimeout(onLogout, 1500);
+    } catch (err) {
+      window.__bsToast?.(`${action} failed`, 'err');
+    }
+  };
+
   // Home ticker editor — which metrics show + order (saved to user_goals).
   const [tickerPrefs, setTickerPrefs] = useStateBSC({ hidden: [], order: BS_TICKER_METRICS.map(m => m.key) });
   React.useEffect(() => {
@@ -9222,8 +9242,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       rows: [
         { l: 'Profile visibility', r: 'Coaches only' },
         { l: 'Share workout data', r: 'On' },
-        { l: 'Export my data',     r: 'Request' },
-        { l: 'Delete account',     r: '', alert: true },
       ],
     },
     {
@@ -9569,6 +9587,26 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           </div>
         </div>
       ))}
+
+      {/* Account actions — danger zone */}
+      <BSSection title="Account actions" meta="Danger zone" />
+      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+        {[
+          { l: 'Export all my data', r: 'Request file', act: 'Export' },
+          { l: 'Pause membership', r: 'Keep account', act: 'Pause' },
+          { l: 'Delete account', r: 'Permanent', act: 'Delete', alert: true },
+        ].map((s, i, arr) => (
+          <div key={i} onClick={() => requestAccountAction(s.act)} style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: `${t.rowY + 4}px 0`,
+            borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+            cursor: 'pointer',
+          }}>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em' }}>{s.l}</span>
+            {s.r && <BSEyebrow>{s.r}</BSEyebrow>}
+          </div>
+        ))}
+      </div>
 
       {/* Sign out */}
       <div style={{ padding: `22px ${t.padX}px 0` }}>
