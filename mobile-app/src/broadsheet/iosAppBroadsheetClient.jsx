@@ -7391,34 +7391,6 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
         }}>Edit bio</button>
       </div>
 
-      <BSSection title="Today" meta="Wk 6 / 12" />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
-        {todayItems.map(([time, what, owner], i, arr) => (
-          <button key={time} onClick={() => window.__bsToast?.('Open the relevant tab to act on this item', 'ok')} style={{
-            borderRadius: 0,
-            width: '100%',
-            border: 0,
-            borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-            background: 'transparent',
-            color: t.INK,
-            cursor: 'pointer',
-            padding: `${t.rowY + 7}px 0`,
-            display: 'grid',
-            gridTemplateColumns: '52px 1fr auto',
-            alignItems: 'center',
-            gap: 10,
-            textAlign: 'left',
-          }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK70, fontWeight: 700 }}>{time}</span>
-            <span>
-              <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 650, color: t.INK }}>{what}</span>
-              <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{owner}</span>
-            </span>
-            <BSEyebrow color={t.ACCENT}>Open</BSEyebrow>
-          </button>
-        ))}
-      </div>
-
       <div style={{ padding: `18px ${t.padX}px`, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, borderTop: `1px solid ${t.RULE}`, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
         {[
           ['14 mo', 'On Shape'],
@@ -7436,55 +7408,29 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
       <BSSection title="Profile" meta="Personal info" />
       {renderRows(profileRows)}
 
-      <BSSection title="Plan & billing" meta="$405/mo" />
-      {renderRows(billingRows)}
-
-      <BSSection title="Connected apps" meta="2 connected" />
-      {renderRows(connectedRows)}
-
-      <BSSection title="Nutrition preferences" meta="Targets" />
-      {renderRows(nutritionRows)}
-
-      <BSSection title="Training preferences" meta="Program inputs" />
-      {renderRows(trainingRows)}
-
-      <BSSection title="Privacy & notifications" meta="Controls" />
-      {renderRows(privacyRows)}
-
       <BSSection title="Social & links" meta="Public profile" />
       {renderRows(socialRows)}
 
-      <BSSection title="Settings" />
+      {/* All account, billing, integrations, privacy, and danger-zone controls
+          live in the dedicated Settings screen (opened via the profile avatar
+          or here) — the Me page no longer duplicates them. */}
+      <BSSection title="Settings" meta="Account · billing · privacy" />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
         {[
-          { l: 'Account & billing',       r: 'Stripe portal',        onClick: openBillingPortal },
-          { l: 'Shape Store',             r: `${scoreProfile.available.toLocaleString()} pts`, onClick: () => setShowStore(true) },
-          { l: 'Notifications',           r: 'Manage',               onClick: () => openEdit('privacy', 'coach_messages', 'Coach messages', { type: 'select', options: ['Push + email', 'Push only', 'Email only', 'Muted'] }) },
-          { l: 'Health integrations',     r: 'Apple · WHOOP · …',    onClick: onIntegrations },
-          { l: 'Contact support',         r: '24h reply',            onClick: () => setShowContact(true) },
-          { l: 'Terms of service',        r: 'Legal',                onClick: () => setShowTerms(true) },
-          { l: 'Privacy policy',          r: 'Legal',                onClick: () => setShowPrivacy(true) },
-          { l: 'Privacy & data',          r: 'Manage',               onClick: () => openEdit('privacy', 'profile_visibility', 'Profile visibility', { type: 'select', options: ['Public', 'Community only', 'Coaches only', 'Private'] }) },
-          { l: 'Sign out',                r: '',                     alert: true, onClick: onLogout },
+          { l: 'Open settings', r: 'Account · billing · privacy · legal', onClick: onProfile },
+          { l: 'Sign out', r: '', alert: true, onClick: onLogout },
         ].map((s, i, arr) => (
           <div key={i} onClick={s.onClick} style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             padding: `${t.rowY + 4}px 0`,
             borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-            cursor: s.onClick ? 'pointer' : 'default',
+            cursor: 'pointer',
           }}>
             <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em' }}>{s.l}</span>
             {s.r && <BSEyebrow>{s.r}</BSEyebrow>}
           </div>
         ))}
       </div>
-
-      <BSSection title="Account actions" meta="Danger zone" />
-      {renderRows([
-        { l: 'Export all my data', r: 'Request file', action: 'Export', onClick: () => requestAccountAction('Export') },
-        { l: 'Pause membership', r: 'Keep account', action: 'Pause', onClick: () => requestAccountAction('Pause') },
-        { l: 'Delete account', r: 'Permanent', action: 'Delete', onClick: () => requestAccountAction('Delete') },
-      ])}
 
       <BSFooter right="Pg 5 of 5" />
       <BSEditSheet field={editField} onSave={saveEdit} onClose={() => setEditField(null)} />
@@ -9318,32 +9264,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           </div>
         </div>
       )}
-
-      {/* Notifications — activity feed */}
-      <button onClick={() => setShowNotifications(true)} style={{
-        width: '100%', textAlign: 'left', padding: `14px ${t.padX}px`,
-        border: 0, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER, color: t.INK, cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-      }}>
-        <div>
-          <BSEyebrow color={t.AMBER}>Notifications</BSEyebrow>
-          <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>Requests, confirmations &amp; updates</div>
-        </div>
-        <BSEyebrow>View →</BSEyebrow>
-      </button>
-
-      {/* Bookings — confirm requests + in-app video calls */}
-      <button onClick={() => setShowSessions(true)} style={{
-        width: '100%', textAlign: 'left', padding: `14px ${t.padX}px`,
-        border: 0, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER, color: t.INK, cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-      }}>
-        <div>
-          <BSEyebrow color={t.ACCENT}>Sessions</BSEyebrow>
-          <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>Booking requests &amp; video calls</div>
-        </div>
-        <BSEyebrow>View →</BSEyebrow>
-      </button>
 
       {/* Identity card */}
       <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
