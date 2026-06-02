@@ -5213,7 +5213,13 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   );
   const [composerSlot, setComposerSlot] = useStateBSC(null);
   React.useEffect(() => { setComposerSlot(document.getElementById('bs-composer-slot')); }, []);
-  const card = '#1a1713', cardInk = '#f7f1e6', muted = 'rgba(247,241,230,0.55)', hair = 'rgba(247,241,230,0.12)';
+  // Theme-aware feed colors — text/hairlines follow the active paper theme so
+  // the tab/chip labels and cards stay legible on light (cream) paper, not just
+  // the dark default. Cards use a light panel on light themes, dark otherwise.
+  const card = t.isLight ? t.PAPER2 : '#1a1713';
+  const cardInk = t.INK;
+  const muted = t.INK50;
+  const hair = t.RULE;
   const ROLE = {
     SHAPE: { color: TEALB, label: 'Member' },
     TRAINER: { color: '#ff7a59', label: 'Trainer' },
