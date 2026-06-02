@@ -4995,8 +4995,27 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   const CHIP_KEYS = ['SHAPE', myRoleChip, 'COMMUNITY'];
   const SAMPLE = [
     { id: 's1', who: 'Shape', kind: 'SHAPE', init: '✦', hue: TEAL, time: '1h', pinned: true, official: true, body: "Riverside Runners: Saturday's 6am long run is official. 47 of you RSVP'd. Coffee at Blackbird after — first round on Shape.", hearts: 52, replies: 14 },
-    { id: 's2', who: 'Jordan Chen', kind: 'TRAINER', init: 'J', hue: '#c0533b', time: '2h', body: 'Week 6 check, team: drop a ⚡ if you hit all lifts this week. Coffee for the top 3 adherence scores.', hearts: 34, replies: 12 },
-    { id: 's3', who: 'Sofia Martinez', kind: 'CLIENT', init: 'S', hue: '#147b68', time: '4h', body: 'First sub-9 min mile today!', hearts: 18, replies: 3 },
+    { id: 's2', who: 'Shape', kind: 'SHAPE', init: '✦', hue: TEAL, time: '9h', official: true, body: 'New this week: coach-built grocery lists now hand off straight to Instacart. Build it in Eat → tap Send to Instacart.', hearts: 38, replies: 7 },
+    // Trainer channel
+    { id: 't1', who: 'Jordan Chen', kind: 'TRAINER', init: 'J', hue: '#c0533b', time: '2h', body: 'Week 6 check, team: drop a ⚡ if you hit all lifts this week. Coffee for the top 3 adherence scores.', hearts: 34, replies: 12 },
+    { id: 't2', who: 'Maya Okafor', kind: 'TRAINER', init: 'M', hue: '#c0533b', time: '5h', body: 'Posture cue of the day: ribs down, not chest up. Your overhead press will thank you.', hearts: 22, replies: 4 },
+    { id: 't3', who: 'Diego Morales', kind: 'TRAINER', init: 'D', hue: '#c0533b', time: '1d', body: 'Deload week is not a week off — it\'s how next block gets heavier. Keep the bar moving, drop the volume.', hearts: 19, replies: 5 },
+    { id: 't4', who: 'Tariq Osei', kind: 'TRAINER', init: 'T', hue: '#c0533b', time: '1d', body: 'Mobility homework before you squat: 10 min of ankle + t-spine work. Range first, then load.', hearts: 16, replies: 3 },
+    { id: 't5', who: 'Sana Bhatt', kind: 'TRAINER', init: 'S', hue: '#c0533b', time: '2d', body: 'Postpartum crew — new kettlebell flow drops Friday. Equipment-light, 25 minutes, scalable to where you are.', hearts: 24, replies: 8 },
+    { id: 't6', who: 'Lena Park', kind: 'TRAINER', init: 'L', hue: '#c0533b', time: '2d', body: 'Zone 2 is supposed to feel easy. If you can\'t hold a conversation, you\'re running your easy days too hard.', hearts: 28, replies: 7 },
+    // Nutritionist channel
+    { id: 'n1', who: 'Dr. Maya Patel', kind: 'NUTRI', init: 'M', hue: '#a07a2e', time: '3h', body: 'Reminder for cutting clients: protein first, then fill the rest with volume. 0.8–1g per lb of bodyweight, every day, no exceptions.', hearts: 41, replies: 9 },
+    { id: 'n2', who: 'Owen Halverson', kind: 'NUTRI', init: 'O', hue: '#a07a2e', time: '7h', body: 'Race-week fueling thread 🍝 — top off glycogen 48h out, ease off fiber the day before. Drop questions and I\'ll answer tonight.', hearts: 27, replies: 16 },
+    { id: 'n3', who: 'Priya Iyer', kind: 'NUTRI', init: 'P', hue: '#a07a2e', time: '1d', body: 'Low-FODMAP swap of the week: garlic-infused oil + scallion tops instead of onion/garlic. All the flavor, none of the GI hit.', hearts: 33, replies: 6 },
+    { id: 'n4', who: 'Jules Bonner', kind: 'NUTRI', init: 'J', hue: '#a07a2e', time: '2d', body: 'Family-meal tip: cook one base (sheet-pan chicken + veg), split it three ways for different macros. One cook, three plans.', hearts: 21, replies: 5 },
+    { id: 'n5', who: 'Owen Halverson', kind: 'NUTRI', init: 'O', hue: '#a07a2e', time: '3d', body: 'Hydration check: pale-straw urine, not clear. Clear all day usually means you\'re flushing electrolytes — add a pinch of salt.', hearts: 18, replies: 4 },
+    // Client channel
+    { id: 'c1', who: 'Sofia Martinez', kind: 'CLIENT', init: 'S', hue: '#147b68', time: '4h', body: 'First sub-9 min mile today!', hearts: 18, replies: 3 },
+    { id: 'c2', who: 'Andre Willis', kind: 'CLIENT', init: 'A', hue: '#147b68', time: '6h', body: 'Hit a 200 lb deadlift for the first time. Started at 95 back in January 😤', hearts: 47, replies: 11 },
+    { id: 'c3', who: 'Lena Park', kind: 'CLIENT', init: 'L', hue: '#147b68', time: '1d', body: 'Meal-prepped all five lunches on Sunday. Future me is grateful.', hearts: 15, replies: 2 },
+    { id: 'c4', who: 'Priya R.', kind: 'CLIENT', init: 'P', hue: '#147b68', time: '1d', body: '30-day protein streak ✅ Hardest habit to build, easiest to feel.', hearts: 29, replies: 6 },
+    { id: 'c5', who: 'Marcus J.', kind: 'CLIENT', init: 'M', hue: '#147b68', time: '2d', body: 'Made all four sessions this week even with travel. Momentum > motivation.', hearts: 33, replies: 4 },
+    { id: 'c6', who: 'Dani Cole', kind: 'CLIENT', init: 'D', hue: '#147b68', time: '2d', body: 'Three months ago a flight of stairs wrecked me. Did a 5k this morning without stopping. 🥹', hearts: 58, replies: 13 },
   ];
   // Map a live community post into the feed-card shape.
   const KIND_OF = (r) => { const s = String(r || '').toLowerCase(); if (s.includes('shape') || s.includes('mod') || s.includes('official')) return 'SHAPE'; if (s.includes('train') || s.includes('coach')) return 'TRAINER'; if (s.includes('nutri') || s.includes('diet')) return 'NUTRI'; return 'CLIENT'; };
