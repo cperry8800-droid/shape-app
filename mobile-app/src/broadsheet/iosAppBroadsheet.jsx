@@ -46,6 +46,7 @@ function makePalette({ paperMode = 'dark', accentKey = 'blue', inkOverride = nul
   // Manila is light-on-tan (isLight-shaped); the others are dark-on-color.
   const PAPERS = {
     light:     { paper: '#f5f0e6', paper2: '#ede6d6', paper3: '#e3dac4', ink: '#0f0e0c', inkRGB: '15,14,12',    light: true  },
+    white:     { paper: '#ffffff', paper2: '#f4f4f5', paper3: '#e8e8ea', ink: '#0f0f10', inkRGB: '15,15,16',    light: true  },
     dark:      { paper: '#0f0e0c', paper2: '#181612', paper3: '#221d18', ink: '#f5f0e6', inkRGB: '245,240,230', light: false },
     teal:      { paper: '#063d34', paper2: '#0a4f43', paper3: '#106456', ink: '#f1ece0', inkRGB: '241,236,224', light: false },
     manila:    { paper: '#d9c089', paper2: '#cfb47a', paper3: '#c2a466', ink: '#221806', inkRGB: '34,24,6',     light: true  },
