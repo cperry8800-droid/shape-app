@@ -428,9 +428,25 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'Wearables & health integrations',
+      items: [
+        { label: 'Strava connect / sync / import (mobile + web)', status: 'done' },
+        { label: 'Strava credentials set (STRAVA_CLIENT_ID/SECRET)', status: auto(itemPresent('integrations', 'STRAVA')) },
+        { label: 'WHOOP connect / sync / import (recovery, sleep, workouts → daily_health_snapshot)', status: 'done' },
+        { label: 'WHOOP credentials set (WHOOP_CLIENT_ID/SECRET)', status: auto(itemPresent('integrations', 'WHOOP')) },
+        { label: 'Oura connect + full sync (readiness/sleep/HR/workouts → daily_health_snapshot)', status: 'done' },
+        { label: 'Oura credentials set (OURA_CLIENT_ID/SECRET)', status: auto(itemPresent('integrations', 'OURA')) },
+        { label: 'Garmin connect card live (OAuth2 + PKCE, shared provider flow)', status: 'done' },
+        { label: 'Garmin credentials set (GARMIN_CLIENT_ID/SECRET) — also needs Garmin program approval', status: auto(itemPresent('integrations', 'GARMIN')) },
+        { label: 'Apple Health / Apple Watch native HealthKit plugin + /api/integrations/apple-health/sync', status: 'done' },
+        { label: 'Apple Health live: iOS device build w/ HealthKit entitlement (TestFlight/App Store)', status: 'pending' },
+      ],
+    },
+    {
       section: 'Music & grocery integrations',
       items: [
         { label: 'Spotify connect/disconnect surfaced (mobile + web)', status: 'done' },
+        { label: 'Spotify: client saves a coach playlist to their own profile (follow; mobile + web)', status: 'done' },
         { label: 'Spotify credentials set (SPOTIFY_CLIENT_ID/SECRET)', status: auto(itemPresent('integrations', 'SPOTIFY')) },
         { label: 'Apple Music MusicKit auth flow (connect/disconnect, status)', status: 'done' },
         { label: 'Apple Music credentials set (TEAM_ID/KEY_ID/PRIVATE_KEY)', status: auto(itemPresent('integrations', 'APPLE_MUSIC')) },

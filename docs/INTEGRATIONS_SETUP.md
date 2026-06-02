@@ -13,6 +13,19 @@ The War Room "Integrations" group reads these env vars directly
 are present — no code change or redeploy of app logic required beyond picking up
 the new env.
 
+### Live status (production — last verified 2026-06-02)
+
+| Provider | Keys in prod | Notes |
+|---|---|---|
+| Strava | ✅ set | live |
+| Whoop | ✅ set | live |
+| Spotify | ✅ set | live (incl. save-coach-playlist) |
+| Oura | ❌ not set | code ready — add `OURA_CLIENT_ID/SECRET` |
+| Garmin | ❌ not set | code ready — add keys + Garmin program approval |
+| Apple Music | env-only check | no OAuth; needs MusicKit key vars |
+| Instacart | env-only check | needs `INSTACART_API_KEY` |
+| Apple Health | n/a (no keys) | native iOS build required (see §5b) |
+
 ---
 
 ## 0. One prerequisite for every OAuth provider
