@@ -5146,6 +5146,11 @@ function BSClientFeed({ onProfile, role: roleProp }) {
     setUnread({ ...(window.ShapeUnread?.all?.() || {}) });
     return () => { try { off && off(); } catch (e) {} };
   }, []);
+  // Per-section unread totals so the Friends / Teams sub-tabs can show where the
+  // unread messages are: DMs → Friends, channels → Teams.
+  const sumUnread = (prefix) => Object.keys(unread || {}).reduce((a, k) => a + (k.indexOf(prefix) === 0 ? (unread[k] || 0) : 0), 0);
+  const dmUnread = sumUnread('dm:');
+  const chUnread = sumUnread('ch:');
   const unreadBadge = (key) => {
     const n = (unread && unread[key]) || 0;
     if (!n) return null;
@@ -5420,8 +5425,11 @@ function BSClientFeed({ onProfile, role: roleProp }) {
     );
   };
 
-  const Pill = ({ on, onClick, children }) => (
-    <button onClick={onClick} style={{ padding: '7px 12px', borderRadius: 999, border: 0, background: on ? TEAL : 'transparent', color: on ? '#031f1c' : muted, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{children}</button>
+  const Pill = ({ on, onClick, children, badge = 0 }) => (
+    <button onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '7px 12px', borderRadius: 999, border: 0, background: on ? TEAL : 'transparent', color: on ? '#031f1c' : muted, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+      {children}
+      {badge > 0 && <span style={{ minWidth: 15, height: 15, borderRadius: 999, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', lineHeight: 1 }}>{badge > 9 ? '9+' : badge}</span>}
+    </button>
   );
 
   if (openChat) {
@@ -5452,7 +5460,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
       {/* Feed / Messages / Teams */}
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, border: `1px solid ${hair}`, borderRadius: 999, padding: 3 }}>
-          {[['feed', 'Feed'], ['messages', 'Friends'], ['teams', 'Teams']].map(([k, l]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)}>{l}</Pill>)}
+          {[['feed', 'Feed', 0], ['messages', 'Friends', dmUnread], ['teams', 'Teams', chUnread]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
         </div>
       </div>
 
