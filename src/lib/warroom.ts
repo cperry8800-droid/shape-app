@@ -451,7 +451,8 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Apple Music MusicKit auth flow (connect/disconnect, status)', status: 'done' },
         { label: 'Apple Music credentials set (TEAM_ID/KEY_ID/PRIVATE_KEY)', status: auto(itemPresent('integrations', 'APPLE_MUSIC')) },
         { label: 'Instacart grocery hand-off (products_link shopping list)', status: 'done' },
-        { label: 'Instacart credentials set (INSTACART_API_KEY)', status: auto(itemPresent('integrations', 'INSTACART')) },
+        { label: 'Grocery copy-to-clipboard fallback while Instacart access is pending', status: 'done' },
+        { label: 'Instacart credentials set (INSTACART_API_KEY) — Developer Platform access requested; applications currently gated', status: auto(itemPresent('integrations', 'INSTACART')) },
       ],
     },
     {
