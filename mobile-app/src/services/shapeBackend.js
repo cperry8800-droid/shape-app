@@ -2631,6 +2631,7 @@ window.ShapeMessages = {
   sendMessage,
   sendProviderMessage,
   listDirectCoachThreads,
+  subscribeMessages: subscribeDirectMessages,
 };
 
 window.ShapeCommunity = {
@@ -2737,6 +2738,24 @@ async function sendChannelMessage({ channelId, body } = {}) {
   if (error) throw error;
   return { stored: 'supabase', data };
 }
+function subscribeChannelMessages(onInsert) {
+  if (!supabase) return () => {};
+  const channel = supabase
+    .channel(`rt-channel-messages:${state.user?.id || 'anon'}`)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'channel_messages' },
+      (payload) => { try { onInsert?.(payload.new); } catch (e) {} })
+    .subscribe();
+  return () => { try { supabase.removeChannel(channel); } catch (e) {} };
+}
+function subscribeDirectMessages(onInsert) {
+  if (!supabase) return () => {};
+  const channel = supabase
+    .channel(`rt-direct-messages:${state.user?.id || 'anon'}`)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' },
+      (payload) => { try { onInsert?.(payload.new); } catch (e) {} })
+    .subscribe();
+  return () => { try { supabase.removeChannel(channel); } catch (e) {} };
+}
 window.ShapeChannels = {
   list: listChannels,
   create: createChannel,
@@ -2746,6 +2765,7 @@ window.ShapeChannels = {
   searchMembers: searchChannelMembers,
   listMessages: listChannelMessages,
   sendMessage: sendChannelMessage,
+  subscribeMessages: subscribeChannelMessages,
 };
 
 window.ShapeWorkoutLogs = {
