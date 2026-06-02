@@ -2396,6 +2396,22 @@ async function sendGroceryToInstacart({ items, title } = {}) {
   throw new Error(payload.error || 'Unable to send list to Instacart.');
 }
 
+// Ask the in-app support assistant. Works signed-out (server returns a
+// rule-based reply); signed-in users get the AI assistant.
+async function askSupportBot(messages) {
+  if (!apiBaseUrl) throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
+  const headers = { 'Content-Type': 'application/json' };
+  if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
+  const res = await fetch(`${apiBaseUrl}/api/support/chat`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ messages: Array.isArray(messages) ? messages : [] }),
+  });
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(payload.error || 'Support is unavailable right now.');
+  return payload;
+}
+
 async function getIntegrationStatus() {
   if (!apiBaseUrl) {
     throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
@@ -2974,6 +2990,10 @@ window.ShapeIntegrations = {
   appleHealthAvailable: isHealthKitPlatform,
   getStatus: getIntegrationStatus,
   disconnect: disconnectIntegration,
+};
+
+window.ShapeSupport = {
+  ask: askSupportBot,
 };
 
 // ─── Coach Console feed (banner + pushed items the coach sent to this client) ───
