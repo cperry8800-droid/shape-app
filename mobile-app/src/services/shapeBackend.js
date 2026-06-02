@@ -2788,9 +2788,21 @@ window.ShapeChannels = {
 //    live map via realtime. Keys: `ch:<id>` / `dm:<id>`.
 const _unread = { map: {}, started: false, listeners: new Set(), myChannels: new Set(), subs: [] };
 function _unreadEmit() { _unread.listeners.forEach(fn => { try { fn(_unread.map); } catch (e) {} }); }
+// Logged-out demo seed so the Chat-tab badge + per-row badges work in the
+// marketing state, for every profile. Keys match the sample channels/DMs the
+// feed renders, so opening a thread clears its badge just like live data.
+const _DEMO_UNREAD = { 'ch:sample-shapehq': 2, 'ch:sample-runclub': 1, 'dm:demo-sofia': 2 };
+function seedDemoUnread() {
+  if (_unread.started || _unread.demoSeeded) return;
+  _unread.demoSeeded = true;
+  Object.assign(_unread.map, _DEMO_UNREAD);
+  _unreadEmit();
+}
 async function startUnread() {
   if (_unread.started || !supabase || !state.user?.id) return;
   _unread.started = true;
+  // Drop any demo seed once real data takes over.
+  if (_unread.demoSeeded) { _unread.map = {}; _unread.demoSeeded = false; }
   try { const ch = await listChannels(); (ch.data || []).forEach(c => { if (c.joined) _unread.myChannels.add(c.id); }); } catch (e) {}
   try { const { data } = await supabase.rpc('channel_unread'); (data || []).forEach(r => { _unread.map['ch:' + r.channel_id] = Number(r.unread) || 0; }); } catch (e) {}
   try { const { data } = await supabase.rpc('dm_unread'); (data || []).forEach(r => { _unread.map['dm:' + r.conversation_id] = Number(r.unread) || 0; }); } catch (e) {}
@@ -2806,6 +2818,7 @@ async function startUnread() {
 }
 window.ShapeUnread = {
   start: startUnread,
+  seedDemo: seedDemoUnread,
   all: () => _unread.map,
   get: (kind, id) => _unread.map[(kind === 'channel' ? 'ch:' : 'dm:') + id] || 0,
   total: () => Object.values(_unread.map).reduce((a, b) => a + (b || 0), 0),
