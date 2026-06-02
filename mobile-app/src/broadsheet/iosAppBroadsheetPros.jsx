@@ -470,20 +470,34 @@ function BSProWidgetQueuePage({ role = 'trainer', type = 'pr', onBack }) {
   );
 }
 
+// ── Real-week helpers for the pro Today screens ──────────────────────────────
+const _BS_DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const _BS_DOW_L = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const _BS_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function bsProWeek(now = new Date()) {
+  const todayIdx = (now.getDay() + 6) % 7; // 0=Mon
+  const monday = new Date(now); monday.setHours(0, 0, 0, 0); monday.setDate(now.getDate() - todayIdx);
+  const dates = Array.from({ length: 7 }, (_, i) => { const d = new Date(monday); d.setDate(monday.getDate() + i); return d; });
+  return { todayIdx, dates };
+}
+
+// `dots` is an array indexed by weekday (0=Mon..6=Sun).
 function BSProWeekStrip({ goCalendar, dots, label = 'This week', selDay: selDayProp, onSelectDay }) {
   const t = useBS();
-  const [internalSel, setInternalSel] = useStateBSP(14);
+  const { todayIdx, dates } = bsProWeek();
+  const [internalSel, setInternalSel] = useStateBSP(dates[todayIdx].getDate());
   const selDay = selDayProp != null ? selDayProp : internalSel;
   const setSelDay = onSelectDay || setInternalSel;
-  const days = [
-    { d: 11, l: 'M' }, { d: 12, l: 'T' }, { d: 13, l: 'W' },
-    { d: 14, l: 'T', isToday: true, src: 21 }, { d: 15, l: 'F', src: 22 }, { d: 16, l: 'S', src: 23 }, { d: 17, l: 'S', src: 24 },
-  ];
+  const days = dates.map((d, i) => ({ d: d.getDate(), l: _BS_DOW_L[i], isToday: i === todayIdx, idx: i }));
+  const selDate = dates.find(d => d.getDate() === selDay) || dates[todayIdx];
+  const range = dates[0].getMonth() === dates[6].getMonth()
+    ? `${_BS_MON[dates[0].getMonth()]} ${dates[0].getDate()}–${dates[6].getDate()}`
+    : `${_BS_MON[dates[0].getMonth()]} ${dates[0].getDate()} – ${_BS_MON[dates[6].getMonth()]} ${dates[6].getDate()}`;
   return (
     <>
       <BSSection
         title={label}
-        kicker={`Wk 20 · May 11–17 · May ${selDay}`}
+        kicker={`${range} · ${_BS_MON[selDate.getMonth()]} ${selDate.getDate()}`}
         meta={<span onClick={goCalendar} style={{ cursor: 'pointer', fontWeight: 800, color: t.INK, marginLeft: 'auto' }}>Month view →</span>}
       />
       <div style={{ padding: `0 ${t.padX}px 14px` }}>
@@ -491,7 +505,7 @@ function BSProWeekStrip({ goCalendar, dots, label = 'This week', selDay: selDayP
           {days.map((day) => {
             const on    = day.d === selDay;
             const today = day.isToday;
-            const dd    = (dots && dots[day.src || day.d]) || [];
+            const dd    = (dots && dots[day.idx]) || [];
             return (
               <button key={day.d} onClick={() => setSelDay(day.d)} style={{
                 borderRadius: t.RADIUS_SM,
@@ -581,7 +595,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
 
 function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, onWidgetOpen = () => {}, onOpenHabits = () => {}, onOpenScore = () => {}, tweaks = {}, setTweak = () => {} }) {
   const t = useBS();
-  const [selDay, setSelDay] = useStateBSP(14);
+  const [selDay, setSelDay] = useStateBSP(bsProWeek().dates[(new Date().getDay() + 6) % 7].getDate());
   const [ticker, setTicker] = useStateBSP(null);
 
   // Live ticker — pulled from /api/trainer/analytics so the masthead matches
@@ -629,8 +643,15 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
       { time: '09:00', tag: 'INTK', tagColor: t.GREEN, title: 'Open hours', sub: 'Drop-in consults', last: true },
     ],
   };
-  const sourceDayByDate = { 11: 20, 14: 21, 15: 22, 16: 23, 17: 24 };
-  const dataDay = sourceDayByDate[selDay] || selDay;
+  // Map each weekday to a demo dataset by its offset from today, so "today" is
+  // always the busy roster (21) regardless of the real weekday.
+  const { todayIdx, dates } = bsProWeek();
+  const dataFor = (off) => off === 0 ? 21 : off > 0 ? [22, 23, 24][Math.min(off - 1, 2)] : [20, 25, 26][Math.min(-off - 1, 2)];
+  const dataByIdx = dates.map((_, i) => dataFor(i - todayIdx));
+  const selIdx = Math.max(0, dates.findIndex(d => d.getDate() === selDay));
+  const selDate = dates[selIdx];
+  const isToday = selIdx === todayIdx;
+  const dataDay = dataByIdx[selIdx];
   const bookings = TRAINER_BOOKINGS[dataDay] || [];
 
   // Per-day lead. selDay 14 = today's narrative.
@@ -644,6 +665,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
     26: { count: '1', kicker: 'Tue · May 19',  copy: 'Open hours — drop-in consults only.' },
   };
   const lead = TRAINER_LEAD[dataDay] || TRAINER_LEAD[21];
+  const leadKicker = isToday ? "Lead · Today's roster" : `${_BS_DOW[selIdx]} · ${_BS_MON[selDate.getMonth()]} ${selDate.getDate()}`;
   return (
     <BSPage>
       <BSMasthead
@@ -652,7 +674,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
           <span className="bs-daily-shape" style={{ display: 'inline-block', marginLeft: 8, marginRight: 10, fontFamily: "'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif", fontWeight: 300, fontStyle: 'normal', fontSize: 37, letterSpacing: '0.18em', textTransform: 'uppercase', transform: 'translateY(1px)' }}>SHAPE</span>
           <span className="bs-daily-daily" style={{ fontFamily: "'Newsreader', Georgia, serif", fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>Daily.</span>
         </span>}
-        leftKicker="Thu · May 14 · 2026"
+        leftKicker={`${_BS_DOW[todayIdx]} · ${_BS_MON[dates[todayIdx].getMonth()]} ${dates[todayIdx].getDate()} · ${dates[todayIdx].getFullYear()}`}
         rightKicker="14 active clients"
         trailing={<BSAvatar init="J" size={32} fill={t.AMBER} ink={t.PAPER} onClick={onProfile} />}
       />
@@ -665,7 +687,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         background: t.PAPER2,
       }}>
         <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: t.AMBER }}>
-          Coaches Edition · No. 14
+          Coaches Edition · No. {dates[todayIdx].getDate()}
         </span>
         <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600, color: t.INK50 }}>
           Vol. I
@@ -752,7 +774,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         goCalendar={goCalendar}
         selDay={selDay}
         onSelectDay={setSelDay}
-        dots={{
+        dots={dataByIdx.map(dd => ({
           20: [t.RUST, t.RUST, t.BLUE],
           21: [t.RUST, t.RUST, t.RUST],
           22: [t.AMBER, t.GREEN],
@@ -760,13 +782,13 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
           24: [t.RUST, t.RUST],
           25: [],
           26: [t.GREEN],
-        }}
+        }[dd] || []))}
       />
 
       <div style={{ padding: `24px ${t.padX}px 22px`, borderBottom: `1px solid ${t.RULE}` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-          <BSEyebrow color={t.AMBER}>{lead.kicker}</BSEyebrow>
-          <BSEyebrow>{selDay === 14 ? '09:42' : `May ${selDay}`}</BSEyebrow>
+          <BSEyebrow color={t.AMBER}>{leadKicker}</BSEyebrow>
+          <BSEyebrow>{isToday ? '09:42' : `${_BS_MON[selDate.getMonth()]} ${selDay}`}</BSEyebrow>
         </div>
         <BSHeadlineNumber value={lead.count} unit="SESSIONS" />
         <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: t.body + 1, color: t.INK70, lineHeight: 1.3, fontWeight: 500 }}>
@@ -775,7 +797,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
       </div>
 
       <BSSection
-        title={selDay === 14 ? "Today's schedule" : `Schedule · May ${selDay}`}
+        title={isToday ? "Today's schedule" : `Schedule · ${_BS_MON[selDate.getMonth()]} ${selDay}`}
         meta={<span onClick={goCalendar} style={{ cursor: 'pointer', textDecoration: 'underline' }}>Open calendar →</span>}
       />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
@@ -1586,7 +1608,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
 
 function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, onWidgetOpen = () => {}, onOpenHabits = () => {}, onOpenScore = () => {}, tweaks = {}, setTweak = () => {} }) {
   const t = useBS();
-  const [selDay, setSelDay] = useStateBSP(14);
+  const [selDay, setSelDay] = useStateBSP(bsProWeek().dates[(new Date().getDay() + 6) % 7].getDate());
   const [ticker, setTicker] = useStateBSP(null);
 
   // Live ticker — pulled from /api/nutritionist/analytics so the masthead
@@ -1635,8 +1657,13 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
       { time: '09:00', tag: 'INTK', tagColor: t.GREEN, title: 'Open hours', sub: 'Drop-in consults', last: true },
     ],
   };
-  const sourceDayByDate = { 11: 20, 14: 22, 15: 23, 16: 24, 17: 25 };
-  const dataDay = sourceDayByDate[selDay] || selDay;
+  const { todayIdx, dates } = bsProWeek();
+  const dataFor = (off) => off === 0 ? 22 : off > 0 ? [23, 24, 21][Math.min(off - 1, 2)] : [20, 25, 26][Math.min(-off - 1, 2)];
+  const dataByIdx = dates.map((_, i) => dataFor(i - todayIdx));
+  const selIdx = Math.max(0, dates.findIndex(d => d.getDate() === selDay));
+  const selDate = dates[selIdx];
+  const isToday = selIdx === todayIdx;
+  const dataDay = dataByIdx[selIdx];
   const schedule = NUTRI_SCHEDULE[dataDay] || [];
 
   // Per-day lead narrative.
@@ -1650,6 +1677,7 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
     26: { count: '1', kicker: 'Mon · May 18', copy: 'Open hours — drop-in consults only.' },
   };
   const lead = NUTRI_LEAD[dataDay] || NUTRI_LEAD[22];
+  const leadKicker = isToday ? "Lead · Today's schedule" : `${_BS_DOW[selIdx]} · ${_BS_MON[selDate.getMonth()]} ${selDate.getDate()}`;
 
   return (
     <BSPage>
@@ -1659,7 +1687,7 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
           <span className="bs-daily-shape" style={{ display: 'inline-block', marginLeft: 8, marginRight: 10, fontFamily: "'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif", fontWeight: 300, fontStyle: 'normal', fontSize: 37, letterSpacing: '0.18em', textTransform: 'uppercase', transform: 'translateY(1px)' }}>SHAPE</span>
           <span className="bs-daily-daily" style={{ fontFamily: "'Newsreader', Georgia, serif", fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>Daily.</span>
         </span>}
-        leftKicker="Thu · May 14 · 2026"
+        leftKicker={`${_BS_DOW[todayIdx]} · ${_BS_MON[dates[todayIdx].getMonth()]} ${dates[todayIdx].getDate()} · ${dates[todayIdx].getFullYear()}`}
         rightKicker="22 plans · 5 sessions"
         trailing={<BSAvatar init="M" size={32} fill={t.RUST} ink={t.PAPER} onClick={onProfile} />}
       />
@@ -1672,7 +1700,7 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
         background: t.PAPER2,
       }}>
         <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: t.RUST }}>
-          Coaches Edition · No. 14
+          Coaches Edition · No. {dates[todayIdx].getDate()}
         </span>
         <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600, color: t.INK50 }}>
           Vol. I
@@ -1759,7 +1787,7 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
         goCalendar={goCalendar}
         selDay={selDay}
         onSelectDay={setSelDay}
-        dots={{
+        dots={dataByIdx.map(dd => ({
           20: [t.BLUE, t.BLUE],
           21: [t.GREEN, t.BLUE, t.BLUE],
           22: [t.BLUE],
@@ -1767,13 +1795,13 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
           24: [t.BLUE, t.BLUE],
           25: [],
           26: [t.AMBER],
-        }}
+        }[dd] || []))}
       />
 
       <div style={{ padding: `24px ${t.padX}px 22px`, borderBottom: `1px solid ${t.RULE}` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
           <BSEyebrow color={t.RUST}>{lead.kicker}</BSEyebrow>
-          <BSEyebrow>{selDay === 14 ? '09:42' : `May ${selDay}`}</BSEyebrow>
+          <BSEyebrow>{isToday ? '09:42' : `${_BS_MON[selDate.getMonth()]} ${selDay}`}</BSEyebrow>
         </div>
         <BSHeadlineNumber value={lead.count} unit="SESSIONS" />
         <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: t.body + 1, color: t.INK70, lineHeight: 1.3, fontWeight: 500 }}>
@@ -1782,7 +1810,7 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
       </div>
 
       <BSSection
-        title={selDay === 14 ? "Today's schedule" : `Schedule · May ${selDay}`}
+        title={isToday ? "Today's schedule" : `Schedule · ${_BS_MON[selDate.getMonth()]} ${selDay}`}
         meta={<span onClick={goCalendar} style={{ cursor: 'pointer', textDecoration: 'underline' }}>Open calendar →</span>}
       />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
