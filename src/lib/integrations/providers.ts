@@ -37,7 +37,9 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
     description: 'Pick workout playlists directly from your Spotify library.',
     authorizeUrl: 'https://accounts.spotify.com/authorize',
     tokenUrl: 'https://accounts.spotify.com/api/token',
-    scope: 'playlist-read-private playlist-read-collaborative user-read-email',
+    // read scopes: browse the member's playlists; modify scopes: let a client
+    // save (follow) a coach's playlist into their own Spotify library.
+    scope: 'playlist-read-private playlist-read-collaborative user-read-email playlist-modify-public playlist-modify-private',
     clientIdEnv: 'SPOTIFY_CLIENT_ID',
     clientSecretEnv: 'SPOTIFY_CLIENT_SECRET',
     usesPkce: true,

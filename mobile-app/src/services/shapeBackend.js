@@ -2247,6 +2247,31 @@ async function connectSpotify(options = {}) {
   return connectProvider('spotify', options);
 }
 
+// Save (follow) a coach's Spotify playlist into the signed-in client's own
+// Spotify library. `playlist` is a Spotify URL, URI, or id.
+async function saveSpotifyPlaylist(playlist) {
+  if (!apiBaseUrl) {
+    throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
+  }
+  if (!state.session?.access_token) {
+    throw new Error('Sign in before saving playlists.');
+  }
+  const url = typeof playlist === 'string' ? playlist : (playlist?.url || playlist?.playlistId || '');
+  const response = await fetch(`${apiBaseUrl}/api/integrations/spotify/save-playlist`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${state.session.access_token}`,
+    },
+    body: JSON.stringify({ url }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.error || 'Could not save playlist to Spotify.');
+  }
+  return payload;
+}
+
 // Inject the MusicKit v3 script once and resolve when window.MusicKit exists.
 let _musicKitPromise = null;
 function loadMusicKit() {
@@ -2895,6 +2920,7 @@ window.ShapeIntegrations = {
   connectWhoop,
   connectStrava,
   connectSpotify,
+  saveSpotifyPlaylist,
   connectAppleMusic,
   disconnectAppleMusic,
   sendGroceryToInstacart,
