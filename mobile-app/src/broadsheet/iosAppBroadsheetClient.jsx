@@ -5445,11 +5445,14 @@ function BSClientFeed({ onProfile, role: roleProp }) {
         (() => {
           const role = roleProp || (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().profile && window.ShapeAuth.getCachedState().profile.role) || 'client';
           const isCoach = role === 'trainer' || role === 'nutritionist';
-          const coaches = threadRows.length ? threadRows : [
+          // Samples are demo-only — once you're signed in, the lists go live
+          // (real threads/channels, or a real empty state).
+          const loggedIn = !!(window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id);
+          const coaches = threadRows.length ? threadRows : (loggedIn ? [] : [
             { n: 'Maya Okafor', s: 'Trainer · Strength', c: '#c0533b', i: 'M', messages: BS_SAMPLE_COACH_DMS['Maya Okafor'] },
             { n: 'Rae Lindqvist', s: 'Nutritionist · Sports nutrition', c: '#a07a2e', i: 'R', messages: BS_SAMPLE_COACH_DMS['Rae Lindqvist'] },
             { n: 'Dr. Sam Huang', s: 'Coach · Endurance', c: '#147b68', i: 'S', messages: BS_SAMPLE_COACH_DMS['Dr. Sam Huang'] },
-          ];
+          ]);
           // A chat list row (avatar + name + subtitle), tap to open the thread.
           const Row = (f, i) => (
             <button key={i} onClick={() => { window.ShapeUnread?.markConversationRead?.(f.conversation_id); setOpenChat(f); }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, border: `1px solid ${hair}`, background: card, color: cardInk, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
@@ -5465,9 +5468,9 @@ function BSClientFeed({ onProfile, role: roleProp }) {
 
           if (tab === 'messages') {
             // Friends: a simple list of people — tap one to open the chat.
-            const friends = threadRows.length ? threadRows : (isCoach
+            const friends = threadRows.length ? threadRows : (loggedIn ? [] : (isCoach
               ? [{ n: 'Sofia Martinez', s: 'Active now', c: '#147b68', i: 'S', messages: BS_SAMPLE_DMS['Sofia Martinez'] }, { n: 'Dev Patel', s: '2h ago', c: '#2e6fa0', i: 'D', messages: BS_SAMPLE_DMS['Dev Patel'] }, { n: 'Aria Kim', s: 'Yesterday', c: '#8a5cf6', i: 'A', messages: BS_SAMPLE_DMS['Aria Kim'] }]
-              : [{ n: 'Sofia Martinez', s: 'Active now', c: '#147b68', i: 'S', messages: BS_SAMPLE_DMS['Sofia Martinez'] }, { n: 'Jordan Chen', s: '2h ago', c: '#c0533b', i: 'J', messages: BS_SAMPLE_DMS['Jordan Chen'] }, { n: 'Maya Okafor', s: 'Active now', c: '#a07a2e', i: 'M', messages: BS_SAMPLE_DMS['Maya Okafor'] }, { n: 'Dev Patel', s: 'Yesterday', c: '#2e6fa0', i: 'D', messages: BS_SAMPLE_DMS['Dev Patel'] }, { n: 'Aria Kim', s: '3h ago', c: '#8a5cf6', i: 'A', messages: BS_SAMPLE_DMS['Aria Kim'] }]);
+              : [{ n: 'Sofia Martinez', s: 'Active now', c: '#147b68', i: 'S', messages: BS_SAMPLE_DMS['Sofia Martinez'] }, { n: 'Jordan Chen', s: '2h ago', c: '#c0533b', i: 'J', messages: BS_SAMPLE_DMS['Jordan Chen'] }, { n: 'Maya Okafor', s: 'Active now', c: '#a07a2e', i: 'M', messages: BS_SAMPLE_DMS['Maya Okafor'] }, { n: 'Dev Patel', s: 'Yesterday', c: '#2e6fa0', i: 'D', messages: BS_SAMPLE_DMS['Dev Patel'] }, { n: 'Aria Kim', s: '3h ago', c: '#8a5cf6', i: 'A', messages: BS_SAMPLE_DMS['Aria Kim'] }]));
             return (
               <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {friends.map(Row)}
@@ -5480,7 +5483,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
           // not a shared # channel — flagged with `dm` so the row reads as a
           // direct line rather than a community room.
           const support = { n: 'Support', s: 'Private · you & the Shape team', c: TEALB, i: '✦', dm: true };
-          const chList = (channels && channels.length) ? channels : BS_SAMPLE_CHANNELS;
+          const chList = (channels && channels.length) ? channels : (loggedIn ? [] : BS_SAMPLE_CHANNELS);
           const selectors = [
             { key: 'channels', label: 'Channels', color: TEALB },
             { key: 'coaches', label: 'Coaches', color: '#c0533b' },
