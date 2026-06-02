@@ -5066,25 +5066,15 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   const [filter, setFilter] = useStateBSC('COMMUNITY');
   const [teamsSel, setTeamsSel] = useStateBSC('channels');
   const [draft, setDraft] = useStateBSC('');
-  // Support assistant — one continuous AI-backed thread per user, persisted
-  // locally so it survives reloads. The bot handles first-line questions and
-  // escalates to the Shape team.
-  const _supportKey = () => 'shape.support.' + ((window.ShapeAuth?.getCachedState?.() || {}).user?.id || 'anon');
+  // Support assistant — one continuous AI-backed thread that lives for the
+  // session. It stays put while you move between tabs, but a fresh app load /
+  // reload starts a clean thread with the current greeting (no persistence).
   const SUPPORT_GREETING = { who: 'Nora', t: "Hi, I'm Nora — Shape's assistant. Ask me anything: connecting integrations, your plan, billing, or your account. I'll bring in the Shape team if I can't sort it out.", time: 'now', me: false, bot: true };
-  const [supportMsgs, setSupportMsgs] = useStateBSC(() => {
-    try {
-      const raw = window.localStorage?.getItem(_supportKey());
-      if (raw) {
-        const arr = JSON.parse(raw);
-        // Migrate older persisted threads: strip the retired robot emoji.
-        if (Array.isArray(arr) && arr.length) return arr.map(m => (m && typeof m.t === 'string') ? { ...m, t: m.t.replace(/\s*🤖\s*/g, ' ').replace(/\s{2,}/g, ' ').trim() } : m);
-      }
-    } catch (e) {}
-    return [SUPPORT_GREETING];
-  });
+  const [supportMsgs, setSupportMsgs] = useStateBSC([SUPPORT_GREETING]);
   const [supportDraft, setSupportDraft] = useStateBSC('');
   const [supportBusy, setSupportBusy] = useStateBSC(false);
-  React.useEffect(() => { try { window.localStorage?.setItem(_supportKey(), JSON.stringify(supportMsgs.slice(-60))); } catch (e) {} }, [supportMsgs]);
+  // Clear any thread persisted by older builds so stale history doesn't reappear.
+  React.useEffect(() => { try { Object.keys(window.localStorage || {}).forEach(k => { if (k.indexOf('shape.support.') === 0) window.localStorage.removeItem(k); }); } catch (e) {} }, []);
   const sendSupport = async () => {
     const body = supportDraft.trim();
     if (!body || supportBusy) return;
