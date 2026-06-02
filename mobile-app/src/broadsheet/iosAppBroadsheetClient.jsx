@@ -4978,6 +4978,27 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   const [filter, setFilter] = useStateBSC('SHAPE');
   const [teamsSel, setTeamsSel] = useStateBSC('channels');
   const [draft, setDraft] = useStateBSC('');
+  // Live direct-message threads (real coaches/conversations). Falls back to the
+  // sample people lists below when there are none (demo / not signed in).
+  const [coachThreads, setCoachThreads] = useStateBSC(null);
+  React.useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const res = await window.ShapeMessages?.listDirectCoachThreads?.();
+        const list = (res && Array.isArray(res.data)) ? res.data : (Array.isArray(res) ? res : []);
+        if (active && list.length) setCoachThreads(list);
+      } catch { /* keep sample */ }
+    })();
+    return () => { active = false; };
+  }, []);
+  const _threadPalette = ['#147b68', '#c0533b', '#a07a2e', '#2e6fa0', '#8a5cf6'];
+  const threadRows = (coachThreads || []).map((th, i) => ({
+    n: th.who || 'Coach',
+    s: th.provider_role === 'nutritionist' ? 'Nutritionist' : th.provider_role === 'trainer' ? 'Trainer' : (th.last || 'Direct message'),
+    c: _threadPalette[i % _threadPalette.length],
+    i: (th.who || 'C').toString().trim().charAt(0).toUpperCase(),
+  }));
   const [composerSlot, setComposerSlot] = useStateBSC(null);
   React.useEffect(() => { setComposerSlot(document.getElementById('bs-composer-slot')); }, []);
   const card = '#1a1713', cardInk = '#f7f1e6', muted = 'rgba(247,241,230,0.55)', hair = 'rgba(247,241,230,0.12)';
@@ -5184,7 +5205,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
         (() => {
           const role = roleProp || (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().profile && window.ShapeAuth.getCachedState().profile.role) || 'client';
           const isCoach = role === 'trainer' || role === 'nutritionist';
-          const coaches = [
+          const coaches = threadRows.length ? threadRows : [
             { n: 'Maya Okafor', s: 'Trainer · Strength', c: '#c0533b', i: 'M' },
             { n: 'Rae Lindqvist', s: 'Nutritionist · Sports nutrition', c: '#a07a2e', i: 'R' },
             { n: 'Dr. Sam Huang', s: 'Coach · Endurance', c: '#147b68', i: 'S' },
@@ -5203,9 +5224,9 @@ function BSClientFeed({ onProfile, role: roleProp }) {
 
           if (tab === 'messages') {
             // Friends: a simple list of people — tap one to open the chat.
-            const friends = isCoach
+            const friends = threadRows.length ? threadRows : (isCoach
               ? [{ n: 'Sofia Martinez', s: 'Active now', c: '#147b68', i: 'S' }, { n: 'Dev Patel', s: '2h ago', c: '#2e6fa0', i: 'D' }, { n: 'Aria Kim', s: 'Yesterday', c: '#8a5cf6', i: 'A' }]
-              : [{ n: 'Sofia Martinez', s: 'Active now', c: '#147b68', i: 'S' }, { n: 'Jordan Chen', s: '2h ago', c: '#c0533b', i: 'J' }, { n: 'Maya Okafor', s: 'Active now', c: '#a07a2e', i: 'M' }, { n: 'Dev Patel', s: 'Yesterday', c: '#2e6fa0', i: 'D' }, { n: 'Aria Kim', s: '3h ago', c: '#8a5cf6', i: 'A' }];
+              : [{ n: 'Sofia Martinez', s: 'Active now', c: '#147b68', i: 'S' }, { n: 'Jordan Chen', s: '2h ago', c: '#c0533b', i: 'J' }, { n: 'Maya Okafor', s: 'Active now', c: '#a07a2e', i: 'M' }, { n: 'Dev Patel', s: 'Yesterday', c: '#2e6fa0', i: 'D' }, { n: 'Aria Kim', s: '3h ago', c: '#8a5cf6', i: 'A' }]);
             return (
               <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {friends.map(Row)}
