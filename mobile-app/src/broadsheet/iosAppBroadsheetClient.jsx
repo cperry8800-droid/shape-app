@@ -4982,7 +4982,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   React.useEffect(() => { setComposerSlot(document.getElementById('bs-composer-slot')); }, []);
   const card = '#1a1713', cardInk = '#f7f1e6', muted = 'rgba(247,241,230,0.55)', hair = 'rgba(247,241,230,0.12)';
   const ROLE = {
-    SHAPE: { color: TEALB, label: 'Shape · Official' },
+    SHAPE: { color: TEALB, label: 'Member' },
     TRAINER: { color: '#ff7a59', label: 'Trainer' },
     CLIENT: { color: '#2ee0c4', label: 'Client' },
     NUTRI: { color: '#e0b15a', label: 'Nutri' },
@@ -4994,28 +4994,29 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   const myRoleChip = myRole === 'trainer' ? 'TRAINER' : myRole === 'nutritionist' ? 'NUTRI' : 'CLIENT';
   const CHIP_KEYS = ['SHAPE', myRoleChip, 'COMMUNITY'];
   const SAMPLE = [
-    { id: 's1', who: 'Shape', kind: 'SHAPE', init: '✦', hue: TEAL, time: '1h', pinned: true, official: true, body: "Riverside Runners: Saturday's 6am long run is official. 47 of you RSVP'd. Coffee at Blackbird after — first round on Shape.", hearts: 52, replies: 14 },
-    { id: 's2', who: 'Shape', kind: 'SHAPE', init: '✦', hue: TEAL, time: '9h', official: true, body: 'New this week: coach-built grocery lists now hand off straight to Instacart. Build it in Eat → tap Send to Instacart.', hearts: 38, replies: 7 },
-    { id: 's3', who: 'Shape', kind: 'SHAPE', init: '✦', hue: TEAL, time: '1d', official: true, body: 'Shape Radio is live Thursdays at 7pm — community lift session with a rotating coach. Tap Radio to tune in.', hearts: 44, replies: 9 },
-    { id: 's4', who: 'Shape', kind: 'SHAPE', init: '✦', hue: TEAL, time: '2d', official: true, body: 'Milestone: the community logged 12,400 workouts last month — up 9% on April. Keep showing up. ✦', hearts: 71, replies: 21 },
-    { id: 's5', who: 'Shape', kind: 'SHAPE', init: '✦', hue: TEAL, time: '3d', official: true, body: 'New in the Shape Store: cork mobility ball + the cream crewneck. Members get first dibs before the public link.', hearts: 33, replies: 12 },
-    // Trainer channel
-    { id: 't1', who: 'Jordan Chen', kind: 'TRAINER', init: 'J', hue: '#c0533b', time: '2h', body: 'Week 6 check, team: drop a ⚡ if you hit all lifts this week. Coffee for the top 3 adherence scores.', hearts: 34, replies: 12 },
-    { id: 't2', who: 'Maya Okafor', kind: 'TRAINER', init: 'M', hue: '#c0533b', time: '5h', body: 'Posture cue of the day: ribs down, not chest up. Your overhead press will thank you.', hearts: 22, replies: 4 },
-    { id: 't3', who: 'Diego Morales', kind: 'TRAINER', init: 'D', hue: '#c0533b', time: '1d', body: 'Deload week is not a week off — it\'s how next block gets heavier. Keep the bar moving, drop the volume.', hearts: 19, replies: 5 },
-    { id: 't4', who: 'Tariq Osei', kind: 'TRAINER', init: 'T', hue: '#c0533b', time: '1d', body: 'Mobility homework before you squat: 10 min of ankle + t-spine work. Range first, then load.', hearts: 16, replies: 3 },
-    { id: 't5', who: 'Sana Bhatt', kind: 'TRAINER', init: 'S', hue: '#c0533b', time: '2d', body: 'Postpartum crew — new kettlebell flow drops Friday. Equipment-light, 25 minutes, scalable to where you are.', hearts: 24, replies: 8 },
-    { id: 't6', who: 'Lena Park', kind: 'TRAINER', init: 'L', hue: '#c0533b', time: '2d', body: 'Zone 2 is supposed to feel easy. If you can\'t hold a conversation, you\'re running your easy days too hard.', hearts: 28, replies: 7 },
-    { id: 't7', who: 'Jordan Chen', kind: 'TRAINER', init: 'J', hue: '#c0533b', time: '3d', body: 'Form-check Fridays are back. Post a 10-sec clip of your top set and I\'ll leave timestamps + cues.', hearts: 26, replies: 14 },
-    { id: 't8', who: 'Diego Morales', kind: 'TRAINER', init: 'D', hue: '#c0533b', time: '4d', body: 'Grip giving out before your back on deadlifts? Mixed grip on the top set, straps for back-offs. Train the target, not the limit.', hearts: 20, replies: 6 },
-    // Nutritionist channel
-    { id: 'n1', who: 'Dr. Maya Patel', kind: 'NUTRI', init: 'M', hue: '#a07a2e', time: '3h', body: 'Reminder for cutting clients: protein first, then fill the rest with volume. 0.8–1g per lb of bodyweight, every day, no exceptions.', hearts: 41, replies: 9 },
-    { id: 'n2', who: 'Owen Halverson', kind: 'NUTRI', init: 'O', hue: '#a07a2e', time: '7h', body: 'Race-week fueling thread 🍝 — top off glycogen 48h out, ease off fiber the day before. Drop questions and I\'ll answer tonight.', hearts: 27, replies: 16 },
-    { id: 'n3', who: 'Priya Iyer', kind: 'NUTRI', init: 'P', hue: '#a07a2e', time: '1d', body: 'Low-FODMAP swap of the week: garlic-infused oil + scallion tops instead of onion/garlic. All the flavor, none of the GI hit.', hearts: 33, replies: 6 },
-    { id: 'n4', who: 'Jules Bonner', kind: 'NUTRI', init: 'J', hue: '#a07a2e', time: '2d', body: 'Family-meal tip: cook one base (sheet-pan chicken + veg), split it three ways for different macros. One cook, three plans.', hearts: 21, replies: 5 },
-    { id: 'n5', who: 'Owen Halverson', kind: 'NUTRI', init: 'O', hue: '#a07a2e', time: '3d', body: 'Hydration check: pale-straw urine, not clear. Clear all day usually means you\'re flushing electrolytes — add a pinch of salt.', hearts: 18, replies: 4 },
-    { id: 'n6', who: 'Dr. Maya Patel', kind: 'NUTRI', init: 'M', hue: '#a07a2e', time: '3d', body: 'Eating out this weekend? Order the protein + the veg, sauce on the side, and don\'t skip lunch to "save" calories. Steady wins.', hearts: 37, replies: 8 },
-    { id: 'n7', who: 'Priya Iyer', kind: 'NUTRI', init: 'P', hue: '#a07a2e', time: '4d', body: 'Fiber is the most under-eaten macro I see. Aim 25–35g/day — berries, oats, beans, the skins you keep peeling off.', hearts: 25, replies: 7 },
+    // SHAPE = individual members (the general community)
+    { id: 's1', who: 'Emma Rivera', kind: 'SHAPE', init: 'E', hue: '#2e6fa0', time: '1h', body: 'New to Shape this week, coming off a long layoff. Any tips for not going too hard the first couple weeks?', hearts: 22, replies: 15 },
+    { id: 's2', who: 'Tom Becker', kind: 'SHAPE', init: 'T', hue: '#147b68', time: '3h', body: 'Anyone in the Riverside Runners group doing the 6am long run Saturday? Looking for someone to hold ~8:00 pace.', hearts: 18, replies: 9 },
+    { id: 's3', who: 'Aisha Khan', kind: 'SHAPE', init: 'A', hue: '#8a5cf6', time: '6h', body: 'Three weeks in and the daily check-in is the habit that actually stuck. Small, but it adds up.', hearts: 34, replies: 6 },
+    { id: 's4', who: 'Carlos Mendez', kind: 'SHAPE', init: 'C', hue: '#c0533b', time: '1d', body: 'PSA: the cork mobility ball from the Shape Store is worth it. My calves have never been this happy.', hearts: 27, replies: 8 },
+    { id: 's5', who: 'Nina Patel', kind: 'SHAPE', init: 'N', hue: '#a07a2e', time: '2d', body: 'Hit my 100th logged workout today 🎉 Started barely able to do a push-up. Keep showing up — it works.', hearts: 63, replies: 19 },
+    // TRAINER = between Shape trainers only (peer chat)
+    { id: 't1', who: 'Jordan Chen', kind: 'TRAINER', init: 'J', hue: '#c0533b', time: '2h', body: 'Fellow coaches — anyone seeing better adherence moving check-ins from Monday to Sunday night? Early data on two clients looks promising.', hearts: 14, replies: 11 },
+    { id: 't2', who: 'Maya Okafor', kind: 'TRAINER', init: 'M', hue: '#c0533b', time: '5h', body: 'What are you all using for async form review? I\'m on video + timestamps but it\'s eating my evenings.', hearts: 9, replies: 13 },
+    { id: 't3', who: 'Diego Morales', kind: 'TRAINER', init: 'D', hue: '#c0533b', time: '1d', body: 'Heads up: the Shape payout split updated this month — check your Connect dashboard, the net breakdown is clearer now.', hearts: 18, replies: 7 },
+    { id: 't4', who: 'Tariq Osei', kind: 'TRAINER', init: 'T', hue: '#c0533b', time: '1d', body: 'Got a masters lifter (58M) returning from a disc issue. Anyone have a conservative deadlift re-entry progression they like?', hearts: 11, replies: 9 },
+    { id: 't5', who: 'Sana Bhatt', kind: 'TRAINER', init: 'S', hue: '#c0533b', time: '2d', body: 'Referral: I\'m at capacity on postpartum clients. If anyone has room for at-home / kettlebell-leaning programming, DM me.', hearts: 8, replies: 6 },
+    { id: 't6', who: 'Lena Park', kind: 'TRAINER', init: 'L', hue: '#c0533b', time: '2d', body: 'How do you all keep clients on Zone 2? I keep losing them to "it feels too easy." Cues that have landed for you?', hearts: 15, replies: 14 },
+    { id: 't7', who: 'Jordan Chen', kind: 'TRAINER', init: 'J', hue: '#c0533b', time: '3d', body: 'Shape Radio coach slot opened up for Thursday 7pm — who wants it? Good way to pull in new clients.', hearts: 12, replies: 5 },
+    { id: 't8', who: 'Diego Morales', kind: 'TRAINER', init: 'D', hue: '#c0533b', time: '4d', body: 'Programming debate: RPE vs percentage-based for intermediate lifters. I\'ve been running hybrid lately — where do you land?', hearts: 20, replies: 22 },
+    // NUTRI = between Shape nutritionists only (peer chat)
+    { id: 'n1', who: 'Dr. Maya Patel', kind: 'NUTRI', init: 'M', hue: '#a07a2e', time: '3h', body: 'Colleagues — how aggressive are you going with refeeds for clients deep in a cut? I\'ve settled on one structured high-carb day weekly.', hearts: 16, replies: 12 },
+    { id: 'n2', who: 'Owen Halverson', kind: 'NUTRI', init: 'O', hue: '#a07a2e', time: '7h', body: 'Anyone have a clean race-week fueling handout they\'re willing to share? Rebuilding mine and don\'t want to reinvent it.', hearts: 11, replies: 8 },
+    { id: 'n3', who: 'Priya Iyer', kind: 'NUTRI', init: 'P', hue: '#a07a2e', time: '1d', body: 'Low-FODMAP clients: what\'s your go-to when they travel? Reintroductions always slip on the road.', hearts: 9, replies: 7 },
+    { id: 'n4', who: 'Jules Bonner', kind: 'NUTRI', init: 'J', hue: '#a07a2e', time: '2d', body: 'CDCES question — coordinating macros with a client\'s endo on a GLP-1. How are you holding the protein floor on low appetite?', hearts: 13, replies: 10 },
+    { id: 'n5', who: 'Owen Halverson', kind: 'NUTRI', init: 'O', hue: '#a07a2e', time: '3d', body: 'Shape added carbs/fat to the meal-plan builder 🙌 swaps finally carry full macros now. Big quality-of-life win.', hearts: 22, replies: 6 },
+    { id: 'n6', who: 'Dr. Maya Patel', kind: 'NUTRI', init: 'M', hue: '#a07a2e', time: '3d', body: 'Full on sports-nutrition clients this quarter. If anyone has capacity for endurance / plant-based, I\'ve got two referrals.', hearts: 10, replies: 5 },
+    { id: 'n7', who: 'Priya Iyer', kind: 'NUTRI', init: 'P', hue: '#a07a2e', time: '4d', body: 'What adherence tracking are you using beyond photo logs? Looking for something clients actually keep up with.', hearts: 14, replies: 11 },
     // Client channel
     { id: 'c1', who: 'Sofia Martinez', kind: 'CLIENT', init: 'S', hue: '#147b68', time: '4h', body: 'First sub-9 min mile today!', hearts: 18, replies: 3 },
     { id: 'c2', who: 'Andre Willis', kind: 'CLIENT', init: 'A', hue: '#147b68', time: '6h', body: 'Hit a 200 lb deadlift for the first time. Started at 95 back in January 😤', hearts: 47, replies: 11 },
@@ -5050,11 +5051,10 @@ function BSClientFeed({ onProfile, role: roleProp }) {
     })();
     return () => { active = false; };
   }, []);
-  const shown = posts.filter(p => {
-    if (filter === 'SHAPE') return true;                    // all Shape members
-    if (filter === 'COMMUNITY') return p.kind !== 'SHAPE';  // members' public / friends posts
-    return p.kind === filter;                                 // your role only
-  });
+  // Each chip is its own channel: SHAPE = individual members, TRAINER/NUTRI/
+  // CLIENT = that role's peers only. (COMMUNITY swaps to the activity feed in
+  // the render below, so `shown` isn't used for it.)
+  const shown = posts.filter(p => p.kind === filter);
 
   const post = async () => {
     if (window.bsRequireAccount && !window.bsRequireAccount('post to the feed')) return;
@@ -5251,7 +5251,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
             {CHIP_KEYS.map(k => {
               const on = filter === k;
               return (
-                <button key={k} onClick={() => setFilter(on ? 'ALL' : k)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 10px', borderRadius: 999, border: `1px solid ${on ? ROLE[k].color : hair}`, background: on ? `${ROLE[k].color}1f` : 'transparent', color: cardInk, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', cursor: 'pointer' }}>
+                <button key={k} onClick={() => setFilter(k)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 10px', borderRadius: 999, border: `1px solid ${on ? ROLE[k].color : hair}`, background: on ? `${ROLE[k].color}1f` : 'transparent', color: cardInk, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', cursor: 'pointer' }}>
                   <span style={{ width: 5, height: 5, borderRadius: 3, background: ROLE[k].color }} />{k}
                 </button>
               );
