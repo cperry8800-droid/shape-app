@@ -7292,8 +7292,11 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
       })()}
 
       {/* YOUR TEAM / Coaches */}
-      <BSSection kicker="Your team" title="Coaches" />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+      <div style={{ padding: `22px ${t.padX}px 4px` }}>
+        <BSEyebrow color={t.ACCENT}>Your team</BSEyebrow>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 500, color: t.INK, letterSpacing: '-0.025em', marginTop: 2 }}>Coaches</div>
+      </div>
+      <div style={{ padding: `0 ${t.padX}px` }}>
         {[
           { name: 'Jordan Chen', role: 'Coach · Hypertrophy · SF', d: 'Msg 3' },
           { name: 'Dr. Maya Patel', role: 'Nutritionist · Consult Thu', d: '—' },
@@ -7310,8 +7313,11 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
       </div>
 
       {/* SHORTCUTS / Your stuff */}
-      <BSSection kicker="Shortcuts" title="Your stuff" />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+      <div style={{ padding: `22px ${t.padX}px 4px` }}>
+        <BSEyebrow color={t.ACCENT}>Shortcuts</BSEyebrow>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 500, color: t.INK, letterSpacing: '-0.025em', marginTop: 2 }}>Your stuff</div>
+      </div>
+      <div style={{ padding: `0 ${t.padX}px` }}>
         {[
           { l: 'Marketplace', s: 'Find coaches, plans, programs', onClick: () => goMarket() },
           { l: 'Rewards', s: `${scoreProfile.available.toLocaleString()} pts · tap to redeem`, onClick: () => setShowStore(true) },
