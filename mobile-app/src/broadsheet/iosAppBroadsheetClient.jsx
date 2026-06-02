@@ -7333,19 +7333,6 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
         <BSEyebrow>View →</BSEyebrow>
       </button>
 
-      {/* SESSIONS — live bookings + in-app video calls */}
-      <button onClick={() => setShowSessions(true)} style={{
-        width: '100%', textAlign: 'left', padding: `13px ${t.padX}px`,
-        border: 0, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER,
-        color: t.INK, cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-      }}>
-        <div>
-          <BSEyebrow color={t.ACCENT}>Sessions</BSEyebrow>
-          <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>Bookings &amp; video calls</div>
-        </div>
-        <BSEyebrow>View →</BSEyebrow>
-      </button>
 
       <BSSection title="Your team" />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
@@ -7363,20 +7350,6 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
               <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{p.role}</div>
             </div>
             <BSEyebrow color={t.ACCENT}>{p.d}</BSEyebrow>
-          </div>
-        ))}
-      </div>
-
-      <div style={{ padding: `18px ${t.padX}px`, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, borderTop: `1px solid ${t.RULE}`, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
-        {[
-          ['14 mo', 'On Shape'],
-          ['+22 lb', 'Squat PR'],
-          ['4/5', 'Sessions'],
-          ['168g', 'Protein'],
-        ].map(([v, l]) => (
-          <div key={l}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, letterSpacing: '-0.05em', color: t.INK, lineHeight: 1 }}>{v}</div>
-            <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{l}</div>
           </div>
         ))}
       </div>
