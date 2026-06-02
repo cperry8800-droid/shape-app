@@ -5544,7 +5544,8 @@ function BSClientFeed({ onProfile, role: roleProp }) {
                     <button onClick={() => setNewChannel('')} style={{ width: '100%', padding: '11px 12px', borderRadius: 12, border: `1px dashed ${TEALB}`, background: 'transparent', color: TEALB, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Create new channel</button>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'center' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 8, alignItems: 'center' }}>
+                        <button onClick={() => { setNewChannel(null); setNewChannelPrivate(false); }} aria-label="Cancel" title="Cancel" style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: 'transparent', color: muted, border: `1px solid ${hair}`, fontSize: 18, lineHeight: 1, cursor: 'pointer', padding: 0 }}>×</button>
                         <input autoFocus value={newChannel} onChange={(e) => setNewChannel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') createChannelNow(); if (e.key === 'Escape') { setNewChannel(null); setNewChannelPrivate(false); } }} placeholder="Channel name — e.g. Sunday Run Club" style={{ minWidth: 0, height: 38, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 14px', fontFamily: t.BODY, fontSize: 14, color: t.INK, outline: 'none' }} />
                         <button onClick={createChannelNow} style={{ height: 38, padding: '0 16px', borderRadius: 999, background: TEAL, color: '#031f1c', border: 0, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, cursor: 'pointer' }}>Create</button>
                       </div>
