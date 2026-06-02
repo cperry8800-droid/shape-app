@@ -23,7 +23,7 @@ the new env.
 | Oura | ❌ not set | code ready — add `OURA_CLIENT_ID/SECRET` |
 | Garmin | ❌ not set | code ready — add keys + Garmin program approval |
 | Apple Music | env-only check | no OAuth; needs MusicKit key vars |
-| Instacart | env-only check | needs `INSTACART_API_KEY` |
+| Instacart | ⏳ access requested | Developer Platform applications are **gated** — request submitted. Grocery button copies the list to the clipboard until a key exists. |
 | Apple Health | n/a (no keys) | native iOS build required (see §5b) |
 
 ---
@@ -140,15 +140,26 @@ To finish enabling it (one-time, requires a Mac + Xcode):
 > Android equivalent (not included here): the same on-device pattern via **Health
 > Connect** would be a separate native plugin.
 
-## 6. Instacart (grocery hand-off)  ✅ code ready
+## 6. Instacart (grocery hand-off)  ✅ code ready · ⏳ access gated
 
-Server-to-server — **no user OAuth, no redirect URI**.
+Server-to-server — **no user OAuth, no redirect URI**. We use the **Instacart
+Developer Platform (IDP) Products Link API** (`POST /idp/v1/products/products_link`),
+which returns a `products_link_url` the app opens (a pre-filled cart page on
+instacart.com). This is **not** the heavier Instacart Connect *fulfillment* API
+(OAuth `client_credentials`, Connect user accounts) — we don't need that.
 
 | | |
 |---|---|
 | Env vars | `INSTACART_API_KEY` (required), `INSTACART_CONNECT_URL` (optional) |
-| Dashboard | Instacart Developer Platform / Connect |
+| Dashboard | Instacart Developer Platform (the Connect/fulfillment portal is a different product) |
 | `INSTACART_CONNECT_URL` | Defaults to `https://connect.instacart.com`. Use `https://connect.dev.instacart.tools` for the dev catalog. |
+
+**Access status:** Instacart is **not accepting new Developer Platform
+applications** (no waitlist) as of 2026-06-02 — a partnership request has been
+submitted. Until a key exists, the grocery "Send to Instacart" button **copies
+the list to the clipboard** (see `instacart/shopping-list` route returning
+`{ configured: false, items }`). The moment `INSTACART_API_KEY` is added the
+button reverts to opening the pre-filled Instacart cart — no code change.
 
 ---
 

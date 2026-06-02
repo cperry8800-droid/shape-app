@@ -11,6 +11,30 @@ file is the narrative companion to the live status dashboard in
 
 ---
 
+## Cycle 5 (PRs #794–#807) — Channels polish, chat unread, integrations
+
+### Channels & chat
+- **Channel pin + search** (#794): a search box filters channels by name; pinned channels sort to the top via a local override (works for demo + live).
+- **Post to the right feed** (#795): messages now post to the chip you're on (Shape / Community / your role) instead of always Client; the channel is persisted in `community_posts.metrics`. Added a Support-bubble pin and a **× cancel** on the create-channel form (#796).
+- **Pin glyph** (#797, #799, #801, #802): monochrome → top-right corner → finally a custom **SVG pushpin** (tinted head only, neutral needle); fills solid only when actually pinned so unpinned channels don't look pinned.
+- **Unread, everywhere** (#798, #800): the bottom-nav **Chat** badge now also shows in the logged-out demo (seeded `ShapeUnread.seedDemo`), across all profiles; and the chat **section tabs** badge where the unread is — DMs → **Friends**, channels → **Teams**.
+
+### Integrations (all reuse the generic provider machinery)
+- **Oura Ring — full sync** (#803): provider config (OAuth2 v2) + `/api/integrations/oura/sync` pulling readiness/sleep/HR/workouts into `daily_health_snapshot` (`writeOuraSnapshots`), `?import=1` imports workouts; mobile Connect/Sync/Import/Disconnect card.
+- **Garmin** (#802): the "coming later" placeholder became a live Connect/Disconnect card (shared OAuth flow). Needs keys **and** Garmin program approval.
+- **Apple Health / Apple Watch** (#804): native, since HealthKit has no web API. Thin in-app `ShapeHealthPlugin.swift` (`CAPBridgedPlugin`, auto-registered as `ShapeHealth`) reads steps/HR/HRV/resting-HR/sleep/energy/distance/workouts; HealthKit entitlement + Info.plist usage strings; `/api/integrations/apple-health/sync` writes the same snapshot rows. Needs a Mac+Xcode device build to go live (no env keys).
+- **Spotify — save a coach playlist** (#805): client can save (follow) a coach's playlist to their own profile (mobile + web); added `playlist-modify-*` scopes + `/api/integrations/spotify/save-playlist`. **Existing Spotify users must reconnect once** for the new scope.
+- **Instacart — copy fallback** (#807): Instacart Developer Platform applications are **gated** (no waitlist) — partnership request submitted. We use the **IDP Products Link** API (single `INSTACART_API_KEY`), *not* the Connect fulfillment OAuth flow. While keyless, the grocery button **copies the list to the clipboard** (route returns `{ configured: false, items }`); reverts to the pre-filled-cart redirect once a key is added.
+
+### Production env status (verified 2026-06-02 via authorize endpoints)
+- **Live (keys set):** Spotify ✅, Strava ✅, Whoop ✅.
+- **Code ready, keys pending:** Oura, Garmin (+ approval).
+- **No keys / different path:** Apple Health (iOS build), Instacart (access gated), Apple Music / Instacart credentials per env.
+- Prereqs in Vercel: `NEXT_PUBLIC_SITE_URL=https://theshapecommunity.com`; Spotify redirect URIs registered for **both** apex and `www`.
+- Full provider setup + redirect-URI audit lives in `docs/INTEGRATIONS_SETUP.md`.
+
+---
+
 ## Cycle 4 (PRs #768–#790) — Community chat + channels
 
 ### Community feed → scoped, live channels
