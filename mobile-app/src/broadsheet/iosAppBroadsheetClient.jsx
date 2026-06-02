@@ -5070,7 +5070,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   // locally so it survives reloads. The bot handles first-line questions and
   // escalates to the Shape team.
   const _supportKey = () => 'shape.support.' + ((window.ShapeAuth?.getCachedState?.() || {}).user?.id || 'anon');
-  const SUPPORT_GREETING = { who: 'Nora', t: "Hi, I'm Nora — Shape's assistant 🤖 Ask me anything: connecting integrations, your plan, billing, or your account. I'll bring in the Shape team if I can't sort it out.", time: 'now', me: false, bot: true };
+  const SUPPORT_GREETING = { who: 'Nora', t: "Hi, I'm Nora — Shape's assistant. Ask me anything: connecting integrations, your plan, billing, or your account. I'll bring in the Shape team if I can't sort it out.", time: 'now', me: false, bot: true };
   const [supportMsgs, setSupportMsgs] = useStateBSC(() => {
     try { const raw = window.localStorage?.getItem(_supportKey()); if (raw) { const arr = JSON.parse(raw); if (Array.isArray(arr) && arr.length) return arr; } } catch (e) {}
     return [SUPPORT_GREETING];
