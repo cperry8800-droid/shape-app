@@ -2340,6 +2340,34 @@ async function disconnectAppleMusic() {
 // Instacart: hand the user's grocery list to Instacart and return a URL that
 // opens a pre-filled shopping-list page. `items` is optional — when omitted
 // the server builds the list from coach-pushed meals.
+// Turn a grocery line (string or {name, quantity, unit, display_text}) into text.
+function _groceryLine(it) {
+  if (typeof it === 'string') return it.trim();
+  if (!it) return '';
+  if (it.display_text) return String(it.display_text).trim();
+  const name = String(it.name || '').trim();
+  if (!name) return '';
+  const qty = (typeof it.quantity === 'number' && it.quantity !== 1) ? `${it.quantity} ` : '';
+  const unit = it.unit && it.unit !== 'each' ? `${it.unit} ` : '';
+  return `${qty}${unit}${name}`.trim();
+}
+
+// Copy text to the clipboard, with a textarea fallback for WebViews where the
+// async clipboard API isn't available.
+async function _copyText(text) {
+  try {
+    if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); return true; }
+  } catch (e) { /* fall through */ }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch (e) { return false; }
+}
+
 async function sendGroceryToInstacart({ items, title } = {}) {
   if (!apiBaseUrl) throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
   if (!state.session?.access_token) throw new Error('Sign in before sending your grocery list.');
@@ -2349,9 +2377,23 @@ async function sendGroceryToInstacart({ items, title } = {}) {
     body: JSON.stringify({ items, title }),
   });
   const payload = await res.json().catch(() => ({}));
-  if (!res.ok || !payload.url) throw new Error(payload.error || 'Unable to send list to Instacart.');
-  try { window.open(payload.url, '_blank', 'noopener'); } catch (e) {}
-  return payload;
+  // Happy path: Instacart configured → open the pre-filled cart.
+  if (res.ok && payload.url) {
+    try { window.open(payload.url, '_blank', 'noopener'); } catch (e) {}
+    window.__bsToast?.('Opening Instacart…', 'ok');
+    return { mode: 'opened', ...payload };
+  }
+  // Fallback: Instacart access is gated → copy the list so it's not a dead-end.
+  const notConfigured = payload && (payload.configured === false || /not configured/i.test(payload.error || ''));
+  if (notConfigured) {
+    const lines = (payload.items || items || []).map(_groceryLine).filter(Boolean);
+    if (!lines.length) { window.__bsToast?.('Your grocery list is empty.', 'error'); return { mode: 'empty' }; }
+    const text = [(payload.title || title || 'Grocery list'), '', ...lines].join('\n');
+    const ok = await _copyText(text);
+    window.__bsToast?.(ok ? 'Instacart unavailable — list copied to clipboard' : 'Instacart unavailable right now', ok ? 'ok' : 'error');
+    return { mode: 'copied', copied: ok, text };
+  }
+  throw new Error(payload.error || 'Unable to send list to Instacart.');
 }
 
 async function getIntegrationStatus() {
