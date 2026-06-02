@@ -5013,7 +5013,11 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   const [memberResults, setMemberResults] = useStateBSC([]);
   const refreshChannels = React.useCallback(() => {
     if (!window.ShapeChannels?.list) return;
-    window.ShapeChannels.list().then(r => setChannels(Array.isArray(r?.data) ? r.data : [])).catch(() => {});
+    window.ShapeChannels.list().then(r => {
+      const data = Array.isArray(r?.data) ? r.data : [];
+      setChannels(data);
+      data.forEach(c => { if (c.joined) window.ShapeUnread?.noteChannel?.(c.id); });
+    }).catch(() => {});
   }, []);
   React.useEffect(() => { refreshChannels(); }, [refreshChannels]);
   const createChannelNow = () => {
@@ -5036,13 +5040,14 @@ function BSClientFeed({ onProfile, role: roleProp }) {
     if (p && p.then) p.then(() => refreshChannels()).catch(() => {});
   };
   const joinChannelNow = (ch) => {
+    window.ShapeUnread?.noteChannel?.(ch.id);
     setChannels(prev => (prev || []).map(c => c.id === ch.id ? { ...c, joined: true, memberCount: (c.memberCount || 0) + 1 } : c));
     window.__bsToast?.(`Joined ${ch.name}`, 'ok');
     const p = window.ShapeChannels?.join?.(ch.id);
     if (p && p.then) p.then(() => refreshChannels()).catch(() => {});
   };
   const openChannelNow = (ch) => {
-    clearUnread(ch.id);
+    window.ShapeUnread?.markChannelRead?.(ch.id);
     const finish = (msgs) => setOpenChat({ n: ch.name, s: `${ch.memberCount} member${ch.memberCount === 1 ? '' : 's'}`, channelId: ch.id, messages: msgs, isHost: ch.isHost });
     if (window.ShapeChannels?.listMessages) window.ShapeChannels.listMessages(ch.id).then(r => finish(r?.data || [])).catch(() => finish([]));
     else finish([]);
@@ -5059,36 +5064,17 @@ function BSClientFeed({ onProfile, role: roleProp }) {
     if (p && p.then) p.then(() => refreshChannels()).catch(() => {});
   };
 
-  // Unread badges (session-local), driven by realtime message inserts. Keyed by
-  // channel id and DM conversation id; cleared when you open that thread.
-  const [unread, setUnread] = useStateBSC({});
-  const openChatRef = React.useRef(null); openChatRef.current = openChat;
-  const channelsRef = React.useRef(null); channelsRef.current = channels;
+  // Unread badges, read from the app-wide ShapeUnread manager (persisted +
+  // realtime). Keys are `ch:<id>` / `dm:<id>`.
+  const [unread, setUnread] = useStateBSC(() => (window.ShapeUnread?.all?.() || {}));
   React.useEffect(() => {
-    const myId = window.ShapeAuth?.getCachedState?.()?.user?.id;
-    const subs = [];
-    if (window.ShapeChannels?.subscribeMessages) {
-      subs.push(window.ShapeChannels.subscribeMessages((row) => {
-        if (!row || row.sender_id === myId) return;
-        const cid = row.channel_id;
-        if (openChatRef.current && openChatRef.current.channelId === cid) return;      // already viewing it
-        if (!(channelsRef.current || []).some(c => c.id === cid && c.joined)) return;  // only my channels
-        setUnread(u => ({ ...u, [cid]: (u[cid] || 0) + 1 }));
-      }));
-    }
-    if (window.ShapeMessages?.subscribeMessages) {
-      subs.push(window.ShapeMessages.subscribeMessages((row) => {
-        if (!row || row.sender_id === myId) return;
-        const conv = row.conversation_id;
-        if (openChatRef.current && openChatRef.current.conversation_id === conv) return;
-        setUnread(u => ({ ...u, [conv]: (u[conv] || 0) + 1 }));
-      }));
-    }
-    return () => subs.forEach(fn => { try { fn && fn(); } catch (e) {} });
+    if (window.ShapeUnread?.start) window.ShapeUnread.start();
+    const off = window.ShapeUnread?.onChange?.((map) => setUnread({ ...map }));
+    setUnread({ ...(window.ShapeUnread?.all?.() || {}) });
+    return () => { try { off && off(); } catch (e) {} };
   }, []);
-  const clearUnread = (id) => { if (id) setUnread(u => (u[id] ? { ...u, [id]: 0 } : u)); };
-  const unreadBadge = (id) => {
-    const n = unread[id] || 0;
+  const unreadBadge = (key) => {
+    const n = (unread && unread[key]) || 0;
     if (!n) return null;
     return <span style={{ flexShrink: 0, padding: '3px 8px', borderRadius: 999, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{n === 1 ? '1 new' : `${n} new`}</span>;
   };
@@ -5398,13 +5384,13 @@ function BSClientFeed({ onProfile, role: roleProp }) {
           ];
           // A chat list row (avatar + name + subtitle), tap to open the thread.
           const Row = (f, i) => (
-            <button key={i} onClick={() => { clearUnread(f.conversation_id); setOpenChat(f); }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, border: `1px solid ${hair}`, background: card, color: cardInk, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
+            <button key={i} onClick={() => { window.ShapeUnread?.markConversationRead?.(f.conversation_id); setOpenChat(f); }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, border: `1px solid ${hair}`, background: card, color: cardInk, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
               <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: f.c, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 15 }}>{f.i}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15 }}>{f.n}</div>
                 <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, marginTop: 3 }}>{f.s}</div>
               </div>
-              {unreadBadge(f.conversation_id)}
+              {unreadBadge('dm:' + f.conversation_id)}
               <span style={{ color: muted, fontSize: 16 }}>›</span>
             </button>
           );
@@ -5442,7 +5428,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
                   <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15 }}># {ch.name}{ch.pinned && <span title="Pinned" style={{ marginLeft: 6 }}>📌</span>}{ch.private && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: muted, marginLeft: 8 }}>🔒 PRIVATE</span>}{ch.isHost && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: TEALB, marginLeft: 8 }}>HOST</span>}</div>
                   <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, marginTop: 3 }}>{ch.memberCount} member{ch.memberCount === 1 ? '' : 's'}{ch.last ? ` · ${ch.last.slice(0, 26)}` : ''}</div>
                 </button>
-                {unreadBadge(ch.id)}
+                {unreadBadge('ch:' + ch.id)}
                 {ch.joined && <button onClick={() => pinChannelNow(ch)} aria-label={ch.pinned ? 'Unpin' : 'Pin'} title={ch.pinned ? 'Unpin' : 'Pin to top'} style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 999, border: `1px solid ${ch.pinned ? TEALB : hair}`, background: ch.pinned ? `${TEALB}1f` : 'transparent', cursor: 'pointer', padding: 0, fontSize: 13, opacity: ch.pinned ? 1 : 0.55 }}>📌</button>}
                 {ch.isHost && <button onClick={() => { setAddMemberFor(ch); setMemberQuery(''); setMemberResults([]); }} style={{ flexShrink: 0, padding: '7px 11px', borderRadius: 999, background: 'transparent', color: cardInk, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Add</button>}
                 {!ch.joined && <button onClick={() => joinChannelNow(ch)} style={{ flexShrink: 0, padding: '7px 13px', borderRadius: 999, background: TEAL, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Join</button>}
@@ -5745,11 +5731,13 @@ function BSChatThread({ thread, eyebrow, onBack }) {
       unsub = window.ShapeChannels.subscribeMessages((row) => {
         if (!row || row.channel_id !== thread.channelId || row.sender_id === myId) return;
         setExtras(e => [...e, { who: row.author_name || 'Member', t: row.body, time: 'now', me: false }]);
+        window.ShapeUnread?.markChannelRead?.(thread.channelId);  // it's open → keep it read
       });
     } else if (thread.conversationId && window.ShapeMessages?.subscribeMessages) {
       unsub = window.ShapeMessages.subscribeMessages((row) => {
         if (!row || row.conversation_id !== thread.conversationId || row.sender_id === myId) return;
         setExtras(e => [...e, { who: thread.who || 'Member', t: row.body, time: 'now', me: false }]);
+        window.ShapeUnread?.markConversationRead?.(thread.conversationId);
       });
     }
     return () => { try { unsub && unsub(); } catch (e) {} };
