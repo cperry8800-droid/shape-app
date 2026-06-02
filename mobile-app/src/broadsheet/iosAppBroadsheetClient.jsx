@@ -5544,6 +5544,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
           const selectors = [
             { key: 'channels', label: 'Channels', color: TEALB },
             { key: 'coaches', label: 'Coaches', color: '#c0533b' },
+            { key: 'support', label: 'Support', color: '#2e6fa0' },
           ];
           const active = selectors.find(s => s.key === teamsSel) || selectors[0];
           const _chPalette = ['#147b68', '#c0533b', '#a07a2e', '#2e6fa0', '#8a5cf6'];
@@ -5567,11 +5568,11 @@ function BSClientFeed({ onProfile, role: roleProp }) {
           };
           return (
             <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                 {selectors.map(sec => {
                   const on = active.key === sec.key;
                   return (
-                    <button key={sec.key} onClick={() => setTeamsSel(sec.key)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '9px 14px', borderRadius: 999, border: `1px solid ${on ? sec.color : hair}`, background: on ? `${sec.color}1f` : 'transparent', color: cardInk, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    <button key={sec.key} onClick={() => setTeamsSel(sec.key)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 8px', borderRadius: 999, border: `1px solid ${on ? sec.color : hair}`, background: on ? `${sec.color}1f` : 'transparent', color: cardInk, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                       <span style={{ width: 6, height: 6, borderRadius: 3, background: sec.color }} />{sec.label}
                     </button>
                   );
@@ -5610,11 +5611,15 @@ function BSClientFeed({ onProfile, role: roleProp }) {
                   {channels && chList.length === 0 && newChannel === null && (
                     <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, padding: '4px 2px' }}>No channels yet — start one.</div>
                   )}
-                  <div style={{ borderTop: `1px solid ${hair}`, paddingTop: 8 }}>{Row(support, 'support')}</div>
+                </div>
+              ) : active.key === 'coaches' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {coaches.map(Row)}
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {coaches.map(Row)}
+                  {Row(support, 'support')}
+                  <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: muted, padding: '2px 2px', lineHeight: 1.5 }}>A private thread with the Shape team — questions, bug reports, billing, anything.</div>
                 </div>
               )}
             </div>
