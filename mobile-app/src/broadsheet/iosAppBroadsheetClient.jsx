@@ -5094,7 +5094,6 @@ function BSClientFeed({ onProfile, role: roleProp }) {
     setPosts(prev => prev.map(x => x.id === p.id ? { ...x, hearts: (x.hearts || 0) + 1 } : x));
     if (p.id && !String(p.id).startsWith('tmp') && !String(p.id).startsWith('s')) window.ShapeCommunity?.toggleLike?.({ postId: p.id }).catch(() => {});
   };
-  const react = () => { window.__bsToast && window.__bsToast('Saved', 'ok'); };
 
   // Like + comment on community activity cards (local, demo-side: these Strava-
   // style cards aren't backed by post ids). Keyed by author + timestamp.
@@ -5200,10 +5199,9 @@ function BSClientFeed({ onProfile, role: roleProp }) {
           const cmtOpen = actCmtOpen === key;
           return (
             <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 12, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.08em', color: muted }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 22, marginTop: 12, fontFamily: t.MONO, fontSize: 15, letterSpacing: '0.02em', color: muted }}>
                 <button onClick={() => toggleActLike(key)} style={{ background: 'transparent', border: 0, color: liked ? '#ff5a5f' : muted, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: liked ? 800 : 400, cursor: 'pointer', padding: 0 }}>{liked ? '♥' : '♡'} {(a.kudos || 0) + (liked ? 1 : 0)}</button>
                 <button onClick={() => openActComments(key, cmtOpen)} style={{ background: 'transparent', border: 0, color: cmtOpen ? TEALB : muted, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: cmtOpen ? 800 : 400, cursor: 'pointer', padding: 0 }}>↳ {(a.replies || 0) + comments.length}</button>
-                <button onClick={() => react('save posts')} style={{ background: 'transparent', border: 0, color: TEALB, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: 800, cursor: 'pointer', padding: 0 }}>SAVE</button>
               </div>
               {cmtOpen && (
                 <div style={{ marginTop: 12, borderTop: `1px solid ${hair}`, paddingTop: 12 }}>
@@ -5357,10 +5355,9 @@ function BSClientFeed({ onProfile, role: roleProp }) {
                   <div style={{ width: 26, height: 26, flexShrink: 0, borderRadius: 999, background: p.hue, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 12 }}>{p.init}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ borderRadius: 13, padding: '11px 13px', background: p.official ? '#f3eee4' : card, color: p.official ? '#1a1713' : cardInk, border: p.official ? 'none' : `1px solid ${hair}`, fontFamily: p.official ? (t.SERIF || `'Newsreader', Georgia, serif`) : t.DISPLAY, fontStyle: p.official ? 'italic' : 'normal', fontSize: p.official ? 15 : 14, lineHeight: 1.38 }}>{p.body}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 6, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: muted }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 22, marginTop: 8, fontFamily: t.MONO, fontSize: 15, letterSpacing: '0.02em', color: muted }}>
                       <button onClick={() => like(p)} style={{ background: 'transparent', border: 0, color: muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>♥ {p.hearts}</button>
                       <button onClick={() => openActComments(p.id, actCmtOpen === p.id)} style={{ background: 'transparent', border: 0, color: actCmtOpen === p.id ? TEALB : muted, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: actCmtOpen === p.id ? 800 : 400, cursor: 'pointer', padding: 0 }}>↳ {(p.replies || 0) + (actComments[p.id] || []).length}</button>
-                      <button onClick={() => react('save posts')} style={{ background: 'transparent', border: 0, color: TEALB, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: 800, cursor: 'pointer', padding: 0 }}>SAVE</button>
                     </div>
                     {actCmtOpen === p.id && (
                       <div style={{ marginTop: 10, borderTop: `1px solid ${hair}`, paddingTop: 10 }}>
