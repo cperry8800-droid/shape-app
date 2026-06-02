@@ -831,7 +831,7 @@ function BSHalftone({ height = 180, accent, pattern = 'dots' }) {
 
 // Tab bar — Broadsheet style: thick top rule, mono labels, accent active
 // Line-art tab icons — monochrome, inherit color via currentColor.
-const BS_TAB_ICON_KEYS = new Set(['home', 'train', 'eat', 'chat', 'store', 'me']);
+const BS_TAB_ICON_KEYS = new Set(['home', 'train', 'eat', 'chat', 'store', 'me', 'today', 'clients', 'programs', 'plans']);
 function BSTabIcon({ name, size = 22 }) {
   const p = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true };
   switch (name) {
@@ -841,6 +841,10 @@ function BSTabIcon({ name, size = 22 }) {
     case 'chat': return <svg {...p}><path d="M4.5 5.5h15v10h-10l-4 3.5v-3.5h-1z" /></svg>;
     case 'store': return <svg {...p}><path d="M5.5 8h13l-1 11.5h-11z" /><path d="M9 8V6.5a3 3 0 0 1 6 0V8" /></svg>;
     case 'me': return <svg {...p}><circle cx="12" cy="8.2" r="3.3" /><path d="M5.6 20c0-3.5 3-5.5 6.4-5.5S18.4 16.5 18.4 20" /></svg>;
+    case 'today': return <svg {...p}><path d="M4.5 6.5h15v13h-15z" /><path d="M4.5 10.5h15" /><path d="M8.5 4v4M15.5 4v4" /><circle cx="12" cy="15" r="1.4" fill="currentColor" stroke="none" /></svg>;
+    case 'clients': return <svg {...p}><circle cx="9" cy="8.4" r="2.8" /><path d="M3.6 19c0-3 2.4-4.7 5.4-4.7s5.4 1.7 5.4 4.7" /><path d="M16 6.1a2.8 2.8 0 0 1 0 5.4" /><path d="M17.2 14.5c2.2.5 3.5 2 3.5 4.4" /></svg>;
+    case 'programs':
+    case 'plans': return <svg {...p}><path d="M6.5 5.5h11v14h-11z" /><path d="M9.2 5.5V4.2h5.6v1.3" /><path d="M9 10h6M9 13.5h6M9 17h4" /></svg>;
     default: return null;
   }
 }
