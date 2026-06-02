@@ -7320,7 +7320,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
       <div style={{ padding: `0 ${t.padX}px` }}>
         {[
           { l: 'Marketplace', s: 'Find coaches, plans, programs', onClick: () => goMarket() },
-          { l: 'Rewards', s: `${scoreProfile.available.toLocaleString()} pts · tap to redeem`, onClick: () => setShowStore(true) },
+          { l: 'Shape Store', s: `${scoreProfile.available.toLocaleString()} pts · tap to redeem`, onClick: () => setShowStore(true) },
           { l: 'Progress & PRs', s: 'Weight, recovery, strength trends', onClick: () => setShowProgress(true) },
           { l: 'Notifications', s: 'Requests, confirmations & updates', onClick: () => setShowNotifications(true) },
           { l: 'Connected apps', s: 'Apple Health · Strava · WHOOP', onClick: onIntegrations },
