@@ -370,7 +370,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     store:   storeView === 'score'
       ? <BSShapeScorePage profile={scoreProfile} onBack={() => setStoreView('store')} onOpenStore={() => setStoreView('store')} />
       : <BSShapeStorePage profile={scoreProfile} onBack={() => setTab('home')} onOpenScore={() => setStoreView('score')} />,
-    me:      <BSClientMe       onProfile={goSettings} onLogout={onLogout} onIntegrations={goIntegrations} sheet={sheet} />,
+    me:      <BSClientMe       onProfile={goSettings} onLogout={onLogout} onIntegrations={goIntegrations} goMarket={goMarket} sheet={sheet} />,
   };
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
@@ -6914,7 +6914,7 @@ function BSLeaderboard({ onBack }) {
   );
 }
 
-function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
+function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket = () => {} }) {
   const t = useBS();
   const [showScore, setShowScore] = useStateBSC(false);
   const [showStore, setShowStore] = useStateBSC(false);
@@ -7241,124 +7241,101 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {} }) {
   return (
     <BSPage>
       <BSPageHeader
-        kicker="Member · 14 week streak"
-        title={<>{firstName}<br/>{lastName}.</>}
+        title={<>{firstName}<br/><span style={{ fontStyle: 'italic', color: t.ACCENT }}>{lastName}.</span></>}
         trailing={<BSAvatar init="A" size={32} fill={t.RUST} onClick={onProfile} />}
       />
 
-      {/* BIO — compact, directly under the header */}
-      <div style={{ padding: `10px ${t.padX}px 12px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-          <BSEyebrow color={t.AMBER}>Bio</BSEyebrow>
-          <button onClick={() => openEdit('profile', 'bio', 'Bio', { type: 'textarea', placeholder: 'Tell your team about you…' })} style={{ border: 0, background: 'transparent', cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Edit →</button>
-        </div>
-        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 500, color: t.INK70, lineHeight: 1.4 }}>
-          {profileData.bio || 'Product designer by day, lifter by evening. Working with Jordan on strength and hypertrophy, and Maya on protein targets that do not feel like homework. Goals this year: a real 1.5x bodyweight squat, a credible 5K, and better fueling for long rides.'}
-        </div>
-      </div>
-
-      {/* SHAPE SCORE + leaderboard — one combined box */}
-      <div style={{ borderBottom: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
-      <button onClick={() => setShowScore(true)} style={{ borderRadius: 0,
-        width: '100%', textAlign: 'left', padding: `16px ${t.padX}px 16px`,
-        border: 0, background: 'transparent',
-        color: t.INK, cursor: 'pointer',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-          <BSEyebrow color={t.ACCENT}>Shape Score</BSEyebrow>
-          <BSEyebrow>{scoreProfile.week} this wk · details →</BSEyebrow>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, marginTop: 4 }}>
-          <span style={{ fontFamily: t.DISPLAY, fontSize: 62, fontWeight: 700, color: t.INK, letterSpacing: '-0.05em', lineHeight: 0.95 }}>{scoreProfile.total.toLocaleString()}</span>
-          <span style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 500, color: t.INK50, letterSpacing: '-0.04em', marginBottom: 8 }}>/{scoreProfile.goal.toLocaleString()}</span>
-        </div>
-
-        {/* Breakdown bars — tighter */}
-        <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 5 }}>
-          {[
-            { k: 'WEEK',        v: scoreProfile.weekRatio, n: scoreProfile.week, c: t.AMBER },
-            { k: 'STREAK',      v: scoreProfile.streakRatio, n: `${scoreProfile.streak}D`, c: t.GREEN },
-            { k: 'TIER',        v: scoreProfile.tierRatio, n: scoreProfile.tierShort, c: t.ACCENT },
-            { k: 'SPEND',       v: scoreProfile.spendRatio, n: scoreProfile.available.toLocaleString(), c: t.BLUE },
-          ].map(r => (
-            <div key={r.k} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 86, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', color: t.INK70, fontWeight: 600 }}>{r.k}</div>
-              <div style={{ flex: 1, height: 4, background: t.HAIR, position: 'relative' }}>
-                <div style={{ width: `${r.v * 100}%`, height: '100%', background: r.c }} />
+      {/* SHAPE SCORE — tappable card: ring + category bars */}
+      {(() => {
+        const cats = [
+          { k: 'Train', v: 88 },
+          { k: 'Nutrition', v: 74 },
+          { k: 'Recovery', v: 62 },
+          { k: 'Consistency', v: 92 },
+        ];
+        const overall = Math.round(cats.reduce((a, c) => a + c.v, 0) / cats.length);
+        const RAD = 34, CIRC = 2 * Math.PI * RAD;
+        return (
+          <div style={{ padding: `16px ${t.padX}px 6px` }}>
+            <button onClick={() => setShowScore(true)} style={{
+              width: '100%', textAlign: 'left', cursor: 'pointer', color: t.INK,
+              border: `1px solid ${t.RULE}`, borderRadius: 18, background: t.PAPER2, padding: 18,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14 }}>
+                <div style={{ minWidth: 0 }}>
+                  <BSEyebrow color={t.AMBER}>Shape Score</BSEyebrow>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, marginTop: 8 }}>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 56, fontWeight: 700, lineHeight: 0.9, letterSpacing: '-0.04em' }}>{overall}</span>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK50, marginBottom: 6 }}>/100</span>
+                  </div>
+                  <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>{scoreProfile.week} this week · top 18%</div>
+                </div>
+                <svg width="84" height="84" viewBox="0 0 84 84" style={{ flexShrink: 0 }}>
+                  <circle cx="42" cy="42" r={RAD} fill="none" stroke={t.HAIR} strokeWidth="6" />
+                  <circle cx="42" cy="42" r={RAD} fill="none" stroke={t.AMBER} strokeWidth="6" strokeLinecap="round" strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - overall / 100)} transform="rotate(-90 42 42)" />
+                  <text x="42" y="43" textAnchor="middle" dominantBaseline="central" style={{ fontFamily: t.DISPLAY, fontSize: '20px', fontWeight: 700, fill: t.INK }}>{overall}</text>
+                </svg>
               </div>
-              <div style={{ width: 34, textAlign: 'right', fontFamily: t.MONO, fontSize: 10, color: t.INK, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{r.n}</div>
-            </div>
-          ))}
-        </div>
-      </button>
-      <button onClick={() => setShowLeaderboard(true)} style={{
-        width: '100%', textAlign: 'left', padding: `11px ${t.padX}px`,
-        border: 0, borderTop: `1px solid ${t.HAIR}`, background: 'transparent',
-        color: t.INK, cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <BSEyebrow color={t.AMBER}>Leaderboard</BSEyebrow>
-          <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>Shape Score ranking</span>
-        </div>
-        <BSEyebrow>View →</BSEyebrow>
-      </button>
-      </div>
+              <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 9 }}>
+                {cats.map(c => (
+                  <div key={c.k} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 96, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70, fontWeight: 600 }}>{c.k}</div>
+                    <div style={{ flex: 1, height: 5, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}>
+                      <div style={{ width: `${c.v}%`, height: '100%', background: t.ACCENT, borderRadius: 999 }} />
+                    </div>
+                    <div style={{ width: 26, textAlign: 'right', fontFamily: t.MONO, fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{c.v}</div>
+                  </div>
+                ))}
+              </div>
+            </button>
+          </div>
+        );
+      })()}
 
-      {/* PROGRESS — live body + strength trends */}
-      <button onClick={() => setShowProgress(true)} style={{
-        width: '100%', textAlign: 'left', padding: `13px ${t.padX}px`,
-        border: 0, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER,
-        color: t.INK, cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-      }}>
-        <div>
-          <BSEyebrow color={t.GREEN}>Progress &amp; PRs</BSEyebrow>
-          <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>Weight, recovery, strength trends</div>
-        </div>
-        <BSEyebrow>View →</BSEyebrow>
-      </button>
-
-      {/* NOTIFICATIONS — activity feed */}
-      <button onClick={() => setShowNotifications(true)} style={{
-        width: '100%', textAlign: 'left', padding: `13px ${t.padX}px`,
-        border: 0, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER,
-        color: t.INK, cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-      }}>
-        <div>
-          <BSEyebrow color={t.AMBER}>Notifications</BSEyebrow>
-          <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>Requests, confirmations &amp; updates</div>
-        </div>
-        <BSEyebrow>View →</BSEyebrow>
-      </button>
-
-
-      <BSSection title="Your team" />
+      {/* YOUR TEAM / Coaches */}
+      <BSSection kicker="Your team" title="Coaches" />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
         {[
-          { init: 'J', c: t.AMBER, name: 'Jordan Chen',     role: 'Coach · Hypertrophy · SF',   d: 'MSG 3' },
-          { init: 'M', c: t.RUST,  name: 'Dr. Maya Patel',  role: 'Nutritionist · Consult Thu', d: '—' },
+          { name: 'Jordan Chen', role: 'Coach · Hypertrophy · SF', d: 'Msg 3' },
+          { name: 'Dr. Maya Patel', role: 'Nutritionist · Consult Thu', d: '—' },
         ].map((p, i, arr) => (
-          <div key={i} style={{
-            display: 'grid', gridTemplateColumns: '40px 1fr 60px', alignItems: 'center', gap: 12,
-            padding: `${t.rowY + 4}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-          }}>
-            <BSAvatar init={p.init} fill={p.c} size={36} />
-            <div>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{p.name}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{p.role}</div>
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '26px 1fr auto', alignItems: 'center', gap: 12, padding: `${t.rowY + 5}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>{p.name}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{p.role}</div>
             </div>
-            <BSEyebrow color={t.ACCENT}>{p.d}</BSEyebrow>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: p.d === '—' ? t.INK50 : t.ACCENT, fontWeight: 700 }}>{p.d}</span>
           </div>
         ))}
       </div>
 
-      <BSSection title="Profile" meta="Personal info" />
-      {renderRows(profileRows)}
+      {/* SHORTCUTS / Your stuff */}
+      <BSSection kicker="Shortcuts" title="Your stuff" />
+      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+        {[
+          { l: 'Marketplace', s: 'Find coaches, plans, programs', onClick: () => goMarket() },
+          { l: 'Rewards', s: `${scoreProfile.available.toLocaleString()} pts · tap to redeem`, onClick: () => setShowStore(true) },
+          { l: 'Progress & PRs', s: 'Weight, recovery, strength trends', onClick: () => setShowProgress(true) },
+          { l: 'Notifications', s: 'Requests, confirmations & updates', onClick: () => setShowNotifications(true) },
+          { l: 'Connected apps', s: 'Apple Health · Strava · WHOOP', onClick: onIntegrations },
+          { l: 'Subscription', s: 'Shape Member · manage in Stripe', onClick: openBillingPortal },
+        ].map((r, i, arr) => (
+          <button key={i} onClick={r.onClick} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, display: 'grid', gridTemplateColumns: '26px 1fr auto', alignItems: 'center', gap: 12, padding: `${t.rowY + 5}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, color: t.INK }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>{r.l}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{r.s}</div>
+            </div>
+            <span style={{ color: t.INK50, fontSize: 15 }}>→</span>
+          </button>
+        ))}
+      </div>
 
-      <BSSection title="Social & links" meta="Public profile" />
-      {renderRows(socialRows)}
+      {/* Sign out */}
+      <div style={{ padding: `22px ${t.padX}px 6px` }}>
+        <button onClick={onLogout} style={{ width: '100%', padding: '14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RUST}`, background: 'transparent', color: t.RUST, cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase' }}>Sign out ⏻</button>
+      </div>
 
       {/* Account, billing, integrations, privacy, legal, and danger-zone
           controls live only in the dedicated Settings screen (open it via the
