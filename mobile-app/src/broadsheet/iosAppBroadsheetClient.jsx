@@ -5039,9 +5039,9 @@ const BS_SAMPLE_COACH_DMS = {
   ],
 };
 const BS_SAMPLE_CHANNELS = [
-  { id: 'sample-shapehq', name: 'Shape HQ', description: '', memberCount: 2841, joined: true, isHost: false, private: false, pinned: false, last: 'Coach grocery lists → Instacart', messages: [
+  { id: 'sample-shapehq', name: 'Shape HQ', description: '', memberCount: 2841, joined: true, isHost: false, private: false, pinned: false, last: 'Shape HQ updates', messages: [
     { who: 'Shape', t: '👋 Welcome to Shape HQ — product news, drops, and events live here.', time: 'Mon', me: false },
-    { who: 'Shape', t: 'New: coach-built grocery lists hand off straight to Instacart.', time: 'Tue', me: false },
+    { who: 'Shape', t: 'New this week: save a coach playlist straight to your own Spotify.', time: 'Tue', me: false },
     { who: 'Shape', t: 'Shape Radio is live Thursdays at 7pm 🎧', time: 'Wed', me: false },
   ] },
   { id: 'sample-runclub', name: 'Sunday Run Club', description: '', memberCount: 184, joined: true, isHost: false, private: false, pinned: false, last: "6am long run — 47 RSVP'd", messages: [
