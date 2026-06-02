@@ -9217,18 +9217,18 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       )}
 
       {/* Identity card */}
-      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
+      <div style={{ padding: `11px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
         {!editing ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <BSAvatar init={identity.name.charAt(0)} size={56} fill={t.RUST} />
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 11 }}>
+            <BSAvatar init={identity.name.charAt(0)} size={42} fill={t.RUST} />
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{identity.name}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginTop: 4 }}>{identity.handle} · {identity.location}</div>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, marginTop: 6, lineHeight: 1.35, fontWeight: 500 }}>{identity.bio}</div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{identity.name}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>{identity.handle} · {identity.location}</div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 12, color: t.INK70, marginTop: 4, lineHeight: 1.3, fontWeight: 500 }}>{identity.bio}</div>
             </div>
-            <button onClick={startEdit} style={{ borderRadius: t.RADIUS_SM,
-              padding: '8px 12px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer',
-              fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700,
+            <button onClick={startEdit} style={{ borderRadius: t.RADIUS_SM, flexShrink: 0,
+              padding: '5px 10px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer',
+              fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700,
             }}>Edit</button>
           </div>
         ) : (
@@ -9312,7 +9312,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           <BSEyebrow color={t.ACCENT}>Appearance</BSEyebrow>
           <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>Theme, texture &amp; colors</div>
         </div>
-        <BSEyebrow>{`${({light:'Cream',dark:'Black',teal:'Teal',manila:'Manila',blueprint:'Blueprint',carbon:'Carbon',steel:'Steel',bone:'Bone',oxblood:'Oxblood'})[tweaks.paperMode] || 'Cream'} · ${tweaks.accentKey || 'blue'}  ${showAppearance ? '▾' : '▸'}`}</BSEyebrow>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{`${({light:'Cream',dark:'Black',teal:'Teal',manila:'Manila',blueprint:'Blueprint',carbon:'Carbon',steel:'Steel',bone:'Bone',oxblood:'Oxblood'})[tweaks.paperMode] || 'Cream'} · ${tweaks.accentKey || 'blue'}`}</span>
+          <span style={{ padding: '6px 12px', borderRadius: 999, border: `1px solid ${t.INK}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>{showAppearance ? 'Close ▾' : 'Edit ▸'}</span>
+        </span>
       </button>
       {showAppearance && (
       <div style={{ padding: `14px ${t.padX}px` }}>
