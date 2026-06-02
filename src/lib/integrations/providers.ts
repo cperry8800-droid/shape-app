@@ -8,7 +8,7 @@
 // not a web OAuth flow. The UI still surfaces it, but with a "requires
 // iOS app" state instead of a Connect button.
 
-export type ProviderId = 'spotify' | 'strava' | 'whoop' | 'garmin';
+export type ProviderId = 'spotify' | 'strava' | 'whoop' | 'garmin' | 'oura';
 
 export interface ProviderConfig {
   id: ProviderId;
@@ -76,6 +76,17 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
     clientIdEnv: 'GARMIN_CLIENT_ID',
     clientSecretEnv: 'GARMIN_CLIENT_SECRET',
     usesPkce: true,
+  },
+  oura: {
+    id: 'oura',
+    label: 'Oura',
+    description: 'Sync Oura Ring sleep, readiness, and heart-rate data with your coach.',
+    // Oura API v2 — standard OAuth 2.0 authorization-code grant.
+    authorizeUrl: 'https://cloud.ouraring.com/oauth/authorize',
+    tokenUrl: 'https://api.ouraring.com/oauth/token',
+    scope: 'personal daily heartrate workout session',
+    clientIdEnv: 'OURA_CLIENT_ID',
+    clientSecretEnv: 'OURA_CLIENT_SECRET',
   },
 };
 

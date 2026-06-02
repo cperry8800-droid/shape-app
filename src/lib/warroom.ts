@@ -346,6 +346,7 @@ function buildConfig(): ConfigGroup[] {
     mk([
       { key: 'STRAVA', label: 'Strava', present: present(env.STRAVA_CLIENT_ID) && present(env.STRAVA_CLIENT_SECRET) },
       { key: 'WHOOP', label: 'Whoop', present: present(env.WHOOP_CLIENT_ID) && present(env.WHOOP_CLIENT_SECRET) },
+      { key: 'OURA', label: 'Oura', present: present(env.OURA_CLIENT_ID) && present(env.OURA_CLIENT_SECRET) },
       { key: 'GARMIN', label: 'Garmin', present: present(env.GARMIN_CLIENT_ID) && present(env.GARMIN_CLIENT_SECRET) },
       { key: 'SPOTIFY', label: 'Spotify', present: present(env.SPOTIFY_CLIENT_ID) && present(env.SPOTIFY_CLIENT_SECRET) },
       { key: 'APPLE_MUSIC', label: 'Apple Music', present: present(env.APPLE_MUSIC_KEY_ID) && present(env.APPLE_MUSIC_TEAM_ID) && present(env.APPLE_MUSIC_PRIVATE_KEY) },
