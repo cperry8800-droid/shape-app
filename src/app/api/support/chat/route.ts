@@ -10,7 +10,6 @@
 // to a human on the Shape team when it can't resolve something.
 
 import { NextResponse } from 'next/server';
-import { currentUser } from '@/lib/request-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -87,10 +86,10 @@ export async function POST(request: Request) {
   const lastUser = [...messages].reverse().find((m) => m.role === 'user');
   if (!lastUser) return NextResponse.json({ error: 'No message provided.' }, { status: 400 });
 
-  const user = await currentUser(request);
-  if (user) {
-    const reply = await askOpenAI(messages).catch(() => null);
-    if (reply) return NextResponse.json({ reply, source: 'ai' });
-  }
+  // Support should help everyone (including not-yet-signed-in users), so we
+  // always try the assistant. Input is capped (length + history) in askOpenAI;
+  // if the model is unset or errors we fall back to the rule-based responder.
+  const reply = await askOpenAI(messages).catch(() => null);
+  if (reply) return NextResponse.json({ reply, source: 'ai' });
   return NextResponse.json({ reply: fallbackReply(String(lastUser.content || '')), source: 'fallback' });
 }
