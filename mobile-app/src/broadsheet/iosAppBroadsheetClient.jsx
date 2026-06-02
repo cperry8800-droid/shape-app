@@ -5526,7 +5526,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
       {/* Feed / Messages / Teams */}
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, border: `1px solid ${hair}`, borderRadius: 999, padding: 3 }}>
-          {[['feed', 'Feed', 0], ['teams', 'Team', chUnread], ['messages', 'Friends', dmUnread]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
+          {[['feed', 'Feed', 0], ['messages', 'Friends', dmUnread], ['teams', 'Team', chUnread]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
         </div>
       </div>
 
