@@ -5081,7 +5081,6 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   const shown = posts.filter(p => p.kind === filter);
 
   const post = async () => {
-    if (window.bsRequireAccount && !window.bsRequireAccount('post to the feed')) return;
     const body = draft.trim();
     if (!body) return;
     setDraft('');
@@ -5090,11 +5089,27 @@ function BSClientFeed({ onProfile, role: roleProp }) {
     catch (e) { window.__bsToast?.(e?.message || 'Could not post.', 'err'); }
   };
   const like = (p) => {
-    if (window.bsRequireAccount && !window.bsRequireAccount('react to posts')) return;
     setPosts(prev => prev.map(x => x.id === p.id ? { ...x, hearts: (x.hearts || 0) + 1 } : x));
     if (p.id && !String(p.id).startsWith('tmp') && !String(p.id).startsWith('s')) window.ShapeCommunity?.toggleLike?.({ postId: p.id }).catch(() => {});
   };
-  const react = (label) => { if (window.bsRequireAccount && !window.bsRequireAccount(label)) return; };
+  const react = () => { window.__bsToast && window.__bsToast('Saved', 'ok'); };
+
+  // Like + comment on community activity cards (local, demo-side: these Strava-
+  // style cards aren't backed by post ids). Keyed by author + timestamp.
+  const [actLikes, setActLikes] = useStateBSC({});
+  const [actComments, setActComments] = useStateBSC({});
+  const [actCmtOpen, setActCmtOpen] = useStateBSC(null);
+  const [actCmtDraft, setActCmtDraft] = useStateBSC('');
+  const toggleActLike = (key) => {
+    setActLikes(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+  const openActComments = (key, isOpen) => { setActCmtOpen(isOpen ? null : key); setActCmtDraft(''); };
+  const sendActComment = (key) => {
+    const body = (actCmtDraft || '').trim();
+    if (!body) return;
+    setActComments(prev => ({ ...prev, [key]: [...(prev[key] || []), { who: 'You', body }] }));
+    setActCmtDraft('');
+  };
 
   // Community = the live, Strava-style activity feed (mirrors the website's
   // "Today on Shape" community page): real workouts logged by members, with
@@ -5171,11 +5186,35 @@ function BSClientFeed({ onProfile, role: roleProp }) {
             ))}
           </div>
         )}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 12, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.08em', color: muted }}>
-          <button onClick={() => react('give kudos')} style={{ background: 'transparent', border: 0, color: muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>♥ {a.kudos}</button>
-          <button onClick={() => react('reply')} style={{ background: 'transparent', border: 0, color: muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>↳ {a.replies}</button>
-          <button onClick={() => react('save posts')} style={{ background: 'transparent', border: 0, color: TEALB, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: 800, cursor: 'pointer', padding: 0 }}>SAVE</button>
-        </div>
+        {(() => {
+          const key = `${a.who}|${a.ago}`;
+          const liked = !!actLikes[key];
+          const comments = actComments[key] || [];
+          const cmtOpen = actCmtOpen === key;
+          return (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 12, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.08em', color: muted }}>
+                <button onClick={() => toggleActLike(key)} style={{ background: 'transparent', border: 0, color: liked ? '#ff5a5f' : muted, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: liked ? 800 : 400, cursor: 'pointer', padding: 0 }}>{liked ? '♥' : '♡'} {(a.kudos || 0) + (liked ? 1 : 0)}</button>
+                <button onClick={() => openActComments(key, cmtOpen)} style={{ background: 'transparent', border: 0, color: cmtOpen ? TEALB : muted, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: cmtOpen ? 800 : 400, cursor: 'pointer', padding: 0 }}>↳ {(a.replies || 0) + comments.length}</button>
+                <button onClick={() => react('save posts')} style={{ background: 'transparent', border: 0, color: TEALB, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: 800, cursor: 'pointer', padding: 0 }}>SAVE</button>
+              </div>
+              {cmtOpen && (
+                <div style={{ marginTop: 12, borderTop: `1px solid ${hair}`, paddingTop: 12 }}>
+                  {comments.map((c, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                      <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: c.who === 'You' ? TEALB : muted, flexShrink: 0, marginTop: 2 }}>{c.who}</span>
+                      <span style={{ fontFamily: t.BODY, fontSize: 13, color: cardInk, lineHeight: 1.35 }}>{c.body}</span>
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', gap: 8, marginTop: comments.length ? 4 : 0 }}>
+                    <input value={actCmtDraft} onChange={(e) => setActCmtDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendActComment(key); }} placeholder="Add a comment..." style={{ flex: 1, minWidth: 0, background: t.PAPER2, color: cardInk, border: `1px solid ${hair}`, borderRadius: 999, padding: '8px 12px', fontFamily: t.BODY, fontSize: 13, outline: 'none' }} />
+                    <button onClick={() => sendActComment(key)} style={{ flexShrink: 0, padding: '8px 14px', borderRadius: 999, background: TEAL, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Post</button>
+                  </div>
+                </div>
+              )}
+            </>
+          );
+        })()}
       </div>
     );
   };
@@ -5522,7 +5561,6 @@ function BSChatThread({ thread, eyebrow, onBack }) {
 
   const send = () => {
     if (!text.trim()) return;
-    if (window.bsRequireAccount && !window.bsRequireAccount('message a coach')) return;
     setExtras(e => [...e, { who: 'You', t: text.trim(), time: 'now', me: true }]);
     setText('');
   };
