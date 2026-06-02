@@ -5279,6 +5279,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
         rightKicker="Live"
         showDotTexture={false}
         showDoubleRule={false}
+        thinRule
         trailing={<BSAvatar init="A" size={32} onClick={onProfile} />}
       />
 
