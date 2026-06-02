@@ -5097,12 +5097,13 @@ function BSClientFeed({ onProfile, role: roleProp }) {
     };
   };
   const [posts, setPosts] = useStateBSC(SAMPLE);
+  const [postsLive, setPostsLive] = useStateBSC(false);
   React.useEffect(() => {
     let active = true;
     (async () => {
       try {
         const res = await window.ShapeCommunity?.listPosts?.();
-        if (active && Array.isArray(res?.data) && res.data.length) setPosts(res.data.map(mapPost).filter(p => p.body));
+        if (active && Array.isArray(res?.data) && res.data.length) { setPosts(res.data.map(mapPost).filter(p => p.body)); setPostsLive(true); }
       } catch { /* keep sample */ }
     })();
     return () => { active = false; };
@@ -5146,6 +5147,42 @@ function BSClientFeed({ onProfile, role: roleProp }) {
       window.ShapeCommunity?.addComment?.({ postId: key, body }).catch(() => {});
     }
   };
+
+  // One feed-post card — used by the role channels AND the live COMMUNITY feed.
+  const renderPost = (p, i) => (
+    <div key={p.id || i}>
+      {p.pinned && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', color: TEALB, marginBottom: 6 }}>📌 Pinned</div>}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+        <span style={{ fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk }}>{p.who}</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: ROLE[p.kind].color, border: `1px solid ${ROLE[p.kind].color}66`, borderRadius: 4, padding: '1px 5px' }}>{ROLE[p.kind].label}</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, color: muted }}>{p.time}</span>
+      </div>
+      <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
+        <div style={{ width: 26, height: 26, flexShrink: 0, borderRadius: 999, background: p.hue, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 12 }}>{p.init}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ borderRadius: 13, padding: '11px 13px', background: p.official ? '#f3eee4' : card, color: p.official ? '#1a1713' : cardInk, border: p.official ? 'none' : `1px solid ${hair}`, fontFamily: p.official ? (t.SERIF || `'Newsreader', Georgia, serif`) : t.DISPLAY, fontStyle: p.official ? 'italic' : 'normal', fontSize: p.official ? 15 : 14, lineHeight: 1.38 }}>{p.body}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 22, marginTop: 8, fontFamily: t.MONO, fontSize: 15, letterSpacing: '0.02em', color: muted }}>
+            <button onClick={() => like(p)} style={{ background: 'transparent', border: 0, color: muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>♥ {p.hearts}</button>
+            <button onClick={() => openActComments(p.id, actCmtOpen === p.id)} style={{ background: 'transparent', border: 0, color: actCmtOpen === p.id ? TEALB : muted, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: actCmtOpen === p.id ? 800 : 400, cursor: 'pointer', padding: 0 }}>↳ {(p.replies || 0) + (actComments[p.id] || []).length}</button>
+          </div>
+          {actCmtOpen === p.id && (
+            <div style={{ marginTop: 10, borderTop: `1px solid ${hair}`, paddingTop: 10 }}>
+              {[...(p.comments || []), ...(actComments[p.id] || [])].map((c, ci) => (
+                <div key={ci} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: c.who === 'You' ? TEALB : muted, flexShrink: 0, marginTop: 2 }}>{c.who}</span>
+                  <span style={{ fontFamily: t.BODY, fontSize: 13, color: cardInk, lineHeight: 1.35 }}>{c.body}</span>
+                </div>
+              ))}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 58px', gap: 8, alignItems: 'center', marginTop: (actComments[p.id] || []).length ? 4 : 0 }}>
+                <input value={actCmtDraft} onChange={(e) => setActCmtDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendActComment(p.id); }} placeholder="Message…" style={{ minWidth: 0, height: 38, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 14px', fontFamily: t.BODY, fontSize: 14, color: t.INK, outline: 'none', letterSpacing: '-0.005em' }} />
+                <button onClick={() => sendActComment(p.id)} disabled={!actCmtDraft.trim()} style={{ height: 38, border: 0, borderRadius: 999, background: actCmtDraft.trim() ? t.ACCENT : t.SURFACE, color: actCmtDraft.trim() ? '#031f1c' : t.INK50, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, cursor: actCmtDraft.trim() ? 'pointer' : 'default', opacity: actCmtDraft.trim() ? 1 : 0.86 }}>Send</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 
   // Community = the live, Strava-style activity feed (mirrors the website's
   // "Today on Shape" community page): real workouts logged by members, with
@@ -5401,45 +5438,12 @@ function BSClientFeed({ onProfile, role: roleProp }) {
           </div>
 
           {filter === 'COMMUNITY' ? (
-            <div style={{ padding: `14px ${t.padX}px 84px`, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {COMMUNITY_ACTIVITIES.map((a, i) => <ActivityCard key={i} a={a} />)}
+            <div style={{ padding: `14px ${t.padX}px 84px`, display: 'flex', flexDirection: 'column', gap: postsLive ? 13 : 14 }}>
+              {postsLive ? posts.map(renderPost) : COMMUNITY_ACTIVITIES.map((a, i) => <ActivityCard key={i} a={a} />)}
             </div>
           ) : (
           <div style={{ padding: `10px ${t.padX}px 84px`, display: 'flex', flexDirection: 'column', gap: 13 }}>
-            {shown.map((p, i) => (
-              <div key={i}>
-                {p.pinned && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', color: TEALB, marginBottom: 6 }}>📌 Pinned</div>}
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
-                  <span style={{ fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk }}>{p.who}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: ROLE[p.kind].color, border: `1px solid ${ROLE[p.kind].color}66`, borderRadius: 4, padding: '1px 5px' }}>{ROLE[p.kind].label}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9, color: muted }}>{p.time}</span>
-                </div>
-                <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
-                  <div style={{ width: 26, height: 26, flexShrink: 0, borderRadius: 999, background: p.hue, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 12 }}>{p.init}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ borderRadius: 13, padding: '11px 13px', background: p.official ? '#f3eee4' : card, color: p.official ? '#1a1713' : cardInk, border: p.official ? 'none' : `1px solid ${hair}`, fontFamily: p.official ? (t.SERIF || `'Newsreader', Georgia, serif`) : t.DISPLAY, fontStyle: p.official ? 'italic' : 'normal', fontSize: p.official ? 15 : 14, lineHeight: 1.38 }}>{p.body}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 22, marginTop: 8, fontFamily: t.MONO, fontSize: 15, letterSpacing: '0.02em', color: muted }}>
-                      <button onClick={() => like(p)} style={{ background: 'transparent', border: 0, color: muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>♥ {p.hearts}</button>
-                      <button onClick={() => openActComments(p.id, actCmtOpen === p.id)} style={{ background: 'transparent', border: 0, color: actCmtOpen === p.id ? TEALB : muted, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: actCmtOpen === p.id ? 800 : 400, cursor: 'pointer', padding: 0 }}>↳ {(p.replies || 0) + (actComments[p.id] || []).length}</button>
-                    </div>
-                    {actCmtOpen === p.id && (
-                      <div style={{ marginTop: 10, borderTop: `1px solid ${hair}`, paddingTop: 10 }}>
-                        {[...(p.comments || []), ...(actComments[p.id] || [])].map((c, ci) => (
-                          <div key={ci} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: c.who === 'You' ? TEALB : muted, flexShrink: 0, marginTop: 2 }}>{c.who}</span>
-                            <span style={{ fontFamily: t.BODY, fontSize: 13, color: cardInk, lineHeight: 1.35 }}>{c.body}</span>
-                          </div>
-                        ))}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 58px', gap: 8, alignItems: 'center', marginTop: (actComments[p.id] || []).length ? 4 : 0 }}>
-                          <input value={actCmtDraft} onChange={(e) => setActCmtDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendActComment(p.id); }} placeholder="Message…" style={{ minWidth: 0, height: 38, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 14px', fontFamily: t.BODY, fontSize: 14, color: t.INK, outline: 'none', letterSpacing: '-0.005em' }} />
-                          <button onClick={() => sendActComment(p.id)} disabled={!actCmtDraft.trim()} style={{ height: 38, border: 0, borderRadius: 999, background: actCmtDraft.trim() ? t.ACCENT : t.SURFACE, color: actCmtDraft.trim() ? '#031f1c' : t.INK50, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, cursor: actCmtDraft.trim() ? 'pointer' : 'default', opacity: actCmtDraft.trim() ? 1 : 0.86 }}>Send</button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
+            {shown.map(renderPost)}
           </div>
           )}
         </>
