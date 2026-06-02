@@ -5159,6 +5159,9 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   // Feed chips depend on the signed-in role: everyone sees Shape + Community,
   // plus only their own role's chip (Client / Trainer / Nutri).
   const myRole = roleProp || (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().profile && window.ShapeAuth.getCachedState().profile.role) || 'client';
+  // Demo samples (posts, activities, friends, coaches, channels) show only when
+  // logged out; once signed in the whole chat page is live (real data or empty).
+  const loggedIn = !!(window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id);
   const myRoleChip = myRole === 'trainer' ? 'TRAINER' : myRole === 'nutritionist' ? 'NUTRI' : 'CLIENT';
   const CHIP_KEYS = ['SHAPE', myRoleChip, 'COMMUNITY'];
   const SAMPLE = [
@@ -5224,7 +5227,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   // Each chip is its own channel: SHAPE = individual members, TRAINER/NUTRI/
   // CLIENT = that role's peers only. (COMMUNITY swaps to the activity feed in
   // the render below, so `shown` isn't used for it.)
-  const shown = posts.filter(p => p.kind === filter);
+  const shown = ((loggedIn && !postsLive) ? [] : posts).filter(p => p.kind === filter);
 
   const post = async () => {
     const body = draft.trim();
@@ -5445,9 +5448,6 @@ function BSClientFeed({ onProfile, role: roleProp }) {
         (() => {
           const role = roleProp || (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().profile && window.ShapeAuth.getCachedState().profile.role) || 'client';
           const isCoach = role === 'trainer' || role === 'nutritionist';
-          // Samples are demo-only — once you're signed in, the lists go live
-          // (real threads/channels, or a real empty state).
-          const loggedIn = !!(window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id);
           const coaches = threadRows.length ? threadRows : (loggedIn ? [] : [
             { n: 'Maya Okafor', s: 'Trainer · Strength', c: '#c0533b', i: 'M', messages: BS_SAMPLE_COACH_DMS['Maya Okafor'] },
             { n: 'Rae Lindqvist', s: 'Nutritionist · Sports nutrition', c: '#a07a2e', i: 'R', messages: BS_SAMPLE_COACH_DMS['Rae Lindqvist'] },
@@ -5568,7 +5568,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
 
           {filter === 'COMMUNITY' ? (
             <div style={{ padding: `14px ${t.padX}px 84px`, display: 'flex', flexDirection: 'column', gap: postsLive ? 13 : 14 }}>
-              {postsLive ? posts.map(renderPost) : COMMUNITY_ACTIVITIES.map((a, i) => <ActivityCard key={i} a={a} />)}
+              {postsLive ? posts.map(renderPost) : (loggedIn ? null : COMMUNITY_ACTIVITIES.map((a, i) => <ActivityCard key={i} a={a} />))}
             </div>
           ) : (
           <div style={{ padding: `10px ${t.padX}px 84px`, display: 'flex', flexDirection: 'column', gap: 13 }}>
