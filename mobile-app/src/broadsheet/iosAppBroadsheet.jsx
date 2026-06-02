@@ -855,7 +855,10 @@ function BSTabBar({ tabs, active, onChange }) {
   // bar is always mounted, so this is where we start + watch it).
   const [chatUnread, setChatUnread] = React.useState(() => (window.ShapeUnread?.total?.() || 0));
   React.useEffect(() => {
-    if (window.ShapeUnread?.start) window.ShapeUnread.start();
+    // Signed in → live unread; logged out → demo seed so the badge still shows.
+    const loggedIn = !!(window.ShapeAuth?.getCachedState?.().user?.id);
+    if (loggedIn) window.ShapeUnread?.start?.();
+    else window.ShapeUnread?.seedDemo?.();
     const off = window.ShapeUnread?.onChange?.(() => setChatUnread(window.ShapeUnread?.total?.() || 0));
     setChatUnread(window.ShapeUnread?.total?.() || 0);
     return () => { try { off && off(); } catch (e) {} };
