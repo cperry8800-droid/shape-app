@@ -5072,7 +5072,14 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   const _supportKey = () => 'shape.support.' + ((window.ShapeAuth?.getCachedState?.() || {}).user?.id || 'anon');
   const SUPPORT_GREETING = { who: 'Nora', t: "Hi, I'm Nora — Shape's assistant. Ask me anything: connecting integrations, your plan, billing, or your account. I'll bring in the Shape team if I can't sort it out.", time: 'now', me: false, bot: true };
   const [supportMsgs, setSupportMsgs] = useStateBSC(() => {
-    try { const raw = window.localStorage?.getItem(_supportKey()); if (raw) { const arr = JSON.parse(raw); if (Array.isArray(arr) && arr.length) return arr; } } catch (e) {}
+    try {
+      const raw = window.localStorage?.getItem(_supportKey());
+      if (raw) {
+        const arr = JSON.parse(raw);
+        // Migrate older persisted threads: strip the retired robot emoji.
+        if (Array.isArray(arr) && arr.length) return arr.map(m => (m && typeof m.t === 'string') ? { ...m, t: m.t.replace(/\s*🤖\s*/g, ' ').replace(/\s{2,}/g, ' ').trim() } : m);
+      }
+    } catch (e) {}
     return [SUPPORT_GREETING];
   });
   const [supportDraft, setSupportDraft] = useStateBSC('');
@@ -5519,7 +5526,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
       {/* Feed / Messages / Teams */}
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, border: `1px solid ${hair}`, borderRadius: 999, padding: 3 }}>
-          {[['feed', 'Feed', 0], ['teams', 'Team', chUnread], ['messages', 'Friends', dmUnread]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
+          {[['feed', 'Feed', 0], ['messages', 'Friends', dmUnread], ['teams', 'Team', chUnread]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
         </div>
       </div>
 
