@@ -783,7 +783,7 @@ function BSHomeWorkoutPreview({ onBack, onMove = () => {}, onStart = () => {} })
   const headBtn = { background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK };
   const footBtn = { flex: 1, padding: '14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' };
   return (
-    <BSPage tabBarHeight={0}>
+    <BSPage>
       <div style={{ padding: `52px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <button onClick={onBack} style={headBtn}>← Back</button>
         <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: rust }}>Preview</span>
@@ -846,6 +846,213 @@ function BSHomeWorkoutPreview({ onBack, onMove = () => {}, onStart = () => {} })
   );
 }
 
+// Full meal-logging flow — opened from the home "Up next" meal card's
+// "Log now" button. One-tap "ate as planned", or adjust portion / ingredients,
+// photo, or voice; writes to the day total and shows a logged confirmation.
+function BSLogMealFlow({ onClose, onLogged = () => {} }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const [mode, setMode] = useStateBSC('adjust');
+  const [portion, setPortion] = useStateBSC(1);
+  const [note, setNote] = useStateBSC('');
+  const [logged, setLogged] = useStateBSC(false);
+  const [ings, setIngs] = useStateBSC([
+    { name: 'Grilled chicken breast', qty: '6 oz',  kcal: 280, p: 52, c: 0,  f: 8,  on: true },
+    { name: 'Jasmine rice',           qty: '1 cup', kcal: 205, p: 4,  c: 45, f: 0,  on: true },
+    { name: 'Charred broccoli',       qty: '1 cup', kcal: 55,  p: 4,  c: 11, f: 0,  on: true },
+    { name: 'Avocado',                qty: '½',     kcal: 120, p: 2,  c: 6,  f: 11, on: true },
+    { name: 'Tahini sauce',           qty: '2 tbsp',kcal: 90,  p: 3,  c: 3,  f: 8,  on: true },
+  ]);
+  const toggle = (i) => setIngs(arr => arr.map((x, j) => (j === i ? { ...x, on: !x.on } : x)));
+  const sum = (k) => ings.reduce((a, x) => a + (x.on ? x[k] : 0), 0);
+  const kcal = Math.round(sum('kcal') * portion);
+  const P = Math.round(sum('p') * portion);
+  const C = Math.round(sum('c') * portion);
+  const F = Math.round(sum('f') * portion);
+  const CAL_GOAL = 2100, P_GOAL = 165, DAY_BASE_CAL = 1568, DAY_BASE_P = 118;
+  const dayCal = DAY_BASE_CAL + kcal;
+  const dayP = DAY_BASE_P + P;
+  const doLog = () => { onLogged(); setLogged(true); };
+  const primaryBtn = { width: '100%', padding: '15px', borderRadius: t.RADIUS_SM, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' };
+
+  const DayTotals = ({ compact }) => (
+    <div style={{ marginTop: compact ? 0 : 14, paddingTop: compact ? 0 : 12, borderTop: compact ? 0 : `1px solid ${t.HAIR}` }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{compact ? 'Day so far' : 'After logging · day total'}</div>
+      <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        {[['Calories', dayCal, CAL_GOAL, teal], ['Protein', dayP, P_GOAL, t.RUST]].map(([l, v, goal, c]) => (
+          <div key={l}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}><span>{l}</span><span>/ {goal}</span></div>
+            <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: c }}>{v}</div>
+            <div style={{ marginTop: 6, height: 4, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ width: `${Math.min(100, (v / goal) * 100)}%`, height: '100%', background: c }} /></div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  if (logged) {
+    return (
+      <BSPage>
+        <div style={{ padding: `84px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+          <div style={{ width: 84, height: 84, borderRadius: 999, background: teal, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 44px ${teal}55`, color: '#04201d', fontSize: 34, fontWeight: 700 }}>✓</div>
+          <div style={{ marginTop: 22, fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em' }}>Logged<span style={{ color: teal }}>.</span></div>
+          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{kcal} kcal · {P}P · 12:40 PM</div>
+        </div>
+        <div style={{ padding: `26px ${t.padX}px 0` }}>
+          <div style={{ borderRadius: 16, border: `1px solid ${teal}40`, background: `linear-gradient(155deg, ${teal}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 16 }}>
+            <DayTotals compact />
+          </div>
+        </div>
+        <div style={{ padding: `22px ${t.padX}px 8px` }}>
+          <button onClick={onClose} style={primaryBtn}>Done →</button>
+        </div>
+        <div style={{ textAlign: 'center', paddingBottom: 28 }}>
+          <button onClick={() => setLogged(false)} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>Undo</button>
+        </div>
+      </BSPage>
+    );
+  }
+
+  return (
+    <BSPage>
+      <div style={{ padding: `52px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK }}>× Cancel</button>
+        <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Log meal</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.12em', color: t.INK50 }}>12:40 PM</span>
+      </div>
+
+      <div style={{ padding: `18px ${t.padX}px 4px` }}>
+        <BSEyebrow color={t.INK50}>Lunch · Planned</BSEyebrow>
+        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 32, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>Chicken bowl + rice<span style={{ color: teal }}>.</span></div>
+        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>620 planned · 48P · 72C · 14F</div>
+      </div>
+
+      {/* ONE TAP */}
+      <div style={{ padding: `14px ${t.padX}px 4px` }}>
+        <button onClick={doLog} style={{ width: '100%', textAlign: 'left', border: 0, borderRadius: 14, background: teal, color: '#04201d', padding: '15px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <span style={{ minWidth: 0 }}>
+            <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', opacity: 0.65 }}>One tap</span>
+            <span style={{ display: 'block', marginTop: 4, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em' }}>Ate it as planned</span>
+          </span>
+          <span style={{ fontSize: 20, fontWeight: 700 }}>✓</span>
+        </button>
+      </div>
+
+      {/* OR ADJUST divider */}
+      <div style={{ padding: `16px ${t.padX}px 10px`, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span style={{ flex: 1, height: 1, background: t.HAIR }} />
+        <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 }}>Or adjust</span>
+        <span style={{ flex: 1, height: 1, background: t.HAIR }} />
+      </div>
+
+      {/* MODE TABS */}
+      <div style={{ padding: `0 ${t.padX}px`, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+        {[['adjust', 'Adjust', '✎'], ['photo', 'Photo', '⊡'], ['search', 'Search', '⌕'], ['voice', 'Voice', '●']].map(([k, label, glyph]) => {
+          const on = mode === k;
+          return (
+            <button key={k} onClick={() => setMode(k)} style={{ padding: '12px 6px', borderRadius: 12, border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}14` : 'transparent', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 14, color: on ? teal : t.INK50 }}>{glyph}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: on ? t.INK : t.INK50 }}>{label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* MODE CONTENT */}
+      {mode === 'adjust' && (
+        <div style={{ padding: `18px ${t.padX}px 4px` }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>Portion</span>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: teal }}>{portion.toFixed(2)} <span style={{ fontSize: 13, color: t.INK50 }}>×</span></span>
+          </div>
+          <input type="range" min={0.25} max={2} step={0.25} value={portion} onChange={(e) => setPortion(parseFloat(e.target.value))} style={{ width: '100%', marginTop: 10, accentColor: teal, cursor: 'pointer' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', color: t.INK50, marginTop: 2 }}>
+            <span>¼</span><span>½</span><span>1×</span><span>1½</span><span>2×</span>
+          </div>
+
+          <div style={{ marginTop: 18, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Ingredients · tap to toggle</div>
+          <div style={{ marginTop: 4 }}>
+            {ings.map((x, i) => (
+              <div key={x.name} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 0', borderBottom: i === ings.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+                <button onClick={() => toggle(i)} style={{ width: 22, height: 22, flexShrink: 0, borderRadius: 6, border: `1px solid ${x.on ? teal : t.RULE}`, background: x.on ? teal : 'transparent', color: '#04201d', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800 }}>{x.on ? '✓' : ''}</button>
+                <div style={{ flex: 1, minWidth: 0, opacity: x.on ? 1 : 0.4 }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{x.name}</div>
+                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{x.qty} · {Math.round(x.kcal * portion)} kcal · {Math.round(x.p * portion)}P</div>
+                </div>
+                <button onClick={() => window.__bsToast?.('Edit ingredient', 'info')} style={{ flexShrink: 0, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.RUST }}>Edit</button>
+              </div>
+            ))}
+          </div>
+          <button onClick={() => window.__bsToast?.('Add ingredient', 'info')} style={{ marginTop: 12, width: '100%', padding: '12px', borderRadius: t.RADIUS_SM, border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>+ Add ingredient</button>
+        </div>
+      )}
+
+      {mode === 'photo' && (
+        <div style={{ padding: `18px ${t.padX}px 4px` }}>
+          <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '34px 16px', textAlign: 'center' }}>
+            <div style={{ fontSize: 30 }}>⊡</div>
+            <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Snap or upload</div>
+            <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Shape reads macros · Maya reviews</div>
+          </div>
+          <div style={{ marginTop: 12, display: 'flex', gap: 10 }}>
+            <button onClick={() => window.__bsToast?.('Camera coming soon', 'info')} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Take photo</button>
+            <button onClick={() => window.__bsToast?.('Upload coming soon', 'info')} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Upload</button>
+          </div>
+        </div>
+      )}
+
+      {mode === 'search' && (
+        <div style={{ padding: `18px ${t.padX}px 4px` }}>
+          <input placeholder="Search foods…" style={{ width: '100%', padding: '13px 14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, outline: 'none' }} />
+          <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.5 }}>Search the Shape food database or your saved meals, then add to this log.</div>
+        </div>
+      )}
+
+      {mode === 'voice' && (
+        <div style={{ padding: `18px ${t.padX}px 4px` }}>
+          <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '26px 16px', textAlign: 'center' }}>
+            <div style={{ width: 96, height: 96, margin: '0 auto', borderRadius: 999, background: `radial-gradient(circle, ${teal} 0%, ${teal} 32%, ${teal}22 33%, transparent 70%)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ width: 14, height: 14, borderRadius: 999, background: '#04201d', display: 'block' }} />
+            </div>
+            <div style={{ marginTop: 16, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15, fontWeight: 600, color: t.INK70 }}>&ldquo;I had two scoops of rice…&rdquo;</div>
+            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Tap to speak · 0:00</div>
+          </div>
+        </div>
+      )}
+
+      {/* THIS MEAL summary */}
+      <div style={{ padding: `18px ${t.padX}px 4px` }}>
+        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+            <BSEyebrow color={teal}>This meal</BSEyebrow>
+            <span><span style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK }}>{kcal}</span> <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, textTransform: 'uppercase', letterSpacing: '0.1em' }}>kcal</span></span>
+          </div>
+          <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+            {[['Pro', P, t.RUST], ['Carb', C, teal], ['Fat', F, t.AMBER]].map(([l, v, c]) => (
+              <div key={l}>
+                <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{l}</div>
+                <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, color: c }}>{v}<span style={{ fontSize: 11, color: t.INK50 }}>g</span></div>
+              </div>
+            ))}
+          </div>
+          <DayTotals />
+        </div>
+      </div>
+
+      {/* NOTE */}
+      <div style={{ padding: `16px ${t.padX}px 4px` }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8 }}>Note to Dr. Maya · optional</div>
+        <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Felt a bit hungry still · swapped rice for sweet potato…" style={{ width: '100%', padding: '12px 13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, outline: 'none', resize: 'vertical' }} />
+      </div>
+
+      <div style={{ padding: `16px ${t.padX}px 10px` }}>
+        <button onClick={doLog} style={primaryBtn}>Log meal · {kcal} kcal →</button>
+      </div>
+      <BSFooter right="Log meal" />
+    </BSPage>
+  );
+}
+
 function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket, goScore, goIntegrations, tweaks = {}, setTweak = () => {} }) {
   const t = useBS();
   // Real current week, computed live so the home reflects today (not demo dates).
@@ -872,6 +1079,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   const [nextMealLogged, setNextMealLogged] = useStateBSC(false);
   const [previewMeal, setPreviewMeal] = useStateBSC(null);
   const [showWorkoutPreview, setShowWorkoutPreview] = useStateBSC(false);
+  const [showLogMeal, setShowLogMeal] = useStateBSC(false);
   const [habitsPage, setHabitsPage] = useStateBSC(false);
   const [showLogActivity, setShowLogActivity] = useStateBSC(false);
   const [showMood, setShowMood] = useStateBSC(false);
@@ -1194,6 +1402,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   if (showWorkoutPreview) {
     return <BSHomeWorkoutPreview onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.(); }} />;
   }
+  if (showLogMeal) {
+    return <BSLogMealFlow onClose={() => setShowLogMeal(false)} onLogged={() => setNextMealLogged(true)} />;
+  }
   if (habitsPage) {
     return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => setHabitsPage(false)} onOpenScore={() => { setHabitsPage(false); goScore?.(); }} />;
   }
@@ -1473,7 +1684,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                 <Person init="M" name="Dr. Maya Patel" role="Nutritionist" fill={t.AMBER} />
                 {nextMealLogged
                   ? <button onClick={() => setNextMealLogged(false)} style={pillOutline}>✓ Logged</button>
-                  : <button onClick={() => setNextMealLogged(true)} style={pillFilled}>Log now →</button>}
+                  : <button onClick={() => setShowLogMeal(true)} style={pillFilled}>Log now →</button>}
               </div>
             </div>
           </>
