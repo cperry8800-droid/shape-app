@@ -4549,12 +4549,12 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
           <>
             <BSTrackHeader kicker="For the week" title="Grocery list" actionLabel="Open" onAction={() => setView('grocery')} />
             <div style={{ padding: `12px ${t.padX}px 0` }}>
-              <button onClick={() => setView('grocery')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 13, padding: 14, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
-                <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 11, background: '#a07a2e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>◎</div>
+              <button onClick={() => setView('grocery')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', minHeight: 60, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+                <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 11, background: '#a07a2e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>◎</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#a07a2e', fontWeight: 700, marginBottom: 4 }}>From {who} · this week</div>
-                  <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 16, color: t.INK }}>{title}</div>
-                  <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 4, letterSpacing: '0.06em' }}>{have} got · {left} left{cats ? ` · ${cats}` : ''}</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#a07a2e', fontWeight: 700, marginBottom: 2 }}>From {who} · this week</div>
+                  <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15, color: t.INK }}>{title}</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2, letterSpacing: '0.05em', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{have} got · {left} left{cats ? ` · ${cats}` : ''}</div>
                 </div>
                 <span style={{ color: t.INK50, fontSize: 16 }}>→</span>
               </button>
