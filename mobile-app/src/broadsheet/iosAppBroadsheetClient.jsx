@@ -9005,6 +9005,16 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       return next;
     });
   };
+  const setPref = (key, value, label) => {
+    setPrefs(p => {
+      if (p[key] === value) return p;
+      const next = { ...p, [key]: value };
+      try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
+      if (key === 'units') window.ShapeUnits?.set(value);
+      window.__bsToast?.(`${label} → ${value}`, 'ok');
+      return next;
+    });
+  };
 
   // Stripe Customer Portal — billing UI for card / cancel / invoices.
   const openBillingPortal = async () => {
@@ -9221,7 +9231,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       title: 'Preferences',
       meta: '',
       rows: [
-        { l: 'Units',           key: 'units' },
+        { l: 'Units',           key: 'units', segmented: PREF_OPTIONS.units, segLabels: ['Imperial', 'Metric'] },
         { l: 'Week starts',     key: 'weekStarts' },
         { l: 'Time zone',       key: 'timeZone' },
         { l: 'Language',        key: 'language' },
@@ -9231,7 +9241,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       title: 'Privacy & data',
       meta: '',
       rows: [
-        { l: 'Profile visibility', key: 'profileVisibility' },
+        { l: 'Profile visibility', key: 'profileVisibility', segmented: PREF_OPTIONS.profileVisibility },
         { l: 'Share workout data', key: 'shareWorkoutData' },
       ],
     },
@@ -9611,6 +9621,29 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           <SectionHead title={sec.title} meta={sec.meta} />
           <div style={{ padding: `0 ${t.padX}px` }}>
             {sec.rows.map((s, i, arr) => {
+              const rowBorder = i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`;
+              // Segmented toggle rows — pick a value directly instead of cycling.
+              if (s.segmented) {
+                return (
+                  <div key={i} style={{ padding: `${t.rowY + 4}px 0`, borderBottom: rowBorder }}>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em' }}>{s.l}</span>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                      {s.segmented.map((opt, j) => {
+                        const on = prefs[s.key] === opt;
+                        return (
+                          <button key={opt} onClick={() => setPref(s.key, opt, s.l)} style={{ borderRadius: t.RADIUS_SM,
+                            flex: 1, padding: '9px 8px', cursor: 'pointer',
+                            border: `1px solid ${on ? t.INK : t.RULE}`,
+                            background: on ? t.INK : 'transparent',
+                            color: on ? t.PAPER : t.INK,
+                            fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+                          }}>{(s.segLabels && s.segLabels[j]) || opt}</button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              }
               const value = s.key ? prefs[s.key] : s.r;
               const onTap = s.key
                 ? () => cyclePref(s.key, s.l)
@@ -9619,7 +9652,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 <div key={i} onClick={onTap} style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
                   padding: `${t.rowY + 4}px 0`,
-                  borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+                  borderBottom: rowBorder,
                   cursor: (s.alert || s.action || s.key) ? 'pointer' : 'default',
                 }}>
                   <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em', flexShrink: 0 }}>{s.l}</span>
