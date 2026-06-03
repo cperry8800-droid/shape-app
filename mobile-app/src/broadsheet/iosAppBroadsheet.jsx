@@ -954,18 +954,10 @@ function BSTabBar({ tabs, active, onChange }) {
 }
 
 // Footer masthead — closes a page like a paper footer
-function BSFooter({ left = 'Shape', right }) {
-  const t = useBS();
-  return (
-    <div style={{
-      padding: `6px ${t.padX}px 6px`, borderTop: `2px solid ${t.INK}`,
-      display: 'flex', justifyContent: 'space-between',
-      fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50,
-    }}>
-      <span>{left}</span>
-      <span>{right}</span>
-    </div>
-  );
+// The page footnote (e.g. "Shape · Pg 1 of 1") was removed from every page —
+// render nothing. Kept as a no-op so the many <BSFooter/> call sites still work.
+function BSFooter() {
+  return null;
 }
 
 // Phone bezel — light/dark sensitive

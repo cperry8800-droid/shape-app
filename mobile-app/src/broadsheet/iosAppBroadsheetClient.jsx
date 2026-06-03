@@ -984,6 +984,29 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
   };
   const toggleVoice = () => { if (voiceState === 'recording') stopVoice(); else if (voiceState === 'idle') startVoice(); };
 
+  // Edit / add an ingredient via a bottom sheet. editIng.index === null = new.
+  const [editIng, setEditIng] = useStateBSC(null);
+  const openEditIng = (i) => { const x = ings[i]; setEditIng({ index: i, name: x.name, qty: x.qty || '', kcal: x.kcal, p: x.p, c: x.c, f: x.f }); };
+  const openAddIng = () => setEditIng({ index: null, name: '', qty: '', kcal: '', p: '', c: '', f: '' });
+  const setEditIngField = (k, v) => setEditIng(e => (e ? { ...e, [k]: v } : e));
+  const saveEditIng = () => {
+    if (!editIng) return;
+    const name = String(editIng.name || '').trim();
+    if (!name) { window.__bsToast?.('Add a name', 'err'); return; }
+    const item = {
+      name, qty: String(editIng.qty || '').trim() || '1 serving',
+      kcal: Math.max(0, Math.round(Number(editIng.kcal) || 0)), p: Math.max(0, Math.round(Number(editIng.p) || 0)),
+      c: Math.max(0, Math.round(Number(editIng.c) || 0)), f: Math.max(0, Math.round(Number(editIng.f) || 0)),
+    };
+    if (editIng.index == null) { setIngs(arr => [...arr, { ...item, on: true }]); window.__bsToast?.(`Added ${name}`, 'ok'); }
+    else { const idx = editIng.index; setIngs(arr => arr.map((x, j) => (j === idx ? { ...x, ...item } : x))); window.__bsToast?.('Ingredient updated', 'ok'); }
+    setEditIng(null);
+  };
+  const deleteEditIng = () => {
+    if (editIng && editIng.index != null) { const idx = editIng.index; setIngs(arr => arr.filter((_, j) => j !== idx)); window.__bsToast?.('Removed', 'ok'); }
+    setEditIng(null);
+  };
+
   const sum = (k) => ings.reduce((a, x) => a + (x.on ? x[k] : 0), 0);
   const kcal = Math.round(sum('kcal') * portion);
   const P = Math.round(sum('p') * portion);
@@ -1101,11 +1124,11 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
                   <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{x.name}</div>
                   <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{x.qty} · {Math.round(x.kcal * portion)} kcal · {Math.round(x.p * portion)}P</div>
                 </div>
-                <button onClick={() => window.__bsToast?.('Edit ingredient', 'info')} style={{ flexShrink: 0, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.RUST }}>Edit</button>
+                <button onClick={() => openEditIng(i)} style={{ flexShrink: 0, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.RUST }}>Edit</button>
               </div>
             ))}
           </div>
-          <button onClick={() => window.__bsToast?.('Add ingredient', 'info')} style={{ marginTop: 12, width: '100%', padding: '12px', borderRadius: t.RADIUS_SM, border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>+ Add ingredient</button>
+          <button onClick={openAddIng} style={{ marginTop: 12, width: '100%', padding: '12px', borderRadius: t.RADIUS_SM, border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>+ Add ingredient</button>
         </div>
       )}
 
@@ -1226,6 +1249,33 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
         <button onClick={doLog} style={primaryBtn}>Log meal · {kcal} kcal →</button>
       </div>
       <BSFooter right="Log meal" />
+
+      {/* Ingredient editor / add sheet */}
+      {editIng && (() => {
+        const inputStyle = { width: '100%', boxSizing: 'border-box', padding: '12px 13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, outline: 'none' };
+        return (
+          <div onClick={() => setEditIng(null)} style={{ position: 'fixed', inset: 0, zIndex: 6000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)' }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, marginBottom: 12 }}>{editIng.index == null ? 'Add ingredient' : 'Edit ingredient'}</div>
+              <input autoFocus value={editIng.name} placeholder="Ingredient" onChange={(e) => setEditIngField('name', e.target.value)} style={inputStyle} />
+              <input value={editIng.qty} placeholder="Portion · e.g. 1 cup" onChange={(e) => setEditIngField('qty', e.target.value)} style={{ ...inputStyle, marginTop: 8 }} />
+              <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
+                {[['kcal', 'Kcal'], ['p', 'Protein'], ['c', 'Carbs'], ['f', 'Fat']].map(([k, l]) => (
+                  <label key={k} style={{ display: 'block' }}>
+                    <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 4 }}>{l}</span>
+                    <input value={editIng[k]} inputMode="numeric" placeholder="0" onChange={(e) => setEditIngField(k, e.target.value.replace(/[^0-9]/g, ''))} style={{ width: '100%', boxSizing: 'border-box', padding: '10px 6px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 13, fontWeight: 700, outline: 'none', textAlign: 'center' }} />
+                  </label>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                {editIng.index != null && <button onClick={deleteEditIng} style={{ padding: '13px 14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RUST}`, background: 'transparent', color: t.RUST, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Remove</button>}
+                <button onClick={() => setEditIng(null)} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Cancel</button>
+                <button onClick={saveEditIng} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Save</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </BSPage>
   );
 }
