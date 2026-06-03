@@ -9111,13 +9111,10 @@ function BSSession({ moves, onBack, title = 'Live session' }) {
       <div style={{ padding: `12px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 8 }}>The vibe</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-          {[['loved', '🤍', 'Loved it', t.GREEN], ['ok', '👌', 'It was OK', t.AMBER], ['nope', '🥵', 'Not for me', t.RUST]].map(([key, emoji, label, c]) => {
+          {[['loved', 'Loved it', t.GREEN], ['ok', 'It was OK', t.AMBER], ['nope', 'Not for me', t.RUST]].map(([key, label, c]) => {
             const on = reviewFeel === key;
             return (
-              <button key={key} onClick={() => setReviewFeel(on ? null : key)} style={{ borderRadius: 14, border: `1px solid ${on ? c : t.RULE}`, background: on ? `${c}1c` : t.PAPER2, cursor: 'pointer', padding: '13px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 22, lineHeight: 1 }}>{emoji}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: on ? c : t.INK70 }}>{label}</span>
-              </button>
+              <button key={key} onClick={() => setReviewFeel(on ? null : key)} style={{ borderRadius: 14, border: `1px solid ${on ? c : t.RULE}`, background: on ? `${c}1c` : t.PAPER2, cursor: 'pointer', padding: '14px 6px', textAlign: 'center', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: on ? c : t.INK70 }}>{label}</button>
             );
           })}
         </div>
