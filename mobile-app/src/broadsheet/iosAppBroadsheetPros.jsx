@@ -2116,13 +2116,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
 
   return (
     <BSPage>
-      <div style={{ padding: `14px ${t.padX}px 0` }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 11px', borderRadius: 999, border: `1px solid ${t.AMBER}66`, background: `${t.AMBER}14` }}>
-          <span style={{ width: 5, height: 5, borderRadius: 999, background: t.AMBER }} />
-          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.AMBER }}>{scoreProfile.tier} tier</span>
-        </span>
-      </div>
-      <BSPageHeader kicker={isCoach ? 'Coach · 4.9 ★' : 'Nutritionist · 4.9 ★'} title={<>{name.split(' ')[0]}<br/>{name.split(' ').slice(1).join(' ')}.</>} trailing={<BSAvatar init={init} size={32} fill={accent} ink={t.PAPER} onClick={onSettings} />} />
+      <BSPageHeader kicker={`${isCoach ? 'Coach' : 'Nutritionist'} · ${scoreProfile.tier} tier · 4.9 ★`} title={<>{name.split(' ')[0]}<br/>{name.split(' ').slice(1).join(' ')}.</>} trailing={<BSAvatar init={init} size={32} fill={accent} ink={t.PAPER} onClick={onSettings} />} />
 
       {(() => {
         const total = scoreProfile.total || 0;
