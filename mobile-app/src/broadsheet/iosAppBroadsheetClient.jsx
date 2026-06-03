@@ -7239,7 +7239,9 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
           <div style={{ padding: `16px ${t.padX}px 6px` }}>
             <button onClick={() => setShowScore(true)} style={{
               width: '100%', textAlign: 'left', cursor: 'pointer', color: t.INK,
-              border: `1px solid ${t.RULE}`, borderRadius: 18, background: t.PAPER2, padding: 18,
+              border: `1px solid ${t.AMBER}55`, borderRadius: 18,
+              background: `linear-gradient(150deg, ${t.AMBER}2e, ${t.AMBER}0a 48%, ${t.PAPER2} 88%), ${t.PAPER2}`,
+              padding: 18,
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14 }}>
                 <div style={{ minWidth: 0 }}>
