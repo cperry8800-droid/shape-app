@@ -2316,10 +2316,11 @@ function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, tracks }) {
     } catch (e) {
       const msg = (e && e.message) || 'Could not save to Spotify.';
       setSaveState('error'); setSaveMsg(msg);
-      const friendly = /sign ?in|connect spotify|authentic|log ?in|unauthor|reconnect|before saving|not connected/i.test(msg)
-        ? 'Connect Spotify in Settings to save playlists'
-        : msg;
-      try { window.__bsToast && window.__bsToast(friendly, 'error'); } catch (e2) {}
+      // For "not linked / not signed in" errors the popup already shows an
+      // inline "Connect Spotify to save" CTA — skip the toast so it isn't
+      // doubled up. Only surface a toast for other (e.g. network) failures.
+      const needsConnect = /sign ?in|connect spotify|authentic|log ?in|unauthor|reconnect|before saving|not connected/i.test(msg);
+      if (!needsConnect) { try { window.__bsToast && window.__bsToast(msg, 'error'); } catch (e2) {} }
     }
   };
   // Total track count parsed from the meta line ("… · 14 tracks") so the popup
