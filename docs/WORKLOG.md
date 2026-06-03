@@ -46,6 +46,12 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-03 — Shape Score header + tier-synced hero color
+- Shape Score page header changed to **Your standing / Shape _Score._** (current serif
+  font). The italic **"Score." now takes the current tier's color** (`bsTierColor`), and
+  the composite **hero box border** is tier-colored too — so the title, ring, gradient,
+  and border all sync with the member's tier.
+
 ### 2026-06-03 — Schedule in sync app-wide (calendar + home follow meal-time pref)
 - **Calendar** (`iosAppBroadsheetCalendar.jsx`, shared client + coach): all event
   times now render **12-hour** via `bsCalTimeLabel()`, matching the day-log. **MEAL
