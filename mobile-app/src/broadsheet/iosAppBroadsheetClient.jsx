@@ -9292,7 +9292,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {/* YOUR PLAN — subscription card */}
       {!editing && (
         <div style={{ padding: `4px ${t.padX}px 18px` }}>
-          <div style={{ border: `1px solid ${t.RULE}`, borderRadius: 18, background: t.PAPER2, padding: 18 }}>
+          <div style={{ border: `1px solid ${t.AMBER}55`, borderRadius: 18, background: `linear-gradient(150deg, ${t.AMBER}26, ${t.AMBER}08 45%, ${t.PAPER2} 85%), ${t.PAPER2}`, padding: 18 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
               <BSEyebrow color={t.AMBER}>Your plan</BSEyebrow>
               <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Renews Apr 30</span>
