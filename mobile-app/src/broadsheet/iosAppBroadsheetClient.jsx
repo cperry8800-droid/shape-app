@@ -2127,7 +2127,8 @@ function BSTrackHeader({ kicker, title, actionLabel, onAction }) {
 function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl }) {
   const t = useBS();
   const openSpotify = () => {
-    const url = spotifyUrl || `https://open.spotify.com/search/${encodeURIComponent(String(title || 'playlist'))}`;
+    const isSpotifyUrl = typeof spotifyUrl === 'string' && /(^|\.)spotify\.com\//i.test(spotifyUrl);
+    const url = isSpotifyUrl ? spotifyUrl : `https://open.spotify.com/search/${encodeURIComponent(String(title || 'playlist'))}`;
     try { window.open(url, '_blank', 'noopener,noreferrer'); } catch (e) { try { window.location.href = url; } catch (e2) {} }
   };
   return (
