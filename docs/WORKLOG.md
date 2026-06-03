@@ -46,6 +46,24 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-03 — mobile marketplace redesign (first pass)
+- Rebuilt `BSMarketplaceScreen` as an editorial discovery page matching the rest
+  of the app (replaced the old hard-bordered "wireframe" look). New layout:
+  - Serif hero **"Find your _coach._"** (teal italic accent).
+  - Rounded pill search bar.
+  - Filter tabs — **All · Trainers · Nutritionists** only (no specialty pills),
+    wrap (no horizontal scroll). All = discovery view; a role/search = results list.
+  - **Coach of the Week** card: italic pull-quote, circular avatar, arrow, and an
+    embedded **Tracklist** of that coach's real packages (`buildPublicProfile`).
+  - **Featured · This week** — 2-up grid of gradient coach cards (no scroller).
+  - **Programs · Start a thing** — numbered tracklist from coach packages.
+  - New helpers: `MktAvatar/MktPill/MktSectionHead/MktTrackRow/MktCoachCard/MktRow`.
+  - Kept working: live Supabase providers, search, role filter, tap→`BSCoachDetailPublic`,
+    coach-apply flow. `BSHeadshot` + the detail pages are untouched.
+  - Follow-ups: `BSM_MARKETPLACE_CATEGORIES/CERTIFICATIONS/FORMATS/LOCATIONS` and
+    `ListingRow` are now unused (dead) — sweep later; pricing shows `$rate/mo` (label
+    only — confirm semantics); detail pages still use the older style.
+
 ### 2026-06-03 — dead-code audit (behavior-preserving)
 - Removed 8 orphaned, never-referenced top-level components/helpers from
   `iosAppBroadsheetClient.jsx` (~639 lines): `BSHealthIntegrationsCard`,
@@ -75,16 +93,11 @@ changelog whenever something ships.
   War Room updated to reflect the above (routes, config, checklist).
 
 ### Next up (planned)
-- **Redesign the mobile marketplace page** — `iosAppBroadsheetMarketplace.jsx`
-  (~1.7k lines). Keep the working bones, restyle the layer:
-  - `BSMarketplaceScreen` (221) — role-filtered (trainer/nutritionist) list of
-    `ListingRow`s, search input, real Supabase providers via `mapSupabaseProvider`.
-  - `ListingRow` (678), `BSHeadshot` (731) — the coach cards.
-  - `BSCoachDetailPublic` (1105) / `BSCoachDetail` (1552) — coach profile/booking.
-  - `BSPublicPackageCard` (911), `BSPublicActionPanel` (947) — packages + book/message.
-  - Don't break: role filter, real provider data, booking/checkout, message-to-coach.
-  - Open questions for kickoff: what's wrong with the current look? any reference/vibe?
-    list-first vs. featured cards? same broadsheet aesthetic as the rest of the app?
+- **Marketplace redesign follow-ups** (main screen done — see changelog):
+  - Restyle the coach **detail pages** (`BSCoachDetailPublic` / `BSCoachDetail`) to
+    match the new discovery look — they still use the older hard-bordered style.
+  - Remove now-dead marketplace constants + `ListingRow` (unused after the rebuild).
+  - Confirm pricing semantics (cards show `$rate/mo`).
 
 ### Known stubs / next
 - Food-database free-text search in the logger (Search tab uses local recents today).
