@@ -7330,7 +7330,6 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
           { l: 'Progress & PRs', s: 'Weight, recovery, strength trends', onClick: () => setShowProgress(true) },
           { l: 'Notifications', s: 'Requests, confirmations & updates', onClick: () => setShowNotifications(true) },
           { l: 'Connected apps', s: 'Apple Health · Strava · WHOOP', onClick: onIntegrations },
-          { l: 'Subscription', s: 'Shape Member · manage in Stripe', onClick: openBillingPortal },
         ].map((r, i, arr) => (
           <button key={i} onClick={r.onClick} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, display: 'grid', gridTemplateColumns: '26px 1fr auto', alignItems: 'center', gap: 12, padding: `${t.rowY + 5}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, color: t.INK }}>
             <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</div>
@@ -7341,11 +7340,6 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
             <span style={{ color: t.INK50, fontSize: 15 }}>→</span>
           </button>
         ))}
-      </div>
-
-      {/* Sign out */}
-      <div style={{ padding: `22px ${t.padX}px 6px` }}>
-        <button onClick={onLogout} style={{ width: '100%', padding: '14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RUST}`, background: 'transparent', color: t.RUST, cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase' }}>Sign out ⏻</button>
       </div>
 
       {/* Account, billing, integrations, privacy, legal, and danger-zone
@@ -9234,7 +9228,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
               <BSAvatar init={identity.name.charAt(0)} size={72} fill={t.RUST} />
               <div style={{ minWidth: 0 }}>
                 <BSEyebrow color={t.RUST}>Member · 14 week streak</BSEyebrow>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', marginTop: 4, lineHeight: 1 }}>{identity.name.split(' ')[0]}{identity.name.split(' ').length > 1 && <> <span style={{ color: t.ACCENT }}>{identity.name.split(' ').slice(1).join(' ')}.</span></>}</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', marginTop: 4, lineHeight: 1 }}>{identity.name.split(' ')[0]}{identity.name.split(' ').length > 1 && <> {identity.name.split(' ').slice(1).join(' ')}.</>}</div>
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
