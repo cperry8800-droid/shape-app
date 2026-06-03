@@ -8880,7 +8880,7 @@ function BSSession({ moves, onBack }) {
           <BSEyebrow>Target: {move.l}</BSEyebrow>
         </div>
         <div style={{
-          display: 'grid', gridTemplateColumns: '40px 1fr 62px 62px 86px',
+          display: 'grid', gridTemplateColumns: '26px 1fr 44px 44px 74px',
           padding: '6px 0', borderTop: `2px solid ${t.INK}`, borderBottom: `1px solid ${t.RULE}`,
           fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50,
         }}>
@@ -8894,11 +8894,11 @@ function BSSession({ moves, onBack }) {
           const rowInput = setInputs[k] || { reps: String(move.reps || ''), load: String(move.l || '') };
           return (
             <div key={i} style={{
-              display: 'grid', gridTemplateColumns: '40px 1fr 62px 62px 86px', alignItems: 'center', padding: `${t.rowY + 2}px 0`,
+              display: 'grid', gridTemplateColumns: '26px 1fr 44px 44px 74px', alignItems: 'center', padding: `${t.rowY + 2}px 0`,
               borderBottom: `1px solid ${t.HAIR}`, opacity: done ? 0.82 : 1,
             }}>
               <span style={{ fontFamily: t.MONO, fontSize: 13, color: t.INK, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{String(i+1).padStart(2,'0')}</span>
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(46px, 0.55fr) minmax(70px, 1fr)', gap: 6, alignItems: 'center' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(38px, 0.5fr) minmax(60px, 1fr)', gap: 5, alignItems: 'center' }}>
                 <input
                   value={rowInput.reps}
                   onChange={(event) => updateSetInput(i, 'reps', event.target.value)}
@@ -8950,8 +8950,8 @@ function BSSession({ moves, onBack }) {
                   <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.GREEN, fontWeight: 700 }}>Done</span>
                 ) : (
                   <button onClick={() => logSet(i)} style={{ borderRadius: t.RADIUS_SM,
-                    padding: '7px 10px', border: `1px solid ${active ? t.ACCENT : t.INK}`, background: active ? t.ACCENT : t.INK, color: t.PAPER, cursor: 'pointer',
-                    fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700,
+                    width: '100%', padding: '7px 4px', border: `1px solid ${active ? t.ACCENT : t.INK}`, background: active ? t.ACCENT : t.INK, color: t.PAPER, cursor: 'pointer',
+                    fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700,
                   }}>{active ? 'Finish' : 'Start'}</button>
                 )}
               </div>
