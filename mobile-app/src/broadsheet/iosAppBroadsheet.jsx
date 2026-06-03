@@ -713,10 +713,12 @@ function BSSlab({ children, tinted, accent, padded = true }) {
   const t = useBS();
   return (
     <div style={{
-      padding: padded ? `14px ${t.padX}px 18px` : 0,
+      margin: `0 ${t.padX}px 10px`,
+      padding: padded ? '15px 16px 17px' : 0,
       background: accent ? accent : (tinted ? t.SURFACE_STRONG : t.SURFACE),
-      borderTop: `1px solid ${t.SURFACE_BORDER}`,
-      borderBottom: `1px solid ${t.SURFACE_BORDER}`,
+      border: `1px solid ${t.SURFACE_BORDER}`,
+      borderRadius: t.RADIUS_LG,
+      boxShadow: t.ELEVATION_SOFT,
       backdropFilter: 'blur(14px)',
       WebkitBackdropFilter: 'blur(14px)',
     }}>{children}</div>
