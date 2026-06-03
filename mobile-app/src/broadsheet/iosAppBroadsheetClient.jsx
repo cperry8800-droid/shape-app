@@ -3123,9 +3123,14 @@ function BSMealPreview({ meal, onBack, onLog }) {
   const [justLogged, setJustLogged] = useStateBSC(false);
   const mealLibItem = { id: 'meal:' + String(meal.id || String(meal.title || 'meal').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')), kind: 'meal', title: meal.title, meta: `${meal.kcal} kcal · ${meal.p}P · ${meal.c}C · ${meal.f}F` };
   const mealSaved = useBSLibrary().some(x => x.id === mealLibItem.id);
-  const fmt12 = (hhmm) => { const [h, m] = String(hhmm || '').split(':').map(Number); if (Number.isNaN(h)) return '12:40 PM'; const ap = h >= 12 ? 'PM' : 'AM'; return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${ap}`; };
+  const fmt12 = (hhmm) => { const [h, m] = String(hhmm || '').split(':').map(Number); if (Number.isNaN(h)) return ''; const ap = h >= 12 ? 'PM' : 'AM'; return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${ap}`; };
+  // The eyebrow timestamp follows the client's actual schedule: use the meal's
+  // own scheduled time, and only when it's missing fall back to the standard
+  // slot time for its meal tag (so it never shows a stray/wrong default).
+  const SLOT_TIMES = { BFAST: '08:00', BREAKFAST: '08:00', LUNCH: '12:30', SNACK: '16:00', DINR: '19:00', DINNER: '19:00' };
+  const schedTime = meal.time || SLOT_TIMES[String(meal.tag || '').toUpperCase()] || '';
   if (justLogged) {
-    return <BSMealLogged kcal={meal.kcal} p={meal.p} time={fmt12(meal.time)} onDone={onBack} onUndo={() => setJustLogged(false)} />;
+    return <BSMealLogged kcal={meal.kcal} p={meal.p} time={fmt12(schedTime)} onDone={onBack} onUndo={() => setJustLogged(false)} />;
   }
 
   // Macro % of total kcal — visual bar split
@@ -3152,9 +3157,9 @@ function BSMealPreview({ meal, onBack, onLog }) {
 
       {/* Title below the image — with the meal-slot timestamp as an eyebrow */}
       <div style={{ padding: `14px ${t.padX}px 0` }}>
-        {(meal.tag || meal.time) && (
+        {(meal.tag || schedTime) && (
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
-            {[meal.tag, meal.time ? fmt12(meal.time) : null].filter(Boolean).join(' · ')}
+            {[meal.tag, schedTime ? fmt12(schedTime) : null].filter(Boolean).join(' · ')}
           </div>
         )}
         <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.035em', lineHeight: 1 }}>{meal.title}</div>
