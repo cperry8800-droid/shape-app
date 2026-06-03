@@ -8807,7 +8807,7 @@ function BSSession({ moves, onBack, title = 'Live session' }) {
       acc[`${mIdx}-${setIdx}`] = {
         reps: String(m.reps || ''),
         load: String(m.l || ''),
-        rpe: '',
+        rpe: String(m.rpe || '8'),
       };
     });
     return acc;
@@ -8815,6 +8815,8 @@ function BSSession({ moves, onBack, title = 'Live session' }) {
   const [moveIdx, setMoveIdx] = useStateBSC(0);
   const [completed, setCompleted] = useStateBSC({}); // key `${moveIdx}-${setIdx}` → true
   const [restEnd, setRestEnd] = useStateBSC(null);   // timestamp ms
+  const [restTotal, setRestTotal] = useStateBSC(120); // seconds of the current rest
+  const [restAfterSet, setRestAfterSet] = useStateBSC(0); // which set number just finished
   const [now, setNow] = useStateBSC(Date.now());
   const [elapsedStart] = useStateBSC(Date.now());
   const [activeSetKey, setActiveSetKey] = useStateBSC(null);
@@ -8905,7 +8907,9 @@ function BSSession({ moves, onBack, title = 'Live session' }) {
     setActiveSetKey(null);
     setSetStartedAt(null);
     setLastSetEndedAt(endedAt);
-    setRestEnd(endedAt + 90 * 1000);
+    setRestTotal(120);
+    setRestAfterSet(setIdx + 1);
+    setRestEnd(endedAt + 120 * 1000);
     setLogStatus(`Captured ${move.m} set ${setIdx + 1}: ${actual.reps || '--'} reps at ${actual.load || '--'}, ${duration}s set${restBefore !== null ? `, ${restBefore}s rest before` : ''}.`);
   };
 
@@ -8954,6 +8958,27 @@ function BSSession({ moves, onBack, title = 'Live session' }) {
         <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{doneSets}/{totalSets}</span>
       </div>
 
+      {/* Rest timer — pinned at the very top while resting between sets */}
+      {restEnd && restLeft > 0 && (
+        <div style={{ margin: `12px ${t.padX}px 0`, padding: 16, borderRadius: 16, background: t.INK, color: t.PAPER }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: teal, fontWeight: 800 }}>Rest</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)', fontWeight: 700 }}>Set {restAfterSet} of {move.sets} · done</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 4 }}>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 48, fontWeight: 700, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{fmt(restLeft)}</span>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: 'rgba(255,255,255,0.55)' }}>of {fmt(restTotal)}</span>
+          </div>
+          <div style={{ marginTop: 12, height: 4, borderRadius: 999, background: 'rgba(255,255,255,0.18)', overflow: 'hidden' }}>
+            <div style={{ width: `${Math.round(Math.max(0, Math.min(1, (restTotal - restLeft) / restTotal)) * 100)}%`, height: '100%', background: teal, borderRadius: 999 }} />
+          </div>
+          <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+            <button onClick={() => { setRestEnd((e) => (e || Date.now()) + 30 * 1000); setRestTotal((r) => r + 30); }} style={{ flex: 1, padding: '11px', borderRadius: 999, background: 'transparent', color: t.PAPER, border: `1px solid rgba(255,255,255,0.4)`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800 }}>+30 sec</button>
+            <button onClick={() => setRestEnd(null)} style={{ flex: 1.4, padding: '11px', borderRadius: 999, background: teal, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800 }}>Skip rest →</button>
+          </div>
+        </div>
+      )}
+
       {/* Title + progress */}
       <div style={{ padding: `8px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 29, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>{title || 'Live session'}</div>
@@ -8963,19 +8988,6 @@ function BSSession({ moves, onBack, title = 'Live session' }) {
         </div>
       </div>
 
-      {/* Rest timer */}
-      {restEnd && restLeft > 0 && (
-        <div style={{ margin: `14px ${t.padX}px 0`, padding: 18, borderRadius: 16, background: t.INK, color: t.PAPER, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.AMBER, fontWeight: 700 }}>Rest</div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 56, fontWeight: 700, letterSpacing: '-0.04em', lineHeight: 1, marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>{fmt(restLeft)}</div>
-          </div>
-          <button onClick={() => setRestEnd(null)} style={{ borderRadius: t.RADIUS_SM,
-            padding: '10px 14px', background: 'transparent', color: t.PAPER, border: `1px solid ${t.PAPER}`, cursor: 'pointer',
-            fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
-          }}>Skip</button>
-        </div>
-      )}
 
       {/* Current exercise */}
       <div style={{ padding: `20px ${t.padX}px 0`, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
@@ -9006,7 +9018,7 @@ function BSSession({ moves, onBack, title = 'Live session' }) {
       {/* Set table */}
       <div style={{ padding: `18px ${t.padX}px 0` }}>
         <div style={{ display: 'grid', gridTemplateColumns: '26px 1fr 1fr 1fr 30px', gap: 8, padding: '0 0 8px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
-          <span>Set</span><span>Weight</span><span>Reps</span><span>RPE</span><span />
+          <span>Set</span><span>Weight</span><span>Reps</span><span>RPE</span><span style={{ textAlign: 'right' }}>Done</span>
         </div>
         {Array.from({ length: move.sets }).map((_, i) => {
           const k = `${moveIdx}-${i}`;
@@ -9024,7 +9036,7 @@ function BSSession({ moves, onBack, title = 'Live session' }) {
               {cell('load', 'lb')}
               {cell('reps', '—')}
               {cell('rpe', '—')}
-              <span style={{ justifySelf: 'end', width: 24, height: 24, borderRadius: 999, border: `1.5px solid ${(done || isActive) ? teal : t.RULE}`, background: done ? teal : 'transparent', color: done ? '#04201d' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800 }}>✓</span>
+              <button onClick={() => { if (!done) logSet(i); }} aria-label={done ? `Set ${i + 1} done` : `Mark set ${i + 1} done`} style={{ justifySelf: 'end', width: 26, height: 26, padding: 0, borderRadius: 999, border: `1.5px solid ${(done || isActive) ? teal : t.RULE}`, background: done ? teal : 'transparent', color: done ? '#04201d' : (isActive ? teal : 'transparent'), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, cursor: done ? 'default' : 'pointer' }}>✓</button>
             </div>
           );
         })}
