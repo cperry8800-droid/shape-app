@@ -8943,6 +8943,58 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showNotifications, setShowNotifications] = useStateBSC(false);
   const [showIntegrations, setShowIntegrations] = useStateBSC(initialPage === 'integrations');
   const [showAppearance, setShowAppearance] = useStateBSC(false);
+  const [showScore, setShowScore] = useStateBSC(false);
+  const [showStore, setShowStore] = useStateBSC(false);
+  const scoreProfile = SHAPE_SCORE_PROFILES.client;
+
+  // Live subscription for the "Your plan" card. null until loaded; { active:false }
+  // when there's no active subscription (free) — then we show the upgrade copy.
+  const [plan, setPlan] = useStateBSC(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/stripe/subscription', { credentials: 'same-origin', cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && d) setPlan(d); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  // Persisted user preferences for the Notifications / Preferences / Privacy
+  // rows. Tapping a row cycles to the next option and saves to user_goals so
+  // the choice sticks across sessions (same store the home ticker uses).
+  const PREF_OPTIONS = {
+    workoutReminders:  ['On · 30m before', 'On · 1h before', 'On · 2h before', 'Off'],
+    coachReplies:      ['Push + email', 'Push only', 'Email only', 'Off'],
+    weeklyDigest:      ['Sun 7am', 'Mon 7am', 'Fri 5pm', 'Off'],
+    community:         ['Off', 'Mentions only', 'All activity'],
+    units:             ['Imperial · lb / mi', 'Metric · kg / km'],
+    weekStarts:        ['Monday', 'Sunday'],
+    timeZone:          ['America/Los_Angeles', 'America/New_York', 'America/Chicago', 'America/Denver', 'Europe/London', 'UTC'],
+    language:          ['English (US)', 'English (UK)', 'Español', 'Français', 'Deutsch'],
+    profileVisibility: ['Coaches only', 'Public', 'Private'],
+    shareWorkoutData:  ['On', 'Off'],
+  };
+  const PREF_DEFAULTS = Object.fromEntries(Object.entries(PREF_OPTIONS).map(([k, v]) => [k, v[0]]));
+  const [prefs, setPrefs] = useStateBSC(PREF_DEFAULTS);
+  React.useEffect(() => {
+    if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
+    let alive = true;
+    window.shapeDb.getUserGoals('client_settings').then(s => {
+      if (alive && s && typeof s === 'object') setPrefs(p => ({ ...p, ...s }));
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  const cyclePref = (key, label) => {
+    const opts = PREF_OPTIONS[key];
+    if (!opts) return;
+    setPrefs(p => {
+      const idx = Math.max(0, opts.indexOf(p[key]));
+      const next = { ...p, [key]: opts[(idx + 1) % opts.length] };
+      try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
+      window.__bsToast?.(`${label} → ${next[key]}`, 'ok');
+      return next;
+    });
+  };
 
   // Stripe Customer Portal — billing UI for card / cancel / invoices.
   const openBillingPortal = async () => {
@@ -9053,11 +9105,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // Appearance / Effects controls — render natively
   const Pill = ({ on, onClick, children, color }) => (
     <button onClick={onClick} style={{ borderRadius: t.RADIUS_SM,
-      flex: 1, padding: '6px 7px', cursor: 'pointer',
+      flex: 1, padding: '10px 11px', cursor: 'pointer',
       border: `1px solid ${on ? t.INK : t.RULE}`,
       background: on ? t.INK : 'transparent',
       color: on ? t.PAPER : t.INK,
-      fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+      fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
     }}>{children}</button>
   );
 
@@ -9112,6 +9164,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   if (showIntegrations) {
     return <BSIntegrationsPage onBack={() => setShowIntegrations(false)} />;
   }
+  if (showScore) {
+    return <BSShapeScorePage profile={scoreProfile} onBack={() => setShowScore(false)} onOpenStore={() => { setShowScore(false); setShowStore(true); }} />;
+  }
+  if (showStore) {
+    return <BSShapeStorePage profile={scoreProfile} onBack={() => setShowStore(false)} onOpenScore={() => { setShowStore(false); setShowScore(true); }} />;
+  }
 
   const sections = [
     {
@@ -9148,30 +9206,30 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     },
     {
       title: 'Notifications',
-      meta: 'On',
+      meta: (prefs.workoutReminders !== 'Off' || prefs.coachReplies !== 'Off' || prefs.weeklyDigest !== 'Off') ? 'On' : 'Off',
       rows: [
-        { l: 'Workout reminders', r: 'On · 30m before' },
-        { l: 'Coach replies',     r: 'Push + email' },
-        { l: 'Weekly digest',     r: 'Sun 7am' },
-        { l: 'Community',         r: 'Off' },
+        { l: 'Workout reminders', key: 'workoutReminders' },
+        { l: 'Coach replies',     key: 'coachReplies' },
+        { l: 'Weekly digest',     key: 'weeklyDigest' },
+        { l: 'Community',         key: 'community' },
       ],
     },
     {
       title: 'Preferences',
       meta: '',
       rows: [
-        { l: 'Units',           r: 'Imperial · lb / mi' },
-        { l: 'Week starts',     r: 'Monday' },
-        { l: 'Time zone',       r: 'America/Los_Angeles' },
-        { l: 'Language',        r: 'English (US)' },
+        { l: 'Units',           key: 'units' },
+        { l: 'Week starts',     key: 'weekStarts' },
+        { l: 'Time zone',       key: 'timeZone' },
+        { l: 'Language',        key: 'language' },
       ],
     },
     {
       title: 'Privacy & data',
       meta: '',
       rows: [
-        { l: 'Profile visibility', r: 'Coaches only' },
-        { l: 'Share workout data', r: 'On' },
+        { l: 'Profile visibility', key: 'profileVisibility' },
+        { l: 'Share workout data', key: 'shareWorkoutData' },
       ],
     },
     {
@@ -9182,7 +9240,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         { l: 'Contact support', r: '24h reply', action: () => setShowContact(true) },
         { l: 'Terms of service',r: 'Legal', action: () => setShowTerms(true) },
         { l: 'Privacy policy',  r: 'Legal', action: () => setShowPrivacy(true) },
-        { l: 'Open-source',     r: '' },
       ],
     },
   ];
@@ -9223,7 +9280,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
               {[['Shape Score', () => setShowScore(true)], ['Streak', () => setShowScore(true)], ['Points', () => setShowStore(true)]].map(([l, on]) => (
-                <button key={l} onClick={on} style={{ padding: '10px 16px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{l}</button>
+                <button key={l} onClick={on} style={{ padding: '10px 16px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{l}</button>
               ))}
             </div>
           </div>
@@ -9279,20 +9336,30 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         )}
       </div>
 
-      {/* YOUR PLAN — subscription card */}
-      {!editing && (
-        <div style={{ padding: `4px ${t.padX}px 18px` }}>
-          <div style={{ border: `1px solid ${t.AMBER}55`, borderRadius: 18, background: `linear-gradient(150deg, ${t.AMBER}26, ${t.AMBER}08 45%, ${t.PAPER2} 85%), ${t.PAPER2}`, padding: 18 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-              <BSEyebrow color={t.AMBER}>Your plan</BSEyebrow>
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Renews Apr 30</span>
+      {/* YOUR PLAN — subscription card (live from /api/stripe/subscription) */}
+      {!editing && (() => {
+        // Assume active until the fetch resolves so there's no flash of "Free".
+        const active = plan ? plan.active !== false : true;
+        const cents = plan && typeof plan.priceCents === 'number' ? plan.priceCents : 500;
+        const priceLabel = `$${cents % 100 === 0 ? cents / 100 : (cents / 100).toFixed(2)}/mo`;
+        const renews = plan && plan.renewsAt ? new Date(plan.renewsAt) : null;
+        const renewsLabel = renews && !isNaN(renews.getTime())
+          ? `Renews ${renews.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+          : 'Renews monthly';
+        return (
+          <div style={{ padding: `4px ${t.padX}px 18px` }}>
+            <div style={{ border: `1px solid ${t.AMBER}55`, borderRadius: 16, background: `linear-gradient(150deg, ${t.AMBER}26, ${t.AMBER}08 45%, ${t.PAPER2} 85%), ${t.PAPER2}`, padding: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+                <BSEyebrow color={t.AMBER}>Your plan</BSEyebrow>
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{active ? renewsLabel : 'Free plan'}</span>
+              </div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', marginTop: 5 }}>Shape <span style={{ fontStyle: 'italic', color: t.AMBER }}>{active ? 'Member.' : 'Free.'}</span></div>
+              <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.45 }}>{active ? `${priceLabel} · Radio included · Community access · Marketplace access` : 'Upgrade for Radio, community & marketplace access'}</div>
+              <button onClick={openBillingPortal} style={{ marginTop: 11, padding: '8px 15px', borderRadius: 999, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{active ? 'Manage →' : 'Upgrade →'}</button>
             </div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', marginTop: 8 }}>Shape <span style={{ fontStyle: 'italic', color: t.AMBER }}>Member.</span></div>
-            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.5 }}>$5/mo · Radio included · Community access · Marketplace access</div>
-            <button onClick={openBillingPortal} style={{ marginTop: 14, padding: '9px 16px', borderRadius: 999, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Manage →</button>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* PROFILE MODE — switch between Client / Trainer / Nutritionist views */}
       <SectionHead
@@ -9303,10 +9370,19 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8, fontWeight: 700 }}>
           Active profile
         </div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <Pill on={(tweaks.role || 'client') === 'client'}       onClick={() => setTweak('role', 'client')}>Client</Pill>
-          <Pill on={tweaks.role === 'trainer'}                    onClick={() => setTweak('role', 'trainer')}>Trainer</Pill>
-          <Pill on={tweaks.role === 'nutritionist'}               onClick={() => setTweak('role', 'nutritionist')}>Nutrition</Pill>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {[['client', 'Client'], ['trainer', 'Trainer'], ['nutritionist', 'Nutrition']].map(([key, label]) => {
+            const on = (tweaks.role || 'client') === key;
+            return (
+              <button key={key} onClick={() => setTweak('role', key)} style={{ borderRadius: t.RADIUS_SM,
+                flex: 1, padding: '15px 12px', cursor: 'pointer',
+                border: `1px solid ${on ? t.INK : t.RULE}`,
+                background: on ? t.INK : 'transparent',
+                color: on ? t.PAPER : t.INK,
+                fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+              }}>{label}</button>
+            );
+          })}
         </div>
         <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.45 }}>
           Switching view loads the matching home, calendar &amp; tools.
@@ -9532,17 +9608,23 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         <div key={sec.title}>
           <SectionHead title={sec.title} meta={sec.meta} />
           <div style={{ padding: `0 ${t.padX}px` }}>
-            {sec.rows.map((s, i, arr) => (
-              <div key={i} onClick={s.action || (s.alert && s.l === 'Sign out' ? onLogout : undefined)} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: `${t.rowY + 4}px 0`,
-                borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-                cursor: (s.alert || s.action) ? 'pointer' : 'default',
-              }}>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em' }}>{s.l}</span>
-                {s.r && <BSEyebrow>{s.r}</BSEyebrow>}
-              </div>
-            ))}
+            {sec.rows.map((s, i, arr) => {
+              const value = s.key ? prefs[s.key] : s.r;
+              const onTap = s.key
+                ? () => cyclePref(s.key, s.l)
+                : (s.action || (s.alert && s.l === 'Sign out' ? onLogout : undefined));
+              return (
+                <div key={i} onClick={onTap} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                  padding: `${t.rowY + 4}px 0`,
+                  borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+                  cursor: (s.alert || s.action || s.key) ? 'pointer' : 'default',
+                }}>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em', flexShrink: 0 }}>{s.l}</span>
+                  {value && <BSEyebrow color={s.key ? t.ACCENT : undefined}>{value}</BSEyebrow>}
+                </div>
+              );
+            })}
           </div>
         </div>
       ))}
