@@ -608,10 +608,47 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
   // manual: once the user drags, we respect their explicit order (and stop
   // auto-sorting by aliveness) so a deliberate arrangement sticks.
   const defaultLayout = { order: BS_CARD_DEFAULTS.slice(), pinned: [], manual: false };
-  const [layout, setLayout] = useStateBSC(defaultLayout);
+  // Synchronous localStorage mirror so a removed/reordered card sticks across
+  // remounts (tab switches) even when signed-out / the backend no-ops.
+  const LS_CARDS = 'bs_home_cards';
+  const readCardsLS = () => {
+    try {
+      const v = JSON.parse(window.localStorage.getItem(LS_CARDS) || 'null');
+      if (v && Array.isArray(v.order)) {
+        const order = v.order.filter(x => BS_CARD_TYPES.includes(x));
+        return { order, pinned: Array.isArray(v.pinned) ? v.pinned.filter(x => order.includes(x)) : [], manual: !!v.manual };
+      }
+    } catch (e) {}
+    return null;
+  };
+  const [layout, setLayout] = useStateBSC(() => readCardsLS() || defaultLayout);
   const [menuOpen, setMenuOpen] = useStateBSC(false);
+  const [menuPos, setMenuPos] = useStateBSC(null);
   const [dragType, setDragType] = useStateBSC(null);
   const [overType, setOverType] = useStateBSC(null);
+  const cardsBtnRef = React.useRef(null);
+  const openCardsMenu = () => {
+    const el = cardsBtnRef.current;
+    if (el && el.getBoundingClientRect) {
+      const r = el.getBoundingClientRect();
+      setMenuPos({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
+    }
+    setMenuOpen(true);
+  };
+  // While the menu is open, any scroll closes it — a fixed-position menu would
+  // otherwise detach from the button, and the page would feel "stuck".
+  React.useEffect(() => {
+    if (!menuOpen) return undefined;
+    const close = () => setMenuOpen(false);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('wheel', close, { passive: true });
+    window.addEventListener('touchmove', close, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('wheel', close);
+      window.removeEventListener('touchmove', close);
+    };
+  }, [menuOpen]);
 
   // Load saved layout (best-effort); persist on change.
   React.useEffect(() => {
@@ -627,6 +664,7 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
   }, []);
   const persist = (next) => {
     setLayout(next);
+    try { window.localStorage.setItem(LS_CARDS, JSON.stringify(next)); } catch (e) {}
     try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_home_cards', next); } catch (e) {}
   };
 
@@ -681,17 +719,18 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
           <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Your stack · pin or choose cards</div>
         </div>
         {/* Compact dropdown to choose which cards are visible */}
-        <div style={{ position: 'relative', zIndex: menuOpen ? 200 : 'auto' }}>
-          <button onClick={() => setMenuOpen(v => !v)} style={{
+        <div>
+          <button ref={cardsBtnRef} onClick={() => (menuOpen ? setMenuOpen(false) : openCardsMenu())} style={{
             padding: '8px 12px', borderRadius: 999, border: `1px solid ${t.INK}`, background: menuOpen ? t.INK : 'transparent',
             color: menuOpen ? t.PAPER : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap',
           }}>Cards ▾</button>
-          {menuOpen && (
+          {menuOpen && menuPos && (
             <>
-              <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 50 }} />
+              <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 9998 }} />
               <div style={{
-                position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 51, width: 210,
-                background: t.PAPER, border: `1px solid ${t.INK}`, borderRadius: 12, overflow: 'hidden',
+                position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999, width: 210,
+                maxHeight: '56vh', overflowY: 'auto',
+                background: t.PAPER, border: `1px solid ${t.INK}`, borderRadius: 12,
                 boxShadow: '0 16px 40px rgba(0,0,0,0.3)',
               }}>
                 <div style={{ padding: '10px 12px', borderBottom: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Show on home</div>
