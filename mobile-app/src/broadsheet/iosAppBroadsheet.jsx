@@ -958,7 +958,7 @@ function BSFooter({ left = 'Shape', right }) {
   const t = useBS();
   return (
     <div style={{
-      padding: `8px ${t.padX}px 10px`, borderTop: `2px solid ${t.INK}`,
+      marginTop: 32, padding: `8px ${t.padX}px 10px`, borderTop: `2px solid ${t.INK}`,
       display: 'flex', justifyContent: 'space-between',
       fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50,
     }}>
