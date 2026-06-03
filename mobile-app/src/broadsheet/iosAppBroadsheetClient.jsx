@@ -2012,6 +2012,47 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         );
       })()}
 
+      {/* THIS WEEK'S NOTE — coach's weekly note (trainer or nutritionist),
+          editable from their console and sent to specific clients
+          (coach_focus_banners, RLS-scoped). Falls back to an editorial line. */}
+      {(() => {
+        const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+        const banner = (coachFeed.banners || [])[0];
+        const text = (banner && banner.text) || "You're 3 weeks in. The tempo is the point — slow eccentric on every press. Log your sleep, it's the lever.";
+        const isNutri = banner && banner.provider_role === 'nutritionist';
+        const who = (banner && banner.provider_name) || (isNutri ? 'Dr. Maya Patel' : 'Jordan Chen');
+        const when = (() => {
+          if (!banner || !banner.sent_at) return 'Mon';
+          const d = new Date(banner.sent_at);
+          return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()] || 'Mon';
+        })();
+        return (
+          <>
+            <div style={{ padding: `${t.sectGap}px ${t.padX}px 4px` }}>
+              <BSEyebrow color={teal}>From your team</BSEyebrow>
+              <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>This week&rsquo;s note</div>
+            </div>
+            <div style={{ padding: `12px ${t.padX}px 4px` }}>
+              <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15, fontWeight: 500, color: t.INK70, lineHeight: 1.5, letterSpacing: '-0.01em' }}>
+                  &ldquo;{text}&rdquo;
+                </div>
+                <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${t.HAIR}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
+                    <BSAvatar init={who.charAt(0)} size={28} fill={isNutri ? t.AMBER : t.RUST} ink={t.PAPER} />
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{who}</div>
+                      <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: 1 }}>{isNutri ? 'Nutritionist' : 'Coach'}</div>
+                    </div>
+                  </div>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{when}</span>
+                </div>
+              </div>
+            </div>
+          </>
+        );
+      })()}
+
       <BSFooter right="Pg 1 of 1" />
       {showLogActivity && <BSLogActivity onClose={() => setShowLogActivity(false)} onSaved={() => { refreshAnalytics(); setTimeout(refreshAnalytics, 700); }} />}
       {showMood && <BSMoodSheet onClose={() => setShowMood(false)} onSaved={() => { refreshAnalytics(); setTimeout(refreshAnalytics, 700); }} />}
