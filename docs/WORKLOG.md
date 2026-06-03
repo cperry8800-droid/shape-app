@@ -46,6 +46,17 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-03 — Meal ingredients in household units (tied to Imperial/Metric)
+- Added `bsHouseholdQty(qty, name)` / `bsHouseholdStr(str)` in the client module: a
+  display-only converter that turns gram/ml ingredient quantities into **cups / tbsp /
+  oz / slices**, keyed by ingredient name (`_BS_HOUSEHOLD` map) with safe fallbacks
+  (oz for unknown solids, cups/tbsp for liquids). Stored data stays metric.
+- Gated on the existing **Imperial/Metric** setting (`t.isMetric` from `ShapeUnits`):
+  metric users still see grams; imperial users see household measures. Applied to
+  `BSMealPreview`, `BSRecipePreview` (two-column rows, qty column widened 56→78), and
+  the Shape Kitchen recipe detail (string ingredients).
+- Auth screen: "No account? Browse the app →" pill font weight 700 → 400 (thinner).
+
 ### 2026-06-03 — Habits page rebuilt: To-dos / To-don'ts + add sheet
 - **Completely removed** the old full-page add/edit form (`BSHabitForm`) and the dead
   habit UI layer (`BSHabitTracker`, `BSHabitInsights`, `BSTimeChip`, all the legacy row
