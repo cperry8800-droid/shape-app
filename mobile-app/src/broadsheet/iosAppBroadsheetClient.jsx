@@ -2509,7 +2509,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
             <BSTrackHeader kicker="From Jordan" title="Playlists" />
             <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
               {items.map((p, i) => (
-                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#c0533b" onPlay={goRadio} spotifyUrl={p.url} />
+                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#1db954" onPlay={goRadio} spotifyUrl={p.url} />
               ))}
             </div>
           </>
@@ -2518,16 +2518,16 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
 
       {/* Find a trainer — marketplace deep link (Trainer tab), pinned to the bottom */}
       <div style={{ padding: `18px ${t.padX}px 28px` }}>
-        <button onClick={() => goMarket('trainer')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 13, padding: '15px 16px', borderRadius: 16, border: `2px solid ${t.isLight ? '#0a8f87' : '#34d6c5'}`, background: t.isLight ? '#0a8f8714' : '#34d6c526' }}>
-          <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 12, background: t.isLight ? '#0a8f87' : '#34d6c5', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 6.5v11M3 9.5v5M17.5 6.5v11M21 9.5v5M6.5 12h11"/></svg>
+        <button onClick={() => goMarket('trainer')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 13, padding: '15px 16px', borderRadius: 16, border: `2px solid ${t.isLight ? '#9c7b43' : '#e7dcc3'}`, background: t.isLight ? '#9c7b4314' : '#e7dcc31f' }}>
+          <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 12, background: t.isLight ? '#9c7b43' : '#e7dcc3', color: t.isLight ? '#fff' : '#2a1f12', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={t.isLight ? '#fff' : '#2a1f12'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 6.5v11M3 9.5v5M17.5 6.5v11M21 9.5v5M6.5 12h11"/></svg>
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : '#34d6c5', fontWeight: 700, marginBottom: 4 }}>Marketplace</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.isLight ? '#9c7b43' : '#e7dcc3', fontWeight: 700, marginBottom: 4 }}>Marketplace</div>
             <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 17, color: t.INK }}>Find a trainer</div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 3, letterSpacing: '0.06em' }}>Vetted coaches · filter by goal & schedule</div>
           </div>
-          <span style={{ color: t.isLight ? '#0a8f87' : '#34d6c5', fontSize: 18, flexShrink: 0, fontWeight: 700 }}>→</span>
+          <span style={{ color: t.isLight ? '#9c7b43' : '#e7dcc3', fontSize: 18, flexShrink: 0, fontWeight: 700 }}>→</span>
         </button>
       </div>
 
@@ -9590,7 +9590,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         {!editing ? (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <BSAvatar init={identity.name.charAt(0)} size={72} fill={t.RUST} round glow />
+              <BSAvatar init={identity.name.charAt(0)} size={72} fill={t.RUST} round glow serif />
               <div style={{ minWidth: 0 }}>
                 <BSEyebrow color={t.RUST}>Member · 14 week streak</BSEyebrow>
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', marginTop: 4, lineHeight: 1 }}>{identity.name}<span style={{ color: t.ACCENT }}>.</span></div>
