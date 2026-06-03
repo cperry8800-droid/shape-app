@@ -5926,24 +5926,52 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
     setSlot(document.getElementById('bs-composer-slot'));
   }, [pinned]);
 
+  // Auto-grow the field like iMessage: one line at rest, expands upward as you
+  // type up to a few lines, then scrolls internally. Re-measured on every value
+  // change so it also collapses back after a send clears the draft.
+  const taRef = React.useRef(null);
+  const COMPOSER_MAX_H = 132; // ~6 lines, then the textarea scrolls internally
+  React.useLayoutEffect(() => {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, COMPOSER_MAX_H) + 'px';
+    el.style.overflowY = el.scrollHeight > COMPOSER_MAX_H ? 'auto' : 'hidden';
+  }, [value]);
+
   const input = (
-    <input
+    <textarea
+      ref={taRef}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      onKeyDown={(e) => { if (e.key === 'Enter') onSend(); }}
+      onKeyDown={(e) => {
+        // Enter sends; Shift/⌘/Ctrl+Enter drops a newline so longer notes wrap.
+        if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+          e.preventDefault();
+          onSend();
+        }
+      }}
       placeholder={placeholder}
+      rows={1}
       style={{
         minWidth: 0,
-        height: 38,
+        width: '100%',
+        boxSizing: 'border-box',
+        minHeight: 38,
+        maxHeight: COMPOSER_MAX_H,
+        resize: 'none',
+        display: 'block',
         background: pinned ? t.SURFACE : t.PAPER,
         border: `1px solid ${t.SURFACE_BORDER}`,
-        borderRadius: 999,
-        padding: '0 14px',
+        borderRadius: 19,
+        padding: '9px 14px',
         fontFamily: t.BODY,
         fontSize: 14,
+        lineHeight: 1.3,
         color: t.INK,
         outline: 'none',
         letterSpacing: '-0.005em',
+        overflowY: 'hidden',
       }}
     />
   );
@@ -5981,7 +6009,7 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
         display: 'grid',
         gridTemplateColumns: '1fr 58px',
         gap: 8,
-        alignItems: 'center',
+        alignItems: 'end',
       }}>
         {input}
         {sendBtn}
@@ -5997,7 +6025,7 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
       display: 'grid',
       gridTemplateColumns: '1fr 58px',
       gap: 8,
-      alignItems: 'center',
+      alignItems: 'end',
       padding: 7,
       border: `1px solid ${t.SURFACE_BORDER}`,
       borderRadius: 999,

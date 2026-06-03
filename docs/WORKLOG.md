@@ -46,6 +46,15 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-13 — iMessage-style auto-growing chat composer
+- `BSMessageComposer` (shared by DM threads + the feed) is now an auto-resizing
+  `<textarea>` instead of a fixed 38px `<input>`: one line at rest, grows upward
+  as you type, caps at ~6 lines (`COMPOSER_MAX_H = 132`) then scrolls internally.
+  Re-measured on every `value` change via `useLayoutEffect`, so it also collapses
+  back after a send clears the draft. Send button bottom-aligns (`alignItems:'end'`).
+  Enter sends; Shift/⌘/Ctrl+Enter inserts a newline. `borderRadius:19` reads as a
+  pill at one line and a rounded rect when expanded.
+
 ### 2026-06-13 — client Library (Phase 1)
 - New **Library** screen (`BSClientLibrary` in the client module): clients save
   trainers' **workouts**, paid **programs/plans**, and nutritionists' **meals/plans**
