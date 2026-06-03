@@ -673,7 +673,7 @@ function BSAvatar({ init = 'A', size = 32, fill, ink, onClick, round = true, glo
       borderRadius: round ? '50%' : t.RADIUS_SM,
       boxShadow: glow ? `0 0 22px ${bg}5e, 0 0 0 4px ${bg}26` : 'none',
     }}>{cursive
-      ? <span style={{ display: 'inline-block', lineHeight: 1, transform: 'translateY(0.04em)' }}>{init}</span>
+      ? <span style={{ display: 'inline-block', lineHeight: 1, transform: 'translate(-0.05em, -0.08em)' }}>{init}</span>
       : serif ? <span style={{ display: 'inline-block', transform: 'skewX(-11deg)' }}>{init}</span> : init}</button>
   );
 }

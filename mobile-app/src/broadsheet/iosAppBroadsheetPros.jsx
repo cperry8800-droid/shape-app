@@ -374,6 +374,124 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
   );
 }
 
+// Coach "live now" — read-only mirror of the client's live session: running
+// timer, sets as they land, current move, plus a quick-cue sender.
+function BSProLiveWatch({ client = 'Alex Rivera', workout = 'Upper Pull — Peak', onBack = () => {} }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const [now, setNow] = useStateBSP(Date.now());
+  const [startedAt] = useStateBSP(Date.now() - (30 * 60 + 55) * 1000); // ~30:55 in
+  const [cueDraft, setCueDraft] = useStateBSP('');
+  const [sentCue, setSentCue] = useStateBSP(null);
+  useEffectBSP(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, []);
+  const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  const elapsed = Math.floor((now - startedAt) / 1000);
+
+  const moves = [
+    { name: 'Pull-up', scheme: '4 × 6-8', rest: '180s', load: '42 lb', sets: 4, done: 4 },
+    { name: 'Barbell row', scheme: '4 × 8', rest: '2:00', load: '155 lb', sets: 4, done: 2, active: true, cue: 'Hinge 45°, pull to sternum.' },
+    { name: 'Chest-sup. row', scheme: '3 × 10', rest: '90s', load: '60 lb', sets: 3, done: 0 },
+    { name: 'Face pull', scheme: '3 × 15', rest: '60s', load: '35 lb', sets: 3, done: 0 },
+    { name: 'Incline curl', scheme: '3 × 12', rest: '60s', load: '27.5 lb', sets: 3, done: 0 },
+    { name: 'Farmer carry', scheme: '3 × 40m', rest: '60s', load: '80 lb', sets: 3, done: 0 },
+  ];
+  const curIdx = Math.max(0, moves.findIndex(m => m.active));
+  const cur = moves[curIdx];
+  const totalSets = moves.reduce((s, m) => s + m.sets, 0);
+  const doneSets = moves.reduce((s, m) => s + m.done, 0);
+  const pct = totalSets ? doneSets / totalSets : 0;
+  const quickCues = ['Slow the eccentric', 'Hold this weight', 'One more set', 'Lengthen your rest'];
+  const sendCue = (text) => { const m = String(text || cueDraft).trim(); if (!m) return; setSentCue(m); setCueDraft(''); };
+
+  return (
+    <BSPage>
+      <div style={{ padding: `46px ${t.padX}px 6px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <button onClick={onBack} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK }}>✕ Close</button>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.RUST }}>
+          <span style={{ width: 6, height: 6, borderRadius: 999, background: t.RUST, display: 'inline-block' }} /> Live · {fmt(elapsed)}
+        </span>
+        <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{doneSets}/{totalSets}</span>
+      </div>
+
+      <div style={{ padding: `8px ${t.padX}px 0` }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.RUST, fontWeight: 800 }}>Watching live</div>
+        <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 29, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{client}</div>
+        <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{workout} · {Math.round(pct * 100)}% · set {cur.done + 1} of {cur.sets}</div>
+        <div style={{ marginTop: 12, height: 4, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}>
+          <div style={{ width: `${Math.round(pct * 100)}%`, height: '100%', background: teal, borderRadius: 999 }} />
+        </div>
+      </div>
+
+      <div style={{ padding: `20px ${t.padX}px 0`, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, fontWeight: 800 }}>Exercise {curIdx + 1} of {moves.length}</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 700 }}>{cur.scheme}</span>
+      </div>
+      <div style={{ padding: `4px ${t.padX}px 0` }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{cur.name}<span style={{ color: t.RUST }}>.</span></div>
+        {cur.cue && <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, color: t.INK50 }}>“{cur.cue}”</div>}
+      </div>
+
+      <div style={{ padding: `16px ${t.padX}px 0` }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '26px 1fr 1fr 1fr 30px', gap: 8, padding: '0 0 8px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
+          <span>Set</span><span>Weight</span><span>Reps</span><span>RPE</span><span />
+        </div>
+        {Array.from({ length: cur.sets }).map((_, i) => {
+          const done = i < cur.done;
+          const active = i === cur.done;
+          const cell = (val) => <div style={{ borderRadius: 10, border: `1px solid ${active ? teal : t.HAIR}`, background: done ? 'transparent' : (active ? `${teal}12` : t.PAPER2), color: val === '—' ? t.INK50 : t.INK, padding: '10px 8px', fontFamily: t.MONO, fontSize: 12, textAlign: 'center', fontVariantNumeric: 'tabular-nums', opacity: done ? 0.7 : 1 }}>{val}</div>;
+          return (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '26px 1fr 1fr 1fr 30px', gap: 8, alignItems: 'center', padding: '5px 0' }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: (done || active) ? teal : t.INK50 }}>{done ? '✓' : String(i + 1).padStart(2, '0')}</span>
+              {cell(cur.load.replace(/\s*lb/i, '') + ' lb')}
+              {cell(done ? '8' : '—')}
+              {cell(done ? '8.0' : '—')}
+              <span style={{ justifySelf: 'end', width: 24, height: 24, borderRadius: 999, border: `1.5px solid ${(done || active) ? teal : t.RULE}`, background: done ? teal : 'transparent', color: done ? '#04201d' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800 }}>✓</span>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ padding: `18px ${t.padX}px 0` }}>
+        <BSEyebrow color={t.RUST}>Send a cue</BSEyebrow>
+        {sentCue && <div style={{ marginTop: 8, borderRadius: 14, border: `1px solid ${t.RUST}55`, background: `${t.RUST}12`, padding: '10px 12px', fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, color: t.INK70 }}>Sent to {client}: “{sentCue}”</div>}
+        <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+          <input value={cueDraft} onChange={e => setCueDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') sendCue(); }} placeholder="Type a quick cue…" style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '11px 14px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' }} />
+          <button onClick={() => sendCue()} style={{ borderRadius: 999, border: 0, background: t.RUST, color: t.PAPER, cursor: 'pointer', padding: '0 18px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Send</button>
+        </div>
+        <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+          {quickCues.map(q => <button key={q} onClick={() => sendCue(q)} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, cursor: 'pointer', padding: '7px 12px', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{q}</button>)}
+        </div>
+      </div>
+
+      <div style={{ padding: `24px ${t.padX}px 4px` }}>
+        <BSEyebrow color={teal}>Up next</BSEyebrow>
+        <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Queue</div>
+      </div>
+      <div style={{ padding: `8px ${t.padX}px 0` }}>
+        {moves.map((m, i) => {
+          const mDone = m.done >= m.sets;
+          const isCur = i === curIdx;
+          return (
+            <div key={i} style={{ background: isCur ? t.PAPER2 : 'transparent', borderRadius: 12, display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 10, alignItems: 'center', padding: '12px 10px', borderBottom: `1px solid ${t.HAIR}`, opacity: mDone ? 0.5 : 1 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: mDone ? teal : t.INK50 }}>{mDone ? '✓' : String(i + 1).padStart(2, '0')}</span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', textDecoration: mDone ? 'line-through' : 'none' }}>{m.name}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50, marginTop: 2 }}>{m.scheme} · {m.rest} rest · {m.done}/{m.sets} sets</div>
+              </div>
+              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70 }}>{m.load}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ padding: `16px ${t.padX}px 24px` }}>
+        <button onClick={onBack} style={{ width: '100%', padding: '14px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' }}>Stop watching</button>
+      </div>
+      <BSFooter right="Live" />
+    </BSPage>
+  );
+}
+
 function BSProWidgetQueuePage({ role = 'trainer', type = 'pr', onBack }) {
   const t = useBS();
   const isNutri = role === 'nutritionist';
@@ -546,6 +664,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   const [storeView, setStoreView] = useStateBSP('store');
   const [programInitialTab, setProgramInitialTab] = useStateBSP('programs');
   const [queueView, setQueueView] = useStateBSP(null);
+  const [liveWatch, setLiveWatch] = useStateBSP(null);
   const scoreProfile = SHAPE_SCORE_PROFILES?.trainer;
   const goRadio = () => setTab('radio');
   const goSettings = () => setShowSettings(true);
@@ -563,8 +682,9 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   if (showReviews) return <BSWorkoutReviewPage role="trainer" onBack={() => setShowReviews(false)} />;
   if (showHabits) return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => setShowHabits(false)} onOpenScore={() => { setShowHabits(false); setStoreView('score'); setTab('store'); }} />;
   if (queueView) return <BSProWidgetQueuePage role="trainer" type={queueView} onBack={() => setQueueView(null)} />;
+  if (liveWatch) return <BSProLiveWatch client={liveWatch.client} workout={liveWatch.workout} onBack={() => setLiveWatch(null)} />;
   const screens = {
-    today:    <BSTrainerToday onProfile={goSettings} sheet={sheet} goCalendar={() => setShowCalendar(true)} goRadio={goRadio} onOpenReviews={() => setShowReviews(true)} onWidgetOpen={openHomeWidget} onOpenHabits={() => setShowHabits(true)} onOpenScore={() => { setStoreView('score'); setTab('store'); }} tweaks={tweaks} setTweak={setTweak} />,
+    today:    <BSTrainerToday onProfile={goSettings} sheet={sheet} goCalendar={() => setShowCalendar(true)} goRadio={goRadio} onOpenReviews={() => setShowReviews(true)} onWidgetOpen={openHomeWidget} onOpenHabits={() => setShowHabits(true)} onOpenScore={() => { setStoreView('score'); setTab('store'); }} onWatchLive={(c) => setLiveWatch(c)} tweaks={tweaks} setTweak={setTweak} />,
     clients:  <BSTrainerClients sheet={sheet} />,
     console:  <BSProConsoleScreen role="trainer" />,
     programs: <BSTrainerPrograms sheet={sheet} initialTab={programInitialTab} />,
@@ -593,7 +713,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   );
 }
 
-function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, onWidgetOpen = () => {}, onOpenHabits = () => {}, onOpenScore = () => {}, tweaks = {}, setTweak = () => {} }) {
+function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, onWidgetOpen = () => {}, onOpenHabits = () => {}, onOpenScore = () => {}, onWatchLive = () => {}, tweaks = {}, setTweak = () => {} }) {
   const t = useBS();
   const [selDay, setSelDay] = useStateBSP(bsProWeek().dates[(new Date().getDay() + 6) % 7].getDate());
   const [ticker, setTicker] = useStateBSP(null);
@@ -795,6 +915,22 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
           {lead.copy}
         </div>
       </div>
+
+      {isToday && (
+        <div style={{ padding: `4px ${t.padX}px 0` }}>
+          <button onClick={() => onWatchLive({ client: 'Alex Rivera', workout: 'Upper Pull — Peak' })} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 16, border: `1px solid ${t.RUST}55`, background: `linear-gradient(150deg, ${t.RUST}24, ${t.RUST}08 50%, ${t.PAPER2} 90%), ${t.PAPER2}`, padding: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <BSAvatar init="A" size={38} fill={t.RUST} ink={t.PAPER} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.RUST, fontWeight: 800 }}>
+                <span style={{ width: 6, height: 6, borderRadius: 999, background: t.RUST, display: 'inline-block' }} /> Live now
+              </div>
+              <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>Alex Rivera is training</div>
+              <div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>Upper Pull — Peak · set 3 of 4</div>
+            </div>
+            <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.RUST }}>Watch →</span>
+          </button>
+        </div>
+      )}
 
       <BSSection
         title={isToday ? "Today's schedule" : `Schedule · ${_BS_MON[selDate.getMonth()]} ${selDay}`}
