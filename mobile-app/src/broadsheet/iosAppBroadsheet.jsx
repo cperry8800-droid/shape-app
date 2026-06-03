@@ -917,6 +917,57 @@ function BSFooter({ left = 'Shape', right }) {
 }
 
 // Phone bezel — light/dark sensitive
+// Global toast host. Registers window.__bsToast so the imperative
+// window.__bsToast(message, kind) calls sprinkled across the app actually
+// surface something (previously this global was never assigned, so every
+// toast was a silent no-op). Mounted once inside BSPhone.
+function BSToastHost() {
+  const t = useBS();
+  const [items, setItems] = useStateBS([]);
+  useEffectBS(() => {
+    let seq = 0;
+    const timers = new Map();
+    window.__bsToast = (message, kind = 'info') => {
+      const id = ++seq;
+      setItems((list) => [...list.slice(-2), { id, message: String(message == null ? '' : message), kind }]);
+      const timer = setTimeout(() => {
+        setItems((list) => list.filter((x) => x.id !== id));
+        timers.delete(id);
+      }, 2800);
+      timers.set(id, timer);
+    };
+    return () => {
+      timers.forEach((tm) => clearTimeout(tm));
+      try { delete window.__bsToast; } catch (e) { window.__bsToast = undefined; }
+    };
+  }, []);
+  if (!items.length) return null;
+  const colorFor = (kind) =>
+    (kind === 'err' || kind === 'error') ? t.RUST
+    : kind === 'ok' ? t.GREEN
+    : kind === 'warn' ? t.AMBER
+    : t.ACCENT;
+  return (
+    <div style={{
+      position: 'absolute', left: 0, right: 0,
+      bottom: 'calc(env(safe-area-inset-bottom, 0px) + 92px)',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+      padding: '0 18px', zIndex: 4000, pointerEvents: 'none',
+    }}>
+      {items.map((it) => (
+        <div key={it.id} style={{
+          maxWidth: '100%', pointerEvents: 'auto',
+          background: t.INK, color: t.PAPER,
+          borderLeft: `3px solid ${colorFor(it.kind)}`,
+          borderRadius: 10, padding: '10px 14px',
+          fontFamily: t.MONO, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.04em', lineHeight: 1.4,
+          boxShadow: '0 12px 30px rgba(0,0,0,0.3)',
+        }}>{it.message}</div>
+      ))}
+    </div>
+  );
+}
+
 function BSPhone({ children }) {
   const t = useBS();
   const isNativeApp = isNativeBSApp();
@@ -1057,6 +1108,7 @@ function BSPhone({ children }) {
           background: t.PAPER_BG,
         }}>
           {children}
+          <BSToastHost />
         </div>
       </div>
     );
@@ -1090,6 +1142,7 @@ function BSPhone({ children }) {
           width: 110, height: 32, borderRadius: 16, background: '#000', zIndex: 100,
         }} />
         {children}
+        <BSToastHost />
       </div>
     </div>
   );

@@ -9203,7 +9203,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         { l: 'Contact support', r: '24h reply', action: () => setShowContact(true) },
         { l: 'Terms of service',r: 'Legal', action: () => setShowTerms(true) },
         { l: 'Privacy policy',  r: 'Legal', action: () => setShowPrivacy(true) },
-        { l: 'Open-source',     r: '' },
       ],
     },
   ];

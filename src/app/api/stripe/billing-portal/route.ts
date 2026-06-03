@@ -9,15 +9,16 @@
 
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
-import { createClient } from '@/lib/supabase/server';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // Accept either the mobile Bearer token or the cookie session.
+  const user = await currentUser(req);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  const supabase = await clientForRequest(req);
 
   // Find the user's stripe_customer_id from any of the subscription tables.
   const [platform, perCoach] = await Promise.all([
