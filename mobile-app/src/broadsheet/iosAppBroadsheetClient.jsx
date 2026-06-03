@@ -8611,7 +8611,7 @@ function BSDetailHeader({ onBack, eyebrow, kicker, title, trailing }) {
       </div>
       {kicker && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700, marginBottom: 8 }}>{kicker}</div>}
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 36, lineHeight: 0.95, fontWeight: 700, letterSpacing: '-0.035em', color: t.INK }}>{title}</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 30, lineHeight: 0.96, fontWeight: 700, letterSpacing: '-0.035em', color: t.INK }}>{title}</div>
         {trailing}
       </div>
     </div>
@@ -9251,14 +9251,14 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
 
       {/* Progress + author note */}
       <div style={{ padding: `16px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <div style={{ height: 4, background: t.HAIR, position: 'relative', marginBottom: 10 }}>
-          <div style={{ width: `${pct}%`, height: '100%', background: t.ACCENT }} />
+        <div style={{ height: 4, borderRadius: 999, overflow: 'hidden', background: t.HAIR, position: 'relative', marginBottom: 10 }}>
+          <div style={{ width: `${pct}%`, height: '100%', background: t.ACCENT, borderRadius: 999 }} />
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
           <span>{pct}% complete</span>
           <span>{list.aisles.length} aisles · ~22 min</span>
         </div>
-        <div style={{ borderRadius: t.RADIUS_SM, marginTop: 14, padding: 14, background: t.PAPER2, border: `1px solid ${t.INK}` }}>
+        <div style={{ borderRadius: 16, marginTop: 14, padding: 14, background: `linear-gradient(155deg, ${t.AMBER}1c, ${t.AMBER}06 50%, ${t.PAPER2} 90%), ${t.PAPER2}`, border: `1px solid ${t.AMBER}44` }}>
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.AMBER, fontWeight: 700, marginBottom: 6 }}>▍ From {noteAuthor}</div>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, fontStyle: 'italic', lineHeight: 1.4, letterSpacing: '-0.005em' }}>{noteText}</div>
         </div>
@@ -9304,20 +9304,21 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
               }}>Reset ↺</button>
             </div>
             <div style={{ padding: `0 ${t.padX}px` }}>
+              <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
               {aisle.items.map((it, ii, arr) => {
                 const k = `${ai}-${ii}`;
                 const on = checked.has(k);
                 return (
                   <div key={k} onClick={() => toggle(k)} style={{
-                    display: 'grid', gridTemplateColumns: '24px 1fr auto', alignItems: 'flex-start',
+                    display: 'grid', gridTemplateColumns: '22px 1fr auto', alignItems: 'flex-start',
                     gap: 12, padding: `${t.rowY + 2}px 0`, cursor: 'pointer',
                     borderBottom: ii === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
                     opacity: on ? 0.5 : 1,
                   }}>
                     <div style={{
-                      width: 18, height: 18, border: `1.5px solid ${t.INK}`, marginTop: 2,
-                      background: on ? t.INK : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: t.PAPER, fontFamily: t.MONO, fontSize: 12, fontWeight: 700,
+                      width: 19, height: 19, borderRadius: 6, border: `1.5px solid ${on ? t.ACCENT : t.RULE}`, marginTop: 2,
+                      background: on ? t.ACCENT : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: '#04201d', fontFamily: t.MONO, fontSize: 12, fontWeight: 800,
                     }}>{on ? '✓' : ''}</div>
                     <div>
                       <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em', textDecoration: on ? 'line-through' : 'none' }}>{it.n}</div>
@@ -9339,6 +9340,7 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
                   No items yet — add some below.
                 </div>
               )}
+              </div>
             </div>
           </div>
         );
