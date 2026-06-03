@@ -667,6 +667,7 @@ function BSHomeWorkoutPreview({ onBack, onMove = () => {}, onStart = () => {}, o
     { name: 'Incline curl',   scheme: '3 × 12 · 60s rest',    cue: 'Full stretch. 3s eccentric.',   load: '27.5 lb' },
     { name: 'Farmer carry',   scheme: '3 × 40m · 60s rest',   cue: 'Crush grip. Ribs down.',        load: '80 lb' },
   ];
+  const [reminded, setReminded] = useStateBSC(false);
   const headBtn = { background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK };
   const footBtn = { flex: 1, padding: '14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' };
   return (
@@ -674,7 +675,7 @@ function BSHomeWorkoutPreview({ onBack, onMove = () => {}, onStart = () => {}, o
       <div style={{ padding: `52px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <button onClick={onBack} style={headBtn}>← Back</button>
         <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: rust }}>Preview</span>
-        <button onClick={onStart} style={{ ...headBtn, color: t.INK50 }}>··· More</button>
+        <button onClick={onMessage} style={{ ...headBtn, color: t.INK50 }}>Message</button>
       </div>
 
       <div style={{ padding: `18px ${t.padX}px 4px` }}>
@@ -724,6 +725,13 @@ function BSHomeWorkoutPreview({ onBack, onMove = () => {}, onStart = () => {}, o
         ))}
       </div>
 
+      {/* Quick actions — above the soundtrack */}
+      <div style={{ padding: `14px ${t.padX}px 4px`, display: 'flex', gap: 10 }}>
+        <BSSaveButton full item={{ id: 'workout:upper-pull-peak', kind: 'workout', title: 'Upper Pull — Peak', meta: '52 min · 6 moves · RPE 8', coach: 'Jordan Chen' }} />
+        <button onClick={onMove} style={footBtn}>Move session</button>
+        <button onClick={() => setReminded(true)} style={{ ...footBtn, ...(reminded ? { borderColor: teal, color: teal } : {}) }}>{reminded ? '✓ Reminder set' : 'Remind me'}</button>
+      </div>
+
       {/* Pre-workout playlist — tap the play button to open it in Spotify before training */}
       <div style={{ padding: `18px ${t.padX}px 4px` }}>
         <BSEyebrow color={teal}>Soundtrack</BSEyebrow>
@@ -738,13 +746,8 @@ function BSHomeWorkoutPreview({ onBack, onMove = () => {}, onStart = () => {}, o
         ]} />
       </div>
 
-      <div style={{ padding: `16px ${t.padX}px 4px` }}>
+      <div style={{ padding: `16px ${t.padX}px 14px` }}>
         <button onClick={onStart} style={{ width: '100%', padding: '15px', borderRadius: 999, border: 0, background: teal, color: t.isLight ? '#ffffff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Begin session →</button>
-      </div>
-      <div style={{ padding: `10px ${t.padX}px 12px`, display: 'flex', gap: 10 }}>
-        <BSSaveButton full item={{ id: 'workout:upper-pull-peak', kind: 'workout', title: 'Upper Pull — Peak', meta: '52 min · 6 moves · RPE 8', coach: 'Jordan Chen' }} />
-        <button onClick={onMove} style={footBtn}>Move session</button>
-        <button onClick={() => window.__bsToast?.('Reminder set for 9:00 AM', 'ok')} style={footBtn}>Remind me</button>
       </div>
       <BSFooter right="Preview" />
     </BSPage>
