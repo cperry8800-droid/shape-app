@@ -2304,7 +2304,10 @@ function BSSwapSheet({ title, subtitle, options, onPick, onClose }) {
         <button onClick={onClose} style={{ width: '100%', marginTop: 12, padding: '13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer' }}>Cancel</button>
       </div>
     </div>,
-    document.body
+    // Portal into the phone surface (not document.body) so the sheet is sized
+    // to the phone frame and clipped by it — otherwise it overhangs the frame
+    // in the desktop preview where the window is wider than the phone.
+    (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
   );
 }
 
@@ -3705,18 +3708,18 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
           steps: ['Slice apple.', 'Dip.'],
           coachNote: 'Granny Smith holds up best to almond butter. Sweet apples get cloying.',
         }),
-        mk({ id: 't18-ln', time: '12:30', tag: 'LUNCH', tagColor: t.AMBER, title: 'Smashed chickpea wrap', kcal: 540, p: 32, c: 64, f: 18, state: 'next',
-          hero: 'Smashed chickpeas, tahini, cucumber, tomato, whole-wheat wrap.',
-          brief: 'Plant-protein lunch. Easy on digestion before afternoon meetings.',
+        mk({ id: 't18-ln', time: '12:40', tag: 'LUNCH', tagColor: t.AMBER, title: 'Chicken bowl + rice', kcal: 620, p: 48, c: 72, f: 14, state: 'next',
+          hero: 'Grilled chicken thigh, jasmine rice, roasted vegetables, tahini-lemon sauce.',
+          brief: 'The anchor meal of the day — biggest carb hit, biggest protein. Eat slow, finish the plate.',
           ingredients: [
-            { n: '180 g', m: 'Chickpeas',       k: '270 kcal' },
-            { n: '15 g',  m: 'Tahini',          k: '95 kcal' },
-            { n: '60 g',  m: 'Cucumber',        k: '10 kcal' },
-            { n: '60 g',  m: 'Tomato',          k: '12 kcal' },
-            { n: '1',     m: 'WW tortilla',     k: '150 kcal' },
+            { n: '180 g', m: 'Chicken thigh',     k: '320 kcal' },
+            { n: '150 g', m: 'Jasmine rice',      k: '195 kcal' },
+            { n: '120 g', m: 'Roast veg medley',  k: '60 kcal' },
+            { n: '15 g',  m: 'Tahini',            k: '95 kcal' },
+            { n: '½',     m: 'Lemon',             k: '5 kcal' },
           ],
-          steps: ['Smash chickpeas with fork + tahini + lemon.', 'Slice cucumber, tomato.', 'Layer in wrap, roll tight.'],
-          coachNote: 'Chickpea fiber is your friend on lower-volume days. Bonus point: cheaper than chicken.',
+          steps: ['Season chicken with salt + paprika, sear 4 min/side over medium-high.', 'Cook rice 1:1.5 in salted water, cover 12 min, fluff.', 'Roast veg at 220°C / 425°F for 15 min, flipping halfway.', 'Whisk tahini + lemon + 30 ml warm water until pourable.', 'Plate rice, top with chicken + veg, drizzle sauce.'],
+          coachNote: 'This is your peak fueling moment. If energy crashed yesterday, add 30 g rice today.',
         }),
         mk({ id: 't18-sn2', time: '15:30', tag: 'SNACK', tagColor: t.BLUE, title: 'Whey + berries', kcal: 200, p: 32, c: 14, f: 2,
           hero: '30g whey, 100g frozen berries, 200ml water.',
