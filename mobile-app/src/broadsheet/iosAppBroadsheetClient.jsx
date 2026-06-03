@@ -8488,6 +8488,7 @@ Object.assign(window, {
   BSShapeScorePage,
   BSShapeStorePage,
   SHAPE_SCORE_PROFILES,
+  _bsUseLiveScore,
 });
 
 // ═══════════════════════════════════════════════════════════
