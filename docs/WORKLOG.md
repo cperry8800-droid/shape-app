@@ -46,6 +46,20 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-03 — Chat feed bubbles + New-message picker + header polish
+- **Feed posts** (`renderPost`, role channels Client/Trainer/Nutritionist/Shape +
+  live community) are now **chat bubbles**: coaches (trainer/nutri) align left, members
+  + your own posts (client/shape/You) align right; role-tinted bubble with a chat-tail
+  corner, role tag, time, and reactions (♥ / ↳). Support thread + Strava ActivityCards
+  untouched.
+- **"+ New"** on the thread lists now opens a **New-message people picker** (searches
+  members via `ShapeChannels.searchMembers`, opens a thread on select). Lives in the
+  shared `BSClientFeed`, so it applies to **all profiles** (client/trainer/nutritionist).
+  Note: member-to-member DMs have no backend yet (coach DMs do) — the opened thread is
+  currently front-end only.
+- **Feed header**: removed the bottom border line (new `noRule` prop on `BSMasthead`);
+  "The feed." title now uses `t.DISPLAY` at the standard header weight.
+
 ### 2026-06-03 — Chat thread list redesign (Friends + Coaches)
 - The `BSClientFeed` DM list `Row` (shared by the **Friends** and **Coaches** tabs)
   is no longer a bordered card — it's a clean **divider-separated row**: circular

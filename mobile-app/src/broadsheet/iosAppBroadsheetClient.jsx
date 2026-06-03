@@ -5819,6 +5819,22 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [addMemberFor, setAddMemberFor] = useStateBSC(null);  // channel being added-to
   const [memberQuery, setMemberQuery] = useStateBSC('');
   const [memberResults, setMemberResults] = useStateBSC([]);
+  // "New message" people picker (the + New action on the thread lists).
+  const [newDmOpen, setNewDmOpen] = useStateBSC(false);
+  const [dmQuery, setDmQuery] = useStateBSC('');
+  const [dmResults, setDmResults] = useStateBSC([]);
+  React.useEffect(() => {
+    if (!newDmOpen || !window.ShapeChannels?.searchMembers) return undefined;
+    let active = true;
+    window.ShapeChannels.searchMembers(dmQuery).then(r => { if (active) setDmResults(r?.data || []); }).catch(() => {});
+    return () => { active = false; };
+  }, [newDmOpen, dmQuery]);
+  const startDm = (m) => {
+    const pal = ['#147b68', '#c0533b', '#a07a2e', '#2e6fa0', '#8a5cf6'];
+    const nm = m.name || m.full_name || 'Member';
+    setNewDmOpen(false); setDmQuery(''); setDmResults([]);
+    setOpenChat({ n: nm, s: 'Direct message', c: pal[nm.length % pal.length], i: nm.trim().charAt(0).toUpperCase(), messages: [], dm: true, conversation_id: m.conversation_id || ('dm-' + (m.id || nm)) });
+  };
   const refreshChannels = React.useCallback(() => {
     if (!window.ShapeChannels?.list) return;
     window.ShapeChannels.list().then(r => {
@@ -6037,41 +6053,51 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     }
   };
 
-  // One feed-post card — used by the role channels AND the live COMMUNITY feed.
-  const renderPost = (p, i) => (
-    <div key={p.id || i}>
-      {p.pinned && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', color: TEALB, marginBottom: 6 }}><PinIcon filled size={13} /> Pinned</div>}
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
-        <span style={{ fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk }}>{p.who}</span>
-        <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: ROLE[p.kind].color, border: `1px solid ${ROLE[p.kind].color}66`, borderRadius: 4, padding: '1px 5px' }}>{ROLE[p.kind].label}</span>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, color: muted }}>{p.time}</span>
-      </div>
-      <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
-        <div style={{ width: 26, height: 26, flexShrink: 0, borderRadius: 999, background: p.hue, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 12 }}>{p.init}</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ borderRadius: 13, padding: '11px 13px', background: p.official ? '#f3eee4' : card, color: p.official ? '#1a1713' : cardInk, border: p.official ? 'none' : `1px solid ${hair}`, fontFamily: p.official ? (t.SERIF || `'Newsreader', Georgia, serif`) : t.DISPLAY, fontStyle: p.official ? 'italic' : 'normal', fontSize: p.official ? 15 : 14, lineHeight: 1.38 }}>{p.body}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 22, marginTop: 8, fontFamily: t.MONO, fontSize: 15, letterSpacing: '0.02em', color: muted }}>
-            <button onClick={() => like(p)} style={{ background: 'transparent', border: 0, color: muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>♥ {p.hearts}</button>
-            <button onClick={() => openActComments(p.id, actCmtOpen === p.id)} style={{ background: 'transparent', border: 0, color: actCmtOpen === p.id ? TEALB : muted, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: actCmtOpen === p.id ? 800 : 400, cursor: 'pointer', padding: 0 }}>↳ {(p.replies || 0) + (actComments[p.id] || []).length}</button>
-          </div>
-          {actCmtOpen === p.id && (
-            <div style={{ marginTop: 10, borderTop: `1px solid ${hair}`, paddingTop: 10 }}>
-              {[...(p.comments || []), ...(actComments[p.id] || [])].map((c, ci) => (
-                <div key={ci} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: c.who === 'You' ? TEALB : muted, flexShrink: 0, marginTop: 2 }}>{c.who}</span>
-                  <span style={{ fontFamily: t.BODY, fontSize: 13, color: cardInk, lineHeight: 1.35 }}>{c.body}</span>
-                </div>
-              ))}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 58px', gap: 8, alignItems: 'center', marginTop: (actComments[p.id] || []).length ? 4 : 0 }}>
-                <input value={actCmtDraft} onChange={(e) => setActCmtDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendActComment(p.id); }} placeholder="Message…" style={{ minWidth: 0, height: 38, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 14px', fontFamily: t.BODY, fontSize: 14, color: t.INK, outline: 'none', letterSpacing: '-0.005em' }} />
-                <button onClick={() => sendActComment(p.id)} disabled={!actCmtDraft.trim()} style={{ height: 38, border: 0, borderRadius: 999, background: actCmtDraft.trim() ? t.ACCENT : t.SURFACE, color: actCmtDraft.trim() ? '#031f1c' : t.INK50, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, cursor: actCmtDraft.trim() ? 'pointer' : 'default', opacity: actCmtDraft.trim() ? 1 : 0.86 }}>Send</button>
-              </div>
+  // One feed message — chat-bubble style. Coaches (trainer/nutri) sit on the
+  // left; members + your own posts (client/shape/You) sit on the right. Role tag
+  // + bubble tint follow the role color. Used by the role channels (Client /
+  // Trainer / Nutritionist / Shape) and the live COMMUNITY feed.
+  const renderPost = (p, i) => {
+    const rc = (ROLE[p.kind] && ROLE[p.kind].color) || muted;
+    const right = p.who === 'You' || p.kind === 'CLIENT' || p.kind === 'SHAPE';
+    const replyCount = (p.replies || 0) + (actComments[p.id] || []).length;
+    const bubbleBg = p.official ? '#f3eee4' : (t.isLight ? `${rc}16` : `${rc}1f`);
+    const AV_OFFSET = 41; // avatar (32) + gap (9), to align meta/reactions under the bubble
+    return (
+      <div key={p.id || i} style={{ display: 'flex', flexDirection: 'column', alignItems: right ? 'flex-end' : 'flex-start' }}>
+        {p.pinned && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', color: TEALB, marginBottom: 6 }}><PinIcon filled size={13} /> Pinned</div>}
+        <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'flex-end', gap: 9, maxWidth: '90%' }}>
+          <div style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, background: p.hue, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13 }}>{p.init}</div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'baseline', gap: 8, marginBottom: 5 }}>
+              <span style={{ fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk }}>{p.who}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: rc, border: `1px solid ${rc}66`, borderRadius: 4, padding: '1px 5px' }}>{ROLE[p.kind].label}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 9, color: muted }}>{p.time}</span>
             </div>
-          )}
+            <div style={{ borderRadius: 16, [right ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 5, padding: '11px 14px', background: bubbleBg, color: p.official ? '#1a1713' : cardInk, border: p.official ? 'none' : `1px solid ${rc}3a`, fontFamily: p.official ? `'Newsreader', Georgia, serif` : t.DISPLAY, fontStyle: p.official ? 'italic' : 'normal', fontSize: p.official ? 15 : 14, lineHeight: 1.4 }}>{p.body}</div>
+          </div>
         </div>
+        <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'center', gap: 20, marginTop: 7, padding: right ? `0 ${AV_OFFSET}px 0 0` : `0 0 0 ${AV_OFFSET}px`, fontFamily: t.MONO, fontSize: 14, color: muted }}>
+          <button onClick={() => like(p)} style={{ background: 'transparent', border: 0, color: muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>♥ {p.hearts}</button>
+          <button onClick={() => openActComments(p.id, actCmtOpen === p.id)} style={{ background: 'transparent', border: 0, color: actCmtOpen === p.id ? TEALB : muted, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: actCmtOpen === p.id ? 800 : 400, cursor: 'pointer', padding: 0 }}>↳ {replyCount}</button>
+        </div>
+        {actCmtOpen === p.id && (
+          <div style={{ alignSelf: 'stretch', marginTop: 10, borderTop: `1px solid ${hair}`, paddingTop: 10 }}>
+            {[...(p.comments || []), ...(actComments[p.id] || [])].map((c, ci) => (
+              <div key={ci} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: c.who === 'You' ? TEALB : muted, flexShrink: 0, marginTop: 2 }}>{c.who}</span>
+                <span style={{ fontFamily: t.BODY, fontSize: 13, color: cardInk, lineHeight: 1.35 }}>{c.body}</span>
+              </div>
+            ))}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 58px', gap: 8, alignItems: 'center', marginTop: (actComments[p.id] || []).length ? 4 : 0 }}>
+              <input value={actCmtDraft} onChange={(e) => setActCmtDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendActComment(p.id); }} placeholder="Message…" style={{ minWidth: 0, height: 38, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 14px', fontFamily: t.BODY, fontSize: 14, color: t.INK, outline: 'none', letterSpacing: '-0.005em' }} />
+              <button onClick={() => sendActComment(p.id)} disabled={!actCmtDraft.trim()} style={{ height: 38, border: 0, borderRadius: 999, background: actCmtDraft.trim() ? t.ACCENT : t.SURFACE, color: actCmtDraft.trim() ? '#031f1c' : t.INK50, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, cursor: actCmtDraft.trim() ? 'pointer' : 'default', opacity: actCmtDraft.trim() ? 1 : 0.86 }}>Send</button>
+            </div>
+          </div>
+        )}
       </div>
-    </div>
-  );
+    );
+  };
 
   // Community = the live, Strava-style activity feed (mirrors the website's
   // "Today on Shape" community page): real workouts logged by members, with
@@ -6201,14 +6227,14 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   return (
     <BSPage>
       <BSMasthead
-        title={<span style={{ display: 'block', textAlign: 'center', lineHeight: 0.92, fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 500, fontSize: 38, letterSpacing: '-0.045em' }}>
+        title={<span style={{ display: 'block', textAlign: 'center', lineHeight: 0.92, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 38, letterSpacing: '-0.04em' }}>
           The <span style={{ fontStyle: 'italic', color: TEALB }}>feed.</span>
         </span>}
         leftKicker="Section · Community"
         rightKicker="Live"
         showDotTexture={false}
         showDoubleRule={false}
-        thinRule
+        noRule
         trailing={<BSAvatar init="A" size={32} onClick={onProfile} />}
       />
 
@@ -6262,7 +6288,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             return (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 2px 8px' }}>
                 <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{tot > 0 ? `${tot} unread · ` : ''}{n} thread{n === 1 ? '' : 's'}</span>
-                <button onClick={() => { try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} title="Find someone to message" style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: TEALB, padding: 0 }}>+ New</button>
+                <button onClick={() => { setNewDmOpen(true); setDmQuery(''); setDmResults([]); }} title="Start a conversation" style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: TEALB, padding: 0 }}>+ New</button>
               </div>
             );
           };
@@ -6411,6 +6437,29 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       )}
       {tab === 'teams' && teamsSel === 'support' && (
         <BSMessageComposer value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} pinned placeholder="Message the Shape team…" />
+      )}
+      {newDmOpen && createPortal(
+        <div onClick={() => setNewDmOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '14px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '2px 0 12px' }}><div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} /></div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>New message</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, margin: '4px 0 14px' }}>Start a conversation</div>
+            <input autoFocus value={dmQuery} onChange={(e) => setDmQuery(e.target.value)} placeholder="Search people…" style={{ width: '100%', height: 44, background: t.PAPER2, border: `1px solid ${t.RULE}`, borderRadius: 12, padding: '0 14px', fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, outline: 'none', boxSizing: 'border-box', marginBottom: 12 }} />
+            {dmResults.map((m) => {
+              const nm = m.name || m.full_name || 'Member';
+              const pal = ['#147b68', '#c0533b', '#a07a2e', '#2e6fa0', '#8a5cf6'];
+              return (
+                <button key={m.id || nm} onClick={() => startDm(m)} style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', padding: '10px 12px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, marginBottom: 8, cursor: 'pointer', textAlign: 'left' }}>
+                  <span style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 999, background: pal[nm.length % pal.length], color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14 }}>{nm.trim().charAt(0).toUpperCase()}</span>
+                  <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15 }}>{nm}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: TEALB }}>MESSAGE →</span>
+                </button>
+              );
+            })}
+            {dmResults.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK50, padding: '8px 2px' }}>{dmQuery.trim() ? 'No matches.' : 'Type a name to find someone.'}</div>}
+          </div>
+        </div>,
+        (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
       )}
       {addMemberFor && createPortal(
         <div onClick={() => setAddMemberFor(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
