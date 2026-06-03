@@ -1866,7 +1866,23 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
             return (
               <div key={key} style={{ borderBottom: row.last ? 0 : `1px solid ${t.HAIR}` }}>
                 <button
-                  onClick={() => setActiveDayLogKey(key)}
+                  onClick={() => {
+                    // Meals open the full meal preview page; other items (workouts,
+                    // check-ins, consults) use the quick confirm sheet.
+                    if (row.tag === 'MEAL') {
+                      const kc = /(\d[\d,]*)\s*kcal/i.exec(row.sub || '');
+                      const pr = /(\d+)\s*P\b/i.exec(row.sub || '');
+                      setPreviewMeal({
+                        id: `daylog:${dataDay}:${row.time}`,
+                        title: row.title, time: row.time, tag: row.tag, tagColor: row.tagColor,
+                        kcal: kc ? parseInt(kc[1].replace(/,/g, ''), 10) : 0,
+                        p: pr ? parseInt(pr[1], 10) : 0, c: 0, f: 0,
+                        sub: row.sub,
+                      });
+                    } else {
+                      setActiveDayLogKey(key);
+                    }
+                  }}
                   style={{
                     width: '100%',
                     display: 'grid',
@@ -1959,11 +1975,11 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
       </div>
 
       {/* ── HABIT TRACKER (summary on home; full page via tap) ───── */}
-      {activeDayLog && activeDayLogDetails && (
+      {activeDayLog && activeDayLogDetails && createPortal(
         <div
           onClick={() => setActiveDayLogKey(null)}
           style={{
-            position: 'fixed',
+            position: 'absolute',
             inset: 0,
             zIndex: 90,
             background: 'rgba(0,0,0,0.42)',
@@ -1985,7 +2001,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
               color: t.INK,
               boxShadow: '0 18px 60px rgba(0,0,0,0.35)',
               overflow: 'auto',
-              maxHeight: 'calc(100vh - 132px)',
+              maxHeight: '80%',
               WebkitOverflowScrolling: 'touch',
             }}
           >
@@ -2074,7 +2090,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
       )}
 
       {/* THIS WEEK — (moved to top) */}
