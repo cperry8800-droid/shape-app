@@ -51,6 +51,14 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     window.dispatchEvent?.(new CustomEvent('shape:activeTabChanged', { detail: { tab } }));
   }, [tab]);
 
+  // Let any deep component (e.g. a playlist card's "Connect Spotify" prompt)
+  // jump to Settings → Connected apps without prop-threading.
+  React.useEffect(() => {
+    const open = () => goIntegrations();
+    window.addEventListener('shape:openIntegrations', open);
+    return () => window.removeEventListener('shape:openIntegrations', open);
+  }, []);
+
   if (showSettings) {
     return (
       <BSSettings
@@ -2308,7 +2316,10 @@ function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, tracks }) {
     } catch (e) {
       const msg = (e && e.message) || 'Could not save to Spotify.';
       setSaveState('error'); setSaveMsg(msg);
-      try { window.__bsToast && window.__bsToast(msg, 'error'); } catch (e2) {}
+      const friendly = /sign ?in|connect spotify|authentic|log ?in|unauthor|reconnect|before saving|not connected/i.test(msg)
+        ? 'Connect Spotify in Settings to save playlists'
+        : msg;
+      try { window.__bsToast && window.__bsToast(friendly, 'error'); } catch (e2) {}
     }
   };
   // Total track count parsed from the meta line ("… · 14 tracks") so the popup
@@ -2348,8 +2359,21 @@ function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, tracks }) {
             {saveState === 'saved' ? '✓ Saved to Spotify' : saveState === 'saving' ? 'Saving…' : saveState === 'error' ? 'Try again' : '♡ Save to my Spotify'}
           </button>
         )}
-        {canSaveToSpotify && saveState === 'error' && saveMsg && (
-          <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.02em', lineHeight: 1.4, textAlign: 'center' }}>{saveMsg}</div>
+        {canSaveToSpotify && saveState === 'error' && (
+          // Most failures here mean the member hasn't linked Spotify (or isn't
+          // signed in) — point them to where they connect it instead of showing
+          // the raw error. Other errors (e.g. network) still show their message.
+          /sign ?in|connect spotify|authentic|log ?in|unauthor|reconnect|before saving|not connected/i.test(saveMsg) ? (
+            <button
+              onClick={() => { setOpen(false); try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) {} }}
+              style={{ width: '100%', marginTop: 8, padding: '11px 12px', borderRadius: t.RADIUS_SM, border: `1px dashed ${color}`, background: 'transparent', cursor: 'pointer', display: 'block', textAlign: 'center' }}
+            >
+              <div style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color }}>Connect Spotify to save →</div>
+              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>Settings · Connected apps</div>
+            </button>
+          ) : (
+            <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.02em', lineHeight: 1.4, textAlign: 'center' }}>{saveMsg}</div>
+          )
         )}
         <button onClick={openSpotify} style={{ width: '100%', marginTop: canSaveToSpotify ? 8 : 16, padding: '13px', borderRadius: 999, border: 0, background: color, color: '#04201d', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
           {bsSpotifyGlyph(15, '#04201d')} Open in Spotify
