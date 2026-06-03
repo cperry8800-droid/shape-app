@@ -357,10 +357,10 @@ function BSTimeChip({ value, onChange, ink, mono }) {
   return (
     <label style={{
       display: 'inline-flex', alignItems: 'center', gap: 6,
-      padding: '6px 10px', border: `1px solid ${ink}`, cursor: 'pointer',
+      padding: '8px 12px', border: `1px solid ${ink}33`, cursor: 'pointer',
       fontFamily: mono, fontSize: 11, letterSpacing: '0.08em', color: ink,
       fontVariantNumeric: 'tabular-nums', position: 'relative',
-      borderRadius: 6,
+      borderRadius: 999,
     }}>
       <span style={{ fontSize: 9, opacity: 0.6 }}>◷</span>
       <span>{display}</span>
@@ -1002,6 +1002,7 @@ function BSHabitGridCard({ habit, onToggle, onEdit }) {
 // Inline form for creating / editing a habit
 function BSHabitForm({ initial, onSave, onCancel, onDelete }) {
   const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [name, setName] = useStateBSH(initial?.name || '');
   const [type, setType] = useStateBSH(initial?.type || 'do');
   const [remindAt, setRemindAt] = useStateBSH(initial?.remindAt || '');
@@ -1021,91 +1022,76 @@ function BSHabitForm({ initial, onSave, onCancel, onDelete }) {
     });
   };
 
+  const lbl = { fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 };
   return (
-    <div style={{
-      padding: '14px 0 4px', marginTop: 10,
-      borderTop: `1px solid ${t.RULE}`,
-    }}>
-      <div style={{
-        fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800,
-        letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50,
-        marginBottom: 6,
-      }}>
-        {isEdit ? 'Edit habit' : 'New habit'}
+    <div style={{ paddingTop: 4, marginTop: 8, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Name */}
+      <div>
+        <div style={{ ...lbl, marginBottom: 8 }}>{isEdit ? 'Edit habit' : 'New habit'}</div>
+        <input
+          type="text"
+          placeholder="e.g. Drink 2L water"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoFocus
+          maxLength={60}
+          style={{
+            width: '100%', boxSizing: 'border-box',
+            padding: '14px 16px', fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500,
+            background: t.PAPER2, color: t.INK,
+            border: `1px solid ${t.RULE}`, borderRadius: 14,
+            outline: 'none', letterSpacing: '-0.01em',
+          }}
+        />
       </div>
 
-      {/* Name */}
-      <input
-        type="text"
-        placeholder="e.g. Drink 2L water"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        autoFocus
-        maxLength={60}
-        style={{
-          width: '100%', boxSizing: 'border-box',
-          padding: '10px 0', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500,
-          background: 'transparent', color: t.INK,
-          border: 'none', borderBottom: `2px solid ${t.INK}`,
-          outline: 'none', letterSpacing: '-0.01em',
-        }}
-      />
-
-      {/* Type pills */}
-      <div style={{
-        display: 'flex', gap: 6, marginTop: 14,
-      }}>
-        {[
-          { k: 'do', label: '✓ Do daily', color: t.GREEN },
-          { k: 'avoid', label: '✕ Avoid', color: t.RUST },
-        ].map(p => (
-          <button
-            key={p.k}
-            onClick={() => setType(p.k)}
-            style={{
-              flex: 1, padding: '9px 10px',
-              border: `2px solid ${t.INK}`,
-              background: type === p.k ? p.color : 'transparent',
-              color: type === p.k ? t.PAPER : t.INK,
-              fontFamily: t.MONO, fontSize: 10, fontWeight: 800,
-              letterSpacing: '0.18em', textTransform: 'uppercase',
-              cursor: 'pointer',
-            }}
-          >
-            {p.label}
-          </button>
-        ))}
+      {/* Type */}
+      <div>
+        <div style={{ ...lbl, marginBottom: 8 }}>Track as</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {[
+            { k: 'do', label: '✓ Do daily', color: t.GREEN },
+            { k: 'avoid', label: '✕ Avoid', color: t.RUST },
+          ].map(p => {
+            const on = type === p.k;
+            return (
+              <button
+                key={p.k}
+                onClick={() => setType(p.k)}
+                style={{
+                  flex: 1, padding: '13px 10px', borderRadius: 14,
+                  border: `1px solid ${on ? p.color : t.RULE}`,
+                  background: on ? p.color : t.PAPER2,
+                  color: on ? '#fff' : t.INK,
+                  fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800,
+                  letterSpacing: '0.16em', textTransform: 'uppercase',
+                  cursor: 'pointer',
+                }}
+              >{p.label}</button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Reminder */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        gap: 12, marginTop: 14,
-      }}>
-        <div>
-          <div style={{
-            fontFamily: t.MONO, fontSize: 9, fontWeight: 800,
-            letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50,
-          }}>
-            Reminder
-          </div>
-          <div style={{
-            fontFamily: t.DISPLAY, fontSize: 13, color: t.INK, marginTop: 2,
-          }}>
+      <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={lbl}>Reminder</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: remindAt ? t.INK : t.INK50, marginTop: 3 }}>
             {remindAt ? `Notify at ${remindAt}` : 'No notification'}
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           <BSTimeChip value={remindAt} onChange={setRemindAt} ink={t.INK} mono={t.MONO} />
           {remindAt && (
             <button
               onClick={() => setRemindAt('')}
               aria-label="Clear reminder"
               style={{
-                background: 'transparent', border: `1px solid ${t.INK}`,
-                fontFamily: t.MONO, fontSize: 11, color: t.INK,
-                width: 28, height: 28, cursor: 'pointer', padding: 0,
-                borderRadius: 6,
+                background: 'transparent', border: `1px solid ${t.RULE}`,
+                fontFamily: t.MONO, fontSize: 13, color: t.INK50,
+                width: 30, height: 30, cursor: 'pointer', padding: 0,
+                borderRadius: 999, lineHeight: 1,
               }}
             >×</button>
           )}
@@ -1113,94 +1099,80 @@ function BSHabitForm({ initial, onSave, onCancel, onDelete }) {
       </div>
 
       {/* Visibility — public habits notify Shape friends if you miss the day */}
-      <div style={{
-        display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-        gap: 12, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${t.RULE}`,
-      }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{
-            fontFamily: t.MONO, fontSize: 9, fontWeight: 800,
-            letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50,
-          }}>
-            Visibility
-          </div>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 13, color: t.INK, marginTop: 2 }}>
-            {visibility === 'private'
-              ? 'Private - only you'
-              : visibility === 'friends'
-                ? 'Friends only - shared with Shape friends'
-                : 'Public - visible to the Shape community'}
-          </div>
-          {visibility !== 'private' && (
-            <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.AMBER, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 6 }}>
-              Friends can support streaks when you miss a day
-            </div>
-          )}
+      <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
+        <div style={lbl}>Visibility</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, marginTop: 3 }}>
+          {visibility === 'private'
+            ? 'Private — only you'
+            : visibility === 'friends'
+              ? 'Friends — shared with Shape friends'
+              : 'Public — visible to the community'}
         </div>
-        <div style={{ display: 'inline-flex', border: `1px solid ${t.INK}`, borderRadius: 6, overflow: 'hidden', flexShrink: 0 }}>
+        {visibility !== 'private' && (
+          <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.AMBER, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 6 }}>
+            Friends can support streaks when you miss a day
+          </div>
+        )}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginTop: 12 }}>
           {[
             { k: 'private', label: 'Private' },
             { k: 'friends', label: 'Friends' },
             { k: 'public',  label: 'Public'  },
-          ].map((opt, i) => (
-            <button
-              key={String(opt.k)}
-              onClick={() => setVisibility(opt.k)}
-              style={{
-                padding: '7px 9px',
-                background: visibility === opt.k ? t.INK : 'transparent',
-                color: visibility === opt.k ? t.PAPER : t.INK,
-                border: 0, borderLeft: i > 0 ? `1px solid ${t.INK}` : 0,
-                fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
-                cursor: 'pointer',
-              }}
-            >{opt.label}</button>
-          ))}
+          ].map((opt) => {
+            const on = visibility === opt.k;
+            return (
+              <button
+                key={String(opt.k)}
+                onClick={() => setVisibility(opt.k)}
+                style={{
+                  padding: '10px 6px', borderRadius: 999,
+                  background: on ? teal : 'transparent',
+                  color: on ? '#04201d' : t.INK,
+                  border: `1px solid ${on ? teal : t.RULE}`,
+                  fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
+                  cursor: 'pointer',
+                }}
+              >{opt.label}</button>
+            );
+          })}
         </div>
       </div>
 
       {/* Actions */}
-      <div style={{
-        display: 'flex', gap: 8, marginTop: 16,
-        paddingTop: 12, borderTop: `1px solid ${t.RULE}`,
-      }}>
+      <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
         {isEdit && (
           <button
             onClick={() => onDelete(initial.id)}
             style={{
-              padding: '10px 14px', border: `1px solid ${t.RUST}`,
+              padding: '13px 16px', border: `1px solid ${t.RUST}`,
               background: 'transparent', color: t.RUST,
               fontFamily: t.MONO, fontSize: 10, fontWeight: 800,
-              letterSpacing: '0.18em', textTransform: 'uppercase',
-              cursor: 'pointer',
-              borderRadius: t.RADIUS_SM,
+              letterSpacing: '0.16em', textTransform: 'uppercase',
+              cursor: 'pointer', borderRadius: 999,
             }}
           >Delete</button>
         )}
-        <span style={{ flex: 1 }} />
         <button
           onClick={onCancel}
           style={{
-            padding: '10px 14px', border: `1px solid ${t.INK}`,
+            flex: isEdit ? 0 : 1, padding: '13px 16px', border: `1px solid ${t.RULE}`,
             background: 'transparent', color: t.INK,
             fontFamily: t.MONO, fontSize: 10, fontWeight: 800,
-            letterSpacing: '0.18em', textTransform: 'uppercase',
-            cursor: 'pointer',
-            borderRadius: t.RADIUS_SM,
+            letterSpacing: '0.16em', textTransform: 'uppercase',
+            cursor: 'pointer', borderRadius: 999,
           }}
         >Cancel</button>
         <button
           onClick={save}
           disabled={!name.trim()}
           style={{
-            padding: '10px 18px', border: `2px solid ${t.INK}`,
-            background: name.trim() ? t.INK : t.INK50, color: t.PAPER,
+            flex: 1, padding: '13px 18px', border: 0,
+            background: name.trim() ? teal : t.RULE, color: name.trim() ? '#04201d' : t.INK50,
             fontFamily: t.MONO, fontSize: 10, fontWeight: 800,
-            letterSpacing: '0.18em', textTransform: 'uppercase',
-            cursor: name.trim() ? 'pointer' : 'default',
-            borderRadius: t.RADIUS_SM,
+            letterSpacing: '0.16em', textTransform: 'uppercase',
+            cursor: name.trim() ? 'pointer' : 'default', borderRadius: 999,
           }}
-        >{isEdit ? 'Save' : 'Add habit'}</button>
+        >{isEdit ? 'Save habit' : 'Add habit'}</button>
       </div>
     </div>
   );
