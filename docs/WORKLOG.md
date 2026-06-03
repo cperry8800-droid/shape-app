@@ -46,6 +46,23 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-03 — Member-to-member DM backend (Friends + New message)
+- **Migration `2026-06-03-member-direct-conversations.sql`** (idempotent): adds a
+  `dm_key` dedupe column to `conversations` + two SECURITY DEFINER RPCs —
+  `get_or_create_member_conversation(other_user_id)` (creates/finds the 1:1, adds both
+  as participants) and `list_member_dm_threads()` (returns my member DMs with the
+  **counterpart's** name resolved from `profiles`). Reuses the existing
+  conversations/messages RLS (participants read + send). **Must be run on Supabase.**
+- `shapeBackend.js`: `ShapeMessages.getOrCreateMemberConversation` + `listMemberThreads`;
+  `listDirectCoachThreads` now excludes member DMs (`dm_key is null`) so Coaches vs
+  Friends stay separate.
+- `BSClientFeed`: the **Friends** tab now lists real member DM threads; the **+ New**
+  picker creates a real conversation on select, so messages persist + deliver (realtime).
+  Applies to all profiles. (Coach DMs, channels, community feed, support already had
+  backends — member DMs were the only gap.)
+- **Filter pills**: Community/Client/Shape + Coaches/Channels/Support are now
+  content-sized (flex, not full-width grid) — less dead space inside each pill.
+
 ### 2026-06-03 — Chat feed bubbles + New-message picker + header polish
 - **Feed posts** (`renderPost`, role channels Client/Trainer/Nutritionist/Shape +
   live community) are now **chat bubbles**: coaches (trainer/nutri) align left, members

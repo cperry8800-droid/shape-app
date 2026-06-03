@@ -5829,11 +5829,35 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     window.ShapeChannels.searchMembers(dmQuery).then(r => { if (active) setDmResults(r?.data || []); }).catch(() => {});
     return () => { active = false; };
   }, [newDmOpen, dmQuery]);
-  const startDm = (m) => {
+  // Member directory of my existing 1:1 DM threads (real, persisted).
+  const [memberThreads, setMemberThreads] = useStateBSC(null);
+  const loadMemberThreads = React.useCallback(() => {
+    if (!window.ShapeMessages?.listMemberThreads) return;
+    window.ShapeMessages.listMemberThreads()
+      .then(res => { const list = (res && Array.isArray(res.data)) ? res.data : []; setMemberThreads(list); })
+      .catch(() => {});
+  }, []);
+  React.useEffect(() => { loadMemberThreads(); }, [loadMemberThreads]);
+  const friendRows = (memberThreads || []).map((th, i) => ({
+    n: th.who || 'Member',
+    s: 'Direct message',
+    c: _threadPalette[i % _threadPalette.length],
+    i: (th.who || 'M').toString().trim().charAt(0).toUpperCase(),
+    last: th.last,
+    conversation_id: th.conversation_id,
+    messages: th.messages || [],
+  }));
+  const startDm = async (m) => {
     const pal = ['#147b68', '#c0533b', '#a07a2e', '#2e6fa0', '#8a5cf6'];
     const nm = m.name || m.full_name || 'Member';
     setNewDmOpen(false); setDmQuery(''); setDmResults([]);
-    setOpenChat({ n: nm, s: 'Direct message', c: pal[nm.length % pal.length], i: nm.trim().charAt(0).toUpperCase(), messages: [], dm: true, conversation_id: m.conversation_id || ('dm-' + (m.id || nm)) });
+    let convId = m.conversation_id || null;
+    try {
+      const res = await window.ShapeMessages?.getOrCreateMemberConversation?.({ otherUserId: m.id });
+      if (res && res.data) convId = res.data;
+    } catch (e) { window.__bsToast?.(e?.message || 'Could not start conversation.', 'err'); }
+    setOpenChat({ n: nm, s: 'Direct message', c: pal[nm.length % pal.length], i: nm.trim().charAt(0).toUpperCase(), messages: [], dm: true, conversation_id: convId });
+    loadMemberThreads();
   };
   const refreshChannels = React.useCallback(() => {
     if (!window.ShapeChannels?.list) return;
@@ -6295,7 +6319,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
 
           if (tab === 'messages') {
             // Friends: a simple list of people — tap one to open the chat.
-            const friends = threadRows.length ? threadRows : (loggedIn ? [] : (isCoach
+            const friends = friendRows.length ? friendRows : (loggedIn ? [] : (isCoach
               ? [{ n: 'Sofia Martinez', s: 'Active now', c: '#147b68', i: 'S', conversation_id: 'demo-sofia', messages: BS_SAMPLE_DMS['Sofia Martinez'] }, { n: 'Dev Patel', s: '2h ago', c: '#2e6fa0', i: 'D', messages: BS_SAMPLE_DMS['Dev Patel'] }, { n: 'Aria Kim', s: 'Yesterday', c: '#8a5cf6', i: 'A', messages: BS_SAMPLE_DMS['Aria Kim'] }]
               : [{ n: 'Sofia Martinez', s: 'Active now', c: '#147b68', i: 'S', conversation_id: 'demo-sofia', messages: BS_SAMPLE_DMS['Sofia Martinez'] }, { n: 'Jordan Chen', s: '2h ago', c: '#c0533b', i: 'J', messages: BS_SAMPLE_DMS['Jordan Chen'] }, { n: 'Maya Okafor', s: 'Active now', c: '#a07a2e', i: 'M', messages: BS_SAMPLE_DMS['Maya Okafor'] }, { n: 'Dev Patel', s: 'Yesterday', c: '#2e6fa0', i: 'D', messages: BS_SAMPLE_DMS['Dev Patel'] }, { n: 'Aria Kim', s: '3h ago', c: '#8a5cf6', i: 'A', messages: BS_SAMPLE_DMS['Aria Kim'] }]));
             return (
@@ -6342,7 +6366,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           };
           return (
             <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {selectors.map(sec => {
                   const on = active.key === sec.key;
                   return (
@@ -6410,7 +6434,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       ) : (
         <>
           {/* Role filter chips */}
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${CHIP_KEYS.length}, 1fr)`, gap: 6, padding: `10px ${t.padX}px` }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: `10px ${t.padX}px` }}>
             {CHIP_KEYS.map(k => {
               const on = filter === k;
               return (
