@@ -46,6 +46,15 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-03 — Meal-time schedule surfaced in day-log; auth polish; compact score hero
+- **Day-log rows now show the scheduled meal time** (eat page list + day brief + swap
+  sheet) via shared `bsMealSchedLabel()` — meal's own time, else the client's meal-time
+  preference for that slot, rendered 12-hour. Consistent with the preview eyebrow.
+  (Calendar keeps its own per-event times.)
+- **Auth screen**: "No account? Browse the app →" is now plain teal text (bubble
+  removed). SHAPE logo brightened + teal glow + slightly larger (more visible).
+- **Shape Score hero** made more compact (ring 112→86, padding/fonts trimmed).
+
 ### 2026-06-03 — Library heading/search polish + client meal-time preference
 - **Library**: new heading — teal "Your library" eyebrow, serif **Saved / _everything._**
   title, italic subtitle ("Every workout, meal, recipe and grocery list you keep — in

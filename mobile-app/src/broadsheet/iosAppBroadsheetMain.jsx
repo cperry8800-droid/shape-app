@@ -773,7 +773,7 @@ function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
       <BSNightSky />
       <div className="bs-hide-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 'max(20px, calc(env(safe-area-inset-top, 0px) + 12px)) 22px calc(20px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 5 }}>
         {/* Logo lockup — top-left */}
-        <img src={`${import.meta.env.BASE_URL}shape-logo.png`} alt="Shape" style={{ width: 120, height: 'auto', display: 'block', marginLeft: -13, marginTop: -50 }} />
+        <img src={`${import.meta.env.BASE_URL}shape-logo.png`} alt="Shape" style={{ width: 132, height: 'auto', display: 'block', marginLeft: -13, marginTop: -50, filter: 'brightness(1.3) contrast(1.12) drop-shadow(0 0 12px rgba(46,224,196,0.4))' }} />
 
         {/* Eyebrow + heading */}
         <div style={{ marginTop: 48 }}>
@@ -888,7 +888,7 @@ function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
         <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '24px 18px', marginTop: 46 }}>
           <button onClick={() => { setMode(isCreate ? 'signin' : 'create'); setAuthError(''); }} style={{ ...linkBtn, fontSize: 11, fontWeight: 800 }}>{isCreate ? 'Have an account? Sign in' : 'New here? Join Shape'}</button>
           {isPhone && <button onClick={() => switchMethod('email')} style={{ ...linkBtn, fontSize: 11, fontWeight: 800 }}>Use email instead</button>}
-          <button onClick={onBrowse} style={{ background: 'rgba(46,224,196,0.12)', border: '1.5px solid #2ee0c4', borderRadius: 999, color: '#2ee0c4', fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 400, letterSpacing: '-0.01em', cursor: 'pointer', padding: '8px 22px' }}>No account? Browse the app →</button>
+          <button onClick={onBrowse} style={{ background: 'transparent', border: 0, color: '#2ee0c4', fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 400, letterSpacing: '-0.01em', cursor: 'pointer', padding: '8px 4px' }}>No account? Browse the app →</button>
         </div>
       </div>
     </div>
