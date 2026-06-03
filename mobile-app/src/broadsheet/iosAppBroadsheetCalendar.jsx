@@ -565,13 +565,20 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
       </div>
 
       {/* Legend */}
-      <div style={{ padding: `8px ${t.padX}px 14px`, display: 'flex', flexWrap: 'wrap', gap: '8px 16px', alignItems: 'center' }}>
+      <div style={{ padding: `8px ${t.padX}px 8px`, display: 'flex', flexWrap: 'wrap', gap: '8px 16px', alignItems: 'center' }}>
         {[['Workout', t.AMBER], ['Meals', t.BLUE], ['Check-in', t.GREEN], ['Consult', t.RUST]].map(([l, c]) => (
           <span key={l} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
             <span style={{ width: 7, height: 7, borderRadius: 999, background: c, display: 'inline-block' }} />{l}
           </span>
         ))}
       </div>
+
+      {/* Month tally — items this month, done vs ahead */}
+      {monthTotal > 0 && (
+        <div style={{ padding: `0 ${t.padX}px 14px`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
+          {monthTotal} this month · <span style={{ color: teal, fontWeight: 800 }}>{doneCount} done</span> · {monthTotal - doneCount} ahead
+        </div>
+      )}
 
       {/* Day reader (inline — replaces the old week-strip drilldown) */}
       {(() => {
