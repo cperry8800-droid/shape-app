@@ -6087,61 +6087,63 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
     el.style.overflowY = el.scrollHeight > COMPOSER_MAX_H ? 'auto' : 'hidden';
   }, [value]);
 
-  const input = (
-    <textarea
-      ref={taRef}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      onKeyDown={(e) => {
-        // Enter sends; Shift/⌘/Ctrl+Enter drops a newline so longer notes wrap.
-        if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
-          e.preventDefault();
-          onSend();
-        }
-      }}
-      placeholder={placeholder}
-      rows={1}
-      style={{
-        minWidth: 0,
-        width: '100%',
-        boxSizing: 'border-box',
-        minHeight: 38,
-        maxHeight: COMPOSER_MAX_H,
-        resize: 'none',
-        display: 'block',
-        background: pinned ? t.SURFACE : t.PAPER,
-        border: `1px solid ${t.SURFACE_BORDER}`,
-        borderRadius: 19,
-        padding: '9px 14px',
-        fontFamily: t.BODY,
-        fontSize: 14,
-        lineHeight: 1.3,
-        color: t.INK,
-        outline: 'none',
-        letterSpacing: '-0.005em',
-        overflowY: 'hidden',
-      }}
-    />
-  );
-  const sendBtn = (
-    <button
-      onClick={onSend}
-      disabled={!canSend}
-      style={{
-        height: 38,
-        border: 0,
-        borderRadius: 999,
-        background: canSend ? t.ACCENT : t.SURFACE,
-        color: canSend ? '#031f1c' : t.INK50,
-        fontFamily: t.BODY,
-        fontSize: 12.5,
-        fontWeight: 760,
-        cursor: canSend ? 'pointer' : 'default',
-        opacity: canSend ? 1 : 0.86,
-      }}
-    >
-      Send
-    </button>
+  // The message bubble with the send arrow tucked inside it (iMessage-style):
+  // a teal circular ↑ button pinned to the bottom-right of the textarea.
+  const field = (
+    <div style={{ position: 'relative', width: '100%' }}>
+      <textarea
+        ref={taRef}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          // Enter sends; Shift/⌘/Ctrl+Enter drops a newline so longer notes wrap.
+          if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+            e.preventDefault();
+            onSend();
+          }
+        }}
+        placeholder={placeholder}
+        rows={1}
+        style={{
+          minWidth: 0,
+          width: '100%',
+          boxSizing: 'border-box',
+          minHeight: 40,
+          maxHeight: COMPOSER_MAX_H,
+          resize: 'none',
+          display: 'block',
+          background: pinned ? t.SURFACE : t.PAPER,
+          border: `1px solid ${t.SURFACE_BORDER}`,
+          borderRadius: 20,
+          padding: '10px 46px 10px 15px', // right pad clears the embedded send button
+          fontFamily: t.BODY,
+          fontSize: 14,
+          lineHeight: 1.3,
+          color: t.INK,
+          outline: 'none',
+          letterSpacing: '-0.005em',
+          overflowY: 'hidden',
+        }}
+      />
+      <button
+        onClick={onSend}
+        disabled={!canSend}
+        aria-label="Send"
+        style={{
+          position: 'absolute', right: 5, bottom: 5,
+          width: 30, height: 30, flexShrink: 0,
+          border: 0, borderRadius: 999,
+          background: canSend ? t.ACCENT : t.SURFACE_BORDER,
+          color: canSend ? '#031f1c' : t.INK50,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: canSend ? 'pointer' : 'default',
+          opacity: canSend ? 1 : 0.7,
+          transition: 'background .15s ease, opacity .15s ease',
+        }}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
+      </button>
+    </div>
   );
 
   if (pinned) {
@@ -6154,34 +6156,20 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
         borderTop: `1px solid ${t.SURFACE_BORDER}`,
         padding: `10px ${t.padX}px`,
         boxShadow: `0 -10px 26px ${t.isLight ? 'rgba(15,14,12,0.10)' : 'rgba(0,0,0,0.34)'}`,
-        display: 'grid',
-        gridTemplateColumns: '1fr 58px',
-        gap: 8,
-        alignItems: 'end',
       }}>
-        {input}
-        {sendBtn}
+        {field}
       </div>
     );
     return slot ? createPortal(bar, slot) : null;
   }
 
-  // Non-pinned: the original floating rounded pill.
+  // Non-pinned: floating bubble with a soft drop shadow on the rounded field.
   return (
     <div style={{
       margin: `0 ${t.padX}px 16px`,
-      display: 'grid',
-      gridTemplateColumns: '1fr 58px',
-      gap: 8,
-      alignItems: 'end',
-      padding: 7,
-      border: `1px solid ${t.SURFACE_BORDER}`,
-      borderRadius: 999,
-      background: t.PAPER,
-      boxShadow: `0 18px 38px ${t.isLight ? 'rgba(15,14,12,0.16)' : 'rgba(0,0,0,0.42)'}, 0 -1px 0 ${t.SURFACE_BORDER}`,
+      filter: `drop-shadow(0 18px 38px ${t.isLight ? 'rgba(15,14,12,0.16)' : 'rgba(0,0,0,0.42)'})`,
     }}>
-      {input}
-      {sendBtn}
+      {field}
     </div>
   );
 }
