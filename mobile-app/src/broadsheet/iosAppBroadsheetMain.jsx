@@ -268,7 +268,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
   // Classified is interactive: user must tap "Step inside" — no auto-advance.
   useEffectBSM(() => {
     if (style === 'classified') return; // classified is tap-only
-    const id = setTimeout(onDone, style === 'classified' ? 4200 : (style === 'cosmos' || !style) ? 2600 : 1600);
+    const id = setTimeout(onDone, style === 'classified' ? 4200 : (style === 'cosmos' || !style) ? 5000 : 1600);
     return () => clearTimeout(id);
   }, [style]);
 
@@ -489,7 +489,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
                 <span className="bs-splash-daily" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>Daily.</span>
               </span>
             </div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, marginTop: 18 }}>Today's edition · <span style={{ fontWeight: 700, color: t.INK }}>{dateLine}</span></div>
+            <div style={{ fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, marginTop: 18 }}>Today's edition · <span style={{ fontWeight: 700, color: t.INK }}>{dateLine}</span></div>
           </div>
         </div>
 
@@ -498,7 +498,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
             <React.Fragment key={col}>
               {col === 2 && <div style={{ background: t.RULE }} />}
               <div style={{ paddingRight: col === 1 ? 10 : 0, paddingLeft: col === 2 ? 10 : 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.24em', color: t.INK, textTransform: 'uppercase', borderBottom: `2px solid ${t.INK}`, paddingBottom: 5 }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.24em', color: t.INK, textTransform: 'uppercase', borderBottom: `2px solid ${t.INK}`, paddingBottom: 5 }}>
                   {col === 1 ? 'Inside Shape' : 'In the world'}
                 </div>
                 {items.filter(i => i.col === col).map((it, i) => {
@@ -777,10 +777,10 @@ function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
 
         {/* Eyebrow + heading */}
         <div style={{ marginTop: 48 }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#2ee0c4', fontWeight: 700 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#2ee0c4', fontWeight: 700 }}>
             {isCreate ? 'Join Shape' : 'Sign in'}
           </div>
-          <div style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 500, fontSize: 32, lineHeight: 0.94, letterSpacing: '-0.045em', color: CREAM, marginTop: 4 }}>
+          <div style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 500, fontSize: 37, lineHeight: 0.94, letterSpacing: '-0.045em', color: CREAM, marginTop: 4 }}>
             {isCreate ? (
               <>Join the<br/><span style={{ fontWeight: 400, fontStyle: 'italic', letterSpacing: '-0.065em', color: '#2ee0c4' }}>community.</span></>
             ) : (
@@ -888,7 +888,7 @@ function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
         <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '24px 18px', marginTop: 46 }}>
           <button onClick={() => { setMode(isCreate ? 'signin' : 'create'); setAuthError(''); }} style={{ ...linkBtn, fontSize: 11 }}>{isCreate ? 'Have an account? Sign in' : 'New here? Join Shape'}</button>
           {isPhone && <button onClick={() => switchMethod('email')} style={{ ...linkBtn, fontSize: 11 }}>Use email instead</button>}
-          <button onClick={onBrowse} style={{ background: 'rgba(46,224,196,0.12)', border: '1.5px solid #2ee0c4', borderRadius: 999, color: '#2ee0c4', fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, letterSpacing: '-0.01em', cursor: 'pointer', padding: '12px 24px' }}>No account? Browse the app →</button>
+          <button onClick={onBrowse} style={{ background: 'rgba(46,224,196,0.12)', border: '1.5px solid #2ee0c4', borderRadius: 999, color: '#2ee0c4', fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, letterSpacing: '-0.01em', cursor: 'pointer', padding: '8px 22px' }}>No account? Browse the app →</button>
         </div>
       </div>
     </div>
