@@ -766,6 +766,86 @@ const BS_TICKER_METRICS = [
   { key: 'WGT', name: 'Weight' },
 ];
 
+// Full read-only preview of an upcoming workout — opened from the home
+// "Up next" workout card's Preview button.
+function BSHomeWorkoutPreview({ onBack, onMove = () => {}, onStart = () => {} }) {
+  const t = useBS();
+  const rust = t.RUST;
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const moves = [
+    { name: 'Pull-up',        scheme: '4 × 6-8 · 3 min rest', cue: 'Dead hang. Chest to bar.',      load: '42 lb', up: true },
+    { name: 'Barbell row',    scheme: '4 × 8 · 2 min rest',   cue: 'Hinge 45°, pull to sternum.',   load: '155 lb' },
+    { name: 'Chest-sup. row', scheme: '3 × 10 · 90s rest',    cue: 'Pause 1s at peak contraction.', load: '60 lb' },
+    { name: 'Face pull',      scheme: '3 × 15 · 60s rest',    cue: 'External rotation at the top.', load: '35 lb' },
+    { name: 'Incline curl',   scheme: '3 × 12 · 60s rest',    cue: 'Full stretch. 3s eccentric.',   load: '27.5 lb' },
+    { name: 'Farmer carry',   scheme: '3 × 40m · 60s rest',   cue: 'Crush grip. Ribs down.',        load: '80 lb' },
+  ];
+  const headBtn = { background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK };
+  const footBtn = { flex: 1, padding: '14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' };
+  return (
+    <BSPage tabBarHeight={0}>
+      <div style={{ padding: `52px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <button onClick={onBack} style={headBtn}>← Back</button>
+        <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: rust }}>Preview</span>
+        <button onClick={onStart} style={{ ...headBtn, color: t.INK50 }}>··· More</button>
+      </div>
+
+      <div style={{ padding: `18px ${t.padX}px 4px` }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Tomorrow · Wed Apr 22 · 9:00 AM</div>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, color: t.INK, letterSpacing: '-0.035em', lineHeight: 0.98 }}>Upper Pull — Peak<span style={{ color: rust }}>.</span></div>
+        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>52 min · 6 moves · RPE 8 · ~420 kcal</div>
+      </div>
+
+      {/* Coach note card */}
+      <div style={{ padding: `14px ${t.padX}px 4px` }}>
+        <div style={{ borderRadius: 16, border: `1px solid ${rust}55`, background: `linear-gradient(155deg, ${rust}24, ${rust}08 45%, ${t.PAPER2} 90%), ${t.PAPER2}`, padding: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+              <BSAvatar init="J" size={34} fill={rust} ink={t.PAPER} />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>Jordan Chen</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginTop: 1 }}>Coach</div>
+              </div>
+            </div>
+            <button onClick={() => window.__bsToast?.('Opening chat with Jordan…', 'ok')} style={{ flexShrink: 0, padding: '8px 14px', borderRadius: 999, border: `1px solid ${teal}`, background: 'transparent', color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Message</button>
+          </div>
+          <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, fontWeight: 500, color: t.INK70, lineHeight: 1.5, letterSpacing: '-0.01em' }}>
+            “Peak week — tempo matters more than load. 3s eccentric on every pull. If bar speed drops, drop a rep, not the tempo.”
+          </div>
+        </div>
+      </div>
+
+      {/* Moves */}
+      <div style={{ padding: `22px ${t.padX}px 4px` }}>
+        <BSEyebrow color={teal}>Plan</BSEyebrow>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginTop: 2 }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Moves</div>
+          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.12em', color: teal }}>{moves.length} →</span>
+        </div>
+      </div>
+      <div style={{ padding: `4px ${t.padX}px` }}>
+        {moves.map((m, i, arr) => (
+          <div key={m.name} style={{ display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 12, alignItems: 'start', padding: '14px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK50, paddingTop: 4 }}>{String(i + 1).padStart(2, '0')}</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{m.name}</div>
+              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{m.scheme}</div>
+              <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 12.5, fontWeight: 500, color: t.INK50, letterSpacing: '-0.01em' }}>“{m.cue}”</div>
+            </div>
+            <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: rust, fontVariantNumeric: 'tabular-nums', paddingTop: 4, whiteSpace: 'nowrap' }}>{m.load}{m.up ? ' +' : ''}</span>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ padding: `18px ${t.padX}px 12px`, display: 'flex', gap: 10 }}>
+        <button onClick={onMove} style={footBtn}>Move session</button>
+        <button onClick={() => window.__bsToast?.('Reminder set for 9:00 AM', 'ok')} style={footBtn}>Remind me</button>
+      </div>
+      <BSFooter right="Preview" />
+    </BSPage>
+  );
+}
+
 function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket, goScore, goIntegrations, tweaks = {}, setTweak = () => {} }) {
   const t = useBS();
   // Real current week, computed live so the home reflects today (not demo dates).
@@ -791,6 +871,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   const [selIdx, setSelIdx] = useStateBSC(todayIdx); // selected weekday 0..6 (today by default)
   const [nextMealLogged, setNextMealLogged] = useStateBSC(false);
   const [previewMeal, setPreviewMeal] = useStateBSC(null);
+  const [showWorkoutPreview, setShowWorkoutPreview] = useStateBSC(false);
   const [habitsPage, setHabitsPage] = useStateBSC(false);
   const [showLogActivity, setShowLogActivity] = useStateBSC(false);
   const [showMood, setShowMood] = useStateBSC(false);
@@ -1110,6 +1191,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   if (previewMeal) {
     return <BSMealPreview meal={previewMeal} onBack={() => setPreviewMeal(null)} />;
   }
+  if (showWorkoutPreview) {
+    return <BSHomeWorkoutPreview onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.(); }} />;
+  }
   if (habitsPage) {
     return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => setHabitsPage(false)} onOpenScore={() => { setHabitsPage(false); goScore?.(); }} />;
   }
@@ -1369,7 +1453,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
               </div>
               <div style={{ marginTop: 10, paddingTop: 12, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                 <Person init="J" name="Jordan Chen" role="Coach" fill={rust} />
-                <button onClick={goTrain} style={pillOutline}>Preview →</button>
+                <button onClick={() => setShowWorkoutPreview(true)} style={pillOutline}>Preview →</button>
               </div>
             </div>
 
@@ -9432,7 +9516,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', marginTop: 4, lineHeight: 1 }}>{identity.name.split(' ')[0]}{identity.name.split(' ').length > 1 && <> {identity.name.split(' ').slice(1).join(' ')}.</>}</div>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
               {[['Shape Score', () => setShowScore(true)], ['Streak', () => setShowProgress(true)], ['Store', () => setShowStore(true)]].map(([l, on]) => (
                 <button key={l} onClick={on} style={{ padding: '10px 16px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{l}</button>
               ))}
