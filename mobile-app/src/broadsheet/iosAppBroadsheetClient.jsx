@@ -5786,7 +5786,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const _threadPalette = ['#147b68', '#c0533b', '#a07a2e', '#2e6fa0', '#8a5cf6'];
   const threadRows = (coachThreads || []).map((th, i) => ({
     n: th.who || 'Coach',
-    s: th.provider_role === 'nutritionist' ? 'Nutritionist' : th.provider_role === 'trainer' ? 'Trainer' : (th.last || 'Direct message'),
+    s: th.provider_role === 'nutritionist' ? 'Your nutritionist' : th.provider_role === 'trainer' ? 'Your coach' : 'Direct message',
     c: _threadPalette[i % _threadPalette.length],
     i: (th.who || 'C').toString().trim().charAt(0).toUpperCase(),
     last: th.last,
@@ -6228,19 +6228,44 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             { n: 'Rae Lindqvist', s: 'Nutritionist · Sports nutrition', c: '#a07a2e', i: 'R', messages: BS_SAMPLE_COACH_DMS['Rae Lindqvist'] },
             { n: 'Dr. Sam Huang', s: 'Coach · Endurance', c: '#147b68', i: 'S', messages: BS_SAMPLE_COACH_DMS['Dr. Sam Huang'] },
           ]);
-          // A chat list row (avatar + name + subtitle), tap to open the thread.
-          const Row = (f, i) => (
-            <button key={i} onClick={() => { window.ShapeUnread?.markConversationRead?.(f.conversation_id); setOpenChat(f); }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, border: `1px solid ${hair}`, background: card, color: cardInk, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
-              <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: f.c, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 15 }}>{f.i}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15 }}>{f.n}</div>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, marginTop: 3 }}>{f.s}</div>
+          // A chat list row — no card box; divider-separated (matches the
+          // attached design): avatar + online dot, name, role eyebrow, message
+          // preview, time, and a teal unread badge.
+          const Row = (f, i, arr) => {
+            const count = (unread && unread['dm:' + (f.conversation_id || '')]) || 0;
+            const last = f.last || (f.messages && f.messages.length ? (f.messages[f.messages.length - 1].t || '') : '');
+            const time = f.time || (f.messages && f.messages.length ? (f.messages[f.messages.length - 1].time || '') : '');
+            const online = !!f.online || count > 0;
+            const isLast = Array.isArray(arr) && i === arr.length - 1;
+            return (
+              <button key={i} onClick={() => { window.ShapeUnread?.markConversationRead?.(f.conversation_id); setOpenChat(f); }} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 13, alignItems: 'center', padding: '13px 2px', borderBottom: isLast ? 0 : `1px solid ${hair}`, background: 'transparent', border: 0, color: cardInk, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
+                <span style={{ position: 'relative', flexShrink: 0, display: 'inline-flex' }}>
+                  <span style={{ width: 46, height: 46, borderRadius: 999, background: f.c, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 17 }}>{f.i}</span>
+                  {online && <span style={{ position: 'absolute', right: 0, bottom: 1, width: 12, height: 12, borderRadius: 999, background: '#3ddc97', border: `2px solid ${t.PAPER}` }} />}
+                </span>
+                <span style={{ minWidth: 0, display: 'block' }}>
+                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 16, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.n}</span>
+                  {f.s && <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, fontWeight: 700, marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.s}</span>}
+                  {last && <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 13.5, color: count > 0 ? cardInk : muted, marginTop: 5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{last}</span>}
+                </span>
+                <span style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8, alignSelf: 'flex-start', marginTop: 3 }}>
+                  {time && <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: count > 0 ? TEALB : muted, fontWeight: 700 }}>{time}</span>}
+                  {count > 0 && <span style={{ minWidth: 20, height: 20, borderRadius: 999, background: TEAL, color: '#031f1c', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px' }}>{count > 9 ? '9+' : count}</span>}
+                </span>
+              </button>
+            );
+          };
+          // List header — "X unread · Y threads" + New.
+          const ThreadHead = (rows) => {
+            const tot = (rows || []).reduce((a, f) => a + ((unread && unread['dm:' + (f.conversation_id || '')]) || 0), 0);
+            const n = (rows || []).length;
+            return (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 2px 8px' }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{tot > 0 ? `${tot} unread · ` : ''}{n} thread{n === 1 ? '' : 's'}</span>
+                <button onClick={() => { try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} title="Find someone to message" style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: TEALB, padding: 0 }}>+ New</button>
               </div>
-              {unreadBadge('dm:' + f.conversation_id)}
-              {f.pinKey && <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); pinChannelNow({ id: f.pinKey, name: f.n, pinned: f.pinned }); }} aria-label={f.pinned ? 'Unpin' : 'Pin'} title={f.pinned ? 'Unpin' : 'Pin to top'} style={{ flexShrink: 0, width: 26, height: 26, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: f.pinned ? 1 : 0.4 }}><PinIcon filled={f.pinned} size={20} /></span>}
-              <span style={{ color: muted, fontSize: 16 }}>›</span>
-            </button>
-          );
+            );
+          };
 
           if (tab === 'messages') {
             // Friends: a simple list of people — tap one to open the chat.
@@ -6248,7 +6273,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               ? [{ n: 'Sofia Martinez', s: 'Active now', c: '#147b68', i: 'S', conversation_id: 'demo-sofia', messages: BS_SAMPLE_DMS['Sofia Martinez'] }, { n: 'Dev Patel', s: '2h ago', c: '#2e6fa0', i: 'D', messages: BS_SAMPLE_DMS['Dev Patel'] }, { n: 'Aria Kim', s: 'Yesterday', c: '#8a5cf6', i: 'A', messages: BS_SAMPLE_DMS['Aria Kim'] }]
               : [{ n: 'Sofia Martinez', s: 'Active now', c: '#147b68', i: 'S', conversation_id: 'demo-sofia', messages: BS_SAMPLE_DMS['Sofia Martinez'] }, { n: 'Jordan Chen', s: '2h ago', c: '#c0533b', i: 'J', messages: BS_SAMPLE_DMS['Jordan Chen'] }, { n: 'Maya Okafor', s: 'Active now', c: '#a07a2e', i: 'M', messages: BS_SAMPLE_DMS['Maya Okafor'] }, { n: 'Dev Patel', s: 'Yesterday', c: '#2e6fa0', i: 'D', messages: BS_SAMPLE_DMS['Dev Patel'] }, { n: 'Aria Kim', s: '3h ago', c: '#8a5cf6', i: 'A', messages: BS_SAMPLE_DMS['Aria Kim'] }]));
             return (
-              <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column' }}>
+                {ThreadHead(friends)}
                 {friends.map(Row)}
               </div>
             );
@@ -6336,7 +6362,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   )}
                 </div>
               ) : active.key === 'coaches' ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  {ThreadHead(coaches)}
                   {coaches.map(Row)}
                 </div>
               ) : (
