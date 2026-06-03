@@ -8958,6 +8958,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showScore, setShowScore] = useStateBSC(false);
   const [showStore, setShowStore] = useStateBSC(false);
   const [showProgress, setShowProgress] = useStateBSC(false);
+  const [detail, setDetail] = useStateBSC(''); // '' = settings hub; else a drill-in pane
   const scoreProfile = SHAPE_SCORE_PROFILES.client;
 
   // Live subscription for the "Your plan" card. null until loaded; { active:false }
@@ -9168,6 +9169,117 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     </div>
   );
 
+  // Line icons for the settings hub cards.
+  const Icon = ({ name, color }) => {
+    const c = color || t.INK;
+    const paths = {
+      user: <><circle cx="12" cy="8" r="3.4" /><path d="M5.5 19c.8-3.3 3.4-5 6.5-5s5.7 1.7 6.5 5" /></>,
+      bell: <><path d="M6 9a6 6 0 1 1 12 0c0 4 1.2 5.5 2 6.5H4c.8-1 2-2.5 2-6.5Z" /><path d="M10 19a2 2 0 0 0 4 0" /></>,
+      lock: <><rect x="5" y="10.5" width="14" height="9" rx="2" /><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></>,
+      sliders: <><path d="M4 7h16M4 12h16M4 17h16" /><circle cx="9" cy="7" r="2" fill={c} stroke="none" /><circle cx="15" cy="12" r="2" fill={c} stroke="none" /><circle cx="8" cy="17" r="2" fill={c} stroke="none" /></>,
+      link: <><path d="M9 15l6-6" /><path d="M11 6.5l1-1a3.5 3.5 0 0 1 5 5l-1 1" /><path d="M13 17.5l-1 1a3.5 3.5 0 0 1-5-5l1-1" /></>,
+      device: <><rect x="7" y="3.5" width="10" height="17" rx="2" /><path d="M11 17.5h2" /></>,
+      palette: <><path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.4 0 2-1 2-2 0-1.4-1.2-1.6-1.2-2.6 0-.8.7-1.4 1.6-1.4H16a4.5 4.5 0 0 0 4.5-4.5C20.5 6 16.7 3.5 12 3.5Z" /><circle cx="8.5" cy="11" r="1" fill={c} stroke="none" /><circle cx="12" cy="8" r="1" fill={c} stroke="none" /><circle cx="15.5" cy="10" r="1" fill={c} stroke="none" /></>,
+      radio: <><circle cx="12" cy="13" r="2.2" /><path d="M8.5 9.5a5 5 0 0 0 0 7M15.5 9.5a5 5 0 0 1 0 7M6 7a8 8 0 0 0 0 12M18 7a8 8 0 0 1 0 12" /></>,
+      card: <><rect x="3.5" y="6" width="17" height="12" rx="2" /><path d="M3.5 10h17" /></>,
+      life: <><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3.2" /><path d="M14.3 9.7 17 7M9.7 9.7 7 7M14.3 14.3 17 17M9.7 14.3 7 17" /></>,
+    };
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        {paths[name] || paths.user}
+      </svg>
+    );
+  };
+
+  // Compact hub card: icon · title · summary · chevron → opens a detail pane.
+  const HubCard = ({ icon, title, summary, onClick, accent }) => (
+    <button onClick={onClick} style={{
+      width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+      padding: '11px 12px', borderRadius: 14, cursor: 'pointer', textAlign: 'left',
+      border: `1px solid ${t.RULE}`, background: t.PAPER2,
+    }}>
+      <span style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 11, border: `1px solid ${t.RULE}`, background: t.PAPER, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name={icon} color={accent || t.INK} />
+      </span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{title}</span>
+        {summary ? <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{summary}</span> : null}
+      </span>
+      <span style={{ flexShrink: 0, color: t.INK50, fontSize: 20, fontFamily: t.DISPLAY, lineHeight: 1 }}>›</span>
+    </button>
+  );
+
+  // Back header for a drill-in detail pane.
+  const DetailBack = ({ title }) => (
+    <>
+      <div style={{ padding: `52px ${t.padX}px 2px` }}>
+        <button onClick={() => setDetail('')} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← Settings</button>
+      </div>
+      <div style={{ padding: `12px ${t.padX}px 6px` }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>{title}</div>
+      </div>
+    </>
+  );
+
+  // Shared renderer for a list of preference / link rows (used in detail panes).
+  const renderRows = (rows) => (
+    <div style={{ padding: `4px ${t.padX}px` }}>
+      {rows.map((s, i, arr) => {
+        const rowBorder = i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`;
+        if (s.dropdown) {
+          return (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: `${t.rowY + 4}px 0`, borderBottom: rowBorder }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', flexShrink: 0 }}>{s.l}</span>
+              <select value={prefs[s.key]} onChange={(e) => setPref(s.key, e.target.value)} style={{
+                maxWidth: '64%', textAlign: 'right', textAlignLast: 'right',
+                appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
+                border: 0, background: 'transparent', outline: 'none', padding: 0, cursor: 'pointer',
+                color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
+              }}>
+                {s.dropdown.map((opt) => (
+                  <option key={opt} value={opt} style={{ color: '#000', textTransform: 'none', letterSpacing: 0 }}>{opt}</option>
+                ))}
+              </select>
+            </div>
+          );
+        }
+        if (s.segmented) {
+          return (
+            <div key={i} style={{ padding: `${t.rowY + 4}px 0`, borderBottom: rowBorder }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em' }}>{s.l}</span>
+              <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                {s.segmented.map((opt, j) => {
+                  const on = prefs[s.key] === opt;
+                  return (
+                    <button key={opt} onClick={() => setPref(s.key, opt)} style={{ borderRadius: t.RADIUS_SM,
+                      flex: 1, padding: '9px 8px', cursor: 'pointer',
+                      border: `1px solid ${on ? t.INK : t.RULE}`,
+                      background: on ? t.INK : 'transparent',
+                      color: on ? t.PAPER : t.INK,
+                      fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+                    }}>{(s.segLabels && s.segLabels[j]) || opt}</button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
+        const value = s.key ? prefs[s.key] : s.r;
+        const onTap = s.key ? () => cyclePref(s.key, s.l) : (s.action || undefined);
+        return (
+          <div key={i} onClick={onTap} style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+            padding: `${t.rowY + 4}px 0`, borderBottom: rowBorder,
+            cursor: (s.action || (s.key && !s.segmented && !s.dropdown)) ? 'pointer' : 'default',
+          }}>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em', flexShrink: 0 }}>{s.l}</span>
+            {value && <BSEyebrow color={s.key ? t.ACCENT : undefined}>{value}</BSEyebrow>}
+          </div>
+        );
+      })}
+    </div>
+  );
+
   if (showContact) {
     return <BSContactPage onBack={() => setShowContact(false)} />;
   }
@@ -9262,8 +9374,161 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     },
   ];
 
+  const findSec = (title) => sections.find(s => s.title === title) || { rows: [] };
+  const paperLabel = ({ light: 'Cream', white: 'White', dark: 'Black', teal: 'Teal', manila: 'Manila', blueprint: 'Blueprint', carbon: 'Carbon', steel: 'Steel', bone: 'Bone', oxblood: 'Oxblood' })[tweaks.paperMode] || 'Cream';
+  const accountActions = [
+    { l: 'Export all my data', r: 'Request file', act: 'Export' },
+    { l: 'Pause membership', r: 'Keep account', act: 'Pause' },
+    { l: 'Delete account', r: 'Permanent', act: 'Delete', alert: true },
+  ];
+  const notifOn = ['workoutReminders', 'coachReplies', 'weeklyDigest', 'community'].filter(k => prefs[k] !== 'Off').length;
+  const hubCards = [
+    { icon: 'user',    title: 'Profile mode',   summary: `${(tweaks.role || 'client') === 'client' ? 'Client' : tweaks.role === 'trainer' ? 'Trainer' : 'Nutrition'} view`, onClick: () => setDetail('profile') },
+    { icon: 'bell',    title: 'Notifications',  summary: `${notifOn} of 4 active`, onClick: () => setDetail('notifications') },
+    { icon: 'lock',    title: 'Privacy & data', summary: `Profile · ${prefs.profileVisibility}`, onClick: () => setDetail('privacy') },
+    { icon: 'sliders', title: 'Preferences',    summary: `${prefs.units.split(' ')[0]} · ${prefs.language.split(' ')[0]} · ${prefs.weekStarts}`, onClick: () => setDetail('preferences') },
+    { icon: 'link',    title: 'Connected apps', summary: 'Apple Health · WHOOP · Strava', onClick: () => setShowIntegrations(true) },
+    { icon: 'device',  title: 'Devices',        summary: 'Active sessions & sign-ins', onClick: () => setShowSessions(true) },
+    { icon: 'palette', title: 'Appearance',     summary: `${paperLabel} · ${tweaks.accentKey || 'blue'}`, onClick: () => setDetail('appearance') },
+    { icon: 'radio',   title: 'Shape Radio',    summary: r.radioOn ? `On · ${r.fxMode}` : 'Off', onClick: () => setDetail('radio') },
+    { icon: 'card',    title: 'Account',        summary: identity.handle || 'Login & security', onClick: () => setDetail('account') },
+    { icon: 'life',    title: 'Help & support', summary: 'Help · Contact · Legal', onClick: () => setDetail('help') },
+  ];
+
   return (
     <BSPage tabBarHeight={0}>
+
+      {/* ─── DETAIL PANES (drill-in from a hub card) ─── */}
+      {detail === 'profile' && (<>
+        <DetailBack title="Profile mode" />
+        <div style={{ padding: `14px ${t.padX}px 18px` }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8, fontWeight: 700 }}>Active profile</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {[['client', 'Client'], ['trainer', 'Trainer'], ['nutritionist', 'Nutrition']].map(([key, label]) => {
+              const on = (tweaks.role || 'client') === key;
+              return (
+                <button key={key} onClick={() => setTweak('role', key)} style={{ borderRadius: t.RADIUS_SM, flex: 1, padding: '12px 11px', cursor: 'pointer', border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</button>
+              );
+            })}
+          </div>
+          <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.45 }}>Switching view loads the matching home, calendar &amp; tools.</div>
+        </div>
+      </>)}
+
+      {detail === 'notifications' && (<><DetailBack title="Notifications" />{renderRows(findSec('Notifications').rows)}</>)}
+      {detail === 'preferences' && (<><DetailBack title="Preferences" />{renderRows(findSec('Preferences').rows)}</>)}
+      {detail === 'privacy' && (<><DetailBack title="Privacy & data" />{renderRows(findSec('Privacy & data').rows)}</>)}
+      {detail === 'help' && (<><DetailBack title="Help & support" />{renderRows(findSec('About').rows)}</>)}
+
+      {detail === 'account' && (<>
+        <DetailBack title="Account" />
+        {renderRows(findSec('Account').rows)}
+        <SectionHead title="Account actions" meta="Danger zone" />
+        <div style={{ padding: `0 ${t.padX}px` }}>
+          {accountActions.map((s, i, arr) => (
+            <div key={i} onClick={() => requestAccountAction(s.act)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: `${t.rowY + 4}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em' }}>{s.l}</span>
+              {s.r && <BSEyebrow>{s.r}</BSEyebrow>}
+            </div>
+          ))}
+        </div>
+        <div style={{ padding: `28px ${t.padX}px 8px` }}>
+          <button onClick={onLogout} style={{ borderRadius: t.RADIUS_SM, width: '100%', padding: '14px', background: 'transparent', color: t.RUST, border: `1px solid ${t.RUST}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700 }}>Sign out</button>
+        </div>
+      </>)}
+
+      {detail === 'appearance' && (<>
+        <DetailBack title="Appearance" />
+        <div style={{ padding: `8px ${t.padX}px 18px` }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 6, fontWeight: 700 }}>Paper</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {[['light', 'Cream'], ['white', 'White'], ['dark', 'Black'], ['teal', 'Teal'], ['manila', 'Manila'], ['blueprint', 'Blueprint'], ['carbon', 'Carbon'], ['steel', 'Steel'], ['bone', 'Bone'], ['oxblood', 'Oxblood']].map(([k, l]) => (
+              <Pill key={k} on={tweaks.paperMode === k} onClick={() => setTweak('paperMode', k)}>{l}</Pill>
+            ))}
+          </div>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginTop: 12, marginBottom: 6, fontWeight: 700 }}>Texture</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {[['none', 'None'], ['newsprint', 'Newsprint'], ['ledger', 'Ledger'], ['grid', 'Grid'], ['dotgrid', 'Dot grid'], ['foxed', 'Foxed'], ['vignette', 'Vignette'], ['watermark', 'Watermark'], ['linen', 'Linen'], ['crosshatch', 'Crosshatch'], ['pinstripe', 'Pinstripe'], ['halftone', 'Halftone'], ['kraft', 'Kraft'], ['blueprint', 'Blueprint'], ['graph', 'Graph'], ['stains', 'Stains'], ['cardboard', 'Cardboard'], ['concrete', 'Concrete'], ['risograph', 'Risograph'], ['parchment', 'Parchment'], ['dotmap', 'Dot map']].map(([k, l]) => (
+              <Pill key={k} on={(tweaks.textureKey || 'none') === k} onClick={() => setTweak('textureKey', k)}>{l}</Pill>
+            ))}
+          </div>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginTop: 12, marginBottom: 6, fontWeight: 700 }}>Accent color</div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <Swatch k="blue" color="#1e7ad6" label="Blue" />
+            <Swatch k="amber" color="#d99033" label="Amber" />
+            <Swatch k="rust" color="#b83d2c" label="Rust" />
+            <Swatch k="green" color="#2f7d4f" label="Green" />
+            <Swatch k="teal" color="#0a8f87" label="Teal" />
+            <Swatch k="white" color="#ffffff" label="White" />
+            <Swatch k="black" color="#000000" label="Black" />
+          </div>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginTop: 12, marginBottom: 6, fontWeight: 700 }}>Display weight</div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {['regular', 'bold'].map(k => (
+              <Pill key={k} on={tweaks.weightKey === k} onClick={() => setTweak('weightKey', k)}>{k}</Pill>
+            ))}
+          </div>
+        </div>
+      </>)}
+
+      {detail === 'radio' && (<>
+        <DetailBack title="Shape Radio" />
+        <div style={{ padding: `14px ${t.padX}px 4px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Play while browsing</div>
+            <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{r.radioOn ? (r.paused ? 'Paused' : 'Playing while browsing') : 'Listen while using the app'}</div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: r.radioOn ? t.ACCENT : t.INK50 }}>{r.radioOn ? 'On' : 'Off'}</span>
+            <Toggle on={r.radioOn} onClick={() => r.setRadioPreference(!r.radioOn)} />
+          </div>
+        </div>
+        <div style={{ padding: `12px ${t.padX}px 18px` }}>
+          <button onClick={r.requestRadioPrompt} style={{ borderRadius: t.RADIUS_SM, width: '100%', padding: '11px 12px', cursor: 'pointer', border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700 }}>Ask me again</button>
+        </div>
+        <SectionHead title="Light effects" meta={r.radioOn ? `Active · ${r.fxMode}` : 'Radio off — preview only'} />
+        <div style={{ padding: `14px ${t.padX}px 18px` }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+            {[{ k: 'off', glyph: '○', title: 'Off', sub: 'Clean · no animation' }, { k: 'subtle', glyph: '◐', title: 'Subtle', sub: 'Edge glow · island EQ' }, { k: 'immersive', glyph: '◉', title: 'Immersive', sub: 'Bg bloom · button halos' }, { k: 'hologram', glyph: '⟠', title: 'Hologram', sub: 'DJ overlay · scanlines' }].map(m => {
+              const active = r.fxMode === m.k;
+              return (
+                <button key={m.k} onClick={() => r.setFxMode(m.k)} style={{ borderRadius: t.RADIUS_SM, textAlign: 'left', cursor: 'pointer', padding: '8px 10px 9px', border: `1px solid ${active ? t.INK : t.RULE}`, background: active ? t.PAPER2 : 'transparent', display: 'flex', flexDirection: 'column', gap: 2, borderLeft: active ? `4px solid ${t.ACCENT}` : `1px solid ${t.RULE}`, paddingLeft: active ? 7 : 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontFamily: t.MONO, fontSize: 13, color: t.INK }}>{m.glyph}</span>
+                    {active && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.ACCENT }}>● ON</span>}
+                  </div>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', marginTop: 1 }}>{m.title}</div>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 10, color: t.INK70, fontWeight: 500, lineHeight: 1.25 }}>{m.sub}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <SectionHead title="Home ticker" meta={`${BS_TICKER_METRICS.length - tickerPrefs.hidden.length} of ${BS_TICKER_METRICS.length} shown`} />
+        <div style={{ padding: `0 ${t.padX}px 18px` }}>
+          {(tickerPrefs.order || BS_TICKER_METRICS.map(m => m.key)).map((key, idx, arr) => {
+            const m = BS_TICKER_METRICS.find(x => x.key === key);
+            if (!m) return null;
+            const shown = !tickerPrefs.hidden.includes(key);
+            return (
+              <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: `${t.rowY}px 0`, borderBottom: idx === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: shown ? t.INK : t.INK50 }}>{m.name}</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase', marginTop: 2 }}>{m.key}</div>
+                </div>
+                <button onClick={() => tickerMove(key, -1)} disabled={idx === 0} title="Move up" style={{ background: 'transparent', border: 0, color: idx === 0 ? t.HAIR : t.INK50, fontSize: 15, cursor: idx === 0 ? 'default' : 'pointer', padding: '2px 6px', lineHeight: 1 }}>↑</button>
+                <button onClick={() => tickerMove(key, 1)} disabled={idx === arr.length - 1} title="Move down" style={{ background: 'transparent', border: 0, color: idx === arr.length - 1 ? t.HAIR : t.INK50, fontSize: 15, cursor: idx === arr.length - 1 ? 'default' : 'pointer', padding: '2px 6px', lineHeight: 1 }}>↓</button>
+                <button onClick={() => tickerToggle(key)} title={shown ? 'Hide' : 'Show'} style={{ width: 34, height: 20, borderRadius: 999, padding: 2, flexShrink: 0, border: 0, background: shown ? t.ACCENT : t.RULE, cursor: 'pointer', display: 'flex', justifyContent: shown ? 'flex-end' : 'flex-start' }}>
+                  <span style={{ width: 14, height: 14, borderRadius: 999, background: shown ? t.PAPER : t.INK50, display: 'block' }} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </>)}
+
+      {/* ─── SETTINGS HUB (landing) ─── */}
+      {!detail && (<>
       <div style={{ padding: `52px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← Back</button>
         <button onClick={startEdit} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.ACCENT }}>Edit</button>
@@ -9379,331 +9644,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         );
       })()}
 
-      {/* PROFILE MODE — switch between Client / Trainer / Nutritionist views */}
-      <SectionHead
-        title="Profile mode"
-        meta={(tweaks.role || 'client') === 'client' ? 'Client view' : (tweaks.role === 'trainer' ? 'Trainer view' : 'Nutritionist view')}
-      />
-      <div style={{ padding: `14px ${t.padX}px 18px` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8, fontWeight: 700 }}>
-          Active profile
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {[['client', 'Client'], ['trainer', 'Trainer'], ['nutritionist', 'Nutrition']].map(([key, label]) => {
-            const on = (tweaks.role || 'client') === key;
-            return (
-              <button key={key} onClick={() => setTweak('role', key)} style={{ borderRadius: t.RADIUS_SM,
-                flex: 1, padding: '12px 11px', cursor: 'pointer',
-                border: `1px solid ${on ? t.INK : t.RULE}`,
-                background: on ? t.INK : 'transparent',
-                color: on ? t.PAPER : t.INK,
-                fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
-              }}>{label}</button>
-            );
-          })}
-        </div>
-        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.45 }}>
-          Switching view loads the matching home, calendar &amp; tools.
-        </div>
-      </div>
-
-      {/* APPEARANCE */}
-      <button onClick={() => setShowAppearance(v => !v)} aria-expanded={showAppearance} style={{
-        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-        padding: `20px ${t.padX}px 13px`, borderBottom: `1px solid ${t.RULE}`,
-        background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, textAlign: 'left',
-      }}>
-        <div>
-          <BSEyebrow color={t.ACCENT}>Appearance</BSEyebrow>
-          <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Theme &amp; texture</div>
-          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{`${({light:'Cream',white:'White',dark:'Black',teal:'Teal',manila:'Manila',blueprint:'Blueprint',carbon:'Carbon',steel:'Steel',bone:'Bone',oxblood:'Oxblood'})[tweaks.paperMode] || 'Cream'} · ${tweaks.accentKey || 'blue'}`}</div>
-        </div>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <span style={{ padding: '9px 16px', borderRadius: 999, border: `1px solid ${t.ACCENT}`, background: `${t.ACCENT}1f`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>{showAppearance ? 'Close ▾' : 'Customize ▸'}</span>
-        </span>
-      </button>
-      {showAppearance && (
-      <div style={{ padding: `14px ${t.padX}px` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 6, fontWeight: 700 }}>Paper</div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {[['light','Cream'],['white','White'],['dark','Black'],['teal','Teal'],['manila','Manila'],['blueprint','Blueprint'],['carbon','Carbon'],['steel','Steel'],['bone','Bone'],['oxblood','Oxblood']].map(([k,l]) => (
-            <Pill key={k} on={tweaks.paperMode === k} onClick={() => setTweak('paperMode', k)}>{l}</Pill>
-          ))}
-        </div>
-
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginTop: 12, marginBottom: 6, fontWeight: 700 }}>Texture</div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {[
-            ['none','None'],['newsprint','Newsprint'],['ledger','Ledger'],
-            ['grid','Grid'],['dotgrid','Dot grid'],['foxed','Foxed'],
-            ['vignette','Vignette'],['watermark','Watermark'],
-            ['linen','Linen'],['crosshatch','Crosshatch'],['pinstripe','Pinstripe'],
-            ['halftone','Halftone'],['kraft','Kraft'],['blueprint','Blueprint'],
-            ['graph','Graph'],['stains','Stains'],['cardboard','Cardboard'],
-            ['concrete','Concrete'],['risograph','Risograph'],['parchment','Parchment'],
-            ['dotmap','Dot map'],
-          ].map(([k,l]) => (
-            <Pill key={k} on={(tweaks.textureKey || 'none') === k} onClick={() => setTweak('textureKey', k)}>{l}</Pill>
-          ))}
-        </div>
-
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginTop: 12, marginBottom: 6, fontWeight: 700 }}>Accent color</div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <Swatch k="blue"  color="#1e7ad6" label="Blue" />
-          <Swatch k="amber" color="#d99033" label="Amber" />
-          <Swatch k="rust"  color="#b83d2c" label="Rust" />
-          <Swatch k="green" color="#2f7d4f" label="Green" />
-          <Swatch k="teal"  color="#0a8f87" label="Teal" />
-          <Swatch k="white" color="#ffffff" label="White" />
-          <Swatch k="black" color="#000000" label="Black" />
-        </div>
-
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginTop: 12, marginBottom: 6, fontWeight: 700 }}>Ink color <span style={{ color: t.INK30, marginLeft: 6, letterSpacing: '0.16em' }}>· text</span></div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-          {[
-            ['default', null,        'Default'],
-            ['#0f0e0c', '#0f0e0c',   'Charcoal'],
-            ['#f5f0e6', '#f5f0e6',   'Cream'],
-            ['#1c4ed8', '#1c4ed8',   'Blue'],
-            ['#a8331b', '#a8331b',   'Rust'],
-            ['#2f6b3a', '#2f6b3a',   'Green'],
-            ['#c8881a', '#c8881a',   'Amber'],
-            ['#5a2b8a', '#5a2b8a',   'Plum'],
-          ].map(([k, sw, lbl]) => {
-            const on = (tweaks.inkOverride || 'default') === k;
-            return (
-              <button
-                key={k}
-                onClick={() => setTweak('inkOverride', k)}
-                title={lbl}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  padding: '6px 10px', borderRadius: t.RADIUS_SM,
-                  border: `1px solid ${on ? t.INK : t.RULE}`,
-                  background: on ? t.INK : 'transparent',
-                  color: on ? t.PAPER : t.INK,
-                  fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
-                  cursor: 'pointer', textTransform: 'uppercase',
-                }}
-              >
-                {sw ? <span style={{ width: 10, height: 10, borderRadius: '50%', background: sw, border: `1px solid ${on ? t.PAPER : t.RULE}` }} /> : null}
-                {lbl}
-              </button>
-            );
-          })}
-          {/* Custom hex picker */}
-          <label style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            padding: '4px 8px 4px 4px', borderRadius: t.RADIUS_SM,
-            border: `1px solid ${t.RULE}`, cursor: 'pointer',
-            fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK,
-          }}>
-            <input
-              type="color"
-              value={(tweaks.inkOverride && tweaks.inkOverride !== 'default') ? tweaks.inkOverride : (t.isLight ? '#0f0e0c' : '#f5f0e6')}
-              onChange={(e) => setTweak('inkOverride', e.target.value)}
-              style={{ width: 22, height: 22, border: 0, padding: 0, background: 'transparent', cursor: 'pointer' }}
-            />
-            Custom
-          </label>
-        </div>
-
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginTop: 12, marginBottom: 6, fontWeight: 700 }}>Display weight</div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {['regular','bold'].map(k => (
-            <Pill key={k} on={tweaks.weightKey === k} onClick={() => setTweak('weightKey', k)}>{k}</Pill>
-          ))}
-        </div>
-
-      </div>
-      )}
-
-      {/* SHAPE RADIO */}
-      <div style={{ padding: `22px ${t.padX}px 4px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Shape Radio</div>
-          <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{r.radioOn ? (r.paused ? 'Paused' : 'Playing while browsing') : 'Listen while using the app'}</div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: r.radioOn ? t.ACCENT : t.INK50 }}>{r.radioOn ? 'On' : 'Off'}</span>
-          <Toggle on={r.radioOn} onClick={() => r.setRadioPreference(!r.radioOn)} />
-        </div>
-      </div>
-      <div style={{ padding: `12px ${t.padX}px 18px` }}>
-        <button onClick={r.requestRadioPrompt} style={{ borderRadius: t.RADIUS_SM,
-          marginTop: 10, width: '100%', padding: '11px 12px', cursor: 'pointer',
-          border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK,
-          fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700,
-        }}>
-          Ask me again
-        </button>
-        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.45 }}>
-          New members see this choice after the login page. You can change it here anytime.
-        </div>
-      </div>
-
-      {/* LIGHT EFFECTS — music-reactive overlays while Shape Radio is on */}
-      <SectionHead
-        title="Light effects"
-        meta={r.radioOn ? `Active · ${r.fxMode}` : 'Radio off — preview only'}
-      />
-      <div style={{ padding: `14px ${t.padX}px 18px` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 10, fontWeight: 700 }}>
-          Reactive overlay · syncs to BPM
-        </div>
-
-        {/* 2×2 grid of mode cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-          {[
-            { k: 'off',       glyph: '○',  title: 'Off',       sub: 'Clean · no animation' },
-            { k: 'subtle',    glyph: '◐',  title: 'Subtle',    sub: 'Edge glow · island EQ' },
-            { k: 'immersive', glyph: '◉',  title: 'Immersive', sub: 'Bg bloom · button halos' },
-            { k: 'hologram',  glyph: '⟠',  title: 'Hologram',  sub: 'DJ overlay · scanlines' },
-          ].map(m => {
-            const active = r.fxMode === m.k;
-            return (
-              <button
-                key={m.k}
-                onClick={() => r.setFxMode(m.k)}
-                style={{ borderRadius: t.RADIUS_SM,
-                  textAlign: 'left', cursor: 'pointer', padding: '8px 10px 9px',
-                  border: `1px solid ${active ? t.INK : t.RULE}`,
-                  background: active ? t.PAPER2 : 'transparent',
-                  display: 'flex', flexDirection: 'column', gap: 2,
-                  borderLeft: active ? `4px solid ${t.ACCENT}` : `1px solid ${t.RULE}`,
-                  paddingLeft: active ? 7 : 10,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 13, color: t.INK }}>{m.glyph}</span>
-                  {active && (
-                    <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.ACCENT }}>● ON</span>
-                  )}
-                </div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', marginTop: 1 }}>
-                  {m.title}
-                </div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 10, color: t.INK70, fontWeight: 500, lineHeight: 1.25 }}>
-                  {m.sub}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-
-        <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, lineHeight: 1.5 }}>
-          {r.radioOn
-            ? '— effects render on top of every screen while radio plays'
-            : '— turn on Shape Radio from Home to see the effect'}
-        </div>
-      </div>
-
-      {/* Home ticker — choose which stats show on the home strip + reorder. */}
-      <SectionHead title="Home ticker" meta={`${BS_TICKER_METRICS.length - tickerPrefs.hidden.length} of ${BS_TICKER_METRICS.length} shown`} />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        {(tickerPrefs.order || BS_TICKER_METRICS.map(m => m.key)).map((key, idx, arr) => {
-          const m = BS_TICKER_METRICS.find(x => x.key === key);
-          if (!m) return null;
-          const shown = !tickerPrefs.hidden.includes(key);
-          return (
-            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: `${t.rowY}px 0`, borderBottom: idx === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: shown ? t.INK : t.INK50 }}>{m.name}</div>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase', marginTop: 2 }}>{m.key}</div>
-              </div>
-              <button onClick={() => tickerMove(key, -1)} disabled={idx === 0} title="Move up" style={{ background: 'transparent', border: 0, color: idx === 0 ? t.HAIR : t.INK50, fontSize: 15, cursor: idx === 0 ? 'default' : 'pointer', padding: '2px 6px', lineHeight: 1 }}>↑</button>
-              <button onClick={() => tickerMove(key, 1)} disabled={idx === arr.length - 1} title="Move down" style={{ background: 'transparent', border: 0, color: idx === arr.length - 1 ? t.HAIR : t.INK50, fontSize: 15, cursor: idx === arr.length - 1 ? 'default' : 'pointer', padding: '2px 6px', lineHeight: 1 }}>↓</button>
-              <button onClick={() => tickerToggle(key)} title={shown ? 'Hide' : 'Show'} style={{ width: 34, height: 20, borderRadius: 999, padding: 2, flexShrink: 0, border: 0, background: shown ? t.ACCENT : t.RULE, cursor: 'pointer', display: 'flex', justifyContent: shown ? 'flex-end' : 'flex-start' }}>
-                <span style={{ width: 14, height: 14, borderRadius: 999, background: shown ? t.PAPER : t.INK50, display: 'block' }} />
-              </button>
-            </div>
-          );
-        })}
-      </div>
-
-      {sections.map(sec => (
-        <div key={sec.title}>
-          <SectionHead title={sec.title} meta={sec.meta} />
-          <div style={{ padding: `0 ${t.padX}px` }}>
-            {sec.rows.map((s, i, arr) => {
-              const rowBorder = i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`;
-              // Dropdown rows — native select for long option lists (e.g. time zone).
-              if (s.dropdown) {
-                return (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: `${t.rowY + 4}px 0`, borderBottom: rowBorder }}>
-                    <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', flexShrink: 0 }}>{s.l}</span>
-                    <select value={prefs[s.key]} onChange={(e) => setPref(s.key, e.target.value, s.l)} style={{
-                      maxWidth: '64%', textAlign: 'right', textAlignLast: 'right',
-                      appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
-                      border: 0, background: 'transparent', outline: 'none', padding: 0, cursor: 'pointer',
-                      color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
-                    }}>
-                      {s.dropdown.map((opt) => (
-                        <option key={opt} value={opt} style={{ color: '#000', textTransform: 'none', letterSpacing: 0 }}>{opt}</option>
-                      ))}
-                    </select>
-                  </div>
-                );
-              }
-              // Segmented toggle rows — pick a value directly instead of cycling.
-              if (s.segmented) {
-                return (
-                  <div key={i} style={{ padding: `${t.rowY + 4}px 0`, borderBottom: rowBorder }}>
-                    <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em' }}>{s.l}</span>
-                    <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-                      {s.segmented.map((opt, j) => {
-                        const on = prefs[s.key] === opt;
-                        return (
-                          <button key={opt} onClick={() => setPref(s.key, opt, s.l)} style={{ borderRadius: t.RADIUS_SM,
-                            flex: 1, padding: '9px 8px', cursor: 'pointer',
-                            border: `1px solid ${on ? t.INK : t.RULE}`,
-                            background: on ? t.INK : 'transparent',
-                            color: on ? t.PAPER : t.INK,
-                            fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap',
-                          }}>{(s.segLabels && s.segLabels[j]) || opt}</button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              }
-              const value = s.key ? prefs[s.key] : s.r;
-              const onTap = s.key
-                ? () => cyclePref(s.key, s.l)
-                : (s.action || (s.alert && s.l === 'Sign out' ? onLogout : undefined));
-              return (
-                <div key={i} onClick={onTap} style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-                  padding: `${t.rowY + 4}px 0`,
-                  borderBottom: rowBorder,
-                  cursor: (s.alert || s.action || s.key) ? 'pointer' : 'default',
-                }}>
-                  <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em', flexShrink: 0 }}>{s.l}</span>
-                  {value && <BSEyebrow color={s.key ? t.ACCENT : undefined}>{value}</BSEyebrow>}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-
-      {/* Account actions — danger zone */}
-      <SectionHead title="Account actions" meta="Danger zone" />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        {[
-          { l: 'Export all my data', r: 'Request file', act: 'Export' },
-          { l: 'Pause membership', r: 'Keep account', act: 'Pause' },
-          { l: 'Delete account', r: 'Permanent', act: 'Delete', alert: true },
-        ].map((s, i, arr) => (
-          <div key={i} onClick={() => requestAccountAction(s.act)} style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: `${t.rowY + 4}px 0`,
-            borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-            cursor: 'pointer',
-          }}>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em' }}>{s.l}</span>
-            {s.r && <BSEyebrow>{s.r}</BSEyebrow>}
-          </div>
+      {/* HUB CARDS */}
+      <div style={{ padding: `8px ${t.padX}px 10px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {hubCards.map(c => (
+          <HubCard key={c.title} icon={c.icon} title={c.title} summary={c.summary} onClick={c.onClick} />
         ))}
       </div>
 
@@ -9714,6 +9658,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
         }}>Sign out</button>
       </div>
+      </>)}
 
       <BSRadioPrompt />
       <BSFooter left="Shape v2.4.0" right="Build 2026.04" />
