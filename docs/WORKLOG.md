@@ -46,6 +46,18 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-13 — "Save to my Spotify" from the tracklist preview
+- The playlist preview popup (`BSPlaylistCard`) now has a **♡ Save to my Spotify**
+  button (shown only for genuine `spotify.com/playlist/...` links — not Apple Music)
+  that *follows* the coach's playlist into the signed-in member's own Spotify
+  library. Native goes through the `window.ShapeIntegrations.saveSpotifyPlaylist`
+  bridge (Bearer token); the `/m/` web build falls back to a same-origin cookie
+  POST to `/api/integrations/spotify/save-playlist`. Button shows saving / ✓ Saved /
+  Try again, and surfaces "Connect Spotify…" when the account isn't linked.
+- **Note:** in-app **Connect Spotify** already exists — Settings → Connected apps →
+  Spotify → Connect (`BSIntegrationsPage`, wired to `connectSpotify` →
+  `/api/integrations/spotify/authorize`). Both halves of the sync loop are now live.
+
 ### 2026-06-13 — playlist tracklist preview popup
 - Tapping a `BSPlaylistCard` (coach/nutritionist Spotify cards on home/train/eat)
   now opens a bottom-sheet **tracklist preview** (portaled into `#bs-phone-surface`)
