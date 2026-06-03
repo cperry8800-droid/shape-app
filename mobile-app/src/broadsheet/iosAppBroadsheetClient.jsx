@@ -1269,8 +1269,8 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
       {/* Ingredient editor / add sheet */}
       {editIng && (() => {
         const inputStyle = { width: '100%', boxSizing: 'border-box', padding: '12px 13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, outline: 'none' };
-        return (
-          <div onClick={() => setEditIng(null)} style={{ position: 'fixed', inset: 0, zIndex: 6000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}>
+        return createPortal((
+          <div onClick={() => setEditIng(null)} style={{ position: 'absolute', inset: 0, zIndex: 6000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}>
             <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)' }}>
               <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, marginBottom: 12 }}>{editIng.index == null ? 'Add ingredient' : 'Edit ingredient'}</div>
               <input autoFocus value={editIng.name} placeholder="Ingredient" onChange={(e) => setEditIngField('name', e.target.value)} style={inputStyle} />
@@ -1290,7 +1290,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
               </div>
             </div>
           </div>
-        );
+        ), (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body);
       })()}
     </BSPage>
   );
@@ -10478,8 +10478,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       )}
 
       {/* Account field editor — in-app sheet */}
-      {editField && (
-        <div onClick={() => setEditField(null)} style={{ position: 'fixed', inset: 0, zIndex: 6000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}>
+      {editField && createPortal((
+        <div onClick={() => setEditField(null)} style={{ position: 'absolute', inset: 0, zIndex: 6000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `20px ${t.padX}px calc(22px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, marginBottom: 10 }}>Edit {editField.label}</div>
             <input
@@ -10497,7 +10497,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             </div>
           </div>
         </div>
-      )}
+      ), (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body)}
     </BSPage>
   );
 }
