@@ -7720,7 +7720,11 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
                     <span style={{ fontFamily: t.DISPLAY, fontSize: 56, fontWeight: 700, lineHeight: 0.9, letterSpacing: '-0.04em' }}>{overall}</span>
                     <span style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK50, marginBottom: 6 }}>/100</span>
                   </div>
-                  <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>{scoreProfile.week} this week · top 18%</div>
+                  <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>+3 this week · Top 18%</div>
+                  <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 9px', borderRadius: 999, border: `1px solid ${t.AMBER}66`, background: `${t.AMBER}1f` }}>
+                    <span style={{ width: 6, height: 6, borderRadius: 3, background: t.AMBER }} />
+                    <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>{scoreProfile.tier} tier</span>
+                  </div>
                 </div>
                 <svg width="84" height="84" viewBox="0 0 84 84" style={{ flexShrink: 0 }}>
                   <circle cx="42" cy="42" r={RAD} fill="none" stroke={t.HAIR} strokeWidth="6" />
