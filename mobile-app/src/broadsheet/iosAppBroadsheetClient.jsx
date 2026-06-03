@@ -8937,6 +8937,13 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreat
 // ═══════════════════════════════════════════════════════════
 // SETTINGS — full settings page from avatar tap
 // ═══════════════════════════════════════════════════════════
+// Full IANA time-zone list for the Settings dropdown (falls back to a curated
+// set on engines without Intl.supportedValuesOf).
+const BS_TIMEZONES = (() => {
+  try { if (typeof Intl.supportedValuesOf === 'function') return Intl.supportedValuesOf('timeZone'); } catch (e) {}
+  return ['America/Los_Angeles', 'America/Denver', 'America/Chicago', 'America/New_York', 'America/Anchorage', 'Pacific/Honolulu', 'America/Sao_Paulo', 'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Europe/Madrid', 'Europe/Athens', 'Africa/Johannesburg', 'Asia/Dubai', 'Asia/Kolkata', 'Asia/Singapore', 'Asia/Tokyo', 'Asia/Shanghai', 'Australia/Sydney', 'Pacific/Auckland', 'UTC'];
+})();
+
 function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initialPage = '' }) {
   const t = useBS();
   const r = useBSRadio();
@@ -9233,7 +9240,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       rows: [
         { l: 'Units',           key: 'units', segmented: PREF_OPTIONS.units, segLabels: ['Imperial', 'Metric'] },
         { l: 'Week starts',     key: 'weekStarts' },
-        { l: 'Time zone',       key: 'timeZone' },
+        { l: 'Time zone',       key: 'timeZone', dropdown: BS_TIMEZONES },
         { l: 'Language',        key: 'language' },
       ],
     },
@@ -9622,6 +9629,24 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           <div style={{ padding: `0 ${t.padX}px` }}>
             {sec.rows.map((s, i, arr) => {
               const rowBorder = i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`;
+              // Dropdown rows — native select for long option lists (e.g. time zone).
+              if (s.dropdown) {
+                return (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: `${t.rowY + 4}px 0`, borderBottom: rowBorder }}>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', flexShrink: 0 }}>{s.l}</span>
+                    <select value={prefs[s.key]} onChange={(e) => setPref(s.key, e.target.value, s.l)} style={{
+                      maxWidth: '64%', textAlign: 'right', textAlignLast: 'right',
+                      appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
+                      border: 0, background: 'transparent', outline: 'none', padding: 0, cursor: 'pointer',
+                      color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
+                    }}>
+                      {s.dropdown.map((opt) => (
+                        <option key={opt} value={opt} style={{ color: '#000', textTransform: 'none', letterSpacing: 0 }}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              }
               // Segmented toggle rows — pick a value directly instead of cycling.
               if (s.segmented) {
                 return (
