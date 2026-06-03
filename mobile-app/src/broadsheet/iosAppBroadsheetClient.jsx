@@ -4573,7 +4573,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
       })()}
 
       {/* Tracklist — today's meals. LOG opens the next unlogged meal to record it. */}
-      <BSTrackHeader kicker="Tracklist" title={day === 4 ? "Today's meals" : `${cur.d} meals`} actionLabel="Log" onAction={() => { const m = effMeals.find(x => x.state === 'next') || effMeals.find(x => x.state !== 'done') || effMeals[0]; if (m) setPreviewMealId(m.id); }} />
+      <BSTrackHeader kicker="Tracklist" title={day === 4 ? "Today's meals" : `${cur.d} meals`} />
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         {effMeals.map((m, i) => {
           const logged = m.state === 'done';
@@ -10226,7 +10226,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {/* Shape-styled dropdown menu (replaces the native select picker) */}
       {dropdown && (
         <div onClick={() => setDropdown(null)} style={{ position: 'fixed', inset: 0, zIndex: 6000 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ position: 'fixed', top: dropdown.top, right: dropdown.right, zIndex: 6001, width: 220, maxHeight: '56vh', overflowY: 'auto', background: t.PAPER, border: `1px solid ${t.INK}`, borderRadius: 12, boxShadow: '0 16px 40px rgba(0,0,0,0.3)' }}>
+          <div onClick={(e) => e.stopPropagation()} className="bs-hide-scroll" style={{ position: 'fixed', top: dropdown.top, right: dropdown.right, zIndex: 6001, width: 220, maxHeight: '56vh', overflowY: 'auto', overflowX: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none', background: t.PAPER, border: `1px solid ${t.INK}`, borderRadius: 12, boxShadow: '0 16px 40px rgba(0,0,0,0.3)' }}>
             <div style={{ padding: '10px 12px', borderBottom: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{dropdown.label}</div>
             {dropdown.options.map((opt) => {
               const on = prefs[dropdown.key] === opt;
