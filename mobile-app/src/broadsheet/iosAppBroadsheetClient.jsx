@@ -2802,7 +2802,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
 
       {/* Find a trainer — marketplace deep link (Trainer tab), pinned to the bottom */}
       <div style={{ padding: `18px ${t.padX}px 28px` }}>
-        <button onClick={() => goMarket('trainer')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 13, padding: '15px 16px', borderRadius: 16, border: `1.5px solid #c0533b66`, background: t.isLight ? '#c0533b14' : '#c0533b26' }}>
+        <button onClick={() => goMarket('trainer')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 13, padding: '15px 16px', borderRadius: 16, border: `2px solid #c0533b`, background: t.isLight ? '#c0533b14' : '#c0533b26' }}>
           <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 12, background: '#c0533b', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 6.5v11M3 9.5v5M17.5 6.5v11M21 9.5v5M6.5 12h11"/></svg>
           </div>
@@ -4983,7 +4983,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
 
       {/* Find a nutritionist — marketplace deep link (Nutritionist tab), pinned to the bottom */}
       <div style={{ padding: `18px ${t.padX}px 28px` }}>
-        <button onClick={() => goMarket('nutritionist')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 13, padding: '15px 16px', borderRadius: 16, border: `1.5px solid #a07a2e66`, background: t.isLight ? '#a07a2e14' : '#a07a2e26' }}>
+        <button onClick={() => goMarket('nutritionist')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 13, padding: '15px 16px', borderRadius: 16, border: `2px solid #a07a2e`, background: t.isLight ? '#a07a2e14' : '#a07a2e26' }}>
           <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 12, background: '#a07a2e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 20A7 7 0 0 1 4 13C4 7 9 3 20 3C20 12 16 20 11 20Z"/><path d="M4 21C5.5 15 9 11.5 14 10"/></svg>
           </div>
@@ -7988,9 +7988,9 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
                     <span style={{ fontFamily: t.DISPLAY, fontSize: 17, color: t.INK50, marginBottom: 6 }}>of {goal.toLocaleString()}</span>
                   </div>
                   <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>{scoreProfile.week} this week · {(scoreProfile.pointsToNext || 0).toLocaleString()} to {scoreProfile.nextTier}</div>
-                  <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 9px', borderRadius: 999, border: `1px solid ${t.AMBER}66`, background: `${t.AMBER}1f` }}>
-                    <span style={{ width: 6, height: 6, borderRadius: 3, background: t.AMBER }} />
-                    <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>{scoreProfile.tier} tier</span>
+                  <div style={{ marginTop: 7, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 999, border: `1px solid ${t.AMBER}`, background: t.AMBER, boxShadow: `0 2px 12px ${t.AMBER}66` }}>
+                    <span style={{ width: 6, height: 6, borderRadius: 3, background: '#241803' }} />
+                    <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#241803' }}>{scoreProfile.tier} tier</span>
                   </div>
                 </div>
                 <svg width="84" height="84" viewBox="0 0 84 84" style={{ flexShrink: 0 }}>

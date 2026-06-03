@@ -527,7 +527,7 @@ function BSNowPlaying({ onOpen }) {
   return (
     <div onClick={onOpen} style={{
       position: 'relative', overflow: 'hidden', cursor: 'pointer',
-      margin: `0 ${t.padX}px`, border: `1px solid ${t.RULE}`, borderRadius: 16,
+      margin: 0, borderTop: `1px solid ${t.RULE}`, borderBottom: `1px solid ${t.RULE}`, borderRadius: 0,
       background: t.PAPER, color: t.INK,
     }}>
       {/* Light effects layer */}
@@ -631,7 +631,7 @@ function BSNowPlayingMuted({ onTurnOn, onPrompt, onOpen }) {
   return (
     <div onClick={onOpen} style={{
       position: 'relative', cursor: onOpen ? 'pointer' : 'default',
-      margin: `0 ${t.padX}px`, border: `1px solid ${t.RULE}`, borderRadius: 16, overflow: 'hidden',
+      margin: 0, borderTop: `1px solid ${t.RULE}`, borderBottom: `1px solid ${t.RULE}`, borderRadius: 0, overflow: 'hidden',
       background: t.PAPER, color: t.INK, opacity: 0.92,
     }}>
       <div style={{ padding: `10px ${t.padX}px 10px` }}>
