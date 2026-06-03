@@ -411,7 +411,7 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole }) {
       </div>
 
       {/* Filter pills — wrap so all are visible (no horizontal scroll) */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: `16px ${t.padX}px 18px` }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8, padding: `16px ${t.padX}px 18px` }}>
         {pills.map((p) => (
           <MktPill key={p} label={p} on={pill === p && !(p === 'All' && forceList)} onClick={() => pickPill(p)} teal={teal} />
         ))}
