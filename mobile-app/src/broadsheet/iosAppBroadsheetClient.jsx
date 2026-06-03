@@ -6288,19 +6288,19 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             const online = !!f.online || count > 0;
             const isLast = Array.isArray(arr) && i === arr.length - 1;
             return (
-              <button key={i} onClick={() => { window.ShapeUnread?.markConversationRead?.(f.conversation_id); setOpenChat(f); }} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 13, alignItems: 'center', padding: '13px 2px', borderBottom: isLast ? 0 : `1px solid ${hair}`, background: 'transparent', border: 0, color: cardInk, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
+              <button key={i} onClick={() => { window.ShapeUnread?.markConversationRead?.(f.conversation_id); setOpenChat(f); }} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 11, alignItems: 'center', padding: '10px 2px', borderBottom: isLast ? 0 : `1px solid ${t.isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.045)'}`, background: 'transparent', border: 0, color: cardInk, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
                 <span style={{ position: 'relative', flexShrink: 0, display: 'inline-flex' }}>
-                  <span style={{ width: 46, height: 46, borderRadius: 999, background: f.c, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 17 }}>{f.i}</span>
-                  {online && <span style={{ position: 'absolute', right: 0, bottom: 1, width: 12, height: 12, borderRadius: 999, background: '#3ddc97', border: `2px solid ${t.PAPER}` }} />}
+                  <span style={{ width: 40, height: 40, borderRadius: 999, background: f.c, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 15 }}>{f.i}</span>
+                  {online && <span style={{ position: 'absolute', right: 0, bottom: 1, width: 11, height: 11, borderRadius: 999, background: '#3ddc97', border: `2px solid ${t.PAPER}` }} />}
                 </span>
                 <span style={{ minWidth: 0, display: 'block' }}>
-                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 16, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.n}</span>
-                  {f.s && <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, fontWeight: 700, marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.s}</span>}
-                  {last && <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 13.5, color: count > 0 ? cardInk : muted, marginTop: 5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{last}</span>}
+                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 14.5, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.n}</span>
+                  {f.s && <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, fontWeight: 700, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.s}</span>}
+                  {last && <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 12.5, color: count > 0 ? cardInk : muted, marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{last}</span>}
                 </span>
-                <span style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8, alignSelf: 'flex-start', marginTop: 3 }}>
-                  {time && <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: count > 0 ? TEALB : muted, fontWeight: 700 }}>{time}</span>}
-                  {count > 0 && <span style={{ minWidth: 20, height: 20, borderRadius: 999, background: TEAL, color: '#031f1c', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px' }}>{count > 9 ? '9+' : count}</span>}
+                <span style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 7, alignSelf: 'flex-start', marginTop: 2 }}>
+                  {time && <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: count > 0 ? TEALB : muted, fontWeight: 700 }}>{time}</span>}
+                  {count > 0 && <span style={{ minWidth: 18, height: 18, borderRadius: 999, background: TEAL, color: '#031f1c', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px' }}>{count > 9 ? '9+' : count}</span>}
                 </span>
               </button>
             );
@@ -6350,14 +6350,14 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             const color = _chPalette[(ch.name || '').length % _chPalette.length];
             const isSample = String(ch.id || '').startsWith('sample');
             return (
-              <div key={ch.id} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 48px 12px 12px', borderRadius: 14, border: `1px solid ${hair}`, background: card }}>
-                <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 16 }}>#</div>
+              <div key={ch.id} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 42px 9px 10px', borderRadius: 12, border: `1px solid ${hair}`, background: card }}>
+                <div style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14 }}>#</div>
                 <button onClick={() => ch.joined ? openChannelNow(ch) : joinChannelNow(ch)} style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, textAlign: 'left', cursor: 'pointer', color: cardInk }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15 }}># {ch.name}{ch.private &&<span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: muted, marginLeft: 8 }}>🔒 PRIVATE</span>}{ch.isHost && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: TEALB, marginLeft: 8 }}>HOST</span>}</div>
-                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, marginTop: 3 }}>{ch.memberCount} member{ch.memberCount === 1 ? '' : 's'}{ch.last ? ` · ${ch.last.slice(0, 26)}` : ''}</div>
+                  <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 14 }}># {ch.name}{ch.private &&<span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', color: muted, marginLeft: 8 }}>🔒 PRIVATE</span>}{ch.isHost && <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', color: TEALB, marginLeft: 8 }}>HOST</span>}</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, marginTop: 2 }}>{ch.memberCount} member{ch.memberCount === 1 ? '' : 's'}{ch.last ? ` · ${ch.last.slice(0, 26)}` : ''}</div>
                 </button>
                 {unreadBadge('ch:' + ch.id)}
-                <button onClick={() => pinChannelNow(ch)} aria-label={ch.pinned ? 'Unpin' : 'Pin'} title={ch.pinned ? 'Unpin' : 'Pin to top'} style={{ position: 'absolute', top: 8, right: 8, zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, border: 0, background: 'transparent', cursor: 'pointer', padding: 0, opacity: ch.pinned ? 1 : 0.4 }}><PinIcon filled={ch.pinned} size={20} /></button>
+                <button onClick={() => pinChannelNow(ch)} aria-label={ch.pinned ? 'Unpin' : 'Pin'} title={ch.pinned ? 'Unpin' : 'Pin to top'} style={{ position: 'absolute', top: 7, right: 7, zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, border: 0, background: 'transparent', cursor: 'pointer', padding: 0, opacity: ch.pinned ? 1 : 0.4 }}><PinIcon filled={ch.pinned} size={18} /></button>
                 {ch.isHost && !isSample && <button onClick={() => { setAddMemberFor(ch); setMemberQuery(''); setMemberResults([]); }} style={{ flexShrink: 0, padding: '7px 11px', borderRadius: 999, background: 'transparent', color: cardInk, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Add</button>}
                 {!ch.joined && <button onClick={() => joinChannelNow(ch)} style={{ flexShrink: 0, padding: '7px 13px', borderRadius: 999, background: TEAL, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Join</button>}
                 {ch.joined && <span style={{ color: muted, fontSize: 16, flexShrink: 0 }}>›</span>}
