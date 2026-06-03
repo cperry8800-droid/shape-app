@@ -8231,7 +8231,13 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         </div>
       </div>
 
-      <BSSection title="Rewards" kicker="Spend your points" meta={`${available.toLocaleString()} available`} />
+      {/* Rewards header — "Spend your points" centered, teal, and tappable
+          straight to the Shape Store where points are redeemed. */}
+      <div style={{ padding: `${t.sectGap}px ${t.padX}px 10px`, display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'baseline', gap: 8 }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK }}>▍ Rewards</span>
+        <button onClick={onOpenStore} style={{ justifySelf: 'center', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : '#34d6c5' }}>Spend your points →</button>
+        <span style={{ justifySelf: 'end', fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{available.toLocaleString()} available</span>
+      </div>
       <div style={{ padding: `0 ${t.padX}px` }}>
         {rewards.map(([title, sub, cost], i) => (
           <div key={title} onClick={title.includes('Store') ? onOpenStore : undefined} style={{
