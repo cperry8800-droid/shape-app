@@ -71,7 +71,7 @@ const {
   BSTabBar, BSFooter,
   BSSheetProvider, useBSSheet, BSCalendarScreen,
   BSRadioPrompt, BSRadioScreen, BSNowPlaying,
-  BSClientChat, BSSettings, BSShapeScorePage, BSShapeStorePage, BSContactPage, BSTermsPage, SHAPE_SCORE_PROFILES,
+  BSClientChat, BSSettings, BSShapeScorePage, BSShapeStorePage, BSContactPage, BSTermsPage, SHAPE_SCORE_PROFILES, _bsUseLiveScore,
 } = window;
 
 function formatReviewSeconds(value) {
@@ -2080,7 +2080,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
   const [showPublicProfile, setShowPublicProfile] = useStateBSP(false);
   const [showBookingCalendar, setShowBookingCalendar] = useStateBSP(false);
   const [showNotifications, setShowNotifications] = useStateBSP(false);
-  const scoreProfile = SHAPE_SCORE_PROFILES?.[role] || SHAPE_SCORE_PROFILES?.client;
+  const scoreProfile = _bsUseLiveScore(SHAPE_SCORE_PROFILES?.[role] || SHAPE_SCORE_PROFILES?.client); // live points/tier when signed in
   const startPayoutSetup = async () => {
     try {
       await window.ShapeConnect?.startOnboarding?.({ role });
@@ -2118,36 +2118,59 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
     <BSPage>
       <BSPageHeader kicker={isCoach ? 'Coach · 4.9 ★' : 'Nutritionist · 4.9 ★'} title={<>{name.split(' ')[0]}<br/>{name.split(' ').slice(1).join(' ')}.</>} trailing={<BSAvatar init={init} size={32} fill={accent} ink={t.PAPER} onClick={onSettings} />} />
 
-      <button onClick={() => setShowScore(true)} style={{ borderRadius: 0,
-        width: '100%', textAlign: 'left', padding: `16px ${t.padX}px 18px`,
-        border: 0, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER2,
-        color: t.INK, cursor: 'pointer',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-          <BSEyebrow color={t.ACCENT}>Shape Score</BSEyebrow>
-          <BSEyebrow>{scoreProfile.week} this wk - details</BSEyebrow>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, marginTop: 4 }}>
-          <span style={{ fontFamily: t.DISPLAY, fontSize: 62, fontWeight: 700, color: t.INK, letterSpacing: '-0.05em', lineHeight: 0.95 }}>{scoreProfile.total.toLocaleString()}</span>
-          <span style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 500, color: t.INK50, letterSpacing: '-0.04em', marginBottom: 8 }}>/{scoreProfile.goal.toLocaleString()}</span>
-        </div>
-        <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 5 }}>
-          {[
-            { k: 'WEEK',   v: scoreProfile.weekRatio, n: scoreProfile.week, c: t.AMBER },
-            { k: 'STREAK', v: scoreProfile.streakRatio, n: `${scoreProfile.streak}D`, c: t.GREEN },
-            { k: 'TIER',   v: scoreProfile.tierRatio, n: scoreProfile.tierShort, c: t.ACCENT },
-            { k: 'SPEND',  v: scoreProfile.spendRatio, n: scoreProfile.available.toLocaleString(), c: t.BLUE },
-          ].map(r => (
-            <div key={r.k} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 86, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', color: t.INK70, fontWeight: 600 }}>{r.k}</div>
-              <div style={{ flex: 1, height: 4, background: t.HAIR, position: 'relative' }}>
-                <div style={{ width: `${r.v * 100}%`, height: '100%', background: r.c }} />
+      {(() => {
+        const total = scoreProfile.total || 0;
+        const goal = scoreProfile.goal || 5000;
+        const pct = goal ? Math.min(1, total / goal) : 0;
+        const RAD = 34, CIRC = 2 * Math.PI * RAD;
+        const bars = [
+          { k: 'WEEK',   v: scoreProfile.weekRatio, n: scoreProfile.week, c: t.AMBER },
+          { k: 'STREAK', v: scoreProfile.streakRatio, n: `${scoreProfile.streak}D`, c: t.GREEN },
+          { k: 'TIER',   v: scoreProfile.tierRatio, n: scoreProfile.tierShort, c: t.ACCENT },
+          { k: 'SPEND',  v: scoreProfile.spendRatio, n: (scoreProfile.available || 0).toLocaleString(), c: t.BLUE },
+        ];
+        return (
+          <div style={{ padding: `16px ${t.padX}px 6px` }}>
+            <button onClick={() => setShowScore(true)} style={{
+              width: '100%', textAlign: 'left', cursor: 'pointer', color: t.INK,
+              border: `1px solid ${t.AMBER}55`, borderRadius: 18,
+              background: `linear-gradient(150deg, ${t.AMBER}2e, ${t.AMBER}0a 48%, ${t.PAPER2} 88%), ${t.PAPER2}`,
+              padding: 18,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14 }}>
+                <div style={{ minWidth: 0 }}>
+                  <BSEyebrow color={t.AMBER}>Shape Score</BSEyebrow>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, marginTop: 8 }}>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 52, fontWeight: 700, lineHeight: 0.9, letterSpacing: '-0.04em' }}>{total.toLocaleString()}</span>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 17, color: t.INK50, marginBottom: 6 }}>of {goal.toLocaleString()}</span>
+                  </div>
+                  <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>{scoreProfile.week} this week · {(scoreProfile.pointsToNext || 0).toLocaleString()} to {scoreProfile.nextTier}</div>
+                  <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 9px', borderRadius: 999, border: `1px solid ${t.AMBER}66`, background: `${t.AMBER}1f` }}>
+                    <span style={{ width: 6, height: 6, borderRadius: 3, background: t.AMBER }} />
+                    <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>{scoreProfile.tier} tier</span>
+                  </div>
+                </div>
+                <svg width="84" height="84" viewBox="0 0 84 84" style={{ flexShrink: 0 }}>
+                  <circle cx="42" cy="42" r={RAD} fill="none" stroke={t.HAIR} strokeWidth="6" />
+                  <circle cx="42" cy="42" r={RAD} fill="none" stroke={t.AMBER} strokeWidth="6" strokeLinecap="round" strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - pct)} transform="rotate(-90 42 42)" />
+                  <text x="42" y="43" textAnchor="middle" dominantBaseline="central" style={{ fontFamily: t.DISPLAY, fontSize: '17px', fontWeight: 700, fill: t.INK }}>{Math.round(pct * 100)}%</text>
+                </svg>
               </div>
-              <div style={{ width: 34, textAlign: 'right', fontFamily: t.MONO, fontSize: 10, color: t.INK, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{r.n}</div>
-            </div>
-          ))}
-        </div>
-      </button>
+              <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {bars.map(r => (
+                  <div key={r.k} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 86, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70, fontWeight: 600 }}>{r.k}</div>
+                    <div style={{ flex: 1, height: 5, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}>
+                      <div style={{ width: `${(r.v || 0) * 100}%`, height: '100%', background: r.c, borderRadius: 999 }} />
+                    </div>
+                    <div style={{ width: 40, textAlign: 'right', fontFamily: t.MONO, fontSize: 10.5, color: t.INK, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{r.n}</div>
+                  </div>
+                ))}
+              </div>
+            </button>
+          </div>
+        );
+      })()}
 
       <div style={{ padding: `22px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
         <BSEyebrow color={t.ACCENT}>This month</BSEyebrow>
