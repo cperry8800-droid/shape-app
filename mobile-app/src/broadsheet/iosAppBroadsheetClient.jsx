@@ -9291,8 +9291,10 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
   list.aisles.forEach((a, ai) => a.items.forEach((it, ii) => allKeys.push({ k: `${ai}-${ii}`, have: !!it.have })));
   const initialChecked = new Set(allKeys.filter(x => x.have).map(x => x.k));
   const [checked, setChecked] = useStateBSC(initialChecked);
+  const [activeAisle, setActiveAisle] = useStateBSC(0);
   React.useEffect(() => {
     setChecked(new Set(allKeys.filter(x => x.have).map(x => x.k)));
+    setActiveAisle(0);
   }, [list.id || list.name]);
 
   const toggle = (k) => {
@@ -9366,19 +9368,37 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
         </div>
       </div>
 
-      {/* Aisles */}
-      {list.aisles.map((aisle, ai) => {
+      {/* Food-group tabs + single Reset (top-right) — jump to a group without scrolling */}
+      {(() => {
+        const ai = Math.min(activeAisle, Math.max(0, list.aisles.length - 1));
+        const aisle = list.aisles[ai];
+        if (!aisle) return null;
         const aisleDone = aisle.items.filter((_, ii) => checked.has(`${ai}-${ii}`)).length;
         return (
-          <div key={aisle.aisle}>
-            <div style={{ padding: `${t.sectGap}px ${t.padX}px 10px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK }}>▍ {aisle.aisle}</span>
-              <button onClick={() => resetAisle(ai)} aria-label={`Reset ${aisle.aisle}`} style={{
+          <>
+            <div style={{ padding: `${t.sectGap}px ${t.padX}px 10px`, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', flex: 1, minWidth: 0, scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+                {list.aisles.map((a, idx) => {
+                  const on = idx === ai;
+                  const aDone = a.items.filter((_, ii) => checked.has(`${idx}-${ii}`)).length;
+                  const aAll = a.items.length > 0 && aDone === a.items.length;
+                  return (
+                    <button key={a.aisle} onClick={() => setActiveAisle(idx)} style={{
+                      flex: '0 0 auto', padding: '8px 13px', borderRadius: 999, cursor: 'pointer',
+                      background: on ? t.INK : 'transparent', color: on ? t.PAPER : (aAll ? t.INK50 : t.INK),
+                      border: `1px solid ${on ? t.INK : t.RULE}`,
+                      fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
+                      whiteSpace: 'nowrap', textDecoration: aAll && !on ? 'line-through' : 'none',
+                    }}>{a.aisle}</button>
+                  );
+                })}
+              </div>
+              <button onClick={() => resetAisle(ai)} aria-label={`Reset ${aisle.aisle}`} disabled={aisleDone === 0} style={{
                 flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', gap: 5,
-                padding: '7px 12px', borderRadius: 999, cursor: 'pointer',
-                background: aisleDone > 0 ? t.INK : 'transparent',
-                color: aisleDone > 0 ? t.PAPER : t.INK50,
-                border: `1px solid ${aisleDone > 0 ? t.INK : t.RULE}`,
+                padding: '8px 13px', borderRadius: 999, cursor: aisleDone > 0 ? 'pointer' : 'default',
+                background: aisleDone > 0 ? t.PAPER2 : 'transparent',
+                color: aisleDone > 0 ? t.INK : t.INK50,
+                border: `1px solid ${aisleDone > 0 ? t.INK : t.RULE}`, opacity: aisleDone > 0 ? 1 : 0.5,
                 fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase',
               }}>Reset ↺</button>
             </div>
@@ -9414,16 +9434,16 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
                   </div>
                 );
               })}
-              {editable && aisle.items.length === 0 && (
+              {aisle.items.length === 0 && (
                 <div style={{ padding: `${t.rowY + 2}px 0`, fontFamily: t.MONO, fontSize: 10, color: t.INK50, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                  No items yet — add some below.
+                  {editable ? 'No items yet — add some below.' : 'Nothing in this group.'}
                 </div>
               )}
               </div>
             </div>
-          </div>
+          </>
         );
-      })}
+      })()}
 
       {/* Add item — only on editable (custom) lists */}
       {editable && (

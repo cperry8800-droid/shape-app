@@ -46,6 +46,13 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-03 — Grocery list: food-group tabs + single Reset
+- `BSGrocery` aisles are no longer a long scroll. A horizontal **food-group tab row**
+  (one pill per aisle, e.g. PRODUCE/DAIRY/…) sits at the top; tapping a tab shows just
+  that group's items (completed groups show struck-through). A single **Reset ↺** pill
+  is pinned top-right on the same line and clears the active group's checks (disabled
+  when nothing's checked). Removed the old per-aisle headers + per-aisle reset buttons.
+
 ### 2026-06-03 — Habits add/edit form redesign + recipe/grocery library saves
 - `BSHabitForm` (the "super analog" Add Habit page) rebuilt to the rounded-card
   system: name in a rounded `PAPER2` field (was a 2px-INK underline), **Do daily /
