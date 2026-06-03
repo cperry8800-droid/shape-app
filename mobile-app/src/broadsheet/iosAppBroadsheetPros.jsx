@@ -2116,6 +2116,12 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
 
   return (
     <BSPage>
+      <div style={{ padding: `14px ${t.padX}px 0` }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 11px', borderRadius: 999, border: `1px solid ${t.AMBER}66`, background: `${t.AMBER}14` }}>
+          <span style={{ width: 5, height: 5, borderRadius: 999, background: t.AMBER }} />
+          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.AMBER }}>{scoreProfile.tier} tier</span>
+        </span>
+      </div>
       <BSPageHeader kicker={isCoach ? 'Coach · 4.9 ★' : 'Nutritionist · 4.9 ★'} title={<>{name.split(' ')[0]}<br/>{name.split(' ').slice(1).join(' ')}.</>} trailing={<BSAvatar init={init} size={32} fill={accent} ink={t.PAPER} onClick={onSettings} />} />
 
       {(() => {
@@ -2133,8 +2139,8 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
           <div style={{ padding: `16px ${t.padX}px 6px` }}>
             <button onClick={() => setShowScore(true)} style={{
               width: '100%', textAlign: 'left', cursor: 'pointer', color: t.INK,
-              border: `1px solid ${t.AMBER}55`, borderRadius: 18,
-              background: `linear-gradient(150deg, ${t.AMBER}2e, ${t.AMBER}0a 48%, ${t.PAPER2} 88%), ${t.PAPER2}`,
+              border: `1px solid ${t.RULE}`, borderRadius: 18,
+              background: t.PAPER2,
               padding: 18,
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14 }}>
@@ -2145,10 +2151,6 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
                     <span style={{ fontFamily: t.DISPLAY, fontSize: 17, color: t.INK50, marginBottom: 6 }}>of {goal.toLocaleString()}</span>
                   </div>
                   <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>{scoreProfile.week} this week · {(scoreProfile.pointsToNext || 0).toLocaleString()} to {scoreProfile.nextTier}</div>
-                  <div style={{ marginTop: 7, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 999, border: `1px solid ${t.AMBER}`, background: t.AMBER, boxShadow: `0 2px 12px ${t.AMBER}66` }}>
-                    <span style={{ width: 6, height: 6, borderRadius: 3, background: '#241803' }} />
-                    <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 900, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#241803', WebkitTextStroke: '0.4px #241803' }}>{scoreProfile.tier} tier</span>
-                  </div>
                 </div>
                 <svg width="84" height="84" viewBox="0 0 84 84" style={{ flexShrink: 0 }}>
                   <circle cx="42" cy="42" r={RAD} fill="none" stroke={t.HAIR} strokeWidth="6" />
