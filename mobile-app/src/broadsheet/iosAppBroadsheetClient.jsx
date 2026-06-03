@@ -8943,6 +8943,21 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showNotifications, setShowNotifications] = useStateBSC(false);
   const [showIntegrations, setShowIntegrations] = useStateBSC(initialPage === 'integrations');
   const [showAppearance, setShowAppearance] = useStateBSC(false);
+  const [showScore, setShowScore] = useStateBSC(false);
+  const [showStore, setShowStore] = useStateBSC(false);
+  const scoreProfile = SHAPE_SCORE_PROFILES.client;
+
+  // Live subscription for the "Your plan" card. null until loaded; { active:false }
+  // when there's no active subscription (free) — then we show the upgrade copy.
+  const [plan, setPlan] = useStateBSC(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/stripe/subscription', { credentials: 'same-origin', cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && d) setPlan(d); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   // Stripe Customer Portal — billing UI for card / cancel / invoices.
   const openBillingPortal = async () => {
@@ -9053,11 +9068,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // Appearance / Effects controls — render natively
   const Pill = ({ on, onClick, children, color }) => (
     <button onClick={onClick} style={{ borderRadius: t.RADIUS_SM,
-      flex: 1, padding: '6px 7px', cursor: 'pointer',
+      flex: 1, padding: '10px 11px', cursor: 'pointer',
       border: `1px solid ${on ? t.INK : t.RULE}`,
       background: on ? t.INK : 'transparent',
       color: on ? t.PAPER : t.INK,
-      fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+      fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
     }}>{children}</button>
   );
 
@@ -9111,6 +9126,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   }
   if (showIntegrations) {
     return <BSIntegrationsPage onBack={() => setShowIntegrations(false)} />;
+  }
+  if (showScore) {
+    return <BSShapeScorePage profile={scoreProfile} onBack={() => setShowScore(false)} onOpenStore={() => { setShowScore(false); setShowStore(true); }} />;
+  }
+  if (showStore) {
+    return <BSShapeStorePage profile={scoreProfile} onBack={() => setShowStore(false)} onOpenScore={() => { setShowStore(false); setShowScore(true); }} />;
   }
 
   const sections = [
@@ -9223,7 +9244,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
               {[['Shape Score', () => setShowScore(true)], ['Streak', () => setShowScore(true)], ['Points', () => setShowStore(true)]].map(([l, on]) => (
-                <button key={l} onClick={on} style={{ padding: '10px 16px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{l}</button>
+                <button key={l} onClick={on} style={{ padding: '10px 16px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{l}</button>
               ))}
             </div>
           </div>
@@ -9279,20 +9300,30 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         )}
       </div>
 
-      {/* YOUR PLAN — subscription card */}
-      {!editing && (
-        <div style={{ padding: `4px ${t.padX}px 18px` }}>
-          <div style={{ border: `1px solid ${t.AMBER}55`, borderRadius: 18, background: `linear-gradient(150deg, ${t.AMBER}26, ${t.AMBER}08 45%, ${t.PAPER2} 85%), ${t.PAPER2}`, padding: 18 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-              <BSEyebrow color={t.AMBER}>Your plan</BSEyebrow>
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Renews Apr 30</span>
+      {/* YOUR PLAN — subscription card (live from /api/stripe/subscription) */}
+      {!editing && (() => {
+        // Assume active until the fetch resolves so there's no flash of "Free".
+        const active = plan ? plan.active !== false : true;
+        const cents = plan && typeof plan.priceCents === 'number' ? plan.priceCents : 500;
+        const priceLabel = `$${cents % 100 === 0 ? cents / 100 : (cents / 100).toFixed(2)}/mo`;
+        const renews = plan && plan.renewsAt ? new Date(plan.renewsAt) : null;
+        const renewsLabel = renews && !isNaN(renews.getTime())
+          ? `Renews ${renews.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+          : 'Renews monthly';
+        return (
+          <div style={{ padding: `4px ${t.padX}px 18px` }}>
+            <div style={{ border: `1px solid ${t.AMBER}55`, borderRadius: 18, background: `linear-gradient(150deg, ${t.AMBER}26, ${t.AMBER}08 45%, ${t.PAPER2} 85%), ${t.PAPER2}`, padding: 18 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+                <BSEyebrow color={t.AMBER}>Your plan</BSEyebrow>
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{active ? renewsLabel : 'Free plan'}</span>
+              </div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', marginTop: 8 }}>Shape <span style={{ fontStyle: 'italic', color: t.AMBER }}>{active ? 'Member.' : 'Free.'}</span></div>
+              <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.5 }}>{active ? `${priceLabel} · Radio included · Community access · Marketplace access` : 'Upgrade for Radio, community & marketplace access'}</div>
+              <button onClick={openBillingPortal} style={{ marginTop: 14, padding: '9px 16px', borderRadius: 999, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{active ? 'Manage →' : 'Upgrade →'}</button>
             </div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', marginTop: 8 }}>Shape <span style={{ fontStyle: 'italic', color: t.AMBER }}>Member.</span></div>
-            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.5 }}>$5/mo · Radio included · Community access · Marketplace access</div>
-            <button onClick={openBillingPortal} style={{ marginTop: 14, padding: '9px 16px', borderRadius: 999, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Manage →</button>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* PROFILE MODE — switch between Client / Trainer / Nutritionist views */}
       <SectionHead
@@ -9303,10 +9334,19 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8, fontWeight: 700 }}>
           Active profile
         </div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <Pill on={(tweaks.role || 'client') === 'client'}       onClick={() => setTweak('role', 'client')}>Client</Pill>
-          <Pill on={tweaks.role === 'trainer'}                    onClick={() => setTweak('role', 'trainer')}>Trainer</Pill>
-          <Pill on={tweaks.role === 'nutritionist'}               onClick={() => setTweak('role', 'nutritionist')}>Nutrition</Pill>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {[['client', 'Client'], ['trainer', 'Trainer'], ['nutritionist', 'Nutrition']].map(([key, label]) => {
+            const on = (tweaks.role || 'client') === key;
+            return (
+              <button key={key} onClick={() => setTweak('role', key)} style={{ borderRadius: t.RADIUS_SM,
+                flex: 1, padding: '11px 10px', cursor: 'pointer',
+                border: `1px solid ${on ? t.INK : t.RULE}`,
+                background: on ? t.INK : 'transparent',
+                color: on ? t.PAPER : t.INK,
+                fontFamily: t.MONO, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+              }}>{label}</button>
+            );
+          })}
         </div>
         <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.45 }}>
           Switching view loads the matching home, calendar &amp; tools.
