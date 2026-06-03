@@ -2831,7 +2831,7 @@ function BSMealPreview({ meal, onBack, onLog }) {
           padding: '14px 18px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
           fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
         }}>Close</button>
-        <BSSaveButton item={{ id: 'meal:' + String(meal.title || 'meal').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''), kind: 'meal', title: meal.title, meta: `${meal.kcal} kcal · ${meal.p}P · ${meal.c}C · ${meal.f}F` }} />
+        <BSSaveButton item={{ id: 'meal:' + String(meal.id || String(meal.title || 'meal').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')), kind: 'meal', title: meal.title, meta: `${meal.kcal} kcal · ${meal.p}P · ${meal.c}C · ${meal.f}F` }} />
         <button onClick={onLog ? onLog : () => setJustLogged(true)} style={{
           flex: 1, border: 0, borderRadius: 14, background: teal, color: '#04201d', cursor: 'pointer',
           ...(onLog
