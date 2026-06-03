@@ -2112,10 +2112,10 @@ function BSWeekStrip({ activeIdx, onSelect, restFlags = [] }) {
 function BSTrackHeader({ kicker, title, actionLabel, onAction }) {
   const t = useBS();
   return (
-    <div style={{ padding: `20px ${t.padX}px 0` }}>
-      <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700, marginBottom: 6 }}>{kicker}</div>
+    <div style={{ padding: `18px ${t.padX}px 0` }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700, marginBottom: 5 }}>{kicker}</div>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 26, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{title}</div>
+        <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 21, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{title}</div>
         {actionLabel && <button onClick={onAction} style={{ background: 'transparent', border: 0, color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}>{actionLabel} →</button>}
       </div>
     </div>
