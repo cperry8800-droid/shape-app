@@ -335,6 +335,9 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const goTrain    = () => setTab('train');
   const goMarket   = (role) => { setMarketRole(typeof role === 'string' ? role : null); setTab('market'); };
   const goScore    = () => { setStoreView('score'); setTab('store'); };
+  // Open the chat tab on a specific coach's DM (Team → Coaches).
+  const [chatRequest, setChatRequest] = useStateBSC(null);
+  const goChat = (coach, role) => { setChatRequest({ coach: coach || null, role: role || null, nonce: Date.now() }); setTab('chat'); };
 
   React.useEffect(() => {
     window.__shapeActiveTab = tab;
@@ -361,10 +364,10 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     );
   }
   const screens = {
-    home:    <BSClientHome     onProfile={goSettings} sheet={sheet} goCalendar={() => setShowCalendar(true)} goRadio={goRadio} goTrain={goTrain} goMarket={goMarket} goScore={goScore} goIntegrations={goIntegrations} tweaks={tweaks} setTweak={setTweak} />,
+    home:    <BSClientHome     onProfile={goSettings} sheet={sheet} goCalendar={() => setShowCalendar(true)} goRadio={goRadio} goTrain={goTrain} goMarket={goMarket} goScore={goScore} goChat={goChat} goIntegrations={goIntegrations} tweaks={tweaks} setTweak={setTweak} />,
     train:   <BSClientTrain    onProfile={goSettings} sheet={sheet} goCalendar={() => setShowCalendar(true)} goRadio={goRadio} goMarket={goMarket} />,
     eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} goRadio={goRadio} goMarket={goMarket} />,
-    chat:    <BSClientFeed     onProfile={goSettings} role={tweaks.role || 'client'} />,
+    chat:    <BSClientFeed     onProfile={goSettings} role={tweaks.role || 'client'} openRequest={chatRequest} />,
     radio:   <BSRadioScreen    onBack={() => setTab('home')} />,
     market:  <BSMarketplaceScreen initialRole={marketRole} onBack={() => setTab('home')} onProfile={goSettings} />,
     store:   storeView === 'score'
@@ -807,7 +810,7 @@ const BS_TICKER_METRICS = [
 
 // Full read-only preview of an upcoming workout — opened from the home
 // "Up next" workout card's Preview button.
-function BSHomeWorkoutPreview({ onBack, onMove = () => {}, onStart = () => {} }) {
+function BSHomeWorkoutPreview({ onBack, onMove = () => {}, onStart = () => {}, onMessage = () => {} }) {
   const t = useBS();
   const rust = t.RUST;
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -846,7 +849,7 @@ function BSHomeWorkoutPreview({ onBack, onMove = () => {}, onStart = () => {} })
                 <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginTop: 1 }}>Coach</div>
               </div>
             </div>
-            <button onClick={() => window.__bsToast?.('Opening chat with Jordan…', 'ok')} style={{ flexShrink: 0, padding: '8px 14px', borderRadius: 999, border: `1px solid ${teal}`, background: 'transparent', color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Message</button>
+            <button onClick={onMessage} style={{ flexShrink: 0, padding: '8px 14px', borderRadius: 999, border: `1px solid ${teal}`, background: 'transparent', color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Message</button>
           </div>
           <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, fontWeight: 500, color: t.INK70, lineHeight: 1.5, letterSpacing: '-0.01em' }}>
             “Peak week — tempo matters more than load. 3s eccentric on every pull. If bar speed drops, drop a rep, not the tempo.”
@@ -1107,7 +1110,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
   );
 }
 
-function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket, goScore, goIntegrations, tweaks = {}, setTweak = () => {} }) {
+function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket, goScore, goChat = () => {}, goIntegrations, tweaks = {}, setTweak = () => {} }) {
   const t = useBS();
   // Real current week, computed live so the home reflects today (not demo dates).
   // Monday-first index 0..6; weekDates = the seven dates of this calendar week.
@@ -1454,7 +1457,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     return <BSMealPreview meal={previewMeal} onBack={() => setPreviewMeal(null)} />;
   }
   if (showWorkoutPreview) {
-    return <BSHomeWorkoutPreview onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.(); }} />;
+    return <BSHomeWorkoutPreview onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.(); }} onMessage={() => { setShowWorkoutPreview(false); goChat('Jordan Chen', 'Coach · Hypertrophy'); }} />;
   }
   if (showLogMeal) {
     return <BSLogMealFlow onClose={() => setShowLogMeal(false)} onLogged={() => setNextMealLogged(true)} />;
@@ -5434,7 +5437,7 @@ const BS_SAMPLE_CHANNELS = [
   ] },
 ];
 
-function BSClientFeed({ onProfile, role: roleProp }) {
+function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const t = useBS();
   const TEAL = '#0ac5a8', TEALB = '#2ee0c4';
   const [tab, setTab] = useStateBSC('feed');
@@ -5491,6 +5494,22 @@ function BSClientFeed({ onProfile, role: roleProp }) {
     conversation_id: th.conversation_id,
     messages: (th.messages || []).map(m => ({ who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', me: m.me || m.who === 'You' })),
   }));
+
+  // External "Message <coach>" requests (e.g. from a workout preview) land
+  // here: jump to Team → Coaches and open that coach's thread (real thread by
+  // name → first real coach → sample → a fresh thread shell).
+  React.useEffect(() => {
+    if (!openRequest || !openRequest.nonce) return;
+    setTab('teams');
+    setTeamsSel('coaches');
+    const name = openRequest.coach;
+    if (!name) { setOpenChat(null); return; }
+    const byName = (threadRows || []).find(r => r.n === name);
+    const sample = BS_SAMPLE_COACH_DMS[name]
+      ? { n: name, s: openRequest.role || 'Coach', c: '#c0533b', i: name.charAt(0), conversation_id: null, messages: BS_SAMPLE_COACH_DMS[name] }
+      : null;
+    setOpenChat(byName || (threadRows && threadRows[0]) || sample || { n: name, s: openRequest.role || 'Coach', c: '#c0533b', i: (name || 'C').charAt(0), conversation_id: null, messages: [] });
+  }, [openRequest && openRequest.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Member-created community channels ("run club" style).
   const [channels, setChannels] = useStateBSC(null);
