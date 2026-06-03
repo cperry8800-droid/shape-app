@@ -1162,6 +1162,12 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
         </div>
       )}
 
+      {/* NOTE */}
+      <div style={{ padding: `16px ${t.padX}px 4px` }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8 }}>Note to Dr. Maya · optional</div>
+        <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Felt a bit hungry still · swapped rice for sweet potato…" style={{ width: '100%', padding: '12px 13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, outline: 'none', resize: 'vertical' }} />
+      </div>
+
       {/* THIS MEAL summary */}
       <div style={{ padding: `18px ${t.padX}px 4px` }}>
         <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>
@@ -1179,12 +1185,6 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
           </div>
           <DayTotals />
         </div>
-      </div>
-
-      {/* NOTE */}
-      <div style={{ padding: `16px ${t.padX}px 4px` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8 }}>Note to Dr. Maya · optional</div>
-        <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Felt a bit hungry still · swapped rice for sweet potato…" style={{ width: '100%', padding: '12px 13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, outline: 'none', resize: 'vertical' }} />
       </div>
 
       <div style={{ padding: `16px ${t.padX}px 10px` }}>
