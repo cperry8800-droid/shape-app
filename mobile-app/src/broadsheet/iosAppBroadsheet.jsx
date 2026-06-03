@@ -626,7 +626,7 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
 function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing }) {
   const t = useBS();
   return (
-    <div style={{ padding: `54px ${t.padX}px 14px`, borderBottom: `2px solid ${t.INK}` }}>
+    <div style={{ padding: `54px ${t.padX}px 14px` }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <BSLogo size={16} color={t.INK} />

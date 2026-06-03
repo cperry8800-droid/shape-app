@@ -1618,36 +1618,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
 
       {/* THIS WEEK — (moved to top) */}
 
-      {/* OP-ED — the coach's latest focus-banner note (coach_focus_banners),
-          editable from their Live Console. Falls back to an editorial line. */}
-      {(() => {
-        const banner = (coachFeed.banners || [])[0];
-        const text = (banner && banner.text) || "You're three weeks in. The tempo is the point — slow eccentric on every press.";
-        const role = banner && banner.provider_role === 'nutritionist' ? 'Your nutritionist' : 'Your coach';
-        const when = (() => {
-          if (!banner || !banner.sent_at) return 'Mon · 8:15';
-          const ms = Date.now() - new Date(banner.sent_at).getTime();
-          if (ms < 3_600_000) return `${Math.max(1, Math.floor(ms / 60_000))}m ago`;
-          if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h ago`;
-          const d = new Date(banner.sent_at);
-          return `${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]} · ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-        })();
-        return (
-          <div style={{ margin: `18px ${t.padX}px 0`, padding: '14px 16px', background: t.INK, color: t.PAPER }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.AMBER, marginBottom: 8, fontWeight: 700 }}>
-              ▍ Op-ed · {role}
-            </div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: 500, fontSize: 16, lineHeight: 1.25, letterSpacing: '-0.015em' }}>
-              &ldquo;{text}&rdquo;
-            </div>
-            <div style={{ marginTop: 10, paddingTop: 9, borderTop: `1px solid rgba(245,240,230,0.18)`, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
-              <span>{banner ? role : 'By Jordan Chen · Coach'}</span>
-              <span style={{ opacity: 0.55 }}>{when}</span>
-            </div>
-          </div>
-        );
-      })()}
-
       {/* ── HOME WIDGETS — user-added stats & blocks ─────────────── */}
       {(() => {
         const added = _bsHomeWidgets(tweaks);
@@ -8048,7 +8018,7 @@ Object.assign(window, {
 function BSDetailHeader({ onBack, eyebrow, kicker, title, trailing }) {
   const t = useBS();
   return (
-    <div style={{ padding: '54px 18px 14px', borderBottom: `2px solid ${t.INK}`, background: t.PAPER, position: 'sticky', top: 0, zIndex: 2 }}>
+    <div style={{ padding: '54px 18px 14px', background: t.PAPER, position: 'sticky', top: 0, zIndex: 2 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
         <button onClick={onBack} style={{ borderRadius: t.RADIUS_SM,
           background: 'transparent', border: 0, cursor: 'pointer', padding: 0,
