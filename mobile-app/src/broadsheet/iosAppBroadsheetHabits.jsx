@@ -217,7 +217,7 @@ function BSHabitSection({ title, type, accent, habits, onToggle, onRemove, onAdd
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10, marginBottom: 12 }}>
         <div>
           <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>{done}/{habits.length} {word}</div>
-          <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.035em', color: t.INK, lineHeight: 1 }}>{title}</div>
+          <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.025em', color: t.INK, lineHeight: 1 }}>{title}</div>
         </div>
         <button onClick={onAdd} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, padding: 0 }}>+ Add →</button>
       </div>
