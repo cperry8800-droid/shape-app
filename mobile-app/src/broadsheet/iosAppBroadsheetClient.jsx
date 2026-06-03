@@ -678,7 +678,7 @@ function BSClientLibrary({ onBack, goMarket = () => {} }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search your library…"
-          style={{ width: '100%', boxSizing: 'border-box', padding: '12px 16px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, outline: 'none' }}
+          style={{ width: '100%', boxSizing: 'border-box', padding: '10px 2px', border: 0, borderBottom: `1px solid ${t.RULE}`, borderRadius: 0, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 16, outline: 'none' }}
         />
       </div>
 
