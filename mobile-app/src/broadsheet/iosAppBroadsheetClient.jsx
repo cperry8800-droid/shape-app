@@ -1640,7 +1640,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   };
 
   if (previewMeal) {
-    return <BSMealPreview meal={previewMeal} onBack={() => setPreviewMeal(null)} />;
+    return <BSMealPreview meal={previewMeal} onBack={() => setPreviewMeal(null)} onLog={() => { setPreviewMeal(null); setShowLogMeal(true); }} />;
   }
   if (showWorkoutPreview) {
     return <BSHomeWorkoutPreview onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.(); }} onMessage={() => { setShowWorkoutPreview(false); goChat('Jordan Chen', 'Coach · Hypertrophy'); }} />;
@@ -2870,7 +2870,7 @@ function BSMealLogged({ kcal = 0, p = 0, time = '12:40 PM', onDone = () => {}, o
   );
 }
 
-function BSMealPreview({ meal, onBack }) {
+function BSMealPreview({ meal, onBack, onLog }) {
   const t = useBS();
   _bsScrollTopOnMount();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -2995,15 +2995,15 @@ function BSMealPreview({ meal, onBack }) {
           padding: '14px 18px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
           fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
         }}>Close</button>
-        <button onClick={() => setJustLogged(true)} style={{
+        <button onClick={onLog ? onLog : () => setJustLogged(true)} style={{
           flex: 1, textAlign: 'left', border: 0, borderRadius: 14, background: teal, color: '#04201d', padding: '12px 16px', cursor: 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
         }}>
           <span style={{ minWidth: 0 }}>
-            <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', opacity: 0.65 }}>One tap</span>
-            <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em' }}>Ate it as planned</span>
+            <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', opacity: 0.65 }}>{onLog ? 'Review & adjust' : 'One tap'}</span>
+            <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em' }}>{onLog ? 'Log Now' : 'Ate it as planned'}</span>
           </span>
-          <span style={{ fontSize: 18, fontWeight: 700 }}>✓</span>
+          <span style={{ fontSize: 18, fontWeight: 700 }}>{onLog ? '→' : '✓'}</span>
         </button>
       </div>
 
@@ -5721,7 +5721,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     i: (th.who || 'C').toString().trim().charAt(0).toUpperCase(),
     last: th.last,
     conversation_id: th.conversation_id,
-    messages: (th.messages || []).map(m => ({ who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', me: m.me || m.who === 'You' })),
+    messages: (th.messages || []).map(m => ({ who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', me: m.me || m.who === 'You', coach: m.coach, audio: m.audio || null })),
   }));
 
   // External "Message <coach>" requests (e.g. from a workout preview) land
@@ -6607,7 +6607,12 @@ function BSChatThread({ thread, eyebrow, onBack }) {
                   boxShadow: me ? 'none' : t.ELEVATION_SOFT,
                   padding: '11px 13px',
                   cursor: 'pointer', userSelect: 'none',
-                }}>{m.t}</div>
+                }}>
+                  {m.t}
+                  {m.audio && (
+                    <audio src={m.audio} controls preload="none" onClick={(e) => e.stopPropagation()} style={{ display: 'block', width: '100%', minWidth: 180, marginTop: 8 }} />
+                  )}
+                </div>
                 {pickerOpen && <BSReactionPicker t={t} anchorRight={me} current={myR} onPick={(em) => rx.toggle(rKey, em)} />}
                 {myR && <BSReactionPill t={t} emoji={myR} anchorRight={me} onClick={() => rx.toggle(rKey, myR)} />}
               </div>

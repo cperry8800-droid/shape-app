@@ -1,14 +1,14 @@
-// Deliver a meal log's note + optional voice memo to the client's nutritionist.
+// Deliver a meal log's note + optional voice memo to the client's coach(es).
 //
 // POST /api/nutrition/meal-note  (multipart/form-data)
 //   fields: note?, mealTitle?, mealSummary?, audio? (File)
-//   → { ok, delivered, conversationId?, audioAttached, reason? }
+//   → { ok, delivered, deliveredCount, audioAttached, reason? }
 //
-// Resolves the signed-in client's nutritionist (active subscription), uploads
-// the audio memo to the "meal-notes" storage bucket, and posts a message into
-// the direct conversation (via get_or_create_direct_conversation) with the note
-// + meal summary and the memo link in metadata. Accepts the mobile Bearer token
-// or the cookie session. Degrades gracefully when there's no coach or no key.
+// Resolves every linked coach (active/trialing trainer + nutritionist), uploads
+// the audio memo once to the "meal-notes" storage bucket, then posts a message
+// into each coach's direct conversation (via get_or_create_direct_conversation)
+// with the note + meal summary and the memo link in metadata. Accepts the mobile
+// Bearer token or the cookie session. Degrades gracefully when there's no coach.
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
@@ -38,21 +38,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, delivered: false, audioAttached: false, reason: 'nothing_to_send' });
   }
 
-  // Resolve the client's nutritionist (active subscription). RLS scopes
-  // subscriptions to the signed-in client, so client_id is implicit.
-  const { data: sub } = await supabase
+  // Resolve every linked coach (active/trialing trainer + nutritionist). RLS
+  // scopes subscriptions to the signed-in client, so client_id is implicit.
+  const { data: subs } = await supabase
     .from('subscriptions')
-    .select('provider_id')
+    .select('provider_id, provider_role')
     .eq('client_id', user.id)
-    .eq('provider_role', 'nutritionist')
+    .in('provider_role', ['trainer', 'nutritionist'])
     .in('status', ['active', 'trialing'])
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .order('created_at', { ascending: false });
 
-  const providerId = Number(sub?.provider_id);
-  if (!Number.isInteger(providerId) || providerId <= 0) {
-    // No coach linked yet — nothing to deliver to (not an error).
+  const providers: Array<{ role: 'trainer' | 'nutritionist'; id: number }> = [];
+  const seen = new Set<string>();
+  for (const s of subs ?? []) {
+    const role = s.provider_role === 'trainer' ? 'trainer' : s.provider_role === 'nutritionist' ? 'nutritionist' : null;
+    const id = Number(s.provider_id);
+    if (!role || !Number.isInteger(id) || id <= 0) continue;
+    const key = `${role}:${id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    providers.push({ role, id });
+  }
+  if (!providers.length) {
+    // No coaches linked yet — nothing to deliver to (not an error).
     return NextResponse.json({ ok: true, delivered: false, audioAttached: false, reason: 'no_coach' });
   }
 
@@ -83,35 +91,40 @@ export async function POST(request: Request) {
     }
   }
 
-  const { data: conversationId, error: convErr } = await supabase.rpc('get_or_create_direct_conversation', {
-    p_provider_role: 'nutritionist',
-    p_provider_id: providerId,
-  });
-  if (convErr || !conversationId) {
-    return NextResponse.json({ error: convErr?.message || 'Could not reach your coach.' }, { status: 400 });
-  }
-
   const bodyLines = [
     `🍽 Logged ${mealTitle}${mealSummary ? ` · ${mealSummary}` : ''}`,
     note,
     hasAudio ? (audioUrl ? '🎤 Voice memo attached' : '🎤 Voice memo recorded') : '',
   ].filter(Boolean);
+  const body = bodyLines.join('\n');
 
-  const { error: msgErr } = await supabase.from('messages').insert({
-    conversation_id: conversationId,
-    sender_id: user.id,
-    body: bodyLines.join('\n'),
-    metadata: {
-      source: 'meal-note',
-      provider_role: 'nutritionist',
-      provider_id: providerId,
-      meal_title: mealTitle,
-      meal_summary: mealSummary || null,
-      note: note || null,
-      audio: hasAudio ? { bucket: MEMO_BUCKET, path: audioPath, url: audioUrl } : null,
-    },
-  });
-  if (msgErr) return NextResponse.json({ error: msgErr.message }, { status: 400 });
+  // Fan the note out to every linked coach (trainer + nutritionist). Each gets
+  // its own direct conversation + message; the audio memo link rides along in
+  // metadata so their chat thread can render a player.
+  let delivered = 0;
+  for (const p of providers) {
+    const { data: conversationId, error: convErr } = await supabase.rpc('get_or_create_direct_conversation', {
+      p_provider_role: p.role,
+      p_provider_id: p.id,
+    });
+    if (convErr || !conversationId) continue;
 
-  return NextResponse.json({ ok: true, delivered: true, conversationId, audioAttached: !!audioUrl });
+    const { error: msgErr } = await supabase.from('messages').insert({
+      conversation_id: conversationId,
+      sender_id: user.id,
+      body,
+      metadata: {
+        source: 'meal-note',
+        provider_role: p.role,
+        provider_id: p.id,
+        meal_title: mealTitle,
+        meal_summary: mealSummary || null,
+        note: note || null,
+        audio: hasAudio ? { bucket: MEMO_BUCKET, path: audioPath, url: audioUrl } : null,
+      },
+    });
+    if (!msgErr) delivered += 1;
+  }
+
+  return NextResponse.json({ ok: true, delivered: delivered > 0, deliveredCount: delivered, audioAttached: !!audioUrl });
 }
