@@ -649,7 +649,7 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
   return (
     <div>
       {/* Masthead-ish */}
-      <div style={{ padding: `40px ${t.padX}px 18px`, borderBottom: `2px solid ${t.INK}` }}>
+      <div style={{ padding: `40px ${t.padX}px 18px`, borderBottom: `1px solid ${t.RULE}` }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 10 }}>
           <BSTagCal color={event.accent}>{event.kind}</BSTagCal>
           <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', color: t.INK70, fontWeight: 600 }}>{event.date ? new Date(event.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : `May ${event.day}`} · {event.time}{event.dur ? ` · ${event.dur}m` : ''}</span>
@@ -668,7 +668,7 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
       {!isWorkout && !isMeal && !isConsult && !isCheck && <BSEventGenericBody event={event} />}
 
       {/* Actions */}
-      <div style={{ position: 'sticky', bottom: 0, padding: 14, background: t.PAPER, borderTop: `2px solid ${t.INK}`, display: 'flex', gap: 8 }}>
+      <div style={{ position: 'sticky', bottom: 0, padding: 14, background: t.PAPER, borderTop: `1px solid ${t.RULE}`, display: 'flex', gap: 8 }}>
         {(isWorkout || isMeal) && (
           <button onClick={() => { onClose(); window.__bsToast?.('Logged ✓', 'ok'); }} style={primaryBtn(t)}>{role === 'trainer' ? 'Mark complete' : (isMeal ? 'Log meal' : 'Start session →')}</button>
         )}
@@ -684,10 +684,10 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
 }
 
 function primaryBtn(t) {
-  return { flex: 1, padding: 16, background: t.INK, color: t.PAPER, border: 0, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer' };
+  return { flex: 1, padding: 15, borderRadius: 12, background: t.INK, color: t.PAPER, border: 0, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer' };
 }
 function secondaryBtn(t) {
-  return { padding: '16px 18px', background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer' };
+  return { padding: '15px 18px', borderRadius: 12, background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer' };
 }
 
 function BSEventWorkoutBody({ event, role }) {
@@ -700,35 +700,43 @@ function BSEventWorkoutBody({ event, role }) {
     { n: '05', m: 'Incline curl',   s: '3 × 12 · 1:00',   l: '27.5 LB'},
     { n: '06', m: 'Farmer carry',   s: '3 × 40 m · 1:00', l: '80 LB'  },
   ];
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   return (
     <>
-      <div style={{ padding: `18px ${t.padX}px 14px`, borderBottom: `1px solid ${t.RULE}`, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
-        {[['DUR', `${event.dur}m`], ['MOVES', '6'], ['RPE', '8'], ['VOL', '1900LB']].map(([l, v], i) => (
-          <div key={l} style={{ borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0, paddingLeft: i > 0 ? 10 : 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 20, color: t.INK, marginTop: 4, letterSpacing: '-0.03em' }}>{v}</div>
-          </div>
-        ))}
-      </div>
-      <div style={{ padding: `12px ${t.padX}px`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>▍ The card</div>
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
-        {moves.map((r, i) => (
-          <div key={i} style={{
-            display: 'grid', gridTemplateColumns: '24px 1fr 70px', alignItems: 'center', padding: `${t.rowY}px 0`,
-            borderBottom: i === moves.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-          }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50, fontWeight: 600 }}>{r.n}</span>
-            <div>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em' }}>{r.m}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 2, letterSpacing: '0.06em' }}>{r.s}</div>
+      {/* Stat row — rounded card */}
+      <div style={{ padding: `16px ${t.padX}px 6px` }}>
+        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '14px 6px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
+          {[['DUR', `${event.dur}m`], ['MOVES', '6'], ['RPE', '8'], ['VOL', '1900LB']].map(([l, v], i) => (
+            <div key={l} style={{ borderLeft: i > 0 ? `1px solid ${t.HAIR}` : 0, paddingLeft: 10, paddingRight: 6 }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
+              <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 19, color: t.INK, marginTop: 4, letterSpacing: '-0.03em' }}>{v}</div>
             </div>
-            <div style={{ textAlign: 'right', fontFamily: t.MONO, fontSize: 12, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em' }}>{r.l}</div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-      <div style={{ margin: `18px ${t.padX}px 18px`, padding: 18, background: t.INK, color: t.PAPER }}>
+      {/* The card — rounded list */}
+      <div style={{ padding: `12px ${t.padX}px 6px`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}><span style={{ color: teal }}>▍</span> The card</div>
+      <div style={{ padding: `0 ${t.padX}px` }}>
+        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
+          {moves.map((r, i) => (
+            <div key={i} style={{
+              display: 'grid', gridTemplateColumns: '24px 1fr 70px', alignItems: 'center', padding: `${t.rowY + 2}px 0`,
+              borderBottom: i === moves.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+            }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50, fontWeight: 600 }}>{r.n}</span>
+              <div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em' }}>{r.m}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 2, letterSpacing: '0.06em' }}>{r.s}</div>
+              </div>
+              <div style={{ textAlign: 'right', fontFamily: t.MONO, fontSize: 12, color: t.INK, fontWeight: 700, letterSpacing: '-0.01em' }}>{r.l}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {/* Coach note — soft rounded box */}
+      <div style={{ margin: `16px ${t.padX}px 18px`, padding: 16, borderRadius: 16, background: t.INK, color: t.PAPER }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.AMBER, marginBottom: 8, fontWeight: 700 }}>▍ Coach note</div>
-        <div style={{ fontFamily: t.DISPLAY, fontWeight: 500, fontSize: 16, lineHeight: 1.3, letterSpacing: '-0.01em' }}>
+        <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontWeight: 500, fontSize: 16, lineHeight: 1.35, letterSpacing: '-0.01em' }}>
           {role === 'trainer'
             ? '"Watch the eccentric on row 2 — last week she cheated tempo at rep 6."'
             : '"Dead hang every pull-up. Chest to bar or it doesn\'t count."'}
