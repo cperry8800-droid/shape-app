@@ -4546,9 +4546,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
             <BSTrackHeader kicker="For the week" title="Shop list" actionLabel="Open" onAction={() => setView('grocery')} />
             <div style={{ padding: `12px ${t.padX}px 0` }}>
               <button onClick={() => setView('grocery')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 13, padding: 14, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
-                <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 11, background: t.RUST || '#d2693f', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>◎</div>
+                <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 11, background: '#a07a2e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>◎</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.RUST || '#d2693f', fontWeight: 700, marginBottom: 4 }}>From {who} · this week</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#a07a2e', fontWeight: 700, marginBottom: 4 }}>From {who} · this week</div>
                   <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 16, color: t.INK }}>{title}</div>
                   <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 4, letterSpacing: '0.06em' }}>{have} got · {left} left{cats ? ` · ${cats}` : ''}</div>
                 </div>
