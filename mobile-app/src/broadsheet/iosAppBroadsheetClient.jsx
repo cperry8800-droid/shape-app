@@ -9929,14 +9929,14 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       <div style={{ padding: `14px ${t.padX}px 16px` }}>
         {!editing ? (
           <div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               <BSAvatar init={identity.name.charAt(0)} size={72} fill={t.RUST} />
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <BSEyebrow color={t.RUST}>Member · 14 week streak</BSEyebrow>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', marginTop: 4, lineHeight: 1 }}>{identity.name.split(' ')[0]}{identity.name.split(' ').length > 1 && <> {identity.name.split(' ').slice(1).join(' ')}.</>}</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', marginTop: 4, lineHeight: 1 }}>{identity.name}<span style={{ color: t.ACCENT }}>.</span></div>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
               {[['Shape Score', () => setShowScore(true)], ['Streak', () => setShowProgress(true)], ['Store', () => setShowStore(true)]].map(([l, on]) => (
                 <button key={l} onClick={on} style={{ padding: '10px 16px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{l}</button>
               ))}
