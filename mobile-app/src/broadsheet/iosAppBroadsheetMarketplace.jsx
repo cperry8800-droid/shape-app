@@ -218,17 +218,115 @@ const BSM_MARKETPLACE_COACHES = {
 // ═══════════════════════════════════════════════════════════
 // Marketplace screen
 // ═══════════════════════════════════════════════════════════
+// ── Marketplace visual helpers (editorial "discovery" look, matches the app) ──
+const MKT_PALETTE = ['#34d6c5', '#c0533b', '#a07a2e', '#5a86c0', '#5fae7e'];
+function mktHue(seed) {
+  const s = String(seed || 'shape');
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return MKT_PALETTE[h % MKT_PALETTE.length];
+}
+function mktRoleColor(c) {
+  return getPublicProfileKind(c) === 'nutritionist' ? '#a07a2e' : '#c0533b';
+}
+function mktShortLoc(loc) {
+  const s = String(loc || '').trim();
+  return s ? s.split(',')[0] : '';
+}
+
+function MktAvatar({ c, size = 44 }) {
+  const t = useBS();
+  const col = mktRoleColor(c);
+  return (
+    <div style={{ width: size, height: size, flexShrink: 0, borderRadius: 999, background: col, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: Math.round(size * 0.42), letterSpacing: '-0.02em' }}>{c.init || String(c.name || '?').charAt(0)}</div>
+  );
+}
+
+function MktPill({ label, on, onClick, teal }) {
+  const t = useBS();
+  return (
+    <button onClick={onClick} style={{ flexShrink: 0, padding: '8px 15px', borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap',
+      border: `1.5px solid ${on ? teal : t.RULE}`,
+      background: on ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent',
+      color: on ? teal : t.INK70,
+      fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase',
+    }}>{label}</button>
+  );
+}
+
+function MktSectionHead({ kicker, title, action, onAction, teal }) {
+  const t = useBS();
+  return (
+    <div style={{ padding: `0 ${t.padX}px`, marginBottom: 12, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>{kicker}</div>
+        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{title}</div>
+      </div>
+      {action ? (
+        <button onClick={onAction} style={{ flexShrink: 0, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>{action} →</button>
+      ) : null}
+    </div>
+  );
+}
+
+function MktTrackRow({ n, title, meta, right, onClick, first }) {
+  const t = useBS();
+  return (
+    <button onClick={onClick} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 12, alignItems: 'baseline', padding: '13px 0', borderTop: first ? 0 : `1px solid ${t.HAIR}` }}>
+      <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 700 }}>{String(n).padStart(2, '0')}</span>
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{title}</span>
+        <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{meta}</span>
+      </span>
+      <span style={{ fontFamily: t.MONO, fontSize: 10.5, color: t.INK70, fontWeight: 700, whiteSpace: 'nowrap' }}>{right}</span>
+    </button>
+  );
+}
+
+function MktCoachCard({ c, onOpen }) {
+  const t = useBS();
+  const hue = mktHue(c.category || c.name);
+  const isNutri = getPublicProfileKind(c) === 'nutritionist';
+  return (
+    <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, padding: 0 }}>
+      <div style={{ position: 'relative', height: 122, borderRadius: 16, overflow: 'hidden', border: `1px solid ${t.RULE}`, background: `linear-gradient(150deg, ${hue}5e, ${hue}1f 58%, ${t.PAPER2})` }}>
+        <div style={{ position: 'absolute', top: 11, left: 12, right: 12, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: hue, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.category || (isNutri ? 'Nutrition' : 'Training')}</div>
+        <div style={{ position: 'absolute', right: 11, bottom: 11 }}><MktAvatar c={c} size={42} /></div>
+      </div>
+      <div style={{ marginTop: 8 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
+        <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50, fontWeight: 600 }}>★ {c.rating} · ${c.rate}/mo</div>
+      </div>
+    </button>
+  );
+}
+
+function MktRow({ c, onOpen }) {
+  const t = useBS();
+  return (
+    <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '48px 1fr auto', gap: 13, alignItems: 'center', padding: 14, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+      <MktAvatar c={c} size={48} />
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
+        <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getPrimaryCredential(c)} · {mktShortLoc(c.loc)}</div>
+        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{c.bio}</div>
+      </div>
+      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 19, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1 }}>${c.rate}</div>
+        <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>/mo</div>
+        <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK70 }}>★ {c.rating}</div>
+      </div>
+    </button>
+  );
+}
+
 function BSMarketplaceScreen({ onBack, onProfile, initialRole }) {
   const t = useBS();
-  const [tab, setTab]             = useStateBSM2(initialRole === 'nutritionist' ? 'Nutritionist' : 'Trainer');
-  const [selectedCategories, setSelectedCategories] = useStateBSM2([]);
-  const [selectedFormats, setSelectedFormats]       = useStateBSM2([]);
-  const [selectedCertifications, setSelectedCertifications] = useStateBSM2([]);
-  const [location, setLocation]   = useStateBSM2('Anywhere');
-  const [sort, setSort]           = useStateBSM2('Most Popular');
-  const [query, setQuery]         = useStateBSM2('');
-  const [filtersOpen, setFiltersOpen] = useStateBSM2(false);
-  const [open, setOpen]           = useStateBSM2(null);
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const [pill, setPill] = useStateBSM2(initialRole === 'nutritionist' ? 'Nutritionists' : 'All');
+  const [query, setQuery] = useStateBSM2('');
+  const [forceList, setForceList] = useStateBSM2(false);
+  const [open, setOpen] = useStateBSM2(null);
   const [applyRole, setApplyRole] = useStateBSM2(null);
   const [remoteCoaches, setRemoteCoaches] = useStateBSM2(null);
   const [providersLoading, setProvidersLoading] = useStateBSM2(false);
@@ -241,487 +339,157 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole }) {
     fetchSupabaseMarketplaceProviders()
       .then((next) => {
         if (!active) return;
-        if (next && (next.Trainer?.length || next.Nutritionist?.length)) {
-          setRemoteCoaches(next);
-        }
+        if (next && (next.Trainer?.length || next.Nutritionist?.length)) setRemoteCoaches(next);
       })
-      .catch((error) => {
-        if (!active) return;
-        setProvidersError(error?.message || 'Live provider sync unavailable.');
-      })
-      .finally(() => {
-        if (active) setProvidersLoading(false);
-      });
+      .catch((error) => { if (active) setProvidersError(error?.message || 'Live provider sync unavailable.'); })
+      .finally(() => { if (active) setProvidersLoading(false); });
     return () => { active = false; };
   }, []);
 
-  const categories = BSM_MARKETPLACE_CATEGORIES[tab];
-  const certificationOptions = BSM_MARKETPLACE_CERTIFICATIONS[tab];
-  const locations = BSM_MARKETPLACE_LOCATIONS[tab];
   const marketplaceCoaches = remoteCoaches || BSM_MARKETPLACE_COACHES;
-  const all = marketplaceCoaches[tab] || BSM_MARKETPLACE_COACHES[tab];
-  const liveTotal = (marketplaceCoaches.Trainer?.length || 0) + (marketplaceCoaches.Nutritionist?.length || 0);
+  const trainers = marketplaceCoaches.Trainer || [];
+  const nutritionists = marketplaceCoaches.Nutritionist || [];
+  const everyone = useMemoBSM2(() => [...trainers, ...nutritionists], [trainers, nutritionists]);
+  const liveTotal = everyone.length;
+
+  const pills = ['All', 'Trainers', 'Nutritionists'];
+
   const list = useMemoBSM2(() => {
-    let out = all;
-    if (selectedCategories.length) {
-      out = out.filter(c => selectedCategories.includes(c.category));
-    }
-    if (tab === 'Trainer' && selectedFormats.length) {
-      out = out.filter(c => selectedFormats.includes(c.format));
-    }
-    if (selectedCertifications.length) {
-      out = out.filter(c => getCoachCertifications(c).some(cert => selectedCertifications.includes(cert)));
-    }
-    if (location !== 'Anywhere') {
-      if (location === 'Remote-friendly' || location === 'Remote only') {
-        out = out.filter(c => c.loc === 'Remote' || c.format === 'Remote' || c.format === 'Hybrid');
-      } else {
-        out = out.filter(c => c.loc === location);
-      }
-    }
+    let out = everyone;
+    if (pill === 'Trainers') out = trainers;
+    else if (pill === 'Nutritionists') out = nutritionists;
     const q = query.trim().toLowerCase();
     if (q) {
-      out = out.filter(c =>
-        c.name.toLowerCase().includes(q) ||
-        (c.loc  || '').toLowerCase().includes(q) ||
-        (c.cred || '').toLowerCase().includes(q) ||
-        (c.category || '').toLowerCase().includes(q) ||
-        (c.format || '').toLowerCase().includes(q) ||
-        getCoachCertifications(c).some(cert => cert.toLowerCase().includes(q)) ||
-        (c.spec || []).some(s => String(s).toLowerCase().includes(q))
+      out = out.filter((c) =>
+        [c.name, c.loc, c.cred, c.category, c.format, ...(c.spec || []), ...getCoachCertifications(c)]
+          .filter(Boolean)
+          .some((v) => String(v).toLowerCase().includes(q)),
       );
     }
-    if (sort === 'Highest Rated') out = [...out].sort((a, b) => b.rating - a.rating);
-    else if (sort === 'Lowest Price') out = [...out].sort((a, b) => a.rate - b.rate);
-    else if (sort === 'Most Experience') out = [...out].sort((a, b) => b.years - a.years);
-    else out = [...out].sort((a, b) => b.sessionCount - a.sessionCount);
-    return out;
-  }, [tab, selectedCategories, selectedFormats, selectedCertifications, location, sort, query, all]);
+    return [...out].sort((a, b) => (b.rating || 0) - (a.rating || 0));
+  }, [pill, query, everyone, trainers, nutritionists]);
 
-  const clearFilters = () => {
-    setSelectedCategories([]);
-    setSelectedFormats([]);
-    setSelectedCertifications([]);
-    setLocation('Anywhere');
-    setSort('Most Popular');
-    setQuery('');
-  };
+  const browsing = forceList || pill !== 'All' || query.trim().length > 0;
 
-  const toggleCategory = (value) => {
-    if (value === 'All Categories') {
-      setSelectedCategories([]);
-      return;
-    }
-    setSelectedCategories(prev => prev.includes(value) ? prev.filter(item => item !== value) : [...prev, value]);
-  };
+  const ranked = useMemoBSM2(
+    () => [...everyone].sort((a, b) => ((b.match || 0) + (b.rating || 0) * 5) - ((a.match || 0) + (a.rating || 0) * 5)),
+    [everyone],
+  );
+  const cotw = ranked.find((c) => c.tag) || ranked[0];
+  const cotwProfile = cotw ? buildPublicProfile(cotw) : null;
+  const featuredWeek = ranked.filter((c) => !cotw || c.id !== cotw.id).slice(0, 4);
+  const programs = useMemoBSM2(() => featuredWeek.map((c) => {
+    const prof = buildPublicProfile(c);
+    const prog = prof.packages.find((p) => p.type === 'One-time' && /program|fueling/i.test(p.name)) || prof.packages[1];
+    return { coach: c, name: `${(c.spec && c.spec[0]) || c.category || prof.role} block`, meta: `${prof.role} · ${c.first || c.name.split(' ')[0]}`, price: prog ? prog.price : `$${c.rate}` };
+  }), [featuredWeek]);
 
-  const toggleFormat = (value) => {
-    if (value === 'All formats') {
-      setSelectedFormats([]);
-      return;
-    }
-    setSelectedFormats(prev => prev.includes(value) ? prev.filter(item => item !== value) : [...prev, value]);
-  };
-
-  const toggleCertification = (value) => {
-    setSelectedCertifications(prev => prev.includes(value) ? prev.filter(item => item !== value) : [...prev, value]);
-  };
-
-  const activeFilterCount = selectedCategories.length + selectedFormats.length + selectedCertifications.length + (location !== 'Anywhere' ? 1 : 0) + (sort !== 'Most Popular' ? 1 : 0);
-  const filterSummary = activeFilterCount ? `${activeFilterCount} active` : 'All categories';
-
-  const featured = list[0];
-  const rest = list.slice(1);
+  const pickPill = (p) => { setPill(p); setForceList(false); };
 
   if (applyRole && window.BSProviderApplicationScreen) {
     return <window.BSProviderApplicationScreen initialRole={applyRole} onBack={() => setApplyRole(null)} />;
   }
-
   if (open) return <BSCoachDetailPublic coach={open} onBack={() => setOpen(null)} />;
 
   return (
     <BSPage>
-      <BSPageHeader
-        kicker="Section · Personals"
-        title={<>The<br/><span style={{ fontStyle: 'italic' }}>Marketplace.</span></>}
-        trailing={
-          <button onClick={onBack} style={{ borderRadius: t.RADIUS_SM,
-            padding: '6px 12px', background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, cursor: 'pointer',
-            fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700,
-          }}>← Back</button>
-        }
-      />
+      {/* Hero */}
+      <div style={{ padding: `14px ${t.padX}px 0` }}>
+        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0 }}>← Back</button>
+        <h1 style={{ margin: '12px 0 0', fontFamily: t.DISPLAY, fontSize: 44, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>
+          Find your<br /><span style={{ fontStyle: 'italic', color: teal }}>coach.</span>
+        </h1>
+      </div>
 
-      {/* Lede */}
-      <div style={{
-        position: 'relative',
-        overflow: 'hidden',
-        margin: `4px ${t.padX}px 14px`,
-        padding: 16,
-        border: `1px solid ${t.INK}`,
-        background: t.PAPER2,
-      }}>
-        <div style={{ position: 'relative', zIndex: 1, fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1.5, color: t.INK70, letterSpacing: '-0.005em' }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>{liveTotal.toLocaleString()} listings.</span>{' '}
-          Browse certified trainers and nutritionists. Direct booking. No agency in the middle.
-        </div>
-        {(providersLoading || providersError) && (
-          <div style={{ position: 'relative', zIndex: 1, marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: providersError ? t.RUST : t.INK50, fontWeight: 700 }}>
-            {providersLoading ? 'Syncing live providers...' : `Demo fallback - ${providersError}`}
-          </div>
-        )}
-        <div style={{
-          position: 'relative',
-          zIndex: 1,
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: 8,
-          marginTop: 14,
-          paddingTop: 12,
-          borderTop: `1px solid ${t.RULE}`,
-        }}>
-          {[
-            ['VETTED', '98%'],
-            ['REPLY', '<24H'],
-            ['RATING', '9.6'],
-          ].map(([label, value]) => (
-            <div key={label} style={{
-              border: `1px solid ${t.RULE}`,
-              background: t.PAPER,
-              padding: '8px 6px',
-            }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 20, lineHeight: 1, color: t.INK, letterSpacing: '-0.04em' }}>{value}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800, marginTop: 4 }}>{label}</div>
-            </div>
-          ))}
+      {/* Search */}
+      <div style={{ padding: `18px ${t.padX}px 0` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '13px 16px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+          <span style={{ fontSize: 14, color: t.INK50 }}>⌕</span>
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Coaches, plans, playlists…" style={{ flex: 1, border: 0, outline: 'none', background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, letterSpacing: '-0.005em', padding: 0, minWidth: 0 }} />
+          {query ? <button onClick={() => setQuery('')} style={{ border: 0, background: 'transparent', color: t.INK50, cursor: 'pointer', fontSize: 17, lineHeight: 1, padding: 0 }}>×</button> : null}
         </div>
       </div>
 
-      {/* Tabs — Trainer / Nutritionist */}
-      <div style={{ padding: `12px ${t.padX}px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, borderTop: `1px solid ${t.RULE}`, borderBottom: `2px solid ${t.INK}`, background: t.PAPER }}>
-        {['Trainer', 'Nutritionist'].map(k => {
-          const on = tab === k;
-          return (
-            <button key={k} onClick={() => { setTab(k); clearFilters(); }} style={{ borderRadius: t.RADIUS_SM,
-              padding: '13px 6px', cursor: 'pointer', textAlign: 'center',
-              background: on ? t.INK : 'transparent',
-              color: on ? t.PAPER : t.INK,
-              border: `1px solid ${t.INK}`,
-              boxShadow: on ? `inset 0 0 0 1px ${t.INK}` : 'none',
-              fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700,
-            }}>{k}s · {(marketplaceCoaches[k] || []).length}</button>
-          );
-        })}
-      </div>
-
-      {/* Search bar */}
-      <div style={{ padding: `12px ${t.padX}px 0`, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
-        <div style={{ borderRadius: t.RADIUS_SM,
-          display: 'flex', alignItems: 'center', gap: 8,
-          padding: '10px 12px', border: `1px solid ${t.INK}`, background: t.PAPER2,
-          marginBottom: 12,
-        }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 12, color: t.INK70, fontWeight: 700 }}>⌕</span>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={`Search ${tab === 'Trainer' ? 'coaches' : 'nutritionists'} · name, city, specialty…`}
-            style={{ borderRadius: t.RADIUS_SM,
-              flex: 1, border: 'none', outline: 'none', background: 'transparent',
-              color: t.INK, fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.06em',
-              padding: 0,
-            }}
-          />
-          {query && (
-            <button onClick={() => setQuery('')} style={{ borderRadius: t.RADIUS_SM,
-              border: `1px solid ${t.INK}`, background: t.PAPER, color: t.INK,
-              fontFamily: t.MONO, fontSize: 10, padding: '2px 6px', cursor: 'pointer', fontWeight: 700,
-            }}>CLEAR</button>
-          )}
-        </div>
-      </div>
-
-      {/* Filter strip — wraps so all options are visible at once */}
-      <div style={{ padding: `12px ${t.padX}px 0`, background: t.PAPER }}>
-        <button onClick={() => setFiltersOpen(v => !v)} style={{ borderRadius: t.RADIUS_SM,
-          width: '100%', minHeight: 44, display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center',
-          padding: '10px 12px', background: t.INK, color: t.PAPER, border: `1px solid ${t.INK}`, cursor: 'pointer',
-          fontFamily: t.MONO, textTransform: 'uppercase', fontWeight: 700,
-        }}>
-          <span style={{ textAlign: 'left', fontSize: 10, letterSpacing: '0.2em' }}>Filters · {filterSummary}</span>
-          <span style={{ fontSize: 13, letterSpacing: 0 }}>{filtersOpen ? '-' : '+'}</span>
-        </button>
-      </div>
-
-      <div style={{
-        display: filtersOpen ? 'flex' : 'none', flexWrap: 'wrap', gap: 6,
-        padding: 12,
-        margin: `0 ${t.padX}px`,
-        borderLeft: `1px solid ${t.INK}`,
-        borderRight: `1px solid ${t.INK}`,
-        background: t.PAPER2,
-      }}>
-        <div style={{ flexBasis: '100%', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
-          Goals
-        </div>
-        {categories.map(f => {
-          const on = f === 'All Categories' ? selectedCategories.length === 0 : selectedCategories.includes(f);
-          return (
-            <button key={f} onClick={() => toggleCategory(f)} style={{ borderRadius: t.RADIUS_SM,
-              padding: '6px 10px', flexShrink: 0, cursor: 'pointer',
-              background: on ? t.INK : 'transparent',
-              color: on ? t.PAPER : t.INK,
-              border: `1px solid ${on ? t.INK : t.RULE}`,
-              fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700,
-              whiteSpace: 'nowrap',
-            }}>{on && f !== 'All Categories' ? '[x] ' : ''}{f}</button>
-          );
-        })}
-      </div>
-
-      <div style={{
-        display: filtersOpen ? 'flex' : 'none', flexWrap: 'wrap', gap: 6,
-        padding: '0 12px 12px',
-        margin: `0 ${t.padX}px`,
-        borderLeft: `1px solid ${t.INK}`,
-        borderRight: `1px solid ${t.INK}`,
-        background: t.PAPER2,
-      }}>
-        <div style={{ flexBasis: '100%', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
-          Certifications
-        </div>
-        {certificationOptions.map(cert => {
-          const on = selectedCertifications.includes(cert);
-          return (
-            <button key={cert} onClick={() => toggleCertification(cert)} style={{ borderRadius: t.RADIUS_SM,
-              padding: '6px 10px', flexShrink: 0, cursor: 'pointer',
-              background: on ? t.INK : 'transparent',
-              color: on ? t.PAPER : t.INK,
-              border: `1px solid ${on ? t.INK : t.RULE}`,
-              fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700,
-              whiteSpace: 'nowrap',
-            }}>{on ? '[x] ' : ''}{cert}</button>
-          );
-        })}
-      </div>
-
-      <div style={{ padding: `0 ${t.padX}px 12px`, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER }}>
-        {tab === 'Trainer' && (
-          <div style={{ display: filtersOpen ? 'grid' : 'none', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
-            <div style={{ gridColumn: '1 / -1', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
-              Format
-            </div>
-            {BSM_MARKETPLACE_FORMATS.map(f => {
-              const on = f === 'All formats' ? selectedFormats.length === 0 : selectedFormats.includes(f);
-              return (
-                <button key={f} onClick={() => toggleFormat(f)} style={{ borderRadius: t.RADIUS_SM,
-                  minHeight: 34, padding: '6px 4px', cursor: 'pointer',
-                  background: on ? t.INK : t.PAPER2,
-                  color: on ? t.PAPER : t.INK,
-                  border: `1px solid ${on ? t.INK : t.RULE}`,
-                  fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700,
-                }}>{on && f !== 'All formats' ? '[x] ' : ''}{f}</button>
-              );
-            })}
-          </div>
-        )}
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: tab === 'Trainer' ? 10 : 0 }}>
-          <select value={location} onChange={(e) => setLocation(e.target.value)} style={{ borderRadius: t.RADIUS_SM,
-            minWidth: 0, padding: '10px 8px', background: t.PAPER2, color: t.INK, border: `1px solid ${t.INK}`,
-            fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700,
-          }}>
-            {locations.map(loc => <option key={loc} value={loc}>{loc}</option>)}
-          </select>
-          <select value={sort} onChange={(e) => setSort(e.target.value)} style={{ borderRadius: t.RADIUS_SM,
-            minWidth: 0, padding: '10px 8px', background: t.PAPER2, color: t.INK, border: `1px solid ${t.INK}`,
-            fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700,
-          }}>
-            {BSM_MARKETPLACE_SORTS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-          </select>
-        </div>
-      </div>
-
-      {/* Empty state */}
-      {!featured && (
-        <div style={{ padding: `40px ${t.padX}px`, textAlign: 'center', borderBottom: `2px solid ${t.INK}` }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK }}>
-            No matches.
-          </div>
-          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK70 }}>
-            Try a different name, city, or specialty
-          </div>
-          {(query || selectedCategories.length || selectedFormats.length || selectedCertifications.length || location !== 'Anywhere' || sort !== 'Most Popular') && (
-            <button onClick={clearFilters} style={{ borderRadius: t.RADIUS_SM,
-              marginTop: 18, padding: '10px 16px', background: t.INK, color: t.PAPER, border: 0, cursor: 'pointer',
-              fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
-            }}>Reset filters</button>
-          )}
-        </div>
-      )}
-
-      {/* FEATURED — front-page lede */}
-      {featured && (
-        <div onClick={() => setOpen(featured)} style={{
-          position: 'relative',
-          overflow: 'hidden',
-          cursor: 'pointer',
-          margin: `18px ${t.padX}px 22px`,
-          padding: 16,
-          border: `1px solid ${t.INK}`,
-          background: t.PAPER2,
-        }}>
-          <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10 }}>
-            <BSTag color={t.ACCENT} dark={!t.isLight}>FEATURED</BSTag>
-            <BSEyebrow color={t.INK50}>{featured.tag || `${featured.match}% match`}</BSEyebrow>
-            <span style={{ flex: 1 }} />
-            <BSEyebrow>★ {formatCoachRating10(featured)}</BSEyebrow>
-          </div>
-
-          <div style={{ position: 'relative', zIndex: 1, display: 'grid', gridTemplateColumns: '90px 1fr', gap: 14, alignItems: 'start' }}>
-            <BSHeadshot init={featured.init} size={90} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{
-                fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.03em',
-                lineHeight: 0.95, color: t.INK,
-              }}>{featured.name}</div>
-              <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK70, fontWeight: 600 }}>
-                {featured.cred} · {featured.loc}
-              </div>
-              <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {getCoachCertifications(featured).map(cert => (
-                  <span key={cert} style={{ borderRadius: t.RADIUS_SM,
-                    fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
-                    padding: '3px 6px', background: t.INK, color: t.PAPER, fontWeight: 700,
-                  }}>{cert}</span>
-                ))}
-              </div>
-              <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {featured.spec.map(s => (
-                  <span key={s} style={{ borderRadius: t.RADIUS_SM,
-                    fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
-                    padding: '3px 6px', border: `1px solid ${t.RULE}`, color: t.INK70, fontWeight: 600,
-                  }}>{s}</span>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ position: 'relative', zIndex: 1, marginTop: 14, fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1.45, color: t.INK, letterSpacing: '-0.005em' }}>
-            "{featured.bio}"
-          </div>
-
-          <div style={{
-            position: 'relative',
-            zIndex: 1,
-            marginTop: 14, paddingTop: 12, borderTop: `1px solid ${t.RULE}`,
-            display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
-          }}>
-            {[
-              ['RATE', `$${featured.rate}`],
-              ['SESSION', featured.sessions.split(' · ')[0]],
-              ['CLIENTS', featured.clients],
-              ['MATCH', `${featured.match}%`],
-            ].map(([l, v], i) => (
-              <div key={l} style={{ borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0, paddingLeft: i > 0 ? 10 : 0 }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
-                <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 18, color: t.INK, marginTop: 3, letterSpacing: '-0.02em' }}>{v}</div>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ position: 'relative', zIndex: 1, marginTop: 14, display: 'flex', gap: 8 }}>
-            <button onClick={(e) => { e.stopPropagation(); setOpen(featured); }} style={{ borderRadius: t.RADIUS_SM,
-              flex: 1, padding: '12px', background: t.INK, color: t.PAPER, border: 0, cursor: 'pointer',
-              fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
-            }}>Book intro · 15 min</button>
-            <button onClick={(e) => e.stopPropagation()} style={{ borderRadius: t.RADIUS_SM,
-              padding: '12px 14px', background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, cursor: 'pointer',
-              fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
-            }}>Save</button>
-          </div>
-        </div>
-      )}
-
-      {/* GRID — two-column "personal listings" */}
-      <BSSection title="Listings" meta={`${rest.length} more · ${tab === 'Trainer' ? 'Coaches' : 'Nutritionists'}`} />
-      <div style={{ padding: `0 ${t.padX}px`, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {rest.map((c, i) => (
-          <ListingRow key={c.id} c={c} onOpen={() => setOpen(c)} last={i === rest.length - 1} />
+      {/* Filter pills — wrap so all are visible (no horizontal scroll) */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: `16px ${t.padX}px 18px` }}>
+        {pills.map((p) => (
+          <MktPill key={p} label={p} on={pill === p && !(p === 'All' && forceList)} onClick={() => pickPill(p)} teal={teal} />
         ))}
       </div>
 
+      {(providersLoading || providersError) ? (
+        <div style={{ padding: `0 ${t.padX}px 10px`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: providersError ? t.RUST : t.INK50, fontWeight: 700 }}>
+          {providersLoading ? 'Syncing live providers…' : `Demo data · ${providersError}`}
+        </div>
+      ) : null}
 
-      {/* CTA */}
-      <button onClick={() => setApplyRole(tab === 'Nutritionist' ? 'nutritionist' : 'trainer')} style={{ margin: `22px ${t.padX}px 0`, padding: 20, background: t.INK, color: t.PAPER, border: 0, display: 'block', width: `calc(100% - ${t.padX * 2}px)`, textAlign: 'left', cursor: 'pointer' }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.AMBER, marginBottom: 12, fontWeight: 700 }}>
-          ▍ Help wanted
-        </div>
-        <div style={{ fontFamily: t.DISPLAY, fontWeight: 500, fontSize: 22, lineHeight: 1.2, letterSpacing: '-0.02em' }}>
-          Are you a coach? <span style={{ fontStyle: 'italic' }}>Apply.</span><br/>
-          Real demand, transparent rates.
-        </div>
-        <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid rgba(245,240,230,0.18)`, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
-          <span>{liveTotal.toLocaleString()} listings · 2-3 day review</span>
+      {browsing ? (
+        <>
+          <MktSectionHead kicker={pill === 'All' ? 'Everyone' : pill} title={`${list.length} ${list.length === 1 ? 'coach' : 'coaches'}`} teal={teal} />
+          <div style={{ padding: `0 ${t.padX}px`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {list.map((c) => <MktRow key={c.id} c={c} onOpen={() => setOpen(c)} />)}
+            {list.length === 0 ? <div style={{ padding: '20px 0', fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>No coaches match that — try a different filter.</div> : null}
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Coach of the week */}
+          {cotw && cotwProfile ? (
+            <div style={{ padding: `0 ${t.padX}px` }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Coach of the week</div>
+              <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>{cotw.name}</div>
+              <div onClick={() => setOpen(cotw)} style={{ cursor: 'pointer', marginTop: 12, borderRadius: 20, border: `1px solid ${t.RULE}`, overflow: 'hidden', background: `linear-gradient(160deg, ${mktRoleColor(cotw)}26, ${t.PAPER2} 62%)`, padding: 18 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 19, lineHeight: 1.35, letterSpacing: '-0.01em', color: t.INK }}>“{cotw.bio}”</div>
+                <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <MktAvatar c={cotw} size={42} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{cotw.name}</div>
+                    <div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{(cotw.spec && cotw.spec[0]) || cotwProfile.role} · {mktShortLoc(cotw.loc)}</div>
+                  </div>
+                  <span style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 999, background: mktRoleColor(cotw), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700 }}>→</span>
+                </div>
+                <div style={{ marginTop: 18, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>Tracklist</div>
+                <div style={{ marginTop: 2 }}>
+                  {cotwProfile.packages.map((p, i) => (
+                    <MktTrackRow key={p.name} n={i + 1} title={p.name} meta={`${p.unit === '/ month' ? 'Monthly' : 'One-time'} · ${p.perks.length} included`} right={p.price} first={i === 0} onClick={() => setOpen(cotw)} />
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Featured this week — 2-up grid */}
+          <div style={{ marginTop: 26 }}>
+            <MktSectionHead kicker="Featured" title="This week" action="See all" onAction={() => setForceList(true)} teal={teal} />
+            <div style={{ padding: `0 ${t.padX}px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              {featuredWeek.map((c) => <MktCoachCard key={c.id} c={c} onOpen={() => setOpen(c)} />)}
+            </div>
+          </div>
+
+          {/* Programs */}
+          <div style={{ marginTop: 28 }}>
+            <MktSectionHead kicker="Programs" title="Start a thing" action="All" onAction={() => setForceList(true)} teal={teal} />
+            <div style={{ padding: `0 ${t.padX}px` }}>
+              {programs.map((pr, i) => (
+                <MktTrackRow key={pr.coach.id} n={i + 1} title={pr.name} meta={pr.meta} right={pr.price} first={i === 0} onClick={() => setOpen(pr.coach)} />
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Coach apply CTA */}
+      <button onClick={() => setApplyRole(pill === 'Nutritionists' ? 'nutritionist' : 'trainer')} style={{ margin: `30px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, textAlign: 'left', cursor: 'pointer', borderRadius: 18, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 18, display: 'block' }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.AMBER }}>Coaches</div>
+        <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.15 }}>Coach on Shape. <span style={{ fontStyle: 'italic', color: t.AMBER }}>Apply.</span></div>
+        <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
+          <span>{liveTotal.toLocaleString()} listings · real demand</span>
           <span style={{ color: t.AMBER }}>Apply →</span>
         </div>
       </button>
 
-      <BSFooter right="Personals · Pg 1 of 12" />
+      <BSFooter right="Marketplace" />
     </BSPage>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════
-// Listing row
-// ═══════════════════════════════════════════════════════════
-function ListingRow({ c, onOpen, last }) {
-  const t = useBS();
-  return (
-    <button onClick={onOpen} style={{
-      width: '100%', display: 'grid', gridTemplateColumns: '64px 1fr auto', gap: 12, alignItems: 'flex-start',
-      padding: 12,
-      borderWidth: 1,
-      borderBottomWidth: 1,
-      borderStyle: 'solid',
-      borderColor: t.RULE,
-      background: t.PAPER2,
-      borderRadius: t.RADIUS_SM,
-      boxShadow: `2px 2px 0 0 ${t.INK}`,
-      cursor: 'pointer', textAlign: 'left', color: t.INK,
-    }}>
-      <BSHeadshot init={c.init} size={64} />
-      <div style={{ minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 18, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.05 }}>{c.name}</span>
-          {c.tag && <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>· {c.tag}</span>}
-        </div>
-        <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{c.cred} · {c.loc}</div>
-        <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-          {getCoachCertifications(c).map(cert => (
-            <span key={cert} style={{ borderRadius: t.RADIUS_SM,
-              fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
-              padding: '2px 5px', background: t.INK, color: t.PAPER, fontWeight: 700,
-            }}>{cert}</span>
-          ))}
-        </div>
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.35, letterSpacing: '-0.005em', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{c.bio}</div>
-        <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-          {c.spec.slice(0, 3).map(s => (
-            <span key={s} style={{ borderRadius: t.RADIUS_SM,
-              fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
-              padding: '2px 5px', border: `1px solid ${t.HAIR}`, color: t.INK70, fontWeight: 600,
-            }}>{s}</span>
-          ))}
-        </div>
-      </div>
-      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 22, color: t.INK, letterSpacing: '-0.025em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>${c.rate}</div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: 3, fontWeight: 600 }}>per session</div>
-        <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: c.match >= 90 ? t.ACCENT : t.INK70, fontWeight: 700 }}>{c.match}% MATCH</div>
-        <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK70, fontWeight: 600 }}>★ {formatCoachRating10(c)}</div>
-      </div>
-    </button>
   );
 }
 
