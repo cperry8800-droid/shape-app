@@ -46,6 +46,22 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-03 — Habits page rebuilt: To-dos / To-don'ts + add sheet
+- **Completely removed** the old full-page add/edit form (`BSHabitForm`) and the dead
+  habit UI layer (`BSHabitTracker`, `BSHabitInsights`, `BSTimeChip`, all the legacy row
+  variants + grid card).
+- `BSHabitsPage` is now: a compact **"Earned today"** score card (big `+N pts`, "of N
+  possible · to your Shape Score", progress bar, % ring, tap → Shape Score) +
+  two card-list sections — **To-dos** (teal) and **To-don'ts** (rust) — each with a
+  count eyebrow (`x/y done` · `x/y clean`), a `+ Add →` link, and rounded habit cards
+  (check, title, status line, points, ×). Done cards tint to the section accent.
+- **Add flow** is a bottom sheet (portaled into `#bs-phone-surface`), do/avoid variant:
+  eyebrow + serif "Something to *do.* / *avoid.*", text field, suggestion chips, a
+  **points stepper** (− +N +), and Cancel / Add habit (accent CTA).
+- Page header changed to **Daily habits** ("habits" in teal). Habits now carry an
+  optional `pts` field (threaded through encode/decode + `create`); display falls back
+  to a stable derived value.
+
 ### 2026-06-03 — Grocery list: food-group tabs + single Reset
 - `BSGrocery` aisles are no longer a long scroll. A horizontal **food-group tab row**
   (one pill per aisle, e.g. PRODUCE/DAIRY/…) sits at the top; tapping a tab shows just
