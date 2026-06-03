@@ -479,7 +479,7 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole }) {
       )}
 
       {/* Coach apply CTA */}
-      <button onClick={() => setApplyRole(pill === 'Nutritionists' ? 'nutritionist' : 'trainer')} style={{ margin: `30px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, textAlign: 'left', cursor: 'pointer', borderRadius: 18, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 18, display: 'block' }}>
+      <button onClick={() => setApplyRole(pill === 'Nutritionists' ? 'nutritionist' : 'trainer')} style={{ margin: `30px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, textAlign: 'left', cursor: 'pointer', borderRadius: 18, border: `2px solid ${t.AMBER}`, background: t.PAPER2, padding: 18, display: 'block' }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.AMBER }}>Coaches</div>
         <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.15 }}>Coach on Shape. <span style={{ fontStyle: 'italic', color: t.AMBER }}>Apply.</span></div>
         <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
