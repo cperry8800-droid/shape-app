@@ -2124,8 +2124,12 @@ function BSTrackHeader({ kicker, title, actionLabel, onAction }) {
 
 // Coach/nutritionist playlist card. When the playlist has a Spotify URL, the
 // client can save it straight into their own Spotify library (follow).
-function BSPlaylistCard({ kicker, title, meta, color, onPlay, spotifyUrl }) {
+function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl }) {
   const t = useBS();
+  const openSpotify = () => {
+    const url = spotifyUrl || `https://open.spotify.com/search/${encodeURIComponent(String(title || 'playlist'))}`;
+    try { window.open(url, '_blank', 'noopener,noreferrer'); } catch (e) { try { window.location.href = url; } catch (e2) {} }
+  };
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 13, padding: 14, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
       <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 11, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -2136,7 +2140,7 @@ function BSPlaylistCard({ kicker, title, meta, color, onPlay, spotifyUrl }) {
         <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 16, color: t.INK, letterSpacing: '-0.01em' }}>{title}</div>
         <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 4, letterSpacing: '0.06em', lineHeight: 1.45 }}>{meta}</div>
       </div>
-      <button onClick={onPlay} aria-label="Play" style={{ width: 36, height: 36, flexShrink: 0, borderRadius: 999, border: `1px solid ${color}`, background: 'transparent', color, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>▶</button>
+      <button onClick={openSpotify} aria-label="Open in Spotify" style={{ width: 36, height: 36, flexShrink: 0, borderRadius: 999, border: `1px solid ${color}`, background: 'transparent', color, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>▶</button>
     </div>
   );
 }
@@ -2491,7 +2495,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
             <BSTrackHeader kicker="From Jordan" title="Playlists" />
             <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
               {items.map((p, i) => (
-                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#1db954" onPlay={goRadio} spotifyUrl={p.url} />
+                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#1db954" spotifyUrl={p.url} />
               ))}
             </div>
           </>
@@ -4570,7 +4574,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
             <BSTrackHeader kicker="From Maya" title="Playlists" />
             <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
               {items.map((p, i) => (
-                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#1db954" onPlay={goRadio} spotifyUrl={p.url} />
+                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#1db954" spotifyUrl={p.url} />
               ))}
             </div>
           </>
