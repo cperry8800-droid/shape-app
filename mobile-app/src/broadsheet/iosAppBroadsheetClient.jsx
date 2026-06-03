@@ -2719,7 +2719,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   // Apply any coach-approved exercise swaps the user picked for this day.
   const effMoves = (cur.moves || []).map((r, i) => ({ ...r, ...(moveOverrides[`${day}:${i}`] || {}) }));
 
-  if (session) return <BSSession moves={effMoves.map(m => ({ ...m, sets: 4, reps: '6-8' }))} onBack={() => setSession(false)} />;
+  if (session) return <BSSession title={cur.title} moves={effMoves.map(m => ({ ...m, sets: 4, reps: '6-8' }))} onBack={() => setSession(false)} />;
   if (previewing) return <BSWorkoutPreview program={{ ...cur, moves: effMoves }} onBack={() => setPreviewing(false)} onStart={() => { setPreviewing(false); setSession(true); }} />;
 
   return (
@@ -8720,7 +8720,17 @@ function BSWorkoutPreview({ program, onBack, onStart }) {
 // ═══════════════════════════════════════════════════════════
 // SESSION — live workout, set logging, rest timer
 // ═══════════════════════════════════════════════════════════
-function BSSession({ moves, onBack }) {
+// Barbell plate math — plates per side for a total load (45 lb bar).
+function bsPlates(total) {
+  let per = (Number(total) - 45) / 2;
+  if (!Number.isFinite(per) || per <= 0) return [];
+  const sizes = [45, 35, 25, 10, 5, 2.5];
+  const out = [];
+  for (const s of sizes) { while (per >= s - 0.01 && out.length < 8) { out.push(s); per = Math.round((per - s) * 100) / 100; } }
+  return out;
+}
+
+function BSSession({ moves, onBack, title = 'Live session' }) {
   const t = useBS();
   _bsScrollTopOnMount();
   const buildSetInputs = () => moves.reduce((acc, m, mIdx) => {
@@ -8728,6 +8738,7 @@ function BSSession({ moves, onBack }) {
       acc[`${mIdx}-${setIdx}`] = {
         reps: String(m.reps || ''),
         load: String(m.l || ''),
+        rpe: '',
       };
     });
     return acc;
@@ -8851,28 +8862,41 @@ function BSSession({ moves, onBack }) {
     onBack();
   };
 
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const pct = totalSets ? doneSets / totalSets : 0;
+  const minLeft = Math.max(0, Math.round((totalSets - doneSets) * 1.6));
+  const CUES = ['Dead hang every rep. Chest to bar or it doesn’t count.', 'Drive elbows behind ribs. Pause at sternum, two count.', 'Squeeze the cuffs. Feel the mid-trap, not the bicep.', 'Pull to forehead, not chest. Thumbs back.', 'Supinate hard at the top. Don’t cheat the negative.', 'Tall posture. Carry like you mean it.'];
+  const cue = CUES[moveIdx] || 'Move with intent.';
+  const activeIdx = (() => { for (let i = 0; i < move.sets; i++) if (!completed[`${moveIdx}-${i}`]) return i; return null; })();
+  const activeKey = activeIdx != null ? `${moveIdx}-${activeIdx}` : null;
+  const activeRunning = !!(activeKey && activeSetKey === activeKey);
+  const activeLoad = (activeKey && setInputs[activeKey] && setInputs[activeKey].load) || move.l;
+  const plates = bsPlates(activeLoad);
+  const perSide = (() => { const v = (Number(activeLoad) - 45) / 2; return Number.isFinite(v) && v > 0 ? v : null; })();
+  const plateColor = { 45: t.RUST, 35: t.AMBER, 25: t.BLUE, 10: teal, 5: t.GREEN, 2.5: t.INK50 };
   return (
     <BSPage>
-      <BSDetailHeader
-        onBack={onBack}
-        eyebrow={`${doneSets}/${totalSets} sets · ${fmt(elapsedSec)}`}
-        kicker={`Move ${move.n} of ${String(moves.length).padStart(2,'0')}`}
-        title={<>{move.m}</>}
-      />
+      {/* Header — End / Live timer / set count */}
+      <div style={{ padding: `46px ${t.padX}px 6px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <button onClick={onBack} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK }}>✕ End</button>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>
+          <span style={{ width: 6, height: 6, borderRadius: 999, background: teal, display: 'inline-block' }} /> Live · {fmt(elapsedSec)}
+        </span>
+        <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{doneSets}/{totalSets}</span>
+      </div>
 
-      {/* Progress strip */}
-      <div style={{ display: 'flex', gap: 3, padding: `12px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        {moves.map((_, i) => (
-          <div key={i} onClick={() => setMoveIdx(i)} style={{
-            flex: 1, height: 4, cursor: 'pointer',
-            background: i < moveIdx ? t.INK : i === moveIdx ? t.ACCENT : t.HAIR,
-          }} />
-        ))}
+      {/* Title + progress */}
+      <div style={{ padding: `8px ${t.padX}px 0` }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 29, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>{title || 'Live session'}</div>
+        <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>w/ Jordan · {Math.round(pct * 100)}% complete · ~{minLeft} min left</div>
+        <div style={{ marginTop: 12, height: 4, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}>
+          <div style={{ width: `${Math.round(pct * 100)}%`, height: '100%', background: teal, borderRadius: 999 }} />
+        </div>
       </div>
 
       {/* Rest timer */}
       {restEnd && restLeft > 0 && (
-        <div style={{ margin: `14px ${t.padX}px 0`, padding: 18, background: t.INK, color: t.PAPER, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ margin: `14px ${t.padX}px 0`, padding: 18, borderRadius: 16, background: t.INK, color: t.PAPER, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.AMBER, fontWeight: 700 }}>Rest</div>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 56, fontWeight: 700, letterSpacing: '-0.04em', lineHeight: 1, marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>{fmt(restLeft)}</div>
@@ -8884,154 +8908,120 @@ function BSSession({ moves, onBack }) {
         </div>
       )}
 
-      {/* Sensor-authored session log */}
-      <div style={{ margin: `14px ${t.padX}px 0`, border: `1px solid ${t.INK}`, background: t.PAPER2 }}>
-        <div style={{ padding: '12px 12px 10px', borderBottom: `1px solid ${t.RULE}` }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'baseline' }}>
-            <BSEyebrow color={t.ACCENT}>Sensor-authored log</BSEyebrow>
-            <BSEyebrow>{activeSetKey ? `Set ${fmt(activeSetSeconds)}` : 'Private by default'}</BSEyebrow>
-          </div>
-          <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 13.5, lineHeight: 1.35, color: t.INK70 }}>
-            Captures set duration, rest before each set, elapsed session time, and completion timing. Coaches see the log after the workout is saved.
-          </div>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderBottom: `1px solid ${t.RULE}` }}>
-          {[
-            ['SETS', `${doneSets}/${totalSets}`],
-            ['AVG SET', avgSetSeconds ? fmt(avgSetSeconds) : '--'],
-            ['AVG REST', avgRestSeconds ? fmt(avgRestSeconds) : '--'],
-          ].map(([label, value], i) => (
-            <div key={label} style={{ padding: '10px 6px', textAlign: 'center', borderLeft: i ? `1px solid ${t.RULE}` : 0 }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', color: t.INK50, fontWeight: 800 }}>{label}</div>
-              <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
-            </div>
-          ))}
-        </div>
-        {logStatus && (
-          <div style={{ padding: '9px 12px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50, lineHeight: 1.45 }}>
-            {logStatus}
-          </div>
-        )}
+      {/* Current exercise */}
+      <div style={{ padding: `20px ${t.padX}px 0`, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.RUST, fontWeight: 800 }}>Exercise {moveIdx + 1} of {moves.length}</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 700 }}>{move.sets} × {move.reps}</span>
+      </div>
+      <div style={{ padding: `4px ${t.padX}px 0` }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{move.m}<span style={{ color: t.RUST }}>.</span></div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, fontWeight: 500, color: t.INK50, letterSpacing: '-0.005em' }}>“{cue}”</div>
+        {move.l && <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Last · {move.l}</div>}
       </div>
 
-      {/* Current move */}
-      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 }}>
-          <BSEyebrow color={t.ACCENT}>{move.sets} sets · {move.reps} reps</BSEyebrow>
-          <BSEyebrow>Target: {move.l}</BSEyebrow>
+      {/* Plate math */}
+      {perSide && (
+        <div style={{ padding: `14px ${t.padX}px 0` }}>
+          <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Per side ({activeLoad} lb)</div>
+            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK70, fontWeight: 700 }}>Bar +</span>
+              {plates.length ? plates.map((p, i) => (
+                <span key={i} style={{ padding: '4px 9px', borderRadius: 8, background: plateColor[p] || t.INK50, color: '#1a1410', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800 }}>{p}</span>
+              )) : <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>bar only</span>}
+            </div>
+          </div>
         </div>
-        <div style={{
-          display: 'grid', gridTemplateColumns: '26px 1fr 44px 44px 74px',
-          padding: '6px 0', borderTop: `2px solid ${t.INK}`, borderBottom: `1px solid ${t.RULE}`,
-          fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50,
-        }}>
-          <span>Set</span><span>Actual reps / load</span><span style={{ textAlign: 'right' }}>Set</span><span style={{ textAlign: 'right' }}>Rest</span><span style={{ textAlign: 'right' }}> </span>
+      )}
+
+      {/* Set table */}
+      <div style={{ padding: `18px ${t.padX}px 0` }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '26px 1fr 1fr 1fr 30px', gap: 8, padding: '0 0 8px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
+          <span>Set</span><span>Weight</span><span>Reps</span><span>RPE</span><span />
         </div>
         {Array.from({ length: move.sets }).map((_, i) => {
           const k = `${moveIdx}-${i}`;
           const done = completed[k];
-          const active = activeSetKey === k;
-          const rowLog = logByKey[k];
-          const rowInput = setInputs[k] || { reps: String(move.reps || ''), load: String(move.l || '') };
+          const isActive = i === activeIdx;
+          const ri = setInputs[k] || { reps: '', load: String(move.l || ''), rpe: '' };
+          const bc = isActive ? teal : t.HAIR;
+          const cell = (field, ph) => (
+            <input value={ri[field] ?? ''} onChange={(e) => updateSetInput(i, field, e.target.value)} placeholder={ph} inputMode="decimal" disabled={done} aria-label={`Set ${i + 1} ${field}`}
+              style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', borderRadius: 10, border: `1px solid ${done ? t.HAIR : bc}`, background: done ? 'transparent' : (isActive ? `${teal}12` : t.PAPER2), color: t.INK, padding: '10px 8px', fontFamily: t.MONO, fontSize: 12, textAlign: 'center', fontVariantNumeric: 'tabular-nums', opacity: done ? 0.6 : 1 }} />
+          );
           return (
-            <div key={i} style={{
-              display: 'grid', gridTemplateColumns: '26px 1fr 44px 44px 74px', alignItems: 'center', padding: `${t.rowY + 2}px 0`,
-              borderBottom: `1px solid ${t.HAIR}`, opacity: done ? 0.82 : 1,
-            }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 13, color: t.INK, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{String(i+1).padStart(2,'0')}</span>
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(38px, 0.5fr) minmax(60px, 1fr)', gap: 5, alignItems: 'center' }}>
-                <input
-                  value={rowInput.reps}
-                  onChange={(event) => updateSetInput(i, 'reps', event.target.value)}
-                  inputMode="decimal"
-                  aria-label={`Set ${i + 1} actual reps`}
-                  style={{
-                    width: '100%',
-                    minWidth: 0,
-                    boxSizing: 'border-box',
-                    borderRadius: t.RADIUS_SM,
-                    border: `1px solid ${active ? t.ACCENT : t.RULE}`,
-                    background: active ? t.PAPER : 'transparent',
-                    color: t.INK,
-                    padding: '8px 7px',
-                    fontFamily: t.MONO,
-                    fontSize: 11,
-                    letterSpacing: '0.04em',
-                    fontVariantNumeric: 'tabular-nums',
-                  }}
-                />
-                <input
-                  value={rowInput.load}
-                  onChange={(event) => updateSetInput(i, 'load', event.target.value)}
-                  aria-label={`Set ${i + 1} actual load`}
-                  style={{
-                    width: '100%',
-                    minWidth: 0,
-                    boxSizing: 'border-box',
-                    borderRadius: t.RADIUS_SM,
-                    border: `1px solid ${active ? t.ACCENT : t.RULE}`,
-                    background: active ? t.PAPER : 'transparent',
-                    color: t.INK,
-                    padding: '8px 7px',
-                    fontFamily: t.MONO,
-                    fontSize: 11,
-                    letterSpacing: '0.04em',
-                    fontVariantNumeric: 'tabular-nums',
-                  }}
-                />
-              </div>
-              <span style={{ textAlign: 'right', fontFamily: t.MONO, fontSize: 10.5, color: active ? t.ACCENT : t.INK70, fontWeight: 700 }}>
-                {active ? fmt(activeSetSeconds) : rowLog ? fmt(rowLog.setDurationSeconds) : '--'}
-              </span>
-              <span style={{ textAlign: 'right', fontFamily: t.MONO, fontSize: 10.5, color: t.INK70, fontWeight: 700 }}>
-                {rowLog?.restBeforeSeconds !== null && rowLog?.restBeforeSeconds !== undefined ? fmt(rowLog.restBeforeSeconds) : '--'}
-              </span>
-              <div style={{ textAlign: 'right' }}>
-                {done ? (
-                  <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.GREEN, fontWeight: 700 }}>Done</span>
-                ) : (
-                  <button onClick={() => logSet(i)} style={{ borderRadius: t.RADIUS_SM,
-                    width: '100%', padding: '7px 4px', border: `1px solid ${active ? t.ACCENT : t.INK}`, background: active ? t.ACCENT : t.INK, color: t.PAPER, cursor: 'pointer',
-                    fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700,
-                  }}>{active ? 'Finish' : 'Start'}</button>
-                )}
-              </div>
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '26px 1fr 1fr 1fr 30px', gap: 8, alignItems: 'center', padding: '5px 0' }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: (done || isActive) ? teal : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{done ? '✓' : String(i + 1).padStart(2, '0')}</span>
+              {cell('load', 'lb')}
+              {cell('reps', '—')}
+              {cell('rpe', '—')}
+              <span style={{ justifySelf: 'end', width: 24, height: 24, borderRadius: 999, border: `1.5px solid ${(done || isActive) ? teal : t.RULE}`, background: done ? teal : 'transparent', color: done ? '#04201d' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800 }}>✓</span>
             </div>
           );
         })}
       </div>
 
-      {/* Coach cue */}
-      <div style={{ borderRadius: t.RADIUS_SM, margin: `18px ${t.padX}px 0`, padding: 16, background: t.PAPER2, border: `1px solid ${t.INK}` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.AMBER, fontWeight: 700, marginBottom: 8 }}>▍ Cue</div>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, lineHeight: 1.4, letterSpacing: '-0.005em', fontStyle: 'italic' }}>
-          {moveIdx === 0 ? 'Dead hang every rep. Chest to bar or it doesn\u2019t count.' :
-           moveIdx === 1 ? 'Drive elbows behind ribs. Pause at sternum, two count.' :
-           moveIdx === 2 ? 'Squeeze the cuffs. Feel the mid-trap, not the bicep.' :
-           moveIdx === 3 ? 'Pull to forehead, not chest. Thumbs back.' :
-           moveIdx === 4 ? 'Supinate hard at the top. Don\u2019t cheat the negative.' :
-           'Tall posture. Carry like you mean it.'}
+      {/* Primary log CTA */}
+      <div style={{ padding: `16px ${t.padX}px 0` }}>
+        {activeIdx != null ? (
+          <button onClick={() => logSet(activeIdx)} style={{ width: '100%', borderRadius: 999, border: 0, background: teal, color: '#04201d', cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
+            {activeRunning ? `Log set ${activeIdx + 1}${move.reps ? ` · ${move.reps} reps` : ''}` : `Start set ${activeIdx + 1}`}
+          </button>
+        ) : (
+          <button onClick={() => { if (moveIdx < moves.length - 1) { setMoveIdx(moveIdx + 1); setRestEnd(null); } else finishSession(); }} style={{ width: '100%', borderRadius: 999, border: 0, background: t.GREEN, color: '#04201d', cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
+            {moveIdx < moves.length - 1 ? 'Next exercise →' : 'Finish workout ✓'}
+          </button>
+        )}
+      </div>
+
+      {/* Prev / next */}
+      <div style={{ padding: `10px ${t.padX}px 0`, display: 'flex', gap: 8 }}>
+        <button onClick={() => setMoveIdx(Math.max(0, moveIdx - 1))} disabled={moveIdx === 0} style={{ padding: '13px 16px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: moveIdx === 0 ? 'default' : 'pointer', opacity: moveIdx === 0 ? 0.4 : 1, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>← Previous</button>
+        <button onClick={() => { if (moveIdx < moves.length - 1) { setMoveIdx(moveIdx + 1); setRestEnd(null); } }} disabled={moveIdx >= moves.length - 1} style={{ flex: 1, minWidth: 0, padding: '13px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent', color: moveIdx >= moves.length - 1 ? t.INK50 : t.INK, cursor: moveIdx >= moves.length - 1 ? 'default' : 'pointer', opacity: moveIdx >= moves.length - 1 ? 0.5 : 1, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{moveIdx < moves.length - 1 ? `Next: ${moves[moveIdx + 1].m}` : 'Last exercise'}</button>
+      </div>
+
+      {/* Queue */}
+      <div style={{ padding: `26px ${t.padX}px 4px` }}>
+        <BSEyebrow color={teal}>Up next</BSEyebrow>
+        <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Queue</div>
+      </div>
+      <div style={{ padding: `8px ${t.padX}px 0` }}>
+        {moves.map((mv, i) => {
+          const mDone = Array.from({ length: mv.sets }).every((_, si) => completed[`${i}-${si}`]);
+          const isCurrent = i === moveIdx;
+          return (
+            <button key={i} onClick={() => setMoveIdx(i)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: isCurrent ? t.PAPER2 : 'transparent', border: 0, borderRadius: 12, display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 10, alignItems: 'center', padding: '12px 10px', borderBottom: `1px solid ${t.HAIR}`, opacity: mDone ? 0.5 : 1 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: mDone ? teal : t.INK50 }}>{mDone ? '✓' : String(i + 1).padStart(2, '0')}</span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', textDecoration: mDone ? 'line-through' : 'none' }}>{mv.m}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50, marginTop: 2 }}>{mv.sets} × {mv.reps} · 90s rest</div>
+              </div>
+              {mv.l && <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70 }}>{mv.l}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Live coach message */}
+      <div style={{ padding: `16px ${t.padX}px 0` }}>
+        <div style={{ borderRadius: 16, border: `1px solid ${t.RUST}55`, background: `linear-gradient(155deg, ${t.RUST}22, ${t.RUST}08 50%, ${t.PAPER2} 90%), ${t.PAPER2}`, padding: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+              <BSAvatar init="J" size={30} fill={t.RUST} ink={t.PAPER} />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK }}>Jordan</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: 1 }}>Live · coaching</div>
+              </div>
+            </div>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>2 min ago</span>
+          </div>
+          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, fontWeight: 500, color: t.INK70, lineHeight: 1.45 }}>{'“' + cue + '”'}</div>
         </div>
       </div>
 
-      {/* Move nav */}
-      <div style={{ padding: `18px ${t.padX}px 90px`, display: 'flex', gap: 8 }}>
-        <button onClick={() => setMoveIdx(Math.max(0, moveIdx - 1))} disabled={moveIdx === 0} style={{ borderRadius: t.RADIUS_SM,
-          padding: '14px 18px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
-          fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase',
-          cursor: moveIdx === 0 ? 'default' : 'pointer', opacity: moveIdx === 0 ? 0.3 : 1,
-        }}>← Prev</button>
-        {moveIdx < moves.length - 1 ? (
-          <button onClick={() => { setMoveIdx(moveIdx + 1); setRestEnd(null); }} style={{ borderRadius: t.RADIUS_SM,
-            flex: 1, padding: '14px', border: 0, background: t.INK, color: t.PAPER,
-            fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
-          }}>Next move →</button>
-        ) : (
-          <button onClick={finishSession} style={{ borderRadius: t.RADIUS_SM,
-            flex: 1, padding: '14px', border: 0, background: t.GREEN, color: t.PAPER,
-            fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
-          }}>Finish session ✓</button>
-        )}
+      {/* End workout early */}
+      <div style={{ padding: `16px ${t.padX}px 90px` }}>
+        <button onClick={finishSession} style={{ width: '100%', padding: '14px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' }}>End workout early</button>
       </div>
     </BSPage>
   );
