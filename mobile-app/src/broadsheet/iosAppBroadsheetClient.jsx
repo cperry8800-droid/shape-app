@@ -1775,26 +1775,22 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                       }}>{row.sub}</div>
                     )}
                   </div>
-                  <span
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      logDayItem(key, row);
-                    }}
-                    style={{
-                      border: `1px solid ${logged ? t.GREEN : t.INK}`,
-                      background: logged ? t.GREEN : 'transparent',
-                      color: logged ? t.PAPER : t.INK,
-                      borderRadius: t.RADIUS_SM,
-                      padding: '6px 7px',
-                      fontFamily: t.MONO,
-                      fontSize: 9,
-                      fontWeight: 900,
-                      letterSpacing: '0.16em',
-                      textTransform: 'uppercase',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {logged ? 'Logged' : 'Log now'}
+                  <span style={{
+                    fontFamily: t.MONO,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: next ? t.ACCENT : t.INK50,
+                    letterSpacing: '0.06em',
+                    whiteSpace: 'nowrap',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}>
+                    {(() => {
+                      const [h, m] = String(row.time || '').split(':').map(Number);
+                      if (Number.isNaN(h)) return '';
+                      const ap = h >= 12 ? 'PM' : 'AM';
+                      const h12 = h % 12 === 0 ? 12 : h % 12;
+                      return `${h12}:${String(m).padStart(2, '0')} ${ap}`;
+                    })()}
                   </span>
                 </button>
               </div>
@@ -1946,9 +1942,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                 </div>
               </>
             )}
-
-            <BSSection title="Add widgets" meta={`${Object.keys(BS_WIDGETS).length - added.length} available`} />
-            <BSAddWidgets added={addedKeys} onAdd={add} />
           </>
         );
       })()}
