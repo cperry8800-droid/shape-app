@@ -3728,9 +3728,10 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
           </div>
         </div>
       )}
-      <div style={{ padding: `16px ${t.padX}px 0` }}>
-        <button onClick={onAddGrocery} style={{ width: '100%', borderRadius: t.RADIUS_SM, padding: '14px', border: `1px solid ${groceryAdded ? t.GREEN : t.INK}`, background: groceryAdded ? t.GREEN : t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', cursor: 'pointer' }}>
-          {groceryAdded ? 'Added to grocery list' : 'Add ingredients to grocery list'}
+      <div style={{ padding: `16px ${t.padX}px 0`, display: 'flex', gap: 8 }}>
+        <BSSaveButton full item={{ id: `recipe:${slug}`, kind: 'recipe', title: r.title, meta: `${r.kcal} kcal · serves ${r.servings}`, coach: r.by }} />
+        <button onClick={onAddGrocery} style={{ flex: 1, borderRadius: t.RADIUS_SM, padding: '14px', border: `1px solid ${groceryAdded ? t.GREEN : t.INK}`, background: groceryAdded ? t.GREEN : t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>
+          {groceryAdded ? '✓ Grocery list' : 'Add to grocery'}
         </button>
       </div>
 
@@ -9306,6 +9307,10 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
   const pct = Math.round((done / total) * 100);
   const estCost = 48;
   const estLeft = Math.round(estCost * (1 - done / total));
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const savedLib = useBSLibrary();
+  const groceryItem = { id: `grocery:${list.id || String(list.name || 'list').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`, kind: 'grocery', title: list.name, meta: `${total} items · ${list.aisles.length} aisles` };
+  const grocerySaved = savedLib.some(x => x.id === groceryItem.id);
 
   return (
     <BSPage>
@@ -9348,6 +9353,11 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
             padding: '12px 12px', background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, cursor: 'pointer',
             fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700,
           }}>Library {recipeLists.length ? `(${recipeLists.length})` : ''}</button>
+          <button onClick={() => bsLibToggle(groceryItem)} aria-label={grocerySaved ? 'Remove from library' : 'Save to library'} style={{ borderRadius: t.RADIUS_SM,
+            flex: '0 0 auto', whiteSpace: 'nowrap',
+            padding: '12px 12px', background: grocerySaved ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: grocerySaved ? teal : t.INK, border: `1px solid ${grocerySaved ? teal : t.INK}`, cursor: 'pointer',
+            fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700,
+          }}>{grocerySaved ? '✓' : '♡'}</button>
           <button onClick={onCreate} style={{ borderRadius: t.RADIUS_SM,
             flex: '0 0 auto', whiteSpace: 'nowrap',
             padding: '12px 12px', background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, cursor: 'pointer',

@@ -46,6 +46,18 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-03 — Habits add/edit form redesign + recipe/grocery library saves
+- `BSHabitForm` (the "super analog" Add Habit page) rebuilt to the rounded-card
+  system: name in a rounded `PAPER2` field (was a 2px-INK underline), **Do daily /
+  Avoid** as rounded green/rust toggle cards, **Reminder** + **Visibility** each in
+  their own rounded card, visibility as a 3-up rounded pill segmented control (teal
+  when active), and rounded pill **Cancel / Add habit** actions (teal CTA). `BSTimeChip`
+  rounded to a pill with a hairline border.
+- **Library boxes now fill:** added `BSSaveButton` (kind `recipe`) to the Shape
+  Kitchen recipe detail (beside "Add to grocery"), and a ♡/✓ **Save to library**
+  toggle (kind `grocery`) to the `BSGrocery` action row. The **Recipes** and
+  **Groceries** stat cards on the Library page now reflect real saves.
+
 ### 2026-06-03 — Library page: stat-card filters, search, item previews
 - `BSClientLibrary` filter row is now a 4-up **stat-card grid** (big tabular count +
   colored label): **Workouts** (rust), **Meals** (green), **Recipes** (teal),
