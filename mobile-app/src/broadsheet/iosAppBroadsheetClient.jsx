@@ -2999,14 +2999,20 @@ function BSMealPreview({ meal, onBack, onLog }) {
           fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
         }}>Close</button>
         <button onClick={onLog ? onLog : () => setJustLogged(true)} style={{
-          flex: 1, textAlign: 'left', border: 0, borderRadius: 14, background: teal, color: '#04201d', padding: '12px 16px', cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+          flex: 1, border: 0, borderRadius: 14, background: teal, color: '#04201d', cursor: 'pointer',
+          ...(onLog
+            ? { padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }
+            : { textAlign: 'left', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }),
         }}>
-          <span style={{ minWidth: 0 }}>
-            <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', opacity: 0.65 }}>{onLog ? 'Review & adjust' : 'One tap'}</span>
-            <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em' }}>{onLog ? 'Log Now' : 'Ate it as planned'}</span>
-          </span>
-          <span style={{ fontSize: 18, fontWeight: 700 }}>{onLog ? '→' : '✓'}</span>
+          {onLog ? 'Log Now' : (
+            <>
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', opacity: 0.65 }}>One tap</span>
+                <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em' }}>Ate it as planned</span>
+              </span>
+              <span style={{ fontSize: 18, fontWeight: 700 }}>✓</span>
+            </>
+          )}
         </button>
       </div>
 
