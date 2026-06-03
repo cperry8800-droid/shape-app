@@ -656,8 +656,9 @@ function BSClientLibrary({ onBack, goMarket = () => {} }) {
     <BSPage>
       <div style={{ padding: `14px ${t.padX}px 0` }}>
         <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0 }}>← Back</button>
-        <h1 style={{ margin: '12px 0 0', fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>Your<br/><span style={{ fontStyle: 'italic', color: teal }}>library.</span></h1>
-        <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{items.length} saved · workouts · meals · recipes · groceries</div>
+        <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Your library</div>
+        <h1 style={{ margin: '6px 0 0', fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>Saved<br/><span style={{ fontStyle: 'italic', color: teal }}>everything.</span></h1>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, lineHeight: 1.4, color: t.INK70 }}>Every workout, meal, recipe and grocery list you keep — in one place.</div>
       </div>
 
       <div style={{ padding: `16px ${t.padX}px 12px`, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
