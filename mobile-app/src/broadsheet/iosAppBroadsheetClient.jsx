@@ -5686,7 +5686,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
         </>
       )}
       {tab === 'feed' && (
-        <BSMessageComposer value={draft} onChange={setDraft} onSend={post} pinned placeholder="Share with the group…" />
+        <BSMessageComposer value={draft} onChange={setDraft} onSend={post} pinned placeholder="Message…" />
       )}
       {tab === 'teams' && teamsSel === 'support' && (
         <BSMessageComposer value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} pinned placeholder="Message the Shape team…" />
