@@ -653,7 +653,7 @@ function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing })
 }
 
 // Avatar — softly-rounded square, mono initial
-function BSAvatar({ init = 'A', size = 32, fill, ink, onClick, round = true, glow = false }) {
+function BSAvatar({ init = 'A', size = 32, fill, ink, onClick, round = true, glow = false, serif = false }) {
   const t = useBS();
   const bg = fill || t.INK;
   return (
@@ -661,9 +661,12 @@ function BSAvatar({ init = 'A', size = 32, fill, ink, onClick, round = true, glo
       width: size, height: size,
       background: bg, color: ink || t.PAPER,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontFamily: t.MONO, fontSize: size * 0.42, fontWeight: 700,
+      fontFamily: serif ? t.DISPLAY : t.MONO,
+      fontStyle: serif ? 'italic' : 'normal',
+      fontSize: serif ? Math.round(size * 0.5) : size * 0.42,
+      fontWeight: 700,
       border: 0, padding: 0, cursor: onClick ? 'pointer' : 'default',
-      letterSpacing: '-0.02em',
+      letterSpacing: serif ? '0' : '-0.02em',
       borderRadius: round ? '50%' : t.RADIUS_SM,
       boxShadow: glow ? `0 0 22px ${bg}5e, 0 0 0 4px ${bg}26` : 'none',
     }}>{init}</button>
