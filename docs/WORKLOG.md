@@ -46,6 +46,17 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-13 — playlist tracklist preview popup
+- Tapping a `BSPlaylistCard` (coach/nutritionist Spotify cards on home/train/eat)
+  now opens a bottom-sheet **tracklist preview** (portaled into `#bs-phone-surface`)
+  so a client can see what's on a list before opening Spotify: Spotify-glyph header
+  with the playlist title/meta, a numbered track list (title · artist · length), a
+  "Preview · first N of M" label, and a green **Open in Spotify** CTA + Close. The
+  card's ▶ button still jumps straight to Spotify (stops propagation).
+- Data: added a short `songs` preview array to each `BS_COACH_PLAYLISTS` entry
+  (radio module); the train/eat maps pass `tracks: p.songs`, and the home
+  "Pull heavy." card carries an inline list. Extracted `bsSpotifyGlyph()` helper.
+
 ### 2026-06-13 — iMessage-style auto-growing chat composer
 - `BSMessageComposer` (shared by DM threads + the feed) is now an auto-resizing
   `<textarea>` instead of a fixed 38px `<input>`: one line at rest, grows upward

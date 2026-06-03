@@ -35,10 +35,36 @@ const BS_LIVE_STATION = {
   ],
 };
 
+// `songs` is a short preview of each list (first few tracks) shown in the
+// playlist-card tracklist popup before a client opens the full list in Spotify.
 const BS_COACH_PLAYLISTS = [
-  { id: 'p1', name: 'Pull day tempo',      by: 'Jordan Chen',    role: 'Coach',        init: 'J', len: '52m',     bpm: '95–138', tracks: 14, attached: 'Upper Pull · W6 D4',  sent: 'Mon', unplayed: true, url: 'https://open.spotify.com/playlist/37i9dQZF1DX76Wlfdnj7AP' },
-  { id: 'p2', name: 'Meal prep, low-key',  by: 'Dr. Maya Patel', role: 'Nutritionist', init: 'M', len: '45m',     bpm: '85–100', tracks: 12, attached: 'Sun prep · 8 meals',  sent: 'Sun', url: 'https://music.apple.com/playlist/shape-prep' },
-  { id: 'p3', name: 'Riverside long run',  by: 'Jordan Chen',    role: 'Coach',        init: 'J', len: '1h 50m',  bpm: '160–172',tracks: 24, attached: 'Sat Z2 run · 18k',    sent: 'last wk', url: 'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M' },
+  { id: 'p1', name: 'Pull day tempo',      by: 'Jordan Chen',    role: 'Coach',        init: 'J', len: '52m',     bpm: '95–138', tracks: 14, attached: 'Upper Pull · W6 D4',  sent: 'Mon', unplayed: true, url: 'https://open.spotify.com/playlist/37i9dQZF1DX76Wlfdnj7AP',
+    songs: [
+      { a: 'Iron Count',   b: 'Tariq Osei',  len: '3:38' },
+      { a: 'Chalk & Steel',b: 'Sable',       len: '4:02' },
+      { a: 'Top Set',      b: 'Linnea Aho',  len: '3:21' },
+      { a: 'Overhand',     b: 'Samyuel',     len: '3:54' },
+      { a: 'Lat Spread',   b: 'Mara Vance',  len: '4:16' },
+      { a: 'Last Rep',     b: 'Shape Radio', len: '3:45' },
+    ] },
+  { id: 'p2', name: 'Meal prep, low-key',  by: 'Dr. Maya Patel', role: 'Nutritionist', init: 'M', len: '45m',     bpm: '85–100', tracks: 12, attached: 'Sun prep · 8 meals',  sent: 'Sun', url: 'https://music.apple.com/playlist/shape-prep',
+    songs: [
+      { a: 'Sunday Counter',  b: 'Halve',     len: '3:30' },
+      { a: 'Mise en Place',   b: 'Coriander', len: '4:08' },
+      { a: 'Slow Simmer',     b: 'Nova Lane', len: '3:52' },
+      { a: 'Batch Day',       b: 'Olive Park',len: '4:20' },
+      { a: 'Cold Brew Hours', b: 'Temple',    len: '3:14' },
+      { a: 'Tupperware Sun',  b: 'Marrow',    len: '4:01' },
+    ] },
+  { id: 'p3', name: 'Riverside long run',  by: 'Jordan Chen',    role: 'Coach',        init: 'J', len: '1h 50m',  bpm: '160–172',tracks: 24, attached: 'Sat Z2 run · 18k',    sent: 'last wk', url: 'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M',
+    songs: [
+      { a: 'Towpath',        b: 'Halcyon Mile', len: '4:12' },
+      { a: 'Negative Split', b: 'Cadence Club', len: '3:48' },
+      { a: 'Zone Two',       b: 'Linnea Aho',   len: '5:03' },
+      { a: 'Riverlight',     b: 'Sable',        len: '4:33' },
+      { a: 'Even Pace',      b: 'Tariq Osei',   len: '3:57' },
+      { a: 'Final K',        b: 'Shape Radio',  len: '4:10' },
+    ] },
 ];
 
 // ═══════════════════════════════════════════════════════════
