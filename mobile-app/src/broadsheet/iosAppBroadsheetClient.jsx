@@ -1704,7 +1704,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
               <span style={eyebrow(rust)}>Workout · {fmtAt(WORKOUT_AT)}</span>
               <span style={metaRight}>52 min · 6 moves · RPE 8</span>
             </div>
-            <div onClick={goTrain} style={{ cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 25, lineHeight: 1.0, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
+            <div onClick={() => setShowWorkoutPreview(true)} style={{ cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 25, lineHeight: 1.0, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
               Upper Pull — Peak
             </div>
             <div style={{ marginTop: 12 }}>
@@ -1714,7 +1714,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                 ['03', 'Chest-sup. row', '3 × 10 · 90s', '60 lb'],
                 ['04', '+ 3 more', 'Face pull · curl · carry', ''],
               ].map(([n, name, sub, wt], i, arr) => (
-                <div key={n} onClick={goTrain} style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
+                <div key={n} onClick={() => setShowWorkoutPreview(true)} style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
                   <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK50 }}>{n}</span>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{name}</div>
@@ -9515,6 +9515,24 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // Editable account fields (Account pane) — edited via an in-app sheet.
   const [account, setAccount] = useStateBSC({ email: 'alex@rivera.co', phone: '+1 (415) 555-0144', twoFactor: true });
   const [editField, setEditField] = useStateBSC(null); // { key, label, value, type, placeholder }
+  // Custom Shape-styled dropdown (replaces the native <select> picker).
+  const [dropdown, setDropdown] = useStateBSC(null); // { key, label, options, top, right }
+  const openDropdown = (e, s) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    setDropdown({ key: s.key, label: s.l, options: s.dropdown, top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
+  };
+  React.useEffect(() => {
+    if (!dropdown) return undefined;
+    const close = () => setDropdown(null);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('wheel', close, { passive: true });
+    window.addEventListener('touchmove', close, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('wheel', close);
+      window.removeEventListener('touchmove', close);
+    };
+  }, [dropdown]);
   const openAccountEdit = (key, label, opts = {}) => setEditField({ key, label, value: opts.value != null ? opts.value : (account[key] || ''), type: opts.type || 'text', placeholder: opts.placeholder || '' });
   const saveEditField = () => {
     if (!editField) return;
@@ -9632,16 +9650,13 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           return (
             <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: `${t.rowY + 12}px 0`, borderBottom: rowBorder }}>
               <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', flexShrink: 0 }}>{s.l}</span>
-              <select value={prefs[s.key]} onChange={(e) => setPref(s.key, e.target.value)} style={{
-                maxWidth: '64%', textAlign: 'right', textAlignLast: 'right',
-                appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
-                border: 0, background: 'transparent', outline: 'none', padding: 0, cursor: 'pointer',
-                color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
+              <button onClick={(e) => openDropdown(e, s)} style={{
+                maxWidth: '64%', background: 'transparent', border: 0, outline: 'none', padding: 0, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 6, color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
               }}>
-                {s.dropdown.map((opt) => (
-                  <option key={opt} value={opt} style={{ color: '#000', textTransform: 'none', letterSpacing: 0 }}>{opt}</option>
-                ))}
-              </select>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{prefs[s.key]}</span>
+                <span style={{ fontSize: 8, opacity: 0.7, flexShrink: 0 }}>▾</span>
+              </button>
             </div>
           );
         }
@@ -10185,6 +10200,27 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         <BSFooter left="Shape v2.4.0" right="Build 2026.04" />
       </div>
       </div>
+
+      {/* Shape-styled dropdown menu (replaces the native select picker) */}
+      {dropdown && (
+        <div onClick={() => setDropdown(null)} style={{ position: 'fixed', inset: 0, zIndex: 6000 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ position: 'fixed', top: dropdown.top, right: dropdown.right, zIndex: 6001, width: 220, maxHeight: '56vh', overflowY: 'auto', background: t.PAPER, border: `1px solid ${t.INK}`, borderRadius: 12, boxShadow: '0 16px 40px rgba(0,0,0,0.3)' }}>
+            <div style={{ padding: '10px 12px', borderBottom: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{dropdown.label}</div>
+            {dropdown.options.map((opt) => {
+              const on = prefs[dropdown.key] === opt;
+              return (
+                <button key={opt} onClick={() => { setPref(dropdown.key, opt); setDropdown(null); }} style={{
+                  width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                  padding: '12px 12px', border: 0, borderTop: `1px solid ${t.HAIR}`, background: on ? `${t.ACCENT}14` : 'transparent', cursor: 'pointer', textAlign: 'left',
+                }}>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK }}>{opt}</span>
+                  {on && <span style={{ color: t.ACCENT, fontSize: 13, fontWeight: 800, flexShrink: 0 }}>✓</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Account field editor — in-app sheet */}
       {editField && (
