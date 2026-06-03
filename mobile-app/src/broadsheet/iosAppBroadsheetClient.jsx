@@ -9647,18 +9647,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           <Toggle on={r.radioOn} onClick={() => r.setRadioPreference(!r.radioOn)} />
         </div>
       </div>
-      <div style={{ padding: `12px ${t.padX}px 18px` }}>
-        <button onClick={r.requestRadioPrompt} style={{ borderRadius: t.RADIUS_SM,
-          marginTop: 10, width: '100%', padding: '11px 12px', cursor: 'pointer',
-          border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK,
-          fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700,
-        }}>
-          Ask me again
-        </button>
-        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.45 }}>
-          New members see this choice after the login page. You can change it here anytime.
-        </div>
-      </div>
 
       {/* LIGHT EFFECTS — music-reactive overlays while Shape Radio is on */}
       <SectionHead
