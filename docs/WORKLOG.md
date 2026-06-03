@@ -46,6 +46,20 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-13 — Garmin push-webhook ingestion (ready for approval)
+- Built `src/app/api/integrations/garmin/webhook/route.ts` — Garmin Health API is
+  PUSH-based, so this receives Dailies/Sleeps/Activities POSTs, maps each item's
+  Garmin `userId` → Shape user via `user_integrations.provider_user_id`, and upserts
+  into `daily_health_snapshot` (resting HR, stress, calories, sleep hours, workout
+  min/HR) + `activities` (same tables as Whoop/Oura/Strava). Optional
+  `GARMIN_WEBHOOK_SECRET` (`?token=`) guard; GET returns 200 for URL validation.
+- OAuth callback now fetches Garmin's `userId` (`/wellness-api/rest/user/id`) at
+  connect time and stores it on `provider_user_id` (token response omits it).
+- No migration — reuses existing tables. Registered the route in the War Room.
+- **Blocked on Garmin:** their access-request form is down; apply via Developer
+  Contact Us. Once approved: set `GARMIN_CLIENT_ID/SECRET`, then register the
+  webhook URL + summary types (Dailies/Sleeps/Activities) in the Garmin portal.
+
 ### 2026-06-03 — tier color system + score-card focus
 - Added `bsTierColor()` in the client module (Raw/Base = steel, Tempo = gold,
   Form = teal, Peak = violet, Legend = rose), exposed on `window` for the Pros app.

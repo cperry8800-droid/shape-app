@@ -107,6 +107,23 @@ export async function GET(
   if (tokenJson.athlete?.id) providerUserId = String(tokenJson.athlete.id);
   else if (tokenJson.user?.id) providerUserId = String(tokenJson.user.id);
 
+  // Garmin's token response omits the user id, but its push webhooks are keyed
+  // by it — fetch it now so /integrations/garmin/webhook can map data back to
+  // this user. Non-fatal: if it fails we still store the tokens.
+  if (!providerUserId && cfg.id === 'garmin') {
+    try {
+      const idRes = await fetch('https://apis.garmin.com/wellness-api/rest/user/id', {
+        headers: { Authorization: `Bearer ${tokenJson.access_token}`, Accept: 'application/json' },
+      });
+      if (idRes.ok) {
+        const idJson = (await idRes.json().catch(() => null)) as { userId?: string } | null;
+        if (idJson?.userId) providerUserId = String(idJson.userId);
+      }
+    } catch {
+      /* leave null — the webhook can be backfilled once we have the id */
+    }
+  }
+
   try {
     await storeTokens({
       userId,
