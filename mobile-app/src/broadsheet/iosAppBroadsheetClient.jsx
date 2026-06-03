@@ -9008,17 +9008,15 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       const next = { ...p, [key]: opts[(idx + 1) % opts.length] };
       try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
       if (key === 'units') window.ShapeUnits?.set(next[key]); // propagate app-wide
-      window.__bsToast?.(`${label} → ${next[key]}`, 'ok');
       return next;
     });
   };
-  const setPref = (key, value, label) => {
+  const setPref = (key, value) => {
     setPrefs(p => {
       if (p[key] === value) return p;
       const next = { ...p, [key]: value };
       try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
       if (key === 'units') window.ShapeUnits?.set(value);
-      window.__bsToast?.(`${label} → ${value}`, 'ok');
       return next;
     });
   };
@@ -9239,9 +9237,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       meta: '',
       rows: [
         { l: 'Units',           key: 'units', segmented: PREF_OPTIONS.units, segLabels: ['Imperial', 'Metric'] },
-        { l: 'Week starts',     key: 'weekStarts' },
+        { l: 'Week starts',     key: 'weekStarts', dropdown: PREF_OPTIONS.weekStarts },
         { l: 'Time zone',       key: 'timeZone', dropdown: BS_TIMEZONES },
-        { l: 'Language',        key: 'language' },
+        { l: 'Language',        key: 'language', dropdown: PREF_OPTIONS.language },
       ],
     },
     {
