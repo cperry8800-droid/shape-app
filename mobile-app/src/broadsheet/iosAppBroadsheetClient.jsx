@@ -5487,7 +5487,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
   };
 
   const Pill = ({ on, onClick, children, badge = 0 }) => (
-    <button onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '7px 12px', borderRadius: 999, border: 0, background: on ? TEAL : 'transparent', color: on ? '#031f1c' : muted, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+    <button onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '7px 12px', borderRadius: 999, border: 0, background: on ? TEAL : 'transparent', color: on ? '#031f1c' : cardInk, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
       {children}
       {badge > 0 && <span style={{ minWidth: 13, height: 13, borderRadius: 999, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 }}>{badge > 9 ? '9+' : badge}</span>}
     </button>
@@ -5667,7 +5667,7 @@ function BSClientFeed({ onProfile, role: roleProp }) {
             {CHIP_KEYS.map(k => {
               const on = filter === k;
               return (
-                <button key={k} onClick={() => setFilter(k)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 10px', borderRadius: 999, border: `1px solid ${on ? ROLE[k].color : hair}`, background: on ? `${ROLE[k].color}1f` : 'transparent', color: cardInk, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', cursor: 'pointer' }}>
+                <button key={k} onClick={() => setFilter(k)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '7px 11px', borderRadius: 999, border: `1px solid ${on ? ROLE[k].color : hair}`, background: on ? `${ROLE[k].color}1f` : 'transparent', color: cardInk, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>
                   <span style={{ width: 5, height: 5, borderRadius: 3, background: ROLE[k].color }} />{k}
                 </button>
               );
@@ -7246,7 +7246,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
   return (
     <BSPage>
       <BSPageHeader
-        title={<>{firstName}<br/><span style={{ fontStyle: 'italic', color: t.ACCENT }}>{lastName}.</span></>}
+        title={<>{firstName}<br/><span style={{ color: t.ACCENT }}>{lastName}.</span></>}
         trailing={<BSAvatar init="A" size={32} fill={t.RUST} onClick={onProfile} />}
       />
 
@@ -9180,13 +9180,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
 
   return (
     <BSPage tabBarHeight={0}>
-      <BSDetailHeader
-        onBack={onBack}
-        eyebrow="Member · Pro"
-        kicker="Section · Settings"
-        title={<>Your<br/>account.</>}
-        trailing={<BSAvatar init="A" size={36} fill={t.RUST} />}
-      />
+      <div style={{ padding: `52px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← Back</button>
+        <button onClick={startEdit} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.ACCENT }}>Edit</button>
+      </div>
 
       {/* Coach-only — pause new bookings (at capacity) */}
       {capacity && (
@@ -9205,19 +9202,21 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       )}
 
       {/* Identity card */}
-      <div style={{ padding: `11px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
+      <div style={{ padding: `14px ${t.padX}px 16px` }}>
         {!editing ? (
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 11 }}>
-            <BSAvatar init={identity.name.charAt(0)} size={42} fill={t.RUST} />
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{identity.name}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>{identity.handle} · {identity.location}</div>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 12, color: t.INK70, marginTop: 4, lineHeight: 1.3, fontWeight: 500 }}>{identity.bio}</div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <BSAvatar init={identity.name.charAt(0)} size={72} fill={t.RUST} />
+              <div style={{ minWidth: 0 }}>
+                <BSEyebrow color={t.RUST}>Member · 14 week streak</BSEyebrow>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', marginTop: 4, lineHeight: 1 }}>{identity.name.split(' ')[0]}{identity.name.split(' ').length > 1 && <> <span style={{ color: t.ACCENT }}>{identity.name.split(' ').slice(1).join(' ')}.</span></>}</div>
+              </div>
             </div>
-            <button onClick={startEdit} style={{ borderRadius: t.RADIUS_SM, flexShrink: 0,
-              padding: '5px 10px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer',
-              fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700,
-            }}>Edit</button>
+            <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
+              {[['Shape Score', () => setShowScore(true)], ['Streak', () => setShowScore(true)], ['Points', () => setShowStore(true)]].map(([l, on]) => (
+                <button key={l} onClick={on} style={{ padding: '10px 16px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{l}</button>
+              ))}
+            </div>
           </div>
         ) : (
           <div>
@@ -9270,6 +9269,21 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           </div>
         )}
       </div>
+
+      {/* YOUR PLAN — subscription card */}
+      {!editing && (
+        <div style={{ padding: `4px ${t.padX}px 18px` }}>
+          <div style={{ border: `1px solid ${t.RULE}`, borderRadius: 18, background: t.PAPER2, padding: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+              <BSEyebrow color={t.AMBER}>Your plan</BSEyebrow>
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Renews Apr 30</span>
+            </div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', marginTop: 8 }}>Shape <span style={{ fontStyle: 'italic', color: t.AMBER }}>Member.</span></div>
+            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.5 }}>$5/mo · Radio included · Community access · Marketplace access</div>
+            <button onClick={openBillingPortal} style={{ marginTop: 14, padding: '9px 16px', borderRadius: 999, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Manage →</button>
+          </div>
+        </div>
+      )}
 
       {/* PROFILE MODE — switch between Client / Trainer / Nutritionist views */}
       <BSSection
@@ -9553,7 +9567,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       </div>
 
       <BSRadioPrompt />
-      <BSFooter right="Settings" />
+      <BSFooter left="Shape v2.4.0" right="Build 2026.04" />
     </BSPage>
   );
 }
