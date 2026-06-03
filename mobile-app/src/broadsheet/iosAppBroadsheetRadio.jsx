@@ -47,7 +47,7 @@ const BS_COACH_PLAYLISTS = [
       { a: 'Lat Spread',   b: 'Mara Vance',  len: '4:16' },
       { a: 'Last Rep',     b: 'Shape Radio', len: '3:45' },
     ] },
-  { id: 'p2', name: 'Meal prep, low-key',  by: 'Dr. Maya Patel', role: 'Nutritionist', init: 'M', len: '45m',     bpm: '85–100', tracks: 12, attached: 'Sun prep · 8 meals',  sent: 'Sun', url: 'https://music.apple.com/playlist/shape-prep',
+  { id: 'p2', name: 'Meal prep, low-key',  by: 'Dr. Maya Patel', role: 'Nutritionist', init: 'M', len: '45m',     bpm: '85–100', tracks: 12, attached: 'Sun prep · 8 meals',  sent: 'Sun', url: 'https://open.spotify.com/playlist/37i9dQZF1DWZeKCadgRdKQ',
     songs: [
       { a: 'Sunday Counter',  b: 'Halve',     len: '3:30' },
       { a: 'Mise en Place',   b: 'Coriander', len: '4:08' },
