@@ -874,6 +874,8 @@ function BSPublicActionPanel({ action, coach, onClose, onConfirm, onMessageSent 
 function BSCoachDetailPublic({ coach, onBack }) {
   const t = useBS();
   const p = buildPublicProfile(coach);
+  const roleColor = mktRoleColor(coach);
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [tab, setTab] = useStateBSM2('profile');
   const [action, setAction] = useStateBSM2(null);
   const [checkoutBusy, setCheckoutBusy] = useStateBSM2(false);
@@ -1045,101 +1047,61 @@ function BSCoachDetailPublic({ coach, onBack }) {
 
   return (
     <BSPage>
-      <BSPageHeader
-        kicker={`Public ${p.role} Profile`}
-        title={<>{coach.name.split(' ')[0]}<br/><span style={{ fontStyle: 'italic' }}>{last}</span></>}
-        trailing={
-          <button onClick={onBack} style={{ borderRadius: t.RADIUS_SM,
-            padding: '6px 12px', background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, cursor: 'pointer',
-            fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700,
-          }}>Back</button>
-        }
-      />
+      {/* Back */}
+      <div style={{ padding: `14px ${t.padX}px 0` }}>
+        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0 }}>← Back</button>
+        <h1 style={{ margin: '10px 0 0', fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.035em', color: t.INK }}>{coach.name.split(' ')[0]}<br/><span style={{ fontStyle: 'italic' }}>{last}</span></h1>
+      </div>
 
-      <div style={{ padding: `8px ${t.padX}px 16px`, borderBottom: `2px solid ${t.INK}` }}>
-        <div style={{ position: 'relative', minHeight: 112, border: `1px solid ${t.INK}`, background: t.INK, overflow: 'hidden' }}>
-          <div aria-hidden style={{
-            position: 'absolute', inset: 0,
-            backgroundImage: `radial-gradient(${t.PAPER} 1px, transparent 1.8px)`,
-            backgroundSize: '7px 7px',
-            opacity: 0.22,
-          }} />
-          <div style={{ position: 'relative', padding: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-              <BSEyebrow color={t.ACCENT}>{p.eyebrow}</BSEyebrow>
-              <BSTag color={t.PAPER} dark={false}>{p.tier}</BSTag>
-            </div>
-            <div style={{ marginTop: 26, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(245,240,230,0.58)', fontWeight: 800 }}>
-              Client view - customizable public profile
-            </div>
-          </div>
-        </div>
-
-        <div style={{ border: `1px solid ${t.INK}`, borderTop: 0, background: t.PAPER2, padding: 12 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '76px 1fr', gap: 12, alignItems: 'start' }}>
-            <BSHeadshot init={coach.init} size={76} />
-            <div>
-              <div style={{ fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 20, lineHeight: 1.12, color: t.INK, letterSpacing: '-0.035em' }}>{p.headline}</div>
-              <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-              <BSTag color={t.ACCENT} dark={!t.isLight}>{coach.match}% match</BSTag>
-              <BSTag color={t.INK} dark>{formatCoachRating10(coach)} stars</BSTag>
-              <BSTag color={t.INK} dark>{coach.clients} clients</BSTag>
+      <div style={{ padding: `14px ${t.padX}px 16px` }}>
+        {/* Hero card */}
+        <div style={{ borderRadius: 20, border: `1px solid ${t.RULE}`, overflow: 'hidden', background: `linear-gradient(160deg, ${roleColor}24, ${t.PAPER2} 58%)` }}>
+          <div style={{ padding: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
+              <MktAvatar c={coach} size={56} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, border: `1px solid ${roleColor}66`, background: `${roleColor}1f` }}>
+                  <span style={{ width: 5, height: 5, borderRadius: 999, background: roleColor }} />
+                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: roleColor }}>{p.tier} tier</span>
+                </span>
+                <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{getPrimaryCredential(coach)} · {mktShortLoc(coach.loc)}</div>
               </div>
             </div>
+            <div style={{ marginTop: 13, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, lineHeight: 1.25, letterSpacing: '-0.02em', color: t.INK }}>{p.headline}</div>
+            <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {[`${coach.match}% match`, `★ ${formatCoachRating10(coach)}`, `${coach.clients} clients`].map((s, i) => (
+                <span key={i} style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: i === 0 ? teal : t.INK70, padding: '5px 10px', borderRadius: 999, border: `1px solid ${i === 0 ? teal : t.RULE}`, background: i === 0 ? `${teal}14` : 'transparent' }}>{s}</span>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderTop: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+            {[[p.score, 'Shape score'], [(coach.sessionCount || 0).toLocaleString(), p.sessionsLabel], [`${coach.years || 1}y`, 'Experience']].map(([v, l], i) => (
+              <div key={l} style={{ padding: '12px', borderLeft: i ? `1px solid ${t.RULE}` : 0 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>{v}</div>
+                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{l}</div>
+              </div>
+            ))}
           </div>
         </div>
 
-        <BSProfileCard style={{ marginTop: 14 }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 16, lineHeight: 1.45, color: t.INK, letterSpacing: '-0.01em' }}>{p.tagline}</div>
-          <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, borderTop: `1px solid ${t.HAIR}`, paddingTop: 12 }}>
-            <BSProfileMiniStat value={p.score} label="Shape score" />
-            <BSProfileMiniStat value={(coach.sessionCount || 0).toLocaleString()} label={p.sessionsLabel} />
-            <BSProfileMiniStat value={`${coach.years || 1}y`} label="Experience" />
-          </div>
-        </BSProfileCard>
+        <div style={{ marginTop: 13, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 16, lineHeight: 1.4, color: t.INK70, letterSpacing: '-0.01em' }}>“{p.tagline}”</div>
 
-        <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 8 }}>
-          <button onClick={openIntro} style={{ borderRadius: t.RADIUS_SM,
-            minWidth: 0, minHeight: 48, padding: '12px 8px', background: t.INK, color: t.PAPER, border: 0, cursor: 'pointer',
-            fontFamily: t.MONO, fontSize: 9.5, lineHeight: 1.15, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800,
-            whiteSpace: 'normal', overflowWrap: 'anywhere',
-          }}>Book intro - $0</button>
-          <button onClick={openMessage} style={{ borderRadius: t.RADIUS_SM,
-            minWidth: 0, minHeight: 48, padding: '12px 8px', background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, cursor: 'pointer',
-            fontFamily: t.MONO, fontSize: 9.5, lineHeight: 1.15, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800,
-            whiteSpace: 'normal', overflowWrap: 'anywhere',
-          }}>Message</button>
+        <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <button onClick={openIntro} style={{ minHeight: 46, padding: '12px', borderRadius: 999, background: teal, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Book intro · $0</button>
+          <button onClick={openMessage} style={{ minHeight: 46, padding: '12px', borderRadius: 999, background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Message</button>
         </div>
       </div>
 
-      <div className="bs-scroll" style={{
-        padding: `8px ${t.padX}px`,
-        display: 'flex',
-        gap: 6,
-        overflowX: 'auto',
-        borderBottom: `1px solid ${t.RULE}`,
-        background: t.PAPER2,
-        scrollbarWidth: 'none',
-        msOverflowStyle: 'none',
-      }}>
+      <div style={{ display: 'flex', gap: 7, padding: `2px ${t.padX}px 14px`, flexWrap: 'wrap' }}>
         {tabs.map(k => {
           const on = tab === k;
           return (
-            <button key={k} onClick={() => setTab(k)} style={{ borderRadius: t.RADIUS_SM,
-              flex: '1 0 92px',
-              minWidth: 92,
-              padding: '10px 8px',
-              cursor: 'pointer',
-              background: on ? t.INK : t.PAPER,
-              border: `1px solid ${on ? t.INK : t.RULE}`,
-              boxShadow: on ? `2px 2px 0 0 ${t.INK}` : 'none',
-              color: on ? t.PAPER : t.INK70,
-              fontFamily: t.MONO,
-              fontSize: 9,
-              lineHeight: 1.1,
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              fontWeight: 800,
+            <button key={k} onClick={() => setTab(k)} style={{
+              flex: '1 1 0', minWidth: 66, padding: '9px 6px', borderRadius: 999, cursor: 'pointer',
+              border: `1.5px solid ${on ? teal : t.RULE}`,
+              background: on ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent',
+              color: on ? teal : t.INK70,
+              fontFamily: t.MONO, fontSize: 9, lineHeight: 1.1, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 800,
             }}>{k}</button>
           );
         })}
@@ -1158,11 +1120,12 @@ function BSCoachDetailPublic({ coach, onBack }) {
               <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {[...coach.spec, coach.category].filter(Boolean).slice(0, 7).map(s => (
                   <span key={s} style={{
-                    borderRadius: t.RADIUS_SM,
+                    borderRadius: 999,
                     border: `1px solid ${t.RULE}`,
-                    padding: '7px 9px',
+                    background: t.PAPER2,
+                    padding: '6px 11px',
                     fontFamily: t.MONO,
-                    fontSize: 9,
+                    fontSize: 8.5,
                     letterSpacing: '0.11em',
                     textTransform: 'uppercase',
                     color: t.INK70,
@@ -1294,12 +1257,11 @@ function BSCoachDetailPublic({ coach, onBack }) {
         </>
       )}
 
-      <div style={{ padding: `4px ${t.padX}px 18px`, borderTop: `1px solid ${t.RULE}` }}>
-        <button onClick={openIntro} style={{ borderRadius: t.RADIUS_SM,
-          width: '100%', minHeight: 50, padding: '14px 10px', background: t.INK, color: t.PAPER, border: 0, cursor: 'pointer',
-          fontFamily: t.MONO, fontSize: 10, lineHeight: 1.15, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800,
-          whiteSpace: 'normal', overflowWrap: 'anywhere',
-        }}>Start with {p.first}</button>
+      <div style={{ padding: `16px ${t.padX}px 20px` }}>
+        <button onClick={openIntro} style={{ borderRadius: 999,
+          width: '100%', minHeight: 50, padding: '15px 10px', background: teal, color: '#04201d', border: 0, cursor: 'pointer',
+          fontFamily: t.MONO, fontSize: 10.5, lineHeight: 1.15, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800,
+        }}>Start with {p.first} →</button>
       </div>
 
       <BSPublicActionPanel

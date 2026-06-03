@@ -46,6 +46,13 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-03 — coach profile page redesign
+- Rebuilt `BSCoachDetailPublic` to match the app: role-gradient hero card with a
+  circular avatar, tier chip, headline, stat pills + a 3-up mini-stats row; rounded
+  pill tabs (was hard-INK with an offset shadow); rounded teal action + bottom CTAs;
+  rounded specialty pills. Removed the halftone "client view" wireframe banner. All
+  handlers (book / message / checkout / reviews / availability) + the action panel kept.
+
 ### 2026-06-03 — circular avatars + upgrade button wiring
 - `BSAvatar` is now **circular by default** (`round` default true) — all people
   avatars (client + coach headers, chat, feed, settings) are circles. Added an
@@ -103,11 +110,14 @@ changelog whenever something ships.
   War Room updated to reflect the above (routes, config, checklist).
 
 ### Next up (planned)
-- **Marketplace redesign follow-ups** (main screen done — see changelog):
-  - Restyle the coach **detail pages** (`BSCoachDetailPublic` / `BSCoachDetail`) to
-    match the new discovery look — they still use the older hard-bordered style.
-  - Remove now-dead marketplace constants + `ListingRow` (unused after the rebuild).
-  - Confirm pricing semantics (cards show `$rate/mo`).
+- **Client "Library" — save coach content to your profile** (NEW · priority):
+  let clients save to their own profile/library: trainers' **workouts** and **paid
+  plans/programs** (purchasable — needs the sell/checkout flow), and nutritionists'
+  **meals & meal plans**. Needs: a saved-library data model + a client Library screen,
+  "Save" actions on coach/marketplace content, and the trainer "sell a plan" purchase path.
+- **Marketplace follow-ups**: remove now-dead marketplace constants + `ListingRow`
+  (unused after the rebuild); confirm pricing semantics (cards show `$rate/mo`).
+  (Coach detail pages are now redesigned — see changelog.)
 
 ### Known stubs / next
 - Food-database free-text search in the logger (Search tab uses local recents today).
