@@ -57,6 +57,11 @@ changelog whenever something ships.
 - **Note:** in-app **Connect Spotify** already exists — Settings → Connected apps →
   Spotify → Connect (`BSIntegrationsPage`, wired to `connectSpotify` →
   `/api/integrations/spotify/authorize`). Both halves of the sync loop are now live.
+- **Not-linked UX:** when the save fails because Spotify isn't connected (or the
+  member isn't signed in), the popup now shows a tappable **"Connect Spotify to
+  save → Settings · Connected apps"** CTA instead of the raw error. It closes the
+  sheet and fires a `shape:openIntegrations` event that `BSClientAppInner` listens
+  for → opens the integrations page (no prop-threading). Toast is friendlier too.
 
 ### 2026-06-13 — playlist tracklist preview popup
 - Tapping a `BSPlaylistCard` (coach/nutritionist Spotify cards on home/train/eat)
