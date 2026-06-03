@@ -7317,13 +7317,8 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
 
   return (
     <BSPage>
-      <div style={{ padding: `14px ${t.padX}px 0` }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 11px', borderRadius: 999, border: `1px solid ${t.AMBER}66`, background: `${t.AMBER}14` }}>
-          <span style={{ width: 5, height: 5, borderRadius: 999, background: t.AMBER }} />
-          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.AMBER }}>{scoreProfile.tier} tier</span>
-        </span>
-      </div>
       <BSPageHeader
+        kicker={`Member · ${scoreProfile.tier} tier`}
         title={<>{firstName}<br/><span style={{ color: t.ACCENT }}>{lastName}.</span></>}
         trailing={<BSAvatar init="A" size={32} fill={t.RUST} onClick={onProfile} />}
       />
