@@ -439,7 +439,7 @@ function BSPage({ children, tabBarHeight = 80, backdrop = null }) {
       overscrollBehaviorY: 'contain',
       background: backdrop ? 'transparent' : (t.TEXTURE ? `${t.TEXTURE}, ${t.PAPER_BG}` : t.PAPER_BG),
       color: t.INK,
-      paddingBottom: `calc(${tabBarHeight + 12}px + env(safe-area-inset-bottom, 0px))`,
+      paddingBottom: `calc(${tabBarHeight + 2}px + env(safe-area-inset-bottom, 0px))`,
       fontFamily: t.BODY,
       scrollbarWidth: 'none', msOverflowStyle: 'none',
     }}>
@@ -958,7 +958,7 @@ function BSFooter({ left = 'Shape', right }) {
   const t = useBS();
   return (
     <div style={{
-      marginTop: 32, padding: `8px ${t.padX}px 10px`, borderTop: `2px solid ${t.INK}`,
+      padding: `6px ${t.padX}px 6px`, borderTop: `2px solid ${t.INK}`,
       display: 'flex', justifyContent: 'space-between',
       fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50,
     }}>
