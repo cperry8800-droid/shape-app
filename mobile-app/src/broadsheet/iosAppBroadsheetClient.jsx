@@ -2270,11 +2270,46 @@ const bsSpotifyGlyph = (size = 22, fill = '#fff') => (
 function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, tracks }) {
   const t = useBS();
   const [open, setOpen] = useStateBSC(false);
+  const [saveState, setSaveState] = useStateBSC('idle'); // idle | saving | saved | error
+  const [saveMsg, setSaveMsg] = useStateBSC('');
   const list = Array.isArray(tracks) ? tracks : [];
+  const isSpotifyUrl = typeof spotifyUrl === 'string' && /(^|\.)spotify\.com\//i.test(spotifyUrl);
+  // Only genuine Spotify playlist links can be followed into a user's library.
+  const canSaveToSpotify = isSpotifyUrl && /playlist[/:]/i.test(spotifyUrl);
   const openSpotify = () => {
-    const isSpotifyUrl = typeof spotifyUrl === 'string' && /(^|\.)spotify\.com\//i.test(spotifyUrl);
     const url = isSpotifyUrl ? spotifyUrl : `https://open.spotify.com/search/${encodeURIComponent(String(title || 'playlist'))}`;
     try { window.open(url, '_blank', 'noopener,noreferrer'); } catch (e) { try { window.location.href = url; } catch (e2) {} }
+  };
+  // Follow (save) the coach's playlist into the signed-in member's own Spotify
+  // library via /api/integrations/spotify/save-playlist. Native goes through the
+  // bridge (Bearer token); the /m/ web build falls back to a same-origin cookie
+  // call. A missing/expired Spotify connection surfaces as a "connect" message.
+  const saveToSpotify = async () => {
+    if (saveState === 'saving' || saveState === 'saved') return;
+    setSaveState('saving'); setSaveMsg('');
+    try {
+      let done = false;
+      const fn = window.ShapeIntegrations && window.ShapeIntegrations.saveSpotifyPlaylist;
+      if (typeof fn === 'function') {
+        try { await fn(spotifyUrl); done = true; }
+        catch (e) { if (!/not configured|VITE_API_BASE_URL/i.test(e && e.message || '')) throw e; }
+      }
+      if (!done) {
+        const res = await fetch('/api/integrations/spotify/save-playlist', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: spotifyUrl }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Could not save to Spotify.');
+      }
+      setSaveState('saved');
+      try { window.__bsToast && window.__bsToast('Saved to your Spotify', 'ok'); } catch (e) {}
+    } catch (e) {
+      const msg = (e && e.message) || 'Could not save to Spotify.';
+      setSaveState('error'); setSaveMsg(msg);
+      try { window.__bsToast && window.__bsToast(msg, 'error'); } catch (e2) {}
+    }
   };
   // Total track count parsed from the meta line ("… · 14 tracks") so the popup
   // can say "first 6 of 14" when we only carry a preview.
@@ -2308,7 +2343,15 @@ function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, tracks }) {
             </div>
           ))}
         </div>
-        <button onClick={openSpotify} style={{ width: '100%', marginTop: 16, padding: '13px', borderRadius: 999, border: 0, background: color, color: '#04201d', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+        {canSaveToSpotify && (
+          <button onClick={saveToSpotify} disabled={saveState === 'saving'} style={{ width: '100%', marginTop: 16, padding: '13px', borderRadius: 999, border: `1px solid ${color}`, background: saveState === 'saved' ? color : 'transparent', color: saveState === 'saved' ? '#04201d' : color, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: saveState === 'saving' ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            {saveState === 'saved' ? '✓ Saved to Spotify' : saveState === 'saving' ? 'Saving…' : saveState === 'error' ? 'Try again' : '♡ Save to my Spotify'}
+          </button>
+        )}
+        {canSaveToSpotify && saveState === 'error' && saveMsg && (
+          <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.02em', lineHeight: 1.4, textAlign: 'center' }}>{saveMsg}</div>
+        )}
+        <button onClick={openSpotify} style={{ width: '100%', marginTop: canSaveToSpotify ? 8 : 16, padding: '13px', borderRadius: 999, border: 0, background: color, color: '#04201d', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
           {bsSpotifyGlyph(15, '#04201d')} Open in Spotify
         </button>
         <button onClick={() => setOpen(false)} style={{ width: '100%', marginTop: 8, padding: '12px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer' }}>Close</button>
