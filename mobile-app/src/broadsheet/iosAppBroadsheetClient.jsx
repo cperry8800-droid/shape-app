@@ -3121,6 +3121,8 @@ function BSMealPreview({ meal, onBack, onLog }) {
   _bsScrollTopOnMount();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [justLogged, setJustLogged] = useStateBSC(false);
+  const mealLibItem = { id: 'meal:' + String(meal.id || String(meal.title || 'meal').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')), kind: 'meal', title: meal.title, meta: `${meal.kcal} kcal · ${meal.p}P · ${meal.c}C · ${meal.f}F` };
+  const mealSaved = useBSLibrary().some(x => x.id === mealLibItem.id);
   const fmt12 = (hhmm) => { const [h, m] = String(hhmm || '').split(':').map(Number); if (Number.isNaN(h)) return '12:40 PM'; const ap = h >= 12 ? 'PM' : 'AM'; return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${ap}`; };
   if (justLogged) {
     return <BSMealLogged kcal={meal.kcal} p={meal.p} time={fmt12(meal.time)} onDone={onBack} onUndo={() => setJustLogged(false)} />;
@@ -3261,26 +3263,27 @@ function BSMealPreview({ meal, onBack, onLog }) {
         </>
       )}
 
-      {/* CTA row */}
-      <div style={{ padding: `22px ${t.padX}px 18px`, display: 'flex', gap: 8 }}>
-        <button onClick={onBack} style={{ borderRadius: t.RADIUS_SM,
-          padding: '14px 18px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
-          fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
+      {/* CTA row — compact, single-line */}
+      <div style={{ padding: `16px ${t.padX}px 16px`, display: 'flex', gap: 8, alignItems: 'stretch' }}>
+        <button onClick={onBack} style={{ borderRadius: 11,
+          padding: '0 14px', border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK,
+          fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer',
         }}>Close</button>
-        <BSSaveButton item={{ id: 'meal:' + String(meal.id || String(meal.title || 'meal').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')), kind: 'meal', title: meal.title, meta: `${meal.kcal} kcal · ${meal.p}P · ${meal.c}C · ${meal.f}F` }} />
+        <button onClick={() => bsLibToggle(mealLibItem)} style={{ borderRadius: 11,
+          padding: '0 14px', border: `1px solid ${mealSaved ? teal : t.RULE}`, background: mealSaved ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: mealSaved ? teal : t.INK, cursor: 'pointer',
+          fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+        }}>{mealSaved ? '✓ Saved' : '♡ Save'}</button>
         <button onClick={onLog ? onLog : () => setJustLogged(true)} style={{
-          flex: 1, border: 0, borderRadius: 14, background: teal, color: '#04201d', cursor: 'pointer',
-          ...(onLog
-            ? { padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }
-            : { textAlign: 'left', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }),
+          flex: 1, border: 0, borderRadius: 11, background: teal, color: '#04201d', cursor: 'pointer',
+          padding: '9px 14px', display: 'flex', alignItems: 'center', justifyContent: onLog ? 'center' : 'space-between', gap: 8,
         }}>
-          {onLog ? 'Log Now' : (
+          {onLog ? <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Log Now</span> : (
             <>
               <span style={{ minWidth: 0 }}>
-                <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', opacity: 0.65 }}>One tap</span>
-                <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em' }}>Ate it as planned</span>
+                <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', opacity: 0.6 }}>One tap</span>
+                <span style={{ display: 'block', marginTop: 1, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>Ate as planned</span>
               </span>
-              <span style={{ fontSize: 18, fontWeight: 700 }}>✓</span>
+              <span style={{ fontSize: 14, fontWeight: 700 }}>✓</span>
             </>
           )}
         </button>
@@ -8448,11 +8451,53 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         eyebrow="Rewards"
         kicker="Shape Score"
         title={<>Showing<br/>up.</>}
-        trailing={<div style={{ textAlign: 'right' }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 42, lineHeight: 0.9, fontWeight: 700, color: t.INK, letterSpacing: '-0.05em' }}>{scoreTotal.toLocaleString()}</div>
-          <BSEyebrow>{profile.live && profile.nextTier === 'Top tier' ? 'Top tier' : `of ${scoreGoal.toLocaleString()}`}</BSEyebrow>
-        </div>}
       />
+
+      {/* Composite hero — ring (progress to goal) + tier + this-week, above the tiers */}
+      {(() => {
+        const tc = bsTierColor(tier);
+        const pct = scoreGoal ? Math.min(100, Math.round((scoreTotal / scoreGoal) * 100)) : Math.min(100, scoreTotal);
+        const weekTxt = profile.week != null && String(profile.week) !== '' ? String(profile.week) : '+0';
+        const topTier = profile.nextTier === 'Top tier';
+        const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+        const stats = [
+          ['This week', weekTxt],
+          ['Streak', `${streak}d`],
+          topTier ? ['Tier', 'Top'] : [`To ${nextTier}`, pointsToNext.toLocaleString()],
+        ];
+        return (
+          <div style={{ padding: `8px ${t.padX}px 0` }}>
+            <div style={{ borderRadius: 18, border: `1px solid ${t.RULE}`, background: `radial-gradient(130% 120% at 72% 18%, ${tc}24, transparent 55%), ${t.PAPER2}`, padding: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ width: 112, height: 112, borderRadius: 999, flexShrink: 0, background: `conic-gradient(${tc} ${pct * 3.6}deg, ${t.HAIR} 0deg)`, display: 'grid', placeItems: 'center' }}>
+                  <div style={{ width: 88, height: 88, borderRadius: 999, background: t.isLight ? t.PAPER : '#16140f', display: 'grid', placeItems: 'center' }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 2 }}>
+                        <span style={{ fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, color: t.INK, letterSpacing: '-0.04em', lineHeight: 1 }}>{pct}</span>
+                        <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: t.INK50 }}>%</span>
+                      </div>
+                      <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>to goal</div>
+                    </div>
+                  </div>
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, fontStyle: 'italic', color: tc, letterSpacing: '-0.02em', lineHeight: 1 }}>{tier}.</div>
+                  <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: teal }}>{scoreTotal.toLocaleString()} pts · {weekTxt} this week</div>
+                  <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.4 }}>Your composite of training, nutrition, recovery, and consistency.</div>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', marginTop: 14, paddingTop: 12, borderTop: `1px solid ${t.HAIR}` }}>
+                {stats.map(([label, value], i) => (
+                  <div key={label} style={{ textAlign: 'center', borderLeft: i ? `1px solid ${t.HAIR}` : 0 }}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{label}</div>
+                    <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>{value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <BSSection title="Reward tiers" kicker="Monthly points" meta="5 tiers" />
       <div style={{ padding: `0 ${t.padX}px` }}>
@@ -8485,26 +8530,6 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         <BSEyebrow color={t.ACCENT}>How it works</BSEyebrow>
         <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 17, lineHeight: 1.28, color: t.INK, letterSpacing: '-0.015em' }}>
           Every logged workout, tracked meal, kept session, and habit you hit adds up. Climb tiers and spend points on training credits, nutrition services, or Shape merch. No expiry, no gotchas.
-        </div>
-        <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderTop: `2px solid ${t.INK}`, borderBottom: `1px solid ${t.RULE}` }}>
-          {(profile.live
-            ? [
-                ['THIS WK', profile.week, 'Last 7 days'],
-                ['THIS MO', `+${(profile.month || 0).toLocaleString()}`, 'This month'],
-                ['TIER', tier, profile.nextTier === 'Top tier' ? 'Top tier reached' : `${pointsToNext.toLocaleString()} to ${nextTier}`],
-              ]
-            : [
-                ['THIS WK', profile.week || '+36', 'vs 32 last'],
-                ['STREAK', `${streak}d`, 'Personal best 22d'],
-                ['TIER', tier, `${pointsToNext.toLocaleString()} to ${nextTier}`],
-              ]
-          ).map(([label, value, note], i) => (
-            <div key={label} style={{ padding: '10px 8px', borderLeft: i ? `1px solid ${t.RULE}` : 0 }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{label}</div>
-              <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>{value}</div>
-              <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', color: t.INK50, textTransform: 'uppercase' }}>{note}</div>
-            </div>
-          ))}
         </div>
       </div>
 
