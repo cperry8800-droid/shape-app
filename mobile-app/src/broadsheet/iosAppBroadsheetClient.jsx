@@ -9540,6 +9540,18 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [capacity, setCapacityState] = useStateBSC(null);
   const [capacityBusy, setCapacityBusy] = useStateBSC(false);
   const isCoachRole = tweaks.role === 'trainer' || tweaks.role === 'nutritionist';
+  // Accounts/roles this person actually created — the Profile-mode switcher only
+  // shows for people with more than one, and only lists the ones they made.
+  const accountRoles = (() => {
+    const p = window.ShapeAuth?.getCachedState?.()?.profile;
+    const raw = p && Array.isArray(p.roles) ? p.roles : [];
+    const norm = raw
+      .map(x => String(x || '').toLowerCase())
+      .map(x => (x === 'nutrition' ? 'nutritionist' : x))
+      .filter(x => x === 'client' || x === 'trainer' || x === 'nutritionist');
+    return Array.from(new Set(norm));
+  })();
+  const hasMultipleAccounts = accountRoles.length > 1;
   React.useEffect(() => {
     // Booking capacity is a coach-only control — never load it for clients.
     if (!isCoachRole) { setCapacityState(null); return undefined; }
@@ -10035,30 +10047,39 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         );
       })()}
 
-      {/* PROFILE MODE — switch between Client / Trainer / Nutritionist views */}
-      <SectionHead
-        title="Profile mode"
-        meta={(tweaks.role || 'client') === 'client' ? 'Client view' : (tweaks.role === 'trainer' ? 'Trainer view' : 'Nutritionist view')}
-      />
-      <div style={{ padding: `14px ${t.padX}px 18px` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8, fontWeight: 700 }}>
-          Active profile
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {[['client', 'Client'], ['trainer', 'Trainer'], ['nutritionist', 'Nutrition']].map(([key, label]) => {
-            const on = (tweaks.role || 'client') === key;
-            return (
-              <button key={key} onClick={() => setTweak('role', key)} style={{ borderRadius: t.RADIUS_SM,
-                flex: 1, padding: '9px 9px', cursor: 'pointer',
-                border: `1px solid ${on ? t.INK : t.RULE}`,
-                background: on ? t.INK : 'transparent',
-                color: on ? t.PAPER : t.INK,
-                fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
-              }}>{label}</button>
-            );
-          })}
-        </div>
-      </div>
+      {/* PROFILE MODE — only for people with more than one account; lists just
+          the roles they actually created so they can switch between them. */}
+      {hasMultipleAccounts && (() => {
+        const ROLE_LABELS = { client: 'Client', trainer: 'Trainer', nutritionist: 'Nutrition' };
+        const activeRole = accountRoles.includes(tweaks.role) ? tweaks.role : accountRoles[0];
+        return (
+          <>
+            <SectionHead
+              title="Profile mode"
+              meta={`${ROLE_LABELS[activeRole] || 'Client'} view`}
+            />
+            <div style={{ padding: `14px ${t.padX}px 18px` }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8, fontWeight: 700 }}>
+                Active profile
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {accountRoles.map(key => {
+                  const on = activeRole === key;
+                  return (
+                    <button key={key} onClick={() => setTweak('role', key)} style={{ borderRadius: t.RADIUS_SM,
+                      flex: 1, padding: '9px 9px', cursor: 'pointer',
+                      border: `1px solid ${on ? t.INK : t.RULE}`,
+                      background: on ? t.INK : 'transparent',
+                      color: on ? t.PAPER : t.INK,
+                      fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                    }}>{ROLE_LABELS[key] || key}</button>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {/* APPEARANCE */}
       <button onClick={() => setShowAppearance(v => !v)} aria-expanded={showAppearance} style={{
