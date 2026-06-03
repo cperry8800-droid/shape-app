@@ -59,6 +59,14 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => window.removeEventListener('shape:openIntegrations', open);
   }, []);
 
+  // Jump to the marketplace from anywhere (e.g. the Pricing page's "Browse all
+  // coaches"). Settings is a full-screen takeover, so close it first.
+  React.useEffect(() => {
+    const open = () => { setShowSettings(false); setSettingsStart(''); goMarket(); };
+    window.addEventListener('shape:openMarket', open);
+    return () => window.removeEventListener('shape:openMarket', open);
+  }, []);
+
   if (showSettings) {
     return (
       <BSSettings
@@ -7639,37 +7647,37 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
         const RAD = 34, CIRC = 2 * Math.PI * RAD;
         const tierC = bsTierColor(scoreProfile.tier);
         return (
-          <div style={{ padding: `16px ${t.padX}px 6px` }}>
+          <div style={{ padding: `14px ${t.padX}px 4px` }}>
             <button onClick={() => setShowScore(true)} style={{
               width: '100%', textAlign: 'left', cursor: 'pointer', color: t.INK,
-              border: `1px solid ${t.RULE}`, borderRadius: 18,
+              border: `1px solid ${t.RULE}`, borderRadius: 16,
               background: t.PAPER2,
-              padding: 18,
+              padding: 14,
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Shape Score</div>
-                  <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: tierC, lineHeight: 1 }}>{scoreProfile.tier}<span style={{ marginLeft: 8, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', verticalAlign: '2px' }}>tier</span></div>
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, marginTop: 10 }}>
-                    <span style={{ fontFamily: t.DISPLAY, fontSize: 46, fontWeight: 700, lineHeight: 0.9, letterSpacing: '-0.04em' }}>{total.toLocaleString()}</span>
-                    <span style={{ fontFamily: t.DISPLAY, fontSize: 16, color: t.INK50, marginBottom: 5 }}>of {goal.toLocaleString()}</span>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Shape Score</div>
+                  <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, letterSpacing: '-0.03em', color: tierC, lineHeight: 1 }}>{scoreProfile.tier}<span style={{ marginLeft: 7, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', verticalAlign: '2px' }}>tier</span></div>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, marginTop: 6 }}>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 37, fontWeight: 700, lineHeight: 0.9, letterSpacing: '-0.04em' }}>{total.toLocaleString()}</span>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 13, color: t.INK50, marginBottom: 4 }}>of {goal.toLocaleString()}</span>
                   </div>
-                  <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: tierC, fontWeight: 700 }}>{scoreProfile.week} this week · {(scoreProfile.pointsToNext || 0).toLocaleString()} to {scoreProfile.nextTier}</div>
+                  <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: tierC, fontWeight: 700 }}>{scoreProfile.week} this week · {(scoreProfile.pointsToNext || 0).toLocaleString()} to {scoreProfile.nextTier}</div>
                 </div>
-                <svg width="84" height="84" viewBox="0 0 84 84" style={{ flexShrink: 0 }}>
+                <svg width="68" height="68" viewBox="0 0 84 84" style={{ flexShrink: 0 }}>
                   <circle cx="42" cy="42" r={RAD} fill="none" stroke={t.HAIR} strokeWidth="6" />
                   <circle cx="42" cy="42" r={RAD} fill="none" stroke={tierC} strokeWidth="6" strokeLinecap="round" strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - pct)} transform="rotate(-90 42 42)" />
                   <text x="42" y="43" textAnchor="middle" dominantBaseline="central" style={{ fontFamily: t.DISPLAY, fontSize: '17px', fontWeight: 700, fill: t.INK }}>{Math.round(pct * 100)}%</text>
                 </svg>
               </div>
-              <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 9 }}>
+              <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {cats.map(c => (
-                  <div key={c.k} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ width: 96, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70, fontWeight: 600 }}>{c.k}</div>
-                    <div style={{ flex: 1, height: 5, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}>
+                  <div key={c.k} style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+                    <div style={{ width: 86, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70, fontWeight: 600 }}>{c.k}</div>
+                    <div style={{ flex: 1, height: 4, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}>
                       <div style={{ width: `${c.v}%`, height: '100%', background: t.ACCENT, borderRadius: 999 }} />
                     </div>
-                    <div style={{ width: 26, textAlign: 'right', fontFamily: t.MONO, fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{c.v}</div>
+                    <div style={{ width: 24, textAlign: 'right', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{c.v}</div>
                   </div>
                 ))}
               </div>
@@ -9338,6 +9346,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showTerms, setShowTerms] = useStateBSC(false);
   const [showHelp, setShowHelp] = useStateBSC(false);
   const [showPrivacy, setShowPrivacy] = useStateBSC(false);
+  const [showAbout, setShowAbout] = useStateBSC(initialPage === 'about-shape');
+  const [showPricing, setShowPricing] = useStateBSC(initialPage === 'pricing');
   const [showSessions, setShowSessions] = useStateBSC(false);
   const [showNotifications, setShowNotifications] = useStateBSC(false);
   const [showIntegrations, setShowIntegrations] = useStateBSC(initialPage === 'integrations');
@@ -9739,6 +9749,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   if (showPrivacy) {
     return <BSPrivacyPage onBack={() => setShowPrivacy(false)} onContact={() => { setShowPrivacy(false); setShowContact(true); }} />;
   }
+  if (showAbout) {
+    return <BSAboutPage onBack={() => setShowAbout(false)} />;
+  }
+  if (showPricing) {
+    return <BSPricingPage onBack={() => setShowPricing(false)} />;
+  }
   if (showSessions) {
     return <BSSessionsScreen onBack={() => setShowSessions(false)} />;
   }
@@ -9813,6 +9829,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       title: 'About',
       meta: 'v6.38.2',
       rows: [
+        { l: 'About Shape',     r: 'Our story', action: () => setShowAbout(true) },
+        { l: 'Pricing',         r: '$5 / mo', action: () => setShowPricing(true) },
         { l: 'Help center',     r: 'Visit', action: () => setShowHelp(true) },
         { l: 'Contact support', r: '24h reply', action: () => setShowContact(true) },
         { l: 'Terms of service',r: 'Legal', action: () => setShowTerms(true) },
@@ -10457,6 +10475,202 @@ function BSContactPage({ onBack }) {
       </div>
 
       <BSFooter right="Contact" />
+    </BSPage>
+  );
+}
+
+// Start the $5/mo Shape Platform checkout (shared by the Pricing page + the
+// settings upgrade button). Signed out → account gate / Stripe 401 hint.
+async function bsStartPlatformCheckout() {
+  if (window.bsRequireAccount && !window.bsRequireAccount('become a Shape member')) return;
+  try {
+    const res = await fetch('/api/stripe/platform-checkout', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ successPath: '/m/', cancelPath: '/m/' }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.url) window.location.href = data.url;
+    else if (res.status === 401) { if (window.__bsGoAuth) window.__bsGoAuth('create'); else window.__bsToast?.('Create an account to become a Shape member', 'info'); }
+    else window.__bsToast?.(data?.error || 'Checkout unavailable right now', 'err');
+  } catch (e) { window.__bsToast?.('Checkout unavailable right now', 'err'); }
+}
+
+// About — the marketing "About" page, adapted to the broadsheet (mirrors the
+// website /newdesign/About).
+function BSAboutPage({ onBack }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const letter = [
+    "Shape is about exactly what its name suggests — shaping your life into what you want it to be. Your routines, your sleep, what you cook, the music that moves you, the people you spend Saturday with. We built Shape to be the place where you can work on all of it, on your own terms.",
+    "It starts with a coach. Having great ones shouldn't be a luxury. Most apps replace them with chatbots; most gyms gate the good ones behind packages. We open the door for trainers, nutritionists, and registered dietitians who actually care — and make that level of guidance affordable.",
+    "Your trainer programs your week before you arrive. Your nutritionist builds a meal plan around your goals, and it turns into a grocery list you can shop from. As you show up — day after day — your Shape Score rises with you. Not a vanity metric. A mirror.",
+    "And then there's the part no app gets right: the community. Keep your journey private — or share it. What you cooked, what you lifted, what your coach said. A whole feed of people figuring out the same things you are.",
+  ];
+  const pillars = [
+    ["Personal coaching, lower cost", "Browse, message, and hire vetted trainers and nutritionists before you pay anything. $5/mo flat to the platform — your coach sets their own rate and gets paid directly."],
+    ["A real community", "Share your week if you want to — or don't. Either way, find tips, recipes, recommended coaches, and people who get what you're trying to do."],
+    ["Shape Radio + the soundtrack", "Ad-free mixes built for movement, included with every membership. Your coach can drop a playlist onto a workout and it plays right on the card."],
+    ["Lifestyle, structured", "Habit tracking, grocery lists that build themselves, meal plans you actually follow, and a Shape Score that reads the truth at the end of the week."],
+    ["Goals that are yours", "Tell us what you're shaping toward — strength, sleep, calm, a marathon, just feeling like yourself again. We plan around it and your coach holds the line."],
+    ["Public if you want, private always", "Your data is yours. Share progress with the community when you feel like it. Keep it locked when you don't. No algorithm pushing you to overshare."],
+  ];
+  return (
+    <BSPage>
+      <BSDetailHeader
+        onBack={onBack}
+        eyebrow="Shape"
+        kicker="About"
+        title={<>A place to<br/>shape a life.</>}
+        trailing={<BSAvatar init="S" size={36} fill={t.INK} ink={t.PAPER} />}
+      />
+      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontStyle: 'italic', fontWeight: 500, lineHeight: 1.45, color: t.INK }}>
+          Your trainer mapped the next few weeks. Your nutritionist's plan became a grocery list before you asked. Open the workout card and the music starts. Shape Score watches all of it. Nobody here is finished — that's the point.
+        </div>
+      </div>
+
+      <BSSection title="Fitness is the entry point" meta="A letter" />
+      <div style={{ padding: `6px ${t.padX}px 2px` }}>
+        {letter.map((p, i) => (
+          <p key={i} style={{ fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.62, color: t.INK70, margin: '0 0 14px' }}>{p}</p>
+        ))}
+        <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, color: t.INK50, margin: '2px 0 4px' }}>— The Shape team</div>
+      </div>
+
+      <BSSection title="One place for the whole loop" meta="What you get" />
+      <div style={{ padding: `0 ${t.padX}px` }}>
+        {pillars.map(([h, p], i, arr) => (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '34px 1fr', gap: 12, padding: `${t.rowY + 7}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.12em', color: teal, fontWeight: 900 }}>{String(i + 1).padStart(2, '0')}</div>
+            <div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontStyle: 'italic', fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>{h}</div>
+              <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK70, lineHeight: 1.45 }}>{p}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ padding: `26px ${t.padX}px 32px`, textAlign: 'center' }}>
+        <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 30, fontWeight: 600, letterSpacing: '-0.03em', color: t.INK }}>Come <span style={{ color: teal }}>shape</span> with us.</div>
+      </div>
+      <BSFooter right="About" />
+    </BSPage>
+  );
+}
+
+// Pricing — the $5/mo membership page, adapted to the broadsheet (mirrors the
+// website /newdesign/Pricing). "Browse all coaches" hops to the marketplace via
+// a global event (settings is a full-screen takeover, so we close it first).
+function BSPricingPage({ onBack }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const [open, setOpen] = useStateBSC(0);
+  const features = [
+    'Browse all trainers & nutritionists',
+    'Subscribe to any trainer or nutritionist',
+    'Buy individual workout & meal plans',
+    'Direct messaging with your pros',
+    'Full progress tracking & analytics',
+    'Nutrition schedule & macro tracking',
+    'Community forum access',
+    'Shape Radio — ad-free workout music',
+  ];
+  const coaches = [
+    { role: 'Trainer', name: 'Maya Okafor', meta: 'Brooklyn · Strength · hypertrophy', price: '$120', cadence: '/mo', avg: '$60–150 / session avg' },
+    { role: 'Nutritionist', name: 'Rae Lindqvist', meta: 'Lisbon · Endurance · plant-based', price: '$180', cadence: '/mo', avg: '$120–250 / consult avg' },
+    { role: 'Trainer', name: 'Diego Alvarez', meta: 'Mexico City · Run coaching · mobility', price: '$95', cadence: '/mo', avg: '$60–150 / session avg' },
+  ];
+  const faq = [
+    { q: 'What do I get for $5/month?', a: "Full platform access — browse trainers and nutritionists, message your pros, track progress, log meals, listen to Shape Radio ad-free, and join the community. The $5 is the Shape Platform fee. Anything you buy from an individual coach is separate and goes directly to them." },
+    { q: 'Do I have to subscribe to a coach?', a: "No. For $5/mo you can browse, message, buy one-off plans, and use the community. Many members only buy workouts or meal plans à la carte; others subscribe to one or more coaches for ongoing programming." },
+    { q: 'How much do coaches cost?', a: "Each pro sets their own price. Trainers typically run $60–150 per session or $80–250/mo for full programming. Nutritionists run $120–250 per consult or $120–300/mo for plans + reviews. You see each rate on their profile before you subscribe." },
+    { q: 'Can I cancel any time?', a: "Yes — the $5/mo cancels instantly from your settings, and coach subscriptions cancel on the same screen. No penalties, no lock-in. Your data and training history stay with you." },
+    { q: 'Do coaches pay to be on Shape?', a: "No monthly dues, no setup fees. Shape takes a 15% platform fee on what clients pay you — you only pay when you earn. Standard card processing is separate." },
+    { q: 'Is Shape Radio really included?', a: "Yes — ad-free workout mixes, BPM-curated stations, live resident DJ sets. Part of the $5/mo, offline downloads included. No upsell." },
+  ];
+  const browseCoaches = () => { try { window.dispatchEvent(new CustomEvent('shape:openMarket')); } catch (e) {} };
+  return (
+    <BSPage>
+      <BSDetailHeader
+        onBack={onBack}
+        eyebrow="Pricing"
+        kicker="Membership"
+        title={<>Five dollars<br/>a month.</>}
+        trailing={<BSAvatar init="$" size={36} fill={t.INK} ink={t.PAPER} />}
+      />
+      <div style={{ padding: `16px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 500, lineHeight: 1.42, color: t.INK }}>
+          One flat platform fee. Browse every trainer and nutritionist before paying anything, message your pros, track progress, log meals, listen to Shape Radio. Coaches set their own rates — you pay them directly, cancel any time.
+        </div>
+      </div>
+
+      {/* $5/mo card */}
+      <div style={{ padding: `16px ${t.padX}px 4px` }}>
+        <div style={{ border: `1px solid ${t.RULE}`, borderRadius: 16, overflow: 'hidden', background: t.PAPER2 }}>
+          <div style={{ position: 'relative', padding: '20px 18px 18px', borderBottom: `1px solid ${t.RULE}` }}>
+            <div style={{ position: 'absolute', top: 18, right: 16, background: teal, color: '#04201d', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', padding: '5px 8px', borderRadius: 999 }}>INCL. SHAPE RADIO</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Shape Platform</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 6 }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 60, fontWeight: 700, lineHeight: 0.85, letterSpacing: '-0.05em', color: t.INK }}>$5</span>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>/month</span>
+            </div>
+            <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK70, lineHeight: 1.4 }}>What every Shape client pays to use the platform. Your coach's rate is separate and paid directly to them.</div>
+            <button onClick={bsStartPlatformCheckout} style={{ marginTop: 16, width: '100%', padding: '13px', borderRadius: 999, border: 0, background: teal, color: '#04201d', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>Get started →</button>
+            <div style={{ marginTop: 9, textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', color: t.INK50 }}>Cancel any time · no commitments</div>
+          </div>
+          <div style={{ padding: '16px 18px 18px' }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, fontWeight: 700, marginBottom: 12 }}>What's included</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+              {features.map((f, i) => (
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '16px 1fr', gap: 10, alignItems: 'start' }}>
+                  <span style={{ color: teal, fontSize: 12, fontWeight: 800 }}>✓</span>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, lineHeight: 1.35 }}>{f}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Coaches price themselves */}
+      <BSSection title="Coaches price themselves" meta="Pay them directly" />
+      <div style={{ padding: `2px ${t.padX}px 0` }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.45, marginBottom: 8 }}>Subscribe monthly for ongoing programming, or buy one-off plans and sessions à la carte. Every rate is visible on the coach's profile before you commit.</div>
+        {coaches.map((c, i, arr) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: `${t.rowY + 6}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: c.role === 'Nutritionist' ? '#a07a2e' : '#c0533b', fontWeight: 800 }}>{c.role}</div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', marginTop: 1 }}>{c.name}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2, letterSpacing: '0.04em' }}>{c.meta}</div>
+            </div>
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{c.price}<span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 600 }}>{c.cadence}</span></div>
+              <div style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50, marginTop: 2 }}>{c.avg}</div>
+            </div>
+          </div>
+        ))}
+        <button onClick={browseCoaches} style={{ marginTop: 12, width: '100%', padding: '12px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>Browse all coaches →</button>
+      </div>
+
+      {/* FAQ */}
+      <BSSection title="Things people actually ask" meta="FAQ" />
+      <div style={{ padding: `0 ${t.padX}px` }}>
+        {faq.map((f, i, arr) => (
+          <div key={i} style={{ borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, padding: `${t.rowY + 4}px 0` }}>
+            <button onClick={() => setOpen(open === i ? -1 : i)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', padding: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14 }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{f.q}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 16, color: teal, transition: 'transform .2s', transform: open === i ? 'rotate(45deg)' : 'none', lineHeight: 1 }}>+</span>
+            </button>
+            {open === i && <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.5 }}>{f.a}</div>}
+          </div>
+        ))}
+      </div>
+
+      <div style={{ padding: `22px ${t.padX}px 30px` }}>
+        <button onClick={bsStartPlatformCheckout} style={{ width: '100%', padding: '14px', borderRadius: 999, border: 0, background: t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer' }}>$5 / mo — Get started →</button>
+      </div>
+      <BSFooter right="Pricing" />
     </BSPage>
   );
 }

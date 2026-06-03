@@ -46,7 +46,16 @@ changelog whenever something ships.
 
 ## Changelog
 
-### 2026-06-13 — "Save to my Spotify" from the tracklist preview
+### 2026-06-13 — About + Pricing pages (mobile) & compact score card
+- New **`BSAboutPage`** and **`BSPricingPage`** in the client module, adapting the
+  website's `/newdesign/About` + `/Pricing` into the broadsheet (serif hero, letter,
+  numbered pillars; $5/mo card with feature checklist, "coaches price themselves"
+  rows, FAQ accordion). Reachable from **Settings → About** (new "About Shape" +
+  "Pricing" rows). `bsStartPlatformCheckout()` helper (shared with the upgrade
+  button) drives Get-started; "Browse all coaches" fires a `shape:openMarket` event
+  that `BSClientAppInner` listens for (closes settings → opens marketplace).
+- **Me-page Shape Score card compacted** (~20% tighter): padding 18→14, tier 28→23,
+  number 46→37, ring 84→68px, slimmer metric bars (h5→4, gaps tightened).
 - The playlist preview popup (`BSPlaylistCard`) now has a **♡ Save to my Spotify**
   button (shown only for genuine `spotify.com/playlist/...` links — not Apple Music)
   that *follows* the coach's playlist into the signed-in member's own Spotify
