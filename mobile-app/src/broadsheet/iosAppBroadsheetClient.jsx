@@ -1405,7 +1405,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                   style={{
                     width: '100%',
                     display: 'grid',
-                    gridTemplateColumns: '52px 40px 1fr auto',
+                    gridTemplateColumns: '28px 40px 1fr auto',
                     alignItems: 'center',
                     gap: 10,
                     padding: `${t.rowY}px 0`,
@@ -1429,7 +1429,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                     letterSpacing: '-0.01em',
                     fontWeight: next ? 700 : 500,
                     fontVariantNumeric: 'tabular-nums',
-                  }}>{row.time}</span>
+                  }}>{i + 1}</span>
                   {row.tag ? (
                     <span style={{
                       fontFamily: t.MONO,
@@ -8925,6 +8925,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showNotifications, setShowNotifications] = useStateBSC(false);
   const [showIntegrations, setShowIntegrations] = useStateBSC(initialPage === 'integrations');
   const [showAppearance, setShowAppearance] = useStateBSC(false);
+  const [detail, setDetail] = useStateBSC(''); // '' = settings page; else a drill-in card pane
   const [showScore, setShowScore] = useStateBSC(false);
   const [showStore, setShowStore] = useStateBSC(false);
   const [showProgress, setShowProgress] = useStateBSC(false);
@@ -9138,6 +9139,112 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     </div>
   );
 
+  // Line icons for the section cards.
+  const Icon = ({ name, color }) => {
+    const c = color || t.INK;
+    const paths = {
+      user: <><circle cx="12" cy="8" r="3.4" /><path d="M5.5 19c.8-3.3 3.4-5 6.5-5s5.7 1.7 6.5 5" /></>,
+      bell: <><path d="M6 9a6 6 0 1 1 12 0c0 4 1.2 5.5 2 6.5H4c.8-1 2-2.5 2-6.5Z" /><path d="M10 19a2 2 0 0 0 4 0" /></>,
+      lock: <><rect x="5" y="10.5" width="14" height="9" rx="2" /><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></>,
+      sliders: <><path d="M4 7h16M4 12h16M4 17h16" /><circle cx="9" cy="7" r="2" fill={c} stroke="none" /><circle cx="15" cy="12" r="2" fill={c} stroke="none" /><circle cx="8" cy="17" r="2" fill={c} stroke="none" /></>,
+      link: <><path d="M9 15l6-6" /><path d="M11 6.5l1-1a3.5 3.5 0 0 1 5 5l-1 1" /><path d="M13 17.5l-1 1a3.5 3.5 0 0 1-5-5l1-1" /></>,
+      life: <><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3.2" /><path d="M14.3 9.7 17 7M9.7 9.7 7 7M14.3 14.3 17 17M9.7 14.3 7 17" /></>,
+      shield: <><path d="M12 3.5 19 6v5c0 4.5-3 8-7 9.5C8 19 5 15.5 5 11V6Z" /><path d="m9 12 2 2 4-4" /></>,
+    };
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        {paths[name] || paths.user}
+      </svg>
+    );
+  };
+
+  const HubCard = ({ icon, title, summary, onClick, accent }) => (
+    <button onClick={onClick} style={{
+      width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+      padding: '11px 12px', borderRadius: 14, cursor: 'pointer', textAlign: 'left',
+      border: `1px solid ${t.RULE}`, background: t.PAPER2,
+    }}>
+      <span style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 11, border: `1px solid ${t.RULE}`, background: t.PAPER, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name={icon} color={accent || t.INK} />
+      </span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{title}</span>
+        {summary ? <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{summary}</span> : null}
+      </span>
+      <span style={{ flexShrink: 0, color: t.INK50, fontSize: 20, fontFamily: t.DISPLAY, lineHeight: 1 }}>›</span>
+    </button>
+  );
+
+  const DetailBack = ({ title }) => (
+    <>
+      <div style={{ padding: `52px ${t.padX}px 2px` }}>
+        <button onClick={() => setDetail('')} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← Settings</button>
+      </div>
+      <div style={{ padding: `12px ${t.padX}px 6px` }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>{title}</div>
+      </div>
+    </>
+  );
+
+  // Shared row renderer (dropdown / segmented / link rows) for the detail panes.
+  const renderRows = (rows) => (
+    <div style={{ padding: `4px ${t.padX}px` }}>
+      {rows.map((s, i, arr) => {
+        const rowBorder = i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`;
+        if (s.dropdown) {
+          return (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: `${t.rowY + 4}px 0`, borderBottom: rowBorder }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', flexShrink: 0 }}>{s.l}</span>
+              <select value={prefs[s.key]} onChange={(e) => setPref(s.key, e.target.value)} style={{
+                maxWidth: '64%', textAlign: 'right', textAlignLast: 'right',
+                appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
+                border: 0, background: 'transparent', outline: 'none', padding: 0, cursor: 'pointer',
+                color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
+              }}>
+                {s.dropdown.map((opt) => (
+                  <option key={opt} value={opt} style={{ color: '#000', textTransform: 'none', letterSpacing: 0 }}>{opt}</option>
+                ))}
+              </select>
+            </div>
+          );
+        }
+        if (s.segmented) {
+          return (
+            <div key={i} style={{ padding: `${t.rowY + 4}px 0`, borderBottom: rowBorder }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em' }}>{s.l}</span>
+              <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                {s.segmented.map((opt, j) => {
+                  const on = prefs[s.key] === opt;
+                  return (
+                    <button key={opt} onClick={() => setPref(s.key, opt)} style={{ borderRadius: t.RADIUS_SM,
+                      flex: 1, padding: '9px 8px', cursor: 'pointer',
+                      border: `1px solid ${on ? t.INK : t.RULE}`,
+                      background: on ? t.INK : 'transparent',
+                      color: on ? t.PAPER : t.INK,
+                      fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+                    }}>{(s.segLabels && s.segLabels[j]) || opt}</button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
+        const value = s.key ? prefs[s.key] : s.r;
+        const onTap = s.key ? () => cyclePref(s.key, s.l) : (s.action || undefined);
+        return (
+          <div key={i} onClick={onTap} style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+            padding: `${t.rowY + 4}px 0`, borderBottom: rowBorder,
+            cursor: (s.action || (s.key && !s.segmented && !s.dropdown)) ? 'pointer' : 'default',
+          }}>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em', flexShrink: 0 }}>{s.l}</span>
+            {value && <BSEyebrow color={s.key ? t.ACCENT : undefined}>{value}</BSEyebrow>}
+          </div>
+        );
+      })}
+    </div>
+  );
+
   if (showContact) {
     return <BSContactPage onBack={() => setShowContact(false)} />;
   }
@@ -9232,8 +9339,47 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     },
   ];
 
+  const findSec = (title) => sections.find(s => s.title === title) || { rows: [] };
+  const notifOn = ['workoutReminders', 'coachReplies', 'weeklyDigest', 'community'].filter(k => prefs[k] !== 'Off').length;
+  const accountActionRows = [
+    { l: 'Export all my data', r: 'Request file', act: 'Export' },
+    { l: 'Pause membership', r: 'Keep account', act: 'Pause' },
+    { l: 'Delete account', r: 'Permanent', act: 'Delete', alert: true },
+  ];
+  const settingCards = [
+    { icon: 'user',    title: 'Account',            summary: 'Email · password · 2FA',                                            detail: 'account' },
+    { icon: 'link',    title: 'Health integrations', summary: 'Apple Health · WHOOP · Strava',                                     detail: 'health' },
+    { icon: 'bell',    title: 'Notifications',       summary: `${notifOn} of 4 active`,                                            detail: 'notifications' },
+    { icon: 'sliders', title: 'Preferences',         summary: `${prefs.units.split(' ')[0]} · ${prefs.language.split(' ')[0]} · ${prefs.weekStarts}`, detail: 'preferences' },
+    { icon: 'lock',    title: 'Privacy & data',      summary: `Profile · ${prefs.profileVisibility}`,                             detail: 'privacy' },
+    { icon: 'life',    title: 'About',               summary: 'Help · contact · legal',                                           detail: 'about' },
+    { icon: 'shield',  title: 'Account actions',     summary: 'Export · pause · delete',                                          detail: 'accountactions', accent: t.RUST },
+  ];
+
   return (
     <BSPage tabBarHeight={0}>
+
+      {/* ── DRILL-IN CARD PANES ── */}
+      {detail === 'account' && (<><DetailBack title="Account" />{renderRows(findSec('Account').rows)}</>)}
+      {detail === 'health' && (<><DetailBack title="Health integrations" />{renderRows(findSec('Health integrations').rows)}</>)}
+      {detail === 'notifications' && (<><DetailBack title="Notifications" />{renderRows(findSec('Notifications').rows)}</>)}
+      {detail === 'preferences' && (<><DetailBack title="Preferences" />{renderRows(findSec('Preferences').rows)}</>)}
+      {detail === 'privacy' && (<><DetailBack title="Privacy & data" />{renderRows(findSec('Privacy & data').rows)}</>)}
+      {detail === 'about' && (<><DetailBack title="About" />{renderRows(findSec('About').rows)}</>)}
+      {detail === 'accountactions' && (<>
+        <DetailBack title="Account actions" />
+        <div style={{ padding: `4px ${t.padX}px` }}>
+          {accountActionRows.map((s, i, arr) => (
+            <div key={i} onClick={() => requestAccountAction(s.act)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: `${t.rowY + 4}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em' }}>{s.l}</span>
+              {s.r && <BSEyebrow>{s.r}</BSEyebrow>}
+            </div>
+          ))}
+        </div>
+      </>)}
+
+      {/* ── SETTINGS PAGE ── */}
+      {!detail && (<>
       <div style={{ padding: `52px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← Back</button>
         <button onClick={startEdit} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.ACCENT }}>Edit</button>
@@ -9591,99 +9737,22 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         })}
       </div>
 
-      {sections.map(sec => (
-        <div key={sec.title}>
-          <SectionHead title={sec.title} meta={sec.meta} />
-          <div style={{ padding: `0 ${t.padX}px` }}>
-            {sec.rows.map((s, i, arr) => {
-              const rowBorder = i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`;
-              // Dropdown rows — native select for long option lists (e.g. time zone).
-              if (s.dropdown) {
-                return (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: `${t.rowY + 4}px 0`, borderBottom: rowBorder }}>
-                    <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', flexShrink: 0 }}>{s.l}</span>
-                    <select value={prefs[s.key]} onChange={(e) => setPref(s.key, e.target.value, s.l)} style={{
-                      maxWidth: '64%', textAlign: 'right', textAlignLast: 'right',
-                      appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
-                      border: 0, background: 'transparent', outline: 'none', padding: 0, cursor: 'pointer',
-                      color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
-                    }}>
-                      {s.dropdown.map((opt) => (
-                        <option key={opt} value={opt} style={{ color: '#000', textTransform: 'none', letterSpacing: 0 }}>{opt}</option>
-                      ))}
-                    </select>
-                  </div>
-                );
-              }
-              // Segmented toggle rows — pick a value directly instead of cycling.
-              if (s.segmented) {
-                return (
-                  <div key={i} style={{ padding: `${t.rowY + 4}px 0`, borderBottom: rowBorder }}>
-                    <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em' }}>{s.l}</span>
-                    <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-                      {s.segmented.map((opt, j) => {
-                        const on = prefs[s.key] === opt;
-                        return (
-                          <button key={opt} onClick={() => setPref(s.key, opt, s.l)} style={{ borderRadius: t.RADIUS_SM,
-                            flex: 1, padding: '9px 8px', cursor: 'pointer',
-                            border: `1px solid ${on ? t.INK : t.RULE}`,
-                            background: on ? t.INK : 'transparent',
-                            color: on ? t.PAPER : t.INK,
-                            fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap',
-                          }}>{(s.segLabels && s.segLabels[j]) || opt}</button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              }
-              const value = s.key ? prefs[s.key] : s.r;
-              const onTap = s.key
-                ? () => cyclePref(s.key, s.l)
-                : (s.action || (s.alert && s.l === 'Sign out' ? onLogout : undefined));
-              return (
-                <div key={i} onClick={onTap} style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-                  padding: `${t.rowY + 4}px 0`,
-                  borderBottom: rowBorder,
-                  cursor: (s.alert || s.action || s.key) ? 'pointer' : 'default',
-                }}>
-                  <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em', flexShrink: 0 }}>{s.l}</span>
-                  {value && <BSEyebrow color={s.key ? t.ACCENT : undefined}>{value}</BSEyebrow>}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-
-      {/* Account actions — danger zone */}
-      <SectionHead title="Account actions" meta="Danger zone" />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        {[
-          { l: 'Export all my data', r: 'Request file', act: 'Export' },
-          { l: 'Pause membership', r: 'Keep account', act: 'Pause' },
-          { l: 'Delete account', r: 'Permanent', act: 'Delete', alert: true },
-        ].map((s, i, arr) => (
-          <div key={i} onClick={() => requestAccountAction(s.act)} style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: `${t.rowY + 4}px 0`,
-            borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-            cursor: 'pointer',
-          }}>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em' }}>{s.l}</span>
-            {s.r && <BSEyebrow>{s.r}</BSEyebrow>}
-          </div>
+      {/* SECTION CARDS — drill into a focused pane */}
+      <SectionHead title="More" meta={`${settingCards.length} sections`} />
+      <div style={{ padding: `8px ${t.padX}px 10px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {settingCards.map(c => (
+          <HubCard key={c.title} icon={c.icon} title={c.title} summary={c.summary} accent={c.accent} onClick={() => setDetail(c.detail)} />
         ))}
       </div>
 
       {/* Sign out — pushed down with breathing room before the footer */}
-      <div style={{ padding: `44px ${t.padX}px 32px` }}>
+      <div style={{ padding: `28px ${t.padX}px 32px` }}>
         <button onClick={onLogout} style={{ borderRadius: t.RADIUS_SM,
           width: '100%', padding: '14px', background: 'transparent', color: t.RUST, border: `1px solid ${t.RUST}`, cursor: 'pointer',
           fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
         }}>Sign out</button>
       </div>
+      </>)}
 
       <BSRadioPrompt />
       <BSFooter left="Shape v2.4.0" right="Build 2026.04" />
