@@ -9137,11 +9137,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     }
   };
 
-  // Upgrade (free → Shape membership). The billing portal only manages an
-  // existing subscription, so a free user must go through Stripe Checkout.
+  // Upgrade (free → Shape membership). No account yet → route to create-account
+  // (the shared gate). Signed in → Stripe Checkout (the billing portal only
+  // manages an existing subscription, so a free user can't use it).
   const openUpgradeCheckout = async () => {
-    const loggedIn = !!(window.ShapeAuth?.getCachedState?.()?.user?.id);
-    if (!loggedIn) { window.__bsToast?.('Sign in to upgrade your membership', 'info'); return; }
+    if (window.bsRequireAccount && !window.bsRequireAccount('become a Shape member')) return;
     try {
       const res = await fetch('/api/stripe/platform-checkout', {
         method: 'POST', credentials: 'same-origin',
@@ -9150,7 +9150,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.url) window.location.href = data.url;
-      else if (res.status === 401) window.__bsToast?.('Sign in to upgrade your membership', 'info');
+      else if (res.status === 401) { if (window.__bsGoAuth) window.__bsGoAuth('create'); else window.__bsToast?.('Create an account to become a Shape member', 'info'); }
       else window.__bsToast?.(data?.error || 'Upgrade unavailable right now', 'err');
     } catch (e) {
       window.__bsToast?.('Upgrade unavailable right now', 'err');
