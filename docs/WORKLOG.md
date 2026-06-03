@@ -46,6 +46,35 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-03 — Grocery list: food-group tabs + single Reset
+- `BSGrocery` aisles are no longer a long scroll. A horizontal **food-group tab row**
+  (one pill per aisle, e.g. PRODUCE/DAIRY/…) sits at the top; tapping a tab shows just
+  that group's items (completed groups show struck-through). A single **Reset ↺** pill
+  is pinned top-right on the same line and clears the active group's checks (disabled
+  when nothing's checked). Removed the old per-aisle headers + per-aisle reset buttons.
+
+### 2026-06-03 — Habits add/edit form redesign + recipe/grocery library saves
+- `BSHabitForm` (the "super analog" Add Habit page) rebuilt to the rounded-card
+  system: name in a rounded `PAPER2` field (was a 2px-INK underline), **Do daily /
+  Avoid** as rounded green/rust toggle cards, **Reminder** + **Visibility** each in
+  their own rounded card, visibility as a 3-up rounded pill segmented control (teal
+  when active), and rounded pill **Cancel / Add habit** actions (teal CTA). `BSTimeChip`
+  rounded to a pill with a hairline border.
+- **Library boxes now fill:** added `BSSaveButton` (kind `recipe`) to the Shape
+  Kitchen recipe detail (beside "Add to grocery"), and a ♡/✓ **Save to library**
+  toggle (kind `grocery`) to the `BSGrocery` action row. The **Recipes** and
+  **Groceries** stat cards on the Library page now reflect real saves.
+
+### 2026-06-03 — Library page: stat-card filters, search, item previews
+- `BSClientLibrary` filter row is now a 4-up **stat-card grid** (big tabular count +
+  colored label): **Workouts** (rust), **Meals** (green), **Recipes** (teal),
+  **Groceries** (purple `#8a5cf6`). Tapping a card toggles that filter (tap again →
+  all). Kind metadata centralized in `BS_LIB_KINDS` (workout/plan/meal/recipe/grocery).
+- New **search field** below the cards ("Search your library…") filters saved items by
+  title / meta / coach.
+- Saved item rows are now **tappable cards** (chevron `›`, no more × remove button) that
+  open a new **`BSLibraryDetail`** preview page (kind eyebrow, title, meta/coach, saved
+  date, preview blurb) with a **Save / Remove from library** action at the bottom.
 ### 2026-06-13 — About + Pricing pages (mobile) & compact score card
 - New **`BSAboutPage`** and **`BSPricingPage`** in the client module, adapting the
   website's `/newdesign/About` + `/Pricing` into the broadsheet (serif hero, letter,
