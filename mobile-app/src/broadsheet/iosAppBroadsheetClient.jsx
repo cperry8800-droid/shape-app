@@ -2131,16 +2131,16 @@ function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl }) {
     try { window.open(url, '_blank', 'noopener,noreferrer'); } catch (e) { try { window.location.href = url; } catch (e2) {} }
   };
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 13, padding: 14, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
-      <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 11, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path fillRule="evenodd" clipRule="evenodd" d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.42 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 12px', borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+      <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 10, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path fillRule="evenodd" clipRule="evenodd" d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.42 1.56-.299.421-1.02.599-1.559.3z"/></svg>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color, fontWeight: 700, marginBottom: 4 }}>{kicker}</div>
-        <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 16, color: t.INK, letterSpacing: '-0.01em' }}>{title}</div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 4, letterSpacing: '0.06em', lineHeight: 1.45 }}>{meta}</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color, fontWeight: 700, marginBottom: 2 }}>{kicker}</div>
+        <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15, color: t.INK, letterSpacing: '-0.01em' }}>{title}</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2, letterSpacing: '0.04em', lineHeight: 1.35 }}>{meta}</div>
       </div>
-      <button onClick={openSpotify} aria-label="Open in Spotify" style={{ width: 36, height: 36, flexShrink: 0, borderRadius: 999, border: `1px solid ${color}`, background: 'transparent', color, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>▶</button>
+      <button onClick={openSpotify} aria-label="Open in Spotify" style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, border: `1px solid ${color}`, background: 'transparent', color, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>▶</button>
     </div>
   );
 }
@@ -2503,13 +2503,13 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       })()}
 
       {/* Find a trainer — marketplace deep link (Trainer tab), pinned to the bottom */}
-      <div style={{ padding: `18px ${t.padX}px 28px` }}>
+      <BSTrackHeader kicker="Marketplace" title="Coaching" />
+      <div style={{ padding: `12px ${t.padX}px 28px` }}>
         <button onClick={() => goMarket('trainer')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 13, padding: '15px 16px', borderRadius: 16, border: `2px solid ${t.isLight ? '#9c7b43' : '#e7dcc3'}`, background: t.isLight ? '#9c7b4314' : '#e7dcc31f' }}>
           <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 12, background: t.isLight ? '#9c7b43' : '#e7dcc3', color: t.isLight ? '#fff' : '#2a1f12', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={t.isLight ? '#fff' : '#2a1f12'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 6.5v11M3 9.5v5M17.5 6.5v11M21 9.5v5M6.5 12h11"/></svg>
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.isLight ? '#9c7b43' : '#e7dcc3', fontWeight: 700, marginBottom: 4 }}>Marketplace</div>
             <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 17, color: t.INK }}>Find a trainer</div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 3, letterSpacing: '0.06em' }}>Vetted coaches · filter by goal & schedule</div>
           </div>
@@ -4547,7 +4547,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
         const title = left > 0 ? `${left} item${left === 1 ? '' : 's'} to get.` : 'All set for the week.';
         return (
           <>
-            <BSTrackHeader kicker="For the week" title="Shop list" actionLabel="Open" onAction={() => setView('grocery')} />
+            <BSTrackHeader kicker="For the week" title="Grocery list" actionLabel="Open" onAction={() => setView('grocery')} />
             <div style={{ padding: `12px ${t.padX}px 0` }}>
               <button onClick={() => setView('grocery')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 13, padding: 14, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
                 <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 11, background: '#a07a2e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>◎</div>
@@ -4582,13 +4582,13 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
       })()}
 
       {/* Find a nutritionist — marketplace deep link (Nutritionist tab), pinned to the bottom */}
-      <div style={{ padding: `18px ${t.padX}px 28px` }}>
+      <BSTrackHeader kicker="Marketplace" title="Coaching" />
+      <div style={{ padding: `12px ${t.padX}px 28px` }}>
         <button onClick={() => goMarket('nutritionist')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 13, padding: '15px 16px', borderRadius: 16, border: `2px solid ${t.isLight ? '#9c7b43' : '#e7dcc3'}`, background: t.isLight ? '#9c7b4314' : '#e7dcc31f' }}>
           <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 12, background: t.isLight ? '#9c7b43' : '#e7dcc3', color: t.isLight ? '#fff' : '#2a1f12', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={t.isLight ? '#fff' : '#2a1f12'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 20A7 7 0 0 1 4 13C4 7 9 3 20 3C20 12 16 20 11 20Z"/><path d="M4 21C5.5 15 9 11.5 14 10"/></svg>
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.isLight ? '#9c7b43' : '#e7dcc3', fontWeight: 700, marginBottom: 4 }}>Marketplace</div>
             <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 17, color: t.INK }}>Find a nutritionist</div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 3, letterSpacing: '0.06em' }}>Vetted RDs · filter by goal & specialty</div>
           </div>
