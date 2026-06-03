@@ -179,6 +179,54 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(330px, 1fr))', gap: 16 }}>
 
+          {/* Config & secrets */}
+          <Panel title="Config & secrets" hint="wired? (values never shown)" wide>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
+              {snap.config.map((g) => (
+                <div key={g.key} style={{ background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 10, padding: '12px 13px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <b style={{ fontSize: 13.5 }}>{g.label}</b>
+                    <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: g.ready ? C.ok : g.required ? C.bad : C.warn }}>
+                      {g.ready ? 'ready' : g.required ? 'incomplete' : 'optional'}
+                    </span>
+                  </div>
+                  {g.items.map((it) => (
+                    <div key={it.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12.5, padding: '2px 0' }}>
+                      <span style={{ color: C.dim }}>{it.label}</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {it.note ? <em style={{ fontSize: 10.5, color: it.note === 'live' ? C.ok : it.note === 'test' ? C.warn : C.dim, fontStyle: 'normal' }}>{it.note}</em> : null}
+                        <span style={{ color: it.present ? C.ok : C.bad, fontWeight: 800 }}>{it.present ? '✓' : '✗'}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </Panel>
+
+          {/* Go-live checklist */}
+          <Panel title="Go-live checklist" hint={`${doneChecklist}/${totalChecklist}`} wide>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
+              {checklistWithTicks.map((sec) => (
+                <div key={sec.section}>
+                  <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1.5, color: C.accent, marginBottom: 6 }}>{sec.section}</div>
+                  {sec.items.map((it) => {
+                    const auto = it.status === 'done';
+                    return (
+                      <label key={it.label} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12.5, padding: '4px 0', cursor: auto ? 'default' : 'pointer', opacity: it.done ? 0.65 : 1 }}>
+                        <input type="checkbox" checked={it.done} disabled={auto} onChange={() => toggleTick(it.label)} style={{ marginTop: 2, accentColor: C.ok }} />
+                        <span style={{ textDecoration: it.done ? 'line-through' : 'none' }}>
+                          {it.label}
+                          {auto ? <em style={{ fontSize: 10, color: C.ok, fontStyle: 'normal', marginLeft: 6 }}>auto</em> : null}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </Panel>
+
           {/* Live services */}
           <Panel title="Live services" hint="real ping + latency">
             {snap.services.map((s) => (
@@ -271,53 +319,6 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
             {filteredGroups.length === 0 && <div style={{ color: C.dim, fontSize: 13, padding: '8px 2px' }}>No routes match “{filter}”.</div>}
           </Panel>
 
-          {/* Config & secrets */}
-          <Panel title="Config & secrets" hint="wired? (values never shown)" wide>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
-              {snap.config.map((g) => (
-                <div key={g.key} style={{ background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 10, padding: '12px 13px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <b style={{ fontSize: 13.5 }}>{g.label}</b>
-                    <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: g.ready ? C.ok : g.required ? C.bad : C.warn }}>
-                      {g.ready ? 'ready' : g.required ? 'incomplete' : 'optional'}
-                    </span>
-                  </div>
-                  {g.items.map((it) => (
-                    <div key={it.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12.5, padding: '2px 0' }}>
-                      <span style={{ color: C.dim }}>{it.label}</span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        {it.note ? <em style={{ fontSize: 10.5, color: it.note === 'live' ? C.ok : it.note === 'test' ? C.warn : C.dim, fontStyle: 'normal' }}>{it.note}</em> : null}
-                        <span style={{ color: it.present ? C.ok : C.bad, fontWeight: 800 }}>{it.present ? '✓' : '✗'}</span>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </Panel>
-
-          {/* Go-live checklist */}
-          <Panel title="Go-live checklist" hint={`${doneChecklist}/${totalChecklist}`} wide>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
-              {checklistWithTicks.map((sec) => (
-                <div key={sec.section}>
-                  <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1.5, color: C.accent, marginBottom: 6 }}>{sec.section}</div>
-                  {sec.items.map((it) => {
-                    const auto = it.status === 'done';
-                    return (
-                      <label key={it.label} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12.5, padding: '4px 0', cursor: auto ? 'default' : 'pointer', opacity: it.done ? 0.65 : 1 }}>
-                        <input type="checkbox" checked={it.done} disabled={auto} onChange={() => toggleTick(it.label)} style={{ marginTop: 2, accentColor: C.ok }} />
-                        <span style={{ textDecoration: it.done ? 'line-through' : 'none' }}>
-                          {it.label}
-                          {auto ? <em style={{ fontSize: 10, color: C.ok, fontStyle: 'normal', marginLeft: 6 }}>auto</em> : null}
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          </Panel>
         </div>
 
         <footer style={{ marginTop: 28, fontSize: 11.5, color: C.dim, textAlign: 'center' }}>
