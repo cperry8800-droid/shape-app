@@ -3007,17 +3007,25 @@ function BSMealPreview({ meal, onBack, onLog }) {
 
   return (
     <BSPage>
-      <BSDetailHeader
-        onBack={onBack}
-        eyebrow={`${meal.time} · ${meal.tag}`}
-        title={meal.title}
-      />
+      <div style={{ padding: `52px ${t.padX}px 10px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← Back</button>
+      </div>
 
       {/* Hero halftone — rounded */}
       <div style={{ padding: `0 ${t.padX}px` }}>
         <div style={{ borderRadius: 16, overflow: 'hidden', border: `1px solid ${t.RULE}` }}>
           <BSHalftone height={150} accent={meal.tagColor} pattern="dots" />
         </div>
+      </div>
+
+      {/* Title below the image — with the meal-slot timestamp as an eyebrow */}
+      <div style={{ padding: `14px ${t.padX}px 0` }}>
+        {(meal.tag || meal.time) && (
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
+            {[meal.tag, meal.time ? fmt12(meal.time) : null].filter(Boolean).join(' · ')}
+          </div>
+        )}
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.035em', lineHeight: 1 }}>{meal.title}</div>
       </div>
 
       {/* Stats row — rounded card */}
@@ -10273,7 +10281,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {/* APPEARANCE */}
       <button onClick={() => setShowAppearance(v => !v)} aria-expanded={showAppearance} style={{
         width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-        padding: `20px ${t.padX}px 13px`, borderBottom: `1px solid ${t.RULE}`,
+        padding: `12px ${t.padX}px 11px`, borderBottom: `1px solid ${t.RULE}`,
         background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, textAlign: 'left',
       }}>
         <div>
@@ -10382,7 +10390,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       )}
 
       {/* SHAPE RADIO */}
-      <div style={{ padding: `22px ${t.padX}px 4px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+      <div style={{ padding: `14px ${t.padX}px 4px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Shape Radio</div>
           <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{r.radioOn ? (r.paused ? 'Paused' : 'Playing while browsing') : 'Listen while using the app'}</div>
@@ -10396,7 +10404,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {/* LIGHT EFFECTS — music-reactive overlays while Shape Radio is on */}
       <button onClick={() => setShowLightFx(v => !v)} aria-expanded={showLightFx} style={{
         width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-        padding: `20px ${t.padX}px 13px`, borderBottom: `1px solid ${t.RULE}`,
+        padding: `12px ${t.padX}px 11px`, borderBottom: `1px solid ${t.RULE}`,
         background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, textAlign: 'left',
       }}>
         <div>
