@@ -2708,9 +2708,9 @@ function BSNutritionTopTabs({ active, onChange }) {
         const on = active === key;
         return (
           <button key={key} onClick={() => onChange(key)} style={{ borderRadius: t.RADIUS_SM,
-            padding: '8px 8px', border: `1px solid ${on ? t.INK : t.RULE}`,
+            padding: '12px 8px', border: `1px solid ${on ? t.INK : t.RULE}`,
             background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK,
-            fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase',
+            fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase',
             cursor: 'pointer',
           }}>{label}</button>
         );
