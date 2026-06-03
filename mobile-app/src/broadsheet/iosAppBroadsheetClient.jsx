@@ -1401,7 +1401,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   // Mirrors the shape of meals in BSClientEat — same preview component.
   const HOME_LUNCH = {
     id: 'home-lunch',
-    time: '12:40', tag: 'LUNCH', tagColor: t.AMBER,
+    time: (typeof window !== 'undefined' && window.ShapeMealTimes && window.ShapeMealTimes.get().LUNCH) || '12:40', tag: 'LUNCH', tagColor: t.AMBER,
     title: 'Chicken bowl with rice',
     sub: '620 kcal · 48P · 72C · 14F',
     kcal: 620, p: 48, c: 72, f: 14, prep: '15 min', portion: '1 bowl', score: 'A',
@@ -1851,9 +1851,12 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
           </div>
         );
         // Coach-scheduled times for each item (24h minutes) — drive both the
-        // displayed time and the order (earliest first).
+        // displayed time and the order (earliest first). The meal follows the
+        // client's lunch-time preference so it stays in sync with the day-log.
         const WORKOUT_AT = 9 * 60;        // 9:00 AM
-        const MEAL_AT = 12 * 60 + 40;     // 12:40 PM
+        const _lunchPref = (typeof window !== 'undefined' && window.ShapeMealTimes && window.ShapeMealTimes.get().LUNCH) || '12:40';
+        const [_lh, _lm] = String(_lunchPref).split(':').map(Number);
+        const MEAL_AT = (Number.isNaN(_lh) ? 12 : _lh) * 60 + (Number.isNaN(_lm) ? 40 : _lm);
         const fmtAt = (mins) => {
           const h = Math.floor(mins / 60), m = mins % 60;
           const ap = h >= 12 ? 'PM' : 'AM';

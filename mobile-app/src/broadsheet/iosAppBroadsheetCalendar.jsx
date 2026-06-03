@@ -7,6 +7,26 @@ const _BS_CAL_KIND_ICON = { WORKOUT: '🏋', MEAL: '🍽', CHECKIN: '✅', CONSU
 const { useState: useStateBSCal, useEffect: useEffectBSCal, useContext: useContextBSCal, createContext: createContextBSCal, useRef: useRefBSCal } = React;
 const { useBS: useBSCal, BSPage: BSPageCal, BSPageHeader: BSPageHeaderCal, BSAvatar: BSAvatarCal, BSEyebrow: BSEyebrowCal, BSSection: BSSectionCal, BSTag: BSTagCal, BSFooter: BSFooterCal } = window;
 
+// Shared schedule formatting — keeps the calendar in sync with the day-log and
+// meal previews. Meal events carry a `slot` (BFAST/LUNCH/SNACK/DINNER) and read
+// the client's meal-time preference (window.ShapeMealTimes, set in Settings), so
+// changing a meal time updates everywhere. All times render 12-hour.
+function bsCalEventTime(ev) {
+  if (ev && ev.kind === 'MEAL' && ev.slot && typeof window !== 'undefined' && window.ShapeMealTimes) {
+    const mt = window.ShapeMealTimes.get();
+    if (mt && mt[ev.slot]) return mt[ev.slot];
+  }
+  return (ev && ev.time) || '—';
+}
+function bsCalFmt12(hhmm) {
+  if (!hhmm || hhmm === '—') return hhmm || '—';
+  const [h, m] = String(hhmm).split(':').map(Number);
+  if (Number.isNaN(h)) return hhmm;
+  const ap = h >= 12 ? 'PM' : 'AM';
+  return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${ap}`;
+}
+function bsCalTimeLabel(ev) { return bsCalFmt12(bsCalEventTime(ev)); }
+
 // ═══════════════════════════════════════════════════════════
 // SHEET OVERLAY — newspaper style, slides up
 // ═══════════════════════════════════════════════════════════
@@ -107,7 +127,7 @@ function clientEvents(t) {
   return [
     // current week (May 11-17) — heavy detail
     { day: 20, time: '07:00', dur: 60, kind: 'TRN',  title: 'Upper Push — Peak',     sub: 'Jordan · 52m',     accent: t.AMBER, state: 'done' },
-    { day: 20, time: '12:30', dur: 30, kind: 'MEAL', title: 'Lunch · chicken bowl',   sub: '620 kcal',          accent: t.BLUE, state: 'done' },
+    { day: 20, time: '12:30', slot: 'LUNCH', dur: 30, kind: 'MEAL', title: 'Lunch · chicken bowl',   sub: '620 kcal',          accent: t.BLUE, state: 'done' },
     { day: 21, time: '07:30', dur: 60, kind: 'TRN',  title: 'Upper Pull — Peak',     sub: 'Jordan · 52m',     accent: t.AMBER, state: 'now' },
     { day: 21, time: '15:00', dur: 30, kind: 'CON',  title: 'Nutrition consult',      sub: 'Dr. Maya · Zoom',  accent: t.RUST, state: 'next' },
     { day: 22, time: '06:30', dur: 45, kind: 'TRN',  title: 'Conditioning · Z2',      sub: '45m bike',          accent: t.AMBER },
@@ -457,8 +477,8 @@ function BSDayTimeline({ events, sheet, role }) {
             borderBottom: i === events.length - 1 ? 0 : `1px solid ${t.HAIR}`,
             cursor: 'pointer',
           }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 11, color: now ? t.ACCENT : (done ? t.INK50 : t.INK), letterSpacing: '0.06em', fontWeight: now ? 700 : 600, fontVariantNumeric: 'tabular-nums' }}>
-              {e.time}
+            <div style={{ fontFamily: t.MONO, fontSize: 10, color: now ? t.ACCENT : (done ? t.INK50 : t.INK), letterSpacing: '0.04em', fontWeight: now ? 700 : 600, fontVariantNumeric: 'tabular-nums' }}>
+              {bsCalTimeLabel(e)}
               {e.dur > 0 && <div style={{ fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.16em' }}>{e.dur}m</div>}
             </div>
             <div style={{ minWidth: 0 }}>
@@ -605,11 +625,11 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
                   <button key={i} onClick={() => sheet && sheet.open(<BSEventSheet event={e} role={role} live={live} onChanged={onChanged} onClose={() => sheet.close()} />)} style={{
                     width: '100%', padding: '12px 13px', borderRadius: 14, border: `1px solid ${t.HAIR}`, background: t.PAPER2,
                     textAlign: 'left', cursor: 'pointer',
-                    display: 'grid', gridTemplateColumns: '5px 52px 1fr auto', alignItems: 'center', gap: 12,
+                    display: 'grid', gridTemplateColumns: '5px 60px 1fr auto', alignItems: 'center', gap: 12,
                   }}>
                     <span style={{ alignSelf: 'stretch', width: 5, borderRadius: 999, background: e.accent }} />
-                    <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK, letterSpacing: '0.05em' }}>
-                      {e.time}
+                    <div style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK, letterSpacing: '0.03em' }}>
+                      {bsCalTimeLabel(e)}
                       <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, fontWeight: 600, letterSpacing: '0.1em', marginTop: 2 }}>{e.dur ? `${e.dur}m` : ''}</div>
                     </div>
                     <div style={{ minWidth: 0 }}>
@@ -659,7 +679,7 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
       <div style={{ padding: `40px ${t.padX}px 18px`, borderBottom: `1px solid ${t.RULE}` }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 10 }}>
           <BSTagCal color={event.accent}>{event.kind}</BSTagCal>
-          <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', color: t.INK70, fontWeight: 600 }}>{event.date ? new Date(event.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : `May ${event.day}`} · {event.time}{event.dur ? ` · ${event.dur}m` : ''}</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', color: t.INK70, fontWeight: 600 }}>{event.date ? new Date(event.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : `May ${event.day}`} · {bsCalTimeLabel(event)}{event.dur ? ` · ${event.dur}m` : ''}</span>
         </div>
         <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 40, lineHeight: 0.95, letterSpacing: '-0.035em', color: t.INK }}>
           {event.title}
