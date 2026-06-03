@@ -591,43 +591,104 @@ function BSSaveButton({ item, full = false }) {
 }
 
 // Client Library screen — saved workouts / programs / meals.
+const BS_LIB_KINDS = {
+  workout: { label: 'Workout', color: '#c0533b' },
+  plan:    { label: 'Program', color: '#a07a2e' },
+  meal:    { label: 'Meal',    color: '#5fae7e' },
+  recipe:  { label: 'Recipe',  color: '#0a8f87' },
+  grocery: { label: 'Groceries', color: '#8a5cf6' },
+};
+
+function BSLibraryDetail({ item, onBack }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const km = BS_LIB_KINDS[item.kind] || { label: item.kind || 'Saved', color: t.INK50 };
+  const lib = useBSLibrary();
+  const saved = lib.some(x => x.id === item.id);
+  return (
+    <BSPage>
+      <div style={{ padding: `14px ${t.padX}px 0` }}>
+        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0 }}>← Library</button>
+      </div>
+      <div style={{ padding: `18px ${t.padX}px 0` }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ width: 7, height: 7, borderRadius: 999, background: km.color }} />
+          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: km.color }}>{km.label}{item.price ? ` · ${item.price}` : ''}</span>
+        </span>
+        <h1 style={{ margin: '10px 0 0', fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, lineHeight: 1.02, letterSpacing: '-0.03em', color: t.INK }}>{item.title}</h1>
+        {(item.meta || item.coach) ? <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{[item.meta, item.coach].filter(Boolean).join(' · ')}</div> : null}
+      </div>
+      <div style={{ padding: `18px ${t.padX}px 0` }}>
+        <div style={{ borderRadius: 18, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 18 }}>
+          {item.preview ? (
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK70, lineHeight: 1.5 }}>{item.preview}</div>
+          ) : (
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK70, lineHeight: 1.5 }}>Saved {km.label.toLowerCase()} from your coach. Open it on its source page to start, swap, or log.</div>
+          )}
+          {item.savedAt ? <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.HAIR}`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Saved {new Date(item.savedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div> : null}
+        </div>
+      </div>
+      <div style={{ padding: `16px ${t.padX}px 0` }}>
+        <button onClick={() => { bsLibToggle(item); onBack(); }} style={{ width: '100%', padding: '14px', borderRadius: t.RADIUS_SM, cursor: 'pointer', border: `1px solid ${saved ? teal : t.RULE}`, background: saved ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: saved ? teal : t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{saved ? 'Remove from library' : '♡ Save to library'}</button>
+      </div>
+      <BSFooter right="Library" />
+    </BSPage>
+  );
+}
+
 function BSClientLibrary({ onBack, goMarket = () => {} }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const items = useBSLibrary();
   const [filter, setFilter] = useStateBSC('all');
-  const tabs = [['all', 'All'], ['workout', 'Workouts'], ['plan', 'Programs'], ['meal', 'Meals']];
-  const kindMeta = {
-    workout: { label: 'Workout', color: t.RUST },
-    plan: { label: 'Program', color: t.AMBER },
-    meal: { label: 'Meal', color: t.GREEN || '#5fae7e' },
-  };
-  const list = filter === 'all' ? items : items.filter(i => i.kind === filter);
+  const [query, setQuery] = useStateBSC('');
+  const [open, setOpen] = useStateBSC(null);
+  const kindMeta = BS_LIB_KINDS;
+  if (open) {
+    const live = items.find(x => x.id === open.id) || open;
+    return <BSLibraryDetail item={live} onBack={() => setOpen(null)} />;
+  }
+  const q = query.trim().toLowerCase();
+  const list = items
+    .filter(i => filter === 'all' || i.kind === filter)
+    .filter(i => !q || [i.title, i.meta, i.coach].filter(Boolean).join(' ').toLowerCase().includes(q));
   return (
     <BSPage>
       <div style={{ padding: `14px ${t.padX}px 0` }}>
         <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0 }}>← Back</button>
         <h1 style={{ margin: '12px 0 0', fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>Your<br/><span style={{ fontStyle: 'italic', color: teal }}>library.</span></h1>
-        <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{items.length} saved · workouts · programs · meals</div>
+        <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{items.length} saved · workouts · meals · recipes · groceries</div>
       </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: `16px ${t.padX}px 14px` }}>
-        {tabs.map(([k, label]) => {
+      <div style={{ padding: `16px ${t.padX}px 12px`, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+        {[['workout', 'Workouts', t.RUST], ['meal', 'Meals', t.GREEN || '#5fae7e'], ['recipe', 'Recipes', teal], ['grocery', 'Groceries', '#8a5cf6']].map(([k, label, c]) => {
           const on = filter === k;
-          const count = k === 'all' ? items.length : items.filter(i => i.kind === k).length;
+          const count = items.filter(i => i.kind === k).length;
           return (
-            <button key={k} onClick={() => setFilter(k)} style={{ padding: '8px 14px', borderRadius: 999, cursor: 'pointer', border: `1.5px solid ${on ? teal : t.RULE}`, background: on ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: on ? teal : t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{label}{count ? ` · ${count}` : ''}</button>
+            <button key={k} onClick={() => setFilter(on ? 'all' : k)} style={{ borderRadius: 14, cursor: 'pointer', border: `1px solid ${on ? c : t.RULE}`, background: on ? `${c}1c` : t.PAPER2, padding: '12px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{count}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: c }}>{label}</span>
+            </button>
           );
         })}
+      </div>
+
+      <div style={{ padding: `0 ${t.padX}px 16px` }}>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search your library…"
+          style={{ width: '100%', boxSizing: 'border-box', padding: '12px 16px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, outline: 'none' }}
+        />
       </div>
 
       {list.length === 0 ? (
         <div style={{ padding: `8px ${t.padX}px` }}>
           <div style={{ borderRadius: 18, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 24, textAlign: 'center' }}>
             <div style={{ fontSize: 30 }}>❒</div>
-            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK }}>{filter === 'all' ? 'Nothing saved yet' : 'None in here yet'}</div>
-            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.4 }}>Save your coaches&rsquo; workouts, programs, and meals here — tap <b>Save</b> on any of them.</div>
-            <button onClick={() => goMarket()} style={{ marginTop: 16, padding: '11px 18px', borderRadius: 999, border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Browse marketplace →</button>
+            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK }}>{q ? 'No matches' : (filter === 'all' ? 'Nothing saved yet' : 'None in here yet')}</div>
+            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.4 }}>{q ? 'Try a different search.' : <>Save your coaches&rsquo; workouts, meals, recipes, and grocery lists here — tap <b>Save</b> on any of them.</>}</div>
+            {!q ? <button onClick={() => goMarket()} style={{ marginTop: 16, padding: '11px 18px', borderRadius: 999, border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Browse marketplace →</button> : null}
           </div>
         </div>
       ) : (
@@ -635,7 +696,7 @@ function BSClientLibrary({ onBack, goMarket = () => {} }) {
           {list.map((it) => {
             const km = kindMeta[it.kind] || { label: it.kind, color: t.INK50 };
             return (
-              <div key={it.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center', padding: 14, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+              <button key={it.id} onClick={() => setOpen(it)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center', padding: 14, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
                 <div style={{ minWidth: 0 }}>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                     <span style={{ width: 6, height: 6, borderRadius: 999, background: km.color }} />
@@ -644,8 +705,8 @@ function BSClientLibrary({ onBack, goMarket = () => {} }) {
                   <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.title}</div>
                   {(it.meta || it.coach) ? <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{[it.meta, it.coach].filter(Boolean).join(' · ')}</div> : null}
                 </div>
-                <button onClick={() => bsLibToggle(it)} aria-label="Remove from library" style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK50, cursor: 'pointer', fontSize: 16, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
-              </div>
+                <span style={{ flexShrink: 0, fontFamily: t.DISPLAY, fontSize: 22, color: t.INK50, lineHeight: 1 }}>›</span>
+              </button>
             );
           })}
         </div>
