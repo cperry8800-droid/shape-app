@@ -896,7 +896,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
         <div style={{ padding: `84px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
           <div style={{ width: 84, height: 84, borderRadius: 999, background: teal, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 44px ${teal}55`, color: '#04201d', fontSize: 34, fontWeight: 700 }}>✓</div>
           <div style={{ marginTop: 22, fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em' }}>Logged<span style={{ color: teal }}>.</span></div>
-          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{kcal} kcal · {P}P · 12:40 PM</div>
+          <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK50, letterSpacing: '-0.005em' }}>{kcal} kcal · {P}P · 12:40 PM</div>
         </div>
         <div style={{ padding: `26px ${t.padX}px 0` }}>
           <div style={{ borderRadius: 16, border: `1px solid ${teal}40`, background: `linear-gradient(155deg, ${teal}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 16 }}>
@@ -904,10 +904,10 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
           </div>
         </div>
         <div style={{ padding: `22px ${t.padX}px 8px` }}>
-          <button onClick={onClose} style={primaryBtn}>Done →</button>
+          <button onClick={onClose} style={{ ...primaryBtn, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '0', textTransform: 'none' }}>Done →</button>
         </div>
         <div style={{ textAlign: 'center', paddingBottom: 28 }}>
-          <button onClick={() => setLogged(false)} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>Undo</button>
+          <button onClick={() => setLogged(false)} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK50, letterSpacing: '0' }}>Undo</button>
         </div>
       </BSPage>
     );
