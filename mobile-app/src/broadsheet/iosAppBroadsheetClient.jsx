@@ -1688,61 +1688,73 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
             </div>
           </div>
         );
-        return (
-          <>
-            {/* NEXT WORKOUT */}
-            <div style={cardBase(rust)}>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-                <span style={eyebrow(rust)}>Workout</span>
-                <span style={metaRight}>52 min · 6 moves · RPE 8 · ~420 kcal</span>
-              </div>
-              <div onClick={goTrain} style={{ cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 25, lineHeight: 1.0, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
-                Upper Pull — Peak
-              </div>
-              <div style={{ marginTop: 12 }}>
-                {[
-                  ['01', 'Pull-up', '4 × 6-8 · 3 min', '42 lb'],
-                  ['02', 'Barbell row', '4 × 8 · 2 min', '155 lb'],
-                  ['03', 'Chest-sup. row', '3 × 10 · 90s', '60 lb'],
-                  ['04', '+ 3 more', 'Face pull · curl · carry', ''],
-                ].map(([n, name, sub, wt], i, arr) => (
-                  <div key={n} onClick={goTrain} style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
-                    <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK50 }}>{n}</span>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{name}</div>
-                      <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>{sub}</div>
-                    </div>
-                    {wt ? <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{wt}</span> : <span />}
+        // Coach-scheduled times for each item (24h minutes) — drive both the
+        // displayed time and the order (earliest first).
+        const WORKOUT_AT = 9 * 60;        // 9:00 AM
+        const MEAL_AT = 12 * 60 + 40;     // 12:40 PM
+        const fmtAt = (mins) => {
+          const h = Math.floor(mins / 60), m = mins % 60;
+          const ap = h >= 12 ? 'PM' : 'AM';
+          const h12 = h % 12 === 0 ? 12 : h % 12;
+          return `${h12}:${String(m).padStart(2, '0')} ${ap}`;
+        };
+        const workoutCard = (
+          <div style={cardBase(rust)}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+              <span style={eyebrow(rust)}>Workout · {fmtAt(WORKOUT_AT)}</span>
+              <span style={metaRight}>52 min · 6 moves · RPE 8</span>
+            </div>
+            <div onClick={goTrain} style={{ cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 25, lineHeight: 1.0, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
+              Upper Pull — Peak
+            </div>
+            <div style={{ marginTop: 12 }}>
+              {[
+                ['01', 'Pull-up', '4 × 6-8 · 3 min', '42 lb'],
+                ['02', 'Barbell row', '4 × 8 · 2 min', '155 lb'],
+                ['03', 'Chest-sup. row', '3 × 10 · 90s', '60 lb'],
+                ['04', '+ 3 more', 'Face pull · curl · carry', ''],
+              ].map(([n, name, sub, wt], i, arr) => (
+                <div key={n} onClick={goTrain} style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK50 }}>{n}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{name}</div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>{sub}</div>
                   </div>
-                ))}
-              </div>
-              <div style={{ marginTop: 10, paddingTop: 12, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                <Person init="J" name="Jordan Chen" role="Coach" fill={rust} />
-                <button onClick={() => setShowWorkoutPreview(true)} style={pillOutline}>Preview →</button>
-              </div>
+                  {wt ? <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{wt}</span> : <span />}
+                </div>
+              ))}
             </div>
-
-            {/* NEXT MEAL */}
-            <div style={cardBase(teal)}>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-                <span style={eyebrow(teal)}>Next up · 12:40 PM</span>
-                <span style={{ ...metaRight, letterSpacing: '0.16em' }}>Lunch</span>
-              </div>
-              <div onClick={() => setPreviewMeal(HOME_LUNCH)} style={{ cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 26, lineHeight: 1.0, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
-                Chicken bowl <span style={{ fontStyle: 'italic', color: teal }}>+ rice.</span>
-              </div>
-              <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
-                620 kcal · 48P · 72C · 14F
-              </div>
-              <div style={{ marginTop: 13, paddingTop: 12, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                <Person init="M" name="Dr. Maya Patel" role="Nutritionist" fill={t.AMBER} />
-                {nextMealLogged
-                  ? <button onClick={() => setNextMealLogged(false)} style={pillOutline}>✓ Logged</button>
-                  : <button onClick={() => setShowLogMeal(true)} style={pillFilled}>Log now →</button>}
-              </div>
+            <div style={{ marginTop: 10, paddingTop: 12, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+              <Person init="J" name="Jordan Chen" role="Coach" fill={rust} />
+              <button onClick={() => setShowWorkoutPreview(true)} style={pillOutline}>Preview →</button>
             </div>
-          </>
+          </div>
         );
+        const mealCard = (
+          <div style={cardBase(teal)}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+              <span style={eyebrow(teal)}>Lunch · {fmtAt(MEAL_AT)}</span>
+              <span style={{ ...metaRight, letterSpacing: '0.16em' }}>Coach plan</span>
+            </div>
+            <div onClick={() => setPreviewMeal(HOME_LUNCH)} style={{ cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 26, lineHeight: 1.0, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
+              Chicken bowl <span style={{ fontStyle: 'italic', color: teal }}>+ rice.</span>
+            </div>
+            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
+              620 kcal · 48P · 72C · 14F
+            </div>
+            <div style={{ marginTop: 13, paddingTop: 12, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+              <Person init="M" name="Dr. Maya Patel" role="Nutritionist" fill={t.AMBER} />
+              {nextMealLogged
+                ? <button onClick={() => setNextMealLogged(false)} style={pillOutline}>✓ Logged</button>
+                : <button onClick={() => setShowLogMeal(true)} style={pillFilled}>Log now →</button>}
+            </div>
+          </div>
+        );
+        const agenda = [
+          { at: WORKOUT_AT, node: workoutCard },
+          { at: MEAL_AT, node: mealCard },
+        ].sort((a, b) => a.at - b.at);
+        return <>{agenda.map((x, i) => <React.Fragment key={i}>{x.node}</React.Fragment>)}</>;
       })()}
 
       {/* DAY LOG */}
@@ -9784,9 +9796,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       <div style={{ padding: `14px ${t.padX}px 16px` }}>
         {!editing ? (
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 12 }}>
               <BSAvatar init={identity.name.charAt(0)} size={72} fill={t.RUST} />
-              <div style={{ minWidth: 0 }}>
+              <div>
                 <BSEyebrow color={t.RUST}>Member · 14 week streak</BSEyebrow>
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', marginTop: 4, lineHeight: 1 }}>{identity.name.split(' ')[0]}{identity.name.split(' ').length > 1 && <> {identity.name.split(' ').slice(1).join(' ')}.</>}</div>
               </div>
