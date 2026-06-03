@@ -8977,7 +8977,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     weekStarts:        ['Monday', 'Sunday'],
     timeZone:          ['America/Los_Angeles', 'America/New_York', 'America/Chicago', 'America/Denver', 'Europe/London', 'UTC'],
     language:          ['English (US)', 'English (UK)', 'Español', 'Français', 'Deutsch'],
-    profileVisibility: ['Coaches only', 'Public', 'Private'],
+    profileVisibility: ['Public', 'Just friends', 'Private'],
     shareWorkoutData:  ['On', 'Off'],
   };
   const PREF_DEFAULTS = Object.fromEntries(Object.entries(PREF_OPTIONS).map(([k, v]) => [k, v[0]]));
