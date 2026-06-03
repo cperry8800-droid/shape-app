@@ -9125,16 +9125,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       ],
     },
     {
-      title: 'Subscription',
-      meta: 'Renews Mar 12',
-      rows: [
-        { l: 'Plan',           r: 'Shape Pro · $24/mo' },
-        { l: 'Payment method', r: 'Visa ··· 4421' },
-        { l: 'Billing history',r: '12 invoices' },
-        { l: 'Cancel plan',    r: '', alert: true },
-      ],
-    },
-    {
       title: 'Coaches',
       meta: '3 active',
       rows: [
