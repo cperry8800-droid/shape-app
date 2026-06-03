@@ -8959,6 +8959,43 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return () => { cancelled = true; };
   }, []);
 
+  // Persisted user preferences for the Notifications / Preferences / Privacy
+  // rows. Tapping a row cycles to the next option and saves to user_goals so
+  // the choice sticks across sessions (same store the home ticker uses).
+  const PREF_OPTIONS = {
+    workoutReminders:  ['On · 30m before', 'On · 1h before', 'On · 2h before', 'Off'],
+    coachReplies:      ['Push + email', 'Push only', 'Email only', 'Off'],
+    weeklyDigest:      ['Sun 7am', 'Mon 7am', 'Fri 5pm', 'Off'],
+    community:         ['Off', 'Mentions only', 'All activity'],
+    units:             ['Imperial · lb / mi', 'Metric · kg / km'],
+    weekStarts:        ['Monday', 'Sunday'],
+    timeZone:          ['America/Los_Angeles', 'America/New_York', 'America/Chicago', 'America/Denver', 'Europe/London', 'UTC'],
+    language:          ['English (US)', 'English (UK)', 'Español', 'Français', 'Deutsch'],
+    profileVisibility: ['Coaches only', 'Public', 'Private'],
+    shareWorkoutData:  ['On', 'Off'],
+  };
+  const PREF_DEFAULTS = Object.fromEntries(Object.entries(PREF_OPTIONS).map(([k, v]) => [k, v[0]]));
+  const [prefs, setPrefs] = useStateBSC(PREF_DEFAULTS);
+  React.useEffect(() => {
+    if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
+    let alive = true;
+    window.shapeDb.getUserGoals('client_settings').then(s => {
+      if (alive && s && typeof s === 'object') setPrefs(p => ({ ...p, ...s }));
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  const cyclePref = (key, label) => {
+    const opts = PREF_OPTIONS[key];
+    if (!opts) return;
+    setPrefs(p => {
+      const idx = Math.max(0, opts.indexOf(p[key]));
+      const next = { ...p, [key]: opts[(idx + 1) % opts.length] };
+      try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
+      window.__bsToast?.(`${label} → ${next[key]}`, 'ok');
+      return next;
+    });
+  };
+
   // Stripe Customer Portal — billing UI for card / cancel / invoices.
   const openBillingPortal = async () => {
     try {
@@ -9169,30 +9206,30 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     },
     {
       title: 'Notifications',
-      meta: 'On',
+      meta: (prefs.workoutReminders !== 'Off' || prefs.coachReplies !== 'Off' || prefs.weeklyDigest !== 'Off') ? 'On' : 'Off',
       rows: [
-        { l: 'Workout reminders', r: 'On · 30m before' },
-        { l: 'Coach replies',     r: 'Push + email' },
-        { l: 'Weekly digest',     r: 'Sun 7am' },
-        { l: 'Community',         r: 'Off' },
+        { l: 'Workout reminders', key: 'workoutReminders' },
+        { l: 'Coach replies',     key: 'coachReplies' },
+        { l: 'Weekly digest',     key: 'weeklyDigest' },
+        { l: 'Community',         key: 'community' },
       ],
     },
     {
       title: 'Preferences',
       meta: '',
       rows: [
-        { l: 'Units',           r: 'Imperial · lb / mi' },
-        { l: 'Week starts',     r: 'Monday' },
-        { l: 'Time zone',       r: 'America/Los_Angeles' },
-        { l: 'Language',        r: 'English (US)' },
+        { l: 'Units',           key: 'units' },
+        { l: 'Week starts',     key: 'weekStarts' },
+        { l: 'Time zone',       key: 'timeZone' },
+        { l: 'Language',        key: 'language' },
       ],
     },
     {
       title: 'Privacy & data',
       meta: '',
       rows: [
-        { l: 'Profile visibility', r: 'Coaches only' },
-        { l: 'Share workout data', r: 'On' },
+        { l: 'Profile visibility', key: 'profileVisibility' },
+        { l: 'Share workout data', key: 'shareWorkoutData' },
       ],
     },
     {
@@ -9571,17 +9608,23 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         <div key={sec.title}>
           <SectionHead title={sec.title} meta={sec.meta} />
           <div style={{ padding: `0 ${t.padX}px` }}>
-            {sec.rows.map((s, i, arr) => (
-              <div key={i} onClick={s.action || (s.alert && s.l === 'Sign out' ? onLogout : undefined)} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: `${t.rowY + 4}px 0`,
-                borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-                cursor: (s.alert || s.action) ? 'pointer' : 'default',
-              }}>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em' }}>{s.l}</span>
-                {s.r && <BSEyebrow>{s.r}</BSEyebrow>}
-              </div>
-            ))}
+            {sec.rows.map((s, i, arr) => {
+              const value = s.key ? prefs[s.key] : s.r;
+              const onTap = s.key
+                ? () => cyclePref(s.key, s.l)
+                : (s.action || (s.alert && s.l === 'Sign out' ? onLogout : undefined));
+              return (
+                <div key={i} onClick={onTap} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                  padding: `${t.rowY + 4}px 0`,
+                  borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+                  cursor: (s.alert || s.action || s.key) ? 'pointer' : 'default',
+                }}>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em', flexShrink: 0 }}>{s.l}</span>
+                  {value && <BSEyebrow color={s.key ? t.ACCENT : undefined}>{value}</BSEyebrow>}
+                </div>
+              );
+            })}
           </div>
         </div>
       ))}
