@@ -61,7 +61,11 @@ changelog whenever something ships.
   member isn't signed in), the popup now shows a tappable **"Connect Spotify to
   save → Settings · Connected apps"** CTA instead of the raw error. It closes the
   sheet and fires a `shape:openIntegrations` event that `BSClientAppInner` listens
-  for → opens the integrations page (no prop-threading). Toast is friendlier too.
+  for → opens the integrations page (no prop-threading). The redundant error
+  **toast is suppressed** for the not-linked case (the inline CTA covers it);
+  toasts still fire for other failures (e.g. network).
+- **War Room:** Spotify checklist now tracks redirect-URI registration (done) +
+  a manual "out of Development mode" item; credentials row auto-reads live env.
 
 ### 2026-06-13 — playlist tracklist preview popup
 - Tapping a `BSPlaylistCard` (coach/nutritionist Spotify cards on home/train/eat)
