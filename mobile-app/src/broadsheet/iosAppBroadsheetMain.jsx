@@ -268,7 +268,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
   // Classified is interactive: user must tap "Step inside" — no auto-advance.
   useEffectBSM(() => {
     if (style === 'classified') return; // classified is tap-only
-    const id = setTimeout(onDone, style === 'classified' ? 4200 : (style === 'cosmos' || !style) ? 5000 : 1600);
+    const id = setTimeout(onDone, style === 'classified' ? 4200 : (style === 'cosmos' || !style) ? 4000 : 1600);
     return () => clearTimeout(id);
   }, [style]);
 
