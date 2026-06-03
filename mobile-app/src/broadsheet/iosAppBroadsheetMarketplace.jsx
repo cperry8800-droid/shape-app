@@ -350,7 +350,6 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole }) {
   const trainers = marketplaceCoaches.Trainer || [];
   const nutritionists = marketplaceCoaches.Nutritionist || [];
   const everyone = useMemoBSM2(() => [...trainers, ...nutritionists], [trainers, nutritionists]);
-  const liveTotal = everyone.length;
 
   const pills = ['All', 'Trainers', 'Nutritionists'];
 
@@ -475,18 +474,19 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole }) {
               ))}
             </div>
           </div>
+
+          {/* Coach apply CTAs — both roles, side by side (discovery view only) */}
+          <div style={{ margin: `30px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            {[{ role: 'trainer', label: 'trainer' }, { role: 'nutritionist', label: 'nutritionist' }].map((b) => (
+              <button key={b.role} onClick={() => setApplyRole(b.role)} style={{ textAlign: 'left', cursor: 'pointer', borderRadius: 16, border: `2px solid ${t.AMBER}`, background: t.PAPER2, padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.AMBER }}>Coaches</div>
+                <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.15 }}>Apply to be a <span style={{ fontStyle: 'italic', color: t.AMBER }}>{b.label}.</span></div>
+                <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.AMBER }}>Apply →</div>
+              </button>
+            ))}
+          </div>
         </>
       )}
-
-      {/* Coach apply CTA */}
-      <button onClick={() => setApplyRole(pill === 'Nutritionists' ? 'nutritionist' : 'trainer')} style={{ margin: `30px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, textAlign: 'left', cursor: 'pointer', borderRadius: 18, border: `2px solid ${t.AMBER}`, background: t.PAPER2, padding: 18, display: 'block' }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.AMBER }}>Coaches</div>
-        <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.15 }}>Coach on Shape. <span style={{ fontStyle: 'italic', color: t.AMBER }}>Apply.</span></div>
-        <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
-          <span>{liveTotal.toLocaleString()} listings · real demand</span>
-          <span style={{ color: t.AMBER }}>Apply →</span>
-        </div>
-      </button>
 
       <BSFooter right="Marketplace" />
     </BSPage>
