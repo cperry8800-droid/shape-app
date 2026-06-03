@@ -3154,6 +3154,22 @@ if (typeof window !== 'undefined' && !window.ShapeMealTimes) {
   };
 }
 
+// Shared meal-time formatting so the schedule reads the same everywhere (the
+// preview eyebrow, the day-log rows, the swap sheet): meal's own time, else the
+// client's meal-time preference for that slot, rendered 12-hour.
+function bsFmt12(hhmm) {
+  const [h, m] = String(hhmm || '').split(':').map(Number);
+  if (Number.isNaN(h)) return '';
+  const ap = h >= 12 ? 'PM' : 'AM';
+  return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${ap}`;
+}
+function bsMealSchedTime(meal) {
+  const mt = (typeof window !== 'undefined' && window.ShapeMealTimes && window.ShapeMealTimes.get()) || BS_DEFAULT_MEAL_TIMES;
+  const slot = { BFAST: mt.BFAST, BREAKFAST: mt.BFAST, LUNCH: mt.LUNCH, SNACK: mt.SNACK, DINR: mt.DINNER, DINNER: mt.DINNER };
+  return (meal && meal.time) || slot[String((meal && meal.tag) || '').toUpperCase()] || '';
+}
+function bsMealSchedLabel(meal) { return bsFmt12(bsMealSchedTime(meal)); }
+
 function BSMealPreview({ meal, onBack, onLog }) {
   const t = useBS();
   _bsScrollTopOnMount();
@@ -3576,7 +3592,7 @@ function BSDayBriefPreview({ day, onBack, onMealClick, onRecipeClick }) {
               padding: '14px 0', borderBottom: i === day.meals.length - 1 ? 0 : `1px solid ${t.HAIR}`,
               display: 'flex', alignItems: 'baseline', gap: 12, cursor: 'pointer',
             }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK70, fontWeight: 700, letterSpacing: '0.06em', width: 44, fontVariantNumeric: 'tabular-nums' }}>{m.time}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK70, fontWeight: 700, letterSpacing: '0.04em', width: 60, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{bsMealSchedLabel(m)}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
                   <BSTag color={m.tagColor}>{m.tag}</BSTag>
@@ -5097,7 +5113,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: logged ? t.INK50 : t.INK, letterSpacing: '-0.01em', textDecoration: logged ? 'line-through' : 'none' }}>{m.title}{swapped && <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', color: t.ACCENT, marginLeft: 7 }}>SWAPPED</span>}</div>
                 <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: next ? t.ACCENT : t.INK50, marginTop: 3, letterSpacing: '0.04em' }}>{m.kcal} kcal · {m.p}P · {m.c}C · {m.f}F{next ? ' · LOG NOW' : ''}</div>
               </div>
-              <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3 }}>{m.time}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 3, whiteSpace: 'nowrap' }}>{bsMealSchedLabel(m)}</span>
             </button>
           );
         })}
@@ -5107,7 +5123,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
       {swapMealId != null && (() => {
         if (swapMealId === 'pick') {
           return <BSSwapSheet title="Swap" subtitle="Which meal?"
-            options={effMeals.map(m => ({ label: m.title, sub: `${m.time} · ${m.kcal} kcal${mealOverrides[m._baseTitle] ? ' · swapped' : ''}`, _id: m.id }))}
+            options={effMeals.map(m => ({ label: m.title, sub: `${bsMealSchedLabel(m)} · ${m.kcal} kcal${mealOverrides[m._baseTitle] ? ' · swapped' : ''}`, _id: m.id }))}
             onPick={(o) => setSwapMealId(o._id)} onClose={() => setSwapMealId(null)} />;
         }
         const orig = effMeals.find(m => m.id === swapMealId);
@@ -8511,30 +8527,30 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         ];
         return (
           <div style={{ padding: `8px ${t.padX}px 0` }}>
-            <div style={{ borderRadius: 18, border: `1px solid ${t.RULE}`, background: `radial-gradient(130% 120% at 72% 18%, ${tc}24, transparent 55%), ${t.PAPER2}`, padding: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                <div style={{ width: 112, height: 112, borderRadius: 999, flexShrink: 0, background: `conic-gradient(${tc} ${pct * 3.6}deg, ${t.HAIR} 0deg)`, display: 'grid', placeItems: 'center' }}>
-                  <div style={{ width: 88, height: 88, borderRadius: 999, background: t.isLight ? t.PAPER : '#16140f', display: 'grid', placeItems: 'center' }}>
+            <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: `radial-gradient(130% 120% at 72% 18%, ${tc}24, transparent 55%), ${t.PAPER2}`, padding: 13 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
+                <div style={{ width: 86, height: 86, borderRadius: 999, flexShrink: 0, background: `conic-gradient(${tc} ${pct * 3.6}deg, ${t.HAIR} 0deg)`, display: 'grid', placeItems: 'center' }}>
+                  <div style={{ width: 68, height: 68, borderRadius: 999, background: t.isLight ? t.PAPER : '#16140f', display: 'grid', placeItems: 'center' }}>
                     <div style={{ textAlign: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 2 }}>
-                        <span style={{ fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, color: t.INK, letterSpacing: '-0.04em', lineHeight: 1 }}>{pct}</span>
-                        <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: t.INK50 }}>%</span>
+                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 1 }}>
+                        <span style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.04em', lineHeight: 1 }}>{pct}</span>
+                        <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK50 }}>%</span>
                       </div>
-                      <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>to goal</div>
+                      <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 6.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>to goal</div>
                     </div>
                   </div>
                 </div>
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, fontStyle: 'italic', color: tc, letterSpacing: '-0.02em', lineHeight: 1 }}>{tier}.</div>
-                  <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: teal }}>{scoreTotal.toLocaleString()} pts · {weekTxt} this week</div>
-                  <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.4 }}>Your composite of training, nutrition, recovery, and consistency.</div>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, fontStyle: 'italic', color: tc, letterSpacing: '-0.02em', lineHeight: 1 }}>{tier}.</div>
+                  <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: teal }}>{scoreTotal.toLocaleString()} pts · {weekTxt} this week</div>
+                  <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70, lineHeight: 1.35 }}>Your composite of training, nutrition, recovery, and consistency.</div>
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', marginTop: 14, paddingTop: 12, borderTop: `1px solid ${t.HAIR}` }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', marginTop: 11, paddingTop: 10, borderTop: `1px solid ${t.HAIR}` }}>
                 {stats.map(([label, value], i) => (
                   <div key={label} style={{ textAlign: 'center', borderLeft: i ? `1px solid ${t.HAIR}` : 0 }}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{label}</div>
-                    <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>{value}</div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{label}</div>
+                    <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>{value}</div>
                   </div>
                 ))}
               </div>
