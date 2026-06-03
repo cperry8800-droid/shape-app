@@ -2645,10 +2645,55 @@ function _bsScrollTopOnMount() {
   }, []);
 }
 
+// Shared "Logged." confirmation screen — used after one-tap logging a meal
+// from the preview (and mirrors the log-meal flow's confirmation).
+function BSMealLogged({ kcal = 0, p = 0, time = '12:40 PM', onDone = () => {}, onUndo = () => {} }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const CAL_GOAL = 2100, P_GOAL = 165, DAY_BASE_CAL = 1568, DAY_BASE_P = 118;
+  const dayCal = DAY_BASE_CAL + (kcal || 0);
+  const dayP = DAY_BASE_P + (p || 0);
+  return (
+    <BSPage>
+      <div style={{ padding: `84px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+        <div style={{ width: 84, height: 84, borderRadius: 999, background: teal, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 44px ${teal}55`, color: '#04201d', fontSize: 34, fontWeight: 700 }}>✓</div>
+        <div style={{ marginTop: 22, fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em' }}>Logged<span style={{ color: teal }}>.</span></div>
+        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK50, letterSpacing: '-0.005em' }}>{kcal} kcal · {p}P · {time}</div>
+      </div>
+      <div style={{ padding: `26px ${t.padX}px 0` }}>
+        <div style={{ borderRadius: 16, border: `1px solid ${teal}40`, background: `linear-gradient(155deg, ${teal}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 16 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Day so far</div>
+          <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            {[['Calories', dayCal, CAL_GOAL, teal], ['Protein', dayP, P_GOAL, t.RUST]].map(([l, v, goal, c]) => (
+              <div key={l}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}><span>{l}</span><span>/ {goal}</span></div>
+                <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: c }}>{v}</div>
+                <div style={{ marginTop: 6, height: 4, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ width: `${Math.min(100, (v / goal) * 100)}%`, height: '100%', background: c }} /></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div style={{ padding: `22px ${t.padX}px 8px` }}>
+        <button onClick={onDone} style={{ width: '100%', padding: '15px', borderRadius: t.RADIUS_SM, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700 }}>Done →</button>
+      </div>
+      <div style={{ textAlign: 'center', paddingBottom: 28 }}>
+        <button onClick={onUndo} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK50 }}>Undo</button>
+      </div>
+    </BSPage>
+  );
+}
+
 function BSMealPreview({ meal, onBack }) {
   const t = useBS();
   _bsScrollTopOnMount();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [logged, setLogged] = useStateBSC(meal.state === 'done');
+  const [justLogged, setJustLogged] = useStateBSC(false);
+  const fmt12 = (hhmm) => { const [h, m] = String(hhmm || '').split(':').map(Number); if (Number.isNaN(h)) return '12:40 PM'; const ap = h >= 12 ? 'PM' : 'AM'; return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${ap}`; };
+  if (justLogged) {
+    return <BSMealLogged kcal={meal.kcal} p={meal.p} time={fmt12(meal.time)} onDone={onBack} onUndo={() => setJustLogged(false)} />;
+  }
 
   // Macro % of total kcal — visual bar split
   const totalCal = (meal.p || 0) * 4 + (meal.c || 0) * 4 + (meal.f || 0) * 9 || 1;
@@ -2774,11 +2819,16 @@ function BSMealPreview({ meal, onBack }) {
           padding: '14px 18px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
           fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
         }}>Close</button>
-        <button onClick={() => setLogged(l => !l)} style={{ borderRadius: t.RADIUS_SM,
-          flex: 1, padding: '14px', border: 0,
-          background: logged ? t.GREEN : t.INK, color: t.PAPER,
-          fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
-        }}>{logged ? '✓ Logged' : 'Log this meal →'}</button>
+        <button onClick={() => setJustLogged(true)} style={{
+          flex: 1, textAlign: 'left', border: 0, borderRadius: 14, background: teal, color: '#04201d', padding: '12px 16px', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+        }}>
+          <span style={{ minWidth: 0 }}>
+            <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', opacity: 0.65 }}>One tap</span>
+            <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em' }}>Ate it as planned</span>
+          </span>
+          <span style={{ fontSize: 18, fontWeight: 700 }}>✓</span>
+        </button>
       </div>
 
       <BSFooter right="Recipe" />
