@@ -669,7 +669,7 @@ function BSAvatar({ init = 'A', size = 32, fill, ink, onClick, round = true, glo
       letterSpacing: serif ? '0' : '-0.02em',
       borderRadius: round ? '50%' : t.RADIUS_SM,
       boxShadow: glow ? `0 0 22px ${bg}5e, 0 0 0 4px ${bg}26` : 'none',
-    }}>{init}</button>
+    }}>{serif ? <span style={{ display: 'inline-block', transform: 'skewX(-11deg)' }}>{init}</span> : init}</button>
   );
 }
 
