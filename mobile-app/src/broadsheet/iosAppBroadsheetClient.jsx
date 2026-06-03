@@ -1661,7 +1661,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
             {added.length > 0 && (
               <>
                 <BSSection title="Your widgets" meta={`${added.length} active`} />
-                <div style={{ padding: `${t.sectGap}px ${t.padX}px 4px`, display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 10, borderTop: `2px solid ${t.INK}` }}>
+                <div style={{ padding: `${t.sectGap}px ${t.padX}px 4px`, display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 10 }}>
                   {added.map(w => (
                     <div key={w.key} style={{ minWidth: 0, gridColumn: w.span === 1 ? 'span 2' : 'span 1' }}>
                       <BSWidgetSlot widgetKey={w.key} onRemove={remove} />
@@ -1708,7 +1708,7 @@ function BSAddWidgets({ added, onAdd }) {
   const [open, setOpen] = useStateBSC(false);
   const remaining = Object.keys(BS_WIDGETS).length - added.length;
   return (
-    <div style={{ padding: `${t.sectGap}px ${t.padX}px 4px`, borderTop: `2px solid ${t.INK}` }}>
+    <div style={{ padding: `${t.sectGap}px ${t.padX}px 4px` }}>
       <button
         onClick={() => setOpen(o => !o)}
         style={{ borderRadius: t.RADIUS_SM,
@@ -6786,7 +6786,7 @@ function BSClientProgress({ onBack }) {
       {!loading && trendRows.length > 0 && (
         <>
           <BSSection title="Trends" kicker="Recent history" />
-          <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+          <div style={{ padding: `0 ${t.padX}px` }}>
             {trendRows.map((r, i) => (
               <div key={r.key} style={{ display: 'grid', gridTemplateColumns: '78px 1fr 44px', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: i === trendRows.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
                 <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70, fontWeight: 700 }}>{r.label}</div>
@@ -6802,7 +6802,7 @@ function BSClientProgress({ onBack }) {
       {!loading && prs.length > 0 && (
         <>
           <BSSection title="Strength PRs" kicker="Best logged set" meta={`${prs.length}`} />
-          <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+          <div style={{ padding: `0 ${t.padX}px` }}>
             {prs.map((pr, i) => (
               <div key={`${pr.move}-${i}`} style={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: i === prs.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
                 <div>
@@ -7102,7 +7102,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
   }
 
   const renderRows = (rows) => (
-    <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+    <div style={{ padding: `0 ${t.padX}px` }}>
       {rows.map((row, i, arr) => (
         <button key={`${row.l}-${i}`} onClick={typeof row.onClick === 'function' ? row.onClick : undefined} disabled={busy} style={{
           borderRadius: 0,
@@ -7781,7 +7781,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
       />
 
       <BSSection title="Reward tiers" kicker="Monthly points" meta="5 tiers" />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+      <div style={{ padding: `0 ${t.padX}px` }}>
         {tiers.map((tier, i) => (
           <div key={tier.name} style={{
             display: 'grid', gridTemplateColumns: '88px 1fr', gap: 12,
@@ -7827,7 +7827,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
       </div>
 
       <BSSection title="Rewards" kicker="Spend your points" meta={`${available.toLocaleString()} available`} />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+      <div style={{ padding: `0 ${t.padX}px` }}>
         {rewards.map(([title, sub, cost], i) => (
           <div key={title} onClick={title.includes('Store') ? onOpenStore : undefined} style={{
             display: 'grid', gridTemplateColumns: '1fr 74px', gap: 12,
@@ -7844,7 +7844,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
       </div>
 
       <BSSection title="Point values" kicker={`${profile.roleLabel || 'Member'} activity`} meta={`${activities.length} ways`} />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+      <div style={{ padding: `0 ${t.padX}px` }}>
         {activities.map((a, i) => (
           <div key={a.name} style={{
             display: 'grid', gridTemplateColumns: '1fr 52px', gap: 12,
@@ -7864,7 +7864,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
       </div>
 
       <BSSection title="Recent points" kicker="Ledger" />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+      <div style={{ padding: `0 ${t.padX}px` }}>
         {ledger.map(([day, pts, label], i) => (
           <div key={`${day}-${label}`} style={{
             display: 'grid', gridTemplateColumns: '62px 1fr 52px', alignItems: 'center', gap: 10,
@@ -7984,7 +7984,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
       </div>
 
       <BSSection title="Catalog" kicker={cat} meta={`${visible.length} items`} />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+      <div style={{ padding: `0 ${t.padX}px` }}>
         {visible.map((p, i) => {
           const canAfford = !p.locked && p.cost <= balance;
           return (
@@ -8014,7 +8014,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
       </div>
 
       <BSSection title="Unlocked" kicker="Codes" />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+      <div style={{ padding: `0 ${t.padX}px` }}>
         {unlocked.map(([code, name, expires, cost], i) => (
           <div key={code} style={{
             padding: '12px 0', borderBottom: i === unlocked.length - 1 ? 0 : `1px solid ${t.HAIR}`,
@@ -8715,7 +8715,7 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
                 fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase',
               }}>Reset ↺</button>
             </div>
-            <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+            <div style={{ padding: `0 ${t.padX}px` }}>
               {aisle.items.map((it, ii, arr) => {
                 const k = `${ai}-${ii}`;
                 const on = checked.has(k);
@@ -8758,7 +8758,7 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
 
       {/* Add item — only on editable (custom) lists */}
       {editable && (
-        <div style={{ padding: `16px ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+        <div style={{ padding: `16px ${t.padX}px` }}>
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8 }}>Add item</div>
           <div style={{ display: 'flex', gap: 8 }}>
             <input value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addItem(); }}
@@ -8871,7 +8871,7 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreat
         ))}
       </div>
 
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+      <div style={{ padding: `0 ${t.padX}px` }}>
         {filtered.map((l, i, arr) => {
           const color = l.kind === 'template' ? t.AMBER : l.kind === 'mealplan' ? t.GREEN : l.kind === 'recipe' ? t.RUST : t.ACCENT;
           const open = openList === l.id;
@@ -9088,6 +9088,15 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     </button>
   );
 
+  // Lighter, floating section header (no teal bar / no 2px box border) —
+  // matches the Me-page style: big serif title + small right-side meta.
+  const SectionHead = ({ title, meta }) => (
+    <div style={{ padding: `22px ${t.padX}px 4px`, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+      <div style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{title}</div>
+      {meta ? <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, flexShrink: 0 }}>{meta}</span> : null}
+    </div>
+  );
+
   if (showContact) {
     return <BSContactPage onBack={() => setShowContact(false)} />;
   }
@@ -9238,8 +9247,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
               <BSAvatar init={(draft.name || 'A').charAt(0)} size={56} fill={t.RUST} />
-              <button style={{ borderRadius: t.RADIUS_SM,
-                padding: '8px 12px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer',
+              <button style={{ borderRadius: 12,
+                padding: '8px 12px', border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer',
                 fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700,
               }}>Change photo</button>
             </div>
@@ -9254,7 +9263,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                   value={draft[f.k]}
                   onChange={(e) => setDraft({ ...draft, [f.k]: e.target.value })}
                   style={{ borderRadius: t.RADIUS_SM,
-                    width: '100%', padding: '10px 12px', border: `1px solid ${t.INK}`, background: t.PAPER,
+                    width: '100%', padding: '11px 13px', border: `1px solid ${t.RULE}`, background: t.PAPER2,
                     fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', outline: 'none',
                   }}
                 />
@@ -9267,18 +9276,18 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 onChange={(e) => setDraft({ ...draft, bio: e.target.value })}
                 rows={3}
                 style={{ borderRadius: t.RADIUS_SM,
-                  width: '100%', padding: '10px 12px', border: `1px solid ${t.INK}`, background: t.PAPER,
+                  width: '100%', padding: '11px 13px', border: `1px solid ${t.RULE}`, background: t.PAPER2,
                   fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', outline: 'none', resize: 'vertical',
                 }}
               />
             </label>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={cancelEdit} style={{ borderRadius: t.RADIUS_SM,
-                flex: 1, padding: '12px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer',
+              <button onClick={cancelEdit} style={{ borderRadius: 12,
+                flex: 1, padding: '13px', border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer',
                 fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
               }}>Cancel</button>
-              <button onClick={saveEdit} style={{ borderRadius: t.RADIUS_SM,
-                flex: 1, padding: '12px', border: `1px solid ${t.INK}`, background: t.INK, color: t.PAPER, cursor: 'pointer',
+              <button onClick={saveEdit} style={{ borderRadius: 12,
+                flex: 1, padding: '13px', border: `1px solid ${t.INK}`, background: t.INK, color: t.PAPER, cursor: 'pointer',
                 fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
               }}>Save changes</button>
             </div>
@@ -9302,11 +9311,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       )}
 
       {/* PROFILE MODE — switch between Client / Trainer / Nutritionist views */}
-      <BSSection
+      <SectionHead
         title="Profile mode"
         meta={(tweaks.role || 'client') === 'client' ? 'Client view' : (tweaks.role === 'trainer' ? 'Trainer view' : 'Nutritionist view')}
       />
-      <div style={{ padding: `14px ${t.padX}px 18px`, borderTop: `2px solid ${t.INK}` }}>
+      <div style={{ padding: `14px ${t.padX}px 18px` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8, fontWeight: 700 }}>
           Active profile
         </div>
@@ -9323,8 +9332,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {/* APPEARANCE */}
       <button onClick={() => setShowAppearance(v => !v)} aria-expanded={showAppearance} style={{
         width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-        padding: `13px ${t.padX}px`, borderTop: `2px solid ${t.INK}`, borderBottom: `1px solid ${t.RULE}`,
-        background: t.PAPER, border: 0, cursor: 'pointer', color: t.INK, textAlign: 'left',
+        padding: `20px ${t.padX}px 13px`, borderBottom: `1px solid ${t.RULE}`,
+        background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, textAlign: 'left',
       }}>
         <div>
           <BSEyebrow color={t.ACCENT}>Appearance</BSEyebrow>
@@ -9432,11 +9441,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       )}
 
       {/* SHAPE RADIO */}
-      <BSSection
+      <SectionHead
         title="Shape Radio"
         meta={r.radioOn ? (r.paused ? 'Paused' : 'Playing while browsing') : 'Off'}
       />
-      <div style={{ padding: `14px ${t.padX}px 18px`, borderTop: `2px solid ${t.INK}` }}>
+      <div style={{ padding: `14px ${t.padX}px 18px` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8, fontWeight: 700 }}>
           Listen while using the app
         </div>
@@ -9457,11 +9466,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       </div>
 
       {/* LIGHT EFFECTS — music-reactive overlays while Shape Radio is on */}
-      <BSSection
+      <SectionHead
         title="Light effects"
         meta={r.radioOn ? `Active · ${r.fxMode}` : 'Radio off — preview only'}
       />
-      <div style={{ padding: `14px ${t.padX}px 18px`, borderTop: `2px solid ${t.INK}` }}>
+      <div style={{ padding: `14px ${t.padX}px 18px` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 10, fontWeight: 700 }}>
           Reactive overlay · syncs to BPM
         </div>
@@ -9513,8 +9522,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       </div>
 
       {/* Home ticker — choose which stats show on the home strip + reorder. */}
-      <BSSection title="Home ticker" meta={`${BS_TICKER_METRICS.length - tickerPrefs.hidden.length} of ${BS_TICKER_METRICS.length} shown`} />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+      <SectionHead title="Home ticker" meta={`${BS_TICKER_METRICS.length - tickerPrefs.hidden.length} of ${BS_TICKER_METRICS.length} shown`} />
+      <div style={{ padding: `0 ${t.padX}px` }}>
         {(tickerPrefs.order || BS_TICKER_METRICS.map(m => m.key)).map((key, idx, arr) => {
           const m = BS_TICKER_METRICS.find(x => x.key === key);
           if (!m) return null;
@@ -9537,8 +9546,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
 
       {sections.map(sec => (
         <div key={sec.title}>
-          <BSSection title={sec.title} meta={sec.meta} />
-          <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+          <SectionHead title={sec.title} meta={sec.meta} />
+          <div style={{ padding: `0 ${t.padX}px` }}>
             {sec.rows.map((s, i, arr) => (
               <div key={i} onClick={s.action || (s.alert && s.l === 'Sign out' ? onLogout : undefined)} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -9555,8 +9564,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       ))}
 
       {/* Account actions — danger zone */}
-      <BSSection title="Account actions" meta="Danger zone" />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+      <SectionHead title="Account actions" meta="Danger zone" />
+      <div style={{ padding: `0 ${t.padX}px` }}>
         {[
           { l: 'Export all my data', r: 'Request file', act: 'Export' },
           { l: 'Pause membership', r: 'Keep account', act: 'Pause' },
@@ -9649,7 +9658,7 @@ function BSContactPage({ onBack }) {
       </div>
 
       <BSSection title="Reach us directly" meta="Support desk" />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+      <div style={{ padding: `0 ${t.padX}px` }}>
         {contactActions.map((item, i, arr) => (
           <button key={item.label} onClick={item.action} style={{
             borderRadius: 0,
@@ -9676,7 +9685,7 @@ function BSContactPage({ onBack }) {
       </div>
 
       <BSSection title="Hours of operation" meta="Eastern time" />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+      <div style={{ padding: `0 ${t.padX}px` }}>
         {[
           ['Mon - Fri', '6am - 10pm'],
           ['Saturday', '7am - 8pm'],
@@ -9695,7 +9704,7 @@ function BSContactPage({ onBack }) {
       </div>
 
       <BSSection title="Send us a message" meta={sent ? 'Queued' : '24h reply'} />
-      <div style={{ padding: `14px ${t.padX}px 18px`, borderTop: `2px solid ${t.INK}` }}>
+      <div style={{ padding: `14px ${t.padX}px 18px` }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           <label>
             <span style={labelStyle}>First name</span>
@@ -9801,7 +9810,7 @@ function BSTermsPage({ onBack, onContact }) {
       </div>
 
       <BSSection title="Contents" meta="Summary" />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+      <div style={{ padding: `0 ${t.padX}px` }}>
         {terms.map(([num, title, body], i, arr) => (
           <div key={num} style={{
             display: 'grid',
@@ -9885,7 +9894,7 @@ function BSPrivacyPage({ onBack, onContact }) {
       </div>
 
       <BSSection title="Summary" meta="At a glance" />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+      <div style={{ padding: `0 ${t.padX}px` }}>
         {sections.map(([num, title, body], i, arr) => (
           <div key={num} style={{
             display: 'grid',
@@ -9942,7 +9951,7 @@ function BSHelpPage({ onBack, onContact }) {
       </div>
 
       <BSSection title="Common questions" meta="FAQ" />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+      <div style={{ padding: `0 ${t.padX}px` }}>
         {faqs.map(([q, a], i, arr) => (
           <div key={q} style={{ padding: `${t.rowY + 7}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{q}</div>
