@@ -228,7 +228,7 @@ function BSConnectedDataSummary({ onOpenSettings }) {
   const workout = whoopData?.whoop?.workouts?.records?.[0] || {};
   const workoutScore = workout?.score || {};
   const latestStrava = stravaData?.strava?.activities?.[0] || {};
-  const stravaDistance = latestStrava.distance ? `${(latestStrava.distance / 1609.344).toFixed(1)} mi` : null;
+  const stravaDistance = latestStrava.distance ? t.fmtDistance(latestStrava.distance / 1609.344, 1) : null;
   const metric = (label, value) => ({ label, value: value === null || value === undefined || value === '' ? '-' : value });
   const metrics = [
     metric('REC', recovery.recovery_score ? `${Math.round(recovery.recovery_score)}%` : null),
@@ -1149,7 +1149,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
           { label: 'SLP',  value: fmtSleep(tk.sleep_hours) || '7H24M', note: fmtDelta(tk.sleep_delta_min, 'M VS YEST') || '+28M VS AVG', color: '#a3e09a' },
           { label: 'HRV',  value: tk.hrv_ms != null ? `${Math.round(tk.hrv_ms)}MS` : '62MS', note: tk.hrv_ms != null && tk.hrv_ms >= 50 ? 'GOOD' : 'LOW', color: tk.hrv_ms != null && tk.hrv_ms >= 50 ? '#a3e09a' : '#ffc56a' },
           { label: 'RHR',  value: tk.resting_hr != null ? `${Math.round(tk.resting_hr)}BPM` : '54BPM', note: tk.resting_hr != null && tk.resting_hr > 60 ? 'ELEV' : 'STEADY', color: tk.resting_hr != null && tk.resting_hr > 60 ? '#ffc56a' : undefined },
-          { label: 'WGT',  value: tk.weight_lb != null ? `${tk.weight_lb.toFixed(1)}LB` : '178.2LB', note: tk.weight_delta_7d != null ? fmtDelta(tk.weight_delta_7d, ' 7D') : '-0.4 7D' },
+          { label: 'WGT',  value: tk.weight_lb != null ? `${t.convWeight(tk.weight_lb).toFixed(1)}${t.weightUnit.toUpperCase()}` : (t.isMetric ? '80.8KG' : '178.2LB'), note: tk.weight_delta_7d != null ? fmtDelta(Math.round(t.convWeight(tk.weight_delta_7d) * 10) / 10, ' 7D') : (t.isMetric ? '-0.2 7D' : '-0.4 7D') },
         ];
         const order = (tickerPrefs.order && tickerPrefs.order.length) ? tickerPrefs.order : all.map(i => i.label);
         const out = order.map(k => all.find(i => i.label === k)).filter(Boolean).filter(it => !(tickerPrefs.hidden || []).includes(it.label));
@@ -6719,7 +6719,7 @@ function BSClientProgress({ onBack }) {
   const valuesOf = (key) => ((series[key] || []).map(p => Number(p.value)).filter(Number.isFinite));
 
   const cards = [
-    kpis.weightLatest != null && { label: 'Weight', value: `${Math.round(kpis.weightLatest)}`, unit: 'lb', sub: kpis.weightChange != null ? `${_bsSignedNum(kpis.weightChange, 1, ' lb')} since start` : 'Latest', c: t.AMBER },
+    kpis.weightLatest != null && { label: 'Weight', value: `${Math.round(t.convWeight(kpis.weightLatest))}`, unit: t.weightUnit, sub: kpis.weightChange != null ? `${_bsSignedNum(t.convWeight(kpis.weightChange), 1, ` ${t.weightUnit}`)} since start` : 'Latest', c: t.AMBER },
     kpis.bodyFatLatest != null && { label: 'Body fat', value: `${kpis.bodyFatLatest.toFixed(1)}`, unit: '%', sub: (kpis.bodyFatFirst != null) ? `${_bsSignedNum(kpis.bodyFatLatest - kpis.bodyFatFirst, 1, '%')} since start` : 'Latest', c: t.RUST },
     kpis.restingHr != null && { label: 'Resting HR', value: `${kpis.restingHr}`, unit: 'bpm', sub: kpis.restingHrDelta != null ? `${_bsSignedNum(kpis.restingHrDelta, 0, '')} vs prior wk` : '7-day avg', c: t.GREEN },
     kpis.sleepAvg != null && { label: 'Sleep', value: `${kpis.sleepAvg}`, unit: 'h', sub: '30-day avg', c: t.BLUE },
@@ -6791,7 +6791,7 @@ function BSClientProgress({ onBack }) {
               <div key={r.key} style={{ display: 'grid', gridTemplateColumns: '78px 1fr 44px', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: i === trendRows.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
                 <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70, fontWeight: 700 }}>{r.label}</div>
                 <BSProgressSpark values={r.values} color={r.c} />
-                <div style={{ textAlign: 'right', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{Math.round(r.values[r.values.length - 1])}</div>
+                <div style={{ textAlign: 'right', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{Math.round((r.key === 'weight' || r.key === 'strength') ? t.convWeight(r.values[r.values.length - 1]) : r.values[r.values.length - 1])}</div>
               </div>
             ))}
           </div>
@@ -6811,10 +6811,15 @@ function BSClientProgress({ onBack }) {
                     {pr.bestReps != null ? `${pr.bestReps} reps · ` : ''}{_bsFormatScoreDate(pr.bestAt)}
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
-                  <span style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>{Math.round(pr.best)}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{pr.unit || 'lb'}</span>
-                </div>
+                {(() => {
+                  const lbUnit = !pr.unit || /^lbs?$/i.test(pr.unit); // convert only pound PRs
+                  return (
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
+                      <span style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>{Math.round(lbUnit ? t.convWeight(pr.best) : pr.best)}</span>
+                      <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{lbUnit ? t.weightUnit : pr.unit}</span>
+                    </div>
+                  );
+                })()}
               </div>
             ))}
           </div>
@@ -7161,7 +7166,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
       type: 'text', placeholder: 'Oct 4, 1993' },
     { k: 'height_weight', l: 'Height / weight',
       r: profileData.height_weight || 'Not set',
-      type: 'text', placeholder: '5 ft 6 in · 171 lb',
+      type: 'text', placeholder: t.isMetric ? '168 cm · 78 kg' : '5 ft 6 in · 171 lb',
       action: 'Update' },
   ].map((r) => ({
     l: r.l, r: r.r, action: r.action || 'Edit',
@@ -8980,7 +8985,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
     let alive = true;
     window.shapeDb.getUserGoals('client_settings').then(s => {
-      if (alive && s && typeof s === 'object') setPrefs(p => ({ ...p, ...s }));
+      if (alive && s && typeof s === 'object') {
+        setPrefs(p => ({ ...p, ...s }));
+        if (s.units) window.ShapeUnits?.set(s.units);
+      }
     }).catch(() => {});
     return () => { alive = false; };
   }, []);
@@ -8991,6 +8999,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       const idx = Math.max(0, opts.indexOf(p[key]));
       const next = { ...p, [key]: opts[(idx + 1) % opts.length] };
       try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
+      if (key === 'units') window.ShapeUnits?.set(next[key]); // propagate app-wide
       window.__bsToast?.(`${label} → ${next[key]}`, 'ok');
       return next;
     });
@@ -9375,11 +9384,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             const on = (tweaks.role || 'client') === key;
             return (
               <button key={key} onClick={() => setTweak('role', key)} style={{ borderRadius: t.RADIUS_SM,
-                flex: 1, padding: '15px 12px', cursor: 'pointer',
+                flex: 1, padding: '12px 11px', cursor: 'pointer',
                 border: `1px solid ${on ? t.INK : t.RULE}`,
                 background: on ? t.INK : 'transparent',
                 color: on ? t.PAPER : t.INK,
-                fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
               }}>{label}</button>
             );
           })}

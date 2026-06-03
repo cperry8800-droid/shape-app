@@ -913,6 +913,17 @@ function BSAppShell({ tweaks, setTweak }) {
 
   useEffectBSM(() => { setRole(tweaks.role || 'client'); }, [tweaks.role]);
 
+  // Apply the saved units preference (Imperial / Metric) at startup so weight
+  // & distance readouts format correctly before Settings is ever opened.
+  useEffectBSM(() => {
+    if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
+    let alive = true;
+    window.shapeDb.getUserGoals('client_settings')
+      .then(s => { if (alive && s && s.units) window.ShapeUnits?.set(s.units); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [authState?.user?.id]);
+
   // Replay splash on demand from Tweaks panel
   useEffectBSM(() => {
     function onReplay() { setStage('splash'); }
