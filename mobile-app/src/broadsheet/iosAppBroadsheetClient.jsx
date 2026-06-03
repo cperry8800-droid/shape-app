@@ -9459,6 +9459,22 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const saveEdit  = () => { setIdentity(draft); setEditing(false); };
   const cancelEdit = () => setEditing(false);
 
+  // Editable account fields (Account pane).
+  const [account, setAccount] = useStateBSC({ email: 'alex@rivera.co', phone: '+1 (415) 555-0144', twoFactor: true });
+  const editAccount = (field, label) => {
+    const next = window.prompt(`Edit ${label}`, account[field]);
+    if (next != null && String(next).trim()) {
+      setAccount(a => ({ ...a, [field]: String(next).trim() }));
+      window.__bsToast?.(`${label} updated`, 'ok');
+    }
+  };
+  const changePassword = () => window.__bsToast?.('Password reset link sent to your email', 'ok');
+  const toggleTwoFactor = () => setAccount(a => {
+    const twoFactor = !a.twoFactor;
+    window.__bsToast?.(`Two-factor ${twoFactor ? 'enabled' : 'disabled'}`, 'ok');
+    return { ...a, twoFactor };
+  });
+
   // Appearance / Effects controls — render natively
   const Pill = ({ on, onClick, children, color }) => (
     <button onClick={onClick} style={{ borderRadius: t.RADIUS_SM,
@@ -9555,7 +9571,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         const rowBorder = i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`;
         if (s.dropdown) {
           return (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: `${t.rowY + 4}px 0`, borderBottom: rowBorder }}>
+            <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: `${t.rowY + 12}px 0`, borderBottom: rowBorder }}>
               <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', flexShrink: 0 }}>{s.l}</span>
               <select value={prefs[s.key]} onChange={(e) => setPref(s.key, e.target.value)} style={{
                 maxWidth: '64%', textAlign: 'right', textAlignLast: 'right',
@@ -9572,7 +9588,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         }
         if (s.segmented) {
           return (
-            <div key={i} style={{ padding: `${t.rowY + 4}px 0`, borderBottom: rowBorder }}>
+            <div key={i} style={{ padding: `${t.rowY + 12}px 0`, borderBottom: rowBorder }}>
               <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em' }}>{s.l}</span>
               <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
                 {s.segmented.map((opt, j) => {
@@ -9596,7 +9612,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         return (
           <div key={i} onClick={onTap} style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-            padding: `${t.rowY + 4}px 0`, borderBottom: rowBorder,
+            padding: `${t.rowY + 12}px 0`, borderBottom: rowBorder,
             cursor: (s.action || (s.key && !s.segmented && !s.dropdown)) ? 'pointer' : 'default',
           }}>
             <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em', flexShrink: 0 }}>{s.l}</span>
@@ -9643,10 +9659,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       title: 'Account',
       meta: 'Pro · annual',
       rows: [
-        { l: 'Email',           r: 'alex@rivera.co' },
-        { l: 'Phone',           r: '+1 (415) 555-0144' },
-        { l: 'Password',        r: 'Change' },
-        { l: 'Two-factor auth', r: 'On' },
+        { l: 'Email',           r: account.email, action: () => editAccount('email', 'Email') },
+        { l: 'Phone',           r: account.phone, action: () => editAccount('phone', 'Phone') },
+        { l: 'Password',        r: 'Change', action: changePassword },
+        { l: 'Two-factor auth', r: account.twoFactor ? 'On' : 'Off', action: toggleTwoFactor },
       ],
     },
     {
@@ -9720,6 +9736,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
 
   return (
     <BSPage tabBarHeight={0}>
+      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
 
       {/* ── DRILL-IN CARD PANES ── */}
       {detail === 'account' && (<><DetailBack title="Account" />{renderRows(findSec('Account').rows)}</>)}
@@ -9732,7 +9749,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         <DetailBack title="Account actions" />
         <div style={{ padding: `4px ${t.padX}px` }}>
           {accountActionRows.map((s, i, arr) => (
-            <div key={i} onClick={() => requestAccountAction(s.act)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: `${t.rowY + 4}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
+            <div key={i} onClick={() => requestAccountAction(s.act)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: `${t.rowY + 12}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
               <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em' }}>{s.l}</span>
               {s.r && <BSEyebrow>{s.r}</BSEyebrow>}
             </div>
@@ -10105,7 +10122,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       </>)}
 
       <BSRadioPrompt />
-      <BSFooter left="Shape v2.4.0" right="Build 2026.04" />
+      <div style={{ marginTop: 'auto' }}>
+        <BSFooter left="Shape v2.4.0" right="Build 2026.04" />
+      </div>
+      </div>
     </BSPage>
   );
 }
