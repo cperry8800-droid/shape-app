@@ -936,7 +936,9 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
     return (
       <BSPage>
         <div style={{ padding: `84px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-          <div style={{ width: 84, height: 84, borderRadius: 999, background: teal, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 44px ${teal}55`, color: '#04201d', fontSize: 34, fontWeight: 700 }}>✓</div>
+          <div style={{ width: 84, height: 84, borderRadius: 999, background: teal, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 44px ${teal}55` }}>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#04201d" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.2 4.2L19 7" /></svg>
+          </div>
           <div style={{ marginTop: 22, fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em' }}>Logged<span style={{ color: teal }}>.</span></div>
           <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK50, letterSpacing: '-0.005em' }}>{kcal} kcal · {P}P · 12:40 PM</div>
         </div>
@@ -2800,16 +2802,6 @@ function BSMealPreview({ meal, onBack }) {
               <div style={{ flex: 1, fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1.4, color: t.INK85 }}>{s}</div>
             </div>
           ))}
-        </div>
-      </div>
-
-      {/* Coach note */}
-      <div style={{ margin: `22px ${t.padX}px 0`, padding: 18, background: t.INK, color: t.PAPER }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.AMBER, marginBottom: 10, fontWeight: 700 }}>
-          ▍ Note from Rae · Nutrition
-        </div>
-        <div style={{ fontFamily: t.DISPLAY, fontWeight: 500, fontSize: 16, lineHeight: 1.4, letterSpacing: '-0.01em' }}>
-          {meal.coachNote}
         </div>
       </div>
 
