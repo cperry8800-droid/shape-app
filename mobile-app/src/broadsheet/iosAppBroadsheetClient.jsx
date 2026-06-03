@@ -2802,13 +2802,16 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
 
       {/* Find a trainer — marketplace deep link (Trainer tab), pinned to the bottom */}
       <div style={{ padding: `18px ${t.padX}px 28px` }}>
-        <button onClick={() => goMarket('trainer')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 16px', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
-          <div style={{ minWidth: 0 }}>
+        <button onClick={() => goMarket('trainer')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 13, padding: '15px 16px', borderRadius: 16, border: `1.5px solid #c0533b66`, background: t.isLight ? '#c0533b14' : '#c0533b26' }}>
+          <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 12, background: '#c0533b', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 6.5v11M3 9.5v5M17.5 6.5v11M21 9.5v5M6.5 12h11"/></svg>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#c0533b', fontWeight: 700, marginBottom: 4 }}>Marketplace</div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 16, color: t.INK }}>Find a trainer</div>
+            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 17, color: t.INK }}>Find a trainer</div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 3, letterSpacing: '0.06em' }}>Vetted coaches · filter by goal & schedule</div>
           </div>
-          <span style={{ color: t.INK50, fontSize: 18, flexShrink: 0 }}>→</span>
+          <span style={{ color: '#c0533b', fontSize: 18, flexShrink: 0, fontWeight: 700 }}>→</span>
         </button>
       </div>
 
@@ -3634,6 +3637,68 @@ function BSRxPlanWidget() {
       </div>
     </div>
   );
+}
+
+// Aisle classification for plan-derived grocery lists — keyword → aisle, so the
+// auto-built shop list is grouped the same way a nutritionist's hand-made list is.
+const BS_GROCERY_AISLES = [
+  { aisle: 'Produce', re: /spinach|kale|lettuce|green|tomato|pepper(?!corn)|broccoli|carrot|onion|garlic|cucumber|avocado|banana|berr|apple|orange|lemon|lime|pineapple|mango|melon|grape|potato|squash|zucchini|courgette|mushroom|celery|asparagus|cauliflower|cabbage|basil|cilantro|coriander|parsley|mint|scallion|ginger|herb|veg|fruit|salad|sprout|pea\b/i },
+  { aisle: 'Protein', re: /chicken|beef|steak|mince|turkey|pork|bacon|ham|lamb|salmon|tuna|cod|fish|shrimp|prawn|tofu|tempeh|egg|whey|protein|sausage|venison/i },
+  { aisle: 'Dairy & cold', re: /milk|yog(h?)urt|cheese|feta|parmesan|cottage|cream|butter|kefir|skyr|halloumi/i },
+  { aisle: 'Pantry', re: /oat|rice|quinoa|couscous|barley|farro|bulgur|pasta|noodle|bread|tortilla|wrap|flour|sugar|honey|maple|syrup|oil|vinegar|cumin|paprika|cinnamon|spice|bean|lentil|chickpea|hummus|nut|peanut|almond|cashew|walnut|seed|chia|flax|granola|muesli|cereal|stock|broth|sauce|salsa|pesto|paste|coconut|chocolate|cocoa|raisin|date/i },
+];
+const BS_GROCERY_STAPLE = /\b(salt|pepper|cinnamon|cumin|paprika|spice|olive oil|oil|water|vinegar|stock|broth|seasoning)\b/i;
+function bsGroceryAisleFor(name) {
+  const n = String(name || '').toLowerCase();
+  // Nut/seed butters are pantry, not dairy (the dairy "butter" match is greedy).
+  if (/\b(peanut|almond|cashew|nut|sunflower|seed)\s*butter\b/.test(n)) return 'Pantry';
+  for (const r of BS_GROCERY_AISLES) if (r.re.test(n)) return r.aisle;
+  return 'Other';
+}
+
+// Roll the whole week's meal ingredients into one aisle-grouped grocery list,
+// deduped by ingredient name. This makes the shop list literally the meals'
+// ingredients, so the two always match up (no separate hardcoded list to drift).
+function bsBuildPlanGrocery(program, author) {
+  const byName = new Map();
+  (program || []).forEach(dy => (dy.meals || []).forEach(meal => (meal.ingredients || []).forEach(ing => {
+    const name = String(ing.m || '').trim();
+    if (!name) return;
+    const key = name.toLowerCase();
+    const e = byName.get(key) || { n: name, qtys: [], meals: new Set() };
+    if (ing.n) e.qtys.push(String(ing.n).trim());
+    if (meal.title) e.meals.add(meal.title);
+    byName.set(key, e);
+  })));
+  const order = ['Produce', 'Protein', 'Dairy & cold', 'Pantry', 'Other'];
+  const buckets = new Map();
+  [...byName.values()].forEach(e => {
+    // Collapse repeated quantities ("180 g" ×3) rather than print them all.
+    const counts = {};
+    e.qtys.forEach(q => { counts[q] = (counts[q] || 0) + 1; });
+    const distinct = Object.keys(counts);
+    let q;
+    if (distinct.length === 0) q = '—';
+    else if (distinct.length === 1) q = counts[distinct[0]] > 1 ? `${distinct[0]} ×${counts[distinct[0]]}` : distinct[0];
+    else q = distinct.slice(0, 3).join(' + ');
+    const ms = [...e.meals];
+    const meals = ms.length <= 2 ? ms.join(' · ') : `${ms.slice(0, 2).join(' · ')} +${ms.length - 2}`;
+    const aisle = bsGroceryAisleFor(e.n);
+    const list = buckets.get(aisle) || [];
+    list.push({ n: e.n, q, meals: meals || '—', have: BS_GROCERY_STAPLE.test(e.n) });
+    buckets.set(aisle, list);
+  });
+  const aisles = order
+    .filter(a => buckets.has(a))
+    .map(a => ({ aisle: a, items: buckets.get(a).sort((x, y) => x.n.localeCompare(y.n)) }));
+  return {
+    id: 'plan-week',
+    name: "This week's plan",
+    eyebrow: 'Auto-built from your meals',
+    author: author || 'Dr. Maya Patel',
+    note: '"Every item here comes straight from this week\'s meals — nothing extra, nothing missing."',
+    aisles,
+  };
 }
 
 function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
@@ -4552,7 +4617,10 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
   const cur = PROGRAM[day] || PROGRAM[0];
   const days = PROGRAM.map(p => p.d);
   const meals = cur.meals;
-  const activeGroceryList = selectedGroceryList || BS_GROCERY_DEFAULT;
+  // The default shop list is built straight from the week's meal ingredients, so
+  // it always matches what the meals show. A user-selected list takes precedence.
+  const planGrocery = React.useMemo(() => bsBuildPlanGrocery(PROGRAM), [PROGRAM]);
+  const activeGroceryList = selectedGroceryList || planGrocery;
   const activeGroceryCount = activeGroceryList.aisles
     ? activeGroceryList.aisles.reduce((sum, aisle) => sum + aisle.items.length, 0)
     : activeGroceryList.count || 0;
@@ -4915,13 +4983,16 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
 
       {/* Find a nutritionist — marketplace deep link (Nutritionist tab), pinned to the bottom */}
       <div style={{ padding: `18px ${t.padX}px 28px` }}>
-        <button onClick={() => goMarket('nutritionist')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 16px', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
-          <div style={{ minWidth: 0 }}>
+        <button onClick={() => goMarket('nutritionist')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 13, padding: '15px 16px', borderRadius: 16, border: `1.5px solid #a07a2e66`, background: t.isLight ? '#a07a2e14' : '#a07a2e26' }}>
+          <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 12, background: '#a07a2e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 20A7 7 0 0 1 4 13C4 7 9 3 20 3C20 12 16 20 11 20Z"/><path d="M4 21C5.5 15 9 11.5 14 10"/></svg>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#a07a2e', fontWeight: 700, marginBottom: 4 }}>Marketplace</div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 16, color: t.INK }}>Find a nutritionist</div>
+            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 17, color: t.INK }}>Find a nutritionist</div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 3, letterSpacing: '0.06em' }}>Vetted RDs · filter by goal & specialty</div>
           </div>
-          <span style={{ color: t.INK50, fontSize: 18, flexShrink: 0 }}>→</span>
+          <span style={{ color: '#a07a2e', fontSize: 18, flexShrink: 0, fontWeight: 700 }}>→</span>
         </button>
       </div>
 
