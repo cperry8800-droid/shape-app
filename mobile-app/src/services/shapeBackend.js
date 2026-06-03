@@ -1330,6 +1330,55 @@ function conversationToThread(conversation, messages = []) {
   };
 }
 
+// Member-to-member DM: find or create the 1:1 conversation, then it behaves
+// like any other conversation (sendMessage / subscribeMessages by id).
+async function getOrCreateMemberConversation({ otherUserId } = {}) {
+  if (!state.user?.id) throw new Error('Sign in before messaging.');
+  if (!supabase) return { stored: 'local', data: null };
+  const { data, error } = await supabase.rpc('get_or_create_member_conversation', { p_other_user_id: otherUserId });
+  if (error) throw error;
+  return { stored: 'supabase', data };
+}
+
+function memberThreadFromRow(row, messages = []) {
+  const ordered = [...messages].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+  const other = row.other_name || 'Member';
+  return {
+    id: `conversation-${row.conversation_id}`,
+    conversation_id: row.conversation_id,
+    provider_role: null,
+    who: other,
+    role: 'Direct message',
+    last: row.last_message || ordered.at(-1)?.body || 'New conversation',
+    time: row.last_message_at ? 'synced' : 'now',
+    unread: 0,
+    bucket: 'DM',
+    messages: ordered.map(message => ({
+      who: message.sender_id === state.user?.id ? 'You' : other,
+      t: message.body,
+      time: message.created_at ? new Date(message.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'now',
+      me: message.sender_id === state.user?.id,
+      audio: message.metadata && message.metadata.audio ? message.metadata.audio.url : null,
+      photo: message.metadata && message.metadata.photo ? message.metadata.photo.url : null,
+    })),
+    updatedAt: row.last_message_at,
+  };
+}
+
+async function listMemberThreads() {
+  if (!state.user?.id || !supabase) return { stored: 'local', data: [] };
+  const { data: rows, error } = await supabase.rpc('list_member_dm_threads');
+  if (error) throw error;
+  const ids = (rows || []).map(r => r.conversation_id);
+  let byConversation = {};
+  if (ids.length) {
+    const { data: messages } = await supabase
+      .from('messages').select('*').in('conversation_id', ids).order('created_at', { ascending: true });
+    byConversation = (messages || []).reduce((acc, m) => { (acc[m.conversation_id] || (acc[m.conversation_id] = [])).push(m); return acc; }, {});
+  }
+  return { stored: 'supabase', data: (rows || []).map(r => memberThreadFromRow(r, byConversation[r.conversation_id] || [])) };
+}
+
 async function getOrCreateDirectConversation({ providerRole, providerId } = {}) {
   if (!state.user?.id) {
     throw new Error('Sign in before messaging a coach.');
@@ -1406,6 +1455,7 @@ async function listDirectCoachThreads() {
     .from('conversations')
     .select('*')
     .eq('kind', 'direct')
+    .is('dm_key', null) // member↔member DMs (dm_key set) are listed separately
     .order('last_message_at', { ascending: false, nullsFirst: false });
 
   if (error) throw error;
@@ -2781,9 +2831,11 @@ window.ShapeAI = {
 
 window.ShapeMessages = {
   getOrCreateDirectConversation,
+  getOrCreateMemberConversation,
   sendMessage,
   sendProviderMessage,
   listDirectCoachThreads,
+  listMemberThreads,
   subscribeMessages: subscribeDirectMessages,
 };
 
