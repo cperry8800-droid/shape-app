@@ -4601,16 +4601,16 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
 
       {/* Find a nutritionist — marketplace deep link (Nutritionist tab), pinned to the bottom */}
       <div style={{ padding: `18px ${t.padX}px 28px` }}>
-        <button onClick={() => goMarket('nutritionist')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 13, padding: '15px 16px', borderRadius: 16, border: `2px solid #a07a2e`, background: t.isLight ? '#a07a2e14' : '#a07a2e26' }}>
-          <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 12, background: '#a07a2e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 20A7 7 0 0 1 4 13C4 7 9 3 20 3C20 12 16 20 11 20Z"/><path d="M4 21C5.5 15 9 11.5 14 10"/></svg>
+        <button onClick={() => goMarket('nutritionist')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 13, padding: '15px 16px', borderRadius: 16, border: `2px solid ${t.isLight ? '#9c7b43' : '#e7dcc3'}`, background: t.isLight ? '#9c7b4314' : '#e7dcc31f' }}>
+          <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 12, background: t.isLight ? '#9c7b43' : '#e7dcc3', color: t.isLight ? '#fff' : '#2a1f12', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={t.isLight ? '#fff' : '#2a1f12'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 20A7 7 0 0 1 4 13C4 7 9 3 20 3C20 12 16 20 11 20Z"/><path d="M4 21C5.5 15 9 11.5 14 10"/></svg>
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#a07a2e', fontWeight: 700, marginBottom: 4 }}>Marketplace</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.isLight ? '#9c7b43' : '#e7dcc3', fontWeight: 700, marginBottom: 4 }}>Marketplace</div>
             <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 17, color: t.INK }}>Find a nutritionist</div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 3, letterSpacing: '0.06em' }}>Vetted RDs · filter by goal & specialty</div>
           </div>
-          <span style={{ color: '#a07a2e', fontSize: 18, flexShrink: 0, fontWeight: 700 }}>→</span>
+          <span style={{ color: t.isLight ? '#9c7b43' : '#e7dcc3', fontSize: 18, flexShrink: 0, fontWeight: 700 }}>→</span>
         </button>
       </div>
 
