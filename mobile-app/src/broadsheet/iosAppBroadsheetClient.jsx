@@ -9539,13 +9539,16 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // non-coach accounts (no provider row), in which case the block is hidden.
   const [capacity, setCapacityState] = useStateBSC(null);
   const [capacityBusy, setCapacityBusy] = useStateBSC(false);
+  const isCoachRole = tweaks.role === 'trainer' || tweaks.role === 'nutritionist';
   React.useEffect(() => {
+    // Booking capacity is a coach-only control — never load it for clients.
+    if (!isCoachRole) { setCapacityState(null); return undefined; }
     let cancelled = false;
     window.ShapeBookings?.getCapacity?.()
       .then(c => { if (!cancelled && c) setCapacityState(c); })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [isCoachRole]);
   const toggleCapacity = async () => {
     if (!capacity || capacityBusy) return;
     const next = !capacity.atCapacity;
@@ -9916,7 +9919,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       </div>
 
       {/* Coach-only — pause new bookings (at capacity) */}
-      {capacity && (
+      {capacity && isCoachRole && (
         <div style={{ padding: `16px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}`, background: capacity.atCapacity ? t.PAPER2 : 'transparent' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ minWidth: 0 }}>
@@ -10006,8 +10009,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
 
       {/* YOUR PLAN — subscription card (live from /api/stripe/subscription) */}
       {!editing && (() => {
-        // Assume active until the fetch resolves so there's no flash of "Free".
-        const active = plan ? plan.active !== false : true;
+        // There's no free tier, so a signed-in user is a member → show Manage.
+        // Only the not-signed-in (browse) state shows "Join now". A live Stripe
+        // row still fills in price/renewal below.
+        const planLoggedIn = !!(window.ShapeAuth?.getCachedState?.()?.user?.id);
+        const active = planLoggedIn ? true : (plan ? plan.active !== false : false);
         const cents = plan && typeof plan.priceCents === 'number' ? plan.priceCents : 500;
         const priceLabel = `$${cents % 100 === 0 ? cents / 100 : (cents / 100).toFixed(2)}/mo`;
         const renews = plan && plan.renewsAt ? new Date(plan.renewsAt) : null;
