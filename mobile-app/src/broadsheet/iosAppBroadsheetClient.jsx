@@ -1318,72 +1318,83 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
 
       <BSSection title="Up next" kicker="3 of 8 done" />
 
-      {/* NEXT WORKOUT — slab (today's training) */}
-      <BSSlab>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
-          <BSTag color={t.AMBER}>TRAIN</BSTag>
-          <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK, letterSpacing: '0.12em' }}>10:30 AM</span>
-          <span style={{ flex: 1 }} />
-          <BSEyebrow>Tap to start →</BSEyebrow>
-        </div>
-        <div onClick={goTrain} style={{ cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: t.headlineLead, lineHeight: 0.95, letterSpacing: '-0.035em', color: t.INK, marginTop: 8 }}>
-          Upper Pull —<br/>Peak.
-        </div>
-        <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK70, fontWeight: 600 }}>
-          6 moves · 52 min · RPE 8 · w/ Jordan
-        </div>
-        <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${t.RULE}`, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
-          {[['MOVES', '6'], ['VOL', '1900LB'], ['BLOCK', 'W6/D4'], ['LAST', '+2.5%']].map(([l, v], i) => (
-            <div key={l} style={{ borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0, paddingLeft: i > 0 ? 10 : 0 }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
-              <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 18, color: t.INK, marginTop: 3, letterSpacing: '-0.02em' }}>{v}</div>
+      {(() => {
+        const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+        const rust = t.RUST;
+        const cardBase = (c) => ({
+          margin: `0 ${t.padX}px 12px`, padding: '15px 16px 14px', borderRadius: 18,
+          border: `1px solid ${c}66`,
+          background: `linear-gradient(155deg, ${c}24, ${c}08 44%, ${t.PAPER2} 90%), ${t.PAPER2}`,
+        });
+        const pillFilled = { flexShrink: 0, padding: '9px 16px', borderRadius: 999, border: `1px solid ${teal}`, background: teal, color: t.isLight ? '#ffffff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' };
+        const pillOutline = { flexShrink: 0, padding: '9px 16px', borderRadius: 999, border: `1px solid ${teal}`, background: 'transparent', color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' };
+        const eyebrow = (c) => ({ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: c });
+        const metaRight = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 };
+        const Person = ({ init, name, role, fill }) => (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
+            <BSAvatar init={init} size={30} fill={fill} ink={t.PAPER} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{name}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: 1 }}>{role}</div>
             </div>
-          ))}
-        </div>
-        <button onClick={goTrain} style={{ borderRadius: t.RADIUS_SM,
-          marginTop: 12, width: '100%', padding: '12px',
-          background: t.INK, color: t.PAPER, border: 0, cursor: 'pointer',
-          fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
-        }}>Start session →</button>
-      </BSSlab>
-
-      {/* NEXT MEAL — slab. Tap card opens preview; the right-side affordance
-          logs/un-logs without leaving the home page. */}
-      <BSSlab tinted>
-        <div onClick={() => setPreviewMeal(HOME_LUNCH)} style={{ cursor: 'pointer' }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
-            <BSTag color={nextMealLogged ? t.GREEN : t.ACCENT}>LUNCH</BSTag>
-            <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK, letterSpacing: '0.12em' }}>12:40 PM</span>
-            <span style={{ flex: 1 }} />
-            {nextMealLogged ? (
-              <span
-                onClick={(e) => { e.stopPropagation(); setNextMealLogged(false); }}
-                style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.GREEN, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer' }}
-              >
-                ✓ Logged · undo
-              </span>
-            ) : (
-              <span
-                onClick={(e) => { e.stopPropagation(); setNextMealLogged(true); }}
-                style={{ cursor: 'pointer' }}
-              >
-                <BSEyebrow>Tap to log →</BSEyebrow>
-              </span>
-            )}
           </div>
-          <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: t.headlineLead, lineHeight: 0.95, letterSpacing: '-0.035em', color: t.INK, marginTop: 8 }}>
-            Chicken bowl<br/>with rice.
-          </div>
-          <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${t.RULE}`, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
-            {[['KCAL', '620'], ['PRO', '48g'], ['CARB', '72g'], ['FAT', '14g']].map(([l, v], i) => (
-              <div key={l} style={{ borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0, paddingLeft: i > 0 ? 10 : 0 }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
-                <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 18, color: t.INK, marginTop: 3, letterSpacing: '-0.02em' }}>{v}</div>
+        );
+        return (
+          <>
+            {/* NEXT WORKOUT */}
+            <div style={cardBase(rust)}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+                <span style={eyebrow(rust)}>Workout</span>
+                <span style={metaRight}>52 min · 6 moves · RPE 8 · ~420 kcal</span>
               </div>
-            ))}
-          </div>
-        </div>
-      </BSSlab>
+              <div onClick={goTrain} style={{ cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 25, lineHeight: 1.0, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
+                Upper Pull — Peak
+              </div>
+              <div style={{ marginTop: 12 }}>
+                {[
+                  ['01', 'Pull-up', '4 × 6-8 · 3 min', '42 lb'],
+                  ['02', 'Barbell row', '4 × 8 · 2 min', '155 lb'],
+                  ['03', 'Chest-sup. row', '3 × 10 · 90s', '60 lb'],
+                  ['04', '+ 3 more', 'Face pull · curl · carry', ''],
+                ].map(([n, name, sub, wt], i, arr) => (
+                  <div key={n} onClick={goTrain} style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
+                    <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK50 }}>{n}</span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{name}</div>
+                      <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>{sub}</div>
+                    </div>
+                    {wt ? <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{wt}</span> : <span />}
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 10, paddingTop: 12, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                <Person init="J" name="Jordan Chen" role="Coach" fill={rust} />
+                <button onClick={goTrain} style={pillOutline}>Preview →</button>
+              </div>
+            </div>
+
+            {/* NEXT MEAL */}
+            <div style={cardBase(teal)}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+                <span style={eyebrow(teal)}>Next up · 12:40 PM</span>
+                <span style={{ ...metaRight, letterSpacing: '0.16em' }}>Lunch</span>
+              </div>
+              <div onClick={() => setPreviewMeal(HOME_LUNCH)} style={{ cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 26, lineHeight: 1.0, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
+                Chicken bowl <span style={{ fontStyle: 'italic', color: teal }}>+ rice.</span>
+              </div>
+              <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
+                620 kcal · 48P · 72C · 14F
+              </div>
+              <div style={{ marginTop: 13, paddingTop: 12, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                <Person init="M" name="Dr. Maya Patel" role="Nutritionist" fill={t.AMBER} />
+                {nextMealLogged
+                  ? <button onClick={() => setNextMealLogged(false)} style={pillOutline}>✓ Logged</button>
+                  : <button onClick={() => setNextMealLogged(true)} style={pillFilled}>Log now →</button>}
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {/* DAY LOG */}
       <BSSection title="Day log" kicker={selIdx === todayIdx ? `Today · ${fmtDate(selIdx)}` : fmtDate(selIdx)} meta={`${dayLog.length} item${dayLog.length === 1 ? '' : 's'}`} />
