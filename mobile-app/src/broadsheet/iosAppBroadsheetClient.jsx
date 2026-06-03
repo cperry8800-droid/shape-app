@@ -738,7 +738,10 @@ function BSHomeWorkoutPreview({ onBack, onMove = () => {}, onStart = () => {}, o
         ]} />
       </div>
 
-      <div style={{ padding: `18px ${t.padX}px 12px`, display: 'flex', gap: 10 }}>
+      <div style={{ padding: `16px ${t.padX}px 4px` }}>
+        <button onClick={onStart} style={{ width: '100%', padding: '15px', borderRadius: 999, border: 0, background: teal, color: t.isLight ? '#ffffff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Begin session →</button>
+      </div>
+      <div style={{ padding: `10px ${t.padX}px 12px`, display: 'flex', gap: 10 }}>
         <BSSaveButton full item={{ id: 'workout:upper-pull-peak', kind: 'workout', title: 'Upper Pull — Peak', meta: '52 min · 6 moves · RPE 8', coach: 'Jordan Chen' }} />
         <button onClick={onMove} style={footBtn}>Move session</button>
         <button onClick={() => window.__bsToast?.('Reminder set for 9:00 AM', 'ok')} style={footBtn}>Remind me</button>
