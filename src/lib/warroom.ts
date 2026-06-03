@@ -533,8 +533,20 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       section: 'Mobile UI polish',
       items: [
         { label: 'Shape Radio now-playing bar spans the full screen width (full-bleed)', status: 'done' },
-        { label: 'Shape Score tier badge bolder + solid gold (client + coach Me pages)', status: 'done' },
-        { label: "Marketplace 'Find a coach' CTAs: tinted fill, bold role-color outline, icon badge", status: 'done' },
+        { label: 'Shape Score tier badge → minimal chip above the Me-page header; simpler score card', status: 'done' },
+        { label: 'Settings: Light effects is a collapsible "Customize" section (like Appearance); smaller section headers', status: 'done' },
+        { label: 'Circular avatars app-wide; cursive initials monogram on Settings identity', status: 'done' },
+        { label: 'Coach-playlist cards: Spotify logo + green, compact; play opens Spotify (not Apple Music)', status: 'done' },
+      ],
+    },
+    {
+      section: 'Marketplace & coach profiles',
+      items: [
+        { label: 'Marketplace rebuilt as editorial discovery (Find your coach · All/Trainers/Nutritionists · Coach of the Week · Featured · Programs)', status: 'done' },
+        { label: 'Coach profile page (BSCoachDetailPublic) redesigned: gradient hero, circular avatar, pill tabs, rounded CTAs', status: 'done' },
+        { label: 'Two side-by-side coach-apply CTAs (trainer + nutritionist) on the discovery view', status: 'done' },
+        { label: "Client 'Library': save trainers' workouts & paid plans + nutritionists' meals/plans to profile (model + screen + sell/checkout path)", status: 'pending' },
+        { label: 'Sweep now-dead marketplace constants + ListingRow; confirm $rate/mo pricing semantics', status: 'pending' },
       ],
     },
   ];
