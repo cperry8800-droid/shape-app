@@ -437,17 +437,17 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole }) {
             <div style={{ padding: `0 ${t.padX}px` }}>
               <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Coach of the week</div>
               <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>{cotw.name}</div>
-              <div onClick={() => setOpen(cotw)} style={{ cursor: 'pointer', marginTop: 12, borderRadius: 20, border: `1px solid ${t.RULE}`, overflow: 'hidden', background: `linear-gradient(160deg, ${mktRoleColor(cotw)}26, ${t.PAPER2} 62%)`, padding: 18 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 19, lineHeight: 1.35, letterSpacing: '-0.01em', color: t.INK }}>“{cotw.bio}”</div>
-                <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <MktAvatar c={cotw} size={42} />
+              <div onClick={() => setOpen(cotw)} style={{ cursor: 'pointer', marginTop: 12, borderRadius: 18, border: `1px solid ${t.RULE}`, overflow: 'hidden', background: `linear-gradient(160deg, ${mktRoleColor(cotw)}26, ${t.PAPER2} 62%)`, padding: 14 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 16, lineHeight: 1.3, letterSpacing: '-0.01em', color: t.INK }}>“{cotw.bio}”</div>
+                <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 11 }}>
+                  <MktAvatar c={cotw} size={38} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{cotw.name}</div>
-                    <div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{(cotw.spec && cotw.spec[0]) || cotwProfile.role} · {mktShortLoc(cotw.loc)}</div>
+                    <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{cotw.name}</div>
+                    <div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{(cotw.spec && cotw.spec[0]) || cotwProfile.role} · {mktShortLoc(cotw.loc)}</div>
                   </div>
-                  <span style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 999, background: mktRoleColor(cotw), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700 }}>→</span>
+                  <span style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: mktRoleColor(cotw), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700 }}>→</span>
                 </div>
-                <div style={{ marginTop: 18, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>Tracklist</div>
+                <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>Tracklist</div>
                 <div style={{ marginTop: 2 }}>
                   {cotwProfile.packages.map((p, i) => (
                     <MktTrackRow key={p.name} n={i + 1} title={p.name} meta={`${p.unit === '/ month' ? 'Monthly' : 'One-time'} · ${p.perks.length} included`} right={p.price} first={i === 0} onClick={() => setOpen(cotw)} />
