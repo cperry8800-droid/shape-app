@@ -665,11 +665,16 @@ function BSAvatar({ init = 'A', size = 32, fill, ink, onClick, round = true, glo
       fontStyle: (serif || cursive) ? 'italic' : 'normal',
       fontSize: cursive ? Math.round(size * 0.46) : serif ? Math.round(size * 0.5) : size * 0.42,
       fontWeight: cursive ? 600 : 700,
+      lineHeight: 1,
       border: 0, padding: 0, cursor: onClick ? 'pointer' : 'default',
-      letterSpacing: cursive ? '0.02em' : serif ? '0' : '-0.02em',
+      // No trailing letter-spacing for cursive/serif — it shifts the glyphs off
+      // the optical centre of the circle.
+      letterSpacing: (cursive || serif) ? '0' : '-0.02em',
       borderRadius: round ? '50%' : t.RADIUS_SM,
       boxShadow: glow ? `0 0 22px ${bg}5e, 0 0 0 4px ${bg}26` : 'none',
-    }}>{serif && !cursive ? <span style={{ display: 'inline-block', transform: 'skewX(-11deg)' }}>{init}</span> : init}</button>
+    }}>{cursive
+      ? <span style={{ display: 'inline-block', lineHeight: 1, transform: 'translateY(0.04em)' }}>{init}</span>
+      : serif ? <span style={{ display: 'inline-block', transform: 'skewX(-11deg)' }}>{init}</span> : init}</button>
   );
 }
 
@@ -974,19 +979,10 @@ function BSToastHost() {
   const t = useBS();
   const [items, setItems] = useStateBS([]);
   useEffectBS(() => {
-    let seq = 0;
-    const timers = new Map();
-    window.__bsToast = (message, kind = 'info') => {
-      const id = ++seq;
-      setItems((list) => [...list.slice(-2), { id, message: String(message == null ? '' : message), kind }]);
-      const timer = setTimeout(() => {
-        setItems((list) => list.filter((x) => x.id !== id));
-        timers.delete(id);
-      }, 2800);
-      timers.set(id, timer);
-    };
+    // Toast popups are disabled app-wide. Keep window.__bsToast as a no-op so the
+    // many window.__bsToast?.(…) callers stay safe, but nothing is surfaced.
+    window.__bsToast = () => {};
     return () => {
-      timers.forEach((tm) => clearTimeout(tm));
       try { delete window.__bsToast; } catch (e) { window.__bsToast = undefined; }
     };
   }, []);
