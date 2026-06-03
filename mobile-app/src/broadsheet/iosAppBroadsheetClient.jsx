@@ -9032,6 +9032,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showNotifications, setShowNotifications] = useStateBSC(false);
   const [showIntegrations, setShowIntegrations] = useStateBSC(initialPage === 'integrations');
   const [showAppearance, setShowAppearance] = useStateBSC(false);
+  const [showLightFx, setShowLightFx] = useStateBSC(false);
   const [detail, setDetail] = useStateBSC(''); // '' = settings page; else a drill-in card pane
   const [showScore, setShowScore] = useStateBSC(false);
   const [showStore, setShowStore] = useStateBSC(false);
@@ -9816,13 +9817,24 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       </div>
 
       {/* LIGHT EFFECTS — music-reactive overlays while Shape Radio is on */}
-      <SectionHead
-        title="Light effects"
-        meta={r.radioOn ? `Active · ${r.fxMode}` : 'Radio off — preview only'}
-      />
+      <button onClick={() => setShowLightFx(v => !v)} aria-expanded={showLightFx} style={{
+        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+        padding: `20px ${t.padX}px 13px`, borderBottom: `1px solid ${t.RULE}`,
+        background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, textAlign: 'left',
+      }}>
+        <div>
+          <BSEyebrow color={t.ACCENT}>Light effects</BSEyebrow>
+          <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Reactive overlay</div>
+          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{r.radioOn ? `Active · ${r.fxMode}` : 'Radio off — preview only'}</div>
+        </div>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <span style={{ padding: '9px 16px', borderRadius: 999, border: `1px solid ${t.ACCENT}`, background: `${t.ACCENT}1f`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>{showLightFx ? 'Close ▾' : 'Customize ▸'}</span>
+        </span>
+      </button>
+      {showLightFx && (
       <div style={{ padding: `14px ${t.padX}px 18px` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 10, fontWeight: 700 }}>
-          Reactive overlay · syncs to BPM
+          Syncs to BPM
         </div>
 
         {/* 2×2 grid of mode cards */}
@@ -9870,6 +9882,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             : '— turn on Shape Radio from Home to see the effect'}
         </div>
       </div>
+      )}
 
       {/* Home ticker — choose which stats show on the home strip + reorder. */}
       <SectionHead title="Home ticker" meta={`${BS_TICKER_METRICS.length - tickerPrefs.hidden.length} of ${BS_TICKER_METRICS.length} shown`} />
