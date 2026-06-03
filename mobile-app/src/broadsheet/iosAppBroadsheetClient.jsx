@@ -656,8 +656,9 @@ function BSClientLibrary({ onBack, goMarket = () => {} }) {
     <BSPage>
       <div style={{ padding: `14px ${t.padX}px 0` }}>
         <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0 }}>← Back</button>
-        <h1 style={{ margin: '12px 0 0', fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>Your<br/><span style={{ fontStyle: 'italic', color: teal }}>library.</span></h1>
-        <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{items.length} saved · workouts · meals · recipes · groceries</div>
+        <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Your library</div>
+        <h1 style={{ margin: '6px 0 0', fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>Saved<br/><span style={{ fontStyle: 'italic', color: teal }}>everything.</span></h1>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, lineHeight: 1.4, color: t.INK70 }}>Every workout, meal, recipe and grocery list you keep — in one place.</div>
       </div>
 
       <div style={{ padding: `16px ${t.padX}px 12px`, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
@@ -678,7 +679,7 @@ function BSClientLibrary({ onBack, goMarket = () => {} }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search your library…"
-          style={{ width: '100%', boxSizing: 'border-box', padding: '12px 16px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, outline: 'none' }}
+          style={{ width: '100%', boxSizing: 'border-box', padding: '10px 2px', border: 0, borderBottom: `1px solid ${t.RULE}`, borderRadius: 0, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 16, outline: 'none' }}
         />
       </div>
 
@@ -3116,6 +3117,43 @@ function bsHouseholdStr(str) {
   return m[2] ? `${conv} ${m[2]}` : conv;
 }
 
+// Client meal-time schedule preference — feeds the meal eyebrow's slot fallback
+// so the timestamp matches when the client actually eats. Cached on window so the
+// (sync) meal preview can read it; Settings loads/writes it via client_settings.
+const BS_DEFAULT_MEAL_TIMES = { BFAST: '08:00', LUNCH: '12:30', SNACK: '16:00', DINNER: '19:00' };
+const BS_MEAL_TIME_OPTS = (() => {
+  const out = [];
+  for (let mins = 5 * 60; mins <= 23 * 60 + 30; mins += 30) {
+    const h = Math.floor(mins / 60), m = mins % 60;
+    const ap = h >= 12 ? 'PM' : 'AM', h12 = h % 12 === 0 ? 12 : h % 12;
+    out.push(`${h12}:${String(m).padStart(2, '0')} ${ap}`);
+  }
+  return out;
+})();
+function _bs12to24(s) {
+  const m = String(s || '').trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!m) return null;
+  let h = Number(m[1]) % 12;
+  if (/PM/i.test(m[3])) h += 12;
+  return `${String(h).padStart(2, '0')}:${m[2]}`;
+}
+if (typeof window !== 'undefined' && !window.ShapeMealTimes) {
+  let _mt = { ...BS_DEFAULT_MEAL_TIMES };
+  window.ShapeMealTimes = {
+    get: () => _mt,
+    // Accept the Settings 12h-string prefs (mealBreakfast / mealLunch / …).
+    setFromPrefs: (p) => {
+      if (!p) return;
+      const next = { ..._mt };
+      if (p.mealBreakfast) next.BFAST = _bs12to24(p.mealBreakfast) || next.BFAST;
+      if (p.mealLunch)     next.LUNCH = _bs12to24(p.mealLunch) || next.LUNCH;
+      if (p.mealSnack)     next.SNACK = _bs12to24(p.mealSnack) || next.SNACK;
+      if (p.mealDinner)    next.DINNER = _bs12to24(p.mealDinner) || next.DINNER;
+      _mt = next;
+    },
+  };
+}
+
 function BSMealPreview({ meal, onBack, onLog }) {
   const t = useBS();
   _bsScrollTopOnMount();
@@ -3125,9 +3163,10 @@ function BSMealPreview({ meal, onBack, onLog }) {
   const mealSaved = useBSLibrary().some(x => x.id === mealLibItem.id);
   const fmt12 = (hhmm) => { const [h, m] = String(hhmm || '').split(':').map(Number); if (Number.isNaN(h)) return ''; const ap = h >= 12 ? 'PM' : 'AM'; return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${ap}`; };
   // The eyebrow timestamp follows the client's actual schedule: use the meal's
-  // own scheduled time, and only when it's missing fall back to the standard
-  // slot time for its meal tag (so it never shows a stray/wrong default).
-  const SLOT_TIMES = { BFAST: '08:00', BREAKFAST: '08:00', LUNCH: '12:30', SNACK: '16:00', DINR: '19:00', DINNER: '19:00' };
+  // own scheduled time, and only when it's missing fall back to the client's
+  // meal-time preference for that slot (Settings → Preferences → meal times).
+  const _mt = (typeof window !== 'undefined' && window.ShapeMealTimes && window.ShapeMealTimes.get()) || BS_DEFAULT_MEAL_TIMES;
+  const SLOT_TIMES = { BFAST: _mt.BFAST, BREAKFAST: _mt.BFAST, LUNCH: _mt.LUNCH, SNACK: _mt.SNACK, DINR: _mt.DINNER, DINNER: _mt.DINNER };
   const schedTime = meal.time || SLOT_TIMES[String(meal.tag || '').toUpperCase()] || '';
   if (justLogged) {
     return <BSMealLogged kcal={meal.kcal} p={meal.p} time={fmt12(schedTime)} onDone={onBack} onUndo={() => setJustLogged(false)} />;
@@ -9779,8 +9818,13 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     language:          ['English (US)', 'English (UK)', 'Español', 'Français', 'Deutsch'],
     profileVisibility: ['Public', 'Just friends', 'Private'],
     shareWorkoutData:  ['On', 'Off'],
+    mealBreakfast:     BS_MEAL_TIME_OPTS,
+    mealLunch:         BS_MEAL_TIME_OPTS,
+    mealSnack:         BS_MEAL_TIME_OPTS,
+    mealDinner:        BS_MEAL_TIME_OPTS,
   };
-  const PREF_DEFAULTS = Object.fromEntries(Object.entries(PREF_OPTIONS).map(([k, v]) => [k, v[0]]));
+  const PREF_DEFAULTS = { ...Object.fromEntries(Object.entries(PREF_OPTIONS).map(([k, v]) => [k, v[0]])),
+    mealBreakfast: '8:00 AM', mealLunch: '12:30 PM', mealSnack: '4:00 PM', mealDinner: '7:00 PM' };
   const [prefs, setPrefs] = useStateBSC(PREF_DEFAULTS);
   React.useEffect(() => {
     if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
@@ -9789,10 +9833,13 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       if (alive && s && typeof s === 'object') {
         setPrefs(p => ({ ...p, ...s }));
         if (s.units) window.ShapeUnits?.set(s.units);
+        window.ShapeMealTimes?.setFromPrefs({ ...PREF_DEFAULTS, ...s });
       }
     }).catch(() => {});
     return () => { alive = false; };
   }, []);
+  // Seed the meal-time cache from defaults immediately (before the async load).
+  React.useEffect(() => { window.ShapeMealTimes?.setFromPrefs(PREF_DEFAULTS); }, []);
   const cyclePref = (key, label) => {
     const opts = PREF_OPTIONS[key];
     if (!opts) return;
@@ -9801,6 +9848,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       const next = { ...p, [key]: opts[(idx + 1) % opts.length] };
       try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
       if (key === 'units') window.ShapeUnits?.set(next[key]); // propagate app-wide
+      if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
       return next;
     });
   };
@@ -9810,6 +9858,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       const next = { ...p, [key]: value };
       try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
       if (key === 'units') window.ShapeUnits?.set(value);
+      if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
       return next;
     });
   };
@@ -10243,6 +10292,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         { l: 'Week starts',     key: 'weekStarts', dropdown: PREF_OPTIONS.weekStarts },
         { l: 'Time zone',       key: 'timeZone', dropdown: BS_TIMEZONES },
         { l: 'Language',        key: 'language', dropdown: PREF_OPTIONS.language },
+        { l: 'Breakfast time',  key: 'mealBreakfast', dropdown: PREF_OPTIONS.mealBreakfast },
+        { l: 'Lunch time',      key: 'mealLunch',     dropdown: PREF_OPTIONS.mealLunch },
+        { l: 'Snack time',      key: 'mealSnack',     dropdown: PREF_OPTIONS.mealSnack },
+        { l: 'Dinner time',     key: 'mealDinner',    dropdown: PREF_OPTIONS.mealDinner },
       ],
     },
     {

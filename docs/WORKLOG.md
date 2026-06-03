@@ -46,6 +46,16 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-03 — Library heading/search polish + client meal-time preference
+- **Library**: new heading — teal "Your library" eyebrow, serif **Saved / _everything._**
+  title, italic subtitle ("Every workout, meal, recipe and grocery list you keep — in
+  one place."). Search bar is now an **underline** (no pill/bubble).
+- **Client meal-time schedule preference**: Settings → Preferences now has Breakfast /
+  Lunch / Snack / Dinner time dropdowns (30-min steps), persisted in `client_settings`.
+  A `window.ShapeMealTimes` cache (loaded at settings open, seeded from defaults) feeds
+  the meal-preview eyebrow's slot fallback, so a meal without an explicit plan time
+  shows the client's own eating time. Defaults 8:00 / 12:30 / 4:00 / 7:00.
+
 ### 2026-06-03 — Shape Score composite hero + compact meal CTA
 - **Shape Score page**: new **composite hero card** above the reward tiers — a
   tier-colored ring (% to goal), the tier name as an italic headline, `{total} pts ·
