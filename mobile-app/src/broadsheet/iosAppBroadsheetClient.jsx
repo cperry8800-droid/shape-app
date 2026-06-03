@@ -1231,6 +1231,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   const [selIdx, setSelIdx] = useStateBSC(todayIdx); // selected weekday 0..6 (today by default)
   const [nextMealLogged, setNextMealLogged] = useStateBSC(false);
   const [previewMeal, setPreviewMeal] = useStateBSC(null);
+  const [weekStat, setWeekStat] = useStateBSC(null); // tapped Week-totals card → detail sheet
   const [showWorkoutPreview, setShowWorkoutPreview] = useStateBSC(false);
   const [showLogMeal, setShowLogMeal] = useStateBSC(false);
   const [habitsPage, setHabitsPage] = useStateBSC(false);
@@ -1983,14 +1984,18 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         )}
       </div>
 
-      {/* WEEK TOTALS — running tally of the week so far */}
+      {/* WEEK TOTALS — running tally; tap a card for history / a chart */}
       {(() => {
         const teal = t.isLight ? '#0a8f87' : '#34d6c5';
         const weekTotals = [
-          { l: 'Sessions', v: 4, max: 5, c: t.RUST },
-          { l: 'Check-ins', v: 6, max: 7, c: teal },
-          { l: 'Consults', v: 1, max: 2, c: t.AMBER },
-          { l: 'Avg kcal', v: 1890, max: 2100, c: t.BLUE },
+          { l: 'Sessions', v: 4, max: 5, c: t.RUST, unit: 'sessions',
+            history: [['Mon', 'Upper Push — Peak', 'Done'], ['Tue', 'Lower Pull — Vol.', 'Done'], ['Thu', 'Upper Pull — Peak', 'Done'], ['Sat', 'Z2 run · 45m', 'Done'], ['Sun', 'Lower Push — Peak', 'Scheduled']] },
+          { l: 'Check-ins', v: 6, max: 7, c: teal, unit: 'check-ins',
+            history: [['Mon', 'Sleep 7h · 8/10', '✓'], ['Tue', 'Energy 7/10', '✓'], ['Wed', 'RPE recap', '✓'], ['Thu', 'Sleep 7h12 · 8/10', '✓'], ['Fri', 'Soreness 3/10', '✓'], ['Sat', 'Weekly photos', '✓']] },
+          { l: 'Consults', v: 1, max: 2, c: t.AMBER, unit: 'consults',
+            history: [['Tue', 'Dr. Maya · nutrition', '30m'], ['Fri', 'Coach 1:1 · Jordan', 'Scheduled']] },
+          { l: 'Avg kcal', v: 1890, max: 2100, c: t.BLUE, unit: 'avg kcal', chart: true,
+            series: [['M', 1820], ['T', 2010], ['W', 1760], ['T', 1980], ['F', 1890], ['S', 2140], ['S', 1830]] },
         ];
         return (
           <>
@@ -2002,7 +2007,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
               {weekTotals.map(s => {
                 const pct = Math.max(0, Math.min(1, s.v / s.max));
                 return (
-                  <div key={s.l} style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
+                  <button key={s.l} onClick={() => setWeekStat(s)} style={{ textAlign: 'left', cursor: 'pointer', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
                       <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: s.c, fontWeight: 700 }}>{s.l}</span>
                       <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', color: t.INK50, fontWeight: 600 }}>/ {s.max.toLocaleString()}</span>
@@ -2011,13 +2016,60 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                     <div style={{ marginTop: 10, height: 4, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}>
                       <div style={{ width: `${pct * 100}%`, height: '100%', background: s.c, borderRadius: 999 }} />
                     </div>
-                  </div>
+                    <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>View {s.chart ? 'chart' : 'history'} →</div>
+                  </button>
                 );
               })}
             </div>
           </>
         );
       })()}
+
+      {/* Week-stat detail sheet */}
+      {weekStat && createPortal(
+        <div onClick={() => setWeekStat(null)} style={{ position: 'absolute', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={e => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, maxHeight: '82%', overflowY: 'auto', borderTop: `1px solid ${t.RULE}` }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+              <div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: weekStat.c, fontWeight: 700 }}>{weekStat.l} · this week</div>
+                <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, color: t.INK, letterSpacing: '-0.04em', lineHeight: 1 }}>{weekStat.v.toLocaleString()}<span style={{ fontFamily: t.DISPLAY, fontSize: 16, color: t.INK50, marginLeft: 6 }}>/ {weekStat.max.toLocaleString()}</span></div>
+              </div>
+            </div>
+
+            {weekStat.chart ? (
+              <div style={{ marginTop: 18 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 6, height: 130 }}>
+                  {weekStat.series.map(([d, val], i) => {
+                    const peak = Math.max(...weekStat.series.map(x => x[1]), weekStat.max);
+                    const h = Math.max(4, Math.round((val / peak) * 110));
+                    return (
+                      <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                        <span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{val.toLocaleString()}</span>
+                        <div style={{ width: '100%', maxWidth: 26, height: h, borderRadius: 6, background: weekStat.c }} />
+                        <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.04em' }}>{d}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>7-day average · target {weekStat.max.toLocaleString()} kcal</div>
+              </div>
+            ) : (
+              <div style={{ marginTop: 14 }}>
+                {(weekStat.history || []).map(([day, label, tag], i, arr) => (
+                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '40px 1fr auto', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+                    <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{day}</span>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{label}</span>
+                    <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: tag === 'Scheduled' ? t.INK50 : weekStat.c, fontWeight: 700 }}>{tag}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button onClick={() => setWeekStat(null)} style={{ width: '100%', marginTop: 18, padding: '13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer' }}>Close</button>
+          </div>
+        </div>,
+        (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
+      )}
 
       {/* ── HABIT TRACKER (summary on home; full page via tap) ───── */}
       {activeDayLog && activeDayLogDetails && createPortal(
