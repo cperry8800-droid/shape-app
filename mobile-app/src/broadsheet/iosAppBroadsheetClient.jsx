@@ -9672,7 +9672,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{active ? renewsLabel : 'Free plan'}</span>
               </div>
               <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', marginTop: 5 }}>Shape <span style={{ fontStyle: 'italic', color: t.AMBER }}>{active ? 'Member.' : 'Free.'}</span></div>
-              <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.45 }}>{active ? `${priceLabel} · Radio included · Community access · Marketplace access` : 'Become a Shape member to access the platform & features'}</div>
+              <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.45 }}>{active ? `${priceLabel} · Radio included · Community access · Marketplace access` : 'Become a Shape member to join the community'}</div>
               <button onClick={active ? openBillingPortal : openUpgradeCheckout} style={{ marginTop: 11, padding: '8px 15px', borderRadius: 999, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{active ? 'Manage →' : 'Upgrade →'}</button>
             </div>
           </div>
