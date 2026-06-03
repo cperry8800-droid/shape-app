@@ -961,7 +961,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
         cleanupVoice();
         if (!(blob.size > 0)) { setVoiceState('idle'); return; }
         if (captureAtStart === 'audio') {
-          setVoiceMemo(m => { try { if (m && m.url) URL.revokeObjectURL(m.url); } catch (e) {} return { url: URL.createObjectURL(blob), secs }; });
+          setVoiceMemo(m => { try { if (m && m.url) URL.revokeObjectURL(m.url); } catch (e) {} return { url: URL.createObjectURL(blob), secs, blob }; });
           window.__bsToast?.('Voice memo attached', 'ok');
           setVoiceState('idle');
         } else {
@@ -1015,7 +1015,26 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
   const CAL_GOAL = 2100, P_GOAL = 165, DAY_BASE_CAL = 1568, DAY_BASE_P = 118;
   const dayCal = DAY_BASE_CAL + kcal;
   const dayP = DAY_BASE_P + P;
-  const doLog = () => { onLogged(); setLogged(true); };
+  // On log, deliver the written note + any voice memo to the client's
+  // nutritionist (best-effort; the endpoint resolves the coach and no-ops when
+  // there's nothing to send or no coach linked).
+  const sendMealNote = () => {
+    const hasNote = !!(note && note.trim());
+    const hasMemo = !!(voiceMemo && voiceMemo.blob);
+    if (!hasNote && !hasMemo) return;
+    try {
+      const fd = new FormData();
+      if (hasNote) fd.append('note', note.trim());
+      fd.append('mealTitle', 'Chicken bowl + rice');
+      fd.append('mealSummary', `${kcal} kcal · ${P}P · ${C}C · ${F}F`);
+      if (hasMemo) fd.append('audio', voiceMemo.blob, 'memo.webm');
+      fetch('/api/nutrition/meal-note', { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(r => r.json().catch(() => ({})))
+        .then(d => { if (d && d.delivered) window.__bsToast?.('Note sent to your coach', 'ok'); })
+        .catch(() => {});
+    } catch (e) {}
+  };
+  const doLog = () => { sendMealNote(); onLogged(); setLogged(true); };
   const primaryBtn = { width: '100%', padding: '15px', borderRadius: t.RADIUS_SM, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' };
 
   const DayTotals = ({ compact }) => (
@@ -1245,10 +1264,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
         </div>
       </div>
 
-      <div style={{ padding: `16px ${t.padX}px 10px` }}>
-        <button onClick={doLog} style={primaryBtn}>Log meal · {kcal} kcal →</button>
-      </div>
-      <BSFooter right="Log meal" />
+      <div style={{ height: 12 }} />
 
       {/* Ingredient editor / add sheet */}
       {editIng && (() => {
