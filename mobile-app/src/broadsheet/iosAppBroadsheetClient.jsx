@@ -4818,8 +4818,13 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
         })}
       </div>
 
-      {/* Meal swap sheet — coach-approved alternates for the chosen meal. */}
+      {/* Meal swap sheet — pick which meal, then a coach-approved alternate. */}
       {swapMealId != null && (() => {
+        if (swapMealId === 'pick') {
+          return <BSSwapSheet title="Swap" subtitle="Which meal?"
+            options={effMeals.map(m => ({ label: m.title, sub: `${m.time} · ${m.kcal} kcal${mealOverrides[m._baseTitle] ? ' · swapped' : ''}`, _id: m.id }))}
+            onPick={(o) => setSwapMealId(o._id)} onClose={() => setSwapMealId(null)} />;
+        }
         const orig = effMeals.find(m => m.id === swapMealId);
         if (!orig) return null;
         const base = cur.meals.find(m => m.id === swapMealId) || orig;
@@ -4858,7 +4863,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
           <div style={{ fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontStyle: 'italic', fontSize: 17, lineHeight: 1.4, color: t.INK }}>&ldquo;{cur.coachLine}&rdquo;</div>
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
             <button onClick={() => setView('grocery')} style={{ flex: 1, padding: '11px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Shop list →</button>
-            <button onClick={() => { const m = effMeals.find(x => x.state === 'next') || effMeals.find(x => x.state !== 'done') || effMeals[0]; if (m) setSwapMealId(m.id); }} style={{ flex: 1, padding: '11px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Swap meal</button>
+            <button onClick={() => setSwapMealId('pick')} style={{ flex: 1, padding: '11px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Swap meal</button>
           </div>
         </div>
       </div>
