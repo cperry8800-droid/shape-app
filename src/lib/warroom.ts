@@ -493,6 +493,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       section: 'Code health (behavior-preserving)',
       items: [
         { label: 'Dead code removed (~860 lines mobile + website orphans), verified zero call-sites', status: 'done' },
+        { label: 'Dead-code audit: removed 8 orphaned components + addPlanToGrocery + unused state (~660 lines, tree-shaken so bundle unchanged); consolidated meal-note uploads into one helper', status: 'done' },
         { label: 'Shared API helpers: request-auth (22 routes), time, stripe loadStripe, coach-roster clients twin', status: 'done' },
         { label: 'Mobile data-layer de-dup: getJsonOrDefault, providerTable, COMMUNITY_POST_SELECT', status: 'done' },
         { label: 'Train/Eat MOCK_PROGRAM memoized; t.RED palette bug fixed (error text now renders)', status: 'done' },
