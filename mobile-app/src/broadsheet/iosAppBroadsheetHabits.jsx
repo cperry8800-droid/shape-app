@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 // ─── HABIT TRACKER ──────────────────────────────────────────
 // A user-curated list of "Do daily" / "Don't do" items with optional
 // reminder times. Renders on Client + Trainer + Nutritionist home.
@@ -82,6 +83,7 @@ function _bsDecodeHabits(v) {
         remindAt: typeof h.remindAt === 'string' ? h.remindAt : '',
         visibility,
         public: visibility === 'public',
+        pts: Number.isFinite(h.pts) ? h.pts : undefined,
         history,
       };
     });
@@ -93,6 +95,7 @@ function _bsEncodeHabits(arr) {
     remindAt: h.remindAt || '',
     visibility: ['private', 'friends', 'public'].includes(h.visibility) ? h.visibility : (h.public ? 'public' : 'private'),
     public: h.visibility === 'public' || !!h.public,
+    pts: Number.isFinite(h.pts) ? h.pts : undefined,
     history: h.history || [],
   })));
 }
@@ -163,1525 +166,160 @@ function _bsHabitInsightStats(habits) {
   };
 }
 
-function BSHabitInsights({ habits, accent, onOpenScore, onToggle, onDeleteHabit, onSetVisibility, onAddHabit = () => {} }) {
-  const t = useBS();
-  const model = _bsHabitGridModel(habits);
-  const stats = _bsHabitInsightStats(habits);
-  const teal = accent || '#147b68';
-  const hot = '#10c8b1';
-  const cardBg = '#1a1713';
-  const scoreBg = '#0d1b14';
-  const cardInk = '#f7f1e6';
-  const muted = 'rgba(247,241,230,0.58)';
-  const border = 'rgba(247,241,230,0.12)';
-  const missed = 'rgba(247,241,230,0.08)';
-
-  // Per-habit visibility: tap to cycle Private → Friends → Public. Color-coded
-  // to match the rest of the habit chrome (muted = private, teal = friends,
-  // hot = public). Only shown for real habits, not the demo placeholder rows.
-  const VIS = {
-    private: { abbr: 'Pvt', full: 'Private', color: muted },
-    friends: { abbr: 'Frd', full: 'Friends', color: teal },
-    public:  { abbr: 'Pub', full: 'Public', color: hot },
-  };
-  const VIS_NEXT = { private: 'friends', friends: 'public', public: 'private' };
-  const showVis = !!onSetVisibility && !model.demo;
-  const showDel = !!onDeleteHabit;
-  const trailingCols = `${showVis ? ' 34px' : ''}${showDel ? ' 22px' : ''}`;
-  const gridCols = `118px repeat(7, minmax(0, 1fr))${trailingCols}`;
-
-  const Cell = ({ value }) => (
-    <div style={{
-      height: 28,
-      minWidth: 0,
-      borderRadius: 999,
-      background: value === 2 ? hot : value ? teal : missed,
-      border: value ? 'none' : `1px solid ${border}`,
-      boxShadow: value === 2 ? `0 0 0 1px ${hot}` : 'none',
-    }} />
-  );
-
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12, marginTop: 12 }}>
-      <div style={{
-        borderRadius: 10,
-        border: `1px solid ${border}`,
-        background: cardBg,
-        color: cardInk,
-        padding: 18,
-        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 18 }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 800 }}>Habits</div>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', color: muted, textTransform: 'uppercase' }}>
-            {model.demo ? 'Last 7 days' : `${habits.filter(h => (h.history || []).includes(_bsHabitsToday)).length}/${habits.length} Today`}
-          </div>
-        </div>
-
-        <div>
-          <div style={{ display: 'grid', gridTemplateColumns: gridCols, gap: 6, alignItems: 'center', marginBottom: 8 }}>
-            <div />
-            {model.days.map((d, i) => (
-              <div key={`${d}_${i}`} style={{
-                fontFamily: t.MONO,
-                fontSize: 9,
-                fontWeight: 800,
-                letterSpacing: '0.18em',
-                textAlign: 'center',
-                color: muted,
-              }}>{d}</div>
-            ))}
-            {showVis && <div />}
-            {showDel && <div />}
-          </div>
-
-          {model.rows.map((row, rowIndex) => {
-            const vis = VIS[row.visibility] || VIS.private;
-            return (
-            <div key={row.id} style={{
-              display: 'grid',
-              gridTemplateColumns: gridCols,
-              gap: 6,
-              alignItems: 'center',
-              padding: '9px 0',
-              borderTop: rowIndex > 0 ? `1px solid rgba(247,241,230,0.07)` : 'none',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-                <span style={{
-                  fontFamily: t.MONO,
-                  fontSize: 9,
-                  fontWeight: 900,
-                  letterSpacing: '0.12em',
-                  color: row.type === 'avoid' ? '#ff6a5c' : hot,
-                  textTransform: 'uppercase',
-                  flexShrink: 0,
-                }}>{row.type === 'avoid' ? "Don't" : 'Do'}</span>
-                <span style={{
-                  fontFamily: t.DISPLAY,
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: cardInk,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}>{row.name}</span>
-              </div>
-              {row.pattern.map((value, i) => {
-                const isToday = i === row.pattern.length - 1;
-                return isToday && !model.demo ? (
-                  <button key={`${row.id}_${i}`} type="button" onClick={() => onToggle(row.id)}
-                    aria-label={`Toggle ${row.name} for today`} style={{
-                    height: 28, minWidth: 0, borderRadius: 999, cursor: 'pointer', padding: 0,
-                    background: value === 2 ? hot : value ? teal : missed,
-                    border: value ? 'none' : `1px solid ${border}`,
-                    boxShadow: value === 2 ? `0 0 0 1px ${hot}` : 'none',
-                  }} />
-                ) : (
-                  <Cell key={`${row.id}_${i}`} value={value} />
-                );
-              })}
-              {showVis && (
-                <button type="button" onClick={() => onSetVisibility(row.id, VIS_NEXT[row.visibility] || 'friends')}
-                  aria-label={`Visibility: ${vis.full}. Tap to change.`} title={`${vis.full} — tap to change`} style={{
-                  height: 22, borderRadius: 999, border: `1px solid ${vis.color}`,
-                  background: 'transparent', color: vis.color,
-                  fontFamily: t.MONO, fontSize: 8, fontWeight: 900, letterSpacing: '0.06em',
-                  textTransform: 'uppercase', lineHeight: 1, cursor: 'pointer', padding: '0 4px',
-                }}>{vis.abbr}</button>
-              )}
-              {showDel && (
-                <button type="button" onClick={() => { if (window.confirm(`Delete "${row.name}"?`)) onDeleteHabit(row.id); }} aria-label="Delete habit" style={{
-                  width: 22, height: 22, borderRadius: 999, border: 0, background: 'transparent',
-                  color: 'rgba(247,241,230,0.42)', fontSize: 16, lineHeight: 1, cursor: 'pointer', padding: 0,
-                }}>×</button>
-              )}
-            </div>
-            );
-          })}
-        </div>
-        <button type="button" onClick={onAddHabit} aria-label="Add habit" style={{
-          marginTop: 14, width: '100%', padding: 12, borderRadius: 10,
-          border: `1px dashed ${teal}`, background: 'transparent', color: teal,
-          fontFamily: t.MONO, fontSize: 10, fontWeight: 900, letterSpacing: '0.18em',
-          textTransform: 'uppercase', cursor: 'pointer',
-        }}>+ Add habit</button>
-      </div>
-
-      <div style={{
-        order: -1,
-        borderRadius: 10,
-        border: `1px solid ${teal}`,
-        background: scoreBg,
-        color: cardInk,
-        padding: 10,
-        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <div style={{ fontFamily: t.SERIF || t.DISPLAY, fontSize: 22, lineHeight: 0.95, color: hot, letterSpacing: '-0.05em' }}>
-            +{stats.score}
-          </div>
-          <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 900, letterSpacing: '0.2em', color: hot, textTransform: 'uppercase' }}>
-            Shape Score · From Habits
-          </div>
-        </div>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 10.5, lineHeight: 1.35, marginTop: 6, color: 'rgba(247,241,230,0.78)' }}>
-          Earned from habits this week. Each row's +pts rolls into your Shape Score nightly.
-        </div>
-        <button type="button" onClick={onOpenScore || (() => window.__bsToast?.('Shape Score opened', 'ok'))} style={{ display: 'inline-flex', alignItems: 'center', marginTop: 8, padding: 0, border: 0, background: 'transparent', color: hot, fontFamily: t.MONO, fontSize: 9, fontWeight: 900, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer' }}>
-          See full breakdown →
-        </button>
-      </div>
-
-      <div style={{
-        borderRadius: 10,
-        border: `1px solid ${border}`,
-        background: cardBg,
-        color: cardInk,
-        padding: 18,
-        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)',
-      }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 800 }}>Two-week trend</div>
-        <div style={{ fontFamily: t.SERIF || t.DISPLAY, fontSize: 48, lineHeight: 1, marginTop: 18, letterSpacing: '-0.06em' }}>{stats.adherence}%</div>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 13, color: muted, marginTop: 8 }}>
-          Adherence · vs {stats.lastWeek}% last week
-        </div>
-      </div>
-
-    </div>
-  );
+function _bsHabitPts(h) {
+  if (h && Number.isFinite(h.pts)) return h.pts;
+  const s = String((h && (h.id || h.name)) || '');
+  let n = 0;
+  for (let i = 0; i < s.length; i++) n = (n + s.charCodeAt(i) * (i + 1)) % 997;
+  return 4 + (n % 5); // stable 4–8
 }
 
-function BSTimeChip({ value, onChange, ink, mono }) {
-  const ref = React.useRef(null);
-  const display = value || '— : —';
-  return (
-    <label style={{
-      display: 'inline-flex', alignItems: 'center', gap: 6,
-      padding: '8px 12px', border: `1px solid ${ink}33`, cursor: 'pointer',
-      fontFamily: mono, fontSize: 11, letterSpacing: '0.08em', color: ink,
-      fontVariantNumeric: 'tabular-nums', position: 'relative',
-      borderRadius: 999,
-    }}>
-      <span style={{ fontSize: 9, opacity: 0.6 }}>◷</span>
-      <span>{display}</span>
-      <input
-        ref={ref}
-        type="time"
-        value={value || ''}
-        onChange={(e) => onChange(e.target.value)}
-        style={{
-          position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer',
-          width: '100%', height: '100%', border: 'none', background: 'transparent',
-        }}
-      />
-    </label>
-  );
-}
-
-// One row in the habit list — checkbox-style, broadsheet styling
-function BSHabitRowLegacy({ habit, onToggle, onEdit, last }) {
+// One habit as a card — check, title, status line, points, remove (×).
+function BSHabitRow({ habit, accent, onToggle, onRemove }) {
   const t = useBS();
-  const week = _bsLast7();
-  const set = new Set(habit.history || []);
-  const checked = set.has(_bsHabitsToday);
+  const done = (habit.history || []).includes(_bsHabitsToday);
   const isAvoid = habit.type === 'avoid';
-  const accent = isAvoid ? '#ff6a5c' : '#65b878';
-  const streak = _bsStreakFromHistory(habit.history);
-  const darkPaper = '#f7f1e6';
-  const darkMuted = 'rgba(247,241,230,0.54)';
-  const darkRule = 'rgba(247,241,230,0.12)';
-  const rowBg = checked
-    ? (isAvoid ? 'rgba(255,106,92,0.12)' : 'rgba(101,184,120,0.16)')
-    : 'rgba(247,241,230,0.045)';
-
+  const pts = _bsHabitPts(habit);
+  const c = accent;
   return (
     <div style={{
-      display: 'grid',
-      gridTemplateColumns: '34px 1fr 28px',
-      alignItems: 'start',
-      gap: 12,
-      padding: 12,
-      marginTop: last ? 10 : 10,
-      border: `1px solid ${checked ? `${accent}77` : darkRule}`,
-      borderRadius: 14,
-      background: rowBg,
-      boxShadow: checked ? '0 12px 28px rgba(0,0,0,0.18)' : 'none',
+      display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', alignItems: 'center', gap: 12,
+      padding: '14px', borderRadius: 16,
+      border: `1px solid ${done ? `${c}66` : t.RULE}`,
+      background: done ? (t.isLight ? `${c}12` : `${c}1c`) : t.PAPER2,
     }}>
-      {/* Check / cross box */}
-      <button
-        onClick={() => onToggle(habit.id)}
-        aria-label={checked ? 'Mark not done' : 'Mark done'}
-        style={{
-          width: 34,
-          height: 34,
-          flexShrink: 0,
-          border: `1.5px solid ${checked ? accent : 'rgba(247,241,230,0.78)'}`,
-          background: checked ? accent : 'transparent',
-          color: checked ? '#07100d' : darkPaper,
-          fontFamily: t.MONO, fontWeight: 900, fontSize: 13,
-          display: 'grid',
-          placeItems: 'center',
-          cursor: 'pointer', padding: 0,
-          borderRadius: 10,
-          transition: 'background 120ms',
-        }}
-      >
-        {checked ? (isAvoid ? '×' : '✓') : ''}
+      <button onClick={() => onToggle(habit.id)} aria-label={done ? 'Mark not done' : 'Mark done'} style={{
+        width: 30, height: 30, borderRadius: 9, cursor: 'pointer', flexShrink: 0,
+        border: `1.5px solid ${done ? c : t.RULE}`, background: done ? c : 'transparent',
+        color: '#04201d', display: 'grid', placeItems: 'center',
+        fontFamily: t.MONO, fontSize: 14, fontWeight: 900, padding: 0,
+      }}>{done ? '✓' : ''}</button>
+      <button onClick={() => onToggle(habit.id)} style={{ textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minWidth: 0 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{habit.name}</div>
+        <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: done ? c : t.INK50 }}>
+          {done ? (isAvoid ? '✓ Stayed clean' : '✓ Done') : `${isAvoid ? 'Avoid' : 'Do'} · +${pts} pts`}
+        </div>
       </button>
-
-      {/* Name + meta + 7-day strip */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          fontFamily: t.DISPLAY,
-          fontWeight: 650,
-          fontSize: 16,
-          lineHeight: 1.15,
-          color: darkPaper,
-          letterSpacing: '-0.018em',
-          textDecoration: checked && !isAvoid ? 'line-through' : 'none',
-          textDecorationColor: 'rgba(247,241,230,0.48)',
-          opacity: checked && !isAvoid ? 0.68 : 1,
-        }}>
-          {habit.name}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 6, flexWrap: 'wrap' }}>
-          <span style={{
-            fontFamily: t.MONO, fontSize: 9, fontWeight: 900,
-            letterSpacing: '0.16em', textTransform: 'uppercase',
-            color: accent,
-          }}>
-            {isAvoid ? '✕ Avoid' : '✓ Daily'}
-          </span>
-          {habit.remindAt && (
-            <span style={{
-              fontFamily: t.MONO, fontSize: 9.5, color: darkMuted,
-              letterSpacing: '0.12em', fontVariantNumeric: 'tabular-nums',
-            }}>
-              ◷ {habit.remindAt}
-            </span>
-          )}
-          {streak > 0 && (
-            <span style={{
-              fontFamily: t.MONO, fontSize: 9.5, color: '#d3a133',
-              letterSpacing: '0.12em', fontWeight: 700,
-            }}>
-              {streak}d streak
-            </span>
-          )}
-          {habit.visibility !== 'private' && (
-            <span style={{
-              fontFamily: t.MONO, fontSize: 9, fontWeight: 800,
-              letterSpacing: '0.2em', textTransform: 'uppercase',
-              color: '#07100d', background: '#d3a133',
-              padding: '1px 6px',
-            }}>
-              {habit.visibility === 'friends' ? 'Friends' : 'Public'}
-            </span>
-          )}
-        </div>
-
-        {/* 7-day strip — last 7 days, oldest left → today right */}
-        <div style={{ display: 'flex', gap: 4, marginTop: 8 }}>
-          {week.map((date, i) => {
-            const did = set.has(date);
-            const isToday = date === _bsHabitsToday;
-            return (
-              <div key={date} style={{
-                flex: 1, display: 'flex', flexDirection: 'column',
-                alignItems: 'center', gap: 3,
-              }}>
-                <div style={{
-                  width: '100%', height: 14,
-                  background: did ? accent : 'transparent',
-                  border: `1px solid ${isToday ? darkPaper : darkRule}`,
-                  borderRadius: 2,
-                }} />
-                <span style={{
-                  fontFamily: t.MONO, fontSize: 9,
-                  letterSpacing: '0.1em',
-                  color: isToday ? darkPaper : darkMuted,
-                  fontWeight: isToday ? 800 : 500,
-                }}>
-                  {_bsDowLetter(date)}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Edit affordance */}
-      <button
-        onClick={() => onEdit(habit.id)}
-        aria-label="Edit habit"
-        style={{
-          background: 'transparent', border: 'none',
-          fontFamily: t.MONO, fontSize: 18, color: darkMuted,
-          cursor: 'pointer', padding: 4, lineHeight: 1, marginTop: 2,
-        }}
-      >
-        ⋯
-      </button>
+      <span style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', color: done ? c : t.INK50, fontVariantNumeric: 'tabular-nums' }}>+{pts}</span>
+      <button onClick={() => onRemove(habit.id)} aria-label="Remove habit" style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontSize: 16, lineHeight: 1, padding: '0 2px' }}>×</button>
     </div>
   );
 }
 
-function BSHabitRowCurrentLegacy({ habit, onToggle, onEdit, last }) {
-  const t = useBS();
-  const week = _bsLast7();
-  const set = new Set(habit.history || []);
-  const checked = set.has(_bsHabitsToday);
-  const isAvoid = habit.type === 'avoid';
-  const accent = isAvoid ? '#ff6a5c' : '#65b878';
-  const streak = _bsStreakFromHistory(habit.history);
-  const ink = '#f7f1e6';
-  const muted = 'rgba(247,241,230,0.54)';
-  const rule = 'rgba(247,241,230,0.12)';
-  const rowBg = checked
-    ? (isAvoid ? 'rgba(255,106,92,0.12)' : 'rgba(101,184,120,0.16)')
-    : 'rgba(247,241,230,0.045)';
-
-  return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: '34px 1fr 28px',
-      alignItems: 'start',
-      gap: 12,
-      padding: 12,
-      marginTop: last ? 10 : 10,
-      border: `1px solid ${checked ? `${accent}77` : rule}`,
-      borderRadius: 14,
-      background: rowBg,
-      boxShadow: checked ? '0 12px 28px rgba(0,0,0,0.18)' : 'none',
-    }}>
-      <button
-        onClick={() => onToggle(habit.id)}
-        aria-label={checked ? 'Mark not done' : 'Mark done'}
-        style={{
-          width: 34,
-          height: 34,
-          borderRadius: 10,
-          border: `1.5px solid ${checked ? accent : 'rgba(247,241,230,0.78)'}`,
-          background: checked ? accent : 'transparent',
-          color: checked ? '#07100d' : ink,
-          fontFamily: t.MONO,
-          fontWeight: 900,
-          fontSize: 13,
-          display: 'grid',
-          placeItems: 'center',
-          cursor: 'pointer',
-          padding: 0,
-        }}
-      >
-        {checked ? (isAvoid ? 'x' : '✓') : ''}
-      </button>
-
-      <div style={{ minWidth: 0 }}>
-        <div style={{
-          fontFamily: t.DISPLAY,
-          fontWeight: 650,
-          fontSize: 16,
-          lineHeight: 1.15,
-          color: ink,
-          letterSpacing: '-0.018em',
-          textDecoration: checked && !isAvoid ? 'line-through' : 'none',
-          textDecorationColor: 'rgba(247,241,230,0.48)',
-          opacity: checked && !isAvoid ? 0.68 : 1,
-        }}>
-          {habit.name}
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 6, flexWrap: 'wrap' }}>
-          <span style={{
-            fontFamily: t.MONO,
-            fontSize: 9,
-            fontWeight: 900,
-            letterSpacing: '0.16em',
-            textTransform: 'uppercase',
-            color: accent,
-          }}>
-            {isAvoid ? 'Avoid' : 'Daily'}
-          </span>
-          {habit.remindAt && (
-            <span style={{
-              fontFamily: t.MONO,
-              fontSize: 9,
-              color: muted,
-              letterSpacing: '0.12em',
-              fontVariantNumeric: 'tabular-nums',
-            }}>
-              {habit.remindAt}
-            </span>
-          )}
-          {streak > 0 && (
-            <span style={{
-              fontFamily: t.MONO,
-              fontSize: 9,
-              color: '#d3a133',
-              letterSpacing: '0.12em',
-              fontWeight: 800,
-            }}>
-              {streak}d streak
-            </span>
-          )}
-          {habit.visibility !== 'private' && (
-            <span style={{
-              fontFamily: t.MONO,
-              fontSize: 9,
-              fontWeight: 900,
-              letterSpacing: '0.16em',
-              textTransform: 'uppercase',
-              color: '#07100d',
-              background: '#d3a133',
-              padding: '3px 6px',
-              borderRadius: 999,
-            }}>
-              {habit.visibility === 'friends' ? 'Friends' : 'Public'}
-            </span>
-          )}
-        </div>
-
-        <div style={{ display: 'flex', gap: 4, marginTop: 9 }}>
-          {week.map((date) => {
-            const did = set.has(date);
-            const isToday = date === _bsHabitsToday;
-            return (
-              <div key={date} style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 3,
-              }}>
-                <div style={{
-                  width: '100%',
-                  height: 14,
-                  background: did ? accent : 'transparent',
-                  border: `1px solid ${isToday ? 'rgba(247,241,230,0.85)' : rule}`,
-                  borderRadius: 5,
-                }} />
-                <span style={{
-                  fontFamily: t.MONO,
-                  fontSize: 9,
-                  letterSpacing: '0.1em',
-                  color: isToday ? ink : muted,
-                  fontWeight: isToday ? 800 : 500,
-                }}>
-                  {_bsDowLetter(date)}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <button
-        onClick={() => onEdit(habit.id)}
-        aria-label="Edit habit"
-        style={{
-          width: 28,
-          height: 28,
-          borderRadius: 9,
-          background: 'rgba(247,241,230,0.055)',
-          border: '1px solid rgba(247,241,230,0.08)',
-          fontFamily: t.MONO,
-          fontSize: 15,
-          color: muted,
-          cursor: 'pointer',
-          padding: 0,
-          lineHeight: 1,
-        }}
-      >
-        ...
-      </button>
-    </div>
-  );
-}
-
-function BSHabitRow({ habit, onToggle, onEdit, last }) {
-  const t = useBS();
-  const week = _bsLast7();
-  const set = new Set(habit.history || []);
-  const checked = set.has(_bsHabitsToday);
-  const isAvoid = habit.type === 'avoid';
-  const accent = isAvoid ? '#ff6a5c' : '#65b878';
-  const streak = _bsStreakFromHistory(habit.history);
-  const ink = '#f7f1e6';
-  const muted = 'rgba(247,241,230,0.52)';
-  const rule = 'rgba(247,241,230,0.10)';
-  const rowBg = checked
-    ? (isAvoid ? 'rgba(255,106,92,0.10)' : 'rgba(101,184,120,0.10)')
-    : 'rgba(247,241,230,0.032)';
-
-  return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: '30px 1fr 24px',
-      alignItems: 'center',
-      gap: 11,
-      padding: '11px 10px',
-      marginTop: 8,
-      border: `1px solid ${checked ? `${accent}55` : rule}`,
-      borderRadius: 16,
-      background: rowBg,
-      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.035)',
-      position: 'relative',
-      overflow: 'hidden',
-    }}>
-      <span style={{
-        position: 'absolute',
-        left: 0,
-        top: 10,
-        bottom: 10,
-        width: 3,
-        borderRadius: '0 999px 999px 0',
-        background: checked ? accent : 'rgba(247,241,230,0.16)',
-      }} />
-
-      <button
-        onClick={() => onToggle(habit.id)}
-        aria-label={checked ? 'Mark not done' : 'Mark done'}
-        style={{
-          width: 30,
-          height: 30,
-          borderRadius: 9,
-          border: `1.5px solid ${checked ? accent : 'rgba(247,241,230,0.72)'}`,
-          background: checked ? accent : 'transparent',
-          color: checked ? '#07100d' : ink,
-          fontFamily: t.MONO,
-          fontWeight: 900,
-          fontSize: 12,
-          display: 'grid',
-          placeItems: 'center',
-          cursor: 'pointer',
-          padding: 0,
-        }}
-      >
-        {checked ? (isAvoid ? 'x' : '✓') : ''}
-      </button>
-
-      <div style={{ minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-          <div style={{
-            fontFamily: t.DISPLAY,
-            fontWeight: 650,
-            fontSize: 15.5,
-            lineHeight: 1.1,
-            color: ink,
-            letterSpacing: '-0.018em',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            opacity: checked && !isAvoid ? 0.82 : 1,
-          }}>
-            {habit.name}
-          </div>
-          {checked && !isAvoid && (
-            <span style={{
-              flexShrink: 0,
-              fontFamily: t.MONO,
-              fontSize: 9,
-              fontWeight: 900,
-              letterSpacing: '0.13em',
-              textTransform: 'uppercase',
-              color: '#07100d',
-              background: accent,
-              borderRadius: 999,
-              padding: '3px 5px',
-            }}>
-              Done
-            </span>
-          )}
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 5, flexWrap: 'wrap' }}>
-          <span style={{
-            fontFamily: t.MONO,
-            fontSize: 9,
-            fontWeight: 900,
-            letterSpacing: '0.16em',
-            textTransform: 'uppercase',
-            color: accent,
-          }}>
-            {isAvoid ? 'Avoid' : 'Daily'}
-          </span>
-          {habit.remindAt && (
-            <span style={{
-              fontFamily: t.MONO,
-              fontSize: 9,
-              color: muted,
-              letterSpacing: '0.12em',
-              fontVariantNumeric: 'tabular-nums',
-            }}>
-              {habit.remindAt}
-            </span>
-          )}
-          {streak > 0 && (
-            <span style={{
-              fontFamily: t.MONO,
-              fontSize: 9,
-              color: '#d3a133',
-              letterSpacing: '0.12em',
-              fontWeight: 800,
-            }}>
-              {streak}d streak
-            </span>
-          )}
-          {habit.visibility !== 'private' && (
-            <span style={{
-              fontFamily: t.MONO,
-              fontSize: 9,
-              fontWeight: 900,
-              letterSpacing: '0.14em',
-              textTransform: 'uppercase',
-              color: '#07100d',
-              background: '#d3a133',
-              padding: '2px 6px',
-              borderRadius: 999,
-            }}>
-              {habit.visibility === 'friends' ? 'Friends' : 'Public'}
-            </span>
-          )}
-        </div>
-      </div>
-
-      <button
-        onClick={() => onEdit(habit.id)}
-        aria-label="Edit habit"
-        style={{
-          width: 24,
-          height: 24,
-          borderRadius: 999,
-          background: 'transparent',
-          border: 0,
-          fontFamily: t.MONO,
-          fontSize: 14,
-          color: 'rgba(247,241,230,0.42)',
-          cursor: 'pointer',
-          padding: 0,
-          lineHeight: 1,
-        }}
-      >
-        ...
-      </button>
-    </div>
-  );
-}
-
-function BSHabitGridCard({ habit, onToggle, onEdit }) {
-  const t = useBS();
-  const week = _bsLast7();
-  const set = new Set(habit.history || []);
-  const checked = set.has(_bsHabitsToday);
-  const isAvoid = habit.type === 'avoid';
-  const accent = isAvoid ? '#ff6a5c' : '#65b878';
-  const darkPaper = '#f7f1e6';
-  const darkMuted = 'rgba(247,241,230,0.50)';
-  const streak = _bsStreakFromHistory(habit.history);
-
-  return (
-    <div style={{
-      minHeight: 154,
-      borderRadius: 10,
-      border: `1px solid ${checked ? `${accent}88` : 'rgba(247,241,230,0.14)'}`,
-      background: checked ? 'rgba(101,184,120,0.12)' : 'rgba(247,241,230,0.035)',
-      padding: 12,
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 10,
-      color: darkPaper,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-        <button
-          onClick={() => onToggle(habit.id)}
-          aria-label={checked ? 'Mark not done' : 'Mark done'}
-          style={{
-            width: 30,
-            height: 30,
-            flexShrink: 0,
-            borderRadius: 7,
-            border: `2px solid ${checked ? accent : darkPaper}`,
-            background: checked ? accent : 'transparent',
-            color: checked ? '#07100d' : darkPaper,
-            fontFamily: t.MONO,
-            fontWeight: 900,
-            fontSize: 14,
-            display: 'grid',
-            placeItems: 'center',
-            cursor: 'pointer',
-            padding: 0,
-          }}
-        >
-          {checked ? (isAvoid ? '×' : '✓') : ''}
-        </button>
-        <button
-          onClick={() => onEdit(habit.id)}
-          aria-label="Edit habit"
-          style={{
-            background: 'transparent',
-            border: 0,
-            color: darkMuted,
-            fontFamily: t.MONO,
-            fontSize: 18,
-            lineHeight: 1,
-            padding: 0,
-            cursor: 'pointer',
-          }}
-        >
-          ⋯
-        </button>
-      </div>
-
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          fontFamily: t.DISPLAY,
-          fontSize: 17,
-          fontWeight: 650,
-          lineHeight: 1.05,
-          letterSpacing: '-0.02em',
-          color: darkPaper,
-          textDecoration: checked && !isAvoid ? 'line-through' : 'none',
-          textDecorationColor: darkMuted,
-          opacity: checked && !isAvoid ? 0.64 : 1,
-        }}>
-          {habit.name}
-        </div>
-        <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
-          <span style={{
-            fontFamily: t.MONO,
-            fontSize: 9,
-            fontWeight: 900,
-            letterSpacing: '0.18em',
-            textTransform: 'uppercase',
-            color: accent,
-          }}>
-            {isAvoid ? 'Avoid' : 'Daily'}
-          </span>
-          {streak > 0 && (
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 900, letterSpacing: '0.12em', color: '#d3a133' }}>
-              {streak}d
-            </span>
-          )}
-          {habit.visibility !== 'private' && (
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 900, letterSpacing: '0.14em', color: '#07100d', background: '#d3a133', padding: '2px 5px', textTransform: 'uppercase' }}>
-              {habit.visibility === 'friends' ? 'Friends' : 'Public'}
-            </span>
-          )}
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
-        {week.map((date) => {
-          const did = set.has(date);
-          const isToday = date === _bsHabitsToday;
-          return (
-            <div key={date} style={{ display: 'grid', gap: 3, justifyItems: 'center' }}>
-              <div style={{
-                width: '100%',
-                height: 13,
-                borderRadius: 3,
-                background: did ? accent : 'transparent',
-                border: `1px solid ${isToday ? darkPaper : 'rgba(247,241,230,0.16)'}`,
-              }} />
-              <span style={{
-                fontFamily: t.MONO,
-                fontSize: 9,
-                color: isToday ? darkPaper : darkMuted,
-                fontWeight: isToday ? 900 : 600,
-              }}>
-                {_bsDowLetter(date)}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// Inline form for creating / editing a habit
-function BSHabitForm({ initial, onSave, onCancel, onDelete }) {
+// Section: "To-dos" / "To-don'ts" — count eyebrow, +Add link, card rows.
+function BSHabitSection({ title, type, accent, habits, onToggle, onRemove, onAdd }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const [name, setName] = useStateBSH(initial?.name || '');
-  const [type, setType] = useStateBSH(initial?.type || 'do');
-  const [remindAt, setRemindAt] = useStateBSH(initial?.remindAt || '');
-  const [visibility, setVisibility] = useStateBSH(initial?.visibility || (initial?.public ? 'public' : 'private'));
-  const isEdit = !!initial;
-
-  const save = () => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    onSave({
-      id: initial?.id || `h_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-      name: trimmed.slice(0, 60),
-      type, remindAt,
-      visibility,
-      public: visibility === 'public',
-      history: initial?.history || [],
-    });
-  };
-
-  const lbl = { fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 };
+  const done = habits.filter(h => (h.history || []).includes(_bsHabitsToday)).length;
+  const word = type === 'avoid' ? 'Clean' : 'Done';
   return (
-    <div style={{ paddingTop: 4, marginTop: 8, display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* Name */}
-      <div>
-        <div style={{ ...lbl, marginBottom: 8 }}>{isEdit ? 'Edit habit' : 'New habit'}</div>
-        <input
-          type="text"
-          placeholder="e.g. Drink 2L water"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          autoFocus
-          maxLength={60}
-          style={{
-            width: '100%', boxSizing: 'border-box',
-            padding: '14px 16px', fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500,
-            background: t.PAPER2, color: t.INK,
-            border: `1px solid ${t.RULE}`, borderRadius: 14,
-            outline: 'none', letterSpacing: '-0.01em',
-          }}
-        />
+    <div style={{ padding: `${t.sectGap || 22}px ${t.padX}px 0` }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10, marginBottom: 12 }}>
+        <div>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>{done}/{habits.length} {word}</div>
+          <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.035em', color: t.INK, lineHeight: 1 }}>{title}</div>
+        </div>
+        <button onClick={onAdd} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, padding: 0 }}>+ Add →</button>
       </div>
-
-      {/* Type */}
-      <div>
-        <div style={{ ...lbl, marginBottom: 8 }}>Track as</div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {[
-            { k: 'do', label: '✓ Do daily', color: t.GREEN },
-            { k: 'avoid', label: '✕ Avoid', color: t.RUST },
-          ].map(p => {
-            const on = type === p.k;
-            return (
-              <button
-                key={p.k}
-                onClick={() => setType(p.k)}
-                style={{
-                  flex: 1, padding: '13px 10px', borderRadius: 14,
-                  border: `1px solid ${on ? p.color : t.RULE}`,
-                  background: on ? p.color : t.PAPER2,
-                  color: on ? '#fff' : t.INK,
-                  fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800,
-                  letterSpacing: '0.16em', textTransform: 'uppercase',
-                  cursor: 'pointer',
-                }}
-              >{p.label}</button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Reminder */}
-      <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={lbl}>Reminder</div>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: remindAt ? t.INK : t.INK50, marginTop: 3 }}>
-            {remindAt ? `Notify at ${remindAt}` : 'No notification'}
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-          <BSTimeChip value={remindAt} onChange={setRemindAt} ink={t.INK} mono={t.MONO} />
-          {remindAt && (
-            <button
-              onClick={() => setRemindAt('')}
-              aria-label="Clear reminder"
-              style={{
-                background: 'transparent', border: `1px solid ${t.RULE}`,
-                fontFamily: t.MONO, fontSize: 13, color: t.INK50,
-                width: 30, height: 30, cursor: 'pointer', padding: 0,
-                borderRadius: 999, lineHeight: 1,
-              }}
-            >×</button>
-          )}
-        </div>
-      </div>
-
-      {/* Visibility — public habits notify Shape friends if you miss the day */}
-      <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
-        <div style={lbl}>Visibility</div>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, marginTop: 3 }}>
-          {visibility === 'private'
-            ? 'Private — only you'
-            : visibility === 'friends'
-              ? 'Friends — shared with Shape friends'
-              : 'Public — visible to the community'}
-        </div>
-        {visibility !== 'private' && (
-          <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.AMBER, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 6 }}>
-            Friends can support streaks when you miss a day
-          </div>
-        )}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginTop: 12 }}>
-          {[
-            { k: 'private', label: 'Private' },
-            { k: 'friends', label: 'Friends' },
-            { k: 'public',  label: 'Public'  },
-          ].map((opt) => {
-            const on = visibility === opt.k;
-            return (
-              <button
-                key={String(opt.k)}
-                onClick={() => setVisibility(opt.k)}
-                style={{
-                  padding: '10px 6px', borderRadius: 999,
-                  background: on ? teal : 'transparent',
-                  color: on ? '#04201d' : t.INK,
-                  border: `1px solid ${on ? teal : t.RULE}`,
-                  fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
-                  cursor: 'pointer',
-                }}
-              >{opt.label}</button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
-        {isEdit && (
-          <button
-            onClick={() => onDelete(initial.id)}
-            style={{
-              padding: '13px 16px', border: `1px solid ${t.RUST}`,
-              background: 'transparent', color: t.RUST,
-              fontFamily: t.MONO, fontSize: 10, fontWeight: 800,
-              letterSpacing: '0.16em', textTransform: 'uppercase',
-              cursor: 'pointer', borderRadius: 999,
-            }}
-          >Delete</button>
-        )}
-        <button
-          onClick={onCancel}
-          style={{
-            flex: isEdit ? 0 : 1, padding: '13px 16px', border: `1px solid ${t.RULE}`,
-            background: 'transparent', color: t.INK,
-            fontFamily: t.MONO, fontSize: 10, fontWeight: 800,
-            letterSpacing: '0.16em', textTransform: 'uppercase',
-            cursor: 'pointer', borderRadius: 999,
-          }}
-        >Cancel</button>
-        <button
-          onClick={save}
-          disabled={!name.trim()}
-          style={{
-            flex: 1, padding: '13px 18px', border: 0,
-            background: name.trim() ? teal : t.RULE, color: name.trim() ? '#04201d' : t.INK50,
-            fontFamily: t.MONO, fontSize: 10, fontWeight: 800,
-            letterSpacing: '0.16em', textTransform: 'uppercase',
-            cursor: name.trim() ? 'pointer' : 'default', borderRadius: 999,
-          }}
-        >{isEdit ? 'Save habit' : 'Add habit'}</button>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {habits.length === 0 ? (
+          <button onClick={onAdd} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', padding: '16px 14px', borderRadius: 16, border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK50, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+            + Add a {type === 'avoid' ? 'to-don’t' : 'to-do'}
+          </button>
+        ) : habits.map(h => (
+          <BSHabitRow key={h.id} habit={h} accent={accent} onToggle={onToggle} onRemove={onRemove} />
+        ))}
       </div>
     </div>
   );
 }
 
-// Main block — drop on any home page
-function BSHabitTracker({ tweaks, setTweak, accent, mode = 'full', onOpen }) {
+// Top summary — points earned today vs possible, ring + tap → Shape Score.
+function BSHabitScoreCard({ habits, onOpenScore }) {
   const t = useBS();
-  // Live (Supabase) when signed in, ephemeral tweaks otherwise. Completions
-  // toggled here persist to the same store the dedicated habits page reads.
-  const { habits, upsert: upsertHabit, remove: removeHabit, toggle } = _bsUseServerHabits(tweaks, setTweak);
-  const [editingId, setEditingId] = useStateBSH(null); // 'new' | habit.id | null
-
-  const accentColor = accent || t.AMBER;
-
-  const upsert = (h) => {
-    upsertHabit(h);
-    setEditingId(null);
-  };
-
-  const remove = (id) => {
-    removeHabit(id);
-    setEditingId(null);
-  };
-
-  const doneCount = habits.filter(h => (h.history || []).includes(_bsHabitsToday)).length;
-  const editing = editingId === 'new'
-    ? null
-    : habits.find(h => h.id === editingId);
-  const showForm = editingId !== null;
-
-  // ── SUMMARY MODE ─────────────────────────────────────────────
-  // Compact card for the home page — fixed footprint regardless of
-  // habit count. Tap to open the dedicated habits page.
-  if (mode === 'summary') {
-    if (habits.length === 0) {
-      return (
-        <>
-          <BSSection title="Habits" kicker="Start a streak" />
-          <div style={{ padding: `0 ${t.padX}px 4px` }}>
-            <button
-              onClick={onOpen}
-              style={{
-                width: '100%', textAlign: 'left',
-                padding: '14px 16px',
-                border: `1px dashed ${t.INK}`, background: 'transparent',
-                color: t.INK, cursor: 'pointer',
-                borderRadius: t.RADIUS_SM,
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-              }}
-            >
-              <div>
-                <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.AMBER, fontWeight: 700 }}>Track a streak</div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: t.W.display, marginTop: 4, letterSpacing: '-0.02em' }}>+ Add first habit</div>
-              </div>
-              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.2em', color: t.ACCENT }}>OPEN →</span>
-            </button>
-          </div>
-        </>
-      );
-    }
-    // Render: compact daily checklist + route to the full habits page.
-    const preview = habits.slice(0, 3);
-    const more = Math.max(0, habits.length - preview.length);
-    const checklistBg = t.PAPER2;
-    const checklistInk = t.INK;
-    const checklistMuted = t.INK70;
-    const checklistRule = t.RULE;
-    const doneRowBg = t.isLight ? 'rgba(47,107,58,0.10)' : 'rgba(95,177,110,0.10)';
-    const avoidLabel = t.isLight ? t.RUST : '#ff8b7f';
-    return (
-      <>
-        <BSSection title="Habits" meta={`${doneCount}/${habits.length} today`} />
-        <div style={{ padding: `0 ${t.padX}px 4px` }}>
-          <button
-            onClick={onOpen}
-            style={{
-              width: '100%', textAlign: 'left',
-              padding: 0, borderRadius: 8,
-              border: `1px solid ${checklistRule}`,
-              background: checklistBg,
-              color: checklistInk,
-              cursor: 'pointer',
-              overflow: 'hidden',
-              display: 'block',
-            }}
-          >
-            <div style={{ padding: '14px 14px 10px', borderBottom: `1px solid ${checklistRule}`, display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'start', gap: 12 }}>
-              <div>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 900, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.ACCENT }}>
-                  Daily habits
-                </div>
-                <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: t.W.display, letterSpacing: '-0.035em', color: checklistInk }}>
-                  {doneCount} of {habits.length} complete
-                </div>
-              </div>
-              <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 900, letterSpacing: '0.2em', color: t.ACCENT, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Open all →</span>
-            </div>
-            <div style={{ padding: '11px 14px 7px', display: 'grid', gridTemplateColumns: `repeat(${Math.max(1, habits.length)}, minmax(0, 1fr))`, gap: 4 }}>
-              {habits.map((h) => {
-                const did = (h.history || []).includes(_bsHabitsToday);
-                const isAvoid = h.type === 'avoid';
-                return (
-                  <span key={`seg_${h.id}`} style={{
-                    height: 5,
-                    borderRadius: 99,
-                    background: did ? (isAvoid ? t.RUST : t.GREEN) : 'rgba(247,241,230,0.15)',
-                  }} />
-                );
-              })}
-            </div>
-            <div style={{ padding: '2px 14px 13px', display: 'grid' }}>
-              {preview.map(h => {
-                const did = (h.history || []).includes(_bsHabitsToday);
-                const isAvoid = h.type === 'avoid';
-                const c = isAvoid ? t.RUST : t.GREEN;
-                return (
-                  <span key={h.id} style={{
-                    display: 'grid',
-                    gridTemplateColumns: '28px 1fr auto',
-                    alignItems: 'center',
-                    gap: 10,
-                    minHeight: 42,
-                    padding: '8px 0',
-                    background: did ? doneRowBg : 'transparent',
-                    color: checklistInk,
-                    borderTop: `1px solid ${checklistRule}`,
-                  }}>
-                    <span style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: 6,
-                      display: 'grid',
-                      placeItems: 'center',
-                      background: did ? c : 'transparent',
-                      border: `1px solid ${did ? c : checklistMuted}`,
-                      color: did ? t.PAPER : checklistMuted,
-                      fontFamily: t.MONO,
-                      fontSize: 12,
-                      fontWeight: 900,
-                    }}>{did ? '✓' : (isAvoid ? '×' : '')}</span>
-                    <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: did && !isAvoid ? 'line-through' : 'none', textDecorationColor: checklistMuted, opacity: did && !isAvoid ? 0.68 : 1 }}>{h.name}</span>
-                    <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 900, letterSpacing: '0.18em', color: isAvoid ? avoidLabel : t.ACCENT, textTransform: 'uppercase' }}>{isAvoid ? "Don't" : 'Do'}</span>
-                  </span>
-                );
-              })}
-              {more > 0 && (
-                <span style={{
-                  padding: '7px 8px',
-                  borderRadius: 7,
-                  border: `1px dashed ${checklistRule}`,
-                  color: checklistMuted,
-                  fontFamily: t.MONO,
-                  fontSize: 9,
-                  fontWeight: 800,
-                  letterSpacing: '0.16em',
-                  textTransform: 'uppercase',
-                }}>+{more} more</span>
-              )}
-            </div>
-          </button>
-        </div>
-      </>
-    );
-  }
-
-  // Empty state
-  if (habits.length === 0 && !showForm) {
-    return (
-      <>
-        <BSSection title="Habits" kicker="Start a streak" />
-        <div style={{ padding: `0 ${t.padX}px 18px` }}>
-          <div style={{ borderTop: `2px solid ${t.INK}`, paddingTop: 14 }}>
-            <div style={{
-              fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700,
-              color: t.INK, lineHeight: 1.15, letterSpacing: '-0.02em',
-              marginBottom: 8,
-            }}>
-              Track daily habits — or things to avoid.
-            </div>
-            <div style={{
-              fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500,
-              color: t.INK70, lineHeight: 1.45, marginBottom: 14,
-            }}>
-              Set a reminder, check it off each day. Every habit adds to your <span style={{ color: t.AMBER, fontWeight: 700 }}>Shape Score</span> — longer streaks compound for bigger gains.
-            </div>
-            <button
-              onClick={() => setEditingId('new')}
-              style={{
-                padding: '11px 18px', border: `2px solid ${t.INK}`,
-                background: t.INK, color: t.PAPER,
-                fontFamily: t.MONO, fontSize: 10, fontWeight: 800,
-                letterSpacing: '0.22em', textTransform: 'uppercase',
-                cursor: 'pointer',
-                borderRadius: t.RADIUS_SM,
-              }}
-            >+ Add first habit</button>
-          </div>
-        </div>
-      </>
-    );
-  }
-
-  const progressPct = habits.length ? Math.round((doneCount / habits.length) * 100) : 0;
-  const sharedCount = habits.filter(h => h.visibility !== 'private').length;
-
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const earned = habits.filter(h => (h.history || []).includes(_bsHabitsToday)).reduce((s, h) => s + _bsHabitPts(h), 0);
+  const possible = habits.reduce((s, h) => s + _bsHabitPts(h), 0);
+  const pct = possible ? Math.round((earned / possible) * 100) : 0;
   return (
-    <>
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        <div style={{
-          background: 'linear-gradient(180deg, rgba(247,241,230,0.06), rgba(247,241,230,0.02)), #0b0a08',
-          color: '#f7f1e6',
-          borderRadius: 18,
-          padding: 14,
-          border: '1px solid rgba(247,241,230,0.14)',
-          boxShadow: '0 18px 40px rgba(0,0,0,0.22)',
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 10,
-            paddingBottom: 12,
-          }}>
-            <span style={{
-              fontFamily: t.DISPLAY,
-              fontWeight: 700,
-              fontSize: 21,
-              letterSpacing: '-0.025em',
-              color: '#f7f1e6',
-            }}>Habits</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-              <span style={{
-                fontFamily: t.MONO,
-                fontSize: 9,
-                color: '#07100d',
-                background: '#f7f1e6',
-                borderRadius: 999,
-                padding: '6px 9px',
-                letterSpacing: '0.13em',
-                textTransform: 'uppercase',
-                fontWeight: 900,
-              }}>
-                {doneCount}/{habits.length} today
-              </span>
-              {!showForm && (
-                <button
-                  onClick={() => setEditingId('new')}
-                  aria-label="Add habit"
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 10,
-                    border: '1px solid rgba(247,241,230,0.28)',
-                    background: 'rgba(247,241,230,0.08)',
-                    color: '#f7f1e6',
-                    fontFamily: t.MONO,
-                    fontSize: 18,
-                    fontWeight: 900,
-                    lineHeight: 1,
-                    cursor: 'pointer',
-                    padding: 0,
-                  }}
-                >
-                  +
-                </button>
-              )}
-            </div>
+    <button onClick={onOpenScore} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 16, border: `1px solid ${teal}44`, background: `linear-gradient(150deg, ${teal}1f, ${teal}07 55%, ${t.PAPER2} 92%), ${t.PAPER2}`, padding: 13, display: 'block' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Earned today</div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginTop: 5 }}>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, letterSpacing: '-0.04em', color: t.INK, lineHeight: 1 }}>+{earned}</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>pts</span>
           </div>
-
-          <div style={{
-            borderTop: '1px solid rgba(247,241,230,0.18)',
-            paddingTop: 14,
-            display: 'grid',
-            gridTemplateColumns: '1fr auto',
-            gap: 12,
-            alignItems: 'center',
-          }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{
-                fontFamily: t.DISPLAY,
-                fontSize: 15,
-                fontWeight: 700,
-                letterSpacing: '-0.01em',
-                color: '#f7f1e6',
-              }}>
-                Daily checklist
-              </div>
-              <div style={{
-                marginTop: 4,
-                fontFamily: t.DISPLAY,
-                fontSize: 12,
-                lineHeight: 1.35,
-                color: 'rgba(247,241,230,0.62)',
-              }}>
-                {doneCount} done today. {sharedCount} shared with friends or public.
-              </div>
-              <div style={{
-                marginTop: 10,
-                height: 8,
-                borderRadius: 999,
-                background: 'rgba(247,241,230,0.14)',
-                overflow: 'hidden',
-                border: '1px solid rgba(247,241,230,0.12)',
-              }}>
-                <div style={{
-                  width: `${progressPct}%`,
-                  height: '100%',
-                  borderRadius: 999,
-                  background: '#65b878',
-                }} />
-              </div>
-            </div>
-            <div style={{
-              textAlign: 'right',
-              fontFamily: t.MONO,
-              fontSize: 9,
-              fontWeight: 900,
-              letterSpacing: '0.14em',
-              textTransform: 'uppercase',
-              color: '#17c8b2',
-              lineHeight: 1.45,
-              whiteSpace: 'nowrap',
-            }}>
-              {habits.length} total<br />
-              {sharedCount} shared
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gap: 0, marginTop: 8 }}>
-            {habits.map((h, i) => (
-              <BSHabitRow
-                key={h.id}
-                habit={h}
-                onToggle={toggle}
-                onEdit={(id) => setEditingId(id)}
-                last={i === habits.length - 1 && !showForm}
-              />
-            ))}
-          </div>
-
-          {showForm && (
-            <BSHabitForm
-              initial={editing}
-              onSave={upsert}
-              onCancel={() => setEditingId(null)}
-              onDelete={remove}
-            />
-          )}
+          <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.05em', textTransform: 'uppercase', color: teal, fontWeight: 600, lineHeight: 1.4 }}>of {possible} possible · to your Shape Score</div>
+        </div>
+        <div style={{ width: 48, height: 48, borderRadius: 999, flexShrink: 0, background: `conic-gradient(${teal} ${pct * 3.6}deg, ${t.HAIR} 0deg)`, display: 'grid', placeItems: 'center' }}>
+          <div style={{ width: 37, height: 37, borderRadius: 999, background: t.PAPER, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, color: t.INK }}>{pct}%</div>
         </div>
       </div>
-    </>
-  );
-
-  return (
-    <>
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        <div style={{
-          background: '#0b0a08',
-          color: '#f7f1e6',
-          borderRadius: 10,
-          padding: '14px 14px 16px',
-          border: '1px solid rgba(247,241,230,0.10)',
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'baseline',
-            justifyContent: 'space-between',
-            gap: 10,
-            paddingBottom: 8,
-          }}>
-            <span style={{
-              fontFamily: t.DISPLAY,
-              fontWeight: t.W.displayHeavy,
-              fontSize: 11,
-              letterSpacing: '0.24em',
-              textTransform: 'uppercase',
-              color: '#f7f1e6',
-            }}>▍ Habits</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-              {habits.length > 0 && (
-                <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: 'rgba(247,241,230,0.58)', letterSpacing: '0.16em', textTransform: 'uppercase' }}>
-                  {doneCount}/{habits.length} today
-                </span>
-              )}
-              {!showForm && (
-                <button
-                  onClick={() => setEditingId('new')}
-                  aria-label="Add habit"
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 7,
-                    border: '1px solid rgba(247,241,230,0.74)',
-                    background: 'transparent',
-                    color: '#f7f1e6',
-                    fontFamily: t.MONO,
-                    fontSize: 18,
-                    fontWeight: 900,
-                    lineHeight: 1,
-                    cursor: 'pointer',
-                    padding: 0,
-                  }}
-                >
-                  +
-                </button>
-              )}
-            </div>
-          </div>
-          <div style={{
-            borderTop: '2px solid #f7f1e6',
-            paddingTop: 12,
-          }}>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'auto 1fr auto',
-              alignItems: 'end',
-              gap: 12,
-              padding: '0 0 12px',
-              borderBottom: '1px solid rgba(247,241,230,0.14)',
-            }}>
-              <div style={{
-                fontFamily: t.DISPLAY,
-                fontSize: 42,
-                lineHeight: 0.9,
-                letterSpacing: '-0.05em',
-                fontWeight: t.W.display,
-                color: '#f7f1e6',
-                fontVariantNumeric: 'tabular-nums',
-              }}>
-                {doneCount}
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{
-                  fontFamily: t.MONO,
-                  fontSize: 9,
-                  fontWeight: 900,
-                  letterSpacing: '0.2em',
-                  textTransform: 'uppercase',
-                  color: '#17c8b2',
-                }}>
-                  Daily checklist
-                </div>
-                <div style={{
-                  marginTop: 7,
-                  height: 7,
-                  borderRadius: 999,
-                  background: 'rgba(247,241,230,0.14)',
-                  overflow: 'hidden',
-                  border: '1px solid rgba(247,241,230,0.12)',
-                }}>
-                  <div style={{
-                    width: `${progressPct}%`,
-                    height: '100%',
-                    borderRadius: 999,
-                    background: '#65b878',
-                  }} />
-                </div>
-              </div>
-              <div style={{
-                textAlign: 'right',
-                fontFamily: t.MONO,
-                fontSize: 9,
-                fontWeight: 800,
-                letterSpacing: '0.16em',
-                textTransform: 'uppercase',
-                color: 'rgba(247,241,230,0.54)',
-                lineHeight: 1.5,
-                whiteSpace: 'nowrap',
-              }}>
-                {habits.length} total<br />
-                {sharedCount} shared
-              </div>
-            </div>
-
-            <div style={{
-              display: 'grid',
-              gap: 0,
-            }}>
-              {habits.map((h, i) => (
-                <BSHabitRow
-                  key={h.id}
-                  habit={h}
-                  onToggle={toggle}
-                  onEdit={(id) => setEditingId(id)}
-                  last={i === habits.length - 1 && !showForm}
-                />
-              ))}
-            </div>
-          </div>
-
-        {showForm && (
-          <BSHabitForm
-            initial={editing}
-            onSave={upsert}
-            onCancel={() => setEditingId(null)}
-            onDelete={remove}
-          />
-        )}
-        </div>
+      <div style={{ height: 3, borderRadius: 999, background: t.HAIR, marginTop: 11, overflow: 'hidden' }}>
+        <div style={{ width: `${pct}%`, height: '100%', background: teal, borderRadius: 999 }} />
       </div>
-    </>
+      <div style={{ marginTop: 9, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Tap to see your Shape Score →</div>
+    </button>
   );
 }
 
-// ─── DEDICATED HABITS PAGE ───────────────────────────────────
-// A full-screen page for managing all habits. Linked-to from the
-// summary card on home pages so the home doesn't grow with habit count.
-// Map a /api/client/habits row to the in-app habit shape.
+const _BS_HABIT_SUGGEST = {
+  do: ['Cold shower', 'Read 10 pages', 'Stretch', 'Meditate 5 min', 'Water 3L'],
+  avoid: ['No soda', 'No snooze', 'No skipping breakfast', 'No takeout', 'No screens 1h pre-bed'],
+};
+
+// Bottom-sheet add flow — do / avoid variant, suggestion chips, points stepper.
+function BSHabitAddSheet({ type, accent, onClose, onCreate }) {
+  const t = useBS();
+  const isAvoid = type === 'avoid';
+  const onAccentInk = isAvoid ? '#2b0d07' : '#04201d';
+  const [name, setName] = useStateBSH('');
+  const [pts, setPts] = useStateBSH(5);
+  const inputRef = React.useRef(null);
+  React.useEffect(() => { const id = setTimeout(() => inputRef.current && inputRef.current.focus(), 60); return () => clearTimeout(id); }, []);
+  const suggestions = _BS_HABIT_SUGGEST[isAvoid ? 'avoid' : 'do'];
+  const canAdd = name.trim().length > 0;
+  const add = () => { if (!canAdd) return; onCreate({ name: name.trim(), type: isAvoid ? 'avoid' : 'do', pts }); };
+  const sheet = (
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `10px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
+        <div style={{ width: 40, height: 4, borderRadius: 999, background: t.RULE, margin: '0 auto 14px' }} />
+        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent }}>New {isAvoid ? 'to-don’t' : 'to-do'}</div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>Something to <span style={{ fontStyle: 'italic', color: accent }}>{isAvoid ? 'avoid.' : 'do.'}</span></div>
+        <input
+          ref={inputRef}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') add(); }}
+          maxLength={60}
+          placeholder={isAvoid ? 'e.g. No second coffee' : 'e.g. 10 min walk after lunch'}
+          style={{ width: '100%', boxSizing: 'border-box', marginTop: 16, padding: '8px 0', background: 'transparent', color: t.INK, border: 0, borderBottom: `1px solid ${t.RULE}`, outline: 'none', fontFamily: t.DISPLAY, fontSize: 18 }}
+        />
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
+          {suggestions.map(s => (
+            <button key={s} onClick={() => setName(s)} style={{ padding: '8px 13px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em' }}>{s}</button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 20 }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>Points</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <button onClick={() => setPts(p => Math.max(1, p - 1))} aria-label="Fewer points" style={{ width: 34, height: 34, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0 }}>−</button>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: accent, letterSpacing: '-0.03em', minWidth: 44, textAlign: 'center' }}>+{pts}</span>
+            <button onClick={() => setPts(p => Math.min(20, p + 1))} aria-label="More points" style={{ width: 34, height: 34, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0 }}>+</button>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
+          <button onClick={onClose} style={{ flex: '0 0 auto', padding: '14px 22px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Cancel</button>
+          <button onClick={add} disabled={!canAdd} style={{ flex: 1, padding: '14px', borderRadius: 999, border: 0, background: canAdd ? accent : t.RULE, color: canAdd ? onAccentInk : t.INK50, cursor: canAdd ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Add habit</button>
+        </div>
+      </div>
+    </div>
+  );
+  const target = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
+  return target ? createPortal(sheet, target) : sheet;
+}
+
 function _bsMapServerHabits(rows) {
   return (rows || []).map(h => ({
     id: h.id,
@@ -1690,6 +328,7 @@ function _bsMapServerHabits(rows) {
     cadence: h.cadence || 'daily',
     visibility: ['private', 'friends', 'public'].includes(h.visibility) ? h.visibility : 'private',
     public: h.visibility === 'public',
+    pts: Number.isFinite(h.pts) ? h.pts : undefined,
     history: Array.isArray(h.history) ? h.history : [],
   }));
 }
@@ -1735,17 +374,17 @@ function _bsUseServerHabits(tweaks, setTweak) {
     return next;
   });
 
-  const create = ({ name, type = 'do', cadence = 'daily', visibility = 'private' }) => {
+  const create = ({ name, type = 'do', cadence = 'daily', visibility = 'private', pts }) => {
     const cleanName = String(name || '').trim();
     if (!cleanName) return;
+    const ptsVal = Number.isFinite(pts) ? pts : undefined;
     if (useServer) {
-      apiAction({ action: 'create', name: cleanName, type, cadence, visibility })
-        .then(d => { if (d && d.habit) setServer(prev => [...prev, ..._bsMapServerHabits([{ ...d.habit, history: [] }])]); window.__bsToast?.(`Added "${cleanName}"`, 'ok'); })
+      apiAction({ action: 'create', name: cleanName, type, cadence, visibility, pts: ptsVal })
+        .then(d => { if (d && d.habit) setServer(prev => [...prev, ..._bsMapServerHabits([{ ...d.habit, pts: ptsVal, history: [] }])]); })
         .catch(() => window.__bsToast?.('Could not add habit', 'err'));
       return;
     }
-    saveLocal([...local, { id: 'h_' + Math.random().toString(36).slice(2, 9), name: cleanName, type, cadence, visibility, public: visibility === 'public', history: [] }]);
-    window.__bsToast?.(`Added "${cleanName}"`, 'ok');
+    saveLocal([...local, { id: 'h_' + Math.random().toString(36).slice(2, 9), name: cleanName, type, cadence, visibility, public: visibility === 'public', pts: ptsVal, history: [] }]);
   };
 
   const upsert = (h) => {
@@ -1816,34 +455,32 @@ function _bsUseServerHabits(tweaks, setTweak) {
 
 function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
   const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const { BSPage, BSDetailHeader } = window;
 
   // Live (Supabase) when signed in, ephemeral tweaks otherwise — shared with
   // the home tracker so completions and edits stay in sync across surfaces.
-  const { habits, upsert, remove: removeHabit, setVisibility: setHabitVisibility, toggle } = _bsUseServerHabits(tweaks, setTweak);
-  const [editingId, setEditingId] = useStateBSH(null); // 'new' | habit.id | null
-  const editing = editingId === 'new' ? null : habits.find(h => h.id === editingId);
+  const { habits, create, remove: removeHabit, toggle } = _bsUseServerHabits(tweaks, setTweak);
+  const [adding, setAdding] = useStateBSH(null); // 'do' | 'avoid' | null
+  const dos = habits.filter(h => h.type !== 'avoid');
+  const donts = habits.filter(h => h.type === 'avoid');
+  const onCreate = ({ name, type, pts }) => { create({ name, type, pts, visibility: 'private' }); setAdding(null); };
   return (
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
         eyebrow="Section · Habits"
-        title={<>Habits</>}
+        title={<>Daily <span style={{ color: teal }}>habits</span></>}
       />
-      <div style={{ padding: `12px ${t.padX}px 0` }}>
-        {editingId !== null ? (
-          <BSHabitForm
-            initial={editing}
-            onSave={(h) => { upsert(h); setEditingId(null); }}
-            onCancel={() => setEditingId(null)}
-            onDelete={editing ? () => { removeHabit(editing.id); setEditingId(null); } : undefined}
-          />
-        ) : (
-          <BSHabitInsights habits={habits} accent={accent} onOpenScore={onOpenScore} onToggle={toggle} onDeleteHabit={removeHabit} onSetVisibility={setHabitVisibility} onAddHabit={() => setEditingId('new')} />
-        )}
+      <div style={{ padding: `4px ${t.padX}px 0` }}>
+        <BSHabitScoreCard habits={habits} onOpenScore={onOpenScore} />
       </div>
+      <BSHabitSection title="To-dos" type="do" accent={teal} habits={dos} onToggle={toggle} onRemove={removeHabit} onAdd={() => setAdding('do')} />
+      <BSHabitSection title="To-don'ts" type="avoid" accent={t.RUST} habits={donts} onToggle={toggle} onRemove={removeHabit} onAdd={() => setAdding('avoid')} />
+      <div style={{ height: 28 }} />
+      {adding && <BSHabitAddSheet type={adding} accent={adding === 'avoid' ? t.RUST : teal} onClose={() => setAdding(null)} onCreate={onCreate} />}
     </BSPage>
   );
 }
 
-Object.assign(window, { BSHabitTracker, BSHabitsPage });
+Object.assign(window, { BSHabitsPage });
