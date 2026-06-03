@@ -681,7 +681,7 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
           <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Your stack · pin or choose cards</div>
         </div>
         {/* Compact dropdown to choose which cards are visible */}
-        <div style={{ position: 'relative' }}>
+        <div style={{ position: 'relative', zIndex: menuOpen ? 200 : 'auto' }}>
           <button onClick={() => setMenuOpen(v => !v)} style={{
             padding: '8px 12px', borderRadius: 999, border: `1px solid ${t.INK}`, background: menuOpen ? t.INK : 'transparent',
             color: menuOpen ? t.PAPER : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap',
@@ -9007,6 +9007,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
 
   // Stripe Customer Portal — billing UI for card / cancel / invoices.
   const openBillingPortal = async () => {
+    // Needs a signed-in session to resolve the Stripe customer; surface a
+    // clear prompt instead of the raw "Authentication required" error when
+    // browsing logged-out (e.g. the demo /m/ preview).
+    const loggedIn = !!(window.ShapeAuth?.getCachedState?.()?.user?.id);
+    if (!loggedIn) { window.__bsToast?.('Sign in to manage your membership', 'info'); return; }
     try {
       const res = await fetch('/api/stripe/billing-portal', {
         method: 'POST', credentials: 'same-origin',
@@ -9015,6 +9020,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.url) window.location.href = data.url;
+      else if (res.status === 401) window.__bsToast?.('Sign in to manage your membership', 'info');
       else window.__bsToast?.(data?.error || 'Billing portal unavailable', 'err');
     } catch (e) {
       window.__bsToast?.('Billing portal unavailable', 'err');
