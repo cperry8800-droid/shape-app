@@ -675,7 +675,7 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
       {!isWorkout && !isMeal && !isConsult && !isCheck && <BSEventGenericBody event={event} />}
 
       {/* Actions */}
-      <div style={{ position: 'sticky', bottom: 0, padding: 14, background: t.PAPER, borderTop: `1px solid ${t.RULE}`, display: 'flex', gap: 8 }}>
+      <div style={{ padding: `16px 14px calc(18px + env(safe-area-inset-bottom, 0px))`, background: t.PAPER, borderTop: `1px solid ${t.RULE}`, display: 'flex', gap: 8 }}>
         {(isWorkout || isMeal) && (
           <button onClick={() => { onClose(); window.__bsToast?.('Logged ✓', 'ok'); }} style={primaryBtn(t)}>{role === 'trainer' ? 'Mark complete' : (isMeal ? 'Log meal' : 'Start session →')}</button>
         )}
@@ -750,7 +750,7 @@ function BSEventWorkoutBody({ event, role }) {
         </div>
       </div>
       {/* Padding for sticky footer */}
-      <div style={{ height: 90 }} />
+      <div style={{ height: 6 }} />
     </>
   );
 }
@@ -782,7 +782,7 @@ function BSEventMealBody({ event }) {
           </div>
         ))}
       </div>
-      <div style={{ height: 90 }} />
+      <div style={{ height: 6 }} />
     </>
   );
 }
@@ -805,7 +805,7 @@ function BSEventConsultBody({ event, role }) {
           Cut went well into week 5. Energy held. Add 200 kcal to refeed Saturdays — avoid mid-cut plateau.
         </div>
       </div>
-      <div style={{ height: 90 }} />
+      <div style={{ height: 6 }} />
     </>
   );
 }
@@ -823,7 +823,7 @@ function BSEventCheckBody({ event }) {
           </div>
         ))}
       </div>
-      <div style={{ height: 90 }} />
+      <div style={{ height: 6 }} />
     </>
   );
 }
@@ -835,7 +835,7 @@ function BSEventGenericBody({ event }) {
       <div style={{ padding: `22px ${t.padX}px`, fontFamily: t.DISPLAY, fontSize: 15, color: t.INK70, lineHeight: 1.5 }}>
         A scheduled item on the diary. Tap reschedule to move it to another day.
       </div>
-      <div style={{ height: 90 }} />
+      <div style={{ height: 6 }} />
     </>
   );
 }

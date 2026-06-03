@@ -281,7 +281,7 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
       {selected ? (
         <>
           <BSSection title="Session detail" meta={selected.status || 'completed'} />
-          <div style={{ margin: `0 ${t.padX}px 14px`, border: `1px solid ${t.RULE}`, borderTop: `2px solid ${t.INK}`, borderRadius: 14, background: t.PAPER2, overflow: 'hidden' }}>
+          <div style={{ margin: `0 ${t.padX}px 14px`, border: `1px solid ${t.RULE}`, borderRadius: 16, background: t.PAPER2, overflow: 'hidden' }}>
             <div style={{ padding: 14 }}>
               <BSEyebrow color={accent}>{selected.title || selected.workout_name || 'Workout session'}</BSEyebrow>
               <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 24, color: t.INK, fontWeight: 800, letterSpacing: '-0.04em' }}>
@@ -295,9 +295,9 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
               </div>
             </div>
 
-            <div style={{ borderTop: `1px solid ${t.RULE}` }}>
+            <div style={{ borderTop: `1px solid ${t.HAIR}` }}>
               {setLogs.map((entry, index) => (
-                <div key={entry.id || index} style={{ padding: '11px 14px', borderTop: index ? `1px solid ${t.RULE}` : 0, display: 'grid', gridTemplateColumns: '1.25fr 0.7fr 0.7fr', gap: 9, alignItems: 'center' }}>
+                <div key={entry.id || index} style={{ padding: '11px 14px', borderTop: index ? `1px solid ${t.HAIR}` : 0, display: 'grid', gridTemplateColumns: '1.25fr 0.7fr 0.7fr', gap: 9, alignItems: 'center' }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 750, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {entry.movement_name || entry.moveName || 'Movement'} #{entry.set_number || entry.setNumber || index + 1}
