@@ -46,6 +46,16 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-03 — Library page: stat-card filters, search, item previews
+- `BSClientLibrary` filter row is now a 4-up **stat-card grid** (big tabular count +
+  colored label): **Workouts** (rust), **Meals** (green), **Recipes** (teal),
+  **Groceries** (purple `#8a5cf6`). Tapping a card toggles that filter (tap again →
+  all). Kind metadata centralized in `BS_LIB_KINDS` (workout/plan/meal/recipe/grocery).
+- New **search field** below the cards ("Search your library…") filters saved items by
+  title / meta / coach.
+- Saved item rows are now **tappable cards** (chevron `›`, no more × remove button) that
+  open a new **`BSLibraryDetail`** preview page (kind eyebrow, title, meta/coach, saved
+  date, preview blurb) with a **Save / Remove from library** action at the bottom.
 ### 2026-06-13 — About + Pricing pages (mobile) & compact score card
 - New **`BSAboutPage`** and **`BSPricingPage`** in the client module, adapting the
   website's `/newdesign/About` + `/Pricing` into the broadsheet (serif hero, letter,
