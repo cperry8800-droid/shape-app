@@ -906,6 +906,76 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
     { name: 'Tahini sauce',           qty: '2 tbsp',kcal: 90,  p: 3,  c: 3,  f: 8,  on: true },
   ]);
   const toggle = (i) => setIngs(arr => arr.map((x, j) => (j === i ? { ...x, on: !x.on } : x)));
+
+  // Voice logging — record with the Web MediaRecorder, transcribe + parse via
+  // /api/nutrition/voice, then add the spoken food to the meal.
+  const [voiceState, setVoiceState] = useStateBSC('idle'); // 'idle' | 'recording' | 'processing'
+  const [voiceText, setVoiceText] = useStateBSC('');
+  const [voiceError, setVoiceError] = useStateBSC('');
+  const [voiceSecs, setVoiceSecs] = useStateBSC(0);
+  const voiceRef = React.useRef({ rec: null, chunks: [], stream: null, timer: null });
+  const fmtSecs = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  const cleanupVoice = () => {
+    const v = voiceRef.current;
+    if (v.timer) { clearInterval(v.timer); v.timer = null; }
+    try { v.stream && v.stream.getTracks().forEach(tr => tr.stop()); } catch (e) {}
+    v.stream = null; v.rec = null; v.chunks = [];
+  };
+  React.useEffect(() => () => cleanupVoice(), []);
+  const sendVoice = async (blob) => {
+    setVoiceState('processing');
+    try {
+      const fd = new FormData();
+      fd.append('audio', blob, 'meal.webm');
+      const res = await fetch('/api/nutrition/voice', { method: 'POST', body: fd, credentials: 'same-origin' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setVoiceError(data && data.error ? data.error : 'Could not process audio'); return; }
+      setVoiceText(data.transcript || '');
+      if (data.item && data.item.name) {
+        const it = data.item;
+        setIngs(arr => [...arr, { name: it.name, qty: 'spoken', kcal: it.kcal || 0, p: it.p || 0, c: it.c || 0, f: it.f || 0, on: true }]);
+        window.__bsToast?.(`Added ${it.name}`, 'ok');
+      } else if (!data.transcript) {
+        setVoiceError('Didn’t catch that — try again');
+      }
+    } catch (e) {
+      setVoiceError('Voice logging unavailable');
+    } finally {
+      setVoiceState('idle');
+    }
+  };
+  const startVoice = async () => {
+    setVoiceError(''); setVoiceText('');
+    if (!(typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia && typeof MediaRecorder !== 'undefined')) {
+      setVoiceError('Voice input isn’t supported here yet'); return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const rec = new MediaRecorder(stream);
+      const v = voiceRef.current;
+      v.stream = stream; v.rec = rec; v.chunks = [];
+      rec.ondataavailable = (e) => { if (e.data && e.data.size) v.chunks.push(e.data); };
+      rec.onstop = () => {
+        const blob = new Blob(v.chunks, { type: rec.mimeType || 'audio/webm' });
+        cleanupVoice();
+        if (blob.size > 0) sendVoice(blob); else setVoiceState('idle');
+      };
+      rec.start();
+      setVoiceSecs(0);
+      setVoiceState('recording');
+      v.timer = setInterval(() => setVoiceSecs(s => s + 1), 1000);
+    } catch (e) {
+      setVoiceError('Microphone access denied'); cleanupVoice(); setVoiceState('idle');
+    }
+  };
+  const stopVoice = () => {
+    const v = voiceRef.current;
+    if (v.timer) { clearInterval(v.timer); v.timer = null; }
+    try { if (v.rec && v.rec.state !== 'inactive') v.rec.stop(); else { cleanupVoice(); setVoiceState('idle'); } }
+    catch (e) { cleanupVoice(); setVoiceState('idle'); }
+  };
+  const toggleVoice = () => { if (voiceState === 'recording') stopVoice(); else if (voiceState === 'idle') startVoice(); };
+
   const sum = (k) => ings.reduce((a, x) => a + (x.on ? x[k] : 0), 0);
   const kcal = Math.round(sum('kcal') * portion);
   const P = Math.round(sum('p') * portion);
@@ -1070,11 +1140,24 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
       {mode === 'voice' && (
         <div style={{ padding: `18px ${t.padX}px 4px` }}>
           <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '26px 16px', textAlign: 'center' }}>
-            <div style={{ width: 96, height: 96, margin: '0 auto', borderRadius: 999, background: `radial-gradient(circle, ${teal} 0%, ${teal} 32%, ${teal}22 33%, transparent 70%)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ width: 14, height: 14, borderRadius: 999, background: '#04201d', display: 'block' }} />
+            <button onClick={toggleVoice} disabled={voiceState === 'processing'} aria-label={voiceState === 'recording' ? 'Stop recording' : 'Start speaking'} style={{
+              width: 96, height: 96, margin: '0 auto', borderRadius: 999, border: 0, padding: 0,
+              cursor: voiceState === 'processing' ? 'default' : 'pointer',
+              opacity: voiceState === 'processing' ? 0.6 : 1,
+              background: `radial-gradient(circle, ${teal} 0%, ${teal} 32%, ${teal}22 33%, transparent 70%)`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              animation: voiceState === 'recording' ? 'bs-blink 1.1s ease-in-out infinite' : 'none',
+            }}>
+              {voiceState === 'recording'
+                ? <span style={{ width: 24, height: 24, borderRadius: 6, background: '#04201d', display: 'block' }} />
+                : <span style={{ width: 14, height: 14, borderRadius: 999, background: '#04201d', display: 'block' }} />}
+            </button>
+            <div style={{ marginTop: 16, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15, fontWeight: 600, color: t.INK70, minHeight: 21, padding: `0 ${t.padX}px` }}>
+              {voiceState === 'recording' ? 'Listening…' : voiceState === 'processing' ? 'Reading your meal…' : (voiceText ? `“${voiceText}”` : '“I had two scoops of rice…”')}
             </div>
-            <div style={{ marginTop: 16, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15, fontWeight: 600, color: t.INK70 }}>&ldquo;I had two scoops of rice…&rdquo;</div>
-            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Tap to speak · 0:00</div>
+            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: voiceError ? t.RUST : t.INK50, fontWeight: 600 }}>
+              {voiceError ? voiceError : voiceState === 'recording' ? `Tap to stop · ${fmtSecs(voiceSecs)}` : voiceState === 'processing' ? 'Working…' : 'Tap to speak'}
+            </div>
           </div>
         </div>
       )}
