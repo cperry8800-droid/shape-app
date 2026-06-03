@@ -3047,6 +3047,75 @@ function BSMealLogged({ kcal = 0, p = 0, time = '12:40 PM', onDone = () => {}, o
   );
 }
 
+// Household-measure conversion for meal ingredients — most people don't weigh
+// grams, so render gram/ml quantities as cups / tbsp / oz / slices (display only;
+// stored data stays metric). Keyed by ingredient name; falls back to oz (solids)
+// or cups/tbsp (liquids).
+const _BS_FRAC = { 0.25: '¼', 0.5: '½', 0.75: '¾' };
+const _BS_HOUSEHOLD = [
+  { re: /skyr|yogurt|yoghurt|kefir|cottage/i,                              per: 245, u: 'cup' },
+  { re: /\bmilk\b|cream(?!\s*cheese)|buttermilk|oat milk|almond milk|soy milk/i, per: 240, u: 'cup' },
+  { re: /rolled oat|oatmeal|\boats?\b|granola/i,                           per: 90,  u: 'cup' },
+  { re: /jasmine rice|basmati|cooked rice|\brice\b/i,                      per: 195, u: 'cup' },
+  { re: /quinoa|couscous|bulgur|farro/i,                                   per: 185, u: 'cup' },
+  { re: /\bpasta\b|noodle|macaroni|spaghetti|penne/i,                      per: 140, u: 'cup' },
+  { re: /spinach|arugula|kale|lettuce|greens|rocket|salad/i,               per: 30,  u: 'cup' },
+  { re: /berr|blueberr|strawberr|raspberr|blackberr/i,                     per: 150, u: 'cup' },
+  { re: /broccoli|cauliflower|green bean|brussels|asparagus/i,             per: 90,  u: 'cup' },
+  { re: /mushroom/i,                                                       per: 70,  u: 'cup' },
+  { re: /onion|shallot|scallion/i,                                         per: 160, u: 'cup' },
+  { re: /pepper|capsicum/i,                                                per: 150, u: 'cup' },
+  { re: /tomato/i,                                                         per: 180, u: 'cup' },
+  { re: /peanut butter|almond butter|nut butter|cashew butter|tahini/i,    per: 16,  u: 'tbsp' },
+  { re: /chia|flax|hemp seed|sesame/i,                                     per: 10,  u: 'tbsp' },
+  { re: /olive oil|\boil\b|butter|ghee/i,                                  per: 14,  u: 'tbsp' },
+  { re: /honey|maple|syrup|agave|\bjam\b|preserve/i,                       per: 21,  u: 'tbsp' },
+  { re: /\bbread\b|sourdough|toast|bagel|tortilla|wrap|pita|\bbun\b/i,     per: 40,  u: 'slice' },
+  { re: /almond|walnut|cashew|pecan|pistachio|\bnuts?\b|peanut/i,          per: 140, u: 'cup' },
+  { re: /protein powder|whey protein|\bwhey\b/i,                           per: 30,  u: 'scoop' },
+  { re: /feta|cheddar|parmesan|mozzarella|gouda|cheese|halloumi|paneer/i,  per: 28,  u: 'oz' },
+  { re: /chicken|beef|turkey|pork|salmon|tuna|fish|shrimp|steak|cod|tofu|tempeh|sausage|bacon|\bham\b|mince/i, per: 28, u: 'oz' },
+];
+function _bsFmtAmt(x) {
+  const whole = Math.floor(x + 1e-9);
+  const frac = Math.round((x - whole) * 100) / 100;
+  const fs = frac ? (_BS_FRAC[frac] || '') : '';
+  if (whole === 0) return fs || '0';
+  return `${whole}${fs}`;
+}
+function _bsPlural(u, amt) {
+  if (amt === 1) return u;
+  if (u === 'cup') return 'cups';
+  if (u === 'slice') return 'slices';
+  if (u === 'scoop') return 'scoops';
+  return u;
+}
+function _bsFmtUnit(amt, u) {
+  if (u === 'oz') { const n = Math.max(1, Math.round(amt)); return `${n} oz`; }
+  if (u === 'slice') { const r = Math.max(0.5, Math.round(amt * 2) / 2); return `${_bsFmtAmt(r)} ${_bsPlural('slice', r)}`; }
+  const r = Math.max(0.25, Math.round(amt * 4) / 4);
+  return `${_bsFmtAmt(r)} ${_bsPlural(u, r)}`;
+}
+function bsHouseholdQty(qty, name) {
+  const s = String(qty == null ? '' : qty).trim();
+  const m = s.match(/^(\d+(?:\.\d+)?)\s*(g|gram|grams|ml)\b/i);
+  if (!m) return s; // already a household unit / count / fraction — leave as-is
+  const grams = parseFloat(m[1]);
+  if (!isFinite(grams) || grams <= 0) return s;
+  const hit = _BS_HOUSEHOLD.find(h => h.re.test(String(name || '')));
+  if (hit) return _bsFmtUnit(grams / hit.per, hit.u);
+  if (m[2].toLowerCase() === 'ml') return grams >= 120 ? _bsFmtUnit(grams / 240, 'cup') : _bsFmtUnit(grams / 15, 'tbsp');
+  return _bsFmtUnit(grams / 28.35, 'oz');
+}
+// Same, for a full ingredient string like "170 g skyr" → "¾ cup skyr".
+function bsHouseholdStr(str) {
+  const s = String(str == null ? '' : str).trim();
+  const m = s.match(/^(\d+(?:\.\d+)?\s*(?:g|gram|grams|ml))\b\s*(.*)$/i);
+  if (!m) return s;
+  const conv = bsHouseholdQty(m[1], m[2]);
+  return m[2] ? `${conv} ${m[2]}` : conv;
+}
+
 function BSMealPreview({ meal, onBack, onLog }) {
   const t = useBS();
   _bsScrollTopOnMount();
@@ -3158,7 +3227,7 @@ function BSMealPreview({ meal, onBack, onLog }) {
                   padding: '12px 0', borderBottom: i === ingredients.length - 1 ? 0 : `1px solid ${t.HAIR}`,
                   display: 'flex', alignItems: 'baseline', gap: 12,
                 }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK70, fontWeight: 700, width: 56, letterSpacing: '0.04em' }}>{ing.n}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK70, fontWeight: 700, width: 78, flexShrink: 0, letterSpacing: '0.04em' }}>{t.isMetric ? ing.n : bsHouseholdQty(ing.n, ing.m)}</span>
                   <div style={{ flex: 1, fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, fontWeight: 600, letterSpacing: '-0.005em' }}>{ing.m}</div>
                   <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.06em', fontVariantNumeric: 'tabular-nums' }}>{ing.k}</span>
                 </div>
@@ -3707,7 +3776,7 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
         {r.ingredients.map((ing, i) => (
           <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '9px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
             <span style={{ width: 6, height: 6, borderRadius: 999, background: t.ACCENT, marginTop: 7, flex: 'none' }} />
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK }}>{ing}</span>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK }}>{t.isMetric ? ing : bsHouseholdStr(ing)}</span>
           </div>
         ))}
       </div>
