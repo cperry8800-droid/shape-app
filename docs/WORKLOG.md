@@ -46,6 +46,22 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-13 — client Library (Phase 1)
+- New **Library** screen (`BSClientLibrary` in the client module): clients save
+  trainers' **workouts**, paid **programs/plans**, and nutritionists' **meals/plans**
+  to their own profile. Serif "Your library." hero, All/Workouts/Programs/Meals
+  filter pills, kind-colored rows (workout = rust, plan = amber, meal = teal) with
+  remove (×), and an empty state that deep-links to the marketplace.
+- Data model: `bsLibRead/bsLibWrite/bsLibToggle` over `localStorage` key `shape.library`
+  + `shapeDb.saveUserGoals('client_library')` (cloud), broadcast on a `bs-library`
+  event; `useBSLibrary()` hook merges the cloud copy by id-union once on mount.
+- `BSSaveButton({item, full})` — reusable ♡ Save / ✓ Saved toggle (teal when saved).
+  Wired into the **workout preview** footer and the **meal preview** CTA row so far.
+- Me page: added a **Library** shortcut + `showLibrary` route in `BSClientMe`.
+- **Follow-ups:** Save actions on coach/marketplace content (programs, coach meals);
+  the trainer "sell a plan" paid-checkout path; a dedicated Supabase `client_library`
+  table (today it piggybacks on `user_goals`).
+
 ### 2026-06-13 — Garmin push-webhook ingestion (ready for approval)
 - Built `src/app/api/integrations/garmin/webhook/route.ts` — Garmin Health API is
   PUSH-based, so this receives Dailies/Sleeps/Activities POSTs, maps each item's

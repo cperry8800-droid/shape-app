@@ -516,6 +516,129 @@ const BS_TICKER_METRICS = [
 
 // Full read-only preview of an upcoming workout — opened from the home
 // "Up next" workout card's Preview button.
+// ── Client Library — saved coach content (workouts, programs, meals) ─────────
+// Persists to localStorage immediately, mirrored to window.shapeDb (user_goals)
+// for cross-device sync. Screens subscribe via the `bs-library` window event.
+const BS_LIB_KEY = 'shape.library';
+function bsLibRead() {
+  try { const raw = window.localStorage && window.localStorage.getItem(BS_LIB_KEY); const a = raw ? JSON.parse(raw) : []; return Array.isArray(a) ? a : []; } catch (e) { return []; }
+}
+function bsLibWrite(items) {
+  try { window.localStorage && window.localStorage.setItem(BS_LIB_KEY, JSON.stringify(items)); } catch (e) {}
+  try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_library', items); } catch (e) {}
+  try { window.dispatchEvent(new Event('bs-library')); } catch (e) {}
+}
+function bsLibToggle(item) {
+  const items = bsLibRead();
+  const exists = items.some(x => x.id === item.id);
+  const next = exists ? items.filter(x => x.id !== item.id) : [{ ...item, savedAt: Date.now() }, ...items];
+  bsLibWrite(next);
+  window.__bsToast && window.__bsToast(exists ? 'Removed from library' : 'Saved to your library', exists ? 'info' : 'ok');
+  return !exists;
+}
+function useBSLibrary() {
+  const [items, setItems] = useStateBSC(() => bsLibRead());
+  React.useEffect(() => {
+    const sync = () => setItems(bsLibRead());
+    window.addEventListener('bs-library', sync);
+    // One-time merge with any cloud-saved library (union by id; never drop a save).
+    try {
+      window.shapeDb && window.shapeDb.getUserGoals && window.shapeDb.getUserGoals('client_library').then((saved) => {
+        if (!Array.isArray(saved) || !saved.length) return;
+        const byId = new Map();
+        for (const it of [...saved, ...bsLibRead()]) if (it && it.id && !byId.has(it.id)) byId.set(it.id, it);
+        const merged = [...byId.values()].sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+        try { window.localStorage && window.localStorage.setItem(BS_LIB_KEY, JSON.stringify(merged)); } catch (e) {}
+        setItems(merged);
+      }).catch(() => {});
+    } catch (e) {}
+    return () => window.removeEventListener('bs-library', sync);
+  }, []);
+  return items;
+}
+
+// Reusable "Save to library" toggle — reflects saved state live.
+function BSSaveButton({ item, full = false }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const lib = useBSLibrary();
+  const saved = lib.some(x => x.id === item.id);
+  return (
+    <button onClick={() => bsLibToggle(item)} style={{
+      ...(full ? { flex: 1 } : {}), padding: '14px', borderRadius: t.RADIUS_SM, cursor: 'pointer',
+      border: `1px solid ${saved ? teal : t.RULE}`,
+      background: saved ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent',
+      color: saved ? teal : t.INK,
+      fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+    }}>{saved ? '✓ Saved' : '♡ Save'}</button>
+  );
+}
+
+// Client Library screen — saved workouts / programs / meals.
+function BSClientLibrary({ onBack, goMarket = () => {} }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const items = useBSLibrary();
+  const [filter, setFilter] = useStateBSC('all');
+  const tabs = [['all', 'All'], ['workout', 'Workouts'], ['plan', 'Programs'], ['meal', 'Meals']];
+  const kindMeta = {
+    workout: { label: 'Workout', color: t.RUST },
+    plan: { label: 'Program', color: t.AMBER },
+    meal: { label: 'Meal', color: t.GREEN || '#5fae7e' },
+  };
+  const list = filter === 'all' ? items : items.filter(i => i.kind === filter);
+  return (
+    <BSPage>
+      <div style={{ padding: `14px ${t.padX}px 0` }}>
+        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0 }}>← Back</button>
+        <h1 style={{ margin: '12px 0 0', fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>Your<br/><span style={{ fontStyle: 'italic', color: teal }}>library.</span></h1>
+        <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{items.length} saved · workouts · programs · meals</div>
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: `16px ${t.padX}px 14px` }}>
+        {tabs.map(([k, label]) => {
+          const on = filter === k;
+          const count = k === 'all' ? items.length : items.filter(i => i.kind === k).length;
+          return (
+            <button key={k} onClick={() => setFilter(k)} style={{ padding: '8px 14px', borderRadius: 999, cursor: 'pointer', border: `1.5px solid ${on ? teal : t.RULE}`, background: on ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: on ? teal : t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{label}{count ? ` · ${count}` : ''}</button>
+          );
+        })}
+      </div>
+
+      {list.length === 0 ? (
+        <div style={{ padding: `8px ${t.padX}px` }}>
+          <div style={{ borderRadius: 18, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 24, textAlign: 'center' }}>
+            <div style={{ fontSize: 30 }}>❒</div>
+            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK }}>{filter === 'all' ? 'Nothing saved yet' : 'None in here yet'}</div>
+            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.4 }}>Save your coaches&rsquo; workouts, programs, and meals here — tap <b>Save</b> on any of them.</div>
+            <button onClick={() => goMarket()} style={{ marginTop: 16, padding: '11px 18px', borderRadius: 999, border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Browse marketplace →</button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ padding: `0 ${t.padX}px`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {list.map((it) => {
+            const km = kindMeta[it.kind] || { label: it.kind, color: t.INK50 };
+            return (
+              <div key={it.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center', padding: 14, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+                <div style={{ minWidth: 0 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: 999, background: km.color }} />
+                    <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: km.color }}>{km.label}{it.price ? ` · ${it.price}` : ''}</span>
+                  </span>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.title}</div>
+                  {(it.meta || it.coach) ? <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{[it.meta, it.coach].filter(Boolean).join(' · ')}</div> : null}
+                </div>
+                <button onClick={() => bsLibToggle(it)} aria-label="Remove from library" style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK50, cursor: 'pointer', fontSize: 16, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <BSFooter right="Library" />
+    </BSPage>
+  );
+}
+
 function BSHomeWorkoutPreview({ onBack, onMove = () => {}, onStart = () => {}, onMessage = () => {} }) {
   const t = useBS();
   const rust = t.RUST;
@@ -593,6 +716,7 @@ function BSHomeWorkoutPreview({ onBack, onMove = () => {}, onStart = () => {}, o
       </div>
 
       <div style={{ padding: `18px ${t.padX}px 12px`, display: 'flex', gap: 10 }}>
+        <BSSaveButton full item={{ id: 'workout:upper-pull-peak', kind: 'workout', title: 'Upper Pull — Peak', meta: '52 min · 6 moves · RPE 8', coach: 'Jordan Chen' }} />
         <button onClick={onMove} style={footBtn}>Move session</button>
         <button onClick={() => window.__bsToast?.('Reminder set for 9:00 AM', 'ok')} style={footBtn}>Remind me</button>
       </div>
@@ -2707,6 +2831,7 @@ function BSMealPreview({ meal, onBack, onLog }) {
           padding: '14px 18px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
           fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
         }}>Close</button>
+        <BSSaveButton item={{ id: 'meal:' + String(meal.title || 'meal').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''), kind: 'meal', title: meal.title, meta: `${meal.kcal} kcal · ${meal.p}P · ${meal.c}C · ${meal.f}F` }} />
         <button onClick={onLog ? onLog : () => setJustLogged(true)} style={{
           flex: 1, border: 0, borderRadius: 14, background: teal, color: '#04201d', cursor: 'pointer',
           ...(onLog
@@ -7021,6 +7146,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
   const [showSessions, setShowSessions] = useStateBSC(false);
   const [showNotifications, setShowNotifications] = useStateBSC(false);
   const [showLeaderboard, setShowLeaderboard] = useStateBSC(false);
+  const [showLibrary, setShowLibrary] = useStateBSC(false);
   const scoreProfile = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client); // live points/tier when signed in
   const authProfile = window.ShapeAuth?.getCachedState?.().profile || {};
   const displayName = authProfile.full_name || 'Alex Rivera';
@@ -7175,6 +7301,9 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
   }
   if (showLeaderboard) {
     return <BSLeaderboard onBack={() => setShowLeaderboard(false)} />;
+  }
+  if (showLibrary) {
+    return <BSClientLibrary onBack={() => setShowLibrary(false)} goMarket={() => { setShowLibrary(false); goMarket(); }} />;
   }
   if (showSessions) {
     return <BSSessionsScreen onBack={() => setShowSessions(false)} />;
@@ -7422,6 +7551,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
       </div>
       <div style={{ padding: `0 ${t.padX}px` }}>
         {[
+          { l: 'Library', s: 'Saved workouts, programs & meals', onClick: () => setShowLibrary(true) },
           { l: 'Marketplace', s: 'Find coaches, plans, programs', onClick: () => goMarket() },
           { l: 'Shape Store', s: `${scoreProfile.available.toLocaleString()} pts · tap to redeem`, onClick: () => setShowStore(true) },
           { l: 'Progress & PRs', s: 'Weight, recovery, strength trends', onClick: () => setShowProgress(true) },
