@@ -1003,8 +1003,23 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
 
       {mode === 'search' && (
         <div style={{ padding: `18px ${t.padX}px 4px` }}>
-          <input placeholder="Search foods…" style={{ width: '100%', padding: '13px 14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, outline: 'none' }} />
-          <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.5 }}>Search the Shape food database or your saved meals, then add to this log.</div>
+          <input placeholder="Search foods, brands, barcodes…" style={{ width: '100%', padding: '13px 14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, outline: 'none' }} />
+          <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Recents</div>
+          <div style={{ marginTop: 2 }}>
+            {[
+              { name: 'Chipotle · chicken bowl', sub: '560 kcal · 42P' },
+              { name: 'Whey isolate',            sub: '120 kcal · 25P' },
+              { name: 'Jasmine rice · 1c',       sub: '205 kcal · 4P' },
+            ].map((r, i, arr) => (
+              <div key={r.name} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{r.name}</div>
+                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{r.sub}</div>
+                </div>
+                <button onClick={() => window.__bsToast?.(`Added ${r.name}`, 'ok')} style={{ flexShrink: 0, background: 'transparent', border: 0, color: teal, cursor: 'pointer', fontSize: 20, fontWeight: 700, lineHeight: 1, padding: '4px 6px' }}>+</button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
