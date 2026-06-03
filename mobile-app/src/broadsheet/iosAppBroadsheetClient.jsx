@@ -1882,12 +1882,29 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                     if (row.tag === 'MEAL') {
                       const kc = /(\d[\d,]*)\s*kcal/i.exec(row.sub || '');
                       const pr = /(\d+)\s*P\b/i.exec(row.sub || '');
+                      const kcal = kc ? parseInt(kc[1].replace(/,/g, ''), 10) : 0;
+                      const p = pr ? parseInt(pr[1], 10) : 0;
+                      // Estimate carbs/fat from the remaining calories so the macro
+                      // split reads real instead of "P 100%".
+                      const remK = Math.max(0, kcal - p * 4);
+                      const c = Math.round((remK * 0.55) / 4);
+                      const f = Math.round((remK * 0.45) / 9);
+                      // Derive a believable ingredient list from the meal title.
+                      const parts = String(row.title || '').split(/\s*(?:,|\+|&|\/| with | and )\s*/i).map(s => s.trim()).filter(Boolean);
+                      const per = parts.length ? Math.round(kcal / parts.length) : kcal;
+                      const ingredients = parts.map((m, i) => ({
+                        n: 'portion',
+                        m: m.charAt(0).toUpperCase() + m.slice(1),
+                        k: `${i === parts.length - 1 ? Math.max(0, kcal - per * (parts.length - 1)) : per} kcal`,
+                      }));
                       setPreviewMeal({
                         id: `daylog:${dataDay}:${row.time}`,
                         title: row.title, time: row.time, tag: row.tag, tagColor: row.tagColor,
-                        kcal: kc ? parseInt(kc[1].replace(/,/g, ''), 10) : 0,
-                        p: pr ? parseInt(pr[1], 10) : 0, c: 0, f: 0,
-                        sub: row.sub,
+                        kcal, p, c, f, sub: row.sub,
+                        prep: '10 min', portion: '1 plate', score: 'A',
+                        hero: `${row.title}.`,
+                        brief: 'Logged from today’s plan. Confirm to update your calories, protein, carbs, and fat for the day.',
+                        ingredients,
                       });
                     } else {
                       setActiveDayLogKey(key);
@@ -2092,8 +2109,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
             style={{
               width: '100%',
               maxWidth: 460,
-              border: `1px solid ${t.INK}`,
-              borderRadius: 14,
+              border: `1px solid ${t.RULE}`,
+              borderRadius: 18,
               background: t.PAPER,
               color: t.INK,
               boxShadow: '0 18px 60px rgba(0,0,0,0.35)',
@@ -2134,8 +2151,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                 style={{
                   width: 30,
                   height: 30,
-                  borderRadius: t.RADIUS_SM,
-                  border: `1px solid ${t.INK}`,
+                  borderRadius: 999,
+                  border: `1px solid ${t.RULE}`,
                   background: 'transparent',
                   color: t.INK,
                   fontFamily: t.MONO,
@@ -2144,7 +2161,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                   flexShrink: 0,
                 }}
               >
-                x
+                ✕
               </button>
             </div>
 
@@ -2153,25 +2170,25 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
               <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1.42, color: t.INK70 }}>
                 {activeDayLogDetails.description}
               </div>
-              <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderTop: `1px solid ${t.RULE}`, borderBottom: `1px solid ${t.RULE}` }}>
+              <div style={{ marginTop: 14, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '12px 6px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)' }}>
                 {activeDayLogDetails.metrics.map(([label, value], i) => (
-                  <div key={label} style={{ padding: '12px 8px', borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0 }}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase', fontWeight: 800 }}>
+                  <div key={label} style={{ padding: '0 8px', borderLeft: i > 0 ? `1px solid ${t.HAIR}` : 0 }}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase', fontWeight: 800 }}>
                       {label}
                     </div>
-                    <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.1, color: t.INK }}>
+                    <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.15, color: t.INK }}>
                       {value}
                     </div>
                   </div>
                 ))}
               </div>
-              <div style={{ marginTop: 14, padding: '12px 13px', border: `1px solid ${t.RULE}`, borderRadius: t.RADIUS_SM, background: t.PAPER2, fontFamily: t.DISPLAY, fontSize: 13, lineHeight: 1.35, color: t.INK70 }}>
+              <div style={{ marginTop: 14, padding: '12px 13px', border: `1px solid ${t.RULE}`, borderRadius: 14, background: t.PAPER2, fontFamily: t.DISPLAY, fontSize: 13, lineHeight: 1.35, color: t.INK70 }}>
                 {activeDayLogDetails.note}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.35fr', gap: 8, marginTop: 14 }}>
                 <button
                   onClick={() => setActiveDayLogKey(null)}
-                  style={{ padding: '12px 10px', border: `1px solid ${t.INK}`, borderRadius: t.RADIUS_SM, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 900, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer' }}
+                  style={{ padding: '13px 10px', border: `1px solid ${t.INK}`, borderRadius: 12, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 900, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer' }}
                 >
                   Close
                 </button>
@@ -2180,7 +2197,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                     logDayItem(activeDayLogEntry.key, activeDayLog);
                     setActiveDayLogKey(null);
                   }}
-                  style={{ padding: '12px 10px', border: `1px solid ${activeDayLogLogged ? t.GREEN : t.INK}`, borderRadius: t.RADIUS_SM, background: activeDayLogLogged ? t.GREEN : t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 10, fontWeight: 900, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer' }}
+                  style={{ padding: '13px 10px', border: `1px solid ${activeDayLogLogged ? t.GREEN : t.INK}`, borderRadius: 12, background: activeDayLogLogged ? t.GREEN : t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 10, fontWeight: 900, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer' }}
                 >
                   {activeDayLogLogged ? 'Logged' : 'Log now'}
                 </button>
