@@ -74,6 +74,18 @@ changelog whenever something ships.
 - Also this session: meal-search recents now add to the meal + filter as you type;
   War Room updated to reflect the above (routes, config, checklist).
 
+### Next up (planned)
+- **Redesign the mobile marketplace page** — `iosAppBroadsheetMarketplace.jsx`
+  (~1.7k lines). Keep the working bones, restyle the layer:
+  - `BSMarketplaceScreen` (221) — role-filtered (trainer/nutritionist) list of
+    `ListingRow`s, search input, real Supabase providers via `mapSupabaseProvider`.
+  - `ListingRow` (678), `BSHeadshot` (731) — the coach cards.
+  - `BSCoachDetailPublic` (1105) / `BSCoachDetail` (1552) — coach profile/booking.
+  - `BSPublicPackageCard` (911), `BSPublicActionPanel` (947) — packages + book/message.
+  - Don't break: role filter, real provider data, booking/checkout, message-to-coach.
+  - Open questions for kickoff: what's wrong with the current look? any reference/vibe?
+    list-first vs. featured cards? same broadsheet aesthetic as the rest of the app?
+
 ### Known stubs / next
 - Food-database free-text search in the logger (Search tab uses local recents today).
 - Native mic + camera plugins for the iOS App Store build (WebView fallback today).
