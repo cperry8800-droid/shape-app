@@ -123,6 +123,8 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/my-availability', 'GET,POST'],
   ['/api/notifications', 'GET,POST'],
   ['/api/notify-app', 'POST'],
+  ['/api/nutrition/meal-note', 'POST'],
+  ['/api/nutrition/voice', 'POST'],
   ['/api/nutritionist/analytics', 'GET'],
   ['/api/nutritionist/clients', 'GET'],
   ['/api/nutritionist/console', 'GET,POST'],
@@ -160,6 +162,7 @@ function groupOf(p: string): string {
   if (p.startsWith('/api/client')) return 'Client app';
   if (p.startsWith('/api/trainer')) return 'Trainer';
   if (p.startsWith('/api/nutritionist')) return 'Nutritionist';
+  if (p.startsWith('/api/nutrition')) return 'Nutrition & meals';
   if (p.startsWith('/api/coach')) return 'Coach';
   if (p.startsWith('/api/push') || p === '/api/notifications' || p === '/api/notify-app') return 'Push & notifications';
   if (p.startsWith('/api/community') || p.startsWith('/api/messages') || p.startsWith('/api/conversations') ||
@@ -329,7 +332,8 @@ function buildConfig(): ConfigGroup[] {
     mk([
       { key: 'OPENAI_API_KEY', label: 'OpenAI key', present: present(env.OPENAI_API_KEY) },
       { key: 'OPENAI_MODEL', label: 'Model', present: present(env.OPENAI_MODEL), note: env.OPENAI_MODEL ?? undefined },
-    ], false, 'ai', 'AI (plans / readouts)'),
+      { key: 'OPENAI_TRANSCRIBE_MODEL', label: 'Transcribe model', present: present(env.OPENAI_TRANSCRIBE_MODEL), note: env.OPENAI_TRANSCRIBE_MODEL ?? 'whisper-1' },
+    ], false, 'ai', 'AI (plans / readouts / voice)'),
 
     mk([
       { key: 'RESEND_API_KEY', label: 'Resend key', present: present(env.RESEND_API_KEY) },
@@ -504,6 +508,32 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Public/private channels + per-user pin-to-top', status: 'done' },
         { label: 'Realtime messages + per-row unread badges + persisted unread + Chat-tab badge', status: 'done' },
         { label: 'Channel migrations applied in Supabase (channels, visibility, realtime publication, unread RPCs)', status: 'manual' },
+      ],
+    },
+    {
+      section: 'Meal logging & coach delivery',
+      items: [
+        { label: 'Meal logger rebuilt: Adjust / Photo / Search / Voice tabs', status: 'done' },
+        { label: 'Live ingredient editor — add / edit / delete with macro fields', status: 'done' },
+        { label: 'Voice note to coach: dictate (speech→text) + record an audio memo (/api/nutrition/voice · Whisper)', status: 'done' },
+        { label: 'Meal photo: camera/upload capture, inline preview, delivered to the coach', status: 'done' },
+        { label: 'Delivery route /api/nutrition/meal-note fans note + memo + photo to every linked coach (trainer + nutritionist)', status: 'done' },
+        { label: 'Coach chat thread renders the voice-memo player + meal photo inline', status: 'done' },
+        { label: "'Log Now' on a meal preview opens the full logger; calendar preview keeps one-tap 'Ate it as planned'", status: 'done' },
+        { label: "Shop list auto-builds from the week's meal ingredients (deduped, aisle-grouped) — matches the meals", status: 'done' },
+        { label: 'Swap meal: pick which meal first, then the coach-approved alternate', status: 'done' },
+        { label: 'Meal-search recents add to the meal + filter as you type', status: 'done' },
+        { label: 'meal-notes storage bucket migration applied (audio + image mime types, 15 MB)', status: 'manual' },
+        { label: 'Food-database free-text search in the logger (Search tab uses local recents today)', status: 'pending' },
+        { label: 'Native mic + camera plugins for the iOS App Store build (WebView file/Media fallback today)', status: 'pending' },
+      ],
+    },
+    {
+      section: 'Mobile UI polish',
+      items: [
+        { label: 'Shape Radio now-playing bar spans the full screen width (full-bleed)', status: 'done' },
+        { label: 'Shape Score tier badge bolder + solid gold (client + coach Me pages)', status: 'done' },
+        { label: "Marketplace 'Find a coach' CTAs: tinted fill, bold role-color outline, icon badge", status: 'done' },
       ],
     },
   ];
