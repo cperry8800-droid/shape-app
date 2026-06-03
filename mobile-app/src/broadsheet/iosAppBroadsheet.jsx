@@ -269,6 +269,51 @@ function makeWeights(weightKey = 'bold') {
 }
 
 // ─── Theme context ─────────────────────────────────────────
+// ── Units (Imperial / Metric) ──────────────────────────────────────────────
+// Single reactive source of truth for the user's unit preference. Settings
+// persists it to user_goals (client_settings.units) and loads it at startup;
+// we cache it here so any component reading the theme (useBS) gets formatters
+// that re-render the moment it flips. Stored/native values are Imperial
+// (pounds, miles) — the historical default — and converted on display.
+const BS_UNIT_LISTENERS = new Set();
+let bsUnitSystem = 'imperial';
+const LB_TO_KG = 0.45359237;
+const MI_TO_KM = 1.609344;
+function bsNormalizeUnits(v) {
+  return /metric|\bkg\b|\bkm\b/i.test(String(v == null ? '' : v)) ? 'metric' : 'imperial';
+}
+function bsSetUnits(v) {
+  const next = bsNormalizeUnits(v);
+  if (next === bsUnitSystem) return;
+  bsUnitSystem = next;
+  BS_UNIT_LISTENERS.forEach((fn) => { try { fn(next); } catch (e) {} });
+}
+const ShapeUnits = {
+  get: () => bsUnitSystem,
+  set: bsSetUnits,
+  subscribe: (fn) => { BS_UNIT_LISTENERS.add(fn); return () => BS_UNIT_LISTENERS.delete(fn); },
+};
+function bsUnitFormatters(system) {
+  const metric = system === 'metric';
+  const num = (n, d) => {
+    const f = Math.pow(10, d);
+    const r = Math.round(n * f) / f;
+    return d > 0 ? r.toFixed(d) : String(r);
+  };
+  return {
+    units: system,
+    isMetric: metric,
+    weightUnit: metric ? 'kg' : 'lb',
+    distanceUnit: metric ? 'km' : 'mi',
+    // Convert a native Imperial value (lb / mi) to the active system's number.
+    convWeight: (lb) => (lb == null ? null : (metric ? lb * LB_TO_KG : lb)),
+    convDistance: (mi) => (mi == null ? null : (metric ? mi * MI_TO_KM : mi)),
+    // Format a native Imperial value with the active unit appended.
+    fmtWeight: (lb, digits = 0, sep = ' ') => (lb == null ? '' : `${num(metric ? lb * LB_TO_KG : lb, digits)}${sep}${metric ? 'kg' : 'lb'}`),
+    fmtDistance: (mi, digits = 1, sep = ' ') => (mi == null ? '' : `${num(metric ? mi * MI_TO_KM : mi, digits)}${sep}${metric ? 'km' : 'mi'}`),
+  };
+}
+
 const BSContext = createContextBS(null);
 
 function BSProvider({ children, paperMode, accentKey, densityKey, borderKey, weightKey, textureKey, textureColor, inkOverride }) {
@@ -280,9 +325,14 @@ function BSProvider({ children, paperMode, accentKey, densityKey, borderKey, wei
   const _txOverride = textureColor && textureColor !== 'auto' ? _hexToRGB(textureColor) : null;
   const _txRGB = _txOverride || P.inkRGB || '15,14,12';
   const TEXTURE = makeTexture(textureKey, _txRGB, P.isLight);
+  // Subscribe to the global units preference so flipping it re-renders every
+  // consumer of the theme with the new formatters.
+  const [unitSystem, setUnitSystem] = useStateBS(bsUnitSystem);
+  useEffectBS(() => ShapeUnits.subscribe(setUnitSystem), []);
   const value = { ...P, ...D, B, W, TEXTURE, textureKey, textureColor,
     DISPLAY: DISPLAY_BS, BODY: BODY_BS, MONO: MONO_BS,
     densityKey, borderKey, weightKey,
+    ...bsUnitFormatters(unitSystem),
   };
   return (
     <BSContext.Provider value={value}>
@@ -1153,5 +1203,5 @@ Object.assign(window, {
   BSContext, BSProvider, useBS,
   BSPage, BSMasthead, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
   BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BSFooter, BSPhone, BSLogo, BSWordmark,
-  DISPLAY_BS, BODY_BS, MONO_BS, makePalette,
+  DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits,
 });
