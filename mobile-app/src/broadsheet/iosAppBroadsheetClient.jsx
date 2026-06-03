@@ -8817,6 +8817,8 @@ function BSSession({ moves, onBack, title = 'Live session' }) {
   const [restEnd, setRestEnd] = useStateBSC(null);   // timestamp ms
   const [restTotal, setRestTotal] = useStateBSC(120); // seconds of the current rest
   const [restAfterSet, setRestAfterSet] = useStateBSC(0); // which set number just finished
+  const [reviewFeel, setReviewFeel] = useStateBSC(null);   // post-workout rating
+  const [reviewEffort, setReviewEffort] = useStateBSC(null); // post-workout effort
   const [now, setNow] = useStateBSC(Date.now());
   const [elapsedStart] = useStateBSC(Date.now());
   const [activeSetKey, setActiveSetKey] = useStateBSC(null);
@@ -8926,6 +8928,7 @@ function BSSession({ moves, onBack, title = 'Live session' }) {
         workout: moves[0]?.m || 'workout',
         durationSeconds: elapsedSec,
         setLogs,
+        review: { feel: reviewFeel, effort: reviewEffort },
         privacy: 'private',
       });
       window.__bsToast?.('Private sensor workout log saved for coach review', 'ok');
@@ -9100,8 +9103,43 @@ function BSSession({ moves, onBack, title = 'Live session' }) {
         </div>
       </div>
 
+      {/* Post-workout review */}
+      <div style={{ padding: `26px ${t.padX}px 4px` }}>
+        <BSEyebrow color={teal}>How was it?</BSEyebrow>
+        <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Rate this workout</div>
+      </div>
+      <div style={{ padding: `12px ${t.padX}px 0` }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 8 }}>The vibe</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+          {[['loved', '🤍', 'Loved it', t.GREEN], ['ok', '👌', 'It was OK', t.AMBER], ['nope', '🥵', 'Not for me', t.RUST]].map(([key, emoji, label, c]) => {
+            const on = reviewFeel === key;
+            return (
+              <button key={key} onClick={() => setReviewFeel(on ? null : key)} style={{ borderRadius: 14, border: `1px solid ${on ? c : t.RULE}`, background: on ? `${c}1c` : t.PAPER2, cursor: 'pointer', padding: '13px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 22, lineHeight: 1 }}>{emoji}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: on ? c : t.INK70 }}>{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div style={{ padding: `14px ${t.padX}px 0` }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 8 }}>The effort</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+          {[['easy', 'Easy'], ['moderate', 'Moderate'], ['hard', 'Hard']].map(([key, label], i) => {
+            const on = reviewEffort === key;
+            const c = i === 0 ? t.GREEN : i === 1 ? t.AMBER : t.RUST;
+            return (
+              <button key={key} onClick={() => setReviewEffort(on ? null : key)} style={{ borderRadius: 999, border: `1px solid ${on ? c : t.RULE}`, background: on ? `${c}1c` : 'transparent', color: on ? c : t.INK70, cursor: 'pointer', padding: '11px 6px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{label}</button>
+            );
+          })}
+        </div>
+        {(reviewFeel || reviewEffort) && (
+          <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>✓ Saved with your log — Jordan will see it</div>
+        )}
+      </div>
+
       {/* End workout early */}
-      <div style={{ padding: `16px ${t.padX}px 90px` }}>
+      <div style={{ padding: `18px ${t.padX}px 90px` }}>
         <button onClick={finishSession} style={{ width: '100%', padding: '14px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' }}>End workout early</button>
       </div>
     </BSPage>
