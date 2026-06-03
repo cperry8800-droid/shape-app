@@ -1323,6 +1323,7 @@ function conversationToThread(conversation, messages = []) {
       time: message.created_at ? new Date(message.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'now',
       me: message.sender_id === state.user?.id,
       coach: message.sender_id !== state.user?.id,
+      audio: message.metadata && message.metadata.audio ? message.metadata.audio.url : null,
     })),
     updatedAt: conversation.updated_at || conversation.last_message_at || conversation.created_at,
   };
