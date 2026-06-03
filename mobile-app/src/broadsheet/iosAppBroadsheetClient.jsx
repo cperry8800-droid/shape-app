@@ -8950,6 +8950,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showAppearance, setShowAppearance] = useStateBSC(false);
   const [showScore, setShowScore] = useStateBSC(false);
   const [showStore, setShowStore] = useStateBSC(false);
+  const [showProgress, setShowProgress] = useStateBSC(false);
   const scoreProfile = SHAPE_SCORE_PROFILES.client;
 
   // Live subscription for the "Your plan" card. null until loaded; { active:false }
@@ -9179,6 +9180,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   if (showStore) {
     return <BSShapeStorePage profile={scoreProfile} onBack={() => setShowStore(false)} onOpenScore={() => { setShowStore(false); setShowScore(true); }} />;
   }
+  if (showProgress) {
+    return <BSClientProgress onBack={() => setShowProgress(false)} />;
+  }
 
   const sections = [
     {
@@ -9189,16 +9193,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         { l: 'Phone',           r: '+1 (415) 555-0144' },
         { l: 'Password',        r: 'Change' },
         { l: 'Two-factor auth', r: 'On' },
-      ],
-    },
-    {
-      title: 'Coaches',
-      meta: '3 active',
-      rows: [
-        { l: 'Maya Okafor',     r: 'Head trainer' },
-        { l: 'Rae Lindqvist',   r: 'Nutritionist' },
-        { l: 'Dr. Sam Huang',   r: 'Endurance' },
-        { l: 'Find a coach',    r: 'Browse' },
       ],
     },
     {
@@ -9288,7 +9282,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
-              {[['Shape Score', () => setShowScore(true)], ['Streak', () => setShowScore(true)], ['Points', () => setShowStore(true)]].map(([l, on]) => (
+              {[['Shape Score', () => setShowScore(true)], ['Streak', () => setShowProgress(true)], ['Store', () => setShowStore(true)]].map(([l, on]) => (
                 <button key={l} onClick={on} style={{ padding: '10px 16px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{l}</button>
               ))}
             </div>
