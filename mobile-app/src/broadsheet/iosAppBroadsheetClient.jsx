@@ -6048,9 +6048,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                 })}
               </div>
               {active.key === 'channels' ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
                   {newChannel === null ? (
-                    <button onClick={() => setNewChannel('')} style={{ width: '100%', padding: '8px 12px', borderRadius: 10, border: `1px dashed ${TEALB}`, background: 'transparent', color: TEALB, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Create new channel</button>
+                    <button onClick={() => setNewChannel('')} style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1px dashed ${TEALB}`, background: 'transparent', color: TEALB, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Create new channel</button>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 8, alignItems: 'center' }}>
