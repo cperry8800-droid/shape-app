@@ -1324,6 +1324,7 @@ function conversationToThread(conversation, messages = []) {
       me: message.sender_id === state.user?.id,
       coach: message.sender_id !== state.user?.id,
       audio: message.metadata && message.metadata.audio ? message.metadata.audio.url : null,
+      photo: message.metadata && message.metadata.photo ? message.metadata.photo.url : null,
     })),
     updatedAt: conversation.updated_at || conversation.last_message_at || conversation.created_at,
   };

@@ -984,6 +984,22 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
   };
   const toggleVoice = () => { if (voiceState === 'recording') stopVoice(); else if (voiceState === 'idle') startVoice(); };
 
+  // Meal photo for the coach — capture (camera) or pick from the library. The
+  // image rides along with the log to the coach via /api/nutrition/meal-note.
+  // No on-device macro reading yet — Maya reviews the plate.
+  const [photo, setPhoto] = useStateBSC(null); // { url, blob }
+  const photoCamRef = React.useRef(null);
+  const photoLibRef = React.useRef(null);
+  const onPhotoPick = (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = ''; // let the user re-pick the same file later
+    if (!file) return;
+    if (!/^image\//.test(file.type || '')) { window.__bsToast?.('Pick an image', 'err'); return; }
+    setPhoto(p => { try { if (p && p.url) URL.revokeObjectURL(p.url); } catch (err) {} return { url: URL.createObjectURL(file), blob: file }; });
+    window.__bsToast?.('Photo attached', 'ok');
+  };
+  const removePhoto = () => setPhoto(p => { try { if (p && p.url) URL.revokeObjectURL(p.url); } catch (err) {} return null; });
+
   // Edit / add an ingredient via a bottom sheet. editIng.index === null = new.
   const [editIng, setEditIng] = useStateBSC(null);
   const openEditIng = (i) => { const x = ings[i]; setEditIng({ index: i, name: x.name, qty: x.qty || '', kcal: x.kcal, p: x.p, c: x.c, f: x.f }); };
@@ -1021,16 +1037,18 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
   const sendMealNote = () => {
     const hasNote = !!(note && note.trim());
     const hasMemo = !!(voiceMemo && voiceMemo.blob);
-    if (!hasNote && !hasMemo) return;
+    const hasPhoto = !!(photo && photo.blob);
+    if (!hasNote && !hasMemo && !hasPhoto) return;
     try {
       const fd = new FormData();
       if (hasNote) fd.append('note', note.trim());
       fd.append('mealTitle', 'Chicken bowl + rice');
       fd.append('mealSummary', `${kcal} kcal · ${P}P · ${C}C · ${F}F`);
       if (hasMemo) fd.append('audio', voiceMemo.blob, 'memo.webm');
+      if (hasPhoto) fd.append('photo', photo.blob, photo.blob.name || 'meal.jpg');
       fetch('/api/nutrition/meal-note', { method: 'POST', body: fd, credentials: 'same-origin' })
         .then(r => r.json().catch(() => ({})))
-        .then(d => { if (d && d.delivered) window.__bsToast?.('Note sent to your coach', 'ok'); })
+        .then(d => { if (d && d.delivered) window.__bsToast?.('Sent to your coach', 'ok'); })
         .catch(() => {});
     } catch (e) {}
   };
@@ -1153,14 +1171,24 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
 
       {mode === 'photo' && (
         <div style={{ padding: `18px ${t.padX}px 4px` }}>
-          <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '34px 16px', textAlign: 'center' }}>
-            <div style={{ fontSize: 30 }}>⊡</div>
-            <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Snap or upload</div>
-            <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Shape reads macros · Maya reviews</div>
-          </div>
+          <input ref={photoCamRef} type="file" accept="image/*" capture="environment" onChange={onPhotoPick} style={{ display: 'none' }} />
+          <input ref={photoLibRef} type="file" accept="image/*" onChange={onPhotoPick} style={{ display: 'none' }} />
+          {photo ? (
+            <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, overflow: 'hidden', position: 'relative' }}>
+              <img src={photo.url} alt="Your meal" style={{ display: 'block', width: '100%', maxHeight: 280, objectFit: 'cover' }} />
+              <button onClick={removePhoto} aria-label="Remove photo" style={{ position: 'absolute', top: 10, right: 10, width: 30, height: 30, borderRadius: 999, border: 0, background: 'rgba(0,0,0,0.55)', color: '#fff', cursor: 'pointer', fontSize: 16, fontWeight: 700, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+              <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '14px 12px 8px', background: 'linear-gradient(transparent, rgba(0,0,0,0.62))', color: '#fff', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700 }}>Sends to Maya when you log</div>
+            </div>
+          ) : (
+            <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '34px 16px', textAlign: 'center' }}>
+              <div style={{ fontSize: 30 }}>⊡</div>
+              <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Snap or upload</div>
+              <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Maya reviews your plate</div>
+            </div>
+          )}
           <div style={{ marginTop: 12, display: 'flex', gap: 10 }}>
-            <button onClick={() => window.__bsToast?.('Camera coming soon', 'info')} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Take photo</button>
-            <button onClick={() => window.__bsToast?.('Upload coming soon', 'info')} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Upload</button>
+            <button onClick={() => photoCamRef.current && photoCamRef.current.click()} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{photo ? 'Retake' : 'Take photo'}</button>
+            <button onClick={() => photoLibRef.current && photoLibRef.current.click()} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Upload</button>
           </div>
         </div>
       )}
@@ -5803,7 +5831,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     i: (th.who || 'C').toString().trim().charAt(0).toUpperCase(),
     last: th.last,
     conversation_id: th.conversation_id,
-    messages: (th.messages || []).map(m => ({ who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', me: m.me || m.who === 'You', coach: m.coach, audio: m.audio || null })),
+    messages: (th.messages || []).map(m => ({ who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', me: m.me || m.who === 'You', coach: m.coach, audio: m.audio || null, photo: m.photo || null })),
   }));
 
   // External "Message <coach>" requests (e.g. from a workout preview) land
@@ -6691,6 +6719,9 @@ function BSChatThread({ thread, eyebrow, onBack }) {
                   cursor: 'pointer', userSelect: 'none',
                 }}>
                   {m.t}
+                  {m.photo && (
+                    <img src={m.photo} alt="Meal photo" onClick={(e) => { e.stopPropagation(); window.open(m.photo, '_blank'); }} style={{ display: 'block', width: '100%', minWidth: 180, maxHeight: 240, objectFit: 'cover', borderRadius: 10, marginTop: 8 }} />
+                  )}
                   {m.audio && (
                     <audio src={m.audio} controls preload="none" onClick={(e) => e.stopPropagation()} style={{ display: 'block', width: '100%', minWidth: 180, marginTop: 8 }} />
                   )}
@@ -7996,7 +8027,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
                   <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>{scoreProfile.week} this week · {(scoreProfile.pointsToNext || 0).toLocaleString()} to {scoreProfile.nextTier}</div>
                   <div style={{ marginTop: 7, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 999, border: `1px solid ${t.AMBER}`, background: t.AMBER, boxShadow: `0 2px 12px ${t.AMBER}66` }}>
                     <span style={{ width: 6, height: 6, borderRadius: 3, background: '#241803' }} />
-                    <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#241803' }}>{scoreProfile.tier} tier</span>
+                    <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 900, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#241803', WebkitTextStroke: '0.4px #241803' }}>{scoreProfile.tier} tier</span>
                   </div>
                 </div>
                 <svg width="84" height="84" viewBox="0 0 84 84" style={{ flexShrink: 0 }}>

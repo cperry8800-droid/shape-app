@@ -2147,7 +2147,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
                   <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>{scoreProfile.week} this week · {(scoreProfile.pointsToNext || 0).toLocaleString()} to {scoreProfile.nextTier}</div>
                   <div style={{ marginTop: 7, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 999, border: `1px solid ${t.AMBER}`, background: t.AMBER, boxShadow: `0 2px 12px ${t.AMBER}66` }}>
                     <span style={{ width: 6, height: 6, borderRadius: 3, background: '#241803' }} />
-                    <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#241803' }}>{scoreProfile.tier} tier</span>
+                    <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 900, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#241803', WebkitTextStroke: '0.4px #241803' }}>{scoreProfile.tier} tier</span>
                   </div>
                 </div>
                 <svg width="84" height="84" viewBox="0 0 84 84" style={{ flexShrink: 0 }}>
