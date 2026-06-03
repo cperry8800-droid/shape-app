@@ -2932,6 +2932,9 @@ function BSMealPreview({ meal, onBack, onLog }) {
   const pPct = Math.round(((meal.p || 0) * 4 / totalCal) * 100);
   const cPct = Math.round(((meal.c || 0) * 4 / totalCal) * 100);
   const fPct = 100 - pPct - cPct;
+  // Meals opened from the day log carry only macros — guard the rich fields.
+  const ingredients = Array.isArray(meal.ingredients) ? meal.ingredients : [];
+  const steps = Array.isArray(meal.steps) ? meal.steps : [];
 
   return (
     <BSPage>
@@ -2941,99 +2944,115 @@ function BSMealPreview({ meal, onBack, onLog }) {
         title={meal.title}
       />
 
-      {/* Hero halftone */}
+      {/* Hero halftone — rounded */}
       <div style={{ padding: `0 ${t.padX}px` }}>
-        <BSHalftone height={150} accent={meal.tagColor} pattern="dots" />
+        <div style={{ borderRadius: 16, overflow: 'hidden', border: `1px solid ${t.RULE}` }}>
+          <BSHalftone height={150} accent={meal.tagColor} pattern="dots" />
+        </div>
       </div>
 
-      {/* Stats row */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
-        padding: `18px ${t.padX}px 14px`, borderBottom: `1px solid ${t.RULE}`,
-        borderTop: `2px solid ${t.INK}`, marginTop: 18,
-      }}>
-        {[
-          { l: 'KCAL',    v: String(meal.kcal) },
-          { l: 'PROTEIN', v: meal.p + 'g' },
-          { l: 'CARBS',   v: meal.c + 'g' },
-          { l: 'FAT',     v: meal.f + 'g' },
-        ].map((s, i) => (
-          <div key={i} style={{ borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0, paddingLeft: i > 0 ? 10 : 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase' }}>{s.l}</div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 22, color: t.INK, marginTop: 4, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{s.v}</div>
-          </div>
-        ))}
+      {/* Stats row — rounded card */}
+      <div style={{ padding: `16px ${t.padX}px 6px` }}>
+        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '14px 6px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
+          {[
+            { l: 'KCAL',    v: String(meal.kcal) },
+            { l: 'PROTEIN', v: meal.p + 'g' },
+            { l: 'CARBS',   v: meal.c + 'g' },
+            { l: 'FAT',     v: meal.f + 'g' },
+          ].map((s, i) => (
+            <div key={i} style={{ borderLeft: i > 0 ? `1px solid ${t.HAIR}` : 0, paddingLeft: 10, paddingRight: 6 }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{s.l}</div>
+              <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 21, color: t.INK, marginTop: 4, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{s.v}</div>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* Macro split bar */}
-      <div style={{ padding: `14px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
+      {/* Macro split bar — rounded */}
+      <div style={{ padding: `10px ${t.padX}px 6px` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase', marginBottom: 8, fontWeight: 700 }}>Macro split · % of kcal</div>
-        <div style={{ display: 'flex', height: 14, border: `1px solid ${t.INK}` }}>
+        <div style={{ display: 'flex', height: 12, borderRadius: 999, overflow: 'hidden', background: t.HAIR }}>
           <div style={{ width: `${pPct}%`, background: t.GREEN }} />
           <div style={{ width: `${cPct}%`, background: t.AMBER }} />
           <div style={{ width: `${fPct}%`, background: t.RUST }} />
         </div>
-        <div style={{ display: 'flex', gap: 14, marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK70, fontWeight: 600 }}>
-          <span><span style={{ display: 'inline-block', width: 8, height: 8, background: t.GREEN, marginRight: 5 }} />P {pPct}%</span>
-          <span><span style={{ display: 'inline-block', width: 8, height: 8, background: t.AMBER, marginRight: 5 }} />C {cPct}%</span>
-          <span><span style={{ display: 'inline-block', width: 8, height: 8, background: t.RUST,  marginRight: 5 }} />F {fPct}%</span>
+        <div style={{ display: 'flex', gap: 14, marginTop: 9, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK70, fontWeight: 600 }}>
+          <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 999, background: t.GREEN, marginRight: 5 }} />P {pPct}%</span>
+          <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 999, background: t.AMBER, marginRight: 5 }} />C {cPct}%</span>
+          <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 999, background: t.RUST,  marginRight: 5 }} />F {fPct}%</span>
         </div>
       </div>
 
       {/* Quick facts */}
-      <div style={{ padding: `12px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}`, display: 'flex', gap: 18, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.1em', color: t.INK70, fontWeight: 600 }}>
-        <span>⏱ {meal.prep}</span>
-        <span>· {meal.portion}</span>
-        <span>· Score <span style={{ color: t.AMBER, fontWeight: 700 }}>{meal.score}</span></span>
-      </div>
+      {(meal.prep || meal.portion || meal.score) && (
+        <div style={{ padding: `8px ${t.padX}px 10px`, display: 'flex', gap: 16, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.1em', color: t.INK70, fontWeight: 600 }}>
+          {meal.prep && <span>⏱ {meal.prep}</span>}
+          {meal.portion && <span>· {meal.portion}</span>}
+          {meal.score && <span>· Score <span style={{ color: t.AMBER, fontWeight: 700 }}>{meal.score}</span></span>}
+        </div>
+      )}
 
       {/* The brief */}
-      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <BSEyebrow color={t.ACCENT}>The dish</BSEyebrow>
-        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 16, lineHeight: 1.4, color: t.INK, fontWeight: 600, letterSpacing: '-0.005em' }}>
-          {meal.hero}
-        </div>
-        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.45, color: t.INK70 }}>
-          {meal.brief}
-        </div>
-      </div>
-
-      {/* Ingredients */}
-      <BSSection title="Ingredients" meta={`${meal.ingredients.length} items`} />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        <div style={{ borderTop: `2px solid ${t.INK}` }}>
-          {meal.ingredients.map((ing, i) => (
-            <div key={i} style={{
-              padding: '12px 0', borderBottom: i === meal.ingredients.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-              display: 'flex', alignItems: 'baseline', gap: 12,
-            }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK70, fontWeight: 700, width: 56, letterSpacing: '0.04em' }}>{ing.n}</span>
-              <div style={{ flex: 1, fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, fontWeight: 600, letterSpacing: '-0.005em' }}>{ing.m}</div>
-              <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.06em', fontVariantNumeric: 'tabular-nums' }}>{ing.k}</span>
+      {(meal.hero || meal.brief) && (
+        <div style={{ padding: `12px ${t.padX}px 4px` }}>
+          <BSEyebrow color={teal}>The dish</BSEyebrow>
+          {meal.hero && (
+            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 16, lineHeight: 1.4, color: t.INK, fontWeight: 600, letterSpacing: '-0.005em' }}>
+              {meal.hero}
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Method */}
-      <BSSection title="Method" meta={`${meal.steps.length} steps`} />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        <div style={{ borderTop: `2px solid ${t.INK}` }}>
-          {meal.steps.map((s, i) => (
-            <div key={i} style={{
-              padding: '14px 0', borderBottom: i === meal.steps.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-              display: 'flex', gap: 12, alignItems: 'flex-start',
-            }}>
-              <span style={{
-                width: 22, height: 22, borderRadius: '50%', background: meal.tagColor, color: t.PAPER,
-                fontFamily: t.MONO, fontSize: 10, fontWeight: 700, flexShrink: 0, marginTop: 1,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>{i + 1}</span>
-              <div style={{ flex: 1, fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1.4, color: t.INK85 }}>{s}</div>
+          )}
+          {meal.brief && (
+            <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.45, color: t.INK70 }}>
+              {meal.brief}
             </div>
-          ))}
+          )}
         </div>
-      </div>
+      )}
+
+      {/* Ingredients — rounded card */}
+      {ingredients.length > 0 && (
+        <>
+          <BSSection title="Ingredients" meta={`${ingredients.length} items`} />
+          <div style={{ padding: `0 ${t.padX}px` }}>
+            <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
+              {ingredients.map((ing, i) => (
+                <div key={i} style={{
+                  padding: '12px 0', borderBottom: i === ingredients.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+                  display: 'flex', alignItems: 'baseline', gap: 12,
+                }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK70, fontWeight: 700, width: 56, letterSpacing: '0.04em' }}>{ing.n}</span>
+                  <div style={{ flex: 1, fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, fontWeight: 600, letterSpacing: '-0.005em' }}>{ing.m}</div>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.06em', fontVariantNumeric: 'tabular-nums' }}>{ing.k}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Method — rounded card */}
+      {steps.length > 0 && (
+        <>
+          <BSSection title="Method" meta={`${steps.length} steps`} />
+          <div style={{ padding: `0 ${t.padX}px` }}>
+            <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '4px 14px' }}>
+              {steps.map((s, i) => (
+                <div key={i} style={{
+                  padding: '14px 0', borderBottom: i === steps.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+                  display: 'flex', gap: 12, alignItems: 'flex-start',
+                }}>
+                  <span style={{
+                    width: 22, height: 22, borderRadius: '50%', background: meal.tagColor, color: t.PAPER,
+                    fontFamily: t.MONO, fontSize: 10, fontWeight: 700, flexShrink: 0, marginTop: 1,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>{i + 1}</span>
+                  <div style={{ flex: 1, fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1.4, color: t.INK85 }}>{s}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* CTA row */}
       <div style={{ padding: `22px ${t.padX}px 18px`, display: 'flex', gap: 8 }}>
