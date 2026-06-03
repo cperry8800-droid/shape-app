@@ -20,6 +20,37 @@ export const dynamic = 'force-dynamic';
 const MEMO_BUCKET = 'meal-notes';
 const SIGNED_URL_TTL = 60 * 60 * 24 * 365; // 1 year
 
+// Upload one attachment (voice memo or photo) to the meal-notes bucket via the
+// service-role admin client (matches the apply route — no storage RLS needed).
+// Best-effort: returns nulls (and logs) if the bucket is missing or rejects the
+// file, so a meal note still delivers without its attachment.
+async function uploadAttachment(
+  file: File,
+  prefix: string,
+  fallbackExt: string,
+  fallbackType: string,
+): Promise<{ path: string | null; url: string | null }> {
+  const ext = (file.type.split('/')[1] || fallbackExt).replace(/[^a-z0-9]/gi, '') || fallbackExt;
+  const path = `${prefix}${Date.now()}.${ext}`;
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  try {
+    const admin = createAdminClient();
+    const { error: upErr } = await admin.storage.from(MEMO_BUCKET).upload(path, bytes, {
+      contentType: file.type || fallbackType,
+      upsert: false,
+    });
+    if (upErr) {
+      console.warn('[shape-app] meal attachment upload failed:', upErr.message);
+      return { path: null, url: null };
+    }
+    const { data: signed } = await admin.storage.from(MEMO_BUCKET).createSignedUrl(path, SIGNED_URL_TTL);
+    return { path, url: signed?.signedUrl ?? null };
+  } catch (e) {
+    console.warn('[shape-app] meal attachment upload error:', e instanceof Error ? e.message : e);
+    return { path: null, url: null };
+  }
+}
+
 export async function POST(request: Request) {
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Sign in to send a note to your coach.' }, { status: 401 });
@@ -66,60 +97,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, delivered: false, audioAttached: false, photoAttached: false, reason: 'no_coach' });
   }
 
-  // Upload the voice memo via the service-role admin client (matches the apply
-  // route — no storage RLS needed). Best-effort: needs the meal-notes bucket.
+  // Upload the voice memo + photo (best-effort) to the meal-notes bucket. The
+  // memo keeps a bare timestamp path; the photo is prefixed so they don't collide.
   let audioPath: string | null = null;
   let audioUrl: string | null = null;
-  if (hasAudio) {
-    const file = audio as File;
-    const ext = (file.type.split('/')[1] || 'webm').replace(/[^a-z0-9]/gi, '') || 'webm';
-    const path = `${user.id}/${Date.now()}.${ext}`;
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    try {
-      const admin = createAdminClient();
-      const { error: upErr } = await admin.storage.from(MEMO_BUCKET).upload(path, bytes, {
-        contentType: file.type || 'audio/webm',
-        upsert: false,
-      });
-      if (!upErr) {
-        audioPath = path;
-        const { data: signed } = await admin.storage.from(MEMO_BUCKET).createSignedUrl(path, SIGNED_URL_TTL);
-        audioUrl = signed?.signedUrl ?? null;
-      } else {
-        console.warn('[shape-app] meal memo upload failed:', upErr.message);
-      }
-    } catch (e) {
-      console.warn('[shape-app] meal memo upload error:', e instanceof Error ? e.message : e);
-    }
-  }
+  if (hasAudio) ({ path: audioPath, url: audioUrl } = await uploadAttachment(audio as File, `${user.id}/`, 'webm', 'audio/webm'));
 
-  // Upload the meal photo the same way (service-role, meal-notes bucket which
-  // also allows image mime types). Best-effort — degrades if the bucket is
-  // audio-only on an un-migrated project.
   let photoPath: string | null = null;
   let photoUrl: string | null = null;
-  if (hasPhoto) {
-    const file = photo as File;
-    const ext = (file.type.split('/')[1] || 'jpg').replace(/[^a-z0-9]/gi, '') || 'jpg';
-    const path = `${user.id}/photo-${Date.now()}.${ext}`;
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    try {
-      const admin = createAdminClient();
-      const { error: upErr } = await admin.storage.from(MEMO_BUCKET).upload(path, bytes, {
-        contentType: file.type || 'image/jpeg',
-        upsert: false,
-      });
-      if (!upErr) {
-        photoPath = path;
-        const { data: signed } = await admin.storage.from(MEMO_BUCKET).createSignedUrl(path, SIGNED_URL_TTL);
-        photoUrl = signed?.signedUrl ?? null;
-      } else {
-        console.warn('[shape-app] meal photo upload failed:', upErr.message);
-      }
-    } catch (e) {
-      console.warn('[shape-app] meal photo upload error:', e instanceof Error ? e.message : e);
-    }
-  }
+  if (hasPhoto) ({ path: photoPath, url: photoUrl } = await uploadAttachment(photo as File, `${user.id}/photo-`, 'jpg', 'image/jpeg'));
 
   const bodyLines = [
     `🍽 Logged ${mealTitle}${mealSummary ? ` · ${mealSummary}` : ''}`,

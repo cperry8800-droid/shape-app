@@ -46,6 +46,18 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-03 — dead-code audit (behavior-preserving)
+- Removed 8 orphaned, never-referenced top-level components/helpers from
+  `iosAppBroadsheetClient.jsx` (~639 lines): `BSHealthIntegrationsCard`,
+  `BSConnectedDataSummary`, `BSAddWidgets`, `BSRecipeArchivePage`, `BSRxPlanWidget`,
+  `readStoredCoachThreadsForChat`, `mergeChatThreads`, `BSCommunityLiveFeed`.
+- Removed the dead `addPlanToGrocery` (never called) and an unused `[logged]`
+  state in `BSMealPreview`.
+- Consolidated the duplicated audio/photo upload blocks in
+  `/api/nutrition/meal-note` into one `uploadAttachment()` helper.
+- All verified zero-reference repo-wide; bundle size unchanged (already
+  tree-shaken), so the shipped app is equivalent.
+
 ### 2026-06-03
 - **#898** Meal logger Photo tab made real (capture/upload → inline preview →
   delivered to coach, rendered inline in their chat); `meal-notes` bucket widened to
