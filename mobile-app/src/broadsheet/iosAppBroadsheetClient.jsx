@@ -8950,6 +8950,22 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showIntegrations, setShowIntegrations] = useStateBSC(initialPage === 'integrations');
   const [showAppearance, setShowAppearance] = useStateBSC(false);
 
+  // Stripe Customer Portal — billing UI for card / cancel / invoices.
+  const openBillingPortal = async () => {
+    try {
+      const res = await fetch('/api/stripe/billing-portal', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ returnPath: '/m/' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.url) window.location.href = data.url;
+      else window.__bsToast?.(data?.error || 'Billing portal unavailable', 'err');
+    } catch (e) {
+      window.__bsToast?.('Billing portal unavailable', 'err');
+    }
+  };
+
   const requestAccountAction = async (action) => {
     const confirms = {
       Export: 'Email a copy of all your data to the address on file?',
