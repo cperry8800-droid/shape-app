@@ -585,6 +585,13 @@ function BSHomeWorkoutPreview({ onBack, onMove = () => {}, onStart = () => {}, o
         ))}
       </div>
 
+      {/* Pre-workout playlist — tap the play button to open it in Spotify before training */}
+      <div style={{ padding: `18px ${t.padX}px 4px` }}>
+        <BSEyebrow color={teal}>Soundtrack</BSEyebrow>
+        <div style={{ marginTop: 2, marginBottom: 12, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Pre-workout</div>
+        <BSPlaylistCard kicker="Jordan Chen · Your coach" title="Pull heavy." meta="52m · 95-138 BPM · 14 tracks" color="#1db954" spotifyUrl="https://open.spotify.com/playlist/37i9dQZF1DX76Wlfdnj7AP" />
+      </div>
+
       <div style={{ padding: `18px ${t.padX}px 12px`, display: 'flex', gap: 10 }}>
         <button onClick={onMove} style={footBtn}>Move session</button>
         <button onClick={() => window.__bsToast?.('Reminder set for 9:00 AM', 'ok')} style={footBtn}>Remind me</button>
@@ -4468,7 +4475,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
       })()}
 
       {/* Tracklist — today's meals. LOG opens the next unlogged meal to record it. */}
-      <BSTrackHeader kicker="Tracklist" title={day === 4 ? "Today's meals" : `${cur.d} meals`} />
+      <BSTrackHeader kicker="Tracklist" title={day === 4 ? "Today's meals" : `${cur.d} meals`} actionLabel="Swap meal" onAction={() => setSwapMealId('pick')} />
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         {effMeals.map((m, i) => {
           const logged = m.state === 'done';
@@ -4532,7 +4539,6 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
           <div style={{ fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontStyle: 'italic', fontSize: 17, lineHeight: 1.4, color: t.INK }}>&ldquo;{cur.coachLine}&rdquo;</div>
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
             <button onClick={() => setView('grocery')} style={{ flex: 1, padding: '11px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Shop list →</button>
-            <button onClick={() => setSwapMealId('pick')} style={{ flex: 1, padding: '11px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Swap meal</button>
           </div>
         </div>
       </div>
