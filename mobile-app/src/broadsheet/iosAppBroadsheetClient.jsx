@@ -8559,7 +8559,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         );
       })()}
 
-      <BSSection title="Reward tiers" kicker="Monthly points" meta="5 tiers" />
+      <BSSection title="Reward tiers" meta="5 tiers" />
       <div style={{ padding: `0 ${t.padX}px` }}>
         {tiers.map((tier, i) => {
           const tc = bsTierColor(tier.name);
