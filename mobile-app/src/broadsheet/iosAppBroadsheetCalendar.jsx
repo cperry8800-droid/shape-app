@@ -52,12 +52,13 @@ function BSSheetHost({ children, onDismiss, z }) {
       position: 'absolute', inset: 0, zIndex: z, pointerEvents: 'auto',
       background: 'rgba(0,0,0,0.35)', opacity: mounted ? 1 : 0, transition: 'opacity 200ms ease',
     }} onClick={onDismiss}>
-      <div onClick={e => e.stopPropagation()} style={{
+      <div onClick={e => e.stopPropagation()} className="bs-hide-scroll" style={{
         position: 'absolute', left: 0, right: 0, bottom: 0, top: 36,
         background: t.PAPER, color: t.INK,
         transform: mounted ? 'translateY(0)' : 'translateY(20px)',
         transition: 'transform 240ms cubic-bezier(0.2,0.8,0.2,1)',
-        overflow: 'auto', borderTop: `2px solid ${t.INK}`,
+        overflowY: 'auto', overflowX: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none',
+        borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`,
         boxShadow: '0 -20px 40px rgba(0,0,0,0.25)',
       }}>
         <div style={{ position: 'sticky', top: 0, background: t.PAPER, zIndex: 2, borderBottom: `1px solid ${t.RULE}` }}>
