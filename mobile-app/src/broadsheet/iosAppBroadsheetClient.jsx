@@ -7375,7 +7375,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
   const [showSessions, setShowSessions] = useStateBSC(false);
   const [showNotifications, setShowNotifications] = useStateBSC(false);
   const [showLeaderboard, setShowLeaderboard] = useStateBSC(false);
-  const scoreProfile = SHAPE_SCORE_PROFILES.client;
+  const scoreProfile = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client); // live points/tier when signed in
   const authProfile = window.ShapeAuth?.getCachedState?.().profile || {};
   const displayName = authProfile.full_name || 'Alex Rivera';
   const [firstName, ...lastParts] = displayName.split(' ');
@@ -7703,7 +7703,9 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
           { k: 'Recovery', v: 62 },
           { k: 'Consistency', v: 92 },
         ];
-        const overall = Math.round(cats.reduce((a, c) => a + c.v, 0) / cats.length);
+        const total = scoreProfile.total || 0;
+        const goal = scoreProfile.goal || 5000;
+        const pct = goal ? Math.min(1, total / goal) : 0;
         const RAD = 34, CIRC = 2 * Math.PI * RAD;
         return (
           <div style={{ padding: `16px ${t.padX}px 6px` }}>
@@ -7716,11 +7718,11 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14 }}>
                 <div style={{ minWidth: 0 }}>
                   <BSEyebrow color={t.AMBER}>Shape Score</BSEyebrow>
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, marginTop: 8 }}>
-                    <span style={{ fontFamily: t.DISPLAY, fontSize: 56, fontWeight: 700, lineHeight: 0.9, letterSpacing: '-0.04em' }}>{overall}</span>
-                    <span style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK50, marginBottom: 6 }}>/100</span>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, marginTop: 8 }}>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 52, fontWeight: 700, lineHeight: 0.9, letterSpacing: '-0.04em' }}>{total.toLocaleString()}</span>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 17, color: t.INK50, marginBottom: 6 }}>of {goal.toLocaleString()}</span>
                   </div>
-                  <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>+3 this week · Top 18%</div>
+                  <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>{scoreProfile.week} this week · {(scoreProfile.pointsToNext || 0).toLocaleString()} to {scoreProfile.nextTier}</div>
                   <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 9px', borderRadius: 999, border: `1px solid ${t.AMBER}66`, background: `${t.AMBER}1f` }}>
                     <span style={{ width: 6, height: 6, borderRadius: 3, background: t.AMBER }} />
                     <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>{scoreProfile.tier} tier</span>
@@ -7728,8 +7730,8 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
                 </div>
                 <svg width="84" height="84" viewBox="0 0 84 84" style={{ flexShrink: 0 }}>
                   <circle cx="42" cy="42" r={RAD} fill="none" stroke={t.HAIR} strokeWidth="6" />
-                  <circle cx="42" cy="42" r={RAD} fill="none" stroke={t.AMBER} strokeWidth="6" strokeLinecap="round" strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - overall / 100)} transform="rotate(-90 42 42)" />
-                  <text x="42" y="43" textAnchor="middle" dominantBaseline="central" style={{ fontFamily: t.DISPLAY, fontSize: '20px', fontWeight: 700, fill: t.INK }}>{overall}</text>
+                  <circle cx="42" cy="42" r={RAD} fill="none" stroke={t.AMBER} strokeWidth="6" strokeLinecap="round" strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - pct)} transform="rotate(-90 42 42)" />
+                  <text x="42" y="43" textAnchor="middle" dominantBaseline="central" style={{ fontFamily: t.DISPLAY, fontSize: '17px', fontWeight: 700, fill: t.INK }}>{Math.round(pct * 100)}%</text>
                 </svg>
               </div>
               <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 9 }}>
