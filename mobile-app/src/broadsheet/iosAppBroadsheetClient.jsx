@@ -9504,18 +9504,17 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       )}
 
       {/* SHAPE RADIO */}
-      <SectionHead
-        title="Shape Radio"
-        meta={r.radioOn ? (r.paused ? 'Paused' : 'Playing while browsing') : 'Off'}
-      />
-      <div style={{ padding: `14px ${t.padX}px 18px` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8, fontWeight: 700 }}>
-          Listen while using the app
+      <div style={{ padding: `22px ${t.padX}px 4px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Shape Radio</div>
+          <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{r.radioOn ? (r.paused ? 'Paused' : 'Playing while browsing') : 'Listen while using the app'}</div>
         </div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <Pill on={r.radioOn && !r.paused} onClick={() => r.setRadioPreference(true)}>On</Pill>
-          <Pill on={!r.radioOn} onClick={() => r.setRadioPreference(false)}>Off</Pill>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: r.radioOn ? t.ACCENT : t.INK50 }}>{r.radioOn ? 'On' : 'Off'}</span>
+          <Toggle on={r.radioOn} onClick={() => r.setRadioPreference(!r.radioOn)} />
         </div>
+      </div>
+      <div style={{ padding: `12px ${t.padX}px 18px` }}>
         <button onClick={r.requestRadioPrompt} style={{ borderRadius: t.RADIUS_SM,
           marginTop: 10, width: '100%', padding: '11px 12px', cursor: 'pointer',
           border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK,
