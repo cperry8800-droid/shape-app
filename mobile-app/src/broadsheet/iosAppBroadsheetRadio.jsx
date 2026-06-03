@@ -458,7 +458,7 @@ function BSRadioPrompt() {
       <div style={{ flex: 1, minHeight: 24 }} />
 
       {/* Choice rows */}
-      <div style={{ padding: `16px ${t.padX}px`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ padding: `12px ${t.padX}px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
         <PromptChoice
           on={choice === 'on'}
           onClick={() => setChoice('on')}
@@ -477,20 +477,20 @@ function BSRadioPrompt() {
       </div>
       </div>
 
-      <div style={{ position: 'relative', zIndex: 1, padding: `18px ${t.padX}px 28px`, borderTop: `2px solid ${t.INK}`, background: isLight ? t.PAPER : 'rgba(11,12,12,0.5)', backdropFilter: isLight ? undefined : 'blur(8px)', WebkitBackdropFilter: isLight ? undefined : 'blur(8px)' }}>
+      <div style={{ position: 'relative', zIndex: 1, padding: `14px ${t.padX}px 22px`, borderTop: `2px solid ${t.INK}`, background: isLight ? t.PAPER : 'rgba(11,12,12,0.5)', backdropFilter: isLight ? undefined : 'blur(8px)', WebkitBackdropFilter: isLight ? undefined : 'blur(8px)' }}>
         <button
           disabled={!choice}
           onClick={() => r.answerPrompt(choice === 'on')}
           style={{ borderRadius: t.RADIUS_SM,
-            width: '100%', padding: '16px', cursor: choice ? 'pointer' : 'default',
+            width: '100%', padding: '14px', cursor: choice ? 'pointer' : 'default',
             background: choice ? t.INK : 'transparent',
             color: choice ? t.PAPER : t.INK30,
             border: `1px solid ${choice ? t.INK : t.RULE}`,
-            fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.22em',
+            fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.22em',
             textTransform: 'uppercase', fontWeight: 700,
           }}
         >Continue →</button>
-        <div style={{ marginTop: 10, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
+        <div style={{ marginTop: 8, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
           Change anytime in settings
         </div>
       </div>
@@ -509,15 +509,15 @@ function PromptChoice({ on, onClick, eyebrow, title, meta, icon, accent }) {
   const t = useBS();
   return (
     <button onClick={onClick} style={{
-      display: 'flex', alignItems: 'center', gap: 13, width: '100%',
-      padding: '14px 14px', cursor: 'pointer', textAlign: 'left',
+      display: 'flex', alignItems: 'center', gap: 11, width: '100%',
+      padding: '11px 13px', cursor: 'pointer', textAlign: 'left',
       background: on ? 'rgba(10,197,168,0.08)' : 'transparent',
       color: t.INK,
       border: `1px solid ${on ? t.ACCENT : t.RULE}`,
-      borderRadius: 14,
+      borderRadius: 13,
     }}>
       <div style={{
-        width: 44, height: 44, flexShrink: 0, borderRadius: 11,
+        width: 38, height: 38, flexShrink: 0, borderRadius: 10,
         background: accent ? 'linear-gradient(135deg, #0ac5a8, #14806f)' : 'transparent',
         border: accent ? 'none' : `1px solid ${t.RULE}`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -525,11 +525,11 @@ function PromptChoice({ on, onClick, eyebrow, title, meta, icon, accent }) {
         {icon}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.1 }}>{title}</div>
-        <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', opacity: 0.55, marginTop: 5, lineHeight: 1.4 }}>{meta}</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.1 }}>{title}</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', opacity: 0.55, marginTop: 4, lineHeight: 1.4 }}>{meta}</div>
       </div>
       <div style={{
-        width: 22, height: 22, flexShrink: 0, borderRadius: 999,
+        width: 20, height: 20, flexShrink: 0, borderRadius: 999,
         border: `1px solid ${on ? t.ACCENT : t.RULE}`,
         background: on ? t.ACCENT : 'transparent',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
