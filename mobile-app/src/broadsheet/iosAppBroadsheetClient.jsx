@@ -2110,37 +2110,50 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
           (coach_focus_banners, RLS-scoped). Falls back to an editorial line. */}
       {(() => {
         const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-        const banner = (coachFeed.banners || [])[0];
-        const text = (banner && banner.text) || "You're 3 weeks in. The tempo is the point — slow eccentric on every press. Log your sleep, it's the lever.";
-        const isNutri = banner && banner.provider_role === 'nutritionist';
-        const who = (banner && banner.provider_name) || (isNutri ? 'Dr. Maya Patel' : 'Jordan Chen');
-        const when = (() => {
-          if (!banner || !banner.sent_at) return 'Mon';
-          const d = new Date(banner.sent_at);
+        const banners = coachFeed.banners || [];
+        const dayOf = (b) => {
+          if (!b || !b.sent_at) return 'Mon';
+          const d = new Date(b.sent_at);
           return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()] || 'Mon';
-        })();
+        };
+        // Most-recent note from each role (banners arrive newest-first).
+        const trainerBanner = banners.find(b => b.provider_role !== 'nutritionist');
+        const nutriBanner = banners.find(b => b.provider_role === 'nutritionist');
+        const notes = [];
+        if (trainerBanner) notes.push({ role: 'trainer', text: trainerBanner.text, who: trainerBanner.provider_name || 'Jordan Chen', when: dayOf(trainerBanner) });
+        if (nutriBanner) notes.push({ role: 'nutritionist', text: nutriBanner.text, who: nutriBanner.provider_name || 'Dr. Maya Patel', when: dayOf(nutriBanner) });
+        // No real notes yet → show a sample from each coach (the demo client has both).
+        if (!notes.length) {
+          notes.push({ role: 'trainer', text: "You're 3 weeks in. The tempo is the point — slow eccentric on every press. Log your sleep, it's the lever.", who: 'Jordan Chen', when: 'Mon' });
+          notes.push({ role: 'nutritionist', text: "Three weeks of steady protein — it's working. Keep breakfast above 35g and we'll carry the momentum into the next block.", who: 'Dr. Maya Patel', when: 'Mon' });
+        }
         return (
           <>
             <div style={{ padding: `${t.sectGap}px ${t.padX}px 4px` }}>
               <BSEyebrow color={teal}>From your team</BSEyebrow>
-              <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>This week&rsquo;s note</div>
+              <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{notes.length > 1 ? 'This week’s notes' : 'This week’s note'}</div>
             </div>
-            <div style={{ padding: `12px ${t.padX}px 4px` }}>
-              <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15, fontWeight: 500, color: t.INK70, lineHeight: 1.5, letterSpacing: '-0.01em' }}>
-                  &ldquo;{text}&rdquo;
-                </div>
-                <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${t.HAIR}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
-                    <BSAvatar init={who.charAt(0)} size={28} fill={isNutri ? t.AMBER : t.RUST} ink={t.PAPER} />
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{who}</div>
-                      <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: 1 }}>{isNutri ? 'Nutritionist' : 'Coach'}</div>
+            <div style={{ padding: `12px ${t.padX}px 4px`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {notes.map((n, i) => {
+                const isNutri = n.role === 'nutritionist';
+                return (
+                  <div key={i} style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>
+                    <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15, fontWeight: 500, color: t.INK70, lineHeight: 1.5, letterSpacing: '-0.01em' }}>
+                      &ldquo;{n.text}&rdquo;
+                    </div>
+                    <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${t.HAIR}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
+                        <BSAvatar init={(n.who || 'C').charAt(0)} size={28} fill={isNutri ? t.AMBER : t.RUST} ink={t.PAPER} />
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{n.who}</div>
+                          <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: 1 }}>{isNutri ? 'Nutritionist' : 'Trainer'}</div>
+                        </div>
+                      </div>
+                      <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{n.when}</span>
                     </div>
                   </div>
-                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{when}</span>
-                </div>
-              </div>
+                );
+              })}
             </div>
           </>
         );
@@ -8250,7 +8263,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
                 <span>{a.note}</span>
               </div>
             </div>
-            <div style={{ alignSelf: 'center', textAlign: 'right', fontFamily: t.MONO, fontSize: 14, fontWeight: 800, letterSpacing: '0.08em', color: t.ACCENT }}>{a.pts}</div>
+            <div style={{ alignSelf: 'center', textAlign: 'right', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', color: t.ACCENT }}>{a.pts}</div>
           </div>
         ))}
       </div>
