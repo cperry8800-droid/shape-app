@@ -46,6 +46,42 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-13 — playlist tracklist preview popup
+- Tapping a `BSPlaylistCard` (coach/nutritionist Spotify cards on home/train/eat)
+  now opens a bottom-sheet **tracklist preview** (portaled into `#bs-phone-surface`)
+  so a client can see what's on a list before opening Spotify: Spotify-glyph header
+  with the playlist title/meta, a numbered track list (title · artist · length), a
+  "Preview · first N of M" label, and a green **Open in Spotify** CTA + Close. The
+  card's ▶ button still jumps straight to Spotify (stops propagation).
+- Data: added a short `songs` preview array to each `BS_COACH_PLAYLISTS` entry
+  (radio module); the train/eat maps pass `tracks: p.songs`, and the home
+  "Pull heavy." card carries an inline list. Extracted `bsSpotifyGlyph()` helper.
+
+### 2026-06-13 — iMessage-style auto-growing chat composer
+- `BSMessageComposer` (shared by DM threads + the feed) is now an auto-resizing
+  `<textarea>` instead of a fixed 38px `<input>`: one line at rest, grows upward
+  as you type, caps at ~6 lines (`COMPOSER_MAX_H = 132`) then scrolls internally.
+  Re-measured on every `value` change via `useLayoutEffect`, so it also collapses
+  back after a send clears the draft. Send button bottom-aligns (`alignItems:'end'`).
+  Enter sends; Shift/⌘/Ctrl+Enter inserts a newline. `borderRadius:19` reads as a
+  pill at one line and a rounded rect when expanded.
+
+### 2026-06-13 — client Library (Phase 1)
+- New **Library** screen (`BSClientLibrary` in the client module): clients save
+  trainers' **workouts**, paid **programs/plans**, and nutritionists' **meals/plans**
+  to their own profile. Serif "Your library." hero, All/Workouts/Programs/Meals
+  filter pills, kind-colored rows (workout = rust, plan = amber, meal = teal) with
+  remove (×), and an empty state that deep-links to the marketplace.
+- Data model: `bsLibRead/bsLibWrite/bsLibToggle` over `localStorage` key `shape.library`
+  + `shapeDb.saveUserGoals('client_library')` (cloud), broadcast on a `bs-library`
+  event; `useBSLibrary()` hook merges the cloud copy by id-union once on mount.
+- `BSSaveButton({item, full})` — reusable ♡ Save / ✓ Saved toggle (teal when saved).
+  Wired into the **workout preview** footer and the **meal preview** CTA row so far.
+- Me page: added a **Library** shortcut + `showLibrary` route in `BSClientMe`.
+- **Follow-ups:** Save actions on coach/marketplace content (programs, coach meals);
+  the trainer "sell a plan" paid-checkout path; a dedicated Supabase `client_library`
+  table (today it piggybacks on `user_goals`).
+
 ### 2026-06-13 — Garmin push-webhook ingestion (ready for approval)
 - Built `src/app/api/integrations/garmin/webhook/route.ts` — Garmin Health API is
   PUSH-based, so this receives Dailies/Sleeps/Activities POSTs, maps each item's

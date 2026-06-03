@@ -516,6 +516,129 @@ const BS_TICKER_METRICS = [
 
 // Full read-only preview of an upcoming workout — opened from the home
 // "Up next" workout card's Preview button.
+// ── Client Library — saved coach content (workouts, programs, meals) ─────────
+// Persists to localStorage immediately, mirrored to window.shapeDb (user_goals)
+// for cross-device sync. Screens subscribe via the `bs-library` window event.
+const BS_LIB_KEY = 'shape.library';
+function bsLibRead() {
+  try { const raw = window.localStorage && window.localStorage.getItem(BS_LIB_KEY); const a = raw ? JSON.parse(raw) : []; return Array.isArray(a) ? a : []; } catch (e) { return []; }
+}
+function bsLibWrite(items) {
+  try { window.localStorage && window.localStorage.setItem(BS_LIB_KEY, JSON.stringify(items)); } catch (e) {}
+  try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_library', items); } catch (e) {}
+  try { window.dispatchEvent(new Event('bs-library')); } catch (e) {}
+}
+function bsLibToggle(item) {
+  const items = bsLibRead();
+  const exists = items.some(x => x.id === item.id);
+  const next = exists ? items.filter(x => x.id !== item.id) : [{ ...item, savedAt: Date.now() }, ...items];
+  bsLibWrite(next);
+  window.__bsToast && window.__bsToast(exists ? 'Removed from library' : 'Saved to your library', exists ? 'info' : 'ok');
+  return !exists;
+}
+function useBSLibrary() {
+  const [items, setItems] = useStateBSC(() => bsLibRead());
+  React.useEffect(() => {
+    const sync = () => setItems(bsLibRead());
+    window.addEventListener('bs-library', sync);
+    // One-time merge with any cloud-saved library (union by id; never drop a save).
+    try {
+      window.shapeDb && window.shapeDb.getUserGoals && window.shapeDb.getUserGoals('client_library').then((saved) => {
+        if (!Array.isArray(saved) || !saved.length) return;
+        const byId = new Map();
+        for (const it of [...saved, ...bsLibRead()]) if (it && it.id && !byId.has(it.id)) byId.set(it.id, it);
+        const merged = [...byId.values()].sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+        try { window.localStorage && window.localStorage.setItem(BS_LIB_KEY, JSON.stringify(merged)); } catch (e) {}
+        setItems(merged);
+      }).catch(() => {});
+    } catch (e) {}
+    return () => window.removeEventListener('bs-library', sync);
+  }, []);
+  return items;
+}
+
+// Reusable "Save to library" toggle — reflects saved state live.
+function BSSaveButton({ item, full = false }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const lib = useBSLibrary();
+  const saved = lib.some(x => x.id === item.id);
+  return (
+    <button onClick={() => bsLibToggle(item)} style={{
+      ...(full ? { flex: 1 } : {}), padding: '14px', borderRadius: t.RADIUS_SM, cursor: 'pointer',
+      border: `1px solid ${saved ? teal : t.RULE}`,
+      background: saved ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent',
+      color: saved ? teal : t.INK,
+      fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+    }}>{saved ? '✓ Saved' : '♡ Save'}</button>
+  );
+}
+
+// Client Library screen — saved workouts / programs / meals.
+function BSClientLibrary({ onBack, goMarket = () => {} }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const items = useBSLibrary();
+  const [filter, setFilter] = useStateBSC('all');
+  const tabs = [['all', 'All'], ['workout', 'Workouts'], ['plan', 'Programs'], ['meal', 'Meals']];
+  const kindMeta = {
+    workout: { label: 'Workout', color: t.RUST },
+    plan: { label: 'Program', color: t.AMBER },
+    meal: { label: 'Meal', color: t.GREEN || '#5fae7e' },
+  };
+  const list = filter === 'all' ? items : items.filter(i => i.kind === filter);
+  return (
+    <BSPage>
+      <div style={{ padding: `14px ${t.padX}px 0` }}>
+        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0 }}>← Back</button>
+        <h1 style={{ margin: '12px 0 0', fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>Your<br/><span style={{ fontStyle: 'italic', color: teal }}>library.</span></h1>
+        <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{items.length} saved · workouts · programs · meals</div>
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: `16px ${t.padX}px 14px` }}>
+        {tabs.map(([k, label]) => {
+          const on = filter === k;
+          const count = k === 'all' ? items.length : items.filter(i => i.kind === k).length;
+          return (
+            <button key={k} onClick={() => setFilter(k)} style={{ padding: '8px 14px', borderRadius: 999, cursor: 'pointer', border: `1.5px solid ${on ? teal : t.RULE}`, background: on ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: on ? teal : t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{label}{count ? ` · ${count}` : ''}</button>
+          );
+        })}
+      </div>
+
+      {list.length === 0 ? (
+        <div style={{ padding: `8px ${t.padX}px` }}>
+          <div style={{ borderRadius: 18, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 24, textAlign: 'center' }}>
+            <div style={{ fontSize: 30 }}>❒</div>
+            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK }}>{filter === 'all' ? 'Nothing saved yet' : 'None in here yet'}</div>
+            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.4 }}>Save your coaches&rsquo; workouts, programs, and meals here — tap <b>Save</b> on any of them.</div>
+            <button onClick={() => goMarket()} style={{ marginTop: 16, padding: '11px 18px', borderRadius: 999, border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Browse marketplace →</button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ padding: `0 ${t.padX}px`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {list.map((it) => {
+            const km = kindMeta[it.kind] || { label: it.kind, color: t.INK50 };
+            return (
+              <div key={it.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center', padding: 14, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+                <div style={{ minWidth: 0 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: 999, background: km.color }} />
+                    <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: km.color }}>{km.label}{it.price ? ` · ${it.price}` : ''}</span>
+                  </span>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.title}</div>
+                  {(it.meta || it.coach) ? <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{[it.meta, it.coach].filter(Boolean).join(' · ')}</div> : null}
+                </div>
+                <button onClick={() => bsLibToggle(it)} aria-label="Remove from library" style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK50, cursor: 'pointer', fontSize: 16, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <BSFooter right="Library" />
+    </BSPage>
+  );
+}
+
 function BSHomeWorkoutPreview({ onBack, onMove = () => {}, onStart = () => {}, onMessage = () => {} }) {
   const t = useBS();
   const rust = t.RUST;
@@ -589,10 +712,18 @@ function BSHomeWorkoutPreview({ onBack, onMove = () => {}, onStart = () => {}, o
       <div style={{ padding: `18px ${t.padX}px 4px` }}>
         <BSEyebrow color={teal}>Soundtrack</BSEyebrow>
         <div style={{ marginTop: 2, marginBottom: 12, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Pre-workout</div>
-        <BSPlaylistCard kicker="Jordan Chen · Your coach" title="Pull heavy." meta="52m · 95-138 BPM · 14 tracks" color="#1db954" spotifyUrl="https://open.spotify.com/playlist/37i9dQZF1DX76Wlfdnj7AP" />
+        <BSPlaylistCard kicker="Jordan Chen · Your coach" title="Pull heavy." meta="52m · 95-138 BPM · 14 tracks" color="#1db954" spotifyUrl="https://open.spotify.com/playlist/37i9dQZF1DX76Wlfdnj7AP" tracks={[
+          { a: 'Iron Count', b: 'Tariq Osei', len: '3:38' },
+          { a: 'Chalk & Steel', b: 'Sable', len: '4:02' },
+          { a: 'Top Set', b: 'Linnea Aho', len: '3:21' },
+          { a: 'Overhand', b: 'Samyuel', len: '3:54' },
+          { a: 'Lat Spread', b: 'Mara Vance', len: '4:16' },
+          { a: 'Last Rep', b: 'Shape Radio', len: '3:45' },
+        ]} />
       </div>
 
       <div style={{ padding: `18px ${t.padX}px 12px`, display: 'flex', gap: 10 }}>
+        <BSSaveButton full item={{ id: 'workout:upper-pull-peak', kind: 'workout', title: 'Upper Pull — Peak', meta: '52 min · 6 moves · RPE 8', coach: 'Jordan Chen' }} />
         <button onClick={onMove} style={footBtn}>Move session</button>
         <button onClick={() => window.__bsToast?.('Reminder set for 9:00 AM', 'ok')} style={footBtn}>Remind me</button>
       </div>
@@ -2131,25 +2262,77 @@ function BSTrackHeader({ kicker, title, actionLabel, onAction }) {
 
 // Coach/nutritionist playlist card. When the playlist has a Spotify URL, the
 // client can save it straight into their own Spotify library (follow).
-function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl }) {
+// Spotify wordmark glyph, reused at a few sizes/fills.
+const bsSpotifyGlyph = (size = 22, fill = '#fff') => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} aria-hidden="true"><path fillRule="evenodd" clipRule="evenodd" d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.42 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+);
+
+function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, tracks }) {
   const t = useBS();
+  const [open, setOpen] = useStateBSC(false);
+  const list = Array.isArray(tracks) ? tracks : [];
   const openSpotify = () => {
     const isSpotifyUrl = typeof spotifyUrl === 'string' && /(^|\.)spotify\.com\//i.test(spotifyUrl);
     const url = isSpotifyUrl ? spotifyUrl : `https://open.spotify.com/search/${encodeURIComponent(String(title || 'playlist'))}`;
     try { window.open(url, '_blank', 'noopener,noreferrer'); } catch (e) { try { window.location.href = url; } catch (e2) {} }
   };
+  // Total track count parsed from the meta line ("… · 14 tracks") so the popup
+  // can say "first 6 of 14" when we only carry a preview.
+  const totalTracks = (() => { const m = /(\d+)\s*tracks/i.exec(String(meta || '')); return m ? Number(m[1]) : null; })();
+
+  const sheet = open ? createPortal(
+    <div onClick={() => setOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div onClick={e => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, maxHeight: '82%', overflowY: 'auto', borderTop: `1px solid ${t.RULE}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+          <div style={{ width: 42, height: 42, flexShrink: 0, borderRadius: 11, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{bsSpotifyGlyph(24, '#fff')}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color, fontWeight: 700, marginBottom: 2 }}>{kicker}</div>
+            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 19, color: t.INK, letterSpacing: '-0.02em' }}>{title}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2, letterSpacing: '0.04em' }}>{meta}</div>
+          </div>
+        </div>
+        <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
+          {totalTracks && totalTracks > list.length ? `Preview · first ${list.length} of ${totalTracks}` : 'Tracklist'}
+        </div>
+        <div style={{ marginTop: 6 }}>
+          {list.length === 0 ? (
+            <div style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, padding: '10px 2px', letterSpacing: '0.03em' }}>Open in Spotify to see the full tracklist.</div>
+          ) : list.map((tr, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 2px', borderBottom: i < list.length - 1 ? `1px solid ${t.HAIR}` : 'none' }}>
+              <div style={{ width: 16, textAlign: 'right', flexShrink: 0, fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>{i + 1}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tr.a}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 1, letterSpacing: '0.03em' }}>{tr.b}</div>
+              </div>
+              {tr.len && <div style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.03em' }}>{tr.len}</div>}
+            </div>
+          ))}
+        </div>
+        <button onClick={openSpotify} style={{ width: '100%', marginTop: 16, padding: '13px', borderRadius: 999, border: 0, background: color, color: '#04201d', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          {bsSpotifyGlyph(15, '#04201d')} Open in Spotify
+        </button>
+        <button onClick={() => setOpen(false)} style={{ width: '100%', marginTop: 8, padding: '12px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer' }}>Close</button>
+      </div>
+    </div>,
+    (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
+  ) : null;
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 12px', borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
-      <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 10, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path fillRule="evenodd" clipRule="evenodd" d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.42 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+    <>
+      <div role="button" tabIndex={0} aria-label={`Preview ${title}`}
+        onClick={() => setOpen(true)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(true); } }}
+        style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 12px', borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, cursor: 'pointer', width: '100%', textAlign: 'left' }}>
+        <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 10, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{bsSpotifyGlyph(22, '#fff')}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color, fontWeight: 700, marginBottom: 2 }}>{kicker}</div>
+          <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15, color: t.INK, letterSpacing: '-0.01em' }}>{title}</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2, letterSpacing: '0.04em', lineHeight: 1.35 }}>{meta}</div>
+        </div>
+        <button onClick={(e) => { e.stopPropagation(); openSpotify(); }} aria-label="Open in Spotify" style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, border: `1px solid ${color}`, background: 'transparent', color, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>▶</button>
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color, fontWeight: 700, marginBottom: 2 }}>{kicker}</div>
-        <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15, color: t.INK, letterSpacing: '-0.01em' }}>{title}</div>
-        <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2, letterSpacing: '0.04em', lineHeight: 1.35 }}>{meta}</div>
-      </div>
-      <button onClick={openSpotify} aria-label="Open in Spotify" style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, border: `1px solid ${color}`, background: 'transparent', color, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>▶</button>
-    </div>
+      {sheet}
+    </>
   );
 }
 
@@ -2496,14 +2679,14 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       {(() => {
         const all = Array.isArray(window.BS_COACH_PLAYLISTS) ? window.BS_COACH_PLAYLISTS : [];
         const lists = all.filter(p => p.role === 'Coach');
-        const items = lists.length ? lists.map(p => ({ k: `${p.by} · Your coach`, title: p.name, meta: `${p.len} · ${p.bpm} BPM · ${p.tracks} tracks${p.attached ? ` · ${p.attached}` : ''}`, url: p.url }))
+        const items = lists.length ? lists.map(p => ({ k: `${p.by} · Your coach`, title: p.name, meta: `${p.len} · ${p.bpm} BPM · ${p.tracks} tracks${p.attached ? ` · ${p.attached}` : ''}`, url: p.url, tracks: p.songs }))
           : [{ k: 'Jordan Chen · Your coach', title: 'Pull heavy.', meta: '52m · 95-138 BPM · 14 tracks' }];
         return (
           <>
             <BSTrackHeader kicker="From Jordan" title="Playlists" />
             <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
               {items.map((p, i) => (
-                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#1db954" spotifyUrl={p.url} />
+                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#1db954" spotifyUrl={p.url} tracks={p.tracks} />
               ))}
             </div>
           </>
@@ -2707,6 +2890,7 @@ function BSMealPreview({ meal, onBack, onLog }) {
           padding: '14px 18px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
           fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
         }}>Close</button>
+        <BSSaveButton item={{ id: 'meal:' + String(meal.id || String(meal.title || 'meal').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')), kind: 'meal', title: meal.title, meta: `${meal.kcal} kcal · ${meal.p}P · ${meal.c}C · ${meal.f}F` }} />
         <button onClick={onLog ? onLog : () => setJustLogged(true)} style={{
           flex: 1, border: 0, borderRadius: 14, background: teal, color: '#04201d', cursor: 'pointer',
           ...(onLog
@@ -4574,14 +4758,14 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
       {(() => {
         const all = Array.isArray(window.BS_COACH_PLAYLISTS) ? window.BS_COACH_PLAYLISTS : [];
         const lists = all.filter(p => p.role === 'Nutritionist');
-        const items = lists.length ? lists.map(p => ({ k: `${p.by} · Your nutritionist`, title: p.name, meta: `${p.len} · ${p.bpm} BPM · ${p.tracks} tracks${p.attached ? ` · ${p.attached}` : ''}`, url: p.url }))
+        const items = lists.length ? lists.map(p => ({ k: `${p.by} · Your nutritionist`, title: p.name, meta: `${p.len} · ${p.bpm} BPM · ${p.tracks} tracks${p.attached ? ` · ${p.attached}` : ''}`, url: p.url, tracks: p.songs }))
           : [{ k: 'Dr. Maya Patel · Your nutritionist', title: 'Meal prep, low-key', meta: '45m · 85-100 BPM · 12 tracks · Sun prep' }];
         return (
           <>
             <BSTrackHeader kicker="From Maya" title="Playlists" />
             <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
               {items.map((p, i) => (
-                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#1db954" spotifyUrl={p.url} />
+                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#1db954" spotifyUrl={p.url} tracks={p.tracks} />
               ))}
             </div>
           </>
@@ -5801,24 +5985,52 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
     setSlot(document.getElementById('bs-composer-slot'));
   }, [pinned]);
 
+  // Auto-grow the field like iMessage: one line at rest, expands upward as you
+  // type up to a few lines, then scrolls internally. Re-measured on every value
+  // change so it also collapses back after a send clears the draft.
+  const taRef = React.useRef(null);
+  const COMPOSER_MAX_H = 132; // ~6 lines, then the textarea scrolls internally
+  React.useLayoutEffect(() => {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, COMPOSER_MAX_H) + 'px';
+    el.style.overflowY = el.scrollHeight > COMPOSER_MAX_H ? 'auto' : 'hidden';
+  }, [value]);
+
   const input = (
-    <input
+    <textarea
+      ref={taRef}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      onKeyDown={(e) => { if (e.key === 'Enter') onSend(); }}
+      onKeyDown={(e) => {
+        // Enter sends; Shift/⌘/Ctrl+Enter drops a newline so longer notes wrap.
+        if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+          e.preventDefault();
+          onSend();
+        }
+      }}
       placeholder={placeholder}
+      rows={1}
       style={{
         minWidth: 0,
-        height: 38,
+        width: '100%',
+        boxSizing: 'border-box',
+        minHeight: 38,
+        maxHeight: COMPOSER_MAX_H,
+        resize: 'none',
+        display: 'block',
         background: pinned ? t.SURFACE : t.PAPER,
         border: `1px solid ${t.SURFACE_BORDER}`,
-        borderRadius: 999,
-        padding: '0 14px',
+        borderRadius: 19,
+        padding: '9px 14px',
         fontFamily: t.BODY,
         fontSize: 14,
+        lineHeight: 1.3,
         color: t.INK,
         outline: 'none',
         letterSpacing: '-0.005em',
+        overflowY: 'hidden',
       }}
     />
   );
@@ -5856,7 +6068,7 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
         display: 'grid',
         gridTemplateColumns: '1fr 58px',
         gap: 8,
-        alignItems: 'center',
+        alignItems: 'end',
       }}>
         {input}
         {sendBtn}
@@ -5872,7 +6084,7 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
       display: 'grid',
       gridTemplateColumns: '1fr 58px',
       gap: 8,
-      alignItems: 'center',
+      alignItems: 'end',
       padding: 7,
       border: `1px solid ${t.SURFACE_BORDER}`,
       borderRadius: 999,
@@ -7021,6 +7233,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
   const [showSessions, setShowSessions] = useStateBSC(false);
   const [showNotifications, setShowNotifications] = useStateBSC(false);
   const [showLeaderboard, setShowLeaderboard] = useStateBSC(false);
+  const [showLibrary, setShowLibrary] = useStateBSC(false);
   const scoreProfile = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client); // live points/tier when signed in
   const authProfile = window.ShapeAuth?.getCachedState?.().profile || {};
   const displayName = authProfile.full_name || 'Alex Rivera';
@@ -7175,6 +7388,9 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
   }
   if (showLeaderboard) {
     return <BSLeaderboard onBack={() => setShowLeaderboard(false)} />;
+  }
+  if (showLibrary) {
+    return <BSClientLibrary onBack={() => setShowLibrary(false)} goMarket={() => { setShowLibrary(false); goMarket(); }} />;
   }
   if (showSessions) {
     return <BSSessionsScreen onBack={() => setShowSessions(false)} />;
@@ -7422,6 +7638,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
       </div>
       <div style={{ padding: `0 ${t.padX}px` }}>
         {[
+          { l: 'Library', s: 'Saved workouts, programs & meals', onClick: () => setShowLibrary(true) },
           { l: 'Marketplace', s: 'Find coaches, plans, programs', onClick: () => goMarket() },
           { l: 'Shape Store', s: `${scoreProfile.available.toLocaleString()} pts · tap to redeem`, onClick: () => setShowStore(true) },
           { l: 'Progress & PRs', s: 'Weight, recovery, strength trends', onClick: () => setShowProgress(true) },
