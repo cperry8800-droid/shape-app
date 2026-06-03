@@ -9563,6 +9563,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     }
   };
 
+  // Live Shape Score tier for the profile header (user-scoped — reflects the
+  // signed-in client / trainer / nutritionist's current tier).
+  const settingsScore = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client);
+  const settingsTierC = bsTierColor(settingsScore.tier);
+
   // Identity editing
   const [identity, setIdentity] = useStateBSC({
     name: 'Alex Rivera',
@@ -9933,7 +9938,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               <BSAvatar init={(identity.name || 'A').split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase()} size={72} fill={t.RUST} round glow cursive />
               <div style={{ minWidth: 0 }}>
-                <BSEyebrow color={t.RUST}>Member · 14 week streak</BSEyebrow>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700 }}>
+                  <span style={{ color: settingsTierC, fontWeight: 800 }}>{settingsScore.tier} tier</span>
+                  <span style={{ color: t.INK50 }}>·</span>
+                  <span style={{ color: t.RUST }}>14 week streak</span>
+                </div>
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', marginTop: 4, lineHeight: 1 }}>{identity.name}<span style={{ color: t.ACCENT }}>.</span></div>
               </div>
             </div>
