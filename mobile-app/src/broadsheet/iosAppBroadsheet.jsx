@@ -653,17 +653,19 @@ function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing })
 }
 
 // Avatar — softly-rounded square, mono initial
-function BSAvatar({ init = 'A', size = 32, fill, ink, onClick }) {
+function BSAvatar({ init = 'A', size = 32, fill, ink, onClick, round = true, glow = false }) {
   const t = useBS();
+  const bg = fill || t.INK;
   return (
     <button onClick={onClick} style={{
       width: size, height: size,
-      background: fill || t.INK, color: ink || t.PAPER,
+      background: bg, color: ink || t.PAPER,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontFamily: t.MONO, fontSize: size * 0.42, fontWeight: 700,
       border: 0, padding: 0, cursor: onClick ? 'pointer' : 'default',
       letterSpacing: '-0.02em',
-      borderRadius: t.RADIUS_SM,
+      borderRadius: round ? '50%' : t.RADIUS_SM,
+      boxShadow: glow ? `0 0 22px ${bg}5e, 0 0 0 4px ${bg}26` : 'none',
     }}>{init}</button>
   );
 }

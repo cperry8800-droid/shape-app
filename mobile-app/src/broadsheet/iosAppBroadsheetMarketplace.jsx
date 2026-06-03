@@ -503,6 +503,7 @@ function BSHeadshot({ init, size = 72 }) {
       position: 'relative', width: size, height: size, flexShrink: 0,
       background: t.PAPER2,
       border: `1px solid ${t.INK}`,
+      borderRadius: '50%',
       overflow: 'hidden',
     }}>
       {/* Halftone dot field */}
