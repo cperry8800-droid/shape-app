@@ -4588,7 +4588,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
             <BSTrackHeader kicker="From Maya" title="Playlists" />
             <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
               {items.map((p, i) => (
-                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#a07a2e" onPlay={goRadio} spotifyUrl={p.url} />
+                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#1db954" onPlay={goRadio} spotifyUrl={p.url} />
               ))}
             </div>
           </>
