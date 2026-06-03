@@ -46,6 +46,16 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-03 — circular avatars + upgrade button wiring
+- `BSAvatar` is now **circular by default** (`round` default true) — all people
+  avatars (client + coach headers, chat, feed, settings) are circles. Added an
+  opt-in `glow` prop; the Settings identity avatar uses `round glow`.
+- `BSHeadshot` (public coach profile pages) made circular too.
+- **Upgrade button fix:** a free user's "Upgrade →" now starts a Stripe Checkout
+  (`/api/stripe/platform-checkout`) instead of the billing portal (which only
+  manages an existing sub). "Manage →" still opens the portal when subscribed.
+  Free-plan subtitle reworded to "Become a Shape member to access the platform & features".
+
 ### 2026-06-03 — mobile marketplace redesign (first pass)
 - Rebuilt `BSMarketplaceScreen` as an editorial discovery page matching the rest
   of the app (replaced the old hard-bordered "wireframe" look). New layout:

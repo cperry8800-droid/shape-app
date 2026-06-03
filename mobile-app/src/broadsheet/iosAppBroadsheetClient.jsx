@@ -9133,6 +9133,26 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     }
   };
 
+  // Upgrade (free → Shape membership). The billing portal only manages an
+  // existing subscription, so a free user must go through Stripe Checkout.
+  const openUpgradeCheckout = async () => {
+    const loggedIn = !!(window.ShapeAuth?.getCachedState?.()?.user?.id);
+    if (!loggedIn) { window.__bsToast?.('Sign in to upgrade your membership', 'info'); return; }
+    try {
+      const res = await fetch('/api/stripe/platform-checkout', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ successPath: '/m/', cancelPath: '/m/' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.url) window.location.href = data.url;
+      else if (res.status === 401) window.__bsToast?.('Sign in to upgrade your membership', 'info');
+      else window.__bsToast?.(data?.error || 'Upgrade unavailable right now', 'err');
+    } catch (e) {
+      window.__bsToast?.('Upgrade unavailable right now', 'err');
+    }
+  };
+
   const requestAccountAction = async (action) => {
     const confirms = {
       Export: 'Email a copy of all your data to the address on file?',
@@ -9570,7 +9590,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         {!editing ? (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <BSAvatar init={identity.name.charAt(0)} size={72} fill={t.RUST} />
+              <BSAvatar init={identity.name.charAt(0)} size={72} fill={t.RUST} round glow />
               <div style={{ minWidth: 0 }}>
                 <BSEyebrow color={t.RUST}>Member · 14 week streak</BSEyebrow>
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', marginTop: 4, lineHeight: 1 }}>{identity.name}<span style={{ color: t.ACCENT }}>.</span></div>
@@ -9652,8 +9672,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{active ? renewsLabel : 'Free plan'}</span>
               </div>
               <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', marginTop: 5 }}>Shape <span style={{ fontStyle: 'italic', color: t.AMBER }}>{active ? 'Member.' : 'Free.'}</span></div>
-              <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.45 }}>{active ? `${priceLabel} · Radio included · Community access · Marketplace access` : 'Upgrade for Radio, community & marketplace access'}</div>
-              <button onClick={openBillingPortal} style={{ marginTop: 11, padding: '8px 15px', borderRadius: 999, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{active ? 'Manage →' : 'Upgrade →'}</button>
+              <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.45 }}>{active ? `${priceLabel} · Radio included · Community access · Marketplace access` : 'Become a Shape member to access the platform & features'}</div>
+              <button onClick={active ? openBillingPortal : openUpgradeCheckout} style={{ marginTop: 11, padding: '8px 15px', borderRadius: 999, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{active ? 'Manage →' : 'Upgrade →'}</button>
             </div>
           </div>
         );
