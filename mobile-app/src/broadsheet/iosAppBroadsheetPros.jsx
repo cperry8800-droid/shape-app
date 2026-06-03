@@ -71,7 +71,7 @@ const {
   BSTabBar, BSFooter,
   BSSheetProvider, useBSSheet, BSCalendarScreen,
   BSRadioPrompt, BSRadioScreen, BSNowPlaying,
-  BSClientChat, BSSettings, BSShapeScorePage, BSShapeStorePage, BSContactPage, BSTermsPage, SHAPE_SCORE_PROFILES, _bsUseLiveScore,
+  BSClientChat, BSSettings, BSShapeScorePage, BSShapeStorePage, BSContactPage, BSTermsPage, SHAPE_SCORE_PROFILES, _bsUseLiveScore, bsTierColor,
 } = window;
 
 function formatReviewSeconds(value) {
@@ -2116,17 +2116,18 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
 
   return (
     <BSPage>
-      <BSPageHeader kicker={`${isCoach ? 'Coach' : 'Nutritionist'} · ${scoreProfile.tier} tier · 4.9 ★`} title={<>{name.split(' ')[0]}<br/>{name.split(' ').slice(1).join(' ')}.</>} trailing={<BSAvatar init={init} size={32} fill={accent} ink={t.PAPER} onClick={onSettings} />} />
+      <BSPageHeader kicker={isCoach ? 'Coach · 4.9 ★' : 'Nutritionist · 4.9 ★'} title={<>{name.split(' ')[0]}<br/>{name.split(' ').slice(1).join(' ')}.</>} trailing={<BSAvatar init={init} size={32} fill={accent} ink={t.PAPER} onClick={onSettings} />} />
 
       {(() => {
         const total = scoreProfile.total || 0;
         const goal = scoreProfile.goal || 5000;
         const pct = goal ? Math.min(1, total / goal) : 0;
         const RAD = 34, CIRC = 2 * Math.PI * RAD;
+        const tierC = bsTierColor(scoreProfile.tier);
         const bars = [
           { k: 'WEEK',   v: scoreProfile.weekRatio, n: scoreProfile.week, c: t.AMBER },
           { k: 'STREAK', v: scoreProfile.streakRatio, n: `${scoreProfile.streak}D`, c: t.GREEN },
-          { k: 'TIER',   v: scoreProfile.tierRatio, n: scoreProfile.tierShort, c: t.ACCENT },
+          { k: 'TIER',   v: scoreProfile.tierRatio, n: scoreProfile.tierShort, c: tierC },
           { k: 'SPEND',  v: scoreProfile.spendRatio, n: (scoreProfile.available || 0).toLocaleString(), c: t.BLUE },
         ];
         return (
@@ -2139,16 +2140,17 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14 }}>
                 <div style={{ minWidth: 0 }}>
-                  <BSEyebrow color={t.AMBER}>Shape Score</BSEyebrow>
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, marginTop: 8 }}>
-                    <span style={{ fontFamily: t.DISPLAY, fontSize: 52, fontWeight: 700, lineHeight: 0.9, letterSpacing: '-0.04em' }}>{total.toLocaleString()}</span>
-                    <span style={{ fontFamily: t.DISPLAY, fontSize: 17, color: t.INK50, marginBottom: 6 }}>of {goal.toLocaleString()}</span>
+                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Shape Score</div>
+                  <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: tierC, lineHeight: 1 }}>{scoreProfile.tier}<span style={{ marginLeft: 8, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', verticalAlign: '2px' }}>tier</span></div>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, marginTop: 10 }}>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 46, fontWeight: 700, lineHeight: 0.9, letterSpacing: '-0.04em' }}>{total.toLocaleString()}</span>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 16, color: t.INK50, marginBottom: 5 }}>of {goal.toLocaleString()}</span>
                   </div>
-                  <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>{scoreProfile.week} this week · {(scoreProfile.pointsToNext || 0).toLocaleString()} to {scoreProfile.nextTier}</div>
+                  <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: tierC, fontWeight: 700 }}>{scoreProfile.week} this week · {(scoreProfile.pointsToNext || 0).toLocaleString()} to {scoreProfile.nextTier}</div>
                 </div>
                 <svg width="84" height="84" viewBox="0 0 84 84" style={{ flexShrink: 0 }}>
                   <circle cx="42" cy="42" r={RAD} fill="none" stroke={t.HAIR} strokeWidth="6" />
-                  <circle cx="42" cy="42" r={RAD} fill="none" stroke={t.AMBER} strokeWidth="6" strokeLinecap="round" strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - pct)} transform="rotate(-90 42 42)" />
+                  <circle cx="42" cy="42" r={RAD} fill="none" stroke={tierC} strokeWidth="6" strokeLinecap="round" strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - pct)} transform="rotate(-90 42 42)" />
                   <text x="42" y="43" textAnchor="middle" dominantBaseline="central" style={{ fontFamily: t.DISPLAY, fontSize: '17px', fontWeight: 700, fill: t.INK }}>{Math.round(pct * 100)}%</text>
                 </svg>
               </div>

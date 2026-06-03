@@ -6078,6 +6078,19 @@ const SHAPE_SCORE_TIERS = [
   { name: 'Legend', range: '15,000+', perk: 'Annual Shape merch + service credit' },
 ];
 
+// Per-tier accent colors — a cool→warm→premium progression. Used wherever a
+// tier is shown (score card, etc.) so tiers are color-coordinated app-wide.
+const BS_TIER_COLORS = {
+  raw: '#8a93a0', base: '#8a93a0',
+  tempo: '#d8a23a',
+  form: '#34d6c5',
+  peak: '#8a5cf6',
+  legend: '#e0518a',
+};
+function bsTierColor(tier) {
+  return BS_TIER_COLORS[String(tier || '').toLowerCase().trim()] || '#d8a23a';
+}
+
 const SHAPE_SCORE_PROFILES = {
   client: {
     roleLabel: 'Client',
@@ -7318,7 +7331,6 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
   return (
     <BSPage>
       <BSPageHeader
-        kicker={`Member · ${scoreProfile.tier} tier`}
         title={<>{firstName}<br/><span style={{ color: t.ACCENT }}>{lastName}.</span></>}
         trailing={<BSAvatar init="A" size={32} fill={t.RUST} onClick={onProfile} />}
       />
@@ -7335,6 +7347,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
         const goal = scoreProfile.goal || 5000;
         const pct = goal ? Math.min(1, total / goal) : 0;
         const RAD = 34, CIRC = 2 * Math.PI * RAD;
+        const tierC = bsTierColor(scoreProfile.tier);
         return (
           <div style={{ padding: `16px ${t.padX}px 6px` }}>
             <button onClick={() => setShowScore(true)} style={{
@@ -7345,16 +7358,17 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14 }}>
                 <div style={{ minWidth: 0 }}>
-                  <BSEyebrow color={t.AMBER}>Shape Score</BSEyebrow>
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, marginTop: 8 }}>
-                    <span style={{ fontFamily: t.DISPLAY, fontSize: 52, fontWeight: 700, lineHeight: 0.9, letterSpacing: '-0.04em' }}>{total.toLocaleString()}</span>
-                    <span style={{ fontFamily: t.DISPLAY, fontSize: 17, color: t.INK50, marginBottom: 6 }}>of {goal.toLocaleString()}</span>
+                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Shape Score</div>
+                  <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: tierC, lineHeight: 1 }}>{scoreProfile.tier}<span style={{ marginLeft: 8, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', verticalAlign: '2px' }}>tier</span></div>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, marginTop: 10 }}>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 46, fontWeight: 700, lineHeight: 0.9, letterSpacing: '-0.04em' }}>{total.toLocaleString()}</span>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 16, color: t.INK50, marginBottom: 5 }}>of {goal.toLocaleString()}</span>
                   </div>
-                  <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>{scoreProfile.week} this week · {(scoreProfile.pointsToNext || 0).toLocaleString()} to {scoreProfile.nextTier}</div>
+                  <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: tierC, fontWeight: 700 }}>{scoreProfile.week} this week · {(scoreProfile.pointsToNext || 0).toLocaleString()} to {scoreProfile.nextTier}</div>
                 </div>
                 <svg width="84" height="84" viewBox="0 0 84 84" style={{ flexShrink: 0 }}>
                   <circle cx="42" cy="42" r={RAD} fill="none" stroke={t.HAIR} strokeWidth="6" />
-                  <circle cx="42" cy="42" r={RAD} fill="none" stroke={t.AMBER} strokeWidth="6" strokeLinecap="round" strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - pct)} transform="rotate(-90 42 42)" />
+                  <circle cx="42" cy="42" r={RAD} fill="none" stroke={tierC} strokeWidth="6" strokeLinecap="round" strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - pct)} transform="rotate(-90 42 42)" />
                   <text x="42" y="43" textAnchor="middle" dominantBaseline="central" style={{ fontFamily: t.DISPLAY, fontSize: '17px', fontWeight: 700, fill: t.INK }}>{Math.round(pct * 100)}%</text>
                 </svg>
               </div>
@@ -7853,21 +7867,29 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
 
       <BSSection title="Reward tiers" kicker="Monthly points" meta="5 tiers" />
       <div style={{ padding: `0 ${t.padX}px` }}>
-        {tiers.map((tier, i) => (
-          <div key={tier.name} style={{
-            display: 'grid', gridTemplateColumns: '88px 1fr', gap: 12,
-            padding: '12px 0', borderBottom: i === tiers.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-          }}>
-            <div>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>PTS</div>
-              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.08em', color: t.INK, fontWeight: 700 }}>{tier.range}</div>
+        {tiers.map((tier, i) => {
+          const tc = bsTierColor(tier.name);
+          const current = String(profile.tier || '').toLowerCase() === tier.name.toLowerCase();
+          return (
+            <div key={tier.name} style={{
+              display: 'grid', gridTemplateColumns: '88px 1fr', gap: 12,
+              padding: '12px 0', borderBottom: i === tiers.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+            }}>
+              <div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>PTS</div>
+                <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.08em', color: t.INK, fontWeight: 700 }}>{tier.range}</div>
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 999, background: tc, flexShrink: 0 }} />
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: tc, letterSpacing: '-0.015em' }}>{tier.name}</span>
+                  {current ? <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: tc }}>· you</span> : null}
+                </div>
+                <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tier.perk}</div>
+              </div>
             </div>
-            <div>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{tier.name}</div>
-              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tier.perk}</div>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div style={{ padding: `16px ${t.padX}px 18px`, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
@@ -8113,6 +8135,7 @@ Object.assign(window, {
   BSShapeStorePage,
   SHAPE_SCORE_PROFILES,
   _bsUseLiveScore,
+  bsTierColor,
 });
 
 // ═══════════════════════════════════════════════════════════
