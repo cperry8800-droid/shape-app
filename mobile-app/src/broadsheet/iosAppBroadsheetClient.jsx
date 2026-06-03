@@ -1819,7 +1819,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
             </div>
             <div style={{ marginTop: 10, paddingTop: 12, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
               <Person init="J" name="Jordan Chen" role="Coach" fill={rust} />
-              <button onClick={() => setShowWorkoutPreview(true)} style={pillOutline}>Preview →</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                <button onClick={() => setShowWorkoutPreview(true)} style={pillOutline}>Preview →</button>
+                <button onClick={() => goTrain?.()} style={pillFilled}>Start →</button>
+              </div>
             </div>
           </div>
         );
