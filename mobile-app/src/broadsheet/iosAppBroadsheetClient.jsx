@@ -8511,9 +8511,8 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow="Rewards"
-        kicker="Shape Score"
-        title={<>Showing<br/>up.</>}
+        eyebrow="Your standing"
+        title={<>Shape<br/><span style={{ fontStyle: 'italic', color: bsTierColor(tier) }}>Score.</span></>}
       />
 
       {/* Composite hero — ring (progress to goal) + tier + this-week, above the tiers */}
@@ -8530,7 +8529,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         ];
         return (
           <div style={{ padding: `8px ${t.padX}px 0` }}>
-            <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: `radial-gradient(130% 120% at 72% 18%, ${tc}24, transparent 55%), ${t.PAPER2}`, padding: 13 }}>
+            <div style={{ borderRadius: 16, border: `1px solid ${tc}55`, background: `radial-gradient(130% 120% at 72% 18%, ${tc}24, transparent 55%), ${t.PAPER2}`, padding: 13 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
                 <div style={{ width: 86, height: 86, borderRadius: 999, flexShrink: 0, background: `conic-gradient(${tc} ${pct * 3.6}deg, ${t.HAIR} 0deg)`, display: 'grid', placeItems: 'center' }}>
                   <div style={{ width: 68, height: 68, borderRadius: 999, background: t.isLight ? t.PAPER : '#16140f', display: 'grid', placeItems: 'center' }}>
