@@ -527,7 +527,7 @@ function BSNowPlaying({ onOpen }) {
   return (
     <div onClick={onOpen} style={{
       position: 'relative', overflow: 'hidden', cursor: 'pointer',
-      borderTop: `2px solid ${t.INK}`, borderBottom: `2px solid ${t.INK}`,
+      margin: `0 ${t.padX}px`, border: `1px solid ${t.RULE}`, borderRadius: 16,
       background: t.PAPER, color: t.INK,
     }}>
       {/* Light effects layer */}
@@ -609,7 +609,7 @@ function BSNowPlaying({ onOpen }) {
 
           {/* Pause/play */}
           <button onClick={(e) => { e.stopPropagation(); r.setPaused(p => !p); }} style={{
-            width: 30, height: 30, flexShrink: 0,
+            width: 30, height: 30, flexShrink: 0, borderRadius: 9,
             background: `rgba(${t.inkRGB},0.34)`, color: t.PAPER, border: 0, cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 12,
@@ -631,7 +631,7 @@ function BSNowPlayingMuted({ onTurnOn, onPrompt, onOpen }) {
   return (
     <div onClick={onOpen} style={{
       position: 'relative', cursor: onOpen ? 'pointer' : 'default',
-      borderTop: `1px solid ${t.RULE}`, borderBottom: `1px solid ${t.RULE}`,
+      margin: `0 ${t.padX}px`, border: `1px solid ${t.RULE}`, borderRadius: 16, overflow: 'hidden',
       background: t.PAPER, color: t.INK, opacity: 0.92,
     }}>
       <div style={{ padding: `10px ${t.padX}px 10px` }}>
@@ -1031,6 +1031,7 @@ function BSRadioScreen({ onBack }) {
             border: `1px solid ${CREAM25}`,
             background: CARD,
             padding: 12,
+            borderRadius: 16,
           }}>
             <div style={{
               display: 'flex',
@@ -1054,7 +1055,7 @@ function BSRadioScreen({ onBack }) {
                 letterSpacing: '0.18em',
                 textTransform: 'uppercase',
                 fontWeight: 800,
-                padding: '4px 6px',
+                padding: '5px 8px', borderRadius: 8,
                 color: isSynced ? '#050707' : CREAM,
                 background: isSynced ? TEAL : 'transparent',
                 border: isSynced ? 0 : `1px solid ${CREAM25}`,
@@ -1070,6 +1071,7 @@ function BSRadioScreen({ onBack }) {
                   border: `1px solid ${TEAL}`,
                   background: isLight ? 'rgba(10,143,135,0.12)' : 'rgba(10,143,135,0.16)',
                   padding: '10px 8px',
+                  borderRadius: 12,
                   display: 'flex',
                   alignItems: 'center',
                   gap: 9,
