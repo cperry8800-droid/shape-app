@@ -9552,6 +9552,20 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return Array.from(new Set(norm));
   })();
   const hasMultipleAccounts = accountRoles.length > 1;
+  // Refresh the cached profile when Settings opens so a role granted since sign-in
+  // (e.g. an approved trainer/nutritionist application) shows up in the Profile-mode
+  // switcher without needing a re-login. The tick just forces a re-render so the
+  // accountRoles read above recomputes from the freshened cache.
+  const [, setProfileRefreshTick] = useStateBSC(0);
+  React.useEffect(() => {
+    let cancelled = false;
+    if (window.ShapeAuth?.getCurrentSession) {
+      Promise.resolve(window.ShapeAuth.getCurrentSession())
+        .then(() => { if (!cancelled) setProfileRefreshTick(n => n + 1); })
+        .catch(() => {});
+    }
+    return () => { cancelled = true; };
+  }, []);
   React.useEffect(() => {
     // Booking capacity is a coach-only control — never load it for clients.
     if (!isCoachRole) { setCapacityState(null); return undefined; }
