@@ -46,6 +46,17 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-03 — Shape Score composite hero + compact meal CTA
+- **Shape Score page**: new **composite hero card** above the reward tiers — a
+  tier-colored ring (% to goal), the tier name as an italic headline, `{total} pts ·
+  {week} this week`, a "composite of training, nutrition, recovery & consistency"
+  blurb, and a 3-up mini-stat row (This week / Streak / To next tier). Removed the
+  header's trailing score number and the old THIS-WK/THIS-MO/TIER stats grid (now
+  covered by the hero).
+- **Meal preview CTA row** reformatted + shrunk: Close / ♡ Save / teal "One tap ·
+  Ate as planned ✓" are now compact single-line pills (Save is an inline toggle so
+  all three match height).
+
 ### 2026-06-03 — Meal ingredients in household units (tied to Imperial/Metric)
 - Added `bsHouseholdQty(qty, name)` / `bsHouseholdStr(str)` in the client module: a
   display-only converter that turns gram/ml ingredient quantities into **cups / tbsp /
