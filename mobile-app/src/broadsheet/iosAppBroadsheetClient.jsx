@@ -9339,11 +9339,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             const on = (tweaks.role || 'client') === key;
             return (
               <button key={key} onClick={() => setTweak('role', key)} style={{ borderRadius: t.RADIUS_SM,
-                flex: 1, padding: '11px 10px', cursor: 'pointer',
+                flex: 1, padding: '15px 12px', cursor: 'pointer',
                 border: `1px solid ${on ? t.INK : t.RULE}`,
                 background: on ? t.INK : 'transparent',
                 color: on ? t.PAPER : t.INK,
-                fontFamily: t.MONO, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                fontFamily: t.MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
               }}>{label}</button>
             );
           })}
