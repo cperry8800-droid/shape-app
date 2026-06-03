@@ -272,30 +272,6 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
         trailing={trailing}
       />
 
-      {/* Month picker (prev / current / next) */}
-      <div style={{ padding: `10px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}`, display: 'grid', gridTemplateColumns: '40px 1fr 40px', alignItems: 'center', gap: 0 }}>
-        <button onClick={() => {
-          let m = viewMonth - 1, y = viewYear;
-          if (m < 0) { m = 11; y -= 1; }
-          setViewMonth(m); setViewYear(y);
-        }} style={{
-          height: 36, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer',
-          fontFamily: t.MONO, fontSize: 14, fontWeight: 700,
-        }}>‹</button>
-        <div style={{ textAlign: 'center', borderTop: `1px solid ${t.INK}`, borderBottom: `1px solid ${t.INK}`, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-          <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 17, letterSpacing: '-0.02em', color: t.INK }}>{monthName}</span>
-          <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50, letterSpacing: '0.18em', fontWeight: 700 }}>{viewYear}</span>
-        </div>
-        <button onClick={() => {
-          let m = viewMonth + 1, y = viewYear;
-          if (m > 11) { m = 0; y += 1; }
-          setViewMonth(m); setViewYear(y);
-        }} style={{
-          height: 36, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer',
-          fontFamily: t.MONO, fontSize: 14, fontWeight: 700,
-        }}>›</button>
-      </div>
-
       {useServer && (
         <div style={{ padding: `10px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
           <button onClick={() => setShowAdd(true)} style={{
@@ -317,6 +293,8 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
         role={role}
         live={useServer}
         onChanged={loadMonth}
+        onPrev={() => { let m = viewMonth - 1, y = viewYear; if (m < 0) { m = 11; y -= 1; } setViewMonth(m); setViewYear(y); }}
+        onNext={() => { let m = viewMonth + 1, y = viewYear; if (m > 11) { m = 0; y += 1; } setViewMonth(m); setViewYear(y); }}
       />
 
       <BSFooterCal left="The Shape Daily · Calendar" right={`${monthName} · ${viewYear}`} />
@@ -502,8 +480,12 @@ function BSDayTimeline({ events, sheet, role }) {
 }
 
 // ────────── MONTH VIEW
-function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, selDay, setSelDay, sheet, role, live = false, onChanged = () => {} }) {
+function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, selDay, setSelDay, sheet, role, live = false, onChanged = () => {}, onPrev = () => {}, onNext = () => {} }) {
   const t = useBSCal();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const MONTHS3 = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  const prevAbbr = MONTHS3[(viewMonth + 11) % 12];
+  const nextAbbr = MONTHS3[(viewMonth + 1) % 12];
   // Compute first-of-month DOW (Mon=0..Sun=6) and days-in-month for any year/month
   const firstJsDow = new Date(viewYear, viewMonth, 1).getDay(); // 0=Sun..6=Sat
   const firstDow = (firstJsDow + 6) % 7; // shift to Mon=0
@@ -528,58 +510,66 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
 
   return (
     <>
-      {/* Month headline */}
-      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
-        <div>
-          <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 44, letterSpacing: '-0.04em', lineHeight: 0.9, color: t.INK }}>{monthName}</div>
-          <div style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, marginTop: 6, letterSpacing: '0.2em', textTransform: 'uppercase' }}>{viewYear} · Q{Math.floor(viewMonth/3)+1}</div>
+      {/* Month headline — serif month (teal italic) + inline prev/next nav */}
+      <div style={{ padding: `18px ${t.padX}px 10px`, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 30, letterSpacing: '-0.035em', lineHeight: 1, color: t.INK }}>
+          <span style={{ fontStyle: 'italic', color: teal }}>{monthName}</span> <span>{viewYear}</span>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 34, letterSpacing: '-0.04em', lineHeight: 1, color: t.INK }}>{monthTotal}</div>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.18em', textTransform: 'uppercase', marginTop: 2 }}>{isDemoMonth ? `${doneCount} done · ${monthTotal - doneCount} ahead` : 'no items'}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <button onClick={onPrev} aria-label="Previous month" style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>‹ {prevAbbr}</button>
+          <button onClick={onNext} aria-label="Next month" style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{nextAbbr} ›</button>
         </div>
       </div>
 
-      {/* DOW header */}
-      <div style={{ padding: `8px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0, borderBottom: `1px solid ${t.RULE}` }}>
-        {['MON','TUE','WED','THU','FRI','SAT','SUN'].map(d => (
-          <div key={d} style={{ padding: '4px 0 6px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', color: t.INK50, fontWeight: 600, textAlign: 'center' }}>{d}</div>
+      {/* DOW header — single letters */}
+      <div style={{ padding: `2px ${t.padX}px 6px`, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5 }}>
+        {['M','T','W','T','F','S','S'].map((d, i) => (
+          <div key={i} style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', color: t.INK50, fontWeight: 700, textAlign: 'center' }}>{d}</div>
         ))}
       </div>
 
-      {/* Grid */}
-      <div style={{ padding: `0 ${t.padX}px ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+      {/* Grid — rounded day cells */}
+      <div style={{ padding: `0 ${t.padX}px` }}>
         {weeks.map((row, ri) => (
-          <div key={ri} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: ri === weeks.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+          <div key={ri} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5, marginBottom: 5 }}>
             {row.map((d, ci) => {
-              if (d == null) return <div key={ci} style={{ borderRight: ci < 6 ? `1px solid ${t.HAIR}` : 0, minHeight: 64, background: t.PAPER2, opacity: 0.4 }} />;
+              if (d == null) return <div key={ci} />;
               const isToday = d === visualToday;
               const isSel = d === selDay;
               const dayEv = eventsByDay[d] || [];
-              const dotsAccents = dayEv.slice(0, 3).map(e => e.accent);
+              const dotsAccents = dayEv.slice(0, 4).map(e => e.accent);
               return (
-                <button key={ci} onClick={() => setSelDay(d)} style={{ borderRadius: t.RADIUS_SM,
-                  border: 'none',
-                  borderRight: ci < 6 ? `1px solid ${t.HAIR}` : 'none',
-                  background: isSel ? t.INK : (isToday ? t.PAPER2 : 'transparent'),
-                  color: isSel ? t.PAPER : t.INK,
-                  minHeight: 64, padding: '6px 6px 4px', textAlign: 'left', cursor: 'pointer',
-                  display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 4,
+                <button key={ci} onClick={() => setSelDay(d)} style={{
+                  borderRadius: 12,
+                  border: isSel ? `1.5px solid ${teal}` : `1px solid ${t.HAIR}`,
+                  background: isSel ? `${teal}1c` : t.PAPER2,
+                  color: t.INK,
+                  minHeight: 58, padding: '7px 8px 6px', textAlign: 'left', cursor: 'pointer',
+                  display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 6,
                   fontFamily: t.DISPLAY,
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontWeight: t.W.display, fontSize: 16, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums', color: isSel ? t.PAPER : (isToday ? t.ACCENT : t.INK) }}>{d}</span>
-                    {dayEv.length > 0 && <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: isSel ? t.PAPER : t.INK50, letterSpacing: '0.1em' }}>{dayEv.length}</span>}
+                    <span style={{ fontWeight: t.W.display, fontSize: 15, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums', color: isToday ? teal : t.INK }}>{d}</span>
+                    {dayEv.length > 0 && <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK50, letterSpacing: '0.05em' }}>{dayEv.length}</span>}
                   </div>
-                  <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', minHeight: 6 }}>
                     {dotsAccents.map((c, k) => (
-                      <span key={k} style={{ width: 6, height: 6, background: isSel ? t.PAPER : c, display: 'inline-block' }} />
+                      <span key={k} style={{ width: 5, height: 5, borderRadius: 999, background: c, display: 'inline-block' }} />
                     ))}
                   </div>
                 </button>
               );
             })}
           </div>
+        ))}
+      </div>
+
+      {/* Legend */}
+      <div style={{ padding: `8px ${t.padX}px 14px`, display: 'flex', flexWrap: 'wrap', gap: '8px 16px', alignItems: 'center' }}>
+        {[['Workout', t.AMBER], ['Meals', t.BLUE], ['Check-in', t.GREEN], ['Consult', t.RUST]].map(([l, c]) => (
+          <span key={l} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
+            <span style={{ width: 7, height: 7, borderRadius: 999, background: c, display: 'inline-block' }} />{l}
+          </span>
         ))}
       </div>
 
@@ -590,33 +580,34 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
         const selDow = dowFull[(new Date(viewYear, viewMonth, selDay).getDay() + 6) % 7];
         return (
           <>
-            <div style={{ padding: `16px ${t.padX}px 10px`, borderTop: `2px solid ${t.INK}`, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ padding: `14px ${t.padX}px 10px`, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 700 }}>
-                ▍ Day · {selDow} {monthName.slice(0,3)} {selDay}
+                <span style={{ color: teal }}>▍</span> Day · {selDow} {monthName.slice(0,3)} {selDay}
               </div>
               <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
                 {dayEv.length} {dayEv.length === 1 ? 'item' : 'items'}
               </div>
             </div>
             {dayEv.length === 0 ? (
-              <div style={{ padding: `8px ${t.padX}px 18px`, borderTop: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 10, color: t.INK50, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600 }}>
+              <div style={{ padding: `4px ${t.padX}px 18px`, fontFamily: t.MONO, fontSize: 10, color: t.INK50, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600 }}>
                 — Nothing logged —
               </div>
             ) : (
-              <div style={{ borderTop: `1px solid ${t.RULE}` }}>
+              <div style={{ padding: `2px ${t.padX}px 18px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {dayEv.map((e, i) => (
                   <button key={i} onClick={() => sheet && sheet.open(<BSEventSheet event={e} role={role} live={live} onChanged={onChanged} onClose={() => sheet.close()} />)} style={{
-                    width: '100%', padding: `12px ${t.padX}px`, borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}`, borderBottom: 0, borderLeft: 0, borderRight: 0,
-                    background: 'transparent', textAlign: 'left', cursor: 'pointer',
-                    display: 'grid', gridTemplateColumns: '52px 1fr auto', alignItems: 'center', gap: 12,
+                    width: '100%', padding: '12px 13px', borderRadius: 14, border: `1px solid ${t.HAIR}`, background: t.PAPER2,
+                    textAlign: 'left', cursor: 'pointer',
+                    display: 'grid', gridTemplateColumns: '5px 52px 1fr auto', alignItems: 'center', gap: 12,
                   }}>
+                    <span style={{ alignSelf: 'stretch', width: 5, borderRadius: 999, background: e.accent }} />
                     <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK, letterSpacing: '0.05em' }}>
                       {e.time}
                       <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, fontWeight: 600, letterSpacing: '0.1em', marginTop: 2 }}>{e.dur ? `${e.dur}m` : ''}</div>
                     </div>
-                    <div>
+                    <div style={{ minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                        <span style={{ background: e.accent, color: e.kind === 'REST' ? t.PAPER : (e.accent === t.AMBER ? t.INK : t.PAPER), padding: '2px 6px', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.15em' }}>{e.kind}</span>
+                        <span style={{ background: e.accent, color: e.kind === 'REST' ? t.PAPER : (e.accent === t.AMBER ? t.INK : t.PAPER), padding: '2px 6px', borderRadius: 5, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.15em' }}>{e.kind}</span>
                         {e.state === 'done' && <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.18em', fontWeight: 700 }}>· DONE</span>}
                       </div>
                       <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 17, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.15 }}>{e.title}</div>
