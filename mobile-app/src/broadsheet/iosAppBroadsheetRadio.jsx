@@ -454,11 +454,12 @@ function BSRadioPrompt() {
         </div>
       </div>
 
-      {/* Push the choice cards down so they sit just above Continue (matches mock). */}
-      <div style={{ flex: 1, minHeight: 24 }} />
+      {/* Slack above the choices — weighted lighter than below so the cards sit
+          a touch higher on the screen. */}
+      <div style={{ flex: 0.5, minHeight: 14 }} />
 
       {/* Choice rows */}
-      <div style={{ padding: `12px ${t.padX}px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ padding: `10px ${t.padX}px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
         <PromptChoice
           on={choice === 'on'}
           onClick={() => setChoice('on')}
@@ -475,9 +476,11 @@ function BSRadioPrompt() {
           icon={<span style={{ fontSize: 20, color: t.INK, opacity: 0.7, lineHeight: 1 }}>⏸</span>}
         />
       </div>
+      {/* Heavier slack below so the cards rest slightly above center. */}
+      <div style={{ flex: 1, minHeight: 12 }} />
       </div>
 
-      <div style={{ position: 'relative', zIndex: 1, padding: `14px ${t.padX}px 22px`, borderTop: `2px solid ${t.INK}`, background: isLight ? t.PAPER : 'rgba(11,12,12,0.5)', backdropFilter: isLight ? undefined : 'blur(8px)', WebkitBackdropFilter: isLight ? undefined : 'blur(8px)' }}>
+      <div style={{ position: 'relative', zIndex: 1, padding: `14px ${t.padX}px 22px`, background: isLight ? t.PAPER : 'rgba(11,12,12,0.5)', backdropFilter: isLight ? undefined : 'blur(8px)', WebkitBackdropFilter: isLight ? undefined : 'blur(8px)' }}>
         <button
           disabled={!choice}
           onClick={() => r.answerPrompt(choice === 'on')}
@@ -510,7 +513,7 @@ function PromptChoice({ on, onClick, eyebrow, title, meta, icon, accent }) {
   return (
     <button onClick={onClick} style={{
       display: 'flex', alignItems: 'center', gap: 11, width: '100%',
-      padding: '11px 13px', cursor: 'pointer', textAlign: 'left',
+      padding: '9px 13px', cursor: 'pointer', textAlign: 'left',
       background: on ? 'rgba(10,197,168,0.08)' : 'transparent',
       color: t.INK,
       border: `1px solid ${on ? t.ACCENT : t.RULE}`,

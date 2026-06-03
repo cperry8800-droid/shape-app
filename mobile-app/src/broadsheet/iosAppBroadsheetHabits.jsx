@@ -200,7 +200,7 @@ function BSHabitRow({ habit, accent, onToggle, onRemove }) {
           {done ? (isAvoid ? '✓ Stayed clean' : '✓ Done') : `${isAvoid ? 'Avoid' : 'Do'} · +${pts} pts`}
         </div>
       </button>
-      <span style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', color: done ? c : t.INK50, fontVariantNumeric: 'tabular-nums' }}>+{pts}</span>
+      <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em', color: done ? c : t.INK50, fontVariantNumeric: 'tabular-nums' }}>+{pts}</span>
       <button onClick={() => onRemove(habit.id)} aria-label="Remove habit" style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontSize: 16, lineHeight: 1, padding: '0 2px' }}>×</button>
     </div>
   );
