@@ -2126,38 +2126,16 @@ function BSTrackHeader({ kicker, title, actionLabel, onAction }) {
 // client can save it straight into their own Spotify library (follow).
 function BSPlaylistCard({ kicker, title, meta, color, onPlay, spotifyUrl }) {
   const t = useBS();
-  const [saving, setSaving] = React.useState(false);
-  const [saved, setSaved] = React.useState(false);
-  const isSpotify = typeof spotifyUrl === 'string' && /spotify/i.test(spotifyUrl);
-  const saveToSpotify = async () => {
-    if (saving || saved) return;
-    if (window.bsRequireAccount && !window.bsRequireAccount('save playlists')) return;
-    setSaving(true);
-    try {
-      await window.ShapeIntegrations?.saveSpotifyPlaylist?.(spotifyUrl);
-      setSaved(true);
-      window.__bsToast?.('Saved to your Spotify', 'ok');
-    } catch (e) {
-      window.__bsToast?.(e?.message || 'Could not save to Spotify', 'err');
-    } finally {
-      setSaving(false);
-    }
-  };
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 13, padding: 14, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
-      <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 11, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 18 }}>
-        {isSpotify ? (
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path fillRule="evenodd" clipRule="evenodd" d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.42 1.56-.299.421-1.02.599-1.559.3z"/></svg>
-        ) : '♪'}
+      <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 11, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path fillRule="evenodd" clipRule="evenodd" d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.42 1.56-.299.421-1.02.599-1.559.3z"/></svg>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color, fontWeight: 700, marginBottom: 4 }}>{kicker}</div>
         <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 16, color: t.INK, letterSpacing: '-0.01em' }}>{title}</div>
         <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 4, letterSpacing: '0.06em', lineHeight: 1.45 }}>{meta}</div>
       </div>
-      {isSpotify && (
-        <button onClick={saveToSpotify} disabled={saving || saved} aria-label={saved ? 'Saved to Spotify' : 'Save to Spotify'} title={saved ? 'Saved to your Spotify' : 'Save to your Spotify'} style={{ flexShrink: 0, padding: '7px 11px', borderRadius: 999, border: `1px solid ${saved ? '#1DB954' : t.RULE}`, background: saved ? 'rgba(29,185,84,0.12)' : 'transparent', color: saved ? '#1DB954' : t.INK, cursor: saving || saved ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{saved ? '✓ Saved' : (saving ? 'Saving…' : '＋ Spotify')}</button>
-      )}
       <button onClick={onPlay} aria-label="Play" style={{ width: 36, height: 36, flexShrink: 0, borderRadius: 999, border: `1px solid ${color}`, background: 'transparent', color, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>▶</button>
     </div>
   );
@@ -9594,7 +9572,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         {!editing ? (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <BSAvatar init={identity.name.charAt(0)} size={72} fill={t.RUST} round glow serif />
+              <BSAvatar init={(identity.name || 'A').split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase()} size={72} fill={t.RUST} round glow cursive />
               <div style={{ minWidth: 0 }}>
                 <BSEyebrow color={t.RUST}>Member · 14 week streak</BSEyebrow>
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', marginTop: 4, lineHeight: 1 }}>{identity.name}<span style={{ color: t.ACCENT }}>.</span></div>
