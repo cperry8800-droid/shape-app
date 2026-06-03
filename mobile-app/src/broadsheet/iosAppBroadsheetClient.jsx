@@ -1974,6 +1974,42 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         )}
       </div>
 
+      {/* WEEK TOTALS — running tally of the week so far */}
+      {(() => {
+        const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+        const weekTotals = [
+          { l: 'Sessions', v: 4, max: 5, c: t.RUST },
+          { l: 'Check-ins', v: 6, max: 7, c: teal },
+          { l: 'Consults', v: 1, max: 2, c: t.AMBER },
+          { l: 'Avg kcal', v: 1890, max: 2100, c: t.BLUE },
+        ];
+        return (
+          <>
+            <div style={{ padding: `${t.sectGap}px ${t.padX}px 4px` }}>
+              <BSEyebrow color={teal}>Week totals</BSEyebrow>
+              <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>So far</div>
+            </div>
+            <div style={{ padding: `12px ${t.padX}px 4px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {weekTotals.map(s => {
+                const pct = Math.max(0, Math.min(1, s.v / s.max));
+                return (
+                  <div key={s.l} style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+                      <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: s.c, fontWeight: 700 }}>{s.l}</span>
+                      <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', color: t.INK50, fontWeight: 600 }}>/ {s.max.toLocaleString()}</span>
+                    </div>
+                    <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.04em', lineHeight: 1 }}>{s.v.toLocaleString()}</div>
+                    <div style={{ marginTop: 10, height: 4, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}>
+                      <div style={{ width: `${pct * 100}%`, height: '100%', background: s.c, borderRadius: 999 }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        );
+      })()}
+
       {/* ── HABIT TRACKER (summary on home; full page via tap) ───── */}
       {activeDayLog && activeDayLogDetails && createPortal(
         <div
