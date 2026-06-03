@@ -46,6 +46,14 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-03 — Chat thread list redesign (Friends + Coaches)
+- The `BSClientFeed` DM list `Row` (shared by the **Friends** and **Coaches** tabs)
+  is no longer a bordered card — it's a clean **divider-separated row**: circular
+  avatar with a green **online dot**, bold name, role eyebrow (e.g. "Your coach"),
+  last-message **preview**, **time** top-right, and a **teal unread badge**.
+- Added a list header per section: **"X unread · Y threads"** + a **+ New** action.
+- Coach thread role labels now read "Your coach" / "Your nutritionist".
+
 ### 2026-06-03 — Shape Score header + tier-synced hero color
 - Shape Score page header changed to **Your standing / Shape _Score._** (current serif
   font). The italic **"Score." now takes the current tier's color** (`bsTierColor`), and
