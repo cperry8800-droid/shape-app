@@ -9471,16 +9471,22 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const saveEdit  = () => { setIdentity(draft); setEditing(false); };
   const cancelEdit = () => setEditing(false);
 
-  // Editable account fields (Account pane).
+  // Editable account fields (Account pane) — edited via an in-app sheet.
   const [account, setAccount] = useStateBSC({ email: 'alex@rivera.co', phone: '+1 (415) 555-0144', twoFactor: true });
-  const editAccount = (field, label) => {
-    const next = window.prompt(`Edit ${label}`, account[field]);
-    if (next != null && String(next).trim()) {
-      setAccount(a => ({ ...a, [field]: String(next).trim() }));
-      window.__bsToast?.(`${label} updated`, 'ok');
+  const [editField, setEditField] = useStateBSC(null); // { key, label, value, type, placeholder }
+  const openAccountEdit = (key, label, opts = {}) => setEditField({ key, label, value: opts.value != null ? opts.value : (account[key] || ''), type: opts.type || 'text', placeholder: opts.placeholder || '' });
+  const saveEditField = () => {
+    if (!editField) return;
+    const v = String(editField.value || '').trim();
+    if (!v) { setEditField(null); return; }
+    if (editField.key === 'password') {
+      window.__bsToast?.('Password updated', 'ok');
+    } else {
+      setAccount(a => ({ ...a, [editField.key]: v }));
+      window.__bsToast?.(`${editField.label} updated`, 'ok');
     }
+    setEditField(null);
   };
-  const changePassword = () => window.__bsToast?.('Password reset link sent to your email', 'ok');
   const toggleTwoFactor = () => setAccount(a => {
     const twoFactor = !a.twoFactor;
     window.__bsToast?.(`Two-factor ${twoFactor ? 'enabled' : 'disabled'}`, 'ok');
@@ -9671,9 +9677,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       title: 'Account',
       meta: 'Pro · annual',
       rows: [
-        { l: 'Email',           r: account.email, action: () => editAccount('email', 'Email') },
-        { l: 'Phone',           r: account.phone, action: () => editAccount('phone', 'Phone') },
-        { l: 'Password',        r: 'Change', action: changePassword },
+        { l: 'Email',           r: account.email, action: () => openAccountEdit('email', 'Email', { type: 'email' }) },
+        { l: 'Phone',           r: account.phone, action: () => openAccountEdit('phone', 'Phone', { type: 'tel' }) },
+        { l: 'Password',        r: 'Change', action: () => openAccountEdit('password', 'Password', { type: 'password', value: '', placeholder: 'New password' }) },
         { l: 'Two-factor auth', r: account.twoFactor ? 'On' : 'Off', action: toggleTwoFactor },
       ],
     },
@@ -10138,6 +10144,28 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         <BSFooter left="Shape v2.4.0" right="Build 2026.04" />
       </div>
       </div>
+
+      {/* Account field editor — in-app sheet */}
+      {editField && (
+        <div onClick={() => setEditField(null)} style={{ position: 'fixed', inset: 0, zIndex: 6000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `20px ${t.padX}px calc(22px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)' }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, marginBottom: 10 }}>Edit {editField.label}</div>
+            <input
+              autoFocus
+              type={editField.type}
+              value={editField.value}
+              placeholder={editField.placeholder}
+              onChange={(e) => setEditField(f => ({ ...f, value: e.target.value }))}
+              onKeyDown={(e) => { if (e.key === 'Enter') saveEditField(); }}
+              style={{ width: '100%', padding: '13px 14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, outline: 'none' }}
+            />
+            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+              <button onClick={() => setEditField(null)} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Cancel</button>
+              <button onClick={saveEditField} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
     </BSPage>
   );
 }
