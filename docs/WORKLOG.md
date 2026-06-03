@@ -46,6 +46,15 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-03 — Schedule in sync app-wide (calendar + home follow meal-time pref)
+- **Calendar** (`iosAppBroadsheetCalendar.jsx`, shared client + coach): all event
+  times now render **12-hour** via `bsCalTimeLabel()`, matching the day-log. **MEAL
+  events carry a `slot`** (BFAST/LUNCH/SNACK/DINNER) and read `window.ShapeMealTimes`,
+  so changing a meal time in Settings moves the calendar meal too — no title-parsing.
+- **Home "next up"**: the lunch card time + ordering (`MEAL_AT`) and the `HOME_LUNCH`
+  preview now derive from the lunch preference, so home, day-log, calendar, and the
+  meal-preview eyebrow all show the same scheduled time.
+
 ### 2026-06-03 — Meal-time schedule surfaced in day-log; auth polish; compact score hero
 - **Day-log rows now show the scheduled meal time** (eat page list + day brief + swap
   sheet) via shared `bsMealSchedLabel()` — meal's own time, else the client's meal-time
