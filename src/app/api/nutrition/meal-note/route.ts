@@ -1,14 +1,14 @@
-// Deliver a meal log's note + optional voice memo to the client's coach(es).
+// Deliver a meal log's note + optional voice memo + photo to the client's coach(es).
 //
 // POST /api/nutrition/meal-note  (multipart/form-data)
-//   fields: note?, mealTitle?, mealSummary?, audio? (File)
-//   → { ok, delivered, deliveredCount, audioAttached, reason? }
+//   fields: note?, mealTitle?, mealSummary?, audio? (File), photo? (File)
+//   → { ok, delivered, deliveredCount, audioAttached, photoAttached, reason? }
 //
 // Resolves every linked coach (active/trialing trainer + nutritionist), uploads
-// the audio memo once to the "meal-notes" storage bucket, then posts a message
-// into each coach's direct conversation (via get_or_create_direct_conversation)
-// with the note + meal summary and the memo link in metadata. Accepts the mobile
-// Bearer token or the cookie session. Degrades gracefully when there's no coach.
+// the audio memo and/or meal photo to the "meal-notes" storage bucket, then posts
+// a message into each coach's direct conversation (via get_or_create_direct_conversation)
+// with the note + meal summary and the memo/photo links in metadata. Accepts the
+// mobile Bearer token or the cookie session. Degrades gracefully with no coach.
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
@@ -33,9 +33,11 @@ export async function POST(request: Request) {
   const mealSummary = String(form.get('mealSummary') ?? '').trim();
   const audio = form.get('audio');
   const hasAudio = audio instanceof File && audio.size > 0;
+  const photo = form.get('photo');
+  const hasPhoto = photo instanceof File && photo.size > 0;
 
-  if (!note && !hasAudio) {
-    return NextResponse.json({ ok: true, delivered: false, audioAttached: false, reason: 'nothing_to_send' });
+  if (!note && !hasAudio && !hasPhoto) {
+    return NextResponse.json({ ok: true, delivered: false, audioAttached: false, photoAttached: false, reason: 'nothing_to_send' });
   }
 
   // Resolve every linked coach (active/trialing trainer + nutritionist). RLS
@@ -61,7 +63,7 @@ export async function POST(request: Request) {
   }
   if (!providers.length) {
     // No coaches linked yet — nothing to deliver to (not an error).
-    return NextResponse.json({ ok: true, delivered: false, audioAttached: false, reason: 'no_coach' });
+    return NextResponse.json({ ok: true, delivered: false, audioAttached: false, photoAttached: false, reason: 'no_coach' });
   }
 
   // Upload the voice memo via the service-role admin client (matches the apply
@@ -91,16 +93,45 @@ export async function POST(request: Request) {
     }
   }
 
+  // Upload the meal photo the same way (service-role, meal-notes bucket which
+  // also allows image mime types). Best-effort — degrades if the bucket is
+  // audio-only on an un-migrated project.
+  let photoPath: string | null = null;
+  let photoUrl: string | null = null;
+  if (hasPhoto) {
+    const file = photo as File;
+    const ext = (file.type.split('/')[1] || 'jpg').replace(/[^a-z0-9]/gi, '') || 'jpg';
+    const path = `${user.id}/photo-${Date.now()}.${ext}`;
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    try {
+      const admin = createAdminClient();
+      const { error: upErr } = await admin.storage.from(MEMO_BUCKET).upload(path, bytes, {
+        contentType: file.type || 'image/jpeg',
+        upsert: false,
+      });
+      if (!upErr) {
+        photoPath = path;
+        const { data: signed } = await admin.storage.from(MEMO_BUCKET).createSignedUrl(path, SIGNED_URL_TTL);
+        photoUrl = signed?.signedUrl ?? null;
+      } else {
+        console.warn('[shape-app] meal photo upload failed:', upErr.message);
+      }
+    } catch (e) {
+      console.warn('[shape-app] meal photo upload error:', e instanceof Error ? e.message : e);
+    }
+  }
+
   const bodyLines = [
     `🍽 Logged ${mealTitle}${mealSummary ? ` · ${mealSummary}` : ''}`,
     note,
     hasAudio ? (audioUrl ? '🎤 Voice memo attached' : '🎤 Voice memo recorded') : '',
+    hasPhoto ? (photoUrl ? '📷 Meal photo attached' : '📷 Meal photo added') : '',
   ].filter(Boolean);
   const body = bodyLines.join('\n');
 
   // Fan the note out to every linked coach (trainer + nutritionist). Each gets
-  // its own direct conversation + message; the audio memo link rides along in
-  // metadata so their chat thread can render a player.
+  // its own direct conversation + message; the memo/photo links ride along in
+  // metadata so their chat thread can render a player / image.
   let delivered = 0;
   for (const p of providers) {
     const { data: conversationId, error: convErr } = await supabase.rpc('get_or_create_direct_conversation', {
@@ -121,10 +152,11 @@ export async function POST(request: Request) {
         meal_summary: mealSummary || null,
         note: note || null,
         audio: hasAudio ? { bucket: MEMO_BUCKET, path: audioPath, url: audioUrl } : null,
+        photo: hasPhoto ? { bucket: MEMO_BUCKET, path: photoPath, url: photoUrl } : null,
       },
     });
     if (!msgErr) delivered += 1;
   }
 
-  return NextResponse.json({ ok: true, delivered: delivered > 0, deliveredCount: delivered, audioAttached: !!audioUrl });
+  return NextResponse.json({ ok: true, delivered: delivered > 0, deliveredCount: delivered, audioAttached: !!audioUrl, photoAttached: !!photoUrl });
 }
