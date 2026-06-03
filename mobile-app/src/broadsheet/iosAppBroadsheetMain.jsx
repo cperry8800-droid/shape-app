@@ -886,8 +886,8 @@ function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
 
         {/* Secondary links */}
         <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '24px 18px', marginTop: 46 }}>
-          <button onClick={() => { setMode(isCreate ? 'signin' : 'create'); setAuthError(''); }} style={{ ...linkBtn, fontSize: 11 }}>{isCreate ? 'Have an account? Sign in' : 'New here? Join Shape'}</button>
-          {isPhone && <button onClick={() => switchMethod('email')} style={{ ...linkBtn, fontSize: 11 }}>Use email instead</button>}
+          <button onClick={() => { setMode(isCreate ? 'signin' : 'create'); setAuthError(''); }} style={{ ...linkBtn, fontSize: 11, fontWeight: 800 }}>{isCreate ? 'Have an account? Sign in' : 'New here? Join Shape'}</button>
+          {isPhone && <button onClick={() => switchMethod('email')} style={{ ...linkBtn, fontSize: 11, fontWeight: 800 }}>Use email instead</button>}
           <button onClick={onBrowse} style={{ background: 'rgba(46,224,196,0.12)', border: '1.5px solid #2ee0c4', borderRadius: 999, color: '#2ee0c4', fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, letterSpacing: '-0.01em', cursor: 'pointer', padding: '8px 22px' }}>No account? Browse the app →</button>
         </div>
       </div>
