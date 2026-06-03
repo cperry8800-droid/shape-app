@@ -8263,7 +8263,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
                 <span>{a.note}</span>
               </div>
             </div>
-            <div style={{ alignSelf: 'center', textAlign: 'right', fontFamily: t.MONO, fontSize: 14, fontWeight: 800, letterSpacing: '0.08em', color: t.ACCENT }}>{a.pts}</div>
+            <div style={{ alignSelf: 'center', textAlign: 'right', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', color: t.ACCENT }}>{a.pts}</div>
           </div>
         ))}
       </div>
