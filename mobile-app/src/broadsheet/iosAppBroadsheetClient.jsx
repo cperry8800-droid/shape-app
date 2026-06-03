@@ -897,6 +897,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
   const [mode, setMode] = useStateBSC('adjust');
   const [portion, setPortion] = useStateBSC(1);
   const [note, setNote] = useStateBSC('');
+  const [foodQuery, setFoodQuery] = useStateBSC('');
   const [logged, setLogged] = useStateBSC(false);
   const [ings, setIngs] = useStateBSC([
     { name: 'Grilled chicken breast', qty: '6 oz',  kcal: 280, p: 52, c: 0,  f: 8,  on: true },
@@ -1193,27 +1194,42 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
         </div>
       )}
 
-      {mode === 'search' && (
-        <div style={{ padding: `18px ${t.padX}px 4px` }}>
-          <input placeholder="Search foods, brands, barcodes…" style={{ width: '100%', padding: '13px 14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, outline: 'none' }} />
-          <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Recents</div>
-          <div style={{ marginTop: 2 }}>
-            {[
-              { name: 'Chipotle · chicken bowl', sub: '560 kcal · 42P' },
-              { name: 'Whey isolate',            sub: '120 kcal · 25P' },
-              { name: 'Jasmine rice · 1c',       sub: '205 kcal · 4P' },
-            ].map((r, i, arr) => (
-              <div key={r.name} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{r.name}</div>
-                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{r.sub}</div>
+      {mode === 'search' && (() => {
+        const FOODS = [
+          { name: 'Chipotle · chicken bowl', qty: '1 bowl',  kcal: 560, p: 42, c: 52, f: 18 },
+          { name: 'Whey isolate',            qty: '1 scoop', kcal: 120, p: 25, c: 3,  f: 1  },
+          { name: 'Jasmine rice',            qty: '1 cup',   kcal: 205, p: 4,  c: 45, f: 0  },
+          { name: 'Grilled chicken breast',  qty: '6 oz',    kcal: 280, p: 52, c: 0,  f: 8  },
+          { name: 'Greek yogurt · plain',    qty: '1 cup',   kcal: 150, p: 25, c: 9,  f: 4  },
+          { name: 'Banana',                  qty: '1 medium',kcal: 105, p: 1,  c: 27, f: 0  },
+          { name: 'Almonds',                 qty: '1 oz',    kcal: 165, p: 6,  c: 6,  f: 14 },
+          { name: 'Olive oil',               qty: '1 tbsp',  kcal: 120, p: 0,  c: 0,  f: 14 },
+        ];
+        const q = foodQuery.trim().toLowerCase();
+        const rows = q ? FOODS.filter(f => f.name.toLowerCase().includes(q)) : FOODS.slice(0, 3);
+        const addFood = (f) => {
+          setIngs(arr => [...arr, { name: f.name, qty: f.qty, kcal: f.kcal, p: f.p, c: f.c, f: f.f, on: true }]);
+          window.__bsToast?.(`Added ${f.name}`, 'ok');
+        };
+        return (
+          <div style={{ padding: `18px ${t.padX}px 4px` }}>
+            <input value={foodQuery} onChange={(e) => setFoodQuery(e.target.value)} placeholder="Search foods, brands, barcodes…" style={{ width: '100%', padding: '13px 14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, outline: 'none' }} />
+            <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{q ? `${rows.length} result${rows.length === 1 ? '' : 's'}` : 'Recents'}</div>
+            <div style={{ marginTop: 2 }}>
+              {rows.map((r, i) => (
+                <div key={r.name} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 0', borderBottom: i === rows.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{r.name}</div>
+                    <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{r.qty} · {r.kcal} kcal · {r.p}P</div>
+                  </div>
+                  <button onClick={() => addFood(r)} style={{ flexShrink: 0, background: 'transparent', border: 0, color: teal, cursor: 'pointer', fontSize: 20, fontWeight: 700, lineHeight: 1, padding: '4px 6px' }}>+</button>
                 </div>
-                <button onClick={() => window.__bsToast?.(`Added ${r.name}`, 'ok')} style={{ flexShrink: 0, background: 'transparent', border: 0, color: teal, cursor: 'pointer', fontSize: 20, fontWeight: 700, lineHeight: 1, padding: '4px 6px' }}>+</button>
-              </div>
-            ))}
+              ))}
+              {rows.length === 0 && <div style={{ padding: '16px 0', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50 }}>No matches for “{foodQuery.trim()}”.</div>}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {mode === 'voice' && (
         <div style={{ padding: `18px ${t.padX}px 4px` }}>
