@@ -46,6 +46,17 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-03 — tier color system + score-card focus
+- Added `bsTierColor()` in the client module (Raw/Base = steel, Tempo = gold,
+  Form = teal, Peak = violet, Legend = rose), exposed on `window` for the Pros app.
+- Shape Score card (client `BSClientMe` + coach `BSProMe`): the **tier is now a big
+  tier-colored line** on the card (no pill, no header chip) with a tier-colored ring;
+  the coach card's TIER bar uses the tier color too.
+- Full Shape Score page: the reward-tier list is color-coded (color dot + tier-colored
+  name; the user's current tier is marked "· you").
+- **Follow-up (next):** apply `bsTierColor` to the remaining tier displays — community
+  feed tier tags and the marketplace coach tier label — for full app-wide coordination.
+
 ### 2026-06-03 — coach profile page redesign
 - Rebuilt `BSCoachDetailPublic` to match the app: role-gradient hero card with a
   circular avatar, tier chip, headline, stat pills + a 3-up mini-stats row; rounded
