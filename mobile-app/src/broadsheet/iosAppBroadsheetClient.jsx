@@ -3945,6 +3945,12 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
   _bsScrollTopOnMount();
   const r = recipe;
   const slug = bsSkSlug(r.title);
+  // Shared "recipe anatomy" with BSMealPreview: macro split (% of kcal).
+  const _mp = r.macros || {};
+  const _totCal = (_mp.p || 0) * 4 + (_mp.c || 0) * 4 + (_mp.f || 0) * 9 || 1;
+  const pPct = Math.round(((_mp.p || 0) * 4 / _totCal) * 100);
+  const cPct = Math.round(((_mp.c || 0) * 4 / _totCal) * 100);
+  const fPct = 100 - pPct - cPct;
   const [reviews, setReviews] = useStateBSC([]);
   const [formRating, setFormRating] = useStateBSC(0);
   const [reviewText, setReviewText] = useStateBSC('');
@@ -3972,18 +3978,36 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
           <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', color: '#fff', background: 'rgba(0,0,0,0.4)', padding: '4px 9px', borderRadius: 999 }}>{r.time.toUpperCase()} · SERVES {r.servings} · {r.kcal} KCAL · {(r.diet || '').toUpperCase()}</span>
         </div>
       </div>
-      <div style={{ padding: `16px ${t.padX}px 0` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '14px 8px' }}>
-          {[['PROTEIN', r.macros.p], ['CARBS', r.macros.c], ['FAT', r.macros.f]].map(([l, v], i) => (
-            <div key={l} style={{ borderLeft: i > 0 ? `1px solid ${t.HAIR}` : 0, paddingLeft: i > 0 ? 12 : 4 }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
-              <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 22, color: t.INK, marginTop: 4, letterSpacing: '-0.03em' }}>{v}g</div>
+      <div style={{ padding: `16px ${t.padX}px 6px` }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '14px 6px' }}>
+          {[['KCAL', String(r.kcal)], ['PROTEIN', _mp.p + 'g'], ['CARBS', _mp.c + 'g'], ['FAT', _mp.f + 'g']].map(([l, v], i) => (
+            <div key={l} style={{ borderLeft: i > 0 ? `1px solid ${t.HAIR}` : 0, paddingLeft: 10, paddingRight: 6 }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
+              <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 21, color: t.INK, marginTop: 4, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
             </div>
           ))}
         </div>
       </div>
+
+      {/* Macro split bar — % of kcal (shared with the meal page) */}
+      <div style={{ padding: `10px ${t.padX}px 6px` }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase', marginBottom: 8, fontWeight: 700 }}>Macro split · % of kcal</div>
+        <div style={{ display: 'flex', height: 12, borderRadius: 999, overflow: 'hidden', background: t.HAIR }}>
+          <div style={{ width: `${pPct}%`, background: t.GREEN }} />
+          <div style={{ width: `${cPct}%`, background: t.AMBER }} />
+          <div style={{ width: `${fPct}%`, background: t.RUST }} />
+        </div>
+        <div style={{ display: 'flex', gap: 14, marginTop: 9, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK70, fontWeight: 600 }}>
+          <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 999, background: t.GREEN, marginRight: 5 }} />P {pPct}%</span>
+          <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 999, background: t.AMBER, marginRight: 5 }} />C {cPct}%</span>
+          <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 999, background: t.RUST,  marginRight: 5 }} />F {fPct}%</span>
+        </div>
+      </div>
       {r.blurb && (
-        <div style={{ padding: `14px ${t.padX}px 0`, fontFamily: t.DISPLAY, fontSize: 14, fontStyle: 'italic', color: t.INK70, lineHeight: 1.5 }}>"{r.blurb}" — {r.by}, {r.byRole}</div>
+        <div style={{ padding: `14px ${t.padX}px 0` }}>
+          <BSEyebrow color={t.ACCENT}>The dish</BSEyebrow>
+          <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 14, fontStyle: 'italic', color: t.INK70, lineHeight: 1.5 }}>"{r.blurb}" — {r.by}, {r.byRole}</div>
+        </div>
       )}
       <BSSection title="Ingredients" meta={`${r.ingredients.length} items`} />
       <div style={{ padding: `0 ${t.padX}px` }}>
