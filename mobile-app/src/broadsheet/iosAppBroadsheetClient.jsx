@@ -8850,8 +8850,8 @@ function BSClientGoals({ onBack }) {
             <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: 0 }}>← Back</button>
           </div>
         </div>
-        <h1 style={{ margin: '10px 0 0', fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontSize: 40, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>{hHead ? hHead + ' ' : ''}<span style={{ fontStyle: 'italic', color: accent }}>{hLast}.</span></h1>
-        {headInfo.subtitle ? <div style={{ marginTop: 9, fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontStyle: 'italic', fontSize: 15, color: t.INK50, lineHeight: 1.4 }}>{headInfo.subtitle}</div> : null}
+        <h1 style={{ margin: '10px 0 0', fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>{hHead ? hHead + ' ' : ''}<span style={{ fontStyle: 'italic', color: accent }}>{hLast}.</span></h1>
+        {headInfo.subtitle ? <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15, color: t.INK50, lineHeight: 1.4 }}>{headInfo.subtitle}</div> : null}
       </div>
       {/* Overall / Training / Nutrition tabs */}
       <div style={{ padding: `16px ${t.padX}px 0` }}>
