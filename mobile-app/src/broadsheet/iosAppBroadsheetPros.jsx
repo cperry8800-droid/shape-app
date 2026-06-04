@@ -3006,7 +3006,10 @@ function BSNutriPlans() {
 function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
   const t = useBS();
   const isCoach = role === 'trainer';
-  const accent = isCoach ? t.AMBER : t.RUST;
+  const accent = isCoach ? t.RUST : '#a07a2e';   // trainer rust · nutritionist gold
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const [revHidden, setRevHidden] = useStateBSP(() => { try { return localStorage.getItem('bs_pro_rev_hidden') === '1'; } catch (e) { return false; } });
+  const toggleRev = () => setRevHidden(v => { const nv = !v; try { localStorage.setItem('bs_pro_rev_hidden', nv ? '1' : '0'); } catch (e) {} return nv; });
   // Use the signed-in account's real name (same source as Settings) so the Me
   // header matches; fall back to the demo prop when signed out.
   const authProfile = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.().profile) || {};
@@ -3058,7 +3061,19 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
 
   return (
     <BSPage>
-      <BSPageHeader kicker={isCoach ? 'Coach · 4.9 ★' : 'Nutritionist · 4.9 ★'} title={<>{displayName.split(' ')[0]}<br/>{displayName.split(' ').slice(1).join(' ')}.</>} trailing={<BSAvatar init={init} size={32} fill={bsTierColor(scoreProfile.tier)} ink={'#fff'} onClick={onSettings} />} />
+      <div style={{ padding: `50px ${t.padX}px 0` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{isCoach ? 'TRAINER · HYPERTROPHY · SF' : 'REGISTERED DIETITIAN · REMOTE'}</div>
+            {(() => { const w = (displayName || '').trim().split(/\s+/); const lastW = w.length > 1 ? w.pop() : ''; const firstL = w.join(' '); return (
+              <div style={{ marginTop: 8, fontFamily: t.SERIF, fontSize: 40, fontWeight: 600, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>{firstL || displayName}<br /><span style={{ fontStyle: 'italic', color: accent }}>{lastW ? `${lastW}.` : '.'}</span></div>
+            ); })()}
+          </div>
+          <button onClick={onSettings} aria-label="Settings" style={{ flexShrink: 0, width: 40, height: 40, borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={t.INK} strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19" /></svg>
+          </button>
+        </div>
+      </div>
 
       {(() => {
         const total = scoreProfile.total || 0;
@@ -3076,8 +3091,8 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
           <div style={{ padding: `16px ${t.padX}px 6px` }}>
             <button onClick={() => setShowScore(true)} style={{
               width: '100%', textAlign: 'left', cursor: 'pointer', color: t.INK,
-              border: `1px solid ${t.RULE}`, borderRadius: 18,
-              background: t.PAPER2,
+              border: `1px solid ${accent}33`, borderRadius: 18,
+              background: `linear-gradient(155deg, ${accent}10, ${t.PAPER2} 75%), ${t.PAPER2}`,
               padding: 18,
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14 }}>
@@ -3112,46 +3127,82 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
         );
       })()}
 
-      <div style={{ padding: `22px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
-        <BSEyebrow color={t.ACCENT}>This month</BSEyebrow>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', marginTop: 12, gap: 0 }}>
-          {[
-            { l: 'CLIENTS', v: isCoach ? '14' : '22' },
-            { l: 'REV',     v: isCoach ? '$8.4K' : '$11.2K' },
-            { l: 'RATING',  v: '4.9' },
-          ].map((m, i) => (
-            <div key={m.l} style={{ borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0, paddingLeft: i > 0 ? 12 : 0 }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', color: t.INK50 }}>{m.l}</div>
-              <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 30, color: t.INK, marginTop: 4, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{m.v}</div>
-            </div>
-          ))}
+      <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* Practice goal */}
+        <button onClick={() => setShowGoals(true)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', color: t.INK, border: `1px solid ${accent}33`, borderRadius: 18, background: `linear-gradient(155deg, ${accent}14, ${t.PAPER2} 70%), ${t.PAPER2}`, padding: 18 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', color: accent }}>PRACTICE GOAL · Q3 ›</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>{isCoach ? '62% THERE' : '47% THERE'}</span>
+          </div>
+          <div style={{ marginTop: 8, fontFamily: t.SERIF, fontSize: 26, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{isCoach ? 'Twenty by ' : 'Six-K by '}<span style={{ fontStyle: 'italic', color: accent }}>September.</span></div>
+          <div style={{ marginTop: 12, height: 6, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${(isCoach ? 0.62 : 0.47) * 100}%`, background: accent, borderRadius: 999 }} /></div>
+          <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.04em', color: accent }}>{isCoach ? '17 / 20 clients · $6.2k MRR · on track' : '$4.1k / $6k MRR · 11 clients · on track'}</div>
+        </button>
+        {/* This month — with a visible/hidden toggle on the revenue */}
+        <div style={{ border: `1px solid ${accent}33`, borderRadius: 18, background: `linear-gradient(155deg, ${accent}14, ${t.PAPER2} 70%), ${t.PAPER2}`, padding: 18 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>THIS MONTH</span>
+            <button onClick={toggleRev} aria-label="Toggle revenue visibility" style={{ display: 'flex', alignItems: 'center', gap: 6, borderRadius: 999, border: `1px solid ${revHidden ? t.RULE : accent}`, background: revHidden ? 'transparent' : `${accent}1c`, color: revHidden ? t.INK50 : accent, padding: '5px 11px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em' }}>
+              {revHidden
+                ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+                : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>}
+              <span>{revHidden ? 'HIDDEN' : 'VISIBLE'}</span>
+            </button>
+          </div>
+          <div style={{ marginTop: 6, fontFamily: t.SERIF, fontSize: 54, fontWeight: 600, color: t.INK, lineHeight: 0.95, letterSpacing: '-0.02em' }}>{revHidden ? '$••••' : (isCoach ? '$6,240' : '$4,120')}</div>
+          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: accent }}>{isCoach ? '17 active · 94% retention · +3 mo' : '11 active · 92% retention · +3 mo'}</div>
+          <div style={{ marginTop: 18, display: 'flex', gap: 8, alignItems: 'flex-end', height: 30 }}>
+            {(isCoach ? [0.5, 0.58, 0.52, 0.66, 0.7, 0.82, 0.95] : [0.55, 0.5, 0.6, 0.58, 0.7, 0.78, 0.9]).map((h, i, a) => (
+              <div key={i} style={{ flex: 1, height: `${Math.max(0.2, h) * 100}%`, borderRadius: 5, background: i === a.length - 1 ? accent : `${accent}2e` }} />
+            ))}
+          </div>
+          <div style={{ marginTop: 7, display: 'flex', gap: 8 }}>
+            {['NOV', 'DEC', 'JAN', 'FEB', 'MAR', 'APR', 'MAY'].map(m => <div key={m} style={{ flex: 1, textAlign: 'center', fontFamily: t.MONO, fontSize: 8, color: t.INK50, letterSpacing: '0.04em' }}>{m}</div>)}
+          </div>
         </div>
       </div>
 
-      <BSSection title="Settings" />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
-        {[
-          { l: 'Public profile',          r: 'Live', action: () => setShowPublicProfile(true) },
-          { l: 'Booking calendar',        r: 'Synced', action: () => setShowBookingCalendar(true) },
-          { l: 'Goal plan',               r: 'Q2 targets', action: () => setShowGoals(true) },
-          { l: 'Shape Store',             r: `${scoreProfile.available.toLocaleString()} pts`, action: () => setShowStore(true) },
-          { l: 'Payouts',                 r: 'Stripe', action: startPayoutSetup },
-          { l: 'Contact support',         r: '24h reply', action: () => setShowContact(true) },
-          { l: 'Terms of service',        r: 'Legal', action: () => setShowTerms(true) },
-          { l: 'Notifications',           r: 'On', action: () => setShowNotifications(true) },
-          { l: 'Sign out', alert: true },
-        ].map((s, i, arr) => (
-          <div key={i} onClick={s.alert ? onLogout : s.action} style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: `${t.rowY + 4}px 0`,
-            borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-            cursor: (s.alert || s.action) ? 'pointer' : 'default',
-          }}>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em' }}>{s.l}</span>
-            {s.r && <BSEyebrow>{s.r}</BSEyebrow>}
+      {(() => {
+        const numRow = (it, i, subCol) => (
+          <div key={i} onClick={it.onClick} style={{ display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 12, alignItems: 'center', padding: '15px 0', borderTop: `1px solid ${t.HAIR}`, cursor: it.onClick ? 'pointer' : 'default' }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: t.SERIF, fontSize: 17, fontWeight: 600, color: it.danger ? t.RUST : t.INK }}>{it.l}</div>
+              {it.sub && <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.04em', color: it.danger ? t.RUST : subCol }}>{it.sub}</div>}
+            </div>
+            <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.06em', color: t.INK50, whiteSpace: 'nowrap' }}>{it.r}</span>
           </div>
-        ))}
-      </div>
+        );
+        const shortcuts = [
+          { l: 'Marketplace listing', sub: isCoach ? 'Ranked #12 in Hypertrophy · SF' : 'Ranked #4 in Sports Nutrition · Remote', r: 'View', onClick: () => setShowPublicProfile(true) },
+          { l: 'Public profile', sub: isCoach ? 'shape.app/@jordan' : 'shape.app/@maya', r: 'Edit', onClick: () => setShowPublicProfile(true) },
+          { l: 'Payouts', sub: 'Weekly · Stripe · Fri', r: '$4,820', onClick: startPayoutSetup },
+          { l: 'Availability', sub: 'Mon-Fri · 9 am - 6 pm', r: 'Edit', onClick: () => setShowBookingCalendar(true) },
+          { l: 'Rates', sub: isCoach ? '$95/session · $120/mo' : '$140/plan · $80/consult', r: 'Edit', onClick: () => setShowPublicProfile(true) },
+        ];
+        const settings = [
+          { l: 'Notifications', sub: 'Sessions · messages · plans', r: '→', onClick: () => setShowNotifications(true) },
+          { l: 'Certifications', sub: isCoach ? 'NASM · FMS · CSCS' : 'RDN · CSSD', r: '→', onClick: onSettings },
+          { l: 'Shape Store', sub: `${(scoreProfile.available || 0).toLocaleString()} pts available`, r: '→', onClick: () => setShowStore(true) },
+          { l: 'Help & support', sub: 'Docs · email · community', r: '→', onClick: () => setShowContact(true) },
+          { l: 'Terms of service', sub: 'Privacy · legal', r: '→', onClick: () => setShowTerms(true) },
+          { l: 'Sign out', sub: '', r: '', onClick: onLogout, danger: true },
+        ];
+        const head = (eyebrow, title, mt) => (
+          <div style={{ marginTop: mt }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: teal }}>{eyebrow}</div>
+            <div style={{ marginTop: 5, fontFamily: t.SERIF, fontSize: 30, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{title}</div>
+          </div>
+        );
+        return (
+          <div style={{ padding: `4px ${t.padX}px 8px` }}>
+            {head('YOUR PRACTICE', 'Shortcuts', 22)}
+            <div style={{ marginTop: 8 }}>{shortcuts.map((it, i) => numRow(it, i, accent))}</div>
+            {head('ACCOUNT', 'Settings', 26)}
+            <div style={{ marginTop: 8 }}>{settings.map((it, i) => numRow(it, i, t.INK50))}</div>
+          </div>
+        );
+      })()}
 
       <BSFooter left={isCoach ? 'The Coach Edition' : 'The Nutri Edition'} right="Pg 4 of 4" />
     </BSPage>
