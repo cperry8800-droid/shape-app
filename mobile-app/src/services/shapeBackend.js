@@ -282,6 +282,7 @@ async function getCurrentSession() {
   const user = data.session?.user || null;
   const profile = user ? await fetchProfile(user) : null;
   const cached = setCached({ user, session: data.session, profile });
+  if (user) { try { startPresence(); } catch (e) {} } // join "online" presence app-wide
   if (data.session) {
     await bridgeSessionToApi(data.session).catch((error) => {
       console.warn('[shape] Session bridge failed.', error);

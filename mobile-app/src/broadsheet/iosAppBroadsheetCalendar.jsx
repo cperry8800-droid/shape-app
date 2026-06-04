@@ -73,26 +73,25 @@ function BSSheetHost({ children, onDismiss, z }) {
       background: 'rgba(0,0,0,0.35)', opacity: mounted ? 1 : 0, transition: 'opacity 200ms ease',
     }} onClick={onDismiss}>
       <div onClick={e => e.stopPropagation()} className="bs-hide-scroll" style={{
-        position: 'absolute', left: 0, right: 0, bottom: 0, top: 36,
+        position: 'absolute', left: 0, right: 0, bottom: 0, top: 0,
         background: t.PAPER, color: t.INK,
         transform: mounted ? 'translateY(0)' : 'translateY(20px)',
         transition: 'transform 240ms cubic-bezier(0.2,0.8,0.2,1)',
         overflowY: 'auto', overflowX: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none',
-        borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`,
-        boxShadow: '0 -20px 40px rgba(0,0,0,0.25)',
+        borderTop: 0, boxShadow: '0 -20px 40px rgba(0,0,0,0.25)',
       }}>
-        <div style={{ position: 'sticky', top: 0, background: t.PAPER, zIndex: 2, borderBottom: `1px solid ${t.RULE}` }}>
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0 6px' }}>
-            <div style={{ width: 36, height: 3, background: t.INK, opacity: 0.4 }} />
+        <div style={{ position: 'sticky', top: 0, background: t.PAPER, zIndex: 2, borderBottom: `1px solid ${t.RULE}`, paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '11px 0 9px', minHeight: 24 }}>
+            <button onClick={onDismiss} style={{
+              position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
+              background: 'transparent', border: 0, color: t.INK,
+              fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase',
+              fontWeight: 700, cursor: 'pointer', padding: 6, display: 'inline-flex', alignItems: 'center', gap: 6,
+            }}>← Back</button>
+            <div style={{ width: 36, height: 3, background: t.INK, opacity: 0.4, borderRadius: 999 }} />
           </div>
         </div>
         <div style={{ position: 'relative' }}>
-          <button onClick={onDismiss} style={{ borderRadius: t.RADIUS_SM,
-            position: 'absolute', top: 10, right: 14, zIndex: 3,
-            background: 'transparent', border: 0, color: t.INK,
-            fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase',
-            fontWeight: 700, cursor: 'pointer', padding: 6,
-          }}>Close ✕</button>
           {children}
         </div>
       </div>
@@ -676,7 +675,7 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
   return (
     <div>
       {/* Masthead-ish */}
-      <div style={{ padding: `40px ${t.padX}px 18px`, borderBottom: `1px solid ${t.RULE}` }}>
+      <div style={{ padding: `18px ${t.padX}px 18px`, borderBottom: `1px solid ${t.RULE}` }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 10 }}>
           <BSTagCal color={event.accent}>{event.kind}</BSTagCal>
           <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', color: t.INK70, fontWeight: 600 }}>{event.date ? new Date(event.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : `May ${event.day}`} · {bsCalTimeLabel(event)}{event.dur ? ` · ${event.dur}m` : ''}</span>
@@ -695,11 +694,11 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
       {!isWorkout && !isMeal && !isConsult && !isCheck && <BSEventGenericBody event={event} />}
 
       {/* Actions */}
-      <div style={{ padding: `16px 14px calc(18px + env(safe-area-inset-bottom, 0px))`, background: t.PAPER, borderTop: `1px solid ${t.RULE}`, display: 'flex', gap: 8 }}>
+      <div style={{ padding: `16px 14px calc(84px + env(safe-area-inset-bottom, 0px))`, background: t.PAPER, borderTop: `1px solid ${t.RULE}`, display: 'flex', gap: 8 }}>
         {(isWorkout || isMeal) && (
           <button onClick={() => { onClose(); window.__bsToast?.('Logged ✓', 'ok'); }} style={primaryBtn(t)}>{role === 'trainer' ? 'Mark complete' : (isMeal ? 'Log meal' : 'Start session →')}</button>
         )}
-        {isConsult && <button onClick={() => { onClose(); window.__bsToast?.('Joining call…'); }} style={primaryBtn(t)}>Join consult →</button>}
+        {isConsult && <button onClick={() => { if (event.meetingUrl) { try { window.open(event.meetingUrl, '_blank', 'noopener'); } catch (e) {} onClose(); } else { onClose(); window.__bsToast?.('No meeting link yet — your coach will add one.', 'warn'); } }} style={primaryBtn(t)}>Join consult →</button>}
         {isCheck   && <button onClick={() => { onClose(); window.__bsToast?.('Submitted check-in', 'ok'); }} style={primaryBtn(t)}>Submit check-in</button>}
         {!isWorkout && !isMeal && !isConsult && !isCheck && <button onClick={onClose} style={primaryBtn(t)}>Done</button>}
         {canDelete
@@ -760,17 +759,8 @@ function BSEventWorkoutBody({ event, role }) {
           ))}
         </div>
       </div>
-      {/* Coach note — soft rounded box */}
-      <div style={{ margin: `16px ${t.padX}px 18px`, padding: 16, borderRadius: 16, background: t.INK, color: t.PAPER }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.AMBER, marginBottom: 8, fontWeight: 700 }}>▍ Coach note</div>
-        <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontWeight: 500, fontSize: 16, lineHeight: 1.35, letterSpacing: '-0.01em' }}>
-          {role === 'trainer'
-            ? '"Watch the eccentric on row 2 — last week she cheated tempo at rep 6."'
-            : '"Dead hang every pull-up. Chest to bar or it doesn\'t count."'}
-        </div>
-      </div>
       {/* Padding for sticky footer */}
-      <div style={{ height: 6 }} />
+      <div style={{ height: 12 }} />
     </>
   );
 }
