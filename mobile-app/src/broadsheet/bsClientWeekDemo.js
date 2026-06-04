@@ -74,3 +74,90 @@ export const BS_CLIENT_WEEK_DEMO = [
 
 // Order categories show as week-strip dots (REST is intentionally omitted).
 export const BS_CLIENT_WEEK_DOT_ORDER = ['TRN', 'MEAL', 'CHK', 'CON'];
+
+// ═══════════════════════════════════════════════════════════
+// WORKOUT DETAIL — keyed by the TRN titles used in the week above
+// ═══════════════════════════════════════════════════════════
+// Drives the home "Up next" workout card + its preview, so the featured workout
+// always matches the day's actual session (from the shared week). `cardio: true`
+// entries are segment-based (no load). `meta` is the summary line; `note` the
+// coach's cue. Each move: { name, scheme, cue, load?, up? }.
+export const BS_CLIENT_WORKOUTS = {
+  'Upper Pull — Peak': {
+    meta: '52 min · 6 moves · RPE 8 · ~420 kcal',
+    note: 'Peak week — tempo matters more than load. 3s eccentric on every pull. If bar speed drops, drop a rep, not the tempo.',
+    moves: [
+      { name: 'Pull-up',        scheme: '4 × 6-8 · 3 min rest', cue: 'Dead hang. Chest to bar.',      load: '42 lb', up: true },
+      { name: 'Barbell row',    scheme: '4 × 8 · 2 min rest',   cue: 'Hinge 45°, pull to sternum.',   load: '155 lb' },
+      { name: 'Chest-sup. row', scheme: '3 × 10 · 90s rest',    cue: 'Pause 1s at peak contraction.', load: '60 lb' },
+      { name: 'Face pull',      scheme: '3 × 15 · 60s rest',    cue: 'External rotation at the top.', load: '35 lb' },
+      { name: 'Incline curl',   scheme: '3 × 12 · 60s rest',    cue: 'Full stretch. 3s eccentric.',   load: '27.5 lb' },
+      { name: 'Farmer carry',   scheme: '3 × 40m · 60s rest',   cue: 'Crush grip. Ribs down.',        load: '80 lb' },
+    ],
+  },
+  'Upper Push — Peak': {
+    meta: '54 min · 6 moves · RPE 8 · ~430 kcal',
+    note: 'Peak push. Brace hard off the chest, own the lockout. Leave one clean rep in the tank on the top sets.',
+    moves: [
+      { name: 'Bench press',     scheme: '4 × 5 · 3 min rest',  cue: 'Tuck elbows, drive heels.',     load: '165 lb', up: true },
+      { name: 'Overhead press',  scheme: '4 × 6 · 2 min rest',  cue: 'Squeeze glutes, ribs down.',    load: '95 lb' },
+      { name: 'Incline DB press',scheme: '3 × 10 · 90s rest',   cue: 'Stretch at the bottom.',        load: '55 lb' },
+      { name: 'Weighted dip',    scheme: '3 × 8 · 90s rest',    cue: 'Lean forward 15°.',             load: '+25 lb' },
+      { name: 'Lateral raise',   scheme: '3 × 15 · 45s rest',   cue: 'Lead with the elbows.',         load: '20 lb' },
+      { name: 'Triceps pushdown',scheme: '3 × 12 · 45s rest',   cue: 'Lock the elbows in.',           load: '50 lb' },
+    ],
+  },
+  'Lower Pull — Vol.': {
+    meta: '58 min · 6 moves · RPE 7 · ~460 kcal',
+    note: 'Volume day — chase the stretch, not the ego. Smooth bar path off the floor, hips and bar rise together.',
+    moves: [
+      { name: 'Deadlift',        scheme: '4 × 5 · 3 min rest',  cue: 'Wedge in. Push the floor away.',load: '275 lb', up: true },
+      { name: 'Romanian DL',     scheme: '4 × 8 · 2 min rest',  cue: 'Soft knees, bar grazes thigh.', load: '185 lb' },
+      { name: 'Hamstring curl',  scheme: '3 × 12 · 75s rest',   cue: 'Pause 1s at full flexion.',     load: '70 lb' },
+      { name: 'Back extension',  scheme: '3 × 15 · 60s rest',   cue: 'Round up one vertebra at a time.', load: '25 lb' },
+      { name: 'Hip thrust',      scheme: '3 × 12 · 75s rest',   cue: 'Chin tucked, ribs down at top.',load: '225 lb' },
+      { name: 'Calf raise',      scheme: '4 × 15 · 45s rest',   cue: 'Full stretch, 2s pause up.',    load: '120 lb' },
+    ],
+  },
+  'Lower Push — Peak': {
+    meta: '54 min · 6 moves · RPE 8 · ~440 kcal',
+    note: 'Peak legs. Stay tight in the hole, drive the floor apart. Depth before load — every rep to the same mark.',
+    moves: [
+      { name: 'Back squat',      scheme: '5 × 3 · 3 min rest',  cue: 'Big air, brace, sit between hips.', load: '255 lb', up: true },
+      { name: 'Front squat',     scheme: '3 × 6 · 2 min rest',  cue: 'Elbows high, stay upright.',     load: '165 lb' },
+      { name: 'Leg press',       scheme: '3 × 10 · 90s rest',   cue: 'Knees track over toes.',        load: '360 lb' },
+      { name: 'Walking lunge',   scheme: '3 × 20 · 90s rest',   cue: 'Long step, vertical shin.',     load: '50 lb' },
+      { name: 'Leg extension',   scheme: '3 × 12 · 60s rest',   cue: 'Pause 1s at the top.',          load: '90 lb' },
+      { name: 'Standing calf',   scheme: '4 × 12 · 45s rest',   cue: 'Full ROM, no bounce.',          load: '140 lb' },
+    ],
+  },
+  'Z2 run · 45 min': {
+    cardio: true,
+    meta: '45 min · Zone 2 · ~5.6k · ~380 kcal',
+    note: 'Keep it conversational — nose-breathing pace. If HR drifts over Z2, walk it back. Easy is the point.',
+    moves: [
+      { name: 'Warm-up',     scheme: '10 min · easy', cue: 'Build from a walk to an easy jog.' },
+      { name: 'Zone 2 main', scheme: '30 min · steady', cue: 'Hold HR 60-70% — conversational.' },
+      { name: 'Cooldown',    scheme: '5 min · walk',  cue: 'Bring the heart rate down, breathe.' },
+    ],
+  },
+  'Long run · 75 min': {
+    cardio: true,
+    meta: '75 min · easy · ~11k · ~620 kcal',
+    note: 'Time on feet, not pace. Fuel at 45 min, sip water throughout. Finish feeling like you could keep going.',
+    moves: [
+      { name: 'Warm-up',     scheme: '10 min · easy',   cue: 'Loose and relaxed, let it open up.' },
+      { name: 'Steady main', scheme: '55 min · aerobic',cue: 'Even effort, relaxed shoulders.' },
+      { name: 'Strides',     scheme: '4 × 20s · brisk', cue: 'Quick turnover, not a sprint.' },
+      { name: 'Cooldown',    scheme: '5 min · walk',    cue: 'Easy walk, deep breaths.' },
+    ],
+  },
+};
+
+// Today's workout item (from the shared week) + its detail, or null on a rest day.
+export function bsClientWorkoutForDay(weekIdx) {
+  const day = BS_CLIENT_WEEK_DEMO[weekIdx] || [];
+  const item = day.find((it) => it.kind === 'TRN');
+  if (!item) return null;
+  return { ...item, detail: BS_CLIENT_WORKOUTS[item.title] || null };
+}
