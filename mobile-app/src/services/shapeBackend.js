@@ -3001,10 +3001,14 @@ async function sendChannelMessage({ channelId, body } = {}) {
   if (error) throw error;
   return { stored: 'supabase', data };
 }
+let _rtSeq = 0;
+function _rtTopic(base) { return `${base}:${state.user?.id || 'anon'}:${Date.now().toString(36)}-${(++_rtSeq).toString(36)}`; }
 function subscribeChannelMessages(onInsert) {
   if (!supabase) return () => {};
+  // Unique topic per subscriber — Supabase reuses a channel by topic name, and
+  // calling .on() on an already-subscribed channel throws.
   const channel = supabase
-    .channel(`rt-channel-messages:${state.user?.id || 'anon'}`)
+    .channel(_rtTopic('rt-channel-messages'))
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'channel_messages' },
       (payload) => { try { onInsert?.(payload.new); } catch (e) {} })
     .subscribe();
@@ -3013,7 +3017,7 @@ function subscribeChannelMessages(onInsert) {
 function subscribeDirectMessages(onInsert) {
   if (!supabase) return () => {};
   const channel = supabase
-    .channel(`rt-direct-messages:${state.user?.id || 'anon'}`)
+    .channel(_rtTopic('rt-direct-messages'))
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' },
       (payload) => { try { onInsert?.(payload.new); } catch (e) {} })
     .subscribe();
