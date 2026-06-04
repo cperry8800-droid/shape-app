@@ -883,7 +883,6 @@ function BSRadioScreen({ onBack }) {
   const [hrmConnected, setHrmConnected] = useStateBR(false);
   const [demoHr, setDemoHr] = useStateBR(114);
   const [matching, setMatching] = useStateBR(false);
-  const [vizMode, setVizMode] = useStateBR('dial'); // dial | wave | marquee
   const trackBpm = tr.bpm;
   const signedDelta = demoHr - trackBpm;
   const syncDelta = Math.abs(signedDelta);
@@ -979,28 +978,15 @@ function BSRadioScreen({ onBack }) {
         <div style={{ height: 36 }} />
 
         <div style={{ position: 'relative', zIndex: 2, padding: `0 ${t.padX}px 18px` }}>
-          {/* On air + visualizer selector (Marquee / Dial / Wave) */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 18 }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700, color: CREAM }}>
-              <span style={{ width: 6, height: 6, borderRadius: 3, flexShrink: 0, background: '#ff5b4a', animation: 'bs-blink 1.2s ease-in-out infinite' }} />
-              {onLive ? `On Air · ${r.LIVE.listeners.toLocaleString()}` : 'Coach Playlist'}
-            </span>
-            <div style={{ display: 'inline-flex', flexShrink: 0, border: `1px solid ${CREAM25}`, borderRadius: 999, overflow: 'hidden' }}>
-              {[['marquee', 'Marquee'], ['dial', 'Dial'], ['wave', 'Wave']].map(([k, l]) => (
-                <button key={k} onClick={() => setVizMode(k)} style={{
-                  padding: '6px 9px', border: 0, cursor: 'pointer',
-                  background: vizMode === k ? TEAL : 'transparent',
-                  color: vizMode === k ? '#050707' : CREAM70,
-                  fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
-                }}>{l}</button>
-              ))}
-            </div>
+          {/* On air + active listeners */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 18, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700, color: CREAM }}>
+            <span style={{ width: 6, height: 6, borderRadius: 3, flexShrink: 0, background: '#ff5b4a', animation: 'bs-blink 1.2s ease-in-out infinite' }} />
+            {onLive ? `On Air · ${r.LIVE.listeners.toLocaleString()}` : 'Coach Playlist'}
           </div>
 
           {/* Now playing — centered hero */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-            {/* Visualizer — Dial (BPM ring) / Wave / Marquee */}
-            {vizMode === 'dial' && (
+            {/* BPM ring */}
             <div style={{ position: 'relative', width: 112, height: 112 }}>
               <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: `1px solid ${CREAM25}` }} />
               <div style={{ position: 'absolute', inset: 11, borderRadius: '50%', border: `1px solid ${TEAL}44` }} />
@@ -1010,23 +996,6 @@ function BSRadioScreen({ onBack }) {
                 <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.24em', color: TEAL, fontWeight: 700, marginTop: 3 }}>BPM</div>
               </div>
             </div>
-            )}
-            {vizMode === 'wave' && (
-            <div style={{ width: '100%', height: 112, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ width: '100%', maxWidth: 270 }}>
-                <BSEQ bars={29} color={TEAL} height={96} gap={3} paused={r.paused} />
-              </div>
-            </div>
-            )}
-            {vizMode === 'marquee' && (
-            <div style={{ position: 'relative', width: '100%', height: 112, overflow: 'hidden', display: 'flex', alignItems: 'center', borderTop: `1px solid ${CREAM25}`, borderBottom: `1px solid ${CREAM25}` }}>
-              <div style={{ display: 'inline-flex', whiteSpace: 'nowrap', animation: r.paused ? 'none' : 'bs-radio-marquee 13s linear infinite', fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, letterSpacing: '-0.02em', color: CREAM }}>
-                {[0, 1].map(i => (
-                  <span key={i} style={{ paddingRight: 30 }}>{onLive ? tr.a : playlist.name} <span style={{ color: TEAL }}>· {trackBpm} BPM ·</span> {onLive ? tr.b : ''} <span style={{ color: TEAL }}>· On Air ·</span>&nbsp;</span>
-                ))}
-              </div>
-            </div>
-            )}
 
             {/* Now playing label + track */}
             <div style={{ marginTop: 18, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: TEAL, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -1055,9 +1024,9 @@ function BSRadioScreen({ onBack }) {
             const pct = total ? Math.round((elapsed / total) * 100) : 0;
             return (
               <div style={{ marginTop: 14 }}>
-                <div style={{ position: 'relative', height: 4, borderRadius: 999, background: CREAM25 }}>
+                <div style={{ position: 'relative', height: 2.5, borderRadius: 999, background: CREAM25 }}>
                   <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct}%`, borderRadius: 999, background: TEAL }} />
-                  <div style={{ position: 'absolute', left: `${pct}%`, top: '50%', transform: 'translate(-50%,-50%)', width: 11, height: 11, borderRadius: '50%', background: TEAL, boxShadow: `0 0 0 3px ${t.PAPER}` }} />
+                  <div style={{ position: 'absolute', left: `${pct}%`, top: '50%', transform: 'translate(-50%,-50%)', width: 10, height: 10, borderRadius: '50%', background: TEAL, boxShadow: `0 0 0 3px ${t.PAPER}` }} />
                 </div>
                 <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', color: CREAM50, fontWeight: 600 }}>
                   <span>{fmt(elapsed)}</span>
@@ -1083,7 +1052,7 @@ function BSRadioScreen({ onBack }) {
             }}>■</button>
           </div>
 
-          <style>{`@keyframes bs-beat-ring { 0% { transform: scale(0.92); opacity: 0.95; } 50% { transform: scale(1.0); opacity: 0.55; } 100% { transform: scale(1.18); opacity: 0; } } @keyframes bs-radio-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }`}</style>
+          <style>{`@keyframes bs-beat-ring { 0% { transform: scale(0.92); opacity: 0.95; } 50% { transform: scale(1.0); opacity: 0.55; } 100% { transform: scale(1.18); opacity: 0; } }`}</style>
 
           {/* Heart-rate sync — stages: not connected → free → matching → in sync.
               Full-bleed opaque band so no glow / stage-light shows through (plain black). */}
