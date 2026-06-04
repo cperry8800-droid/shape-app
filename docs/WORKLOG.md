@@ -76,6 +76,15 @@ changelog whenever something ships.
   subtext. Driven by the client's top goal (training[0] → nutrition[0], loaded from
   `user_goals('client_goals')`; demo default until loaded).
 
+### 2026-06-13 — Coach goal view follows the redesigned goal (Overall + headlines)
+- The redesign moved client goals to `overall` + `trainingMeta`/`nutritionMeta`; the
+  `get_client_goals` RPC already returns the whole doc, so just the coach UIs changed.
+- **Mobile** (`BSProClientFullProfilePage`) + **website** (`coachClientDetail.jsx`):
+  the Client-goals card now shows the client's **Overall** body-comp goal (title +
+  progress bar + `down · to go · now · target`, with the target date), plus the
+  **Training** and **Nutrition** headline goals (title + subtitle). Private / none /
+  loading states unchanged.
+
 ### 2026-06-13 — Coach goal view on the website + goal-sheet polish
 - **Website coach client page** (`coachClientDetail.jsx`): added a **GOALS** card showing
   the client's shared Training/Nutrition goals (progress + target), fed by the
