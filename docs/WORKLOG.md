@@ -46,6 +46,11 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Month-view day cells are square
+- `BSCalendarMonth` day cells were a fixed `minHeight: 58` over a ~46px-wide track
+  (portrait rectangles). Swapped to **`aspectRatio: '1 / 1'`** (padding/gap trimmed)
+  so each day box is square.
+
 ### 2026-06-04 — Home week strip ⇄ month calendar now share one source
 - The client **home week strip** (day-log + week dots) and the **month calendar**
   (logged-out demo) were two **independent hardcoded datasets**, so the same weekday

@@ -569,8 +569,8 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
                   border: isSel ? `1.5px solid ${teal}` : `1px solid ${t.HAIR}`,
                   background: isSel ? `${teal}1c` : t.PAPER2,
                   color: t.INK,
-                  minHeight: 58, padding: '7px 8px 6px', textAlign: 'left', cursor: 'pointer',
-                  display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 6,
+                  aspectRatio: '1 / 1', padding: '6px 7px 5px', textAlign: 'left', cursor: 'pointer',
+                  display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 4,
                   fontFamily: t.DISPLAY,
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
