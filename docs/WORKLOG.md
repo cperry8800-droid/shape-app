@@ -46,6 +46,23 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Home week strip ⇄ month calendar now share one source
+- The client **home week strip** (day-log + week dots) and the **month calendar**
+  (logged-out demo) were two **independent hardcoded datasets**, so the same weekday
+  showed different workouts; the calendar also had a **broken day-remap**
+  (`sourceDayByDate` mapped 20→11, 21→**14**, …) that collided remapped events with
+  the month-density events, double-stacking days.
+- New shared **`bsClientWeekDemo.js`** (`BS_CLIENT_WEEK_DEMO`, Mon..Sun, color-agnostic
+  by `kind`) is the single source of truth:
+  - **Home** builds `DAY_LOGS` (keyed 20..26) + `WEEK_DOTS_BY_IDX` from it.
+  - **Calendar** `clientEvents` builds from it — the authored week sits cleanly on
+    **May 11–17 (Mon–Sun)**; workouts repeat on adjacent weeks for month density.
+    The `sourceDayByDate` remap now applies **only to trainer/nutritionist** (still
+    authored on 20–26); client skips it. Demo meals show their literal times (no
+    `slot` flattening) so they match the strip exactly.
+- **Header**: the client calendar masthead **"The calendar." → "Month's plan."**
+  (trainer "The schedule." / nutritionist "The diary." unchanged).
+
 ### 2026-06-04 — Recipe box ⇒ merged into Shape Kitchen (one page)
 - The Recipe box and the old `BSShapeKitchen` page showed the **same recipes**; the
   only thing Kitchen had extra was its **advanced filters**. Merged them into one:
