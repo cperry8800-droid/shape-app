@@ -2881,6 +2881,18 @@ async function setClientProgram({ userId, trainingPhase, nutritionPhase } = {}) 
 }
 window.ShapeProgramApi = { get: getClientProgram, set: setClientProgram };
 
+// Coach read of a client's goals (user_goals 'client_goals'), gated server-side
+// on is_coach_on_client + the client's `share` flag. Returns the goals document
+// ({ share, training, nutrition }), { share:false } when the client opted out,
+// or null when not the client's coach / not signed in.
+async function getClientGoals(userId) {
+  if (!supabase || !state.user?.id || !userId) return null;
+  const { data, error } = await supabase.rpc('get_client_goals', { p_user_id: userId });
+  if (error) return null;
+  return data || null;
+}
+window.ShapeGoalsApi = { getForClient: getClientGoals };
+
 window.ShapeMessages = {
   getOrCreateDirectConversation,
   getOrCreateMemberConversation,

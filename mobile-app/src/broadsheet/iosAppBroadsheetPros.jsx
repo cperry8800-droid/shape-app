@@ -1223,6 +1223,29 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       window.ShapeProgramApi.get(clientUid).then(p => { if (p && (p.trainingPhase || p.nutritionPhase)) setPhase(prev => ({ ...prev, ...p })); }).catch(() => {});
     }
   }, [clientUid]);
+  // The client's shared goals (read-only here) — server-gated on the share flag.
+  const [cGoals, setCGoals] = useStateBSP(null);
+  const [cGoalsLoaded, setCGoalsLoaded] = useStateBSP(false);
+  useEffectBSP(() => {
+    if (!clientUid || !window.ShapeGoalsApi?.getForClient) return;
+    window.ShapeGoalsApi.getForClient(clientUid).then(d => { setCGoals(d || null); setCGoalsLoaded(true); }).catch(() => setCGoalsLoaded(true));
+  }, [clientUid]);
+  const goalCard = (g, i) => {
+    const pct = Math.min((Number(g.cur) || 0) / (Number(g.tgt) || 1), 1);
+    const curF = g.pct ? `${g.cur}%` : Number(g.cur).toLocaleString();
+    const tgtF = g.pct ? `${g.tgt}%` : Number(g.tgt).toLocaleString();
+    return (
+      <div key={i} style={{ marginTop: 10, borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', color: teal }}>GOAL · {Math.round(pct * 100)}%</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50 }}>{curF} / {tgtF}</div>
+        </div>
+        <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', lineHeight: 1.15 }}>{g.t}</div>
+        <div style={{ marginTop: 8, height: 6, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${pct * 100}%`, background: teal, borderRadius: 999 }} /></div>
+        {g.sub && <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45 }}>{g.sub}</div>}
+      </div>
+    );
+  };
   const setPhaseKey = (key, val) => {
     setPhase(prev => ({ ...prev, [key]: val }));
     if (clientUid) { try { window.ShapeProgramApi?.set?.({ userId: clientUid, [key]: val }); } catch (e) {} }
@@ -1257,6 +1280,28 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           {phaseRow('trainingPhase', 'Training block', ['Build', 'Cut', 'Peak', 'Maintain', 'Deload', 'Base'])}
           {phaseRow('nutritionPhase', 'Nutrition phase', ['Cut', 'Bulk', 'Maintain', 'Recomp', 'Refeed'])}
           {!clientUid && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Demo client · saves once linked to a live member</div>}
+        </div>
+        {/* Client goals — read-only; visible only when the client shares them. */}
+        <div style={{ padding: `${t.rowY + 8}px 0`, borderBottom: `1px solid ${t.HAIR}` }}>
+          <BSEyebrow color={teal}>Client goals</BSEyebrow>
+          {!clientUid ? (
+            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Appears once linked to a live member</div>
+          ) : !cGoalsLoaded ? (
+            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
+          ) : (cGoals && cGoals.share === false) ? (
+            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.4 }}>{client.n.split(' ')[0]} keeps their goals private.</div>
+          ) : (() => {
+            const tr = (cGoals && Array.isArray(cGoals.training)) ? cGoals.training : [];
+            const nu = (cGoals && Array.isArray(cGoals.nutrition)) ? cGoals.nutrition : [];
+            if (!tr.length && !nu.length) return <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.4 }}>No goals shared yet.</div>;
+            const sub = (txt) => <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{txt}</div>;
+            return (
+              <div>
+                {tr.length > 0 && <>{sub('Training')}{tr.map(goalCard)}</>}
+                {nu.length > 0 && <>{sub('Nutrition')}{nu.map(goalCard)}</>}
+              </div>
+            );
+          })()}
         </div>
         <div style={{ padding: `${t.rowY + 8}px 0`, borderBottom: `1px solid ${t.HAIR}` }}>
           <BSEyebrow>Coach notes</BSEyebrow>
