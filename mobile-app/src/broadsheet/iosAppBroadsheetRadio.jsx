@@ -975,11 +975,11 @@ function BSRadioScreen({ onBack }) {
         <BSStageLight color={TEAL} opacity={0.1} paused={r.paused} />
 
         {/* Top breathing room before live readout */}
-        <div style={{ height: 36 }} />
+        <div style={{ height: 14 }} />
 
         <div style={{ position: 'relative', zIndex: 2, padding: `0 ${t.padX}px 18px` }}>
-          {/* On air + active listeners */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 18, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700, color: CREAM }}>
+          {/* On air + active listeners — sits high at the top-left of the box */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 22, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700, color: CREAM }}>
             <span style={{ width: 6, height: 6, borderRadius: 3, flexShrink: 0, background: '#ff5b4a', animation: 'bs-blink 1.2s ease-in-out infinite' }} />
             {onLive ? `On Air · ${r.LIVE.listeners.toLocaleString()}` : 'Coach Playlist'}
           </div>
@@ -1193,7 +1193,7 @@ function BSRadioScreen({ onBack }) {
         )}
 
         <div style={{
-          padding: `14px ${t.padX}px 20px`, borderTop: `1px solid ${RULE_DK}`,
+          padding: `14px ${t.padX}px 20px`,
           display: 'flex', justifyContent: 'space-between',
           fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM50,
         }}>
