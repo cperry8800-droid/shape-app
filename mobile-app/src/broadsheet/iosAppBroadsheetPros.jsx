@@ -1156,11 +1156,11 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={t.INK50} strokeWidth="2" style={{ flexShrink: 0 }}><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" strokeLinecap="round" /></svg>
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Search ${totalCount} clients`} style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 14 }} />
         </div>
-        {/* Filter pills (no scrollbar) */}
-        <div className="bs-hide-scroll" style={{ marginTop: 11, display: 'flex', gap: 7, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        {/* Filter pills — wrap to fit the frame (no off-screen overflow) */}
+        <div style={{ marginTop: 11, display: 'flex', flexWrap: 'wrap', gap: 7 }}>
           {filters.map(f => {
             const on = filter === f.k;
-            return <button key={f.k} onClick={() => setFilter(f.k)} style={{ flexShrink: 0, borderRadius: 999, padding: '8px 15px', cursor: 'pointer', border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}1c` : 'transparent', color: on ? teal : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>{f.label}</button>;
+            return <button key={f.k} onClick={() => setFilter(f.k)} style={{ borderRadius: 999, padding: '8px 13px', cursor: 'pointer', border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}1c` : 'transparent', color: on ? teal : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>{f.label}</button>;
           })}
         </div>
         {/* Active / Past toggle */}
@@ -1813,15 +1813,15 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         <div style={{ flex: 1, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.04em', color: t.INK50 }}>{sinceLabel}</div>
         <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: isPast ? t.INK50 : teal, border: `1px solid ${isPast ? t.RULE : teal}`, borderRadius: 999, padding: '6px 11px' }}>{statusLabel}</span>
       </div>
-      <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
-        <button onClick={() => fireEvt('shape:proMessageClient')} style={{ borderRadius: 999, border: `1px solid ${accent}`, background: `${accent}1f`, color: t.INK, padding: '9px 16px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>MESSAGE</button>
-        <button onClick={() => setShowAdjustPage(true)} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '9px 16px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>{isNutri ? 'ADJUST PLAN' : 'ADJUST PROGRAM'}</button>
-        <button onClick={() => setShowSchedulePage(true)} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '9px 16px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SCHEDULE</button>
+      <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+        <button onClick={() => fireEvt('shape:proMessageClient')} style={{ borderRadius: 999, border: `1px solid ${accent}`, background: `${accent}1f`, color: t.INK, padding: '10px 4px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', cursor: 'pointer', whiteSpace: 'nowrap', textAlign: 'center' }}>MESSAGE</button>
+        <button onClick={() => setShowAdjustPage(true)} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '10px 4px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', cursor: 'pointer', whiteSpace: 'nowrap', textAlign: 'center' }}>ADJUST</button>
+        <button onClick={() => setShowSchedulePage(true)} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '10px 4px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', cursor: 'pointer', whiteSpace: 'nowrap', textAlign: 'center' }}>SCHEDULE</button>
       </div>
-      <div style={{ marginTop: 18, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+      <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
         {[['profile', isNutri ? 'Plan' : 'Profile'], ['analysis', 'Analysis'], ['manage', 'Manage']].map(([k, label]) => {
           const on = view === k;
-          return <button key={k} onClick={() => setView(k)} style={{ borderRadius: 999, padding: '9px 6px', cursor: 'pointer', border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1c` : 'transparent', color: on ? t.INK : t.INK70, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{label}</button>;
+          return <button key={k} onClick={() => setView(k)} style={{ borderRadius: 999, padding: '9px 4px', cursor: 'pointer', border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1c` : 'transparent', color: on ? t.INK : t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap', textAlign: 'center' }}>{label}</button>;
         })}
       </div>
     </div>
