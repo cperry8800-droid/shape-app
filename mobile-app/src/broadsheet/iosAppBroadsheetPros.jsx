@@ -707,6 +707,11 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     window.addEventListener('shape:proMessageClient', onMsg);
     return () => window.removeEventListener('shape:proMessageClient', onMsg);
   }, []);
+  React.useEffect(() => {
+    const onSettingsEvt = () => setShowSettings(true);
+    window.addEventListener('shape:openProSettings', onSettingsEvt);
+    return () => window.removeEventListener('shape:openProSettings', onSettingsEvt);
+  }, []);
   if (showSettings) return <BSSettings onBack={() => setShowSettings(false)} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />;
   if (showCalendar) return <BSCalendarScreen role="trainer" onProfile={goSettings} onBack={() => setShowCalendar(false)} />;
   if (showReviews) return <BSWorkoutReviewPage role="trainer" onBack={() => setShowReviews(false)} />;
@@ -1136,6 +1141,17 @@ function BSProStatusPill({ s }) {
 }
 // Card-based coach roster — header, search, scrollable filter pills (scrollbar
 // hidden via .bs-hide-scroll), an Active/Past toggle, and tappable client cards.
+function bsProMeInit() {
+  const p = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.().profile) || {};
+  const nm = (p.full_name || '').trim();
+  const custom = (typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.initials) ? String(window.ShapeIdentity.initials).toUpperCase().slice(0, 2) : '';
+  return custom || (nm ? nm.split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase() : 'S') || 'S';
+}
+// The coach's own avatar — opens Settings (the shells listen for the event).
+function BSProAvatarButton({ size = 38 }) {
+  const tier = (typeof window !== 'undefined' && window.ShapeScore && window.ShapeScore.tier) || 'Base';
+  return <BSAvatar init={bsProMeInit()} size={size} fill={bsTierColor(tier)} ink="#fff" onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProSettings')); } catch (e) {} }} />;
+}
 function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, totalCount, newThisMonth = 3, roster, setRoster, query, setQuery, filter, setFilter, onOpen, footerLeft, footerRight }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -1149,7 +1165,7 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: teal }}>{activeCount} ACTIVE · +{newThisMonth} THIS MONTH</div>
             <div style={{ marginTop: 8, fontFamily: t.SERIF, fontSize: 40, fontWeight: 600, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>Your<br /><span style={{ fontStyle: 'italic', color: teal }}>clients.</span></div>
           </div>
-          <button onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:proAddClient', { detail: { role } })); } catch (e) {} }} style={{ flexShrink: 0, width: 38, height: 38, borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 18, fontWeight: 400, cursor: 'pointer', lineHeight: 1 }}>+</button>
+          <div style={{ flexShrink: 0 }}><BSProAvatarButton size={38} /></div>
         </div>
         {/* Search */}
         <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 9, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '12px 14px' }}>
@@ -2252,7 +2268,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   );
   return (
     <BSPage>
-      <BSPageHeader kicker="Section · Plans" title={<>Programs<br/>& workouts.</>} />
+      <BSPageHeader kicker="Section · Plans" title={<>Programs<br/>& workouts.</>} trailing={<BSProAvatarButton size={32} />} />
       <PlanTabs />
       {planTab === 'programs' && <>
       <BSPlanGeneratorCard role="trainer" kind="program" />
@@ -2559,6 +2575,11 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     };
     window.addEventListener('shape:proMessageClient', onMsg);
     return () => window.removeEventListener('shape:proMessageClient', onMsg);
+  }, []);
+  React.useEffect(() => {
+    const onSettingsEvt = () => setShowSettings(true);
+    window.addEventListener('shape:openProSettings', onSettingsEvt);
+    return () => window.removeEventListener('shape:openProSettings', onSettingsEvt);
   }, []);
   if (showSettings) return <BSSettings onBack={() => setShowSettings(false)} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />;
   if (showCalendar) return <BSCalendarScreen role="nutritionist" onProfile={goSettings} onBack={() => setShowCalendar(false)} />;
@@ -2957,7 +2978,7 @@ function BSNutriPlans() {
   );
   return (
     <BSPage>
-      <BSPageHeader kicker="Section · Plans" title={<>Meals<br/>& templates.</>} />
+      <BSPageHeader kicker="Section · Plans" title={<>Meals<br/>& templates.</>} trailing={<BSProAvatarButton size={32} />} />
       <BSProPlansTabBar active={subtab} onChange={setSubtab} />
       <BSPlanGeneratorCard role="nutritionist" kind="meal_plan" />
       {subtab === 'meal' && (<>
