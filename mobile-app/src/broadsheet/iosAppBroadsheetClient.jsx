@@ -8010,6 +8010,16 @@ const BS_GOAL_TEMPLATES = [
 ];
 const BS_GOALS_DEFAULT = {
   share: true,
+  // The headline body-comp goal that drives the Overall tab. Editable fields
+  // persist; the trend/milestones/week-targets/consistency are illustrative.
+  overall: {
+    title: 'Lean by August', by: '2026-07-01', unit: 'kg',
+    start: 80.4, startMonth: 'Feb', now: 79.2, target: 76,
+    why: "Lean enough to feel quick on the bike again, strong enough that nothing slips. Wedding's in July — but really it's about staying this person after.",
+  },
+  // Editable headline (title + subtitle) for the Training / Nutrition dashboards.
+  trainingMeta: { title: 'Hold the line', subtitle: 'Keep every lift while the weight comes off.', coach: 'Jordan Chen' },
+  nutritionMeta: { title: 'Fuel the cut', subtitle: 'Eat for the lift, not against it.', coach: 'Dr. Maya Patel' },
   training: [
     { t: 'Reach Peak tier', cur: 1284, tgt: 5000, sub: '3,716 points to go · +100/wk lands Peak in ~37 weeks', cat: 'strength' },
     { t: 'Squat 1.5× bodyweight', cur: 135, tgt: 175, sub: '40 lb to go · +5 lb every 3 weeks gets there by Aug 15', cat: 'strength' },
@@ -8092,84 +8102,623 @@ function BSGoalEditSheet({ tab, goal, onClose, onSave, onDelete }) {
   return target ? createPortal(sheet, target) : sheet;
 }
 
+// Weight-trend line+area chart for the Overall tab.
+function BSGoalsTrend({ teal, series, h = 92 }) {
+  const w = 340;
+  const vals = series.map(p => p[1]);
+  const min = Math.min(...vals), max = Math.max(...vals), span = (max - min) || 1, n = series.length;
+  const X = (i) => (i / (n - 1)) * w;
+  const Y = (v) => h - 6 - ((v - min) / span) * (h - 14);
+  const pts = series.map((p, i) => [X(i), Y(p[1])]);
+  const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+  const area = `${line} L${w},${h} L0,${h} Z`;
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} preserveAspectRatio="none" style={{ display: 'block' }}>
+      <defs><linearGradient id="bsGoalTrend" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={teal} stopOpacity="0.22" /><stop offset="100%" stopColor={teal} stopOpacity="0" /></linearGradient></defs>
+      <path d={area} fill="url(#bsGoalTrend)" />
+      <path d={line} fill="none" stroke={teal} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      <circle cx={pts[n - 1][0]} cy={pts[n - 1][1]} r="3.6" fill={teal} />
+    </svg>
+  );
+}
+
+// The Overall tab — a body-comp dashboard for the headline goal. Editable fields
+// (start/now/target/title/why) come from `overall`; the trend, milestones,
+// week-targets and consistency are illustrative demo content for now.
+function BSGoalsOverall({ overall, onLog }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const purple = '#8a5cf6';
+  const start = Number(overall.start) || 0, now = Number(overall.now) || 0, target = Number(overall.target) || 0;
+  const unit = overall.unit || 'kg';
+  const down = +(now - start).toFixed(1);
+  const range = +(start - target).toFixed(1);
+  const toGo = +(now - target).toFixed(1);
+  const pct = range > 0 ? Math.max(0, Math.min(1, (start - now) / range)) : 0;
+  const byD = overall.by ? new Date(overall.by) : null;
+  const byLabel = byD && !isNaN(byD) ? byD.toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase() : '';
+  const series = [['', 80.4], ['', 80.2], ['', 80.3], ['', 79.9], ['', 79.7], ['', 79.8], ['', 79.5], ['', 79.4], ['', 79.2], ['', 79.2]];
+  const stats = [
+    { l: 'Current', c: teal,    v: now.toLocaleString(), u: unit, sub: 'Latest weigh-in' },
+    { l: 'To go',   c: t.RUST,  v: toGo.toLocaleString(), u: unit, sub: `of ${range} ${unit}` },
+    { l: 'Weekly pace', c: t.AMBER, v: '-0.4', u: unit, sub: '4-wk average' },
+    { l: 'On track', c: t.GREEN, v: 'Yes', u: '', sub: '9 wks to spare' },
+  ];
+  const milestones = [
+    { done: true, t: 'Baseline set', sub: '80.4 kg · plans live', when: 'Feb' },
+    { done: true, t: 'First kilo down', sub: '79.4 kg · habits sticking', when: 'Mar' },
+    { n: '03', t: 'Halfway · 78.2 kg', sub: 'on pace · ~3 weeks out', when: 'Next', next: true },
+    { n: '04', t: 'Hold bench at 90 kg', sub: 'strength through the cut', when: 'Ongoing' },
+    { n: '05', t: `Goal · ${target.toLocaleString()} ${unit}`, sub: 'lean & strong', when: byLabel || 'Goal' },
+  ];
+  const plans = [
+    { role: 'Training', c: t.AMBER, t: '12-wk lean strength', sub: 'Jordan · 4×/wk' },
+    { role: 'Nutrition', c: t.RUST, t: 'Protein-led cut', sub: 'Dr. Maya · 1,890 kcal' },
+  ];
+  const weekTargets = [
+    { l: 'Sessions', v: '3/4', sub: 'one to go', c: t.RUST },
+    { l: 'Protein days', v: '6/7', sub: '≥170g hit', c: teal },
+    { l: 'Steps', v: '7.2k', sub: 'avg · goal 8k', c: t.AMBER },
+    { l: 'Sleep', v: '6.8h', sub: 'avg · goal 7h', c: purple },
+  ];
+  const SecHead = ({ kicker, title, action }) => (
+    <div style={{ padding: `22px ${t.padX}px 0` }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>{kicker}</div>
+      <div style={{ marginTop: 3, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em' }}>{title}</div>
+        {action && <button onClick={action.onClick} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: teal, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: 0 }}>{action.label} →</button>}
+      </div>
+    </div>
+  );
+  const miniCard = (s, i) => (
+    <div key={i} style={{ borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 13 }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: s.c }}>{s.l}</div>
+      <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>{s.v}{s.u ? <span style={{ fontSize: 12, color: t.INK50, marginLeft: 2 }}>{s.u}</span> : null}</div>
+      <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{s.sub}</div>
+    </div>
+  );
+  return (
+    <>
+      {/* Featured — down so far */}
+      <div style={{ padding: `14px ${t.padX}px 0` }}>
+        <div style={{ borderRadius: 18, border: `1px solid ${teal}44`, background: `linear-gradient(160deg, ${teal}22, ${teal}08 55%, ${t.PAPER2} 92%), ${t.PAPER2}`, padding: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>Down so far</div>
+              <div style={{ marginTop: 6, fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontSize: 44, fontWeight: 600, color: t.INK, letterSpacing: '-0.03em', lineHeight: 0.95 }}>{down > 0 ? '+' : '−'}{Math.abs(down)}<span style={{ fontSize: 18, color: t.INK50, marginLeft: 3 }}>{unit}</span></div>
+            </div>
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+              <div style={{ fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontSize: 34, fontWeight: 600, color: teal, letterSpacing: '-0.02em', lineHeight: 1 }}>{Math.round(pct * 100)}%</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>There</div>
+            </div>
+          </div>
+          <div style={{ position: 'relative', margin: '16px 0 14px', height: 6 }}>
+            <div style={{ position: 'absolute', inset: 0, borderRadius: 999, background: t.HAIR }} />
+            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct * 100}%`, borderRadius: 999, background: teal }} />
+            <div style={{ position: 'absolute', left: `calc(${pct * 100}% - 7px)`, top: -4, width: 14, height: 14, borderRadius: 999, background: '#fff', border: `3px solid ${teal}` }} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            {[[start, 'Start · ' + (overall.startMonth || ''), t.INK50], [now, 'Now', teal], [target, 'Target · ' + (byLabel || ''), t.AMBER]].map(([v, lab, c], i) => (
+              <div key={i} style={{ textAlign: i === 0 ? 'left' : i === 2 ? 'right' : 'center', minWidth: 0 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{Number(v).toLocaleString()}</div>
+                <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: c }}>{lab}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Stat grid */}
+      <div style={{ padding: `12px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
+        {stats.map(miniCard)}
+      </div>
+
+      {/* Trend */}
+      <SecHead kicker="Trend" title="Weight" action={{ label: 'Log weigh-in', onClick: onLog }} />
+      <div style={{ padding: `12px ${t.padX}px 0` }}>
+        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em' }}>{now.toLocaleString()}<span style={{ fontSize: 12, color: t.INK50, marginLeft: 2 }}>{unit}</span></span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: teal }}>{down} {unit} · 10 weeks · target {target}</span>
+          </div>
+          <BSGoalsTrend teal={teal} series={series} />
+        </div>
+      </div>
+
+      {/* Milestones */}
+      <SecHead kicker="The path" title="Milestones" />
+      <div style={{ padding: `8px ${t.padX}px 0` }}>
+        {milestones.map((m, i) => (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 10, alignItems: 'start', padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: m.done ? t.INK50 : (m.next ? teal : t.INK50), marginTop: 2 }}>{m.done ? '✓' : m.n}</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: m.done ? t.INK50 : t.INK, letterSpacing: '-0.015em' }}>{m.t}</div>
+              <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', color: m.next ? teal : t.INK50, fontWeight: 600 }}>{m.sub}</div>
+            </div>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: m.next ? teal : t.INK50, marginTop: 2 }}>{m.when}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Your plans */}
+      <SecHead kicker="Driving it" title="Your plans" />
+      <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {plans.map((p, i) => (
+          <div key={i} style={{ borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ width: 6, height: 34, borderRadius: 3, background: p.c, flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: p.c }}>{p.role}</div>
+              <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{p.t}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.06em', marginTop: 1 }}>{p.sub}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* This week targets */}
+      <SecHead kicker="This week" title="Targets that move it" />
+      <div style={{ padding: `12px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
+        {weekTargets.map(miniCard)}
+      </div>
+
+      {/* Consistency */}
+      <div style={{ padding: `12px ${t.padX}px 0` }}>
+        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 12 }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>Consistency · last 7 weeks</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50 }}>84% avg</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 7 }}>
+            {[0.9, 0.95, 0.8, 1, 0.7, 0.92, 0.88].map((v, i) => (
+              <div key={i} style={{ aspectRatio: '1 / 1', borderRadius: 8, background: teal, opacity: 0.35 + v * 0.6 }} />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Your why */}
+      <SecHead kicker="Your why" title="Stay with it" />
+      <div style={{ padding: `12px ${t.padX}px 0` }}>
+        <div style={{ borderRadius: 16, border: `1px solid ${purple}44`, background: `linear-gradient(155deg, ${purple}22, ${purple}08 60%, ${t.PAPER2} 92%), ${t.PAPER2}`, padding: 16 }}>
+          <div style={{ fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontStyle: 'italic', fontSize: 16, lineHeight: 1.5, color: t.INK }}>“{overall.why}”</div>
+          <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ width: 28, height: 28, borderRadius: 999, background: teal, color: '#04201d', display: 'grid', placeItems: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 12, flexShrink: 0 }}>{bsMyInitials()[0]}</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 700, color: t.INK }}>Set by you</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, marginTop: 1 }}>Feb 2026 · Edit anytime</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Log weigh-in CTA */}
+      <div style={{ padding: `18px ${t.padX}px 8px` }}>
+        <button onClick={onLog} style={{ width: '100%', padding: '15px', borderRadius: 999, border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Log weigh-in →</button>
+      </div>
+    </>
+  );
+}
+
+// Edit sheet for the Overall headline goal (title / target date / start-now-target / why).
+function BSOverallEditSheet({ overall, onClose, onSave }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const [g, setG] = useStateBSC({ ...overall });
+  const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 6 };
+  const field = { width: '100%', boxSizing: 'border-box', padding: '11px 12px', border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: 12, fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, outline: 'none' };
+  const num = (k) => <label style={{ display: 'block' }}><span style={lbl}>{k === 'start' ? 'Start' : k === 'now' ? 'Now' : 'Target'}</span><input type="number" value={g[k]} onChange={(e) => setG({ ...g, [k]: e.target.value === '' ? '' : Number(e.target.value) })} style={field} /></label>;
+  const sheet = (
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', maxHeight: '88%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Edit · Goal</div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>Your <span style={{ fontStyle: 'italic', color: teal }}>goal.</span></div>
+        <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <label style={{ display: 'block' }}><span style={lbl}>Title</span><input value={g.title} onChange={(e) => setG({ ...g, title: e.target.value })} placeholder="e.g. Lean by August" style={field} /></label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <label style={{ display: 'block' }}><span style={lbl}>Target date</span><input type="date" value={g.by || ''} onChange={(e) => setG({ ...g, by: e.target.value })} style={field} /></label>
+            <label style={{ display: 'block' }}><span style={lbl}>Unit</span><input value={g.unit || ''} onChange={(e) => setG({ ...g, unit: e.target.value.slice(0, 6) })} placeholder="kg" style={field} /></label>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>{num('start')}{num('now')}{num('target')}</div>
+          <label style={{ display: 'block' }}><span style={lbl}>Your why</span><textarea value={g.why || ''} onChange={(e) => setG({ ...g, why: e.target.value })} rows={3} style={{ ...field, resize: 'vertical', fontSize: 14, lineHeight: 1.4 }} /></label>
+        </div>
+        <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+          <button onClick={onClose} style={{ padding: '13px 20px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Cancel</button>
+          <button onClick={() => onSave(g)} style={{ flex: 1, padding: '13px', borderRadius: 999, border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Save goal</button>
+        </div>
+      </div>
+    </div>
+  );
+  const target = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
+  return target ? createPortal(sheet, target) : sheet;
+}
+
+// The Training tab — a strength-held dashboard (rust). Lift targets, milestones,
+// program. Illustrative demo content; the headline title/subtitle are editable.
+function BSGoalsTraining({ onOpenProgram }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const rust = t.RUST, purple = '#8a5cf6';
+  const stats = [
+    { l: 'Sessions', c: rust, v: '14', u: '/16', sub: 'This block' },
+    { l: 'Streak', c: teal, v: '8d', u: '', sub: 'Consistency' },
+    { l: 'Avg RPE', c: t.AMBER, v: '7.5', u: '', sub: 'Effort logged' },
+    { l: 'PRs', c: purple, v: '1', u: '', sub: 'During cut' },
+  ];
+  const lifts = [
+    { t: 'Bench Press', w: '90 kg', d: '+5.0', pct: 0.84 },
+    { t: 'Back Squat', w: '120 kg', d: '+5.0', pct: 0.72 },
+    { t: 'Barbell Row', w: '75 kg', d: '+2.5', pct: 0.6 },
+    { t: 'Deadlift', w: '150 kg', d: 'held', pct: 1 },
+  ];
+  const milestones = [
+    { done: true, t: 'Baseline lifts logged', sub: 'bench 85 · squat 115', when: 'Feb' },
+    { done: true, t: 'Bench +5 kg → 90 kg', sub: 'held form, no grind', when: 'Apr' },
+    { n: '03', t: 'Squat 125 kg', sub: 'next · one plate away', when: 'Next', next: true },
+    { n: '04', t: 'Deadlift 160 kg', sub: 'end-of-block test', when: 'Jun' },
+    { n: '05', t: 'Finish cut, lifts ≥ start', sub: 'the whole point', when: 'Jul 1' },
+  ];
+  const SecHead = ({ kicker, title }) => (
+    <div style={{ padding: `22px ${t.padX}px 0` }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>{kicker}</div>
+      <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em' }}>{title}</div>
+    </div>
+  );
+  return (
+    <>
+      {/* Featured — strength held */}
+      <div style={{ padding: `14px ${t.padX}px 0` }}>
+        <div style={{ borderRadius: 18, border: `1px solid ${rust}44`, background: `linear-gradient(160deg, ${rust}22, ${rust}08 55%, ${t.PAPER2} 92%), ${t.PAPER2}`, padding: 18 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: rust }}>Strength held</div>
+          <div style={{ marginTop: 6, fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontSize: 44, fontWeight: 600, color: t.INK, letterSpacing: '-0.03em', lineHeight: 0.95 }}>4<span style={{ fontSize: 20, color: t.INK50, marginLeft: 3 }}>/4 lifts</span></div>
+          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.06em', color: rust }}>none dropped · bench +5 kg</div>
+          <div style={{ marginTop: 16, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Sessions / week</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Last 7 weeks</span>
+          </div>
+          <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 7 }}>
+            {[0.6, 0.7, 0.65, 0.55, 0.7, 0.6, 1].map((v, i) => (
+              <div key={i} style={{ aspectRatio: '1 / 1', borderRadius: 8, background: rust, opacity: 0.3 + v * 0.6 }} />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Stat grid */}
+      <div style={{ padding: `12px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
+        {stats.map((s, i) => (
+          <div key={i} style={{ borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 13 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: s.c }}>{s.l}</div>
+            <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>{s.v}{s.u ? <span style={{ fontSize: 12, color: t.INK50, marginLeft: 1 }}>{s.u}</span> : null}</div>
+            <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{s.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* The target — lift rows */}
+      <SecHead kicker="The target" title="Hold every lift" />
+      <div style={{ padding: `8px ${t.padX}px 0` }}>
+        {lifts.map((l, i) => (
+          <div key={i} style={{ padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{l.t}</span>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK }}>{l.w} <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: rust }}>▲ {l.d}</span></span>
+            </div>
+            <div style={{ marginTop: 7, height: 4, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${l.pct * 100}%`, background: rust, borderRadius: 999 }} /></div>
+          </div>
+        ))}
+      </div>
+
+      {/* Milestones */}
+      <SecHead kicker="The path" title="Milestones" />
+      <div style={{ padding: `8px ${t.padX}px 0` }}>
+        {milestones.map((m, i) => (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 10, alignItems: 'start', padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: m.done ? t.INK50 : (m.next ? rust : t.INK50), marginTop: 2 }}>{m.done ? '✓' : m.n}</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: m.done ? t.INK50 : t.INK, letterSpacing: '-0.015em' }}>{m.t}</div>
+              <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', color: m.next ? rust : t.INK50, fontWeight: 600 }}>{m.sub}</div>
+            </div>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: m.next ? rust : t.INK50, marginTop: 2 }}>{m.when}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Your program */}
+      <SecHead kicker="Driving it" title="Your program" />
+      <div style={{ padding: `12px ${t.padX}px 8px` }}>
+        <div style={{ borderRadius: 16, border: `1px solid ${rust}44`, background: `linear-gradient(155deg, ${rust}1c, ${rust}06 60%, ${t.PAPER2} 92%), ${t.PAPER2}`, padding: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: rust }}>Training</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>4× / week · W4</span>
+          </div>
+          <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Push / Pull / Legs</div>
+          <div style={{ marginTop: 13, paddingTop: 12, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+              <span style={{ width: 30, height: 30, borderRadius: 999, background: rust, color: '#fff', display: 'grid', placeItems: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13, flexShrink: 0 }}>J</span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK }}>Jordan Chen</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginTop: 1 }}>Coach · Hypertrophy</div>
+              </div>
+            </div>
+            <button onClick={onOpenProgram} style={{ flexShrink: 0, padding: '9px 16px', borderRadius: 999, border: `1px solid ${rust}`, background: 'transparent', color: rust, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Open →</button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// The Nutrition tab — body-comp + macros dashboard (gold). Shares the weight
+// goal (overall) with the Overall tab; adds macros, nutrition milestones, plan,
+// and weekly nutrition targets. Illustrative demo content.
+function BSGoalsNutrition({ overall, onLog }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const gold = '#d8b25a', purple = '#8a5cf6';
+  const start = Number(overall.start) || 0, now = Number(overall.now) || 0, target = Number(overall.target) || 0;
+  const unit = overall.unit || 'kg';
+  const down = +(now - start).toFixed(1), range = +(start - target).toFixed(1), toGo = +(now - target).toFixed(1);
+  const pct = range > 0 ? Math.max(0, Math.min(1, (start - now) / range)) : 0;
+  const byD = overall.by ? new Date(overall.by) : null;
+  const byLabel = byD && !isNaN(byD) ? byD.toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase() : '';
+  const series = [['', 80.4], ['', 80.2], ['', 80.3], ['', 79.9], ['', 79.7], ['', 79.8], ['', 79.5], ['', 79.4], ['', 79.2], ['', 79.2]];
+  const stats = [
+    { l: 'Current', c: gold, v: now.toLocaleString(), u: unit, sub: 'Latest weigh-in' },
+    { l: 'To go', c: t.RUST, v: toGo.toLocaleString(), u: unit, sub: `of ${range} ${unit}` },
+    { l: 'Adherence', c: teal, v: '92', u: '%', sub: 'This week' },
+    { l: 'Weekly pace', c: purple, v: '-0.4', u: unit, sub: '4-wk average' },
+  ];
+  const macros = [
+    { t: 'Protein', v: '165 g', tgt: '170 g', c: t.GREEN, pct: 0.97 },
+    { t: 'Carbs', v: '190 g', tgt: '200 g', c: gold, pct: 0.95 },
+    { t: 'Fat', v: '60 g', tgt: '62 g', c: t.RUST, pct: 0.97 },
+  ];
+  const milestones = [
+    { done: true, t: 'Baseline · 80.4 kg', sub: 'plan + macros set', when: 'Feb' },
+    { done: true, t: 'First kilo down', sub: '79.4 kg · clean week', when: 'Mar' },
+    { n: '03', t: 'Halfway · 78.2 kg', sub: 'add a refeed Saturdays', when: 'Next', next: true },
+    { n: '04', t: 'Under 78 kg', sub: 'hold protein, drop carbs', when: 'Jun' },
+    { n: '05', t: 'Goal · 76.0 kg', sub: 'then reverse, carefully', when: 'Jul 1' },
+  ];
+  const targets = [
+    { l: 'Protein days', v: '6/7', sub: '≥170g hit', c: t.GREEN },
+    { l: 'On target', v: '5/7', sub: 'kcal in range', c: gold },
+    { l: 'Logged', v: '6/7', sub: 'days tracked', c: t.RUST },
+    { l: 'Water', v: '2.4L', sub: 'avg · goal 3L', c: purple },
+  ];
+  const SecHead = ({ kicker, title, action }) => (
+    <div style={{ padding: `22px ${t.padX}px 0` }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>{kicker}</div>
+      <div style={{ marginTop: 3, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em' }}>{title}</div>
+        {action && <button onClick={action.onClick} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: teal, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: 0 }}>{action.label} →</button>}
+      </div>
+    </div>
+  );
+  const miniCard = (s, i) => (
+    <div key={i} style={{ borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 13 }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: s.c }}>{s.l}</div>
+      <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>{s.v}{s.u ? <span style={{ fontSize: 12, color: t.INK50, marginLeft: 2 }}>{s.u}</span> : null}</div>
+      <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{s.sub}</div>
+    </div>
+  );
+  return (
+    <>
+      {/* Down so far (gold) */}
+      <div style={{ padding: `14px ${t.padX}px 0` }}>
+        <div style={{ borderRadius: 18, border: `1px solid ${gold}44`, background: `linear-gradient(160deg, ${gold}22, ${gold}08 55%, ${t.PAPER2} 92%), ${t.PAPER2}`, padding: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: gold }}>Down so far</div>
+              <div style={{ marginTop: 6, fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontSize: 44, fontWeight: 600, color: t.INK, letterSpacing: '-0.03em', lineHeight: 0.95 }}>{down > 0 ? '+' : '−'}{Math.abs(down)}<span style={{ fontSize: 18, color: t.INK50, marginLeft: 3 }}>{unit}</span></div>
+            </div>
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+              <div style={{ fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontSize: 34, fontWeight: 600, color: gold, letterSpacing: '-0.02em', lineHeight: 1 }}>{Math.round(pct * 100)}%</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>There</div>
+            </div>
+          </div>
+          <div style={{ position: 'relative', margin: '16px 0 14px', height: 6 }}>
+            <div style={{ position: 'absolute', inset: 0, borderRadius: 999, background: t.HAIR }} />
+            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct * 100}%`, borderRadius: 999, background: gold }} />
+            <div style={{ position: 'absolute', left: `calc(${pct * 100}% - 7px)`, top: -4, width: 14, height: 14, borderRadius: 999, background: '#fff', border: `3px solid ${gold}` }} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            {[[start, 'Start · ' + (overall.startMonth || ''), t.INK50], [now, 'Now', gold], [target, 'Target · ' + (byLabel || ''), t.INK50]].map(([v, lab, c], i) => (
+              <div key={i} style={{ textAlign: i === 0 ? 'left' : i === 2 ? 'right' : 'center', minWidth: 0 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{Number(v).toLocaleString()}</div>
+                <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: c }}>{lab}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Stat grid */}
+      <div style={{ padding: `12px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>{stats.map(miniCard)}</div>
+
+      {/* Trend */}
+      <SecHead kicker="Trend" title="Weight" action={{ label: 'Log weigh-in', onClick: onLog }} />
+      <div style={{ padding: `12px ${t.padX}px 0` }}>
+        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em' }}>{now.toLocaleString()}<span style={{ fontSize: 12, color: t.INK50, marginLeft: 2 }}>{unit}</span></span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: gold }}>{down} {unit} · 10 weeks · target {target}</span>
+          </div>
+          <BSGoalsTrend teal={gold} series={series} />
+        </div>
+      </div>
+
+      {/* Macros vs target */}
+      <SecHead kicker="Daily average" title="Macros vs target" />
+      <div style={{ padding: `8px ${t.padX}px 0` }}>
+        {macros.map((m, i) => (
+          <div key={i} style={{ padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{m.t}</span>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK }}>{m.v} <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: m.c }}>▲ {m.tgt}</span></span>
+            </div>
+            <div style={{ marginTop: 7, height: 4, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${m.pct * 100}%`, background: m.c, borderRadius: 999 }} /></div>
+          </div>
+        ))}
+      </div>
+
+      {/* Milestones */}
+      <SecHead kicker="The path" title="Milestones" />
+      <div style={{ padding: `8px ${t.padX}px 0` }}>
+        {milestones.map((m, i) => (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 10, alignItems: 'start', padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: m.done ? t.INK50 : (m.next ? gold : t.INK50), marginTop: 2 }}>{m.done ? '✓' : m.n}</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: m.done ? t.INK50 : t.INK, letterSpacing: '-0.015em' }}>{m.t}</div>
+              <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', color: m.next ? gold : t.INK50, fontWeight: 600 }}>{m.sub}</div>
+            </div>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: m.next ? gold : t.INK50, marginTop: 2 }}>{m.when}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Your plan */}
+      <SecHead kicker="Driving it" title="Your plan" />
+      <div style={{ padding: `12px ${t.padX}px 0` }}>
+        <div style={{ borderRadius: 16, border: `1px solid ${gold}44`, background: `linear-gradient(155deg, ${gold}1c, ${gold}06 60%, ${t.PAPER2} 92%), ${t.PAPER2}`, padding: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: gold }}>Nutrition</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>2,100 kcal</span>
+          </div>
+          <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Lean Cut · 170g protein</div>
+          <div style={{ marginTop: 13, paddingTop: 12, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+              <span style={{ width: 30, height: 30, borderRadius: 999, background: gold, color: '#2a1f08', display: 'grid', placeItems: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13, flexShrink: 0 }}>M</span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK }}>Dr. Maya Patel</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginTop: 1 }}>Nutritionist · Cut</div>
+              </div>
+            </div>
+            <button onClick={onLog} style={{ flexShrink: 0, padding: '9px 16px', borderRadius: 999, border: `1px solid ${gold}`, background: 'transparent', color: gold, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Open →</button>
+          </div>
+        </div>
+      </div>
+
+      {/* This week targets */}
+      <SecHead kicker="This week" title="Nutrition targets" />
+      <div style={{ padding: `12px ${t.padX}px 8px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>{targets.map(miniCard)}</div>
+    </>
+  );
+}
+
+// Small headline editor (title + subtitle) for the Training / Nutrition tabs.
+function BSHeadlineEditSheet({ meta, accent, onClose, onSave }) {
+  const t = useBS();
+  const [m, setM] = useStateBSC({ ...meta });
+  const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 6 };
+  const field = { width: '100%', boxSizing: 'border-box', padding: '11px 12px', border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: 12, fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, outline: 'none' };
+  const sheet = (
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent }}>Edit · Goal</div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>Your <span style={{ fontStyle: 'italic', color: accent }}>headline.</span></div>
+        <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <label style={{ display: 'block' }}><span style={lbl}>Title</span><input value={m.title || ''} onChange={(e) => setM({ ...m, title: e.target.value })} style={field} /></label>
+          <label style={{ display: 'block' }}><span style={lbl}>Subtitle</span><input value={m.subtitle || ''} onChange={(e) => setM({ ...m, subtitle: e.target.value })} style={field} /></label>
+        </div>
+        <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+          <button onClick={onClose} style={{ padding: '13px 20px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Cancel</button>
+          <button onClick={() => onSave(m)} style={{ flex: 1, padding: '13px', borderRadius: 999, border: 0, background: accent, color: '#fff', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Save</button>
+        </div>
+      </div>
+    </div>
+  );
+  const target = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
+  return target ? createPortal(sheet, target) : sheet;
+}
+
 function BSClientGoals({ onBack }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   _bsScrollTopOnMount();
   const [data, setData] = useStateBSC(BS_GOALS_DEFAULT);
-  const [tab, setTab] = useStateBSC('training');
-  const [editing, setEditing] = useStateBSC(null); // 'new' | index | null
+  const [tab, setTab] = useStateBSC('overall'); // overall | training | nutrition
+  const [editing, setEditing] = useStateBSC(null); // goal-list edit: 'new' | index | null
+  const [editOverall, setEditOverall] = useStateBSC(false);
   React.useEffect(() => {
     if (!window.shapeDb?.getUserGoals) return;
     window.shapeDb.getUserGoals('client_goals').then(d => {
-      if (d && typeof d === 'object' && (Array.isArray(d.training) || Array.isArray(d.nutrition))) {
-        setData(prev => ({ share: d.share !== false, training: Array.isArray(d.training) ? d.training : prev.training, nutrition: Array.isArray(d.nutrition) ? d.nutrition : prev.nutrition }));
+      if (d && typeof d === 'object') {
+        setData(prev => ({
+          share: d.share !== false,
+          overall: (d.overall && typeof d.overall === 'object') ? { ...prev.overall, ...d.overall } : prev.overall,
+          training: Array.isArray(d.training) ? d.training : prev.training,
+          nutrition: Array.isArray(d.nutrition) ? d.nutrition : prev.nutrition,
+        }));
       }
     }).catch(() => {});
   }, []);
   const persist = (next) => { setData(next); try { window.shapeDb?.saveUserGoals?.('client_goals', next); } catch (e) {} };
-  const goals = data[tab] || [];
+  const overall = data.overall || BS_GOALS_DEFAULT.overall;
+  const trainingMeta = data.trainingMeta || BS_GOALS_DEFAULT.trainingMeta;
+  const nutritionMeta = data.nutritionMeta || BS_GOALS_DEFAULT.nutritionMeta;
+  const goals = Array.isArray(data[tab]) ? data[tab] : [];
   const saveGoal = (g) => { const arr = goals.slice(); if (editing === 'new') arr.push(g); else arr[editing] = g; persist({ ...data, [tab]: arr }); setEditing(null); };
   const deleteGoal = () => { const arr = goals.filter((_, i) => i !== editing); persist({ ...data, [tab]: arr }); setEditing(null); };
+  const byD = overall.by ? new Date(overall.by) : null;
+  const byLabel = byD && !isNaN(byD) ? byD.toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase() : '';
+  // Per-tab theme + headline.
+  const ACCENT = { overall: teal, training: t.RUST, nutrition: '#a07a2e' };
+  const INKON = { overall: '#04201d', training: '#2b0d07', nutrition: '#241a08' };
+  const accent = ACCENT[tab];
+  const headInfo = tab === 'overall'
+    ? { eyebrow: `Your goal${byLabel ? ` · By ${byLabel}` : ''}`, title: overall.title, subtitle: '' }
+    : tab === 'training'
+    ? { eyebrow: `Training goal${trainingMeta.coach ? ` · ${trainingMeta.coach}` : ''}`, title: trainingMeta.title, subtitle: trainingMeta.subtitle }
+    : { eyebrow: `Nutrition goal${nutritionMeta.coach ? ` · ${nutritionMeta.coach}` : ''}`, title: nutritionMeta.title, subtitle: nutritionMeta.subtitle };
+  const hWords = String(headInfo.title || 'Goal').trim().split(/\s+/);
+  const hLast = hWords.length ? hWords.pop() : '';
+  const hHead = hWords.join(' ');
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow="Your goals · Q2 2026" kicker="Section · Goals" title={<>Your <span style={{ color: teal }}>goal.</span></>} />
-      {/* Share with coaches */}
-      <div style={{ padding: `4px ${t.padX}px 0` }}>
+      {/* Header — eyebrow + serif goal title (+ subtitle) + Edit / Back */}
+      <div style={{ padding: `52px ${t.padX}px 0` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{headInfo.eyebrow}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <button onClick={() => setEditOverall(true)} style={{ padding: '7px 13px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Edit</button>
+            <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: 0 }}>← Back</button>
+          </div>
+        </div>
+        <h1 style={{ margin: '10px 0 0', fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontSize: 40, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>{hHead ? hHead + ' ' : ''}<span style={{ fontStyle: 'italic', color: accent }}>{hLast}.</span></h1>
+        {headInfo.subtitle ? <div style={{ marginTop: 9, fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontStyle: 'italic', fontSize: 15, color: t.INK50, lineHeight: 1.4 }}>{headInfo.subtitle}</div> : null}
+      </div>
+      {/* Overall / Training / Nutrition tabs */}
+      <div style={{ padding: `16px ${t.padX}px 0` }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, border: `1px solid ${t.RULE}`, borderRadius: 12, padding: 3 }}>
+          {[['overall', 'Overall'], ['training', 'Training'], ['nutrition', 'Nutrition']].map(([k, l]) => { const on = tab === k; return <button key={k} onClick={() => setTab(k)} style={{ padding: '10px 4px', borderRadius: 9, border: 0, cursor: 'pointer', background: on ? ACCENT[k] : 'transparent', color: on ? INKON[k] : t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{l}</button>; })}
+        </div>
+      </div>
+
+      {tab === 'overall' ? (
+        <BSGoalsOverall overall={overall} onLog={() => setEditOverall(true)} />
+      ) : tab === 'training' ? (
+        <BSGoalsTraining onOpenProgram={() => {}} />
+      ) : (
+        <BSGoalsNutrition overall={overall} onLog={() => setEditOverall(true)} />
+      )}
+
+      {/* Share with coaches — applies to all goal tabs */}
+      <div style={{ padding: `20px ${t.padX}px 0` }}>
         <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>Share with your coaches</div>
-            <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.4 }}>{data.share ? 'Your assigned coaches can see these goals' : 'Private — coaches can’t see your goals'}</div>
+            <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.4 }}>{data.share ? 'Your coaches can see your goals' : 'Private — coaches can’t see your goals'}</div>
           </div>
-          <button onClick={() => persist({ ...data, share: !data.share })} aria-label="Toggle coach visibility" style={{ flexShrink: 0, width: 46, height: 28, borderRadius: 999, border: 0, cursor: 'pointer', padding: 3, background: data.share ? teal : t.RULE, display: 'flex', justifyContent: data.share ? 'flex-end' : 'flex-start', alignItems: 'center' }}>
+          <button onClick={() => persist({ ...data, share: !data.share })} aria-label="Toggle coach visibility" style={{ flexShrink: 0, width: 46, height: 28, borderRadius: 999, border: 0, cursor: 'pointer', padding: 3, background: data.share ? accent : t.RULE, display: 'flex', justifyContent: data.share ? 'flex-end' : 'flex-start', alignItems: 'center' }}>
             <span style={{ width: 22, height: 22, borderRadius: 999, background: '#fff', display: 'block' }} />
           </button>
         </div>
       </div>
-      {/* Training / Nutrition tabs */}
-      <div style={{ padding: `14px ${t.padX}px 0` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, border: `1px solid ${t.RULE}`, borderRadius: 12, padding: 3 }}>
-          {[['training', 'Training'], ['nutrition', 'Nutrition']].map(([k, l]) => { const on = tab === k; return <button key={k} onClick={() => setTab(k)} style={{ padding: '10px', borderRadius: 9, border: 0, cursor: 'pointer', background: on ? teal : 'transparent', color: on ? '#04201d' : t.INK70, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{l}</button>; })}
-        </div>
-      </div>
-      <div style={{ padding: `16px ${t.padX}px 0`, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.025em', color: t.INK }}>{tab === 'training' ? 'Training goals' : 'Nutrition goals'}</div>
-        <button onClick={() => setEditing('new')} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: teal, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: 0 }}>+ New goal →</button>
-      </div>
-      <div style={{ padding: `12px ${t.padX}px 8px`, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {goals.length === 0 ? (
-          <button onClick={() => setEditing('new')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 16, border: `1px dashed ${t.RULE}`, background: 'transparent', padding: '18px 14px', color: t.INK50, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>+ Add your first {tab} goal</button>
-        ) : goals.map((g, i) => {
-          const pct = Math.min((Number(g.cur) || 0) / (Number(g.tgt) || 1), 1);
-          const curF = g.pct ? `${g.cur}%` : Number(g.cur).toLocaleString();
-          const tgtF = g.pct ? `${g.tgt}%` : Number(g.tgt).toLocaleString();
-          const days = bsGoalDaysUntil(g.date);
-          return (
-            <div key={i} style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 8 }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: teal }}>Goal · {Math.round(pct * 100)}%</div>
-                <button onClick={() => setEditing(i)} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: teal, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: 0 }}>Edit</button>
-              </div>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.05, marginBottom: 12 }}>{g.t}</div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 10.5, color: t.INK50, marginBottom: 6 }}><span>{curF}</span><span>{tgtF}</span></div>
-              <div style={{ height: 8, borderRadius: 999, background: t.HAIR, overflow: 'hidden', marginBottom: 12 }}><div style={{ height: '100%', width: `${pct * 100}%`, background: teal, borderRadius: 999 }} /></div>
-              {g.sub && <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.5 }}>{g.sub}</div>}
-              {g.date && days != null && (
-                <div style={{ marginTop: 12, paddingTop: 11, borderTop: `1px solid ${t.HAIR}`, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
-                  <span>Target · {new Date(g.date).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()}</span>
-                  <span style={{ color: days < 14 ? t.RUST : teal }}>{days} days left</span>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      <div style={{ padding: `2px ${t.padX}px 0`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.5 }}>
-        {data.share ? '● Visible to your assigned coaches' : '○ Hidden from coaches — only you can see these'}
-      </div>
       <div style={{ height: 28 }} />
-      {editing != null && (
-        <BSGoalEditSheet tab={tab} goal={editing === 'new' ? null : goals[editing]} onClose={() => setEditing(null)} onSave={saveGoal} onDelete={editing === 'new' ? null : deleteGoal} />
+      {editOverall && (tab === 'overall'
+        ? <BSOverallEditSheet overall={overall} onClose={() => setEditOverall(false)} onSave={(g) => { persist({ ...data, overall: g }); setEditOverall(false); }} />
+        : <BSHeadlineEditSheet meta={tab === 'training' ? trainingMeta : nutritionMeta} accent={accent} onClose={() => setEditOverall(false)} onSave={(m) => { persist({ ...data, [tab + 'Meta']: m }); setEditOverall(false); }} />
       )}
       <BSFooter right="Goals" />
     </BSPage>
