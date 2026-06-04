@@ -46,6 +46,20 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Live tier + real messaging from chat profiles
+- **Migration `2026-06-04-public-profile-card.sql`**: `get_public_profile(user_id)`
+  (name, role, all-time points → tier, + public bio/pronouns/goal/link gated on
+  Public visibility) and `get_user_points(uuid[])` batch (feed tier coloring).
+  SECURITY DEFINER (score_ledger is self-only). **Run on Supabase.**
+- Feed posts now carry **`author_id`** (`mapPost` → `userId`). `BSClientFeed`
+  batch-fetches authors' points → **real tier** tints avatars/bubbles
+  (`bsTierForPoints`); falls back to the derived tier.
+- **`BSPublicProfile`** fetches the live card (real tier + public bio) when a userId
+  is present.
+- **Message** from a profile now routes through `getOrCreateMemberConversation` when
+  the author has a userId — a real, persisted conversation (front-end thread otherwise).
+- Radio prompt: the EQ icon now sits in a sized, clipped box so it fits the green tile.
+
 ### 2026-06-04 — Chat role tag follows the author's real role
 - `mapPost` now carries `authorKind` (the author's real role from `community_posts.
   author_role`) separately from `kind` (the channel/section, used for filtering).

@@ -465,7 +465,7 @@ function BSRadioPrompt() {
           onClick={() => setChoice('on')}
           title="Yes, play Radio."
           meta="PLAYS IN APP · AD-FREE · PAUSE ANYTIME"
-          icon={<BSEQ bars={5} height={22} gap={2} color="#ffffff" paused={false} />}
+          icon={<div style={{ width: 18, height: 16 }}><BSEQ bars={5} height={16} gap={2} color="#ffffff" paused={false} /></div>}
           accent
         />
         <PromptChoice
@@ -520,7 +520,7 @@ function PromptChoice({ on, onClick, eyebrow, title, meta, icon, accent }) {
       borderRadius: 13,
     }}>
       <div style={{
-        width: 38, height: 38, flexShrink: 0, borderRadius: 10,
+        width: 38, height: 38, flexShrink: 0, borderRadius: 10, overflow: 'hidden',
         background: accent ? 'linear-gradient(135deg, #0ac5a8, #14806f)' : 'transparent',
         border: accent ? 'none' : `1px solid ${t.RULE}`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',

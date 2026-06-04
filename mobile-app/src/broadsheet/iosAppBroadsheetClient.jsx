@@ -5809,7 +5809,15 @@ const BS_SAMPLE_CHANNELS = [
 function BSPublicProfile({ person, onBack, onMessage = () => {} }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const tier = person.tier || bsPostTier(person);
+  // Live profile card (real tier from Shape Score + public bio) when we have a
+  // user id; falls back to the derived tier / generic blurb otherwise.
+  const [live, setLive] = useStateBSC(null);
+  React.useEffect(() => {
+    if (person.userId && window.ShapeProfiles?.getPublicProfile) {
+      window.ShapeProfiles.getPublicProfile(person.userId).then(d => { if (d) setLive(d); }).catch(() => {});
+    }
+  }, [person.userId]);
+  const tier = (live && Number.isFinite(live.points) ? bsTierForPoints(live.points) : null) || person.tier || bsPostTier(person);
   const tc = bsTierColor(tier);
   const ROLE_LABEL = { TRAINER: 'Trainer', NUTRI: 'Nutritionist', CLIENT: 'Client', SHAPE: 'Client', COMMUNITY: 'Client' };
   const roleLabel = ROLE_LABEL[person.kind] || 'Client';
@@ -5833,7 +5841,7 @@ function BSPublicProfile({ person, onBack, onMessage = () => {} }) {
       </div>
       <div style={{ padding: `16px ${t.padX}px 0` }}>
         <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK70, lineHeight: 1.5 }}>
-          {person.bio || `${person.who} is part of the Shape community${isCoach ? ' as a coach' : ''}. ${isCoach ? 'Browse their coaching profile to see packages and book a session.' : 'Say hi or cheer them on.'}`}
+          {(live && live.bio) || person.bio || `${person.who} is part of the Shape community${isCoach ? ' as a coach' : ''}. ${isCoach ? 'Browse their coaching profile to see packages and book a session.' : 'Say hi or cheer them on.'}`}
         </div>
       </div>
       <div style={{ padding: `16px ${t.padX}px 0`, display: 'flex', gap: 8 }}>
@@ -6134,7 +6142,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     // `authorKind` = the author's REAL role (drives the role tag + alignment).
     const authorKind = KIND_OF(p.role);
     return {
-      id: p.id, who: p.name || 'Member', kind, authorKind, init: (p.avatar || p.name || '?').toString().trim().charAt(0).toUpperCase(),
+      id: p.id, userId: p.author_id || null, who: p.name || 'Member', kind, authorKind, init: (p.avatar || p.name || '?').toString().trim().charAt(0).toUpperCase(),
       hue: HUE[kind], time: p.time || 'now', pinned: !!p.pinned, official: kind === 'SHAPE',
       body: p.note || p.status || p.body || p.workout || '',
       hearts: typeof p.likes === 'number' ? p.likes : (p.likeCount || 0),
@@ -6149,11 +6157,25 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     (async () => {
       try {
         const res = await window.ShapeCommunity?.listPosts?.();
-        if (active && Array.isArray(res?.data) && res.data.length) { setPosts(res.data.map(mapPost).filter(p => p.body)); setPostsLive(true); }
+        if (active && Array.isArray(res?.data) && res.data.length) {
+          const mapped = res.data.map(mapPost).filter(p => p.body);
+          setPosts(mapped); setPostsLive(true);
+          // Batch the authors' all-time points → real tier per user for the bubbles.
+          const ids = [...new Set(mapped.map(p => p.userId).filter(Boolean))];
+          if (ids.length && window.ShapeProfiles?.getUserPoints) {
+            window.ShapeProfiles.getUserPoints(ids).then(pointsMap => {
+              if (!active || !pointsMap) return;
+              const tiers = {};
+              Object.keys(pointsMap).forEach(uid => { tiers[uid] = bsTierForPoints(pointsMap[uid]); });
+              setTierByUser(tiers);
+            }).catch(() => {});
+          }
+        }
       } catch { /* keep sample */ }
     })();
     return () => { active = false; };
   }, []);
+  const [tierByUser, setTierByUser] = useStateBSC({}); // userId → real tier (from Shape Score)
   // Each chip is its own channel: SHAPE = individual members, TRAINER/NUTRI/
   // CLIENT = that role's peers only. (COMMUNITY swaps to the activity feed in
   // the render below, so `shown` isn't used for it.)
@@ -6216,7 +6238,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     const right = p.who === 'You' || (filter === 'COMMUNITY' && (akind === 'CLIENT' || akind === 'SHAPE'));
     const replyCount = (p.replies || 0) + (actComments[p.id] || []).length;
     // Avatar + bubble tint follow the author's TIER (not the role).
-    const tier = bsPostTier(p);
+    const tier = p.tier || (p.userId && tierByUser[p.userId]) || bsPostTier(p);
     const tc = bsTierColor(tier);
     const bubbleBg = p.official ? '#f3eee4' : (t.isLight ? `${tc}16` : `${tc}22`);
     const linkable = p.who !== 'You' && p.public !== false; // open the author's public profile
@@ -6372,7 +6394,16 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   );
 
   if (openProfile) {
-    return <BSPublicProfile person={openProfile} onBack={() => setOpenProfile(null)} onMessage={(person) => { setOpenProfile(null); setOpenChat({ n: person.who, s: ROLE[person.kind]?.label || 'Member', c: bsTierColor(person.tier), i: person.init, messages: [], dm: true }); }} />;
+    return <BSPublicProfile person={openProfile} onBack={() => setOpenProfile(null)} onMessage={async (person) => {
+      setOpenProfile(null);
+      let convId = null;
+      if (person.userId) {
+        try { const res = await window.ShapeMessages?.getOrCreateMemberConversation?.({ otherUserId: person.userId }); if (res && res.data) convId = res.data; }
+        catch (e) { window.__bsToast?.(e?.message || 'Could not start conversation.', 'err'); }
+      }
+      setOpenChat({ n: person.who, s: ROLE[person.kind]?.label || 'Member', c: bsTierColor(person.tier), i: person.init, messages: [], dm: true, conversation_id: convId });
+      loadMemberThreads();
+    }} />;
   }
   if (openChat) {
     const isCh = !!openChat.channelId || String(openChat.n || '').startsWith('#');
@@ -6987,6 +7018,15 @@ function bsPostTier(p) {
   let n = 0;
   for (let i = 0; i < s.length; i++) n = (n + s.charCodeAt(i) * (i + 1)) % 997;
   return _BS_FEED_TIERS[n % _BS_FEED_TIERS.length];
+}
+// Tier from a member's all-time Shape Score points (matches SHAPE_SCORE_TIERS).
+function bsTierForPoints(pts) {
+  const p = Number(pts) || 0;
+  if (p >= 15000) return 'Legend';
+  if (p >= 5000) return 'Peak';
+  if (p >= 2000) return 'Form';
+  if (p >= 750) return 'Tempo';
+  return 'Base';
 }
 
 const SHAPE_SCORE_PROFILES = {
