@@ -46,6 +46,25 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-13 — Coach client dashboard wired to live KPIs (get_client_stats)
+- **Migration `2026-06-13-client-stats.sql`** (idempotent, **run on Supabase**): SECURITY
+  DEFINER `get_client_stats(p_user_id)` gated on `is_coach_on_client`. Aggregates the
+  coach-readable tables into one call: `sessions` attendance (completed/planned, last
+  42d) + recent sessions, `daily_health_snapshot` nutrition (days logged 7/30d, avg
+  calories/protein/carbs/fat over the last 7 logged days, workout minutes 30d), and
+  `client_weigh_ins` (now/start/count). Null fields when there's no data.
+- `shapeBackend.js`: **`ShapeClientStats.get(userId)`** → the RPC.
+- **`BSProClientFullProfilePage`** now fetches the rollup for a linked client and threads
+  live values into the dashboard with **per-field demo fallback**:
+  - **Profile tab** — Attendance % + `done/planned sessions` (trainer); Adherence % +
+    `N/7 days logged` (nutri); SESSIONS, WEIGHT Δ, LOGGED stat cards; **Macros vs target**
+    rows (avg protein/carbs/fat); AVG INTAKE (avg calories); Recent sessions list (live
+    `sessions`). Weight chart already lived off weigh-ins.
+  - **Analysis tab** — ADHERENCE / SESSIONS / AVG INTAKE / PROTEIN / WEIGHT Δ / DAYS
+    LOGGED KPIs pull from the same rollup.
+  - Still demo (no clean source yet): bar sparklines, AVG RPE, PRs, Key lifts, streaks,
+    the consult/cohort lines. Demo roster clients (no user id) stay fully demo.
+
 ### 2026-06-13 — Coach clients roster redesign (card list + header) — tab bar removed
 - **`BSProRosterView`** (shared, `iosAppBroadsheetPros.jsx`) replaces the old divider-row
   roster on **both** coach client pages: editorial header (`{N} ACTIVE · +3 THIS MONTH`

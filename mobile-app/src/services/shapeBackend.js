@@ -2893,6 +2893,19 @@ async function getClientGoals(userId) {
 }
 window.ShapeGoalsApi = { getForClient: getClientGoals };
 
+// Coach read of a client's aggregated KPIs (sessions attendance, nutrition
+// adherence + macro averages, weigh-in series), gated server-side on
+// is_coach_on_client. Returns the stats object, or null when not the client's
+// coach / not signed in. Fields may be null when there's no underlying data —
+// the UI falls back to demo values per field.
+async function getClientStats(userId) {
+  if (!supabase || !state.user?.id || !userId) return null;
+  const { data, error } = await supabase.rpc('get_client_stats', { p_user_id: userId });
+  if (error) return null;
+  return data || null;
+}
+window.ShapeClientStats = { get: getClientStats };
+
 // Weigh-ins — the live body-comp series (client_weigh_ins). One row per day
 // (upsert), owned by the client; a linked coach reads them via get_client_goals.
 async function listWeighIns() {

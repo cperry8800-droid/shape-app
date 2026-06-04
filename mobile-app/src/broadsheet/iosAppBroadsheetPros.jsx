@@ -1296,9 +1296,14 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const [cGoalsLoaded, setCGoalsLoaded] = useStateBSP(false);
   const [showAdjust, setShowAdjust] = useStateBSP(false);
   const [view, setView] = useStateBSP('profile'); // 'profile' | 'analysis'
+  const [cStats, setCStats] = useStateBSP(null); // live KPI rollup (coach read)
   useEffectBSP(() => {
     if (!clientUid || !window.ShapeGoalsApi?.getForClient) return;
     window.ShapeGoalsApi.getForClient(clientUid).then(d => { setCGoals(d || null); setCGoalsLoaded(true); }).catch(() => setCGoalsLoaded(true));
+  }, [clientUid]);
+  useEffectBSP(() => {
+    if (!clientUid || !window.ShapeClientStats?.get) return;
+    window.ShapeClientStats.get(clientUid).then(d => setCStats(d || null)).catch(() => {});
   }, [clientUid]);
   const setPhaseKey = (key, val) => {
     setPhase(prev => ({ ...prev, [key]: val }));
@@ -1340,6 +1345,23 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const bwNow = bwSeries[bwSeries.length - 1];
   const bwDelta = +(bwNow - bwSeries[0]).toFixed(1);
   const bwWeeks = bwSeries.length;
+
+  // ---- live KPIs (get_client_stats; null fields → demo fallback) ----
+  const S = cStats || {};
+  const lnum = (x) => (x == null || x === '' || Number.isNaN(Number(x)) ? null : Number(x));
+  const sDone = lnum(S.sessionsCompleted), sPlan = lnum(S.sessionsPlanned);
+  const attendancePct = (sPlan && sPlan > 0) ? Math.round((sDone / sPlan) * 100) : null;
+  const days7 = lnum(S.daysLogged7d), days30 = lnum(S.daysLogged30d);
+  const adherencePct = (days7 != null) ? Math.round((days7 / 7) * 100) : null;
+  const avgKcal = lnum(S.avgCalories), avgP = lnum(S.avgProtein), avgC = lnum(S.avgCarbs), avgF = lnum(S.avgFat);
+  const kcalStr = avgKcal != null ? avgKcal.toLocaleString() : null;
+  const liveRecent = Array.isArray(S.recentSessions) && S.recentSessions.length ? S.recentSessions.map(r => {
+    const d = r.at ? new Date(r.at) : null;
+    const when = d && !isNaN(d) ? d.toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
+    const st = r.status === 'completed' ? 'Completed' : r.status === 'requested' ? 'Requested' : 'Confirmed';
+    const mins = r.durationMin ? ` · ${r.durationMin} min` : '';
+    return { n: r.title || 'Session', s: `${st}${mins}`, d: when };
+  }) : null;
 
   // ---- presentational helpers ----
   const Section = ({ eyebrow, title, trailing, color }) => (
@@ -1416,8 +1438,8 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
 
   // ---- PROFILE tab ----
   const bigCard = isNutri
-    ? { eyebrow: 'ADHERENCE · THIS WEEK', big: '92', small: '%', sub: '6/7 days logged · -1.2 kg', barsLabel: 'DAILY ADHERENCE', barsRight: 'MON — SUN', bars: [0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8], barLetters: ['M', 'T', 'W', 'T', 'F', 'S', 'S'], uniform: true }
-    : { eyebrow: 'ATTENDANCE · THIS BLOCK', big: '96', small: '%', sub: '38/41 sessions · 6 wks left', barsLabel: 'SESSIONS / WEEK', barsRight: 'LAST 7 WEEKS', bars: [0.55, 0.72, 0.5, 0.86, 0.46, 0.7, 1], barLetters: null, uniform: false };
+    ? { eyebrow: 'ADHERENCE · THIS WEEK', big: adherencePct != null ? String(adherencePct) : '92', small: '%', sub: `${days7 != null ? days7 : 6}/7 days logged · ${bwDelta} ${bwUnit}`, barsLabel: 'DAILY ADHERENCE', barsRight: 'MON — SUN', bars: [0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8], barLetters: ['M', 'T', 'W', 'T', 'F', 'S', 'S'], uniform: true }
+    : { eyebrow: 'ATTENDANCE · THIS BLOCK', big: attendancePct != null ? String(attendancePct) : '96', small: '%', sub: `${sDone != null ? sDone : 38}/${sPlan != null ? sPlan : 41} sessions · 6 wks left`, barsLabel: 'SESSIONS / WEEK', barsRight: 'LAST 7 WEEKS', bars: [0.55, 0.72, 0.5, 0.86, 0.46, 0.7, 1], barLetters: null, uniform: false };
   const renderBigCard = () => (
     <div style={{ borderRadius: 18, border: `1px solid ${accent}33`, background: `linear-gradient(155deg, ${accent}12, ${t.PAPER2} 70%), ${t.PAPER2}`, padding: 18 }}>
       <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>{bigCard.eyebrow}</div>
@@ -1442,12 +1464,12 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     </div>
   );
   const stats = isNutri ? [
-    { label: 'AVG INTAKE', labelColor: gold, big: '2,040', sub: 'TARGET 2,180' },
+    { label: 'AVG INTAKE', labelColor: gold, big: kcalStr || '2,040', sub: 'TARGET 2,180' },
     { label: 'PROTEIN HIT', labelColor: teal, big: '88', small: '%', sub: 'OF TARGET DAYS' },
-    { label: 'WEIGHT Δ', labelColor: rust, big: '-1.2', small: 'kg', sub: 'GOAL -4 KG' },
-    { label: 'LOGGED', labelColor: gold, big: '6', small: '/7', sub: 'THIS WEEK' },
+    { label: 'WEIGHT Δ', labelColor: rust, big: String(bwDelta), small: bwUnit, sub: 'GOAL -4 KG' },
+    { label: 'LOGGED', labelColor: gold, big: days7 != null ? String(days7) : '6', small: '/7', sub: 'THIS WEEK' },
   ] : [
-    { label: 'SESSIONS', labelColor: teal, big: '38', sub: 'OF 41 PLANNED' },
+    { label: 'SESSIONS', labelColor: teal, big: sDone != null ? String(sDone) : '38', sub: `OF ${sPlan != null ? sPlan : 41} PLANNED` },
     { label: 'STREAK', labelColor: teal, big: '14d', sub: 'CONSISTENCY' },
     { label: 'AVG RPE', labelColor: rust, big: '8.0', sub: 'EFFORT LOGGED' },
     { label: 'PRS', labelColor: gold, big: '3', sub: 'THIS BLOCK' },
@@ -1459,9 +1481,9 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     { n: 'Overhead Press', v: '35 kg', d: '+2.5', p: 0.38 },
   ];
   const macros = [
-    { n: 'Protein', cur: 165, tgt: 170, c: teal },
-    { n: 'Carbs', cur: 190, tgt: 200, c: gold },
-    { n: 'Fat', cur: 60, tgt: 62, c: rust },
+    { n: 'Protein', cur: avgP != null ? avgP : 165, tgt: 170, c: teal },
+    { n: 'Carbs', cur: avgC != null ? avgC : 190, tgt: 200, c: gold },
+    { n: 'Fat', cur: avgF != null ? avgF : 60, tgt: 62, c: rust },
   ];
   const trackRow = (label, value, deltaColor, delta, pct, barColor) => (
     <div style={{ padding: '12px 0', borderTop: `1px solid ${t.HAIR}` }}>
@@ -1472,7 +1494,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       <div style={{ marginTop: 8, height: 3, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${Math.min(1, pct) * 100}%`, background: barColor, borderRadius: 999 }} /></div>
     </div>
   );
-  const recent = isNutri ? [
+  const recent = liveRecent || (isNutri ? [
     { n: 'Tue · 2,040 kcal', s: '162P / 188C / 58F · on target', d: 'Today' },
     { n: 'Mon · 2,110 kcal', s: '168P / 201C / 61F · +protein', d: 'Mon' },
     { n: 'Sun · 1,980 kcal', s: '155P / 176C / 64F · low carb', d: 'Sun' },
@@ -1481,7 +1503,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     { n: 'Squat form video', s: 'Uploaded · awaiting review', d: '2h' },
     { n: 'Pull Day B', s: 'Completed · 48 min · RPE 7', d: 'Mon' },
     { n: 'Leg Day', s: 'Completed · 61 min · RPE 9', d: 'Sat' },
-  ];
+  ]);
   const inbox = isNutri
     ? [{ n: 'Food log · this week', s: 'Submitted 4h ago · 18 entries', d: 'Review', cta: true }]
     : [{ n: 'Squat form video', s: 'Uploaded 2h ago · 1:42', d: 'Review', cta: true }];
@@ -1533,15 +1555,15 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
 
   // ---- ANALYSIS tab ----
   const aKpis = isNutri ? [
-    { label: 'ADHERENCE', big: '92', small: '%', sub: '+6pt vs last mo', c: accent },
-    { label: 'AVG INTAKE', big: '2,040', sub: 'target 2,180', c: accent },
-    { label: 'PROTEIN HIT', big: '88', small: '%', sub: 'of target days', c: teal },
-    { label: 'WEIGHT Δ', big: '-1.2', small: 'kg', sub: 'goal -4 kg', c: rust },
-    { label: 'DAYS LOGGED', big: '27', small: '/30', sub: 'last 30 days', c: accent },
+    { label: 'ADHERENCE', big: adherencePct != null ? String(adherencePct) : '92', small: '%', sub: '+6pt vs last mo', c: accent },
+    { label: 'AVG INTAKE', big: kcalStr || '2,040', sub: 'target 2,180', c: accent },
+    { label: 'PROTEIN HIT', big: avgP != null ? String(avgP) : '88', small: avgP != null ? 'g' : '%', sub: avgP != null ? 'avg / day' : 'of target days', c: teal },
+    { label: 'WEIGHT Δ', big: String(bwDelta), small: bwUnit, sub: 'goal -4 kg', c: rust },
+    { label: 'DAYS LOGGED', big: days30 != null ? String(days30) : '27', small: '/30', sub: 'last 30 days', c: accent },
     { label: 'CONSISTENCY', big: '90', small: '%', sub: 'cohort top 15%', c: teal },
   ] : [
-    { label: 'ADHERENCE', big: '96', small: '%', sub: '+4pt vs last mo', c: accent },
-    { label: 'SESSIONS', big: '38', sub: 'of 41 planned', c: accent },
+    { label: 'ADHERENCE', big: attendancePct != null ? String(attendancePct) : '96', small: '%', sub: '+4pt vs last mo', c: accent },
+    { label: 'SESSIONS', big: sDone != null ? String(sDone) : '38', sub: `of ${sPlan != null ? sPlan : 41} planned`, c: accent },
     { label: 'AVG RPE', big: '8.0', sub: 'effort logged', c: rust },
     { label: 'TOTAL PRS', big: '3', sub: 'this block', c: gold },
     { label: 'VOLUME', big: '+12', small: '%', sub: 'week / week', c: teal },
