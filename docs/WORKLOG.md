@@ -46,6 +46,18 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Header avatars match the signed-in account + chat top-rule removed
+- The five "your own" header avatars (home / train / eat / chat / me) were hardcoded
+  to **"A"**. New `bsMyName()` / `bsMyInitials()` helpers read `profiles.full_name`
+  from the auth cache (the same source the Me page uses; the edit-profile flow writes
+  + mirrors it), so the avatars now show the account's **real initials** (e.g. "JD"),
+  falling back to the demo identity when signed out.
+- The **Me identity card** now seeds its name + handle from the signed-in account
+  (was a hardcoded "Alex Rivera" / "@alex.rivera") before any edit; a saved
+  `client_identity` still overrides.
+- **Chat page top border removed**: `BSMasthead`'s top hairline is now suppressed when
+  `noRule` is set. Only the feed/chat passes `noRule`, so other mastheads keep it.
+
 ### 2026-06-04 — Habits page copy/colors + score breakdown; About hero accents
 - **Habits sections renamed**: "To-dos" → **"To do"**, "To-don'ts" → **"Don't do it"**.
 - **Don't-do-it section is red**: its count eyebrow + **+ Add →** now use the section
