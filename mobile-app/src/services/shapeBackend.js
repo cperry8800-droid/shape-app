@@ -273,6 +273,26 @@ async function updateProfileRoles({ primaryRole, roles } = {}) {
   return { stored: 'supabase', data };
 }
 
+// Update just the display name on the profile (from Settings → Edit profile), so
+// chat/search/leaderboard surfaces that read profiles.full_name stay in sync.
+async function updateProfileName(name) {
+  const clean = String(name || '').trim();
+  if (!clean || !state.user?.id) return null;
+  if (!supabase) {
+    const profile = { ...(state.profile || demoProfile()), full_name: clean };
+    return setCached({ profile }).profile;
+  }
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ full_name: clean, updated_at: new Date().toISOString() })
+    .eq('id', state.user.id)
+    .select()
+    .single();
+  if (error) return null;
+  setCached({ profile: data });
+  return data;
+}
+
 async function getCurrentSession() {
   if (!authConfigured) return setCached({});
 
@@ -2589,6 +2609,7 @@ window.ShapeAuth = {
   signOut,
   getCurrentSession,
   updateProfileRoles,
+  updateProfileName,
   getCachedState: () => ({ ...state }),
 };
 
