@@ -6144,6 +6144,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // Map a live community post into the feed-card shape.
   const KIND_OF = (r) => { const s = String(r || '').toLowerCase(); if (s.includes('shape') || s.includes('mod') || s.includes('official')) return 'SHAPE'; if (s.includes('train') || s.includes('coach')) return 'TRAINER'; if (s.includes('nutri') || s.includes('diet')) return 'NUTRI'; return 'CLIENT'; };
   const HUE = { SHAPE: TEAL, TRAINER: '#c0533b', CLIENT: '#147b68', NUTRI: '#a07a2e' };
+  const myUserId = window.ShapeAuth?.getCachedState?.()?.user?.id || null;
   const mapPost = (p) => {
     // Prefer the channel the post was made on (stored on the post); fall back to
     // inferring from the author's role for older posts without a channel.
@@ -6151,9 +6152,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     const kind = (ch && ROLE[ch]) ? ch : KIND_OF(p.role);
     // `kind` = which section/channel the post lives in (drives filtering);
     // `authorKind` = the author's REAL role (drives the role tag + alignment).
-    const authorKind = KIND_OF(p.role);
+    // My own posts always reflect MY current role, not the stale role stored on
+    // the post (e.g. WHOOP auto-posts created earlier as a client).
+    const mine = !!(p.author_id && myUserId && p.author_id === myUserId);
+    const authorKind = mine ? myRoleChip : KIND_OF(p.role);
     return {
-      id: p.id, userId: p.author_id || null, who: p.name || 'Member', kind, authorKind, init: (p.avatar || p.name || '?').toString().trim().charAt(0).toUpperCase(),
+      id: p.id, userId: p.author_id || null, mine, who: p.name || 'Member', kind, authorKind, init: (p.avatar || p.name || '?').toString().trim().charAt(0).toUpperCase(),
       hue: HUE[kind], time: p.time || 'now', pinned: !!p.pinned, official: kind === 'SHAPE',
       body: p.note || p.status || p.body || p.workout || '',
       hearts: typeof p.likes === 'number' ? p.likes : (p.likeCount || 0),
@@ -6246,13 +6250,13 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     // In the mixed COMMUNITY feed, coaches sit left and members/clients (+ you)
     // sit right for a conversation feel; in a single-role section only your own
     // posts go right (everyone else is an incoming/left feed message).
-    const right = p.who === 'You' || (filter === 'COMMUNITY' && (akind === 'CLIENT' || akind === 'SHAPE'));
+    const right = p.who === 'You' || p.mine || (filter === 'COMMUNITY' && (akind === 'CLIENT' || akind === 'SHAPE'));
     const replyCount = (p.replies || 0) + (actComments[p.id] || []).length;
     // Avatar + bubble tint follow the author's TIER (not the role).
     const tier = p.tier || (p.userId && tierByUser[p.userId]) || bsPostTier(p);
     const tc = bsTierColor(tier);
     const bubbleBg = p.official ? '#f3eee4' : (t.isLight ? `${tc}16` : `${tc}22`);
-    const linkable = p.who !== 'You' && p.public !== false; // open the author's public profile
+    const linkable = !p.mine && p.who !== 'You' && p.public !== false; // open the author's public profile
     const AV_OFFSET = 41; // avatar (32) + gap (9), to align meta/reactions under the bubble
     return (
       <div key={p.id || i} style={{ display: 'flex', flexDirection: 'column', alignItems: right ? 'flex-end' : 'flex-start' }}>
