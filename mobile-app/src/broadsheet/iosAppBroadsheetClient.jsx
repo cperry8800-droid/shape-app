@@ -4914,10 +4914,29 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
     if (list) loadGroceryList(list);
   };
 
+  // Cross-device sync: saved grocery lists ride in user_goals('client_grocery_lists').
+  // Load once on mount + merge any server-only lists; only push to the server after
+  // that initial merge so we don't clobber it with the local-only copy.
+  const grocSyncedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!(window.shapeDb && window.shapeDb.getUserGoals)) { grocSyncedRef.current = true; return undefined; }
+    let cancelled = false;
+    window.shapeDb.getUserGoals('client_grocery_lists').then(saved => {
+      if (cancelled || !Array.isArray(saved)) return;
+      setRecipeLists(prev => {
+        const have = new Set(prev.map(l => l.id));
+        const extra = saved.filter(l => l && l.id && !have.has(l.id) && !deletedGroceryIds.includes(l.id));
+        return extra.length ? [...extra, ...prev] : prev;
+      });
+    }).catch(() => {}).finally(() => { grocSyncedRef.current = true; });
+    return () => { cancelled = true; };
+  }, []);
+
   React.useEffect(() => {
     try {
       window.localStorage && window.localStorage.setItem('shape.recipeGroceryLists', JSON.stringify(recipeLists));
     } catch {}
+    if (grocSyncedRef.current && window.shapeDb?.saveUserGoals) { try { window.shapeDb.saveUserGoals('client_grocery_lists', recipeLists); } catch (e) {} }
   }, [recipeLists]);
 
   React.useEffect(() => {
