@@ -9809,7 +9809,7 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
             flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             padding: '12px 12px', background: t.INK, color: t.PAPER, border: 0, cursor: 'pointer',
             fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700,
-          }}>Send to Instacart →</button>
+          }}>Instacart →</button>
           <button onClick={onLibrary} style={{ borderRadius: t.RADIUS_SM,
             flex: '0 0 auto', whiteSpace: 'nowrap',
             padding: '12px 12px', background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, cursor: 'pointer',
@@ -9836,9 +9836,9 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
         const aisleDone = aisle.items.filter((_, ii) => checked.has(`${ai}-${ii}`)).length;
         return (
           <>
-            {/* Food-group tabs get the full width (scroll horizontally) */}
-            <div style={{ padding: `${t.sectGap}px 0 12px` }}>
-              <div style={{ display: 'flex', gap: 5, overflowX: 'auto', minWidth: 0, scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', padding: `0 ${t.padX}px` }}>
+            {/* Food-group tabs — wrap so they all stay on screen */}
+            <div style={{ padding: `${t.sectGap}px ${t.padX}px 12px` }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, rowGap: 7 }}>
                 {list.aisles.map((a, idx) => {
                   const on = idx === ai;
                   const aDone = a.items.filter((_, ii) => checked.has(`${idx}-${ii}`)).length;
