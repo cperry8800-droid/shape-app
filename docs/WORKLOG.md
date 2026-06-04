@@ -46,6 +46,22 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-13 — Coach clients roster redesign (card list + header) — tab bar removed
+- **`BSProRosterView`** (shared, `iosAppBroadsheetPros.jsx`) replaces the old divider-row
+  roster on **both** coach client pages: editorial header (`{N} ACTIVE · +3 THIS MONTH`
+  eyebrow + serif **"Your clients."** + a `+` add button), a search box, **scrollable
+  filter pills** (scrollbar hidden via `.bs-hide-scroll`), the **Active / Past** toggle
+  (kept), and tappable **rounded client cards** (avatar, serif name, `{program} · {N}d
+  streak`, a status pill, chevron). Tapping a card opens the full profile directly.
+- **`BSProStatusPill`** maps status → colored outline pill: ON TRACK / NEEDS EYES / NEW /
+  MISSED / PR / DELOAD / PAST.
+- **Removed the ROSTER / CONSOLE / ANALYSIS section sub-tab bar** (`BSProClientsTabBar`)
+  from the clients page per request — the clients page is now just the roster. The
+  section-level **Console** and **Analysis** screens are no longer linked from here
+  (components left intact; per-client Analysis now lives inside each client profile).
+- Demo rosters refreshed (name · program · streak · status) to match the new design;
+  `bsClientMatchesFilter` extended (NEEDS EYES now includes `missed`).
+
 ### 2026-06-13 — Coach client-profile redesign (trainer + nutritionist) + roster filters
 - **`BSProClientFullProfilePage`** (mobile coach apps, `iosAppBroadsheetPros.jsx`) fully
   rebuilt into a **role-aware, 3-tab dashboard** (teal for trainers, gold `#d8b25a` for
