@@ -2244,6 +2244,21 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     { n: 'Warmup routines', meta: '8 videos · 11 min · used by 31' },
     { n: 'Cooldown & stretch', meta: '5 videos · 7 min · used by 17' },
   ];
+  const [tab, setTab] = useStateBSP('plans');
+  const TABS = [['plans', 'Plans'], ['workouts', 'Workouts'], ['clients', 'Client programs'], ['soundtracks', 'Soundtracks']];
+  const workouts = [
+    { n: 'Lower Push — Peak', meta: '6 lifts · 62 min · RPE 8' },
+    { n: 'Upper Pull — Volume', meta: '7 lifts · 58 min · RPE 7.5' },
+    { n: 'Tempo Run · Zone 2', meta: '45 min · cardio · Z2' },
+    { n: 'Full-body Conditioning', meta: '5 rounds · 35 min · RPE 8' },
+    { n: 'Deload Circuit', meta: '4 lifts · 40 min · RPE 6' },
+  ];
+  const enrolled = [
+    { prog: 'Push / Pull / Legs', n: 48, who: [['A', t.RUST], ['J', '#3b7de0'], ['C', t.AMBER]] },
+    { prog: 'Starting Strength', n: 31, who: [['R', t.AMBER], ['P', '#3b7de0']] },
+    { prog: 'Fat Loss 101', n: 22, who: [['P', '#8a5cf6'], ['D', t.RUST]] },
+    { prog: 'Hypertrophy Block', n: 19, who: [['S', '#2f7d4f']] },
+  ];
 
   if (showSoundtracks) return <BSProSoundtracks role="trainer" onBack={() => setShowSoundtracks(false)} />;
 
@@ -2326,6 +2341,14 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         </div>
         {note && <div style={{ marginTop: 14, borderRadius: 999, border: `1px solid ${teal}`, background: `${teal}1c`, color: teal, padding: '9px 14px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em' }}>✓ {note}</div>}
 
+        {/* Tabs — Plans / Workouts / Client programs / Soundtracks */}
+        <div className="bs-hide-scroll" style={{ marginTop: 18, display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 2 }}>
+          {TABS.map(([k, l]) => (
+            <button key={k} onClick={() => setTab(k)} style={{ flexShrink: 0, borderRadius: 999, border: `1px solid ${tab === k ? teal : t.RULE}`, background: tab === k ? `${teal}1c` : 'transparent', color: tab === k ? teal : t.INK, padding: '8px 14px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{l}</button>
+          ))}
+        </div>
+
+        {tab === 'plans' && (<>
         {/* Generate with AI */}
         <button onClick={() => setDrafting(true)} style={{ width: '100%', marginTop: 18, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 14, alignItems: 'center', borderRadius: 16, border: `1px solid ${teal}44`, background: `linear-gradient(150deg, ${teal}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 16 }}>
           <span style={{ width: 48, height: 48, borderRadius: 12, background: teal, color: '#04201d', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>✦</span>
@@ -2355,23 +2378,54 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         {/* Catalogue */}
         {secHead('TRACKLIST', 'Catalogue', `SORT · ${sort.toUpperCase()} →`, cycleSort)}
         <div style={{ marginTop: 6 }}>{programs.map((p, i) => numRow({ ...p, onClick: () => setDrafting(true) }, i, p.price))}</div>
+        </>)}
 
-        {/* Cues & mobility (video playlists) */}
-        {secHead('PLAYLISTS', 'Cues & mobility', 'NEW →', () => flash('New cue list — add videos in the editor'))}
+        {tab === 'workouts' && (<>
+        {/* Single workouts library */}
+        {secHead('LIBRARY', 'Workouts', 'NEW →', () => setDrafting(true))}
+        <div style={{ marginTop: 6 }}>{workouts.map((w, i) => numRow({ ...w, onClick: () => setDrafting(true) }, i, '→'))}</div>
+
+        {/* Cues & mobility (video sets) */}
+        {secHead('CUE LIBRARY', 'Cues & mobility', 'NEW →', () => flash('New cue set — add videos in the editor'))}
         <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 13, alignItems: 'center', borderRadius: 16, border: `1px solid ${purple}44`, background: `linear-gradient(150deg, ${purple}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 14 }}>
           <span style={{ width: 50, height: 50, borderRadius: 12, background: `linear-gradient(150deg, ${purple}, ${purple}99)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="#ffffffd0"><path d="M9 17a3 3 0 1 1-2-2.83V4l11-2v11a3 3 0 1 1-2-2.83V5.2L9 6.6V17z" /></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="#ffffffd0"><path d="M8 5v14l11-7z" /></svg>
           </span>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>Mobility essentials</div>
             <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.02em' }}>12 videos · 18 min · Used by 23</div>
           </div>
-          <span style={{ width: 40, height: 40, borderRadius: 999, background: `${purple}2e`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: purple, fontSize: 14 }}>▶</span>
+          <span style={{ color: purple, fontSize: 16 }}>→</span>
         </div>
-        <div style={{ marginTop: 4 }}>{cues.map((c, i) => numRow({ ...c, onClick: () => flash('Cue preview coming soon') }, i, '→'))}</div>
+        <div style={{ marginTop: 4 }}>{cues.map((c, i) => numRow({ ...c, onClick: () => flash('Cue set — open in the editor') }, i, '→'))}</div>
+        </>)}
 
+        {tab === 'clients' && (<>
+        {/* Programs → clients on each */}
+        {secHead('ENROLLED', 'Client programs')}
+        <div style={{ marginTop: 6 }}>
+          {enrolled.map((e, i) => (
+            <div key={i} onClick={() => flash(`${e.n} clients on ${e.prog}`)} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', padding: '15px 0', borderTop: `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{e.prog}</div>
+                <div style={{ marginTop: 7, display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <div style={{ display: 'flex' }}>
+                    {e.who.map(([ini, col], j) => (
+                      <span key={j} style={{ marginLeft: j ? -7 : 0, width: 22, height: 22, borderRadius: 999, background: col, color: '#fff', border: `1.5px solid ${t.PAPER}`, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 9, fontWeight: 800 }}>{ini}</span>
+                    ))}
+                  </div>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.04em' }}>{e.n} on it</span>
+                </div>
+              </div>
+              <span style={{ color: t.INK50, fontSize: 16 }}>›</span>
+            </div>
+          ))}
+        </div>
+        </>)}
+
+        {tab === 'soundtracks' && (<>
         {/* Soundtracks → Soundtracks page */}
-        {secHead('SOUNDTRACKS', 'Music library', 'ALL →', () => setShowSoundtracks(true))}
+        {secHead('SOUNDTRACKS', 'Music library', 'OPEN →', () => setShowSoundtracks(true))}
         <button onClick={() => setShowSoundtracks(true)} style={{ width: '100%', marginTop: 10, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 13, alignItems: 'center', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 13 }}>
           <span style={{ position: 'relative', width: 54, height: 54, borderRadius: 12, background: `linear-gradient(150deg, ${t.RUST}, ${t.RUST}99)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {bsEqGlyph('#ffffffd0')}
@@ -2387,6 +2441,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
           </div>
           <span style={{ color: purple, fontSize: 16 }}>→</span>
         </button>
+        </>)}
       </div>
       <BSFooter left="The Coach Edition" right="Programs" />
     </BSPage>
@@ -3047,6 +3102,14 @@ function BSNutriPlans() {
     { n: 'Batch-cookable dinners', meta: '14 recipes · 4 servings' },
     { n: 'Pre-workout snacks', meta: '12 recipes · quick carbs' },
   ];
+  const [tab, setTab] = useStateBSP('plans');
+  const TABS = [['plans', 'Plans'], ['recipes', 'Recipes'], ['clients', 'Client plans'], ['soundtracks', 'Soundtracks']];
+  const enrolled = [
+    { prog: 'Lean Cut', n: 12, who: [['A', t.RUST], ['J', '#3b7de0']] },
+    { prog: 'Performance', n: 8, who: [['R', t.AMBER]] },
+    { prog: 'Vegetarian Base', n: 6, who: [['S', '#2f7d4f'], ['P', '#8a5cf6']] },
+    { prog: 'Maintenance', n: 14, who: [['C', t.AMBER], ['D', t.RUST]] },
+  ];
 
   if (showSoundtracks) return <BSProSoundtracks role="nutritionist" onBack={() => setShowSoundtracks(false)} />;
 
@@ -3134,6 +3197,14 @@ function BSNutriPlans() {
         </div>
         {note && <div style={{ marginTop: 14, borderRadius: 999, border: `1px solid ${gold}`, background: `${gold}1c`, color: gold, padding: '9px 14px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em' }}>✓ {note}</div>}
 
+        {/* Tabs — Plans / Recipes / Client plans / Soundtracks */}
+        <div className="bs-hide-scroll" style={{ marginTop: 18, display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 2 }}>
+          {TABS.map(([k, l]) => (
+            <button key={k} onClick={() => setTab(k)} style={{ flexShrink: 0, borderRadius: 999, border: `1px solid ${tab === k ? gold : t.RULE}`, background: tab === k ? `${gold}1c` : 'transparent', color: tab === k ? gold : t.INK, padding: '8px 14px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{l}</button>
+          ))}
+        </div>
+
+        {tab === 'plans' && (<>
         {/* Generate with AI */}
         <button onClick={() => setDrafting(true)} style={{ width: '100%', marginTop: 18, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 14, alignItems: 'center', borderRadius: 16, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 16 }}>
           <span style={{ width: 48, height: 48, borderRadius: 12, background: gold, color: '#241c08', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>✦</span>
@@ -3163,13 +3234,40 @@ function BSNutriPlans() {
         {/* Catalogue */}
         {secHead('TRACKLIST', 'Catalogue')}
         <div style={{ marginTop: 6 }}>{plans.map((p, i) => numRow({ ...p, onClick: () => setDrafting(true) }, i, p.price))}</div>
+        </>)}
 
-        {/* Recipes */}
+        {tab === 'recipes' && (<>
+        {/* Recipe library */}
         {secHead('RECIPES', 'Library', 'BROWSE →', () => flash('Recipe library coming soon'))}
-        <div style={{ marginTop: 6 }}>{recipes.map((r, i) => numRow({ ...r, onClick: () => flash('Recipe preview coming soon') }, i, '→'))}</div>
+        <div style={{ marginTop: 6 }}>{recipes.map((r, i) => numRow({ ...r, onClick: () => flash('Recipe set — open in the editor') }, i, '→'))}</div>
+        </>)}
 
+        {tab === 'clients' && (<>
+        {/* Meal plans → clients on each */}
+        {secHead('ENROLLED', 'Client plans')}
+        <div style={{ marginTop: 6 }}>
+          {enrolled.map((e, i) => (
+            <div key={i} onClick={() => flash(`${e.n} clients on ${e.prog}`)} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', padding: '15px 0', borderTop: `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{e.prog}</div>
+                <div style={{ marginTop: 7, display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <div style={{ display: 'flex' }}>
+                    {e.who.map(([ini, col], j) => (
+                      <span key={j} style={{ marginLeft: j ? -7 : 0, width: 22, height: 22, borderRadius: 999, background: col, color: '#fff', border: `1.5px solid ${t.PAPER}`, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 9, fontWeight: 800 }}>{ini}</span>
+                    ))}
+                  </div>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.04em' }}>{e.n} on it</span>
+                </div>
+              </div>
+              <span style={{ color: t.INK50, fontSize: 16 }}>›</span>
+            </div>
+          ))}
+        </div>
+        </>)}
+
+        {tab === 'soundtracks' && (<>
         {/* Soundtracks → links to the Soundtracks page */}
-        {secHead('SOUNDTRACKS', 'Music library', 'ALL →', () => setShowSoundtracks(true))}
+        {secHead('SOUNDTRACKS', 'Music library', 'OPEN →', () => setShowSoundtracks(true))}
         <button onClick={() => setShowSoundtracks(true)} style={{ width: '100%', marginTop: 10, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 13, alignItems: 'center', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 13 }}>
           <span style={{ position: 'relative', width: 54, height: 54, borderRadius: 12, background: `linear-gradient(150deg, ${gold}, ${gold}99)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {bsEqGlyph('#ffffffd0')}
@@ -3185,6 +3283,7 @@ function BSNutriPlans() {
           </div>
           <span style={{ color: '#8a5cf6', fontSize: 16 }}>→</span>
         </button>
+        </>)}
       </div>
       <BSFooter left="The Nutri Edition" right="Plans" />
     </BSPage>
