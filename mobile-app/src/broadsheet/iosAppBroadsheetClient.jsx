@@ -9006,20 +9006,20 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
         }}>Score</button>}
       />
 
-      <div style={{ margin: `12px ${t.padX}px`, padding: '14px 16px', borderRadius: 16, background: t.INK, color: t.PAPER }}>
+      <div style={{ margin: `10px ${t.padX}px`, padding: '11px 14px', borderRadius: 14, background: t.INK, color: t.PAPER }}>
         <BSEyebrow color={t.ACCENT}>Available balance</BSEyebrow>
-        <div style={{ marginTop: 5, display: 'flex', alignItems: 'baseline', gap: 7 }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, lineHeight: 0.9, letterSpacing: '-0.05em' }}>{balance.toLocaleString()}</div>
-          <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: storeHeroFaint }}>pts</div>
+        <div style={{ marginTop: 3, display: 'flex', alignItems: 'baseline', gap: 6 }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, lineHeight: 0.9, letterSpacing: '-0.05em' }}>{balance.toLocaleString()}</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: storeHeroFaint }}>pts</div>
         </div>
-        <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.3, color: storeHeroMuted, letterSpacing: '-0.01em' }}>
+        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 11.5, lineHeight: 1.28, color: storeHeroMuted, letterSpacing: '-0.01em' }}>
           Trade Shape Score for Shape merch, training credits, nutrition services, and membership perks. No expiry on points.
         </div>
-        <div style={{ marginTop: 10, paddingTop: 2, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderTop: `1px solid ${storeHeroRule}` }}>
+        <div style={{ marginTop: 9, paddingTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderTop: `1px solid ${storeHeroRule}` }}>
           {[[lifetime.toLocaleString(), 'Lifetime earned'], [redeemedCount, 'Items redeemed'], [profile.tier, 'Current tier']].map(([value, label], i) => (
-            <div key={label} style={{ padding: '8px 8px 0', borderLeft: i ? `1px solid ${storeHeroHair}` : 0 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.PAPER, letterSpacing: '-0.035em' }}>{value}</div>
-              <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: storeHeroFaint }}>{label}</div>
+            <div key={label} style={{ padding: '0 8px', borderLeft: i ? `1px solid ${storeHeroHair}` : 0 }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.PAPER, letterSpacing: '-0.035em' }}>{value}</div>
+              <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: storeHeroFaint }}>{label}</div>
             </div>
           ))}
         </div>
