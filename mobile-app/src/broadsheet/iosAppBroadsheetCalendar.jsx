@@ -1,5 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
+import { BS_CLIENT_WEEK_DEMO } from './bsClientWeekDemo.js';
 const _BS_CAL_KIND_ICON = { WORKOUT: '🏋', MEAL: '🍽', CHECKIN: '✅', CONSULT: '💬', REVIEW: '📋', PLAN: '🗺', REST: '😴', ADMIN: '✦' };
 // iosAppBroadsheetCalendar.jsx — Sheet overlay system + Week/Month calendar screen.
 // Newspaper-styled. Role-aware events (client / trainer / nutritionist).
@@ -123,29 +124,27 @@ function BSToast({ message, kind = 'info', onDone }) {
 // May 2026: starts on Friday. Today = 14 (Thu, week 20).
 
 function clientEvents(t) {
-  return [
-    // current week (May 11-17) — heavy detail
-    { day: 20, time: '07:00', dur: 60, kind: 'TRN',  title: 'Upper Push — Peak',     sub: 'Jordan · 52m',     accent: t.AMBER, state: 'done' },
-    { day: 20, time: '12:30', slot: 'LUNCH', dur: 30, kind: 'MEAL', title: 'Lunch · chicken bowl',   sub: '620 kcal',          accent: t.BLUE, state: 'done' },
-    { day: 21, time: '07:30', dur: 60, kind: 'TRN',  title: 'Upper Pull — Peak',     sub: 'Jordan · 52m',     accent: t.AMBER, state: 'now' },
-    { day: 21, time: '15:00', dur: 30, kind: 'CON',  title: 'Nutrition consult',      sub: 'Dr. Maya · Zoom',  accent: t.RUST, state: 'next' },
-    { day: 22, time: '06:30', dur: 45, kind: 'TRN',  title: 'Conditioning · Z2',      sub: '45m bike',          accent: t.AMBER },
-    { day: 22, time: '19:30', dur: 30, kind: 'CHK',  title: 'Evening check-in',       sub: 'Sleep + RPE',       accent: t.GREEN },
-    { day: 23, time: '07:00', dur: 60, kind: 'TRN',  title: 'Lower Push — Peak',     sub: 'Jordan · 56m',     accent: t.AMBER },
-    { day: 24, time: '08:00', dur: 30, kind: 'CHK',  title: 'Weekly check-in',        sub: 'Photos + measure',  accent: t.GREEN },
-    { day: 24, time: '11:00', dur: 30, kind: 'CON',  title: 'Coach 1:1',              sub: 'Jordan · video',    accent: t.RUST },
-    { day: 25, time: '09:00', dur: 90, kind: 'TRN',  title: 'Lower Pull — Vol.',     sub: 'Jordan · 62m',     accent: t.AMBER },
-    { day: 26, time: '—',     dur: 0,  kind: 'REST', title: 'Rest day',                sub: 'Walk + mobility',   accent: t.INK50 },
-    // earlier in month — for month view density
-    { day: 13, time: '07:30', dur: 60, kind: 'TRN',  title: 'Upper Pull — Vol.',     sub: 'Jordan',            accent: t.AMBER, state: 'done' },
-    { day: 14, time: '07:00', dur: 60, kind: 'TRN',  title: 'Lower Push',             sub: 'Jordan',            accent: t.AMBER, state: 'done' },
-    { day: 15, time: '15:00', dur: 30, kind: 'CON',  title: 'Nutrition consult',      sub: 'Dr. Maya',          accent: t.RUST, state: 'done' },
-    { day: 16, time: '07:30', dur: 60, kind: 'TRN',  title: 'Upper Pull',             sub: 'Jordan',            accent: t.AMBER, state: 'done' },
-    { day: 17, time: '08:00', dur: 60, kind: 'TRN',  title: 'Lower Pull',             sub: 'Jordan',            accent: t.AMBER, state: 'done' },
-    { day: 18, time: '07:00', dur: 60, kind: 'TRN',  title: 'Z2 cardio',              sub: '60m',                accent: t.AMBER, state: 'done' },
-    { day: 28, time: '15:00', dur: 30, kind: 'CON',  title: 'Nutrition follow-up',    sub: 'Dr. Maya',          accent: t.RUST },
-    { day: 29, time: '07:00', dur: 60, kind: 'TRN',  title: 'Upper Push — Deload',   sub: 'Jordan',            accent: t.AMBER },
-  ];
+  // Built from the SHARED client demo week (bsClientWeekDemo.js) — the same source
+  // the home week strip reads — so a given weekday shows the same workouts / meals /
+  // consults in both views. The authored week sits on May 11-17 (Mon-Sun); the
+  // workout (TRN) items are repeated on adjacent weeks for month-view density.
+  const ACC = { TRN: t.AMBER, MEAL: t.BLUE, CHK: t.GREEN, CON: t.RUST, REST: t.INK50 };
+  const out = [];
+  BS_CLIENT_WEEK_DEMO.forEach((day, idx) => {
+    const d = 11 + idx; // May 11 (Mon) .. 17 (Sun)
+    day.forEach((it) => out.push({
+      day: d, time: it.time,
+      dur: it.dur || (it.kind === 'TRN' ? 60 : it.kind === 'CON' ? 30 : 0),
+      kind: it.kind, title: it.title, sub: it.sub, accent: ACC[it.kind] || t.RUST, state: it.state,
+    }));
+    // Density: same workout on the previous week (done) + the next two weeks.
+    day.filter((it) => it.kind === 'TRN').forEach((it) => {
+      [[d - 7, 'done'], [d + 7, undefined], [d + 14, undefined]].forEach(([dd, st]) => {
+        if (dd >= 1 && dd <= 31) out.push({ day: dd, time: it.time, dur: it.dur || 60, kind: 'TRN', title: it.title, sub: it.sub, accent: t.AMBER, state: st });
+      });
+    });
+  });
+  return out;
 }
 
 function trainerEvents(t) {
@@ -255,11 +254,18 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
   }, [loggedIn, viewYear, viewMonth, clientId]);
   React.useEffect(() => { loadMonth(); }, [loadMonth]);
 
+  // Trainer/nutritionist demo events are authored on days 20-26 and remapped onto
+  // the current demo week. Client events are already authored on real May days
+  // (from the shared week), so they skip the remap.
   const sourceDayByDate = { 20: 11, 21: 14, 22: 15, 23: 16, 24: 17, 25: 18, 26: 19 };
-  const demoEvents = React.useMemo(() => eventsFor(role, t).map((event) => {
-    const day = sourceDayByDate[event.day];
-    return day ? { ...event, day } : event;
-  }), [role, t]);
+  const demoEvents = React.useMemo(() => {
+    const evs = eventsFor(role, t);
+    if (role === 'client') return evs;
+    return evs.map((event) => {
+      const day = sourceDayByDate[event.day];
+      return day ? { ...event, day } : event;
+    });
+  }, [role, t]);
   const useServer = loggedIn && serverEvents != null;
   const events = useServer ? serverEvents : demoEvents;
   const sheet = useBSSheet();
@@ -269,7 +275,7 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
 
   const masthead = role === 'trainer' ? <>The<br/>schedule.</>
                 : role === 'nutritionist' ? <>The<br/>diary.</>
-                : <>The<br/>calendar.</>;
+                : <>Month's<br/>plan.</>;
 
   const trailing = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM, RECIPE_GOALS, recipeNeeds, recipeMatchesDiet } from './shapeKitchenData.js';
+import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER } from './bsClientWeekDemo.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
 
@@ -1487,65 +1488,22 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     coachNote: 'This is your peak fueling moment. If energy crashed yesterday, add 30 g rice today.',
   };
 
-  // Per-day logs. State 'done' for past, 'next' for the upcoming highlighted item, otherwise neutral.
-  const DAY_LOGS = {
-    20: [
-      { time: '06:50', tag: 'MEAL', tagColor: t.BLUE,  title: 'Eggs, toast, fruit',     sub: '438 kcal · 28P', state: 'done' },
-      { time: '08:30', tag: 'TRN',  tagColor: t.AMBER, title: 'Lower Pull — Vol.',      sub: '58 min · Jordan', state: 'done' },
-      { time: '12:30', tag: 'MEAL', tagColor: t.BLUE,  title: 'Turkey wrap',            sub: '540 kcal · 38P', state: 'done' },
-      { time: '15:15', tag: 'CHK',  tagColor: t.GREEN, title: 'Mid-day check-in',       sub: 'Energy 7/10',   state: 'done' },
-      { time: '18:30', tag: 'CHK',  tagColor: t.GREEN, title: 'Evening check-in',       sub: 'RPE recap · Jordan', state: 'done' },
-      { time: '19:30', tag: 'MEAL', tagColor: t.BLUE,  title: 'Steak, sweet potato',    sub: '610 kcal · 46P', state: 'done', last: true },
-    ],
-    21: [
-      { time: '07:20', tag: 'MEAL', tagColor: t.BLUE,  title: 'Oats, berries, whey',     sub: '412 kcal · 32P', state: 'done' },
-      { time: '09:05', tag: 'TRN',  tagColor: t.AMBER, title: 'Upper Push — Peak',       sub: '52 min · Jordan',state: 'done' },
-      { time: '09:45', tag: 'CHK',  tagColor: t.GREEN, title: 'Morning check-in',        sub: 'Sleep 7h · 8/10', state: 'done' },
-      { time: '12:40', tag: 'MEAL', tagColor: t.BLUE,  title: 'Chicken bowl + rice',     sub: '620 kcal · 48P', state: 'next' },
-      { time: '15:00', tag: 'CON',  tagColor: t.RUST,  title: 'Nutrition consult',       sub: 'Dr. Maya · Zoom' },
-      { time: '16:00', tag: 'MEAL', tagColor: t.BLUE,  title: 'Greek yogurt + almonds', sub: '280 kcal · 22P' },
-      { time: '18:30', tag: 'CHK',  tagColor: t.GREEN, title: 'Evening check-in',        sub: 'RPE recap · Jordan' },
-      { time: '19:30', tag: 'MEAL', tagColor: t.BLUE,  title: 'Salmon, quinoa, greens', sub: '580 kcal · 44P', last: true },
-    ],
-    22: [
-      { time: '07:00', tag: 'MEAL', tagColor: t.BLUE,  title: 'Oats + whey + banana',    sub: '460 kcal · 34P' },
-      { time: '08:00', tag: 'TRN',  tagColor: t.AMBER, title: 'Upper Pull — Peak',       sub: '52 min · Jordan' },
-      { time: '12:30', tag: 'MEAL', tagColor: t.BLUE,  title: 'Chicken caesar',          sub: '560 kcal · 42P' },
-      { time: '15:30', tag: 'CHK',  tagColor: t.GREEN, title: 'Daily check-in',          sub: 'Sleep 7h12 · 8/10' },
-      { time: '19:00', tag: 'MEAL', tagColor: t.BLUE,  title: 'Cod, rice, broccoli',     sub: '550 kcal · 42P', last: true },
-    ],
-    23: [
-      { time: '07:15', tag: 'MEAL', tagColor: t.BLUE,  title: 'Yogurt parfait',          sub: '380 kcal · 30P' },
-      { time: '12:30', tag: 'MEAL', tagColor: t.BLUE,  title: 'Buddha bowl',             sub: '590 kcal · 34P' },
-      { time: '17:45', tag: 'TRN',  tagColor: t.AMBER, title: 'Z2 run · 45 min',         sub: '5.6k · 8:00/km', last: true },
-    ],
-    24: [
-      { time: '07:00', tag: 'MEAL', tagColor: t.BLUE,  title: 'Egg whites, toast',       sub: '320 kcal · 28P' },
-      { time: '09:00', tag: 'TRN',  tagColor: t.AMBER, title: 'Lower Push — Peak',       sub: '54 min · Jordan' },
-      { time: '12:30', tag: 'MEAL', tagColor: t.BLUE,  title: 'Sushi, edamame',          sub: '640 kcal · 38P' },
-      { time: '15:00', tag: 'CON',  tagColor: t.RUST,  title: 'Nutrition consult',       sub: 'Dr. Maya · Zoom' },
-      { time: '18:30', tag: 'CHK',  tagColor: t.GREEN, title: 'Evening check-in',        sub: 'RPE recap · Jordan' },
-      { time: '20:00', tag: 'MEAL', tagColor: t.BLUE,  title: 'Pizza night (Fri)',       sub: 'Refeed · 38P', last: true },
-    ],
-    25: [
-      { time: '08:30', tag: 'TRN',  tagColor: t.AMBER, title: 'Long run · 75 min',       sub: '11k · easy' },
-      { time: '10:30', tag: 'MEAL', tagColor: t.BLUE,  title: 'Brunch · pancakes',       sub: '720 kcal · 28P' },
-      { time: '14:00', tag: 'MEAL', tagColor: t.BLUE,  title: 'Smoothie + nuts',         sub: '420 kcal · 28P' },
-      { time: '19:30', tag: 'MEAL', tagColor: t.BLUE,  title: 'Bolognese, salad',        sub: '580 kcal · 38P', last: true },
-    ],
-    26: [
-      { time: '09:00', tag: 'MEAL', tagColor: t.BLUE,  title: 'Brunch (light)',          sub: '480 kcal · 28P' },
-      { time: '13:00', tag: 'MEAL', tagColor: t.BLUE,  title: 'Sunday meal prep',        sub: '8 meals · 220P' },
-      { time: '18:00', tag: 'MEAL', tagColor: t.BLUE,  title: 'Light dinner',            sub: '420 kcal · 32P', last: true },
-    ],
-  };
-
-  // Editorial demo content is keyed Mon..Sun → 20..26; drive it off the real
-  // weekday index so the same sample plan rides the live week.
-  const WEEK_DOTS_BY_IDX = [
-    [t.AMBER, t.BLUE, t.GREEN], [t.AMBER, t.RUST, t.BLUE], [t.AMBER, t.GREEN],
-    [t.AMBER], [t.AMBER, t.RUST, t.GREEN], [t.AMBER, t.BLUE], [],
-  ];
+  // Per-day logs + week-strip dots are both derived from the SHARED client demo
+  // week (bsClientWeekDemo.js) — the same source the month calendar uses — so the
+  // home week strip and the calendar always show the same workouts/consults/meals
+  // for a given weekday. Keyed Mon..Sun → 20..26 to ride the live week.
+  const BS_KIND_COLOR = { TRN: t.AMBER, MEAL: t.BLUE, CHK: t.GREEN, CON: t.RUST, REST: t.INK50 };
+  const DAY_LOGS = {};
+  BS_CLIENT_WEEK_DEMO.forEach((day, idx) => {
+    DAY_LOGS[20 + idx] = day.map((it, i) => ({
+      time: it.time, tag: it.kind, tagColor: BS_KIND_COLOR[it.kind] || t.INK50,
+      title: it.title, sub: it.sub, state: it.state, last: i === day.length - 1,
+    }));
+  });
+  const WEEK_DOTS_BY_IDX = BS_CLIENT_WEEK_DEMO.map((day) => {
+    const kinds = new Set(day.map((it) => it.kind));
+    return BS_CLIENT_WEEK_DOT_ORDER.filter((k) => kinds.has(k)).map((k) => BS_KIND_COLOR[k]);
+  });
   const selDay = weekDates[selIdx].getDate(); // day-of-month for display strings
   const dataDay = 20 + selIdx;
   const dayLog = DAY_LOGS[dataDay] || [];
