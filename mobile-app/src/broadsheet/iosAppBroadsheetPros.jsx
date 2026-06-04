@@ -690,12 +690,18 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     if (action === 'pr') setQueueView('pr');
   };
   // MESSAGE button on a client profile → ensure the 1:1 conversation exists and
-  // jump to the Chat tab (the thread shows at the top of the coach's DMs).
+  // jump to the Chat tab, opening that exact thread.
+  const [chatRequest, setChatRequest] = useStateBSP(null);
   React.useEffect(() => {
-    const onMsg = (e) => {
+    const onMsg = async (e) => {
       const c = e?.detail?.client;
       const uid = c && (c.userId || c.user_id || (typeof c.id === 'string' && c.id.includes('-') ? c.id : null));
-      if (uid && window.ShapeMessages?.getOrCreateMemberConversation) window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: uid }).catch(() => {});
+      const name = (c && c.n) || 'Client';
+      let cid = null;
+      if (uid && window.ShapeMessages?.getOrCreateMemberConversation) {
+        try { const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: uid }); cid = (conv && conv.data) || null; } catch (err) {}
+      }
+      setChatRequest({ coach: name, role: 'Client', conversationId: cid, nonce: Date.now() });
       setTab('chat');
     };
     window.addEventListener('shape:proMessageClient', onMsg);
@@ -712,7 +718,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     clients:  <BSTrainerClients sheet={sheet} />,
     console:  <BSProConsoleScreen role="trainer" />,
     programs: <BSTrainerPrograms sheet={sheet} initialTab={programInitialTab} />,
-    chat:     <BSClientChat onProfile={goSettings} sheet={sheet} role="trainer" />,
+    chat:     <BSClientChat onProfile={goSettings} sheet={sheet} role="trainer" openRequest={chatRequest} />,
     radio:    <BSRadioScreen onBack={() => setTab('today')} />,
     store:    storeView === 'score'
       ? <BSShapeScorePage profile={scoreProfile} onBack={() => setStoreView('store')} onOpenStore={() => setStoreView('store')} />
@@ -2538,11 +2544,17 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     if (action === 'clients') { setTab('clients'); return; }
     if (action === 'grocery') setQueueView('grocery');
   };
+  const [chatRequest, setChatRequest] = useStateBSP(null);
   React.useEffect(() => {
-    const onMsg = (e) => {
+    const onMsg = async (e) => {
       const c = e?.detail?.client;
       const uid = c && (c.userId || c.user_id || (typeof c.id === 'string' && c.id.includes('-') ? c.id : null));
-      if (uid && window.ShapeMessages?.getOrCreateMemberConversation) window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: uid }).catch(() => {});
+      const name = (c && c.n) || 'Client';
+      let cid = null;
+      if (uid && window.ShapeMessages?.getOrCreateMemberConversation) {
+        try { const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: uid }); cid = (conv && conv.data) || null; } catch (err) {}
+      }
+      setChatRequest({ coach: name, role: 'Client', conversationId: cid, nonce: Date.now() });
       setTab('chat');
     };
     window.addEventListener('shape:proMessageClient', onMsg);
@@ -2558,7 +2570,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     clients:  <BSNutriClients sheet={sheet} />,
     console:  <BSProConsoleScreen role="nutritionist" />,
     plans:    <BSNutriPlans sheet={sheet} />,
-    chat:     <BSClientChat onProfile={goSettings} sheet={sheet} role="nutritionist" />,
+    chat:     <BSClientChat onProfile={goSettings} sheet={sheet} role="nutritionist" openRequest={chatRequest} />,
     radio:    <BSRadioScreen onBack={() => setTab('today')} />,
     store:    storeView === 'score'
       ? <BSShapeScorePage profile={scoreProfile} onBack={() => setStoreView('store')} onOpenStore={() => setStoreView('store')} />

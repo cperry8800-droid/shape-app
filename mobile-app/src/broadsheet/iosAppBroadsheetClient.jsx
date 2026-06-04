@@ -5922,9 +5922,15 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // name → first real coach → sample → a fresh thread shell).
   React.useEffect(() => {
     if (!openRequest || !openRequest.nonce) return;
+    const name = openRequest.coach;
+    // Deep-link to an exact conversation (e.g. a coach tapping MESSAGE on a
+    // client profile): open that thread directly by id.
+    if (openRequest.conversationId) {
+      setOpenChat({ n: name || 'Client', s: openRequest.role || 'Direct message', c: '#0a8f87', i: (name || 'C').charAt(0), conversation_id: openRequest.conversationId, dm: true, messages: [] });
+      return;
+    }
     setTab('teams');
     setTeamsSel('coaches');
-    const name = openRequest.coach;
     if (!name) { setOpenChat(null); return; }
     const byName = (threadRows || []).find(r => r.n === name);
     const sample = BS_SAMPLE_COACH_DMS[name]
@@ -6704,8 +6710,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
 // Clients route straight to BSClientFeed; trainers/nutritionists reach it
 // through this wrapper (their bundle destructures BSClientChat from window),
 // so passing `role` through gives them the Trainer/Nutri chip + coach sections.
-function BSClientChat({ onProfile, role = 'client' }) {
-  return <BSClientFeed onProfile={onProfile} role={role} />;
+function BSClientChat({ onProfile, role = 'client', openRequest }) {
+  return <BSClientFeed onProfile={onProfile} role={role} openRequest={openRequest} />;
 }
 
 function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...', pinned = false }) {
