@@ -1008,177 +1008,126 @@ function BSRadioScreen({ onBack }) {
         <div style={{ height: 36 }} />
 
         <div style={{ position: 'relative', zIndex: 2, padding: `0 ${t.padX}px 18px` }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase',
-            fontWeight: 700,
-          }}>
-            <span style={{ color: TEAL, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ width: 5, height: 5, borderRadius: 3, background: '#ff5b4a', animation: 'bs-blink 1.2s ease-in-out infinite' }} />
-              {onLive ? 'On Air' : 'Coach Playlist'}
-            </span>
-            <span style={{ color: CREAM50 }}>{onLive ? `${r.LIVE.listeners.toLocaleString()} listening now` : (playlist && `${playlist.tracks} TRACKS · ${playlist.len}`)}</span>
-          </div>
-
-          {/* EQ */}
-          <div style={{ marginTop: 12 }}>
-            <BSEQ bars={28} color={TEAL} height={48} gap={3} paused={r.paused} />
-          </div>
-
-          {onLive && (
-            <div style={{
-              marginTop: 12,
-              display: 'inline-flex',
-              alignItems: 'baseline',
-              gap: 8,
-              border: `1px solid ${CREAM25}`,
-              padding: '7px 9px',
-              background: 'rgba(5,7,7,0.34)',
-            }}>
-              <span style={{
-                fontFamily: t.DISPLAY,
-                fontSize: 26,
-                fontWeight: 700,
-                lineHeight: 0.9,
-                letterSpacing: '-0.04em',
-                color: CREAM,
-              }}>{r.LIVE.listeners.toLocaleString()}</span>
-              <span style={{
-                fontFamily: t.MONO,
-                fontSize: 9,
-                letterSpacing: '0.18em',
-                textTransform: 'uppercase',
-                color: TEAL,
-                fontWeight: 700,
-              }}>listening now</span>
-            </div>
-          )}
-
-          <div style={{
-            marginTop: 14,
-            border: `1px solid ${CREAM25}`,
-            background: CARD,
-            padding: 12,
-            borderRadius: 16,
-          }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 10,
-              marginBottom: 12,
-            }}>
-              <div>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEAL, fontWeight: 800 }}>
-                  HRM sync
-                </div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 18, color: CREAM, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 3 }}>
-                  Match your heart rate to the track.
-                </div>
+          {/* Now playing — centered hero */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+            {/* BPM ring */}
+            <div style={{ position: 'relative', width: 150, height: 150 }}>
+              <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: `1px solid ${CREAM25}` }} />
+              <div style={{ position: 'absolute', inset: 16, borderRadius: '50%', border: `1px solid ${TEAL}44` }} />
+              <div style={{ position: 'absolute', inset: 8, borderRadius: '50%', border: `1.5px solid ${TEAL}`, animation: r.paused ? 'none' : `bs-beat-ring ${(60 / trackBpm).toFixed(3)}s ease-out infinite` }} />
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 46, fontWeight: 700, color: CREAM, lineHeight: 1, letterSpacing: '-0.03em' }}>{trackBpm}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', color: TEAL, fontWeight: 700, marginTop: 4 }}>BPM</div>
               </div>
-              <span style={{
-                flexShrink: 0,
-                fontFamily: t.MONO,
-                fontSize: 9,
-                letterSpacing: '0.18em',
-                textTransform: 'uppercase',
-                fontWeight: 800,
-                padding: '5px 8px', borderRadius: 8,
-                color: isSynced ? '#050707' : CREAM,
-                background: isSynced ? TEAL : 'transparent',
-                border: isSynced ? 0 : `1px solid ${CREAM25}`,
-              }}>{syncLabel}</span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              {[
-                { label: 'Track BPM', value: trackBpm, sub: onLive ? tr.a : playlist?.name, color: TEAL },
-                { label: 'Your HR', value: hrmConnected ? demoHr : '--', sub: hrmConnected ? `${syncDelta} BPM off` : 'Connect HRM', color: TEAL },
-              ].map(item => (
-                <div key={item.label} style={{
-                  border: `1px solid ${TEAL}`,
-                  background: isLight ? 'rgba(10,143,135,0.12)' : 'rgba(10,143,135,0.16)',
-                  padding: '10px 8px',
-                  borderRadius: 12,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 9,
-                  minWidth: 0,
-                }}>
-                  <BSBeatRing bpm={Number(item.value) || trackBpm} color={item.color} size={48} paused={r.paused || !hrmConnected && item.label === 'Your HR'} />
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: TEAL, fontWeight: 900 }}>{item.label}</div>
-                    <div style={{ fontFamily: t.DISPLAY, fontSize: 22, color: CREAM, lineHeight: 1, fontWeight: 800 }}>{item.value}</div>
-                    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: isLight ? 'rgba(10,82,78,0.72)' : 'rgba(118,232,220,0.68)', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.sub}</div>
-                  </div>
-                </div>
-              ))}
+            {/* Now playing label + track */}
+            <div style={{ marginTop: 18, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: TEAL, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 4, height: 11, background: TEAL, display: 'inline-block' }} />
+              Now Playing
             </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 7, marginTop: 10 }}>
-              <button onClick={() => setHrmConnected(true)} style={{ borderRadius: t.RADIUS_SM,
-                border: `1px solid ${CREAM25}`,
-                background: hrmConnected ? TEAL : 'transparent',
-                color: hrmConnected ? '#050707' : CREAM,
-                padding: '8px 5px',
-                fontFamily: t.MONO,
-                fontSize: 9,
-                letterSpacing: '0.14em',
-                textTransform: 'uppercase',
-                fontWeight: 800,
-              }}>{hrmConnected ? 'Connected' : 'Sync HRM'}</button>
-              <button onClick={() => { setHrmConnected(true); setDemoHr(120); }} style={{ borderRadius: t.RADIUS_SM,
-                border: `1px solid ${CREAM25}`,
-                background: 'transparent',
-                color: CREAM,
-                padding: '8px 5px',
-                fontFamily: t.MONO,
-                fontSize: 9,
-                letterSpacing: '0.14em',
-                textTransform: 'uppercase',
-                fontWeight: 800,
-              }}>Demo HR 120</button>
-              <button onClick={() => { setHrmConnected(true); setDemoHr(trackBpm); }} style={{ borderRadius: t.RADIUS_SM,
-                border: 0,
-                background: TEAL,
-                color: '#050707',
-                padding: '8px 5px',
-                fontFamily: t.MONO,
-                fontSize: 9,
-                letterSpacing: '0.14em',
-                textTransform: 'uppercase',
-                fontWeight: 800,
-              }}>Match BPM</button>
-            </div>
-          </div>
-
-          {/* Track headline */}
-          <div style={{ marginTop: 14 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: CREAM50, fontWeight: 700, marginBottom: 4 }}>
-              {onLive ? `▍ ${tr.t === 'NOW' ? 'Now Playing' : tr.t}` : `▍ ${playlist.attached}`}
-            </div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 0.98, color: CREAM }}>
+            <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: CREAM }}>
               {onLive ? tr.a : playlist.name}
             </div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM70, marginTop: 6, fontWeight: 600 }}>
-              {onLive ? `${tr.b} · ${tr.bpm} BPM · ${tr.len}` : `From ${playlist.by} · ${playlist.role} · ${playlist.bpm} BPM`}
+            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM70, fontWeight: 600 }}>
+              {onLive ? `${tr.b} · ${tr.bpm} BPM · ${tr.len}` : `From ${playlist.by} · ${playlist.bpm} BPM`}
             </div>
           </div>
 
+          {/* Waveform */}
+          <div style={{ marginTop: 16 }}>
+            <BSEQ bars={32} color={TEAL} height={42} gap={3} paused={r.paused} />
+          </div>
+
+          {/* Scrubber */}
+          {(() => {
+            const total = (() => { const p = String(tr.len || '0:00').split(':'); return (+p[0] || 0) * 60 + (+p[1] || 0); })();
+            const elapsed = Math.round(total * 0.46);
+            const remain = Math.max(0, total - elapsed);
+            const fmt = (n) => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
+            const pct = total ? Math.round((elapsed / total) * 100) : 0;
+            return (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ position: 'relative', height: 4, borderRadius: 999, background: CREAM25 }}>
+                  <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct}%`, borderRadius: 999, background: TEAL }} />
+                  <div style={{ position: 'absolute', left: `${pct}%`, top: '50%', transform: 'translate(-50%,-50%)', width: 11, height: 11, borderRadius: '50%', background: TEAL, boxShadow: `0 0 0 3px ${t.PAPER}` }} />
+                </div>
+                <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', color: CREAM50, fontWeight: 600 }}>
+                  <span>{fmt(elapsed)}</span>
+                  <span>-{fmt(remain)}</span>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Transport */}
-          <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button onClick={() => r.setPaused(p => !p)} style={{ borderRadius: t.RADIUS_SM,
-              flex: 1, padding: '10px', background: TEAL, color: '#050707', border: 0, cursor: 'pointer',
-              fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          <div style={{ marginTop: 16, display: 'flex', alignItems: 'stretch', gap: 8 }}>
+            <button onClick={() => r.setPaused(p => !p)} style={{ borderRadius: 14,
+              flex: 1, padding: '15px', background: TEAL, color: '#050707', border: 0, cursor: 'pointer',
+              fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 800,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             }}>
-              {r.paused ? '▶ Resume' : '❚❚ Pause'}
+              {r.paused ? '▶  Resume' : '❚❚  Pause'}
             </button>
-            <button onClick={() => r.setRadioPreference(false)} style={{ borderRadius: t.RADIUS_SM,
-              padding: '10px 14px', background: 'transparent', color: CREAM, border: `1px solid ${CREAM50}`, cursor: 'pointer',
-              fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700,
-            }}>Stop</button>
-            <BSBeatRing bpm={r.LIVE.bpm} color={TEAL} size={36} paused={r.paused} />
+            <button onClick={() => r.setRadioPreference(false)} aria-label="Stop" style={{ borderRadius: 14,
+              width: 58, background: 'transparent', color: CREAM, border: `1px solid ${CREAM25}`, cursor: 'pointer',
+              fontFamily: t.MONO, fontSize: 13, fontWeight: 800,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>■</button>
+          </div>
+
+          <style>{`@keyframes bs-beat-ring { 0% { transform: scale(0.92); opacity: 0.95; } 50% { transform: scale(1.0); opacity: 0.55; } 100% { transform: scale(1.18); opacity: 0; } }`}</style>
+
+          {/* Heart-rate sync */}
+          <div style={{ marginTop: 22, borderTop: `1px solid ${CREAM25}`, paddingTop: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: CREAM, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 4, height: 11, background: TEAL, display: 'inline-block' }} />
+                Heart-rate sync
+              </span>
+              <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700, color: hrmConnected ? TEAL : CREAM50 }}>
+                {hrmConnected ? (isSynced ? 'In sync' : `${syncDelta} BPM off`) : 'Not connected'}
+              </span>
+            </div>
+
+            <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'auto 1fr auto', alignItems: 'center', gap: 14 }}>
+              <div>
+                <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM50, fontWeight: 700 }}>Track</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, color: CREAM, lineHeight: 1, letterSpacing: '-0.03em', marginTop: 2 }}>{trackBpm}</div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                <div style={{ position: 'relative', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', borderTop: `1px dashed ${CREAM25}` }} />
+                  <svg width="22" height="22" viewBox="0 0 22 22" style={{ position: 'relative', background: t.PAPER, borderRadius: '50%' }}>
+                    <circle cx="11" cy="11" r="6.5" fill="none" stroke={hrmConnected ? TEAL : CREAM50} strokeWidth="1" />
+                    <line x1="11" y1="1.5" x2="11" y2="20.5" stroke={hrmConnected ? TEAL : CREAM50} strokeWidth="1" />
+                    <line x1="1.5" y1="11" x2="20.5" y2="11" stroke={hrmConnected ? TEAL : CREAM50} strokeWidth="1" />
+                  </svg>
+                </div>
+                <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: hrmConnected ? TEAL : CREAM50, fontWeight: 700 }}>
+                  {hrmConnected ? (isSynced ? 'Locked in' : 'Adjusting') : 'Awaiting signal'}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM50, fontWeight: 700 }}>You</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, color: hrmConnected ? CREAM : CREAM50, lineHeight: 1, letterSpacing: '-0.03em', marginTop: 2 }}>{hrmConnected ? demoHr : '— —'}</div>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+              <button onClick={() => setHrmConnected(true)} style={{ borderRadius: 12, flex: 1,
+                border: `1px solid ${hrmConnected ? TEAL : CREAM25}`,
+                background: hrmConnected ? TEAL : 'transparent',
+                color: hrmConnected ? '#050707' : CREAM,
+                padding: '12px', cursor: 'pointer',
+                fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 800,
+              }}>{hrmConnected ? 'Connected' : 'Connect monitor'}</button>
+              <button onClick={() => { setHrmConnected(true); setDemoHr(trackBpm); }} style={{ borderRadius: 12,
+                border: `1px solid ${CREAM25}`, background: 'transparent', color: CREAM,
+                padding: '12px 18px', cursor: 'pointer',
+                fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 800,
+              }}>Demo</button>
+            </div>
           </div>
 
           {onLive && <BSRadioInlineFeedback track={tr} cream={CREAM} cream50={CREAM50} accent={TEAL} />}

@@ -3759,7 +3759,7 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView }) {
     <BSPage>
       <div style={{ padding: `54px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Eat · Shape Kitchen</div>
-        <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>Shape<br/><span style={{ fontStyle: 'italic', color: teal }}>Kitchen.</span></h1>
+        <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, lineHeight: 0.92, letterSpacing: '-0.035em', color: t.INK }}>Shape<br/><span style={{ fontStyle: 'italic', color: teal }}>Kitchen.</span></h1>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, lineHeight: 1.4, color: t.INK70 }}>Save the meals you cook — send any recipe straight to its own grocery list.</div>
       </div>
       <BSNutritionTopTabs active="recipes" onChange={onChangeView} />
@@ -10842,7 +10842,7 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: rust }}>{(list.eyebrow || 'Auto-built from plan').toUpperCase()}</div>
-            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>Food<br /><span style={{ fontStyle: 'italic', color: rust }}>list.</span></div>
+            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, color: t.INK, lineHeight: 0.92, letterSpacing: '-0.035em' }}>Food<br /><span style={{ fontStyle: 'italic', color: rust }}>list.</span></div>
           </div>
           <button onClick={onLibrary} style={{ flexShrink: 0, border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: rust, paddingTop: 6 }}>+ NEW LIBRARY</button>
         </div>
@@ -10879,11 +10879,11 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
           const aisle = list.aisles[ai];
           return (
             <div style={{ marginTop: 22 }}>
-              <div className="bs-hide-scroll" style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
                 {list.aisles.map((a, i) => {
                   const on = i === ai; const dn = aisleDoneCount(i); const full = a.items.length > 0 && dn >= a.items.length;
                   return (
-                    <button key={a.aisle} onClick={() => setActiveAisle(i)} style={{ flexShrink: 0, borderRadius: 999, border: `1px solid ${on ? rust : t.RULE}`, background: on ? rust : 'transparent', color: on ? '#fff' : (full ? t.INK50 : t.INK), padding: '8px 14px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap', textDecoration: full ? 'line-through' : 'none' }}>{a.aisle} · {dn}/{a.items.length}</button>
+                    <button key={a.aisle} onClick={() => setActiveAisle(i)} style={{ flexShrink: 0, borderRadius: 999, border: `1px solid ${on ? rust : t.RULE}`, background: on ? rust : 'transparent', color: on ? '#fff' : (full ? t.INK50 : t.INK), padding: '7px 12px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap', textDecoration: full ? 'line-through' : 'none' }}>{a.aisle} · {dn}/{a.items.length}</button>
                   );
                 })}
               </div>
