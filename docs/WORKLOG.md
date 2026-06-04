@@ -46,6 +46,18 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-13 — Nutritionist Adjust Plan + Schedule (distinct bodies)
+- **`BSProAdjustProgram`** now renders a **nutritionist-specific body** (gold) when
+  `role==='nutritionist'`: ENERGY · Calorie target stepper (kcal, step 50), MACROS · Daily
+  split (Protein/Carbs/Fat steppers with `g` unit + a **from-macros** summary card: kcal
+  from macros, ± vs target, teal/gold/rust split bar, `NP·NC·NF`), STRUCTURE · Meals & refeeds
+  (meals/day stepper + Weekend-refeed toggle), CONSTRAINTS · Restrictions chips. Auto-note
+  reads "Updated your plan to {kcal} kcal — …". Trainer body unchanged.
+- **`BSProScheduleSession`** nutritionist variant: session types CONSULT / PLAN DELIVERY /
+  FOOD-LOG REVIEW / INTRO CALL, modes ZOOM / CALL / IN-PERSON (no GYM), default 30 min,
+  "Book a consult." `PLAN` kind added to the calendar map.
+- `BSProStepper` gained `step` + `unit` props.
+
 ### 2026-06-13 — Coach dashboard: Key lifts / PRs / AVG RPE wired (get_client_lifts)
 - **Migration `2026-06-13-client-lifts.sql`** (idempotent, **run on Supabase**): SECURITY
   DEFINER `get_client_lifts(p_user_id)` gated on `is_coach_on_client`. Best-effort strength
