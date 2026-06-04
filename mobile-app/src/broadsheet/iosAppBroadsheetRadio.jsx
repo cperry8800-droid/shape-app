@@ -996,8 +996,8 @@ function BSRadioScreen({ onBack }) {
           </div>
 
           {/* Waveform */}
-          <div style={{ marginTop: 16 }}>
-            <BSEQ bars={32} color={TEAL} height={42} gap={3} paused={r.paused} />
+          <div style={{ margin: '16px auto 0', maxWidth: 210 }}>
+            <BSEQ bars={17} color={TEAL} height={26} gap={3} paused={r.paused} />
           </div>
 
           {/* Scrubber */}
