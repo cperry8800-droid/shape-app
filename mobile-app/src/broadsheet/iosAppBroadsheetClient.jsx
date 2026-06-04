@@ -539,6 +539,37 @@ function bsProgramWeek() {
   const w = Math.floor((Date.now() - start.getTime()) / 6048e5) + 1;
   return Math.min(52, Math.max(1, w));
 }
+// Program phase per client — training block + nutrition phase, shown in the
+// Eat / Train / home eyebrows. Cached on window so headers read it synchronously;
+// persisted in client_settings (Settings → Preferences), so a coach-set value
+// from the same store flows through here too.
+if (typeof window !== 'undefined' && !window.ShapeProgram) {
+  let _prog = { trainingPhase: 'Build', nutritionPhase: 'Cut' };
+  window.ShapeProgram = {
+    get: () => _prog,
+    set: (p) => { if (p && typeof p === 'object') { _prog = { ..._prog, ...p }; try { window.dispatchEvent(new Event('bs-program')); } catch (e) {} } },
+  };
+}
+function useBSProgram() {
+  const [p, setP] = useStateBSC(() => (window.ShapeProgram?.get?.() || { trainingPhase: 'Build', nutritionPhase: 'Cut' }));
+  React.useEffect(() => {
+    let alive = true;
+    if (window.shapeDb?.getUserGoals) {
+      window.shapeDb.getUserGoals('client_settings').then(s => {
+        if (!alive || !s || typeof s !== 'object') return;
+        const next = {};
+        if (s.trainingPhase) next.trainingPhase = s.trainingPhase;
+        if (s.nutritionPhase) next.nutritionPhase = s.nutritionPhase;
+        if (Object.keys(next).length) { window.ShapeProgram?.set?.(next); setP({ ...(window.ShapeProgram?.get?.() || {}) }); }
+      }).catch(() => {});
+    }
+    const onEvt = () => setP({ ...(window.ShapeProgram?.get?.() || {}) });
+    window.addEventListener('bs-program', onEvt);
+    return () => { alive = false; window.removeEventListener('bs-program', onEvt); };
+  }, []);
+  return p;
+}
+
 // Live "online now" count via Supabase Realtime presence (hook below).
 function useBSOnline() {
   const [n, setN] = useStateBSC(() => (window.ShapePresence?.count?.() || 0));
@@ -1289,6 +1320,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
 
 function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket, goScore, goChat = () => {}, goIntegrations, tweaks = {}, setTweak = () => {} }) {
   const t = useBS();
+  const bsHomeProgram = useBSProgram();
   // Real current week, computed live so the home reflects today (not demo dates).
   // Monday-first index 0..6; weekDates = the seven dates of this calendar week.
   const _BS_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -1653,7 +1685,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
           <span className="bs-daily-daily" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>Daily.</span>
         </span>}
         leftKicker={`${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][_now.getDay()]} · ${_BS_MON[_now.getMonth()]} ${_now.getDate()} · ${_now.getFullYear()}`}
-        rightKicker={`Cut · W${isoWeek}`}
+        rightKicker={`${bsHomeProgram.nutritionPhase || 'Cut'} · W${isoWeek}`}
         trailing={<BSAvatar init="A" size={32} onClick={onProfile} />}
         showDoubleRule={false}
       />
@@ -2698,6 +2730,7 @@ function BSSwapSheet({ title, subtitle, options, onPick, onClose }) {
 // ═══════════════════════════════════════════════════════════
 function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, goMarket = () => {} }) {
   const t = useBS();
+  const bsTrainProgram = useBSProgram();
   const [day, setDay] = useStateBSC(bsWeekdayIdx()); // default to today (0=Mon..6=Sun)
   const [session, setSession] = useStateBSC(false);
   const [previewing, setPreviewing] = useStateBSC(false);
@@ -2878,7 +2911,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   return (
     <BSPage>
       <BSPageHeader
-        kicker={`Build · Week ${bsProgramWeek()}`}
+        kicker={`${bsTrainProgram.trainingPhase || 'Build'} · Week ${bsProgramWeek()}`}
         title={cur.title}
         trailing={<BSAvatar init="A" size={32} onClick={onProfile} />}
       />
@@ -3984,6 +4017,7 @@ function bsBuildPlanGrocery(program, author) {
 
 function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
   const t = useBS();
+  const bsEatProgram = useBSProgram();
   const [view, setView] = useStateBSC('eat'); // 'eat' | 'grocery' | 'library'
   const [skRecipe, setSkRecipe] = useStateBSC(null); // selected Shape Kitchen recipe
   const [previewMealId, setPreviewMealId] = useStateBSC(null);
@@ -5062,7 +5096,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
   return (
     <BSPage>
       <BSPageHeader
-        kicker={`Cut · Week ${bsProgramWeek()}`}
+        kicker={`${bsEatProgram.nutritionPhase || 'Cut'} · Week ${bsProgramWeek()}`}
         title={cur.title}
         trailing={<BSAvatar init="A" size={32} onClick={onProfile} />}
       />
@@ -9968,6 +10002,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     mealLunch:         BS_MEAL_TIME_OPTS,
     mealSnack:         BS_MEAL_TIME_OPTS,
     mealDinner:        BS_MEAL_TIME_OPTS,
+    trainingPhase:     ['Build', 'Cut', 'Peak', 'Maintain', 'Deload', 'Base'],
+    nutritionPhase:    ['Cut', 'Bulk', 'Maintain', 'Recomp', 'Refeed'],
   };
   const PREF_DEFAULTS = { ...Object.fromEntries(Object.entries(PREF_OPTIONS).map(([k, v]) => [k, v[0]])),
     mealBreakfast: '8:00 AM', mealLunch: '12:30 PM', mealSnack: '4:00 PM', mealDinner: '7:00 PM' };
@@ -9980,6 +10016,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         setPrefs(p => ({ ...p, ...s }));
         if (s.units) window.ShapeUnits?.set(s.units);
         window.ShapeMealTimes?.setFromPrefs({ ...PREF_DEFAULTS, ...s });
+        if (s.trainingPhase || s.nutritionPhase) window.ShapeProgram?.set?.({ trainingPhase: s.trainingPhase, nutritionPhase: s.nutritionPhase });
       }
     }).catch(() => {});
     return () => { alive = false; };
@@ -9995,6 +10032,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
       if (key === 'units') window.ShapeUnits?.set(next[key]); // propagate app-wide
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
+      if (key === 'trainingPhase' || key === 'nutritionPhase') window.ShapeProgram?.set?.({ [key]: next[key] });
       return next;
     });
   };
@@ -10005,6 +10043,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
       if (key === 'units') window.ShapeUnits?.set(value);
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
+      if (key === 'trainingPhase' || key === 'nutritionPhase') window.ShapeProgram?.set?.({ [key]: next[key] });
       return next;
     });
   };
@@ -10442,6 +10481,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         { l: 'Lunch time',      key: 'mealLunch',     dropdown: PREF_OPTIONS.mealLunch },
         { l: 'Snack time',      key: 'mealSnack',     dropdown: PREF_OPTIONS.mealSnack },
         { l: 'Dinner time',     key: 'mealDinner',    dropdown: PREF_OPTIONS.mealDinner },
+        { l: 'Training phase',  key: 'trainingPhase', dropdown: PREF_OPTIONS.trainingPhase },
+        { l: 'Nutrition phase', key: 'nutritionPhase', dropdown: PREF_OPTIONS.nutritionPhase },
       ],
     },
     {

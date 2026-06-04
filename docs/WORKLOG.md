@@ -46,6 +46,21 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Calendar event sheet fixes + app-wide presence + dynamic phase
+- **Calendar event sheet** (tap a workout/consult from month/week view): now **fills
+  the full screen** (top 36→0, no rounded gap), has a proper **← Back** button in the
+  top bar (replaced the floating "Close ✕"), **coach-note removed** from the workout
+  body, footer CTAs **lifted off the nav zone** (bottom padding), and **Join consult**
+  now opens the real `meetingUrl` (toast when none yet). *Start session / Reschedule
+  remain stubs — no live-session launch or reschedule backend from the calendar.*
+- **Presence app-wide**: `startPresence()` now fires on session resolve
+  (`getCurrentSession`), so the "● N online" count reflects everyone with the app open,
+  not just feed viewers.
+- **Dynamic program phase**: `window.ShapeProgram` cache + `useBSProgram()` hook;
+  Home/Eat/Train eyebrows read `trainingPhase` / `nutritionPhase` (persisted in
+  `client_settings`, editable in Settings → Preferences). Replaces the hardcoded
+  Cut/Build. (Coach-app phase display TBD — depends on per-client selection.)
+
 ### 2026-06-04 — Contextual page eyebrows + live "online" count
 - **Feed header** left-aligned ("The feed.") to match other pages.
 - **Live presence**: `window.ShapePresence` (Supabase Realtime presence on an
