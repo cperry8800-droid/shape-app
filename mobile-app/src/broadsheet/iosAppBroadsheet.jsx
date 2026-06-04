@@ -652,31 +652,71 @@ function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing, t
   );
 }
 
-// Avatar — softly-rounded square, mono initial
+// Optical-centering for avatar monograms. Rather than hand-tuned per-font
+// offsets, we measure the glyph metrics and compute the vertical shift that
+// lands the rendered ink's centre on the bubble's centre — so any typeface
+// (mono, serif, or a script face whose capitals sit high in the line box)
+// self-corrects. Results are cached by font string + initials; the cache is
+// cleared once web fonts load so early system-font fallbacks get recomputed.
+let _bsMeasureCanvas = null;
+const _bsAvatarOff = new Map();
+if (typeof document !== 'undefined' && document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
+  document.fonts.ready.then(() => { try { _bsAvatarOff.clear(); } catch (e) {} }).catch(() => {});
+}
+function bsAvatarInkOffset(init, fontStr, fontSizePx, fallbackEm) {
+  const fallback = (fallbackEm || 0) * (fontSizePx || 0);
+  if (typeof document === 'undefined') return fallback;
+  const key = fontStr + '|' + (init || '');
+  if (_bsAvatarOff.has(key)) return _bsAvatarOff.get(key);
+  let off = null;
+  try {
+    const c = _bsMeasureCanvas || (_bsMeasureCanvas = document.createElement('canvas'));
+    const ctx = c.getContext('2d');
+    ctx.font = fontStr;
+    const m = ctx.measureText(init || '');
+    const fa = m.fontBoundingBoxAscent, fd = m.fontBoundingBoxDescent;
+    const aa = m.actualBoundingBoxAscent, ad = m.actualBoundingBoxDescent;
+    if ([fa, fd, aa, ad].every(v => typeof v === 'number' && isFinite(v))) {
+      // Baseline sits (fa−fd)/2 below the line-box centre; the ink centre sits
+      // (aa−ad)/2 above the baseline. Combine, negate → land ink on the centre.
+      off = (fd - fa) / 2 + (aa - ad) / 2;
+    } else if (typeof aa === 'number' && typeof ad === 'number' && isFinite(aa) && isFinite(ad)) {
+      off = (aa - ad) / 2;
+    }
+  } catch (e) {}
+  if (off == null || !isFinite(off)) off = fallback;
+  _bsAvatarOff.set(key, off);
+  return off;
+}
+
+// Avatar — circular (or soft-square) bubble with mono / serif / cursive initials
 function BSAvatar({ init = 'A', size = 32, fill, ink, onClick, round = true, glow = false, serif = false, cursive = false }) {
   const t = useBS();
   const bg = fill || t.INK;
+  const fontFamily = cursive ? "'Snell Roundhand', 'Apple Chancery', 'Brush Script MT', cursive" : serif ? t.DISPLAY : t.MONO;
+  const fontStyle = (serif || cursive) ? 'italic' : 'normal';
+  const fontSize = cursive ? Math.round(size * 0.46) : serif ? Math.round(size * 0.5) : size * 0.42;
+  const fontWeight = cursive ? 600 : 700;
+  const styled = serif || cursive;
+  // Auto-centre the styled monograms from the font's own metrics (no magic
+  // numbers). Plain mono initials already centre cleanly, so leave them be.
+  const dy = styled ? bsAvatarInkOffset(init, `${fontStyle} ${fontWeight} ${Math.round(fontSize)}px ${fontFamily}`, fontSize, cursive ? 0.08 : 0) : 0;
   return (
     <button onClick={onClick} style={{
       width: size, height: size,
       background: bg, color: ink || t.PAPER,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontFamily: cursive ? "'Snell Roundhand', 'Apple Chancery', 'Brush Script MT', cursive" : serif ? t.DISPLAY : t.MONO,
-      fontStyle: (serif || cursive) ? 'italic' : 'normal',
-      fontSize: cursive ? Math.round(size * 0.46) : serif ? Math.round(size * 0.5) : size * 0.42,
-      fontWeight: cursive ? 600 : 700,
+      fontFamily, fontStyle, fontSize, fontWeight,
       lineHeight: 1,
       border: 0, padding: 0, cursor: onClick ? 'pointer' : 'default',
       // No trailing letter-spacing for cursive/serif — it shifts the glyphs off
       // the optical centre of the circle.
-      letterSpacing: (cursive || serif) ? '0' : '-0.02em',
+      letterSpacing: styled ? '0' : '-0.02em',
       borderRadius: round ? '50%' : t.RADIUS_SM,
       boxShadow: glow ? `0 0 22px ${bg}5e, 0 0 0 4px ${bg}26` : 'none',
-    }}>{cursive
-      // Snell Roundhand reserves deep descender space, so its capitals sit high
-      // in the line box — nudge the monogram down (not up) to optically centre it.
-      ? <span style={{ display: 'inline-block', lineHeight: 1, transform: 'translate(0, 0.08em)' }}>{init}</span>
-      : serif ? <span style={{ display: 'inline-block', transform: 'skewX(-11deg)' }}>{init}</span> : init}</button>
+    }}>{styled
+      ? <span style={{ display: 'inline-block', lineHeight: 1, transform: `translateY(${dy}px)${serif ? ' skewX(-11deg)' : ''}` }}>{init}</span>
+      : init}</button>
   );
 }
 
