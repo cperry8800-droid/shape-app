@@ -46,6 +46,17 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Habits page copy/colors + score breakdown; About hero accents
+- **Habits sections renamed**: "To-dos" → **"To do"**, "To-don'ts" → **"Don't do it"**.
+- **Don't-do-it section is red**: its count eyebrow + **+ Add →** now use the section
+  `accent` (rust) instead of teal. The avoid-eyebrow word **"Clean" → "Stop"**
+  (`0/1 Stop`).
+- **Earned-today card breakdown**: added a 2nd section splitting the day's points into
+  **To do** (teal) vs **Don't do it** (rust) — each with `+earned / possible pts` and a
+  mini progress bar.
+- **About page**: "shape" in the **"A place to shape a life."** hero is now teal; the
+  closing line **"Come shape with us." → "Join the community."** (accent on "community").
+
 ### 2026-06-04 — Train session wired to the shared week (end-to-end workout consistency)
 - The Train tab's demo program (`MOCK_PROGRAM`) was a **different week** than the
   shared one — e.g. Thursday read "Lower Pull — Peak" on Train but "Z2 run · 45 min"
