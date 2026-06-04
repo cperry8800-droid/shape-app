@@ -981,8 +981,8 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         )}
       </div>
 
-      {/* ── COACH'S LIFT CARD — today's flagship session preview ──── */}
-      <div style={{ margin: `22px ${t.padX}px 0`, padding: 18, background: t.PAPER2, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 4 }}>
+      {/* ── COACH'S LIFT CARD — today's flagship session preview (clean, no box) ──── */}
+      <div style={{ margin: `22px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingBottom: 10, borderBottom: `2px solid ${t.ACCENT}` }}>
           <div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.26em', color: t.ACCENT, textTransform: 'uppercase', fontWeight: 700 }}>Today · Block 3 / Wk 3</div>
