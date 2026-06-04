@@ -4,6 +4,20 @@
 
 const PlaylistCtx = React.createContext(null);
 
+// Map a coach_soundtracks row (shared with the mobile app) into the shape this
+// page renders, with sensible defaults for fields the API doesn't carry.
+function soundtrackToWeb(row) {
+  const accent = row.provider === "apple" ? "#b9a13e" : "#4a6fb0";
+  return {
+    id: row.id, name: row.name, provider: row.provider,
+    cover: `linear-gradient(150deg, ${accent}, ${accent}66)`, accent,
+    bpm: row.bpm || "—", trackCount: row.tracks || 0, duration: row.duration || "—",
+    note: row.tag || "Imported playlist", listens: 0, updated: "synced",
+    attachedTo: Array.isArray(row.attached) ? row.attached.map(a => a && a.id).filter(Boolean) : [],
+    sampleTracks: [], shared: false, synced: true,
+  };
+}
+
 function PlaylistPage({ ctx }) {
   const { useState, useEffect } = React;
   const storageKey = `shape.${ctx.role}.playlists.view`;
@@ -11,22 +25,48 @@ function PlaylistPage({ ctx }) {
     try { return localStorage.getItem(storageKey) || "library"; } catch { return "library"; }
   });
   const [query, setQuery] = useState("");
+  const [serverPlaylists, setServerPlaylists] = useState([]);
+
+  // Pull the coach's saved soundtracks (synced with the mobile app).
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/coach/soundtracks", { credentials: "same-origin" })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && d && Array.isArray(d.soundtracks)) setServerPlaylists(d.soundtracks.map(soundtrackToWeb)); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const importSoundtrack = async ({ name, url, note }) => {
+    const provider = /music\.apple|apple\s*music/i.test(url || "") ? "apple" : "spotify";
+    try {
+      const res = await fetch("/api/coach/soundtracks", {
+        method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: (name || "").trim() || "New playlist", provider, url: url || "", tag: (note || "").trim() }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok && d.soundtrack) setServerPlaylists(list => [soundtrackToWeb(d.soundtrack), ...list]);
+      else alert(d.error || "Sign in as a coach to save soundtracks.");
+    } catch (e) { alert("Could not import right now."); }
+  };
 
   const setViewPersist = (v) => {
     setView(v);
     try { localStorage.setItem(storageKey, v); } catch {}
   };
 
-  const filtered = ctx.playlists.filter(p => !query || p.name.toLowerCase().includes(query.toLowerCase()));
-  const totalAttached = ctx.playlists.reduce((s, p) => s + p.attachedTo.length, 0);
-  const totalListens = ctx.playlists.reduce((s, p) => s + p.listens, 0);
+  const playlists = [...serverPlaylists, ...ctx.playlists];
+  const mctx = { ...ctx, playlists, importSoundtrack };
+  const filtered = playlists.filter(p => !query || p.name.toLowerCase().includes(query.toLowerCase()));
+  const totalAttached = playlists.reduce((s, p) => s + p.attachedTo.length, 0);
+  const totalListens = playlists.reduce((s, p) => s + p.listens, 0);
 
   return (
-    <PlaylistCtx.Provider value={ctx}>
+    <PlaylistCtx.Provider value={mctx}>
       <DashPage
         navItems={ctx.navItems("playlists")}
         payoutCard={ctx.payoutCard}
-        eyebrow={`${ctx.playlists.length} PLAYLISTS · ${totalAttached} ${ctx.attachmentUnitPlural.toUpperCase()} ATTACHMENTS · ${totalListens.toLocaleString()} CLIENT LISTENS`}
+        eyebrow={`${playlists.length} PLAYLISTS · ${totalAttached} ${ctx.attachmentUnitPlural.toUpperCase()} ATTACHMENTS · ${totalListens.toLocaleString()} CLIENT LISTENS`}
         title="Playlists"
         subtitle={ctx.subtitle}
         actions={<>
@@ -34,7 +74,7 @@ function PlaylistPage({ ctx }) {
           <button style={pillPrimary}>+ New playlist</button>
         </>}
       >
-        <PlaylistTabs value={view} onChange={setViewPersist} ctx={ctx} />
+        <PlaylistTabs value={view} onChange={setViewPersist} ctx={mctx} />
 
         {view === "library" && <LibraryGrid query={query} setQuery={setQuery} items={filtered} />}
         {view === "matrix"  && <AttachMatrix />}
@@ -107,8 +147,12 @@ function PlaylistCard({ p, onOpen }) {
 }
 
 function NewPlaylistCard() {
+  const ctx = React.useContext(PlaylistCtx);
   const [open, setOpen] = React.useState(false);
   const [url, setUrl] = React.useState("");
+  const [name, setName] = React.useState("");
+  const [note, setNote] = React.useState("");
+  const doImport = () => { if (ctx.importSoundtrack) ctx.importSoundtrack({ name, url, note }); setOpen(false); setUrl(""); setName(""); setNote(""); };
   return (
     <React.Fragment>
       <button onClick={() => setOpen(true)}
@@ -135,11 +179,11 @@ function NewPlaylistCard() {
             <label style={lbl}>Playlist URL</label>
             <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://open.spotify.com/playlist/…" style={input} />
             <label style={lbl}>Name (optional override)</label>
-            <input placeholder="e.g. Heavy Squat Day" style={input} />
+            <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Heavy Squat Day" style={input} />
             <label style={lbl}>Note for client</label>
-            <textarea rows="2" placeholder="What's the vibe? Any cues?" style={{ ...input, resize: "vertical", fontFamily: sans }} />
+            <textarea value={note} onChange={e => setNote(e.target.value)} rows="2" placeholder="What's the vibe? Any cues?" style={{ ...input, resize: "vertical", fontFamily: sans }} />
             <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
-              <button onClick={() => setOpen(false)} style={{ ...pillPrimary, flex: 1 }}>Import playlist</button>
+              <button onClick={doImport} style={{ ...pillPrimary, flex: 1 }}>Import playlist</button>
               <button onClick={() => setOpen(false)} style={pillGhost}>Cancel</button>
             </div>
           </div>
