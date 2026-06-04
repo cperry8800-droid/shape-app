@@ -11988,17 +11988,23 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       </button>
       {showAppearance && (
       <div style={{ padding: `14px ${t.padX}px` }}>
-        {/* Paper / Texture / Accent / Ink as tabs — saves space */}
-        <div style={{ display: 'flex', gap: 5, marginBottom: 14 }}>
-          {[['paper','Paper'],['texture','Texture'],['accent','Accent'],['ink','Ink']].map(([k, l]) => (
-            <button key={k} onClick={() => setAppearTab(k)} style={{
-              flex: 1, padding: '9px 4px', borderRadius: 999, cursor: 'pointer',
-              border: `1px solid ${appearTab === k ? t.ACCENT : t.RULE}`,
-              background: appearTab === k ? `${t.ACCENT}22` : 'transparent',
-              color: appearTab === k ? t.INK : t.INK70,
-              fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
-            }}>{l}</button>
-          ))}
+        {/* Paper / Texture / Accent / Ink — an underline tab bar, deliberately
+            distinct from the bordered option chips/swatches below so it reads
+            as section navigation (not another row of choices). */}
+        <div style={{ display: 'flex', gap: 22, marginBottom: 16, borderBottom: `1px solid ${t.RULE}` }}>
+          {[['paper','Paper'],['texture','Texture'],['accent','Accent'],['ink','Ink']].map(([k, l]) => {
+            const on = appearTab === k;
+            return (
+              <button key={k} onClick={() => setAppearTab(k)} style={{
+                position: 'relative', padding: '0 1px 11px', cursor: 'pointer',
+                border: 0, background: 'transparent', WebkitTapHighlightColor: 'transparent',
+                color: on ? t.INK : t.INK50,
+                fontFamily: t.DISPLAY, fontSize: 16, fontWeight: on ? 700 : 500, letterSpacing: '-0.01em',
+              }}>{l}
+                <span style={{ position: 'absolute', left: 0, right: 0, bottom: -1, height: 2.5, borderRadius: 2, background: on ? t.ACCENT : 'transparent' }} />
+              </button>
+            );
+          })}
         </div>
 
         {appearTab === 'paper' && (
