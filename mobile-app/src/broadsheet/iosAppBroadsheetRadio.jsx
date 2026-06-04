@@ -293,7 +293,7 @@ function BSShapeRadioLogo({ cream, accent }) {
   const ink = cream || t.INK;
   const glow = accent || t.ACCENT;
   const logoFont = "'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif";
-  const logoSize = 'clamp(27px, 8.4vw, 37px)';
+  const logoSize = 'clamp(24px, 7.6vw, 33px)';
   const shapeTracking = '0.2em';
   const radioTracking = '0.18em';
 
