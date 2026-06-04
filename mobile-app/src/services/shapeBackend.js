@@ -2904,7 +2904,14 @@ async function getClientStats(userId) {
   if (error) return null;
   return data || null;
 }
-window.ShapeClientStats = { get: getClientStats };
+// Strength rollup (key lifts, PRs, avg RPE) — best-effort from workout_set_logs.
+async function getClientLifts(userId) {
+  if (!supabase || !state.user?.id || !userId) return null;
+  const { data, error } = await supabase.rpc('get_client_lifts', { p_user_id: userId });
+  if (error) return null;
+  return data || null;
+}
+window.ShapeClientStats = { get: getClientStats, getLifts: getClientLifts };
 
 // Weigh-ins — the live body-comp series (client_weigh_ins). One row per day
 // (upsert), owned by the client; a linked coach reads them via get_client_goals.

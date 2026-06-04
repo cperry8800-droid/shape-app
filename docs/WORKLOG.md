@@ -46,6 +46,19 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-13 — Coach dashboard: Key lifts / PRs / AVG RPE wired (get_client_lifts)
+- **Migration `2026-06-13-client-lifts.sql`** (idempotent, **run on Supabase**): SECURITY
+  DEFINER `get_client_lifts(p_user_id)` gated on `is_coach_on_client`. Best-effort strength
+  rollup from `workout_set_logs` / `workout_sessions`: **key lifts** (best parsed load per
+  move over 90d + recent-vs-prior delta, top 5), **PR count** (moves improved in the last
+  30d vs the 30–90d window), **avg RPE** (parsed from the set `payload.rpe` when present),
+  and 42d logged-workout count. Loads/reps are free text so numbers are regex-parsed; null
+  fields when there's nothing to read.
+- `shapeBackend.js`: `ShapeClientStats.getLifts(userId)`.
+- **`BSProClientFullProfilePage`** now threads the rollup in (per-field demo fallback):
+  the **Key lifts** list (name · best · ▲delta · relative bar), the **AVG RPE** and **PRS**
+  stat cards (Profile), and **AVG RPE / TOTAL PRS** on the Analysis tab.
+
 ### 2026-06-13 — Coach "Adjust program" + "Schedule" action pages (wired)
 - The profile header's **ADJUST PROGRAM / ADJUST PLAN** and **SCHEDULE** buttons now open
   real full pages (`BSProAdjustProgram` / `BSProScheduleSession`, role-accented teal/gold)

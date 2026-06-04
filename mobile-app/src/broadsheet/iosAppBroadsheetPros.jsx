@@ -1573,6 +1573,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const [showSchedulePage, setShowSchedulePage] = useStateBSP(false);
   const [view, setView] = useStateBSP('profile'); // 'profile' | 'analysis'
   const [cStats, setCStats] = useStateBSP(null); // live KPI rollup (coach read)
+  const [cLifts, setCLifts] = useStateBSP(null); // strength rollup (coach read)
   useEffectBSP(() => {
     if (!clientUid || !window.ShapeGoalsApi?.getForClient) return;
     window.ShapeGoalsApi.getForClient(clientUid).then(d => { setCGoals(d || null); setCGoalsLoaded(true); }).catch(() => setCGoalsLoaded(true));
@@ -1580,6 +1581,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   useEffectBSP(() => {
     if (!clientUid || !window.ShapeClientStats?.get) return;
     window.ShapeClientStats.get(clientUid).then(d => setCStats(d || null)).catch(() => {});
+    if (window.ShapeClientStats?.getLifts) window.ShapeClientStats.getLifts(clientUid).then(d => setCLifts(d || null)).catch(() => {});
   }, [clientUid]);
   const setPhaseKey = (key, val) => {
     setPhase(prev => ({ ...prev, [key]: val }));
@@ -1640,6 +1642,18 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     const mins = r.durationMin ? ` · ${r.durationMin} min` : '';
     return { n: r.title || 'Session', s: `${st}${mins}`, d: when };
   }) : null;
+  // Strength rollup (key lifts, PRs, avg RPE) — best-effort, demo fallback.
+  const L = cLifts || {};
+  const avgRpe = lnum(L.avgRpe);
+  const prs = lnum(L.prs);
+  const liftRows = Array.isArray(L.keyLifts) && L.keyLifts.length ? (() => {
+    const best = L.keyLifts.map(x => lnum(x.best)).filter(v => v != null);
+    const mx = best.length ? Math.max(...best) : 1;
+    return L.keyLifts.map(x => {
+      const b = lnum(x.best), dl = lnum(x.delta);
+      return { n: x.name || 'Lift', v: b != null ? `${b} kg` : '—', d: dl != null ? `${dl >= 0 ? '+' : ''}${dl}` : '—', p: b != null && mx ? Math.max(0.2, b / mx) : 0.5 };
+    });
+  })() : null;
 
   // ---- presentational helpers ----
   const Section = ({ eyebrow, title, trailing, color }) => (
@@ -1749,10 +1763,10 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   ] : [
     { label: 'SESSIONS', labelColor: teal, big: sDone != null ? String(sDone) : '38', sub: `OF ${sPlan != null ? sPlan : 41} PLANNED` },
     { label: 'STREAK', labelColor: teal, big: '14d', sub: 'CONSISTENCY' },
-    { label: 'AVG RPE', labelColor: rust, big: '8.0', sub: 'EFFORT LOGGED' },
-    { label: 'PRS', labelColor: gold, big: '3', sub: 'THIS BLOCK' },
+    { label: 'AVG RPE', labelColor: rust, big: avgRpe != null ? avgRpe.toFixed(1) : '8.0', sub: 'EFFORT LOGGED' },
+    { label: 'PRS', labelColor: gold, big: prs != null ? String(prs) : '3', sub: 'THIS BLOCK' },
   ];
-  const lifts = [
+  const lifts = liftRows || [
     { n: 'Back Squat', v: '82.5 kg', d: '+7.5', p: 0.92 },
     { n: 'Bench Press', v: '52.5 kg', d: '+5.0', p: 0.55 },
     { n: 'Deadlift', v: '110 kg', d: '+10', p: 1.0 },
@@ -1842,8 +1856,8 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   ] : [
     { label: 'ADHERENCE', big: attendancePct != null ? String(attendancePct) : '96', small: '%', sub: '+4pt vs last mo', c: accent },
     { label: 'SESSIONS', big: sDone != null ? String(sDone) : '38', sub: `of ${sPlan != null ? sPlan : 41} planned`, c: accent },
-    { label: 'AVG RPE', big: '8.0', sub: 'effort logged', c: rust },
-    { label: 'TOTAL PRS', big: '3', sub: 'this block', c: gold },
+    { label: 'AVG RPE', big: avgRpe != null ? avgRpe.toFixed(1) : '8.0', sub: 'effort logged', c: rust },
+    { label: 'TOTAL PRS', big: prs != null ? String(prs) : '3', sub: 'this block', c: gold },
     { label: 'VOLUME', big: '+12', small: '%', sub: 'week / week', c: teal },
     { label: 'BODYWEIGHT', big: String(bwNow), small: bwUnit, sub: `${bwDelta} · ${bwWeeks}w`, c: accent },
   ];
