@@ -46,6 +46,31 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-13 — Coach client-profile redesign (trainer + nutritionist) + roster filters
+- **`BSProClientFullProfilePage`** (mobile coach apps, `iosAppBroadsheetPros.jsx`) fully
+  rebuilt into a **role-aware, 3-tab dashboard** (teal for trainers, gold `#d8b25a` for
+  nutritionists). Custom editorial header: `{phase} · WEEK 6 OF 12` / `{phase} · 2100
+  KCAL` eyebrow + ← BACK, big serif name (last word accent-italic), avatar + since/streak
+  + teal status pill (ON TRACK / STRONG / PAST), and **MESSAGE / ADJUST · PLAN / SCHEDULE**
+  buttons.
+  - **Profile tab** — big metric card (trainer ATTENDANCE 96% + 7-week bars / nutri
+    ADHERENCE 92% + Mon–Sun bars), 4 stat cards, **Key lifts** (trainer) / **Macros vs
+    target** (nutri), **Bodyweight / Weight trend** chart (driven by the client's **live
+    shared weigh-ins** when available, else demo), **Recent sessions/logs**, **Inbox ·
+    Needs your eyes**, and a private **Coach / Clinical note**.
+  - **Analysis tab** — "ANALYSIS · LAST 30 DAYS" summary: a one-line readout + a 6-up KPI
+    grid (role-specific) + a TRENDLINE chart (weekly volume / weight).
+  - **Manage tab** — the previous coach controls, restyled: **program-phase** chips
+    (live `ShapeProgramApi` setter), the client's **shared goals** (read-only, share-gated,
+    with the live weight-trend mini-chart), and coach notes. (ADJUST jumps here.)
+  - Nutritionist console now passes `role="nutritionist"`; trainer keeps the default.
+- **Roster search + filters** on **both** coach client pages: new `BSProRosterFilter`
+  (search box "Search N clients" + scrollable pills — ALL / ON TRACK / NEEDS EYES / NEW /
+  CUT / BUILD [/ PEAK]) sits atop the roster under the tab bar. `bsClientMatchesFilter` /
+  `bsClientMatchesQuery` filter the live roster (status/phase + name/meta search), role-aware.
+- Dashboard stats/lifts/macros/recent/inbox are illustrative demo data; the bodyweight
+  chart + shared-goals card are live when the client is a linked member who shares.
+
 ### 2026-06-13 — War Room: register client goals & weigh-ins
 - New checklist section **"Client goals & weigh-ins"** in `src/lib/warroom.ts`: the
   3-tab Goal page, Me-page featured goal box, share-with-coaches toggle, coach read of
