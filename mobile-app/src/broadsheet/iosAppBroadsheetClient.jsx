@@ -11131,6 +11131,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showNotifications, setShowNotifications] = useStateBSC(false);
   const [showIntegrations, setShowIntegrations] = useStateBSC(initialPage === 'integrations');
   const [showAppearance, setShowAppearance] = useStateBSC(false);
+  const [appearTab, setAppearTab] = useStateBSC('paper');
   const [showLightFx, setShowLightFx] = useStateBSC(false);
   const [detail, setDetail] = useStateBSC(''); // '' = settings page; else a drill-in card pane
   const [showScore, setShowScore] = useStateBSC(false);
@@ -11963,14 +11964,28 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       </button>
       {showAppearance && (
       <div style={{ padding: `14px ${t.padX}px` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 6, fontWeight: 700 }}>Paper</div>
+        {/* Paper / Texture / Accent as tabs — saves space */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+          {[['paper','Paper'],['texture','Texture'],['accent','Accent']].map(([k, l]) => (
+            <button key={k} onClick={() => setAppearTab(k)} style={{
+              flex: 1, padding: '9px 6px', borderRadius: 999, cursor: 'pointer',
+              border: `1px solid ${appearTab === k ? t.ACCENT : t.RULE}`,
+              background: appearTab === k ? `${t.ACCENT}22` : 'transparent',
+              color: appearTab === k ? t.INK : t.INK70,
+              fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
+            }}>{l}</button>
+          ))}
+        </div>
+
+        {appearTab === 'paper' && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {[['light','Cream'],['white','White'],['dark','Black'],['teal','Teal'],['manila','Manila'],['blueprint','Blueprint'],['carbon','Carbon'],['steel','Steel'],['bone','Bone'],['oxblood','Oxblood']].map(([k,l]) => (
             <Pill key={k} on={tweaks.paperMode === k} onClick={() => setTweak('paperMode', k)}>{l}</Pill>
           ))}
         </div>
+        )}
 
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginTop: 12, marginBottom: 6, fontWeight: 700 }}>Texture</div>
+        {appearTab === 'texture' && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {[
             ['none','None'],['newsprint','Newsprint'],['ledger','Ledger'],
@@ -11985,9 +12000,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             <Pill key={k} on={(tweaks.textureKey || 'none') === k} onClick={() => setTweak('textureKey', k)}>{l}</Pill>
           ))}
         </div>
+        )}
 
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginTop: 12, marginBottom: 6, fontWeight: 700 }}>Accent color</div>
-        <div style={{ display: 'flex', gap: 6 }}>
+        {appearTab === 'accent' && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <Swatch k="blue"  color="#1e7ad6" label="Blue" />
           <Swatch k="amber" color="#d99033" label="Amber" />
           <Swatch k="rust"  color="#b83d2c" label="Rust" />
@@ -11996,6 +12012,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           <Swatch k="white" color="#ffffff" label="White" />
           <Swatch k="black" color="#000000" label="Black" />
         </div>
+        )}
 
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginTop: 12, marginBottom: 6, fontWeight: 700 }}>Ink color <span style={{ color: t.INK30, marginLeft: 6, letterSpacing: '0.16em' }}>· text</span></div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
