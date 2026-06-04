@@ -46,6 +46,19 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Recover from stale-chunk "failed to fetch dynamically imported module"
+- Switching profiles (role → `loadProsBundle`) could throw **"Failed to fetch
+  dynamically imported module … iosApp…-<hash>.js"** — a stale chunk after a redeploy
+  (the cached `index.html` points at a hash that no longer exists).
+- `loadClientBundle` / `loadProsBundle` now `.catch` import failures via
+  **`_bsChunkRecover`**: on a stale-chunk error it **reloads once** (sessionStorage
+  guard → one auto-reload per tab session) so the fresh `index.html` pulls the new
+  hashes; the cached bundle promise is reset so it isn't stuck rejected.
+- The bundle-error screen is friendlier — **"A new version is available. Reload to
+  continue."** + a **Reload →** button (clears the guard) — with the raw error kept
+  small below. *(Takes effect once this build is live; an existing stale tab needs one
+  manual refresh to pick it up.)*
+
 ### 2026-06-04 — Avatar color = your tier (app-wide); accent picker removed; instant save
 - **Every "your own" avatar now fills with your Shape Score tier color** (Base/steel
   until you earn points): the 5 client header avatars, the **Settings** identity editor

@@ -11,6 +11,28 @@ const {
 let _clientBundlePromise = null;
 let _prosBundlePromise = null;
 
+// A failed dynamic import is almost always a STALE CHUNK after a redeploy: the
+// hashed filename baked into the cached index.html no longer exists on the
+// server (it was replaced by a new hash), so the fetch 404s. Reload once — the
+// fresh index.html references the new chunk hashes. The sessionStorage flag
+// (persists across the reload, reset only by a new tab or the manual Reload
+// button) caps it at one auto-reload per session, so a genuine repeated failure
+// surfaces as an error instead of looping.
+function _bsChunkRecover(err) {
+  const msg = String((err && err.message) || err || '');
+  const stale = /dynamically imported module|failed to fetch|module script failed|error loading dynamically|importing a module script/i.test(msg);
+  if (stale && typeof window !== 'undefined') {
+    try {
+      if (!window.sessionStorage.getItem('bs-chunk-reloaded')) {
+        window.sessionStorage.setItem('bs-chunk-reloaded', '1');
+        window.location.reload();
+        return new Promise(() => {}); // never settles — the page is reloading
+      }
+    } catch (e) { /* sessionStorage blocked — fall through to surface the error */ }
+  }
+  throw err;
+}
+
 function loadClientBundle() {
   if (_clientBundlePromise) return _clientBundlePromise;
   // Load the feature modules FIRST so their window globals (BSSheetProvider,
@@ -23,7 +45,8 @@ function loadClientBundle() {
     import('./iosAppBroadsheetMarketplace.jsx'),
     import('./iosAppBroadsheetWidgets.jsx'),
     import('./iosAppBroadsheetHabits.jsx'),
-  ]).then(() => import('./iosAppBroadsheetClient.jsx')).then(() => true);
+  ]).then(() => import('./iosAppBroadsheetClient.jsx')).then(() => true)
+    .catch((err) => { _clientBundlePromise = null; return _bsChunkRecover(err); });
   return _clientBundlePromise;
 }
 
@@ -38,7 +61,8 @@ function loadProsBundle() {
     import('./iosAppBroadsheetMarketplace.jsx'),
     import('./iosAppBroadsheetWidgets.jsx'),
     import('./iosAppBroadsheetHabits.jsx'),
-  ]).then(() => import('./iosAppBroadsheetPros.jsx')).then(() => true);
+  ]).then(() => import('./iosAppBroadsheetPros.jsx')).then(() => true)
+    .catch((err) => { _prosBundlePromise = null; return _bsChunkRecover(err); });
   return _prosBundlePromise;
 }
 
@@ -1066,7 +1090,12 @@ function BSAppShell({ tweaks, setTweak }) {
             letterSpacing: '0.12em',
             textTransform: 'uppercase',
           }}>
-            {bundleError}
+            <div style={{ lineHeight: 1.5 }}>A new version is available. Reload to continue.</div>
+            <button
+              onClick={() => { try { window.sessionStorage.removeItem('bs-chunk-reloaded'); } catch (e) {} window.location.reload(); }}
+              style={{ marginTop: 12, padding: '10px 16px', borderRadius: 999, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' }}
+            >Reload →</button>
+            <div style={{ marginTop: 10, fontSize: 8.5, color: t.INK50, letterSpacing: '0.06em', textTransform: 'none', wordBreak: 'break-all' }}>{bundleError}</div>
           </div>
         )}
         {stage === 'app' && !bundleError && !App && (
