@@ -5803,6 +5803,48 @@ const BS_SAMPLE_CHANNELS = [
   ] },
 ];
 
+// Public profile opened from a chat avatar — works for any member or coach.
+// Tier-colored ring + avatar; shows role, tier, and a Message CTA. (Read-only;
+// respects privacy — only reachable when the post isn't marked private.)
+function BSPublicProfile({ person, onBack, onMessage = () => {} }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const tier = person.tier || bsPostTier(person);
+  const tc = bsTierColor(tier);
+  const ROLE_LABEL = { TRAINER: 'Trainer', NUTRI: 'Nutritionist', CLIENT: 'Member', SHAPE: 'Member', COMMUNITY: 'Member' };
+  const roleLabel = ROLE_LABEL[person.kind] || 'Member';
+  const isCoach = person.kind === 'TRAINER' || person.kind === 'NUTRI';
+  return (
+    <BSPage>
+      <BSDetailHeader onBack={onBack} eyebrow="Public profile" kicker={`${tier} tier`} title={<>{person.who}<span style={{ color: tc }}>.</span></>} />
+      <div style={{ padding: `8px ${t.padX}px 0` }}>
+        <div style={{ borderRadius: 18, border: `1px solid ${tc}55`, background: `radial-gradient(130% 120% at 78% 14%, ${tc}26, transparent 55%), ${t.PAPER2}`, padding: 18, display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ width: 76, height: 76, borderRadius: 999, flexShrink: 0, background: `conic-gradient(${tc} 270deg, ${t.HAIR} 0deg)`, display: 'grid', placeItems: 'center' }}>
+            <div style={{ width: 64, height: 64, borderRadius: 999, background: tc, color: '#fff', display: 'grid', placeItems: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 26 }}>{person.init}</div>
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
+              <span style={{ color: tc }}>{tier}</span><span style={{ color: t.INK50 }}>·</span><span style={{ color: t.INK50 }}>{roleLabel}</span>
+            </div>
+            <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>{person.who}</div>
+            <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>● Member of the Shape community</div>
+          </div>
+        </div>
+      </div>
+      <div style={{ padding: `16px ${t.padX}px 0` }}>
+        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK70, lineHeight: 1.5 }}>
+          {person.bio || `${person.who} is part of the Shape community${isCoach ? ' as a coach' : ''}. ${isCoach ? 'Browse their coaching profile to see packages and book a session.' : 'Say hi or cheer them on.'}`}
+        </div>
+      </div>
+      <div style={{ padding: `16px ${t.padX}px 0`, display: 'flex', gap: 8 }}>
+        <button onClick={() => onMessage(person)} style={{ flex: 1, padding: '13px', borderRadius: 999, border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Message →</button>
+        {isCoach && <button onClick={() => { try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} style={{ flex: '0 0 auto', padding: '13px 18px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Coaching →</button>}
+      </div>
+      <BSFooter right="Profile" />
+    </BSPage>
+  );
+}
+
 function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const t = useBS();
   const TEAL = '#0ac5a8', TEALB = '#2ee0c4';
@@ -5839,6 +5881,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // sample people lists below when there are none (demo / not signed in).
   const [coachThreads, setCoachThreads] = useStateBSC(null);
   const [openChat, setOpenChat] = useStateBSC(null); // selected DM/channel row → thread view
+  const [openProfile, setOpenProfile] = useStateBSC(null); // tapped a chat avatar → public profile
   const loadCoachThreads = React.useCallback(() => {
     if (!window.ShapeMessages?.listDirectCoachThreads) return;
     window.ShapeMessages.listDirectCoachThreads()
@@ -6159,22 +6202,29 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // Trainer / Nutritionist / Shape) and the live COMMUNITY feed.
   const renderPost = (p, i) => {
     const rc = (ROLE[p.kind] && ROLE[p.kind].color) || muted;
-    const right = p.who === 'You'; // only your own posts sit on the right; everyone else is an incoming (left) feed message
+    // In the mixed COMMUNITY feed, coaches sit left and members/clients (+ you)
+    // sit right for a conversation feel; in a single-role section only your own
+    // posts go right (everyone else is an incoming/left feed message).
+    const right = p.who === 'You' || (filter === 'COMMUNITY' && (p.kind === 'CLIENT' || p.kind === 'SHAPE'));
     const replyCount = (p.replies || 0) + (actComments[p.id] || []).length;
-    const bubbleBg = p.official ? '#f3eee4' : (t.isLight ? `${rc}16` : `${rc}1f`);
+    // Avatar + bubble tint follow the author's TIER (not the role).
+    const tier = bsPostTier(p);
+    const tc = bsTierColor(tier);
+    const bubbleBg = p.official ? '#f3eee4' : (t.isLight ? `${tc}16` : `${tc}22`);
+    const linkable = p.who !== 'You' && p.public !== false; // open the author's public profile
     const AV_OFFSET = 41; // avatar (32) + gap (9), to align meta/reactions under the bubble
     return (
       <div key={p.id || i} style={{ display: 'flex', flexDirection: 'column', alignItems: right ? 'flex-end' : 'flex-start' }}>
         {p.pinned && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', color: TEALB, marginBottom: 6 }}><PinIcon filled size={13} /> Pinned</div>}
         <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'flex-end', gap: 9, maxWidth: '90%' }}>
-          <div style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, background: p.hue, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13 }}>{p.init}</div>
+          <button onClick={() => linkable && setOpenProfile({ ...p, tier })} aria-label={linkable ? `View ${p.who}'s profile` : undefined} style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, background: tc, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13, border: 0, padding: 0, cursor: linkable ? 'pointer' : 'default' }}>{p.init}</button>
           <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'baseline', gap: 8, marginBottom: 5 }}>
-              <span style={{ fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk }}>{p.who}</span>
+              <button onClick={() => linkable && setOpenProfile({ ...p, tier })} style={{ background: 'transparent', border: 0, padding: 0, cursor: linkable ? 'pointer' : 'default', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk }}>{p.who}</button>
               <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: rc, border: `1px solid ${rc}66`, borderRadius: 4, padding: '1px 5px' }}>{ROLE[p.kind].label}</span>
               <span style={{ fontFamily: t.MONO, fontSize: 9, color: muted }}>{p.time}</span>
             </div>
-            <div style={{ borderRadius: 16, [right ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 5, padding: '11px 14px', background: bubbleBg, color: p.official ? '#1a1713' : cardInk, border: p.official ? 'none' : `1px solid ${rc}3a`, fontFamily: p.official ? `'Newsreader', Georgia, serif` : t.DISPLAY, fontStyle: p.official ? 'italic' : 'normal', fontSize: p.official ? 15 : 14, lineHeight: 1.4 }}>{p.body}</div>
+            <div style={{ borderRadius: 16, [right ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 5, padding: '11px 14px', background: bubbleBg, color: p.official ? '#1a1713' : cardInk, border: p.official ? 'none' : `1px solid ${tc}40`, fontFamily: p.official ? `'Newsreader', Georgia, serif` : t.DISPLAY, fontStyle: p.official ? 'italic' : 'normal', fontSize: p.official ? 15 : 14, lineHeight: 1.4 }}>{p.body}</div>
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'center', gap: 20, marginTop: 7, padding: right ? `0 ${AV_OFFSET}px 0 0` : `0 0 0 ${AV_OFFSET}px`, fontFamily: t.MONO, fontSize: 14, color: muted }}>
@@ -6313,6 +6363,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     </button>
   );
 
+  if (openProfile) {
+    return <BSPublicProfile person={openProfile} onBack={() => setOpenProfile(null)} onMessage={(person) => { setOpenProfile(null); setOpenChat({ n: person.who, s: ROLE[person.kind]?.label || 'Member', c: bsTierColor(person.tier), i: person.init, messages: [], dm: true }); }} />;
+  }
   if (openChat) {
     const isCh = !!openChat.channelId || String(openChat.n || '').startsWith('#');
     return (
@@ -6915,6 +6968,17 @@ const BS_TIER_COLORS = {
 };
 function bsTierColor(tier) {
   return BS_TIER_COLORS[String(tier || '').toLowerCase().trim()] || '#d8a23a';
+}
+// A stable tier for a feed author — uses an explicit `tier` when present, else
+// derives one deterministically from the name so a person's tier color/badge is
+// consistent everywhere they appear.
+const _BS_FEED_TIERS = ['Tempo', 'Form', 'Peak', 'Legend', 'Base'];
+function bsPostTier(p) {
+  if (p && p.tier) return p.tier;
+  const s = String((p && (p.who || p.id)) || '');
+  let n = 0;
+  for (let i = 0; i < s.length; i++) n = (n + s.charCodeAt(i) * (i + 1)) % 997;
+  return _BS_FEED_TIERS[n % _BS_FEED_TIERS.length];
 }
 
 const SHAPE_SCORE_PROFILES = {
