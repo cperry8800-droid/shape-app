@@ -10897,9 +10897,17 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreat
   const t = useBS();
   _bsScrollTopOnMount();
   const [filter, setFilter] = useStateBSC('all'); // all | custom | template | mealplan | recipe
+  const [query, setQuery] = useStateBSC('');
   const [openList, setOpenList] = useStateBSC(null);
   const allLists = [...recipeLists, ...BS_GROCERY_LIBRARY].filter(l => !deletedIds.includes(l.id));
-  const filtered = allLists.filter(l => filter === 'all' || l.kind === filter);
+  const matchesQuery = (l) => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    if ((l.name || '').toLowerCase().includes(q) || (l.preview || '').toLowerCase().includes(q) || (l.eyebrow || '').toLowerCase().includes(q)) return true;
+    const items = l.items || bsLibraryPreviewItems(l) || [];
+    return items.some(it => (it.n || '').toLowerCase().includes(q));
+  };
+  const filtered = allLists.filter(l => filter === 'all' || l.kind === filter).filter(matchesQuery);
 
   return (
     <BSPage>
@@ -10918,6 +10926,15 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreat
         }}>+ New grocery list</button>
       </div>
 
+      {/* Search saved lists */}
+      <div style={{ padding: `12px ${t.padX}px 0` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, borderBottom: `1px solid ${t.RULE}`, padding: '8px 2px' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={t.INK50} strokeWidth="2" style={{ flexShrink: 0 }}><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" strokeLinecap="round" /></svg>
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search saved lists…" style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 14 }} />
+          {query && <button onClick={() => setQuery('')} style={{ border: 0, background: 'transparent', color: t.INK50, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>CLEAR</button>}
+        </div>
+      </div>
+
       {/* Filter chips — rounded pills */}
       <div style={{ padding: `12px ${t.padX}px 6px`, display: 'flex', gap: 7, flexWrap: 'wrap', rowGap: 8 }}>
         {[['all','All'],['recipe','Recipes'],['custom','Custom'],['mealplan','Meal Plans']].map(([k, l]) => {
@@ -10934,6 +10951,11 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreat
       </div>
 
       <div style={{ padding: `4px ${t.padX}px`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {filtered.length === 0 && (
+          <div style={{ padding: '22px 16px', borderRadius: 16, border: `1px dashed ${t.RULE}`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>
+            {query.trim() ? 'No lists match your search.' : 'No saved lists yet.'}
+          </div>
+        )}
         {filtered.map((l) => {
           const color = l.kind === 'template' ? t.AMBER : l.kind === 'mealplan' ? t.GREEN : l.kind === 'recipe' ? t.RUST : t.ACCENT;
           const open = openList === l.id;
