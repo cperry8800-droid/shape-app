@@ -5240,7 +5240,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
             </div>
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>Apr plan</span>
           </div>
-          <div style={{ fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontStyle: 'italic', fontSize: 17, lineHeight: 1.4, color: t.INK }}>&ldquo;{cur.coachLine}&rdquo;</div>
+          <div style={{ fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontStyle: 'italic', fontSize: 17, lineHeight: 1.4, color: t.INK }}>&ldquo;{cur.coachLine}&rdquo;</div>
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
             <button onClick={() => setView('grocery')} style={{ flex: 1, padding: '11px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Shop list →</button>
           </div>
@@ -6343,7 +6343,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 14, padding: 14, background: 'rgba(46,224,196,0.06)', border: '1px solid rgba(46,224,196,0.2)', borderRadius: 10 }}>
             <div>
               <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: TEALB, fontWeight: 800 }}>NEW PR</div>
-              <div style={{ fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontSize: 26, color: cardInk, marginTop: 4, lineHeight: 1 }}>{a.delta}</div>
+              <div style={{ fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontSize: 26, color: cardInk, marginTop: 4, lineHeight: 1 }}>{a.delta}</div>
               <div style={{ fontFamily: t.MONO, fontSize: 9, color: muted, marginTop: 6 }}>{a.lift} · {a.load}</div>
             </div>
             <div style={{ paddingLeft: 14, borderLeft: '1px solid rgba(46,224,196,0.18)' }}>
@@ -8213,10 +8213,10 @@ function BSGoalsOverall({ overall, onLog }) {
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>Down so far</div>
-              <div style={{ marginTop: 6, fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontSize: 44, fontWeight: 600, color: t.INK, letterSpacing: '-0.03em', lineHeight: 0.95 }}>{down > 0 ? '+' : '−'}{Math.abs(down)}<span style={{ fontSize: 18, color: t.INK50, marginLeft: 3 }}>{unit}</span></div>
+              <div style={{ marginTop: 6, fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontSize: 44, fontWeight: 600, color: t.INK, letterSpacing: '-0.03em', lineHeight: 0.95 }}>{down > 0 ? '+' : '−'}{Math.abs(down)}<span style={{ fontSize: 18, color: t.INK50, marginLeft: 3 }}>{unit}</span></div>
             </div>
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
-              <div style={{ fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontSize: 34, fontWeight: 600, color: teal, letterSpacing: '-0.02em', lineHeight: 1 }}>{Math.round(pct * 100)}%</div>
+              <div style={{ fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontSize: 34, fontWeight: 600, color: teal, letterSpacing: '-0.02em', lineHeight: 1 }}>{Math.round(pct * 100)}%</div>
               <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>There</div>
             </div>
           </div>
@@ -8308,7 +8308,7 @@ function BSGoalsOverall({ overall, onLog }) {
       <SecHead kicker="Your why" title="Stay with it" />
       <div style={{ padding: `12px ${t.padX}px 0` }}>
         <div style={{ borderRadius: 16, border: `1px solid ${purple}44`, background: `linear-gradient(155deg, ${purple}22, ${purple}08 60%, ${t.PAPER2} 92%), ${t.PAPER2}`, padding: 16 }}>
-          <div style={{ fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontStyle: 'italic', fontSize: 16, lineHeight: 1.5, color: t.INK }}>“{overall.why}”</div>
+          <div style={{ fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontStyle: 'italic', fontSize: 16, lineHeight: 1.5, color: t.INK }}>“{overall.why}”</div>
           <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ width: 28, height: 28, borderRadius: 999, background: teal, color: '#04201d', display: 'grid', placeItems: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 12, flexShrink: 0 }}>{bsMyInitials()[0]}</span>
             <div style={{ minWidth: 0 }}>
@@ -8397,7 +8397,7 @@ function BSGoalsTraining({ onOpenProgram }) {
       <div style={{ padding: `14px ${t.padX}px 0` }}>
         <div style={{ borderRadius: 18, border: `1px solid ${rust}44`, background: `linear-gradient(160deg, ${rust}22, ${rust}08 55%, ${t.PAPER2} 92%), ${t.PAPER2}`, padding: 18 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: rust }}>Strength held</div>
-          <div style={{ marginTop: 6, fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontSize: 44, fontWeight: 600, color: t.INK, letterSpacing: '-0.03em', lineHeight: 0.95 }}>4<span style={{ fontSize: 20, color: t.INK50, marginLeft: 3 }}>/4 lifts</span></div>
+          <div style={{ marginTop: 6, fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontSize: 44, fontWeight: 600, color: t.INK, letterSpacing: '-0.03em', lineHeight: 0.95 }}>4<span style={{ fontSize: 20, color: t.INK50, marginLeft: 3 }}>/4 lifts</span></div>
           <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.06em', color: rust }}>none dropped · bench +5 kg</div>
           <div style={{ marginTop: 16, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Sessions / week</span>
@@ -8538,10 +8538,10 @@ function BSGoalsNutrition({ overall, onLog }) {
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: gold }}>Down so far</div>
-              <div style={{ marginTop: 6, fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontSize: 44, fontWeight: 600, color: t.INK, letterSpacing: '-0.03em', lineHeight: 0.95 }}>{down > 0 ? '+' : '−'}{Math.abs(down)}<span style={{ fontSize: 18, color: t.INK50, marginLeft: 3 }}>{unit}</span></div>
+              <div style={{ marginTop: 6, fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontSize: 44, fontWeight: 600, color: t.INK, letterSpacing: '-0.03em', lineHeight: 0.95 }}>{down > 0 ? '+' : '−'}{Math.abs(down)}<span style={{ fontSize: 18, color: t.INK50, marginLeft: 3 }}>{unit}</span></div>
             </div>
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
-              <div style={{ fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontSize: 34, fontWeight: 600, color: gold, letterSpacing: '-0.02em', lineHeight: 1 }}>{Math.round(pct * 100)}%</div>
+              <div style={{ fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontSize: 34, fontWeight: 600, color: gold, letterSpacing: '-0.02em', lineHeight: 1 }}>{Math.round(pct * 100)}%</div>
               <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>There</div>
             </div>
           </div>
@@ -8774,8 +8774,8 @@ function BSClientGoals({ onBack }) {
             <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: 0 }}>← Back</button>
           </div>
         </div>
-        <h1 style={{ margin: '10px 0 0', fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontSize: 40, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>{hHead ? hHead + ' ' : ''}<span style={{ fontStyle: 'italic', color: accent }}>{hLast}.</span></h1>
-        {headInfo.subtitle ? <div style={{ marginTop: 9, fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontStyle: 'italic', fontSize: 15, color: t.INK50, lineHeight: 1.4 }}>{headInfo.subtitle}</div> : null}
+        <h1 style={{ margin: '10px 0 0', fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontSize: 40, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>{hHead ? hHead + ' ' : ''}<span style={{ fontStyle: 'italic', color: accent }}>{hLast}.</span></h1>
+        {headInfo.subtitle ? <div style={{ marginTop: 9, fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontStyle: 'italic', fontSize: 15, color: t.INK50, lineHeight: 1.4 }}>{headInfo.subtitle}</div> : null}
       </div>
       {/* Overall / Training / Nutrition tabs */}
       <div style={{ padding: `16px ${t.padX}px 0` }}>
@@ -9245,7 +9245,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
                 <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>Your goal{dateLabel ? ` · By ${dateLabel}` : ''} ›</span>
                 <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{Math.round(gp * 100)}% there</span>
               </div>
-              <div style={{ marginTop: 6, fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontSize: 26, fontWeight: 600, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.05 }}>{head ? head + ' ' : ''}<span style={{ fontStyle: 'italic', color: teal }}>{last}</span></div>
+              <div style={{ marginTop: 6, fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontSize: 26, fontWeight: 600, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.05 }}>{head ? head + ' ' : ''}<span style={{ fontStyle: 'italic', color: teal }}>{last}</span></div>
               <div style={{ marginTop: 11, height: 7, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${gp * 100}%`, background: teal, borderRadius: 999 }} /></div>
               <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK70, fontWeight: 600 }}>{meSub}</div>
             </button>
