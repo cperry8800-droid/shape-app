@@ -1162,7 +1162,7 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: teal }}>{activeCount} ACTIVE · +{newThisMonth} THIS MONTH</div>
-            <div style={{ marginTop: 8, fontFamily: t.SERIF, fontSize: 40, fontWeight: 600, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>Your<br /><span style={{ fontStyle: 'italic', color: teal }}>clients.</span></div>
+            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 600, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>Your<br /><span style={{ fontStyle: 'italic', color: teal }}>clients.</span></div>
           </div>
           <div style={{ flexShrink: 0 }}><BSProAvatarButton size={38} /></div>
         </div>
@@ -1196,7 +1196,7 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
               <button key={i} onClick={() => onOpen(c)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 13, alignItems: 'center', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '15px 15px' }}>
                 <BSAvatar init={c.i} fill={c.c} size={42} />
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: t.SERIF, fontSize: 18, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.1 }}>{c.n}</div>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.1 }}>{c.n}</div>
                   <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.04em', color: t.INK50, lineHeight: 1.35 }}>{subtitle}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1321,7 +1321,7 @@ function BSProActionHead({ eyebrow, titleA, titleB, accent, onBack }) {
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{eyebrow}</div>
         <button onClick={onBack} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
       </div>
-      <div style={{ marginTop: 10, fontFamily: t.SERIF, fontSize: 40, fontWeight: 600, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>{titleA}<br /><span style={{ fontStyle: 'italic', color: accent }}>{titleB}</span></div>
+      <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 600, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>{titleA}<br /><span style={{ fontStyle: 'italic', color: accent }}>{titleB}</span></div>
     </div>
   );
 }
@@ -1333,7 +1333,7 @@ function BSProClientMini({ client }) {
     <div style={{ marginTop: 18, display: 'flex', alignItems: 'center', gap: 12, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '14px 15px' }}>
       <BSAvatar init={client.i} fill={client.c} size={40} />
       <div>
-        <div style={{ fontFamily: t.SERIF, fontSize: 17, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{client.n}</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{client.n}</div>
         <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: t.INK50 }}>{prog} · Week 6 of 12</div>
       </div>
     </div>
@@ -1345,7 +1345,7 @@ function BSProActionSec({ eyebrow, title, trailing, accent }) {
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 12 }}>
       <div>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{eyebrow}</div>
-        <div style={{ marginTop: 5, fontFamily: t.SERIF, fontSize: 25, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1 }}>{title}</div>
+        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1 }}>{title}</div>
       </div>
       {trailing && <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', color: accent, paddingBottom: 3, whiteSpace: 'nowrap' }}>{trailing}</div>}
     </div>
@@ -1384,7 +1384,7 @@ function BSProStepper({ label, sub, value, set, min = 1, max = 14, step = 1, uni
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
         {rnd('−', () => set(Math.max(min, value - step)))}
-        <span style={{ fontFamily: t.SERIF, fontSize: 26, fontWeight: 600, color: t.INK, minWidth: 24, textAlign: 'center' }}>{value}{unit}</span>
+        <span style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 600, color: t.INK, minWidth: 24, textAlign: 'center' }}>{value}{unit}</span>
         {rnd('+', () => set(Math.min(max, value + step))) }
       </div>
     </div>
@@ -1459,7 +1459,7 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
       <div>
         <BSProActionSec eyebrow="THIS WEEK" title="Intensity" accent={accent} />
         <BSProSegment options={[{ k: 'deload', l: 'Deload' }, { k: 'maintain', l: 'Maintain' }, { k: 'progress', l: 'Progress' }]} value={intensity} onPick={setIntensity} accent={accent} />
-        <div style={{ marginTop: 14, fontFamily: t.SERIF, fontSize: 14.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.5 }}>{intensityDesc}</div>
+        <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontSize: 14.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.5 }}>{intensityDesc}</div>
       </div>
       <div>
         <BSProActionSec eyebrow="STRUCTURE" title="Frequency & block" accent={accent} />
@@ -1479,7 +1479,7 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
           return (
             <div key={i} style={{ display: 'grid', gridTemplateColumns: '42px 1fr auto', gap: 10, alignItems: 'center', padding: '13px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
               <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', color: rest ? t.INK50 : accent }}>{DOW[i]}</span>
-              <span style={{ fontFamily: t.SERIF, fontSize: 16, fontWeight: 600, color: rest ? t.INK50 : t.INK }}>{label}</span>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: rest ? t.INK50 : t.INK }}>{label}</span>
               <button onClick={() => cycleDay(i)} style={{ border: 0, background: 'transparent', cursor: 'pointer', color: rest ? t.INK50 : accent, fontSize: 16, lineHeight: 1 }}>⇄</button>
             </div>
           );
@@ -1520,7 +1520,7 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
           <BSProStepper label="MEALS / DAY" sub="" value={meals} set={setMeals} min={1} max={8} accent={accent} />
           <button onClick={() => setRefeed(r => !r)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '15px 16px', cursor: 'pointer', textAlign: 'left' }}>
             <div>
-              <div style={{ fontFamily: t.SERIF, fontSize: 16, fontWeight: 600, color: t.INK }}>Weekend refeed</div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK }}>Weekend refeed</div>
               <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>+40g carbs on training days</div>
             </div>
             <span style={{ width: 42, height: 24, borderRadius: 999, padding: 3, flexShrink: 0, border: `1px solid ${refeed ? accent : t.RULE}`, background: refeed ? accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: refeed ? 'flex-end' : 'flex-start' }}>
@@ -1617,7 +1617,7 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
                 return (
                   <button key={i} onClick={() => setDayIdx(i)} style={{ flexShrink: 0, width: 52, borderRadius: 12, padding: '10px 0', cursor: 'pointer', border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1c` : t.PAPER2, textAlign: 'center' }}>
                     <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', color: on ? accent : t.INK50 }}>{WD[d.getDay()]}</div>
-                    <div style={{ marginTop: 4, fontFamily: t.SERIF, fontSize: 20, fontWeight: 600, color: t.INK }}>{d.getDate()}</div>
+                    <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 600, color: t.INK }}>{d.getDate()}</div>
                   </button>
                 );
               })}
@@ -1642,7 +1642,7 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
           </div>
           <button onClick={() => setRepeat(r => !r)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '15px 16px', cursor: 'pointer', textAlign: 'left' }}>
             <div>
-              <div style={{ fontFamily: t.SERIF, fontSize: 16, fontWeight: 600, color: t.INK }}>Repeat weekly</div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK }}>Repeat weekly</div>
               <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>Every {WD[sel.getDay()]} at {time}</div>
             </div>
             <span style={{ width: 42, height: 24, borderRadius: 999, padding: 3, flexShrink: 0, border: `1px solid ${repeat ? accent : t.RULE}`, background: repeat ? accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: repeat ? 'flex-end' : 'flex-start' }}>
@@ -1652,7 +1652,7 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
           <div>
             <BSProActionSec eyebrow="SUMMARY" title="The booking" accent={accent} />
             <div style={{ borderRadius: 16, border: `1px solid ${accent}44`, background: `linear-gradient(150deg, ${accent}16, ${t.PAPER2} 80%), ${t.PAPER2}`, padding: 16 }}>
-              <div style={{ fontFamily: t.SERIF, fontSize: 19, fontWeight: 600, color: t.INK }}>{typeLabel} · <span style={{ fontStyle: 'italic', color: accent }}>{first}</span></div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 600, color: t.INK }}>{typeLabel} · <span style={{ fontStyle: 'italic', color: accent }}>{first}</span></div>
               <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: accent }}>{summaryWhen}</div>
             </div>
             <button onClick={add} disabled={status === 'saving' || status === 'done'} style={{ width: '100%', marginTop: 14, borderRadius: 14, border: 0, background: accent, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: status === 'saving' ? 0.6 : 1 }}>{status === 'saving' ? 'Adding…' : status === 'done' ? 'Added ✓' : 'Add to calendar →'}</button>
@@ -1774,7 +1774,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 12 }}>
       <div>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: color || accent }}>{eyebrow}</div>
-        <div style={{ marginTop: 5, fontFamily: t.SERIF, fontSize: 25, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1 }}>{title}</div>
+        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1 }}>{title}</div>
       </div>
       {trailing && <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.12em', color: accent, whiteSpace: 'nowrap', paddingBottom: 3 }}>{trailing}</div>}
     </div>
@@ -1797,7 +1797,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const StatCard = ({ label, labelColor, big, small, sub }) => (
     <div style={{ borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '13px 14px' }}>
       <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: labelColor || accent }}>{label}</div>
-      <div style={{ marginTop: 6, fontFamily: t.SERIF, fontSize: 27, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1 }}>{big}{small && <span style={{ fontSize: 14, color: t.INK50, fontFamily: t.MONO, marginLeft: 1 }}>{small}</span>}</div>
+      <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1 }}>{big}{small && <span style={{ fontSize: 14, color: t.INK50, fontFamily: t.MONO, marginLeft: 1 }}>{small}</span>}</div>
       {sub && <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{sub}</div>}
     </div>
   );
@@ -1805,7 +1805,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     <div key={i} style={{ display: 'grid', gridTemplateColumns: '24px 1fr auto', gap: 10, alignItems: 'center', padding: '13px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
       <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, fontWeight: 700 }}>{String(i + 1).padStart(2, '0')}</span>
       <div>
-        <div style={{ fontFamily: t.SERIF, fontSize: 15.5, fontWeight: 600, color: t.INK }}>{it.n}</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 600, color: t.INK }}>{it.n}</div>
         <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.02em' }}>{it.s}</div>
       </div>
       <span style={{ fontFamily: t.MONO, fontSize: 9, color: it.cta ? accent : t.INK50, fontWeight: it.cta ? 800 : 400, letterSpacing: '0.06em' }}>{it.d}</span>
@@ -1820,7 +1820,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{headEyebrow}</div>
         <button onClick={onBack} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
       </div>
-      <div style={{ marginTop: 10, fontFamily: t.SERIF, fontSize: 40, fontWeight: 600, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>
+      <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 600, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>
         {first}<br /><span style={{ fontStyle: 'italic', color: accent }}>{last ? `${last}.` : '.'}</span>
       </div>
       <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 11 }}>
@@ -1849,7 +1849,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const renderBigCard = () => (
     <div style={{ borderRadius: 18, border: `1px solid ${accent}33`, background: `linear-gradient(155deg, ${accent}12, ${t.PAPER2} 70%), ${t.PAPER2}`, padding: 18 }}>
       <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>{bigCard.eyebrow}</div>
-      <div style={{ marginTop: 4, fontFamily: t.SERIF, fontSize: 64, fontWeight: 600, color: t.INK, lineHeight: 0.95, letterSpacing: '-0.02em' }}>{bigCard.big}<span style={{ fontSize: 26, color: t.INK50, fontFamily: t.MONO }}>{bigCard.small}</span></div>
+      <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 64, fontWeight: 600, color: t.INK, lineHeight: 0.95, letterSpacing: '-0.02em' }}>{bigCard.big}<span style={{ fontSize: 26, color: t.INK50, fontFamily: t.MONO }}>{bigCard.small}</span></div>
       <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: accent }}>{bigCard.sub}</div>
       <div style={{ marginTop: 18, display: 'flex', justifyContent: 'space-between' }}>
         <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', color: t.INK50 }}>{bigCard.barsLabel}</span>
@@ -1894,8 +1894,8 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const trackRow = (label, value, deltaColor, delta, pct, barColor) => (
     <div style={{ padding: '12px 0', borderTop: `1px solid ${t.HAIR}` }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <span style={{ fontFamily: t.SERIF, fontSize: 16, fontWeight: 600, color: t.INK }}>{label}</span>
-        <span style={{ fontFamily: t.SERIF, fontSize: 16, fontWeight: 600, color: t.INK }}>{value} <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: deltaColor, fontWeight: 700 }}>▲ {delta}</span></span>
+        <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK }}>{label}</span>
+        <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK }}>{value} <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: deltaColor, fontWeight: 700 }}>▲ {delta}</span></span>
       </div>
       <div style={{ marginTop: 8, height: 3, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${Math.min(1, pct) * 100}%`, background: barColor, borderRadius: 999 }} /></div>
     </div>
@@ -1930,7 +1930,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         <Section eyebrow="BODY" title={isNutri ? 'Weight trend' : 'Bodyweight'} trailing={isNutri ? 'HISTORY →' : 'LOG →'} />
         <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-            <span style={{ fontFamily: t.SERIF, fontSize: 30, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{bwNow}<span style={{ fontSize: 15, color: t.INK50, fontFamily: t.MONO }}> {bwUnit}</span></span>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{bwNow}<span style={{ fontSize: 15, color: t.INK50, fontFamily: t.MONO }}> {bwUnit}</span></span>
             <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: accent, letterSpacing: '0.04em', textAlign: 'right' }}>{bwDelta > 0 ? '+' : ''}{bwDelta} {bwUnit} · {bwWeeks} weeks{isNutri ? ' · goal -4 kg' : ''}</span>
           </div>
           <div style={{ marginTop: 14 }}>{lineChart(bwSeries, accent, 64)}</div>
@@ -1953,7 +1953,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       <div>
         <Section eyebrow="PRIVATE" title={isNutri ? 'Clinical note' : 'Coach note'} />
         <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: `linear-gradient(150deg, ${accent}10, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 16 }}>
-          <div style={{ fontFamily: t.SERIF, fontSize: 15, fontStyle: 'italic', fontWeight: 600, color: t.INK, lineHeight: 1.5 }}>{note}</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontStyle: 'italic', fontWeight: 600, color: t.INK, lineHeight: 1.5 }}>{note}</div>
         </div>
       </div>
     </div>
@@ -1985,12 +1985,12 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>▌ ANALYSIS · LAST 30 DAYS</div>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', color: t.INK50 }}>{isNutri ? 'NUTRITION KPIS' : 'TRAINING KPIS'}</div>
       </div>
-      <div style={{ fontFamily: t.SERIF, fontSize: 19, fontWeight: 600, color: t.INK, lineHeight: 1.3, letterSpacing: '-0.01em' }}>{summaryLine}</div>
+      <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 600, color: t.INK, lineHeight: 1.3, letterSpacing: '-0.01em' }}>{summaryLine}</div>
       <div style={{ marginTop: 16, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, display: 'grid', gridTemplateColumns: '1fr 1fr', overflow: 'hidden' }}>
         {aKpis.map((k, i) => (
           <div key={i} style={{ padding: 15, borderTop: i >= 2 ? `1px solid ${t.HAIR}` : 0, borderLeft: i % 2 ? `1px solid ${t.HAIR}` : 0 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: k.c }}>{k.label}</div>
-            <div style={{ marginTop: 6, fontFamily: t.SERIF, fontSize: 25, fontWeight: 600, color: t.INK, lineHeight: 1 }}>{k.big}{k.small && <span style={{ fontSize: 13, color: t.INK50, fontFamily: t.MONO }}>{k.small}</span>}</div>
+            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 600, color: t.INK, lineHeight: 1 }}>{k.big}{k.small && <span style={{ fontSize: 13, color: t.INK50, fontFamily: t.MONO }}>{k.small}</span>}</div>
             <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: k.c === rust ? rust : t.INK50 }}>{k.sub}</div>
           </div>
         ))}
@@ -3141,7 +3141,7 @@ function BSProSoundtracks({ role = 'trainer', onBack }) {
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>NEW SOUNDTRACK</div>
             <button onClick={() => setImporting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
           </div>
-          <div style={{ marginTop: 10, fontFamily: t.SERIF, fontSize: 36, fontWeight: 600, color: t.INK, lineHeight: 1, letterSpacing: '-0.02em' }}>Import a<br /><span style={{ fontStyle: 'italic', color: gold }}>playlist.</span></div>
+          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 36, fontWeight: 600, color: t.INK, lineHeight: 1, letterSpacing: '-0.02em' }}>Import a<br /><span style={{ fontStyle: 'italic', color: gold }}>playlist.</span></div>
           <div style={{ marginTop: 22 }}>
             {field('NAME', iName, setIName, 'Heavy Lifts')}
             <div style={{ marginBottom: 14 }}>
@@ -3175,7 +3175,7 @@ function BSProSoundtracks({ role = 'trainer', onBack }) {
         <button key={target.id} onClick={() => toggleAttach(pl, target)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', borderRadius: 14, border: `1px solid ${on ? gold : t.RULE}`, background: on ? `${gold}14` : t.PAPER2, padding: '14px 15px' }}>
           <div>
             <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.12em', color: tone }}>{target.kind.toUpperCase()}</div>
-            <div style={{ marginTop: 4, fontFamily: t.SERIF, fontSize: 16, fontWeight: 600, color: t.INK }}>{target.name}</div>
+            <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK }}>{target.name}</div>
           </div>
           <span style={{ width: 24, height: 24, borderRadius: 999, border: `1px solid ${on ? gold : t.RULE}`, background: on ? gold : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#241c08', fontSize: 13, fontWeight: 800 }}>{on ? '✓' : ''}</span>
         </button>
@@ -3189,7 +3189,7 @@ function BSProSoundtracks({ role = 'trainer', onBack }) {
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>ASSIGN SOUNDTRACK</div>
             <button onClick={() => setAssignFor(null)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
           </div>
-          <div style={{ marginTop: 10, fontFamily: t.SERIF, fontSize: 32, fontWeight: 600, color: t.INK, lineHeight: 1.02, letterSpacing: '-0.02em' }}>{pl.name} <span style={{ fontStyle: 'italic', color: gold }}>→</span></div>
+          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 32, fontWeight: 600, color: t.INK, lineHeight: 1.02, letterSpacing: '-0.02em' }}>{pl.name} <span style={{ fontStyle: 'italic', color: gold }}>→</span></div>
           <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: t.INK50 }}>{providerLabel(pl.provider)} · attach to plans or a client's workouts</div>
           {/* Tabs */}
           <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
@@ -3230,7 +3230,7 @@ function BSProSoundtracks({ role = 'trainer', onBack }) {
   const stat = (label, value, sub, color) => (
     <div style={{ borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '13px 14px' }}>
       <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color }}>{label}</div>
-      <div style={{ marginTop: 5, fontFamily: t.SERIF, fontSize: 26, fontWeight: 600, color: t.INK, lineHeight: 1 }}>{value}</div>
+      <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 600, color: t.INK, lineHeight: 1 }}>{value}</div>
       <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{sub}</div>
     </div>
   );
@@ -3242,15 +3242,15 @@ function BSProSoundtracks({ role = 'trainer', onBack }) {
           <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>{all.length} PLAYLISTS</span>
         </div>
         <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>SOUNDTRACK LIBRARY</div>
-        <div style={{ marginTop: 8, fontFamily: t.SERIF, fontSize: 40, fontWeight: 600, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>Your<br /><span style={{ fontStyle: 'italic', color: gold }}>soundtracks.</span></div>
-        <div style={{ marginTop: 12, fontFamily: t.SERIF, fontSize: 14.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.5 }}>Premade playlists you can attach to any workout or meal plan — no need to build a new one each time.</div>
+        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 600, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>Your<br /><span style={{ fontStyle: 'italic', color: gold }}>soundtracks.</span></div>
+        <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 14.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.5 }}>Premade playlists you can attach to any workout or meal plan — no need to build a new one each time.</div>
 
         {/* New soundtrack */}
         <button onClick={() => setImporting(true)} style={{ width: '100%', marginTop: 20, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 14, alignItems: 'center', borderRadius: 16, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 16 }}>
           <span style={{ width: 48, height: 48, borderRadius: 12, background: gold, color: '#241c08', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, fontWeight: 300, lineHeight: 1 }}>+</span>
           <div>
             <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>NEW SOUNDTRACK</div>
-            <div style={{ marginTop: 4, fontFamily: t.SERIF, fontSize: 18, fontWeight: 600, color: t.INK, lineHeight: 1.15 }}>Import from Spotify or Apple Music</div>
+            <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, color: t.INK, lineHeight: 1.15 }}>Import from Spotify or Apple Music</div>
           </div>
           <span style={{ color: gold, fontSize: 16 }}>→</span>
         </button>
@@ -3294,7 +3294,7 @@ function BSProSoundtracks({ role = 'trainer', onBack }) {
                     <span style={{ width: 6, height: 6, borderRadius: 999, background: providerDot(p.provider) }} />
                     {providerLabel(p.provider)} · {(p.tag || '').toUpperCase()}
                   </div>
-                  <div style={{ marginTop: 3, fontFamily: t.SERIF, fontSize: 18, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.1 }}>{p.name}</div>
+                  <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.1 }}>{p.name}</div>
                   <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.02em', lineHeight: 1.4 }}>{p.tracks} tracks · {p.dur} · {p.bpm} BPM · {att > 0 ? `assigned ${att}` : `used by ${p.used}`}</div>
                 </div>
                 <button onClick={() => setAssignFor(p.id)} style={{ alignSelf: 'stretch', minWidth: 64, borderRadius: 12, border: `1px solid ${att > 0 ? gold : `${gold}77`}`, background: att > 0 ? `${gold}1c` : 'transparent', color: gold, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer', padding: '0 10px' }}>ASSIGN</button>
@@ -3375,7 +3375,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{isCoach ? 'TRAINER · HYPERTROPHY · SF' : 'REGISTERED DIETITIAN · REMOTE'}</div>
             {(() => { const w = (displayName || '').trim().split(/\s+/); const lastW = w.length > 1 ? w.pop() : ''; const firstL = w.join(' '); return (
-              <div style={{ marginTop: 8, fontFamily: t.SERIF, fontSize: 40, fontWeight: 600, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>{firstL || displayName}<br /><span style={{ fontStyle: 'italic', color: accent }}>{lastW ? `${lastW}.` : '.'}</span></div>
+              <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 600, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>{firstL || displayName}<br /><span style={{ fontStyle: 'italic', color: accent }}>{lastW ? `${lastW}.` : '.'}</span></div>
             ); })()}
           </div>
           <div style={{ flexShrink: 0 }}>
@@ -3443,7 +3443,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
             <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', color: accent }}>PRACTICE GOAL · Q3 ›</span>
             <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>{isCoach ? '62% THERE' : '47% THERE'}</span>
           </div>
-          <div style={{ marginTop: 8, fontFamily: t.SERIF, fontSize: 26, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{isCoach ? 'Twenty by ' : 'Six-K by '}<span style={{ fontStyle: 'italic', color: accent }}>September.</span></div>
+          <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{isCoach ? 'Twenty by ' : 'Six-K by '}<span style={{ fontStyle: 'italic', color: accent }}>September.</span></div>
           <div style={{ marginTop: 12, height: 6, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${(isCoach ? 0.62 : 0.47) * 100}%`, background: accent, borderRadius: 999 }} /></div>
           <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.04em', color: accent }}>{isCoach ? '17 / 20 clients · $6.2k MRR · on track' : '$4.1k / $6k MRR · 11 clients · on track'}</div>
         </button>
@@ -3466,7 +3466,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
                 <span>VISIBLE</span>
               </button>
             </div>
-            <div style={{ marginTop: 6, fontFamily: t.SERIF, fontSize: 54, fontWeight: 600, color: t.INK, lineHeight: 0.95, letterSpacing: '-0.02em' }}>{isCoach ? '$6,240' : '$4,120'}</div>
+            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 54, fontWeight: 600, color: t.INK, lineHeight: 0.95, letterSpacing: '-0.02em' }}>{isCoach ? '$6,240' : '$4,120'}</div>
             <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: accent }}>{isCoach ? '17 active · 94% retention · +3 mo' : '11 active · 92% retention · +3 mo'}</div>
             <div style={{ marginTop: 18, display: 'flex', gap: 8, alignItems: 'flex-end', height: 30 }}>
               {(isCoach ? [0.5, 0.58, 0.52, 0.66, 0.7, 0.82, 0.95] : [0.55, 0.5, 0.6, 0.58, 0.7, 0.78, 0.9]).map((h, i, a) => (
@@ -3485,7 +3485,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
           <div key={i} onClick={it.onClick} style={{ display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 12, alignItems: 'center', padding: '15px 0', borderTop: `1px solid ${t.HAIR}`, cursor: it.onClick ? 'pointer' : 'default' }}>
             <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</span>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: t.SERIF, fontSize: 17, fontWeight: 600, color: it.danger ? t.RUST : t.INK }}>{it.l}</div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, color: it.danger ? t.RUST : t.INK }}>{it.l}</div>
               {it.sub && <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.04em', color: it.danger ? t.RUST : subCol }}>{it.sub}</div>}
             </div>
             <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.06em', color: t.INK50, whiteSpace: 'nowrap' }}>{it.r}</span>
@@ -3508,7 +3508,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
         const head = (eyebrow, title, mt) => (
           <div style={{ marginTop: mt }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: teal }}>{eyebrow}</div>
-            <div style={{ marginTop: 5, fontFamily: t.SERIF, fontSize: 30, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{title}</div>
+            <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{title}</div>
           </div>
         );
         const footLink = { background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', padding: 0 };
@@ -3755,7 +3755,7 @@ function BSCoachGoalPlan({ role = 'trainer' }) {
         </div>
       </div>
 
-      <div style={{ padding: `12px ${t.padX}px 18px`, fontFamily: t.SERIF || DISP, fontSize: 12, color: t.INK70, lineHeight: 1.5, fontStyle: 'italic' }}>
+      <div style={{ padding: `12px ${t.padX}px 18px`, fontFamily: t.DISPLAY || DISP, fontSize: 12, color: t.INK70, lineHeight: 1.5, fontStyle: 'italic' }}>
         {isNutri
           ? <>Based on consult earnings, meal-plan subscriptions, and one-time guides. Figures shown are <strong style={{ color: t.INK }}>take-home</strong> after Shape's 15% platform fee. Gross this week: {fmt(grossWeek)}.</>
           : <>Based on session earnings, program subscriptions, and one-time workout sales. Figures shown are <strong style={{ color: t.INK }}>take-home</strong> after Shape's 15% platform fee. Gross this week: {fmt(grossWeek)}.</>}
@@ -4001,7 +4001,7 @@ function BSProConsoleScreen({ role = 'trainer', embedded = false }) {
       ) : clients.length === 0 ? (
         <div style={{ padding: `40px ${t.padX}px` }}>
           <div style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>No clients yet</div>
-          <div style={{ fontFamily: t.SERIF || t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.5 }}>
+          <div style={{ fontFamily: t.DISPLAY || t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.5 }}>
             Clients appear here once they book a session or subscribe.
           </div>
         </div>
