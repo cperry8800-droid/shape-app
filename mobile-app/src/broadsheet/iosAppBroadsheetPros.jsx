@@ -2251,8 +2251,9 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   const [libTab, setLibTab] = useStateBSP('plans');
   const LIB_TABS = [['plans', 'Plans'], ['workouts', 'Workouts'], ['programs', 'Programs']];
   const [buildType, setBuildType] = useStateBSP('plan'); // plan | workout | program
+  const [blankMode, setBlankMode] = useStateBSP(false); // false = AI draft, true = build from scratch
   const BUILD_LABEL = { plan: 'plan', workout: 'workout', program: 'program' };
-  const openDraft = (type) => { setBuildType(type); setDrafting(true); };
+  const openDraft = (type, blank = false) => { setBuildType(type); setBlankMode(blank); setDrafting(true); };
   // Single day workouts
   const workouts = [
     { n: 'Lower Push — Peak', meta: '6 lifts · 62 min · RPE 8' },
@@ -2293,23 +2294,23 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
       </div>
     );
     const generate = async () => {
-      setDraftStatus('Generating…');
-      try { await window.ShapeAI?.generatePlanDraft?.({ kind: buildType, goal: focus, client: '', level: exp, duration: length, preferences: `${desc} · ${equip}`, equipment: equip }); } catch (e) {}
+      setDraftStatus(blankMode ? 'Creating…' : 'Generating…');
+      if (!blankMode) { try { await window.ShapeAI?.generatePlanDraft?.({ kind: buildType, goal: focus, client: '', level: exp, duration: length, preferences: `${desc} · ${equip}`, equipment: equip }); } catch (e) {} }
       const typeName = BUILD_LABEL[buildType];
       const payload = { kind: 'program', name: `${focus} ${typeName}`, meta: `${typeName} · ${length} · ${exp.toLowerCase()}`, price: buildType === 'plan' ? '$110' : null, detail: { buildType, focus, exp, equip, length, desc } };
       let saved = false;
       if (window.ShapeCoachPlans?.create) { try { const row = await window.ShapeCoachPlans.create(payload); if (row) { setServerPlans(list => [row, ...(list || [])]); saved = true; } } catch (e) {} }
-      setDraftStatus(saved ? 'Draft saved · edit before publishing' : 'Draft ready · edit before publishing');
+      setDraftStatus(saved ? `${blankMode ? 'Created' : 'Draft saved'} · edit before publishing` : `${blankMode ? 'Ready' : 'Draft ready'} · edit before publishing`);
       setTimeout(() => setDrafting(false), 900);
     };
     return (
       <BSPage>
         <div style={{ padding: `50px ${t.padX}px 28px` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: teal }}>✦ AI DRAFT · {BUILD_LABEL[buildType].toUpperCase()}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: teal }}>{blankMode ? 'BUILD' : '✦ AI DRAFT'} · {BUILD_LABEL[buildType].toUpperCase()}</div>
             <button onClick={() => setDrafting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>CANCEL</button>
           </div>
-          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Describe the <span style={{ fontStyle: 'italic', color: teal }}>{BUILD_LABEL[buildType]}.</span></div>
+          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{blankMode ? 'Build a' : 'Describe the'} <span style={{ fontStyle: 'italic', color: teal }}>{BUILD_LABEL[buildType]}.</span></div>
           {/* What are you building? */}
           <div style={{ marginTop: 16 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: t.INK50, marginBottom: 8 }}>BUILDING</div>
@@ -2321,12 +2322,12 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
             </div>
             <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK50 }}>{buildType === 'plan' ? 'A multi-week paid program clients enroll in.' : buildType === 'program' ? 'A reusable weekly routine / template.' : 'A single day workout session.'}</div>
           </div>
-          <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={3} placeholder="e.g. 45-min upper body for an intermediate lifter, shoulder-friendly, dumbbells only" style={{ width: '100%', boxSizing: 'border-box', marginTop: 18, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: 14, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, resize: 'vertical', outline: 'none' }} />
+          {!blankMode && <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={3} placeholder="e.g. 45-min upper body for an intermediate lifter, shoulder-friendly, dumbbells only" style={{ width: '100%', boxSizing: 'border-box', marginTop: 18, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: 14, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, resize: 'vertical', outline: 'none' }} />}
           {chips('FOCUS', focus, setFocus, ['Push', 'Pull', 'Legs', 'Upper', 'Lower', 'Full body', 'Conditioning'])}
           {chips('EXPERIENCE', exp, setExp, ['Beginner', 'Intermediate', 'Advanced'])}
           {chips('EQUIPMENT', equip, setEquip, ['Full gym', 'Dumbbells', 'Bodyweight'])}
           {chips('LENGTH', length, setLength, ['30 min', '45 min', '60 min', '75 min'])}
-          <button onClick={generate} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: teal, color: '#04201d', padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>✦ {draftStatus || 'Generate draft'}</button>
+          <button onClick={generate} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: teal, color: '#04201d', padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{draftStatus || (blankMode ? `Create ${BUILD_LABEL[buildType]}` : '✦ Generate draft')}</button>
           <div style={{ marginTop: 12, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>You can edit everything before publishing</div>
         </div>
         <BSFooter left="AI draft" right="Workout" />
@@ -2386,7 +2387,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
           </div>
           <span style={{ color: teal, fontSize: 15 }}>→</span>
         </button>
-        <button onClick={() => openDraft(libBuild)} style={{ display: 'block', width: '100%', marginTop: 9, textAlign: 'center', border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Or start from blank →</button>
+        <button onClick={() => openDraft(libBuild, true)} style={{ display: 'block', width: '100%', marginTop: 8, padding: '11px', borderRadius: 999, border: `1px solid ${teal}`, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>+ Build from scratch</button>
 
         {/* Library sub-tabs — Plans / Workouts / Programs */}
         <div style={{ marginTop: 16, display: 'flex', gap: 6 }}>
@@ -3139,8 +3140,25 @@ function BSNutriPlans() {
     { n: 'Batch-cookable dinners', meta: '14 recipes · 4 servings' },
     { n: 'Pre-workout snacks', meta: '12 recipes · quick carbs' },
   ];
-  const [tab, setTab] = useStateBSP('plans');
-  const TABS = [['plans', 'Plans'], ['recipes', 'Recipes'], ['clients', 'Clients'], ['soundtracks', 'Soundtracks']];
+  const [tab, setTab] = useStateBSP('library');
+  const TABS = [['library', 'Library'], ['soundtracks', 'Soundtracks']];
+  // Library sub-tabs. Plans = multi-week paid meal plans, Recipes = recipe
+  // sets, Templates = reusable weekly meal templates.
+  const [libTab, setLibTab] = useStateBSP('plans');
+  const LIB_TABS = [['plans', 'Plans'], ['recipes', 'Recipes'], ['templates', 'Templates']];
+  const [buildType, setBuildType] = useStateBSP('mealplan'); // mealplan | recipe | template
+  const [blankMode, setBlankMode] = useStateBSP(false); // false = AI draft, true = build from scratch
+  const BUILD_LABEL = { mealplan: 'meal plan', recipe: 'recipe', template: 'template' };
+  const openDraft = (type, blank = false) => { setBuildType(type); setBlankMode(blank); setDrafting(true); };
+  const libBuild = ({ plans: 'mealplan', recipes: 'recipe', templates: 'template' })[libTab] || 'mealplan';
+  // Reusable weekly meal templates (the "Templates" sub-tab)
+  const mealTemplates = [
+    { n: '5-day high-protein', meta: '5 days · 2,000 kcal/day' },
+    { n: 'Vegetarian week', meta: '7 days · plant-based' },
+    { n: 'Carb-cycling block', meta: '6 days · training-day high' },
+    { n: 'Quick & batch-cook', meta: '5 days · <30 min meals' },
+  ];
+  // Clients enrolled per paid plan (shown under the Plans sub-tab)
   const enrolled = [
     { prog: 'Lean Cut', n: 12, who: [['A', t.RUST], ['J', '#3b7de0']] },
     { prog: 'Performance', n: 8, who: [['R', t.AMBER]] },
@@ -3164,23 +3182,35 @@ function BSNutriPlans() {
       </div>
     );
     const generate = async () => {
-      setDraftStatus('Generating…');
-      try { await window.ShapeAI?.generatePlanDraft?.({ kind: 'meal_plan', goal, client: '', level: diet, duration: '7 days', calories: cals.replace('~', ''), preferences: desc, protein: '' }); } catch (e) {}
-      const payload = { kind: 'meal_plan', name: `${goal} · ${cals.replace('~', '')} kcal`, meta: `${cals.replace('~', '')} kcal · ${diet.toLowerCase()} · ${mealsDay} meals`, price: '$120', detail: { goal, diet, cals, mealsDay, desc } };
+      setDraftStatus(blankMode ? 'Creating…' : 'Generating…');
+      if (!blankMode) { try { await window.ShapeAI?.generatePlanDraft?.({ kind: buildType, goal, client: '', level: diet, duration: '7 days', calories: cals.replace('~', ''), preferences: desc, protein: '' }); } catch (e) {} }
+      const typeName = BUILD_LABEL[buildType];
+      const payload = { kind: 'meal_plan', name: `${goal} ${typeName}`, meta: `${typeName} · ${cals.replace('~', '')} kcal · ${diet.toLowerCase()}`, price: buildType === 'mealplan' ? '$120' : null, detail: { buildType, goal, diet, cals, mealsDay, desc } };
       let saved = false;
       if (window.ShapeCoachPlans?.create) { try { const row = await window.ShapeCoachPlans.create(payload); if (row) { setServerPlans(list => [row, ...(list || [])]); saved = true; } } catch (e) {} }
-      setDraftStatus(saved ? 'Draft saved · edit before publishing' : 'Draft ready · edit before publishing');
+      setDraftStatus(saved ? `${blankMode ? 'Created' : 'Draft saved'} · edit before publishing` : `${blankMode ? 'Ready' : 'Draft ready'} · edit before publishing`);
       setTimeout(() => setDrafting(false), 900);
     };
     return (
       <BSPage>
         <div style={{ padding: `50px ${t.padX}px 28px` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: gold }}>✦ AI DRAFT · MEAL PLAN</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: gold }}>{blankMode ? 'BUILD' : '✦ AI DRAFT'} · {BUILD_LABEL[buildType].toUpperCase()}</div>
             <button onClick={() => setDrafting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>CANCEL</button>
           </div>
-          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Describe the <span style={{ fontStyle: 'italic', color: gold }}>meal plan.</span></div>
-          <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={3} placeholder="e.g. high-protein cut, vegetarian, around 2,000 kcal, hates seafood, loves oats" style={{ width: '100%', boxSizing: 'border-box', marginTop: 18, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: 14, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, resize: 'vertical', outline: 'none' }} />
+          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{blankMode ? 'Build a' : 'Describe the'} <span style={{ fontStyle: 'italic', color: gold }}>{BUILD_LABEL[buildType]}.</span></div>
+          {/* What are you building? */}
+          <div style={{ marginTop: 16 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: t.INK50, marginBottom: 8 }}>BUILDING</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {[['mealplan', 'Meal plan'], ['recipe', 'Recipe'], ['template', 'Template']].map(([k, l]) => {
+                const on = buildType === k;
+                return <button key={k} onClick={() => setBuildType(k)} style={{ flex: 1, borderRadius: 999, padding: '10px 6px', cursor: 'pointer', border: `1px solid ${on ? gold : t.RULE}`, background: on ? `${gold}1c` : 'transparent', color: on ? gold : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{l}</button>;
+              })}
+            </div>
+            <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK50 }}>{buildType === 'mealplan' ? 'A multi-week paid plan clients enroll in.' : buildType === 'template' ? 'A reusable weekly meal template.' : 'A single recipe or recipe set.'}</div>
+          </div>
+          {!blankMode && <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={3} placeholder="e.g. high-protein cut, vegetarian, around 2,000 kcal, hates seafood, loves oats" style={{ width: '100%', boxSizing: 'border-box', marginTop: 18, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: 14, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, resize: 'vertical', outline: 'none' }} />}
           {chips('GOAL', goal, setGoal, ['Cut', 'Maintain', 'Lean bulk', 'Performance'])}
           {chips('DIET', diet, setDiet, ['Omnivore', 'Vegetarian', 'Vegan', 'Pescatarian'])}
           {chips('DAILY CALORIES', cals, setCals, ['~1800', '~2100', '~2600', '~3000'])}
@@ -3190,7 +3220,7 @@ function BSNutriPlans() {
               {[3, 4, 5, 6].map(n => { const on = mealsDay === n; return <button key={n} onClick={() => setMealsDay(n)} style={{ width: 40, height: 40, borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? gold : t.RULE}`, background: on ? gold : 'transparent', color: on ? '#241c08' : t.INK, fontFamily: t.MONO, fontSize: 12, fontWeight: 800 }}>{n}</button>; })}
             </div>
           </div>
-          <button onClick={generate} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: gold, color: '#241c08', padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>✦ {draftStatus || 'Generate draft'}</button>
+          <button onClick={generate} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: gold, color: '#241c08', padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{draftStatus || (blankMode ? `Create ${BUILD_LABEL[buildType]}` : '✦ Generate draft')}</button>
           <div style={{ marginTop: 12, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>You can edit everything before publishing</div>
         </div>
         <BSFooter left="AI draft" right="Meal plan" />
@@ -3233,26 +3263,34 @@ function BSNutriPlans() {
         </div>
         {note && <div style={{ marginTop: 14, borderRadius: 999, border: `1px solid ${gold}`, background: `${gold}1c`, color: gold, padding: '9px 14px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em' }}>✓ {note}</div>}
 
-        {/* Tabs — Plans / Recipes / Client plans / Soundtracks */}
-        <div style={{ marginTop: 18, display: 'flex', gap: 5 }}>
+        {/* Top tabs — Library / Soundtracks */}
+        <div style={{ marginTop: 18, display: 'flex', gap: 6 }}>
           {TABS.map(([k, l]) => (
-            <button key={k} onClick={() => setTab(k)} style={{ flex: 1, minWidth: 0, borderRadius: 999, border: `1px solid ${tab === k ? gold : t.RULE}`, background: tab === k ? `${gold}1c` : 'transparent', color: tab === k ? gold : t.INK, padding: '8px 4px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.03em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l}</button>
+            <button key={k} onClick={() => setTab(k)} style={{ flex: 1, minWidth: 0, borderRadius: 999, border: `1px solid ${tab === k ? gold : t.RULE}`, background: tab === k ? `${gold}1c` : 'transparent', color: tab === k ? gold : t.INK, padding: '9px 6px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{l}</button>
           ))}
         </div>
 
-        {tab === 'plans' && (<>
-        {/* Generate with AI */}
-        <button onClick={() => setDrafting(true)} style={{ width: '100%', marginTop: 14, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', borderRadius: 14, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 12 }}>
+        {tab === 'library' && (<>
+        {/* Generate with AI — builds the active library type */}
+        <button onClick={() => openDraft(libBuild)} style={{ width: '100%', marginTop: 14, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', borderRadius: 14, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 12 }}>
           <span style={{ width: 40, height: 40, borderRadius: 10, background: gold, color: '#241c08', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✦</span>
           <div>
             <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>GENERATE WITH AI</div>
-            <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, lineHeight: 1.15 }}>Draft a meal plan in seconds</div>
+            <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, lineHeight: 1.15 }}>Draft a {BUILD_LABEL[libBuild]} in seconds</div>
           </div>
           <span style={{ color: gold, fontSize: 15 }}>→</span>
         </button>
-        <button onClick={() => setDrafting(true)} style={{ display: 'block', width: '100%', marginTop: 9, textAlign: 'center', border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Or start from blank →</button>
+        <button onClick={() => openDraft(libBuild, true)} style={{ display: 'block', width: '100%', marginTop: 8, padding: '11px', borderRadius: 999, border: `1px solid ${gold}`, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: gold }}>+ Build from scratch</button>
 
-        {/* Top plan */}
+        {/* Library sub-tabs — Plans / Recipes / Templates */}
+        <div style={{ marginTop: 16, display: 'flex', gap: 6 }}>
+          {LIB_TABS.map(([k, l]) => (
+            <button key={k} onClick={() => setLibTab(k)} style={{ flex: 1, borderRadius: 999, border: `1px solid ${libTab === k ? gold : t.RULE}`, background: libTab === k ? `${gold}1c` : 'transparent', color: libTab === k ? gold : t.INK50, padding: '8px 6px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{l}</button>
+          ))}
+        </div>
+
+        {libTab === 'plans' && (<>
+        {/* Top plan (multi-week paid) */}
         <div style={{ marginTop: 14, borderRadius: 16, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>TOP PLAN</span>
@@ -3261,26 +3299,14 @@ function BSNutriPlans() {
           <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Lean <span style={{ fontStyle: 'italic', color: gold }}>Cut.</span></div>
           <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em' }}>2,100 kcal · 12 on it · 165g protein · 4.9 ★</div>
           <div style={{ marginTop: 11, display: 'flex', gap: 7 }}>
-            <button onClick={() => setDrafting(true)} style={{ borderRadius: 999, border: 0, background: gold, color: '#241c08', padding: '8px 15px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>EDIT</button>
+            <button onClick={() => openDraft('mealplan')} style={{ borderRadius: 999, border: 0, background: gold, color: '#241c08', padding: '8px 15px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>EDIT</button>
             <button onClick={() => duplicate({ n: 'Lean Cut', meta: '2,100 kcal · 12 on it · 4.9 ★', price: '$140' })} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '8px 13px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>DUPLICATE</button>
             <button onClick={() => share('Lean Cut')} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '8px 13px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SHARE →</button>
           </div>
         </div>
-
-        {/* Catalogue */}
-        {secHead('TRACKLIST', 'Catalogue')}
-        <div style={{ marginTop: 6 }}>{plans.map((p, i) => numRow({ ...p, onClick: () => setDrafting(true) }, i, p.price))}</div>
-        </>)}
-
-        {tab === 'recipes' && (<>
-        {/* Recipe library */}
-        {secHead('RECIPES', 'Library', 'BROWSE →', () => flash('Recipe library coming soon'))}
-        <div style={{ marginTop: 6 }}>{recipes.map((r, i) => numRow({ ...r, onClick: () => flash('Recipe set — open in the editor') }, i, '→'))}</div>
-        </>)}
-
-        {tab === 'clients' && (<>
-        {/* Meal plans → clients on each */}
-        {secHead('ENROLLED', 'Client plans')}
+        {secHead('PAID PLANS', 'Catalogue')}
+        <div style={{ marginTop: 6 }}>{plans.map((p, i) => numRow({ ...p, onClick: () => openDraft('mealplan') }, i, p.price))}</div>
+        {secHead('ENROLLED', 'Clients on plans')}
         <div style={{ marginTop: 6 }}>
           {enrolled.map((e, i) => (
             <div key={i} onClick={() => flash(`${e.n} clients on ${e.prog}`)} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', padding: '15px 0', borderTop: `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
@@ -3299,6 +3325,19 @@ function BSNutriPlans() {
             </div>
           ))}
         </div>
+        </>)}
+
+        {libTab === 'recipes' && (<>
+        {/* Recipe library */}
+        {secHead('RECIPES', 'Library', 'NEW →', () => openDraft('recipe'))}
+        <div style={{ marginTop: 6 }}>{recipes.map((r, i) => numRow({ ...r, onClick: () => openDraft('recipe') }, i, '→'))}</div>
+        </>)}
+
+        {libTab === 'templates' && (<>
+        {/* Reusable weekly meal templates */}
+        {secHead('TEMPLATES', 'Templates', 'NEW →', () => openDraft('template'))}
+        <div style={{ marginTop: 6 }}>{mealTemplates.map((r, i) => numRow({ ...r, onClick: () => openDraft('template') }, i, '→'))}</div>
+        </>)}
         </>)}
 
         {tab === 'soundtracks' && (<>
