@@ -3735,6 +3735,7 @@ function bsRecipeListId(recipe, dayLabel) {
 
 function BSNutritionTopTabs({ active, onChange }) {
   const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const tabs = [
     ['eat', 'Day'],
     ['grocery', 'Grocery'],
@@ -3746,8 +3747,8 @@ function BSNutritionTopTabs({ active, onChange }) {
         const on = active === key;
         return (
           <button key={key} onClick={() => onChange(key)} style={{ borderRadius: t.RADIUS_SM,
-            padding: '12px 8px', border: `1px solid ${on ? t.INK : t.RULE}`,
-            background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK,
+            padding: '12px 8px', border: `1px solid ${on ? teal : t.RULE}`,
+            background: on ? teal : 'transparent', color: on ? '#04201d' : t.INK,
             fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase',
             cursor: 'pointer',
           }}>{label}</button>
