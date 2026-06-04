@@ -2199,20 +2199,20 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
               <BSEyebrow color={teal}>Week totals</BSEyebrow>
               <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>So far</div>
             </div>
-            <div style={{ padding: `12px ${t.padX}px 4px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div style={{ padding: `10px ${t.padX}px 4px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
               {weekTotals.map(s => {
                 const pct = Math.max(0, Math.min(1, s.v / s.max));
                 return (
-                  <button key={s.l} onClick={() => setWeekStat(s)} style={{ textAlign: 'left', cursor: 'pointer', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
+                  <button key={s.l} onClick={() => setWeekStat(s)} style={{ textAlign: 'left', cursor: 'pointer', borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '11px 11px 9px' }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-                      <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: s.c, fontWeight: 700 }}>{s.l}</span>
-                      <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', color: t.INK50, fontWeight: 600 }}>/ {s.max.toLocaleString()}</span>
+                      <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: s.c, fontWeight: 700 }}>{s.l}</span>
+                      <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', color: t.INK50, fontWeight: 600 }}>/ {s.max.toLocaleString()}</span>
                     </div>
-                    <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.04em', lineHeight: 1 }}>{s.v.toLocaleString()}</div>
-                    <div style={{ marginTop: 10, height: 4, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}>
+                    <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, letterSpacing: '-0.04em', lineHeight: 1 }}>{s.v.toLocaleString()}</div>
+                    <div style={{ marginTop: 8, height: 4, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}>
                       <div style={{ width: `${pct * 100}%`, height: '100%', background: s.c, borderRadius: 999 }} />
                     </div>
-                    <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>View {s.chart ? 'chart' : 'history'} →</div>
+                    <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>View {s.chart ? 'chart' : 'history'} →</div>
                   </button>
                 );
               })}
