@@ -173,6 +173,10 @@ export async function GET(
     })
     .filter((x): x is NonNullable<typeof x> => x !== null);
 
+  // The client's goals — only when they've left sharing on (the RPC gates on
+  // is_coach_on_client + the `share` flag, using this coach's session).
+  const { data: goals } = await supabase.rpc('get_client_goals', { p_user_id: clientId });
+
   return NextResponse.json({
     client: clientProfile
       ? { id: clientProfile.id, name: (clientProfile.full_name ?? '').trim() || 'Client', avatarUrl: clientProfile.avatar_url }
@@ -181,5 +185,6 @@ export async function GET(
     careTeam,
     sessions,
     plans,
+    goals: goals ?? null,
   });
 }
