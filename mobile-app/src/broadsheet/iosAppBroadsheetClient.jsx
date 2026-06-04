@@ -6159,7 +6159,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // Trainer / Nutritionist / Shape) and the live COMMUNITY feed.
   const renderPost = (p, i) => {
     const rc = (ROLE[p.kind] && ROLE[p.kind].color) || muted;
-    const right = p.who === 'You' || p.kind === 'CLIENT' || p.kind === 'SHAPE';
+    const right = p.who === 'You'; // only your own posts sit on the right; everyone else is an incoming (left) feed message
     const replyCount = (p.replies || 0) + (actComments[p.id] || []).length;
     const bubbleBg = p.official ? '#f3eee4' : (t.isLight ? `${rc}16` : `${rc}1f`);
     const AV_OFFSET = 41; // avatar (32) + gap (9), to align meta/reactions under the bubble
