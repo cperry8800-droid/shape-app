@@ -4059,6 +4059,8 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
   });
   const [selectedGroceryList, setSelectedGroceryList] = useStateBSC(null);
   const [newListName, setNewListName] = useStateBSC(null); // null = sheet closed
+  const [saveTarget, setSaveTarget] = useStateBSC(null); // grocery list pending "save to library"
+  const [saveName, setSaveName] = useStateBSC('');
   const [day, setDay] = useStateBSC(bsWeekdayIdx()); // default to today (0=Mon..6=Sun)
   const [liveProgram, setLiveProgram] = useStateBSC(null);
   // Goal label for the "Your plan" header, read from the client's nutrition prefs.
@@ -5021,6 +5023,24 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
     setView('grocery');
     window.__bsToast?.(`Created "${name}"`, 'ok');
   };
+
+  // Save-to-library naming flow — names the current cart and stores its items.
+  const openSaveToLibrary = (list) => {
+    setSaveTarget(list);
+    setSaveName((list.name && list.name !== 'Grocery') ? list.name : `Week of ${new Date().toLocaleDateString([], { month: 'short', day: 'numeric' })}`);
+  };
+  const confirmSaveToLibrary = () => {
+    const nm = (saveName || '').trim() || 'Saved list';
+    const list = saveTarget; if (!list) return;
+    const flatItems = (list.aisles || []).flatMap(a => (a.items || []).map(it => ({ id: it.id, n: it.n, q: it.q, meals: it.meals })));
+    const id = 'saved-' + Math.random().toString(36).slice(2, 9);
+    setRecipeLists(prev => [
+      { id, name: nm, kind: 'custom', editable: false, eyebrow: 'Custom · Saved today', author: 'You', usedCount: 0, preview: flatItems.slice(0, 3).map(i => i.n).join(' · ') || 'Empty', count: flatItems.length, items: flatItems },
+      ...prev,
+    ]);
+    setSaveTarget(null);
+    window.__bsToast?.(`Saved "${nm}" to library`, 'ok');
+  };
   const confirmCreateGroceryList = () => {
     const clean = (newListName || '').trim().slice(0, 60);
     if (!clean) return;
@@ -5073,7 +5093,31 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
     </div>
   ), (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body) : null;
 
-  if (view === 'grocery') return <>{newListSheet}<BSGrocery list={activeGroceryList} onBack={() => setView('eat')} onLibrary={() => setView('library')} recipeLists={recipeLists} onChangeView={setView} editable={!!activeGroceryList.editable} onUpdate={persistGroceryList} onCreate={createGroceryList} /></>;
+  // "Save to library" naming sheet (with quick-name chips).
+  const saveSheet = saveTarget !== null ? createPortal((
+    <div onClick={() => setSaveTarget(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '10px 18px calc(20px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0 14px' }}><div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} /></div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: t.RUST }}>SAVE TO LIBRARY</div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, letterSpacing: '-0.02em' }}>Name this <span style={{ fontStyle: 'italic', color: t.RUST }}>list.</span></div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 13, fontStyle: 'italic', color: t.INK70, lineHeight: 1.45 }}>Saves the current items (without checkboxes) so you can reload them anytime.</div>
+        <input autoFocus value={saveName} onChange={(e) => setSaveName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') confirmSaveToLibrary(); }} placeholder="e.g. Week of Jun 4"
+          style={{ width: '100%', border: 0, borderBottom: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '10px 2px', fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, outline: 'none', boxSizing: 'border-box', marginTop: 16 }} />
+        <div style={{ marginTop: 18, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: t.INK50, marginBottom: 9 }}>QUICK NAMES</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {['Sunday staples', 'Travel week', 'Meal prep', 'Lean week', 'Backup cart'].map(q => (
+            <button key={q} onClick={() => setSaveName(q)} style={{ borderRadius: 999, padding: '8px 13px', cursor: 'pointer', border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{q}</button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+          <button onClick={() => setSaveTarget(null)} style={{ flex: '0 0 auto', padding: '14px 18px', borderRadius: 999, background: 'transparent', color: t.INK50, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>Cancel</button>
+          <button onClick={confirmSaveToLibrary} disabled={!(saveName || '').trim()} style={{ flex: 1, padding: '14px 0', borderRadius: 999, background: t.RUST, color: '#fff', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: (saveName || '').trim() ? 'pointer' : 'default', opacity: (saveName || '').trim() ? 1 : 0.5 }}>Save →</button>
+        </div>
+      </div>
+    </div>
+  ), (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body) : null;
+
+  if (view === 'grocery') return <>{newListSheet}{saveSheet}<BSGrocery list={activeGroceryList} onBack={() => setView('eat')} onLibrary={() => setView('library')} recipeLists={recipeLists} onChangeView={setView} editable={!!activeGroceryList.editable} onUpdate={persistGroceryList} onCreate={createGroceryList} onSaveToLibrary={openSaveToLibrary} /></>;
   if (view === 'library') return <>{newListSheet}<BSGroceryLibrary onBack={() => setView('grocery')} onLoad={loadGroceryList} recipeLists={recipeLists} onCreate={createGroceryList} onEdit={editGroceryList} onDuplicate={duplicateGroceryList} onDelete={deleteGroceryList} deletedIds={deletedGroceryIds} /></>;
   if (view === 'build') return <BSGroceryBuilder onCancel={() => setView('grocery')} onCreate={createListFromBuilder} />;
   if (view === 'recipes') {
@@ -10710,7 +10754,7 @@ function BSGroceryBuilder({ onCancel, onCreate }) {
   );
 }
 
-function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onChangeView = () => {}, editable = false, onUpdate = () => {}, onCreate = () => {} }) {
+function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onChangeView = () => {}, editable = false, onUpdate = () => {}, onCreate = () => {}, onSaveToLibrary = null }) {
   const t = useBS();
   _bsScrollTopOnMount();
   const list = bsNormalizeGroceryList(activeList || BS_GROCERY_DEFAULT);
@@ -10777,7 +10821,7 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
   const grocerySaved = savedLib.some(x => x.id === groceryItem.id);
   const rust = t.RUST;
   const aisleDoneCount = (ai) => list.aisles[ai].items.filter((_, ii) => checked.has(`${ai}-${ii}`)).length;
-  const saveToLib = () => bsLibToggle(groceryItem);
+  const saveToLib = () => { if (onSaveToLibrary) onSaveToLibrary(list); else bsLibToggle(groceryItem); };
   const shareList = () => { try { const txt = list.aisles.flatMap(a => a.items.map(it => `${it.q} ${it.n}`)).join('\n'); navigator.clipboard?.writeText(`${list.name} — Shop list\n\n${txt}`); } catch (e) {} window.__bsToast?.('Shop list copied', 'ok'); };
   const sendInstacart = async () => {
     try {
@@ -10818,7 +10862,7 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
           <div style={{ marginTop: 12, height: 5, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${total ? pct : 0}%`, background: rust, borderRadius: 999 }} /></div>
           <button onClick={sendInstacart} style={{ width: '100%', marginTop: 16, borderRadius: 12, border: 0, background: rust, color: '#fff', padding: '13px', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Send to Instacart →</button>
           <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
-            <button onClick={saveToLib} style={{ flex: 1, borderRadius: 999, border: `1px solid ${rust}`, background: grocerySaved ? `${rust}1c` : 'transparent', color: rust, padding: '10px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{grocerySaved ? '✓ Saved' : '+ Save to library'}</button>
+            <button onClick={saveToLib} style={{ flex: 1, borderRadius: 999, border: `1px solid ${rust}`, background: 'transparent', color: rust, padding: '10px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Save to library</button>
             <button onClick={shareList} style={{ borderRadius: 999, border: `1px solid ${rust}`, background: 'transparent', color: rust, padding: '10px 18px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>Share</button>
           </div>
         </div>
