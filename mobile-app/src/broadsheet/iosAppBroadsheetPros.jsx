@@ -1291,14 +1291,43 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           ) : (cGoals && cGoals.share === false) ? (
             <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.4 }}>{client.n.split(' ')[0]} keeps their goals private.</div>
           ) : (() => {
-            const tr = (cGoals && Array.isArray(cGoals.training)) ? cGoals.training : [];
-            const nu = (cGoals && Array.isArray(cGoals.nutrition)) ? cGoals.nutrition : [];
-            if (!tr.length && !nu.length) return <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.4 }}>No goals shared yet.</div>;
+            const ov = cGoals && cGoals.overall;
+            const trM = (cGoals && cGoals.trainingMeta) || null;
+            const nuM = (cGoals && cGoals.nutritionMeta) || null;
+            if (!ov && !(trM && trM.title) && !(nuM && nuM.title)) return <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.4 }}>No goals shared yet.</div>;
             const sub = (txt) => <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{txt}</div>;
+            const metaRow = (title, subtitle, c) => (
+              <div style={{ marginTop: 10, borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '12px 13px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ width: 5, height: 16, borderRadius: 3, background: c, flexShrink: 0 }} />
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{title}</span>
+                </div>
+                {subtitle && <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 12.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.4 }}>{subtitle}</div>}
+              </div>
+            );
             return (
               <div>
-                {tr.length > 0 && <>{sub('Training')}{tr.map(goalCard)}</>}
-                {nu.length > 0 && <>{sub('Nutrition')}{nu.map(goalCard)}</>}
+                {ov && (() => {
+                  const start = Number(ov.start) || 0, now = Number(ov.now) || 0, target = Number(ov.target) || 0, unit = ov.unit || 'kg';
+                  const range = start - target;
+                  const pct = range > 0 ? Math.max(0, Math.min(1, (start - now) / range)) : 0;
+                  const down = +(now - start).toFixed(1), toGo = +(now - target).toFixed(1);
+                  const byD = ov.by ? new Date(ov.by) : null;
+                  const byLabel = byD && !isNaN(byD) ? byD.toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase() : '';
+                  return (
+                    <div style={{ marginTop: 10, borderRadius: 12, border: `1px solid ${teal}44`, background: `linear-gradient(150deg, ${teal}16, ${t.PAPER2} 80%), ${t.PAPER2}`, padding: 13 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+                        <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', color: teal }}>OVERALL{byLabel ? ` · BY ${byLabel}` : ''}</span>
+                        <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}>{Math.round(pct * 100)}% there</span>
+                      </div>
+                      <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{ov.title}</div>
+                      <div style={{ marginTop: 8, height: 6, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${pct * 100}%`, background: teal, borderRadius: 999 }} /></div>
+                      <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em' }}>{down} {unit} so far · {Math.abs(toGo)} {unit} to go · now {now}{unit} · target {target}{unit}</div>
+                    </div>
+                  );
+                })()}
+                {trM && trM.title && <>{sub('Training')}{metaRow(trM.title, trM.subtitle, t.RUST)}</>}
+                {nuM && nuM.title && <>{sub('Nutrition')}{metaRow(nuM.title, nuM.subtitle, '#a07a2e')}</>}
               </div>
             );
           })()}

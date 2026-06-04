@@ -144,36 +144,48 @@ function CoachClientDetailPage() {
 
       {data.goals && (() => {
         const G = data.goals;
-        const tr = Array.isArray(G.training) ? G.training : [];
-        const nu = Array.isArray(G.nutrition) ? G.nutrition : [];
-        const goalRow = (g, i) => {
-          const pct = Math.min((Number(g.cur) || 0) / (Number(g.tgt) || 1), 1);
-          const curF = g.pct ? `${g.cur}%` : Number(g.cur).toLocaleString();
-          const tgtF = g.pct ? `${g.tgt}%` : Number(g.tgt).toLocaleString();
-          return (
-            <div key={i} style={{ border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: 14, marginTop: 10 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "#2ee0c4" }}>GOAL · {Math.round(pct * 100)}%</span>
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)" }}>{curF} / {tgtF}</span>
-              </div>
-              <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, letterSpacing: "-0.01em", margin: "6px 0 8px" }}>{g.t}</div>
-              <div style={{ height: 6, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${pct * 100}%`, background: "#0ac5a8" }} /></div>
-              {g.sub && <div style={{ marginTop: 7, fontSize: 11.5, color: "rgba(242,237,228,0.55)", lineHeight: 1.5 }}>{g.sub}</div>}
-            </div>
-          );
-        };
+        const ov = G.overall, trM = G.trainingMeta, nuM = G.nutritionMeta;
         const subHead = (txt) => <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)", marginTop: 16 }}>{txt}</div>;
+        const metaRow = (title, subtitle, c) => (
+          <div style={{ border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: "12px 14px", marginTop: 10, display: "flex", gap: 12, alignItems: "center" }}>
+            <span style={{ width: 5, height: 18, borderRadius: 3, background: c, flexShrink: 0 }} />
+            <div>
+              <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, letterSpacing: "-0.01em" }}>{title}</div>
+              {subtitle && <div style={{ marginTop: 3, fontSize: 12, fontStyle: "italic", color: "rgba(242,237,228,0.55)", lineHeight: 1.4 }}>{subtitle}</div>}
+            </div>
+          </div>
+        );
+        const hasAny = ov || (trM && trM.title) || (nuM && nuM.title);
         return (
           <Card style={{ marginBottom: 16 }}>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", marginBottom: 6 }}>GOALS</div>
             {G.share === false ? (
               <div style={{ padding: "12px 0", color: "rgba(242,237,228,0.6)", fontSize: 13 }}>{data.client.name.split(/\s+/)[0]} keeps their goals private.</div>
-            ) : (!tr.length && !nu.length) ? (
+            ) : !hasAny ? (
               <div style={{ padding: "12px 0", color: "rgba(242,237,228,0.6)", fontSize: 13 }}>No goals shared yet.</div>
             ) : (
               <div>
-                {tr.length > 0 && <>{subHead("TRAINING")}{tr.map(goalRow)}</>}
-                {nu.length > 0 && <>{subHead("NUTRITION")}{nu.map(goalRow)}</>}
+                {ov && (() => {
+                  const start = Number(ov.start) || 0, now = Number(ov.now) || 0, target = Number(ov.target) || 0, unit = ov.unit || "kg";
+                  const range = start - target;
+                  const pct = range > 0 ? Math.max(0, Math.min(1, (start - now) / range)) : 0;
+                  const down = +(now - start).toFixed(1), toGo = +(now - target).toFixed(1);
+                  const byD = ov.by ? new Date(ov.by) : null;
+                  const byLabel = byD && !isNaN(byD) ? byD.toLocaleDateString([], { month: "short", day: "numeric" }).toUpperCase() : "";
+                  return (
+                    <div style={{ border: "1px solid rgba(10,197,168,0.3)", borderRadius: 10, padding: 14, marginTop: 10 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "#2ee0c4" }}>OVERALL{byLabel ? ` · BY ${byLabel}` : ""}</span>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)" }}>{Math.round(pct * 100)}% there</span>
+                      </div>
+                      <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, letterSpacing: "-0.01em", margin: "6px 0 8px" }}>{ov.title}</div>
+                      <div style={{ height: 6, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${pct * 100}%`, background: "#0ac5a8" }} /></div>
+                      <div style={{ marginTop: 7, fontSize: 11.5, color: "rgba(242,237,228,0.55)" }}>{down} {unit} so far · {Math.abs(toGo)} {unit} to go · now {now}{unit} · target {target}{unit}</div>
+                    </div>
+                  );
+                })()}
+                {trM && trM.title && <>{subHead("TRAINING")}{metaRow(trM.title, trM.subtitle, "#d2693f")}</>}
+                {nuM && nuM.title && <>{subHead("NUTRITION")}{metaRow(nuM.title, nuM.subtitle, "#d8b25a")}</>}
               </div>
             )}
           </Card>
