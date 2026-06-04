@@ -2475,25 +2475,9 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         </>)}
         </>)}
 
-        {tab === 'soundtracks' && (<>
-        {/* Soundtracks → Soundtracks page */}
-        {secHead('SOUNDTRACKS', 'Music library', 'OPEN →', () => setShowSoundtracks(true))}
-        <button onClick={() => setShowSoundtracks(true)} style={{ width: '100%', marginTop: 10, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 13, alignItems: 'center', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 13 }}>
-          <span style={{ position: 'relative', width: 54, height: 54, borderRadius: 12, background: `linear-gradient(150deg, ${t.RUST}, ${t.RUST}99)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {bsEqGlyph('#ffffffd0')}
-            <span style={{ position: 'absolute', top: 6, right: 6, width: 9, height: 9, borderRadius: 999, background: '#1ED760', border: '1.5px solid rgba(0,0,0,0.25)' }} />
-          </span>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.2 }}>Attach music to any workout</div>
-            <div style={{ marginTop: 5, display: 'flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>
-              <span style={{ width: 6, height: 6, borderRadius: 999, background: '#1ED760' }} />SPOTIFY
-              <span style={{ width: 6, height: 6, borderRadius: 999, background: '#fc3c44', marginLeft: 4 }} />APPLE MUSIC
-            </div>
-            <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50 }}>· 6 playlists</div>
-          </div>
-          <span style={{ color: purple, fontSize: 16 }}>→</span>
-        </button>
-        </>)}
+        {tab === 'soundtracks' && (
+        <BSProSoundtracks role="trainer" embedded onBack={() => setTab('library')} />
+        )}
       </div>
       <BSFooter left="The Coach Edition" right="Programs" />
     </BSPage>
@@ -3354,25 +3338,9 @@ function BSNutriPlans() {
         </>)}
         </>)}
 
-        {tab === 'soundtracks' && (<>
-        {/* Soundtracks → links to the Soundtracks page */}
-        {secHead('SOUNDTRACKS', 'Music library', 'OPEN →', () => setShowSoundtracks(true))}
-        <button onClick={() => setShowSoundtracks(true)} style={{ width: '100%', marginTop: 10, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 13, alignItems: 'center', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 13 }}>
-          <span style={{ position: 'relative', width: 54, height: 54, borderRadius: 12, background: `linear-gradient(150deg, ${gold}, ${gold}99)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {bsEqGlyph('#ffffffd0')}
-            <span style={{ position: 'absolute', top: 6, right: 6, width: 9, height: 9, borderRadius: 999, background: '#fc3c44', border: '1.5px solid rgba(0,0,0,0.25)' }} />
-          </span>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.2 }}>Attach music to any meal plan</div>
-            <div style={{ marginTop: 5, display: 'flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>
-              <span style={{ width: 6, height: 6, borderRadius: 999, background: '#1ED760' }} />SPOTIFY
-              <span style={{ width: 6, height: 6, borderRadius: 999, background: '#fc3c44', marginLeft: 4 }} />APPLE MUSIC
-            </div>
-            <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50 }}>· prep & focus playlists</div>
-          </div>
-          <span style={{ color: '#8a5cf6', fontSize: 16 }}>→</span>
-        </button>
-        </>)}
+        {tab === 'soundtracks' && (
+        <BSProSoundtracks role="nutritionist" embedded onBack={() => setTab('library')} />
+        )}
       </div>
       <BSFooter left="The Nutri Edition" right="Plans" />
     </BSPage>
@@ -3420,7 +3388,14 @@ function bsEqGlyph(color) {
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="3" y="11" width="3.4" height="10" rx="1.2" fill={color} /><rect x="8.3" y="6" width="3.4" height="15" rx="1.2" fill={color} /><rect x="13.6" y="9" width="3.4" height="12" rx="1.2" fill={color} /><rect x="18.9" y="4" width="2.6" height="17" rx="1.2" fill={color} /></svg>
   );
 }
-function BSProSoundtracks({ role = 'trainer', onBack }) {
+// Soundtracks page shell — a full BSPage normally, or an inline fragment when
+// embedded inside the Plans page's Soundtracks tab (module-level so it's a
+// stable component type and inputs don't remount/lose focus on re-render).
+function BSStShell({ embedded, t, children, footerL, footerR, topPad = 46 }) {
+  if (embedded) return <div style={{ padding: '4px 0 24px' }}>{children}</div>;
+  return <BSPage><div style={{ padding: `${topPad}px ${t.padX}px 28px` }}>{children}</div><BSFooter left={footerL} right={footerR} /></BSPage>;
+}
+function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   const t = useBS();
   const gold = '#d8b25a', teal = t.isLight ? '#0a8f87' : '#34d6c5', purple = '#8a5cf6';
   const [extra, setExtra] = useStateBSP(() => bsReadJSON('bs_coach_soundtracks', []));
@@ -3495,8 +3470,7 @@ function BSProSoundtracks({ role = 'trainer', onBack }) {
       </div>
     );
     return (
-      <BSPage>
-        <div style={{ padding: `50px ${t.padX}px 28px` }}>
+      <BSStShell embedded={embedded} t={t} footerL="New soundtrack" footerR="Library" topPad={50}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>NEW SOUNDTRACK</div>
             <button onClick={() => setImporting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
@@ -3518,9 +3492,7 @@ function BSProSoundtracks({ role = 'trainer', onBack }) {
             <button onClick={saveImport} disabled={!iName.trim()} style={{ width: '100%', marginTop: 6, borderRadius: 14, border: 0, background: gold, color: '#241c08', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: iName.trim() ? 1 : 0.5 }}>Save soundtrack →</button>
             <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Saved to your library · assign it to any workout or plan</div>
           </div>
-        </div>
-        <BSFooter left="New soundtrack" right="Library" />
-      </BSPage>
+      </BSStShell>
     );
   }
 
@@ -3543,8 +3515,7 @@ function BSProSoundtracks({ role = 'trainer', onBack }) {
     };
     const clients = BS_SOUNDTRACK_CLIENTS.filter(c => { const q = clientQuery.trim().toLowerCase(); return !q || c.name.toLowerCase().includes(q); });
     return (
-      <BSPage>
-        <div style={{ padding: `50px ${t.padX}px 28px` }}>
+      <BSStShell embedded={embedded} t={t} footerL="Assign" footerR={pl.name} topPad={50}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>ASSIGN SOUNDTRACK</div>
             <button onClick={() => setAssignFor(null)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
@@ -3580,9 +3551,7 @@ function BSProSoundtracks({ role = 'trainer', onBack }) {
             </div>
           )}
           <button onClick={() => setAssignFor(null)} style={{ width: '100%', marginTop: 18, borderRadius: 14, border: 0, background: gold, color: '#241c08', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Done · {cur.length} attached</button>
-        </div>
-        <BSFooter left="Assign" right={pl.name} />
-      </BSPage>
+      </BSStShell>
     );
   }
 
@@ -3595,8 +3564,8 @@ function BSProSoundtracks({ role = 'trainer', onBack }) {
     </div>
   );
   return (
-    <BSPage>
-      <div style={{ padding: `46px ${t.padX}px 28px` }}>
+    <BSStShell embedded={embedded} t={t} footerL="Soundtracks" footerR={`${all.length} playlists`} topPad={46}>
+        {!embedded && (<>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <button onClick={onBack} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
           <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>{all.length} PLAYLISTS</span>
@@ -3604,6 +3573,7 @@ function BSProSoundtracks({ role = 'trainer', onBack }) {
         <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>SOUNDTRACK LIBRARY</div>
         <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 600, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>Your<br /><span style={{ fontStyle: 'italic', color: gold }}>soundtracks.</span></div>
         <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 14.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.5 }}>Premade playlists you can attach to any workout or meal plan — no need to build a new one each time.</div>
+        </>)}
 
         {/* New soundtrack */}
         <button onClick={() => setImporting(true)} style={{ width: '100%', marginTop: 20, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 14, alignItems: 'center', borderRadius: 16, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 16 }}>
@@ -3662,9 +3632,7 @@ function BSProSoundtracks({ role = 'trainer', onBack }) {
             );
           })}
         </div>
-      </div>
-      <BSFooter left="Soundtracks" right={`${all.length} playlists`} />
-    </BSPage>
+      </BSStShell>
   );
 }
 
