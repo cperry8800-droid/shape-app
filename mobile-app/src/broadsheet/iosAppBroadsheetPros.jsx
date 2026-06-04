@@ -3069,9 +3069,9 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
               <div style={{ marginTop: 8, fontFamily: t.SERIF, fontSize: 40, fontWeight: 600, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>{firstL || displayName}<br /><span style={{ fontStyle: 'italic', color: accent }}>{lastW ? `${lastW}.` : '.'}</span></div>
             ); })()}
           </div>
-          <button onClick={onSettings} aria-label="Settings" style={{ flexShrink: 0, width: 40, height: 40, borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={t.INK} strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19" /></svg>
-          </button>
+          <div style={{ flexShrink: 0 }}>
+            <BSAvatar init={init} size={40} fill={bsTierColor(scoreProfile.tier)} ink={'#fff'} onClick={onSettings} />
+          </div>
         </div>
       </div>
 
@@ -3138,28 +3138,37 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
           <div style={{ marginTop: 12, height: 6, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${(isCoach ? 0.62 : 0.47) * 100}%`, background: accent, borderRadius: 999 }} /></div>
           <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.04em', color: accent }}>{isCoach ? '17 / 20 clients · $6.2k MRR · on track' : '$4.1k / $6k MRR · 11 clients · on track'}</div>
         </button>
-        {/* This month — with a visible/hidden toggle on the revenue */}
-        <div style={{ border: `1px solid ${accent}33`, borderRadius: 18, background: `linear-gradient(155deg, ${accent}14, ${t.PAPER2} 70%), ${t.PAPER2}`, padding: 18 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>THIS MONTH</span>
-            <button onClick={toggleRev} aria-label="Toggle revenue visibility" style={{ display: 'flex', alignItems: 'center', gap: 6, borderRadius: 999, border: `1px solid ${revHidden ? t.RULE : accent}`, background: revHidden ? 'transparent' : `${accent}1c`, color: revHidden ? t.INK50 : accent, padding: '5px 11px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em' }}>
-              {revHidden
-                ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
-                : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>}
-              <span>{revHidden ? 'HIDDEN' : 'VISIBLE'}</span>
-            </button>
+        {/* This month — toggling HIDDEN collapses the whole box to a slim
+            "show" control so the revenue isn't on screen at all. */}
+        {revHidden ? (
+          <button onClick={toggleRev} aria-label="Show this month" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderRadius: 14, border: `1px dashed ${t.RULE}`, background: 'transparent', padding: '14px 16px', cursor: 'pointer' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={t.INK50} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+              <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', color: t.INK50 }}>THIS MONTH · HIDDEN</span>
+            </span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: accent, border: `1px solid ${accent}`, borderRadius: 999, padding: '5px 11px' }}>SHOW</span>
+          </button>
+        ) : (
+          <div style={{ border: `1px solid ${accent}33`, borderRadius: 18, background: `linear-gradient(155deg, ${accent}14, ${t.PAPER2} 70%), ${t.PAPER2}`, padding: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>THIS MONTH</span>
+              <button onClick={toggleRev} aria-label="Hide this month" style={{ display: 'flex', alignItems: 'center', gap: 6, borderRadius: 999, border: `1px solid ${accent}`, background: `${accent}1c`, color: accent, padding: '5px 11px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em' }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                <span>VISIBLE</span>
+              </button>
+            </div>
+            <div style={{ marginTop: 6, fontFamily: t.SERIF, fontSize: 54, fontWeight: 600, color: t.INK, lineHeight: 0.95, letterSpacing: '-0.02em' }}>{isCoach ? '$6,240' : '$4,120'}</div>
+            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: accent }}>{isCoach ? '17 active · 94% retention · +3 mo' : '11 active · 92% retention · +3 mo'}</div>
+            <div style={{ marginTop: 18, display: 'flex', gap: 8, alignItems: 'flex-end', height: 30 }}>
+              {(isCoach ? [0.5, 0.58, 0.52, 0.66, 0.7, 0.82, 0.95] : [0.55, 0.5, 0.6, 0.58, 0.7, 0.78, 0.9]).map((h, i, a) => (
+                <div key={i} style={{ flex: 1, height: `${Math.max(0.2, h) * 100}%`, borderRadius: 5, background: i === a.length - 1 ? accent : `${accent}2e` }} />
+              ))}
+            </div>
+            <div style={{ marginTop: 7, display: 'flex', gap: 8 }}>
+              {['NOV', 'DEC', 'JAN', 'FEB', 'MAR', 'APR', 'MAY'].map(m => <div key={m} style={{ flex: 1, textAlign: 'center', fontFamily: t.MONO, fontSize: 8, color: t.INK50, letterSpacing: '0.04em' }}>{m}</div>)}
+            </div>
           </div>
-          <div style={{ marginTop: 6, fontFamily: t.SERIF, fontSize: 54, fontWeight: 600, color: t.INK, lineHeight: 0.95, letterSpacing: '-0.02em' }}>{revHidden ? '$••••' : (isCoach ? '$6,240' : '$4,120')}</div>
-          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: accent }}>{isCoach ? '17 active · 94% retention · +3 mo' : '11 active · 92% retention · +3 mo'}</div>
-          <div style={{ marginTop: 18, display: 'flex', gap: 8, alignItems: 'flex-end', height: 30 }}>
-            {(isCoach ? [0.5, 0.58, 0.52, 0.66, 0.7, 0.82, 0.95] : [0.55, 0.5, 0.6, 0.58, 0.7, 0.78, 0.9]).map((h, i, a) => (
-              <div key={i} style={{ flex: 1, height: `${Math.max(0.2, h) * 100}%`, borderRadius: 5, background: i === a.length - 1 ? accent : `${accent}2e` }} />
-            ))}
-          </div>
-          <div style={{ marginTop: 7, display: 'flex', gap: 8 }}>
-            {['NOV', 'DEC', 'JAN', 'FEB', 'MAR', 'APR', 'MAY'].map(m => <div key={m} style={{ flex: 1, textAlign: 'center', fontFamily: t.MONO, fontSize: 8, color: t.INK50, letterSpacing: '0.04em' }}>{m}</div>)}
-          </div>
-        </div>
+        )}
       </div>
 
       {(() => {
