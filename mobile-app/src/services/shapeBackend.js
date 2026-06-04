@@ -1725,6 +1725,7 @@ function communityPostFromRow(row) {
     : tags;
   return {
     id: row.id,
+    author_id: row.author_id || null,
     created_at: row.created_at || null,
     name: authorName,
     channel: typeof metrics.channel === 'string' ? metrics.channel : '',
@@ -2896,6 +2897,26 @@ window.ShapeCommunity = {
   toggleLike: toggleCommunityLike,
   addComment: addCommunityComment,
 };
+
+// Public profile card + batch tier points (for chat avatars / profile page).
+async function getPublicProfile(userId) {
+  if (!supabase || !userId) return null;
+  const { data, error } = await supabase.rpc('get_public_profile', { p_user_id: userId });
+  if (error) return null;
+  const r = Array.isArray(data) ? data[0] : data;
+  if (!r) return null;
+  return { userId: r.user_id, name: r.full_name, role: r.role, points: Number(r.points) || 0, bio: r.bio || '', pronouns: r.pronouns || '', goal: r.goal || '', link: r.link || '' };
+}
+async function getUserPoints(ids) {
+  const list = (ids || []).filter(Boolean);
+  if (!supabase || !list.length) return {};
+  const { data, error } = await supabase.rpc('get_user_points', { p_ids: list });
+  if (error) return {};
+  const out = {};
+  (data || []).forEach(r => { out[r.user_id] = Number(r.points) || 0; });
+  return out;
+}
+window.ShapeProfiles = { getPublicProfile, getUserPoints };
 
 // ── Member-created community channels ("run club" style) ─────────────────────
 function channelDisplayName() {
