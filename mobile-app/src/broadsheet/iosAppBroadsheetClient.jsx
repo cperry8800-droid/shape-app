@@ -5772,17 +5772,13 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // sample people lists below when there are none (demo / not signed in).
   const [coachThreads, setCoachThreads] = useStateBSC(null);
   const [openChat, setOpenChat] = useStateBSC(null); // selected DM/channel row → thread view
-  React.useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        const res = await window.ShapeMessages?.listDirectCoachThreads?.();
-        const list = (res && Array.isArray(res.data)) ? res.data : (Array.isArray(res) ? res : []);
-        if (active && list.length) setCoachThreads(list);
-      } catch { /* keep sample */ }
-    })();
-    return () => { active = false; };
+  const loadCoachThreads = React.useCallback(() => {
+    if (!window.ShapeMessages?.listDirectCoachThreads) return;
+    window.ShapeMessages.listDirectCoachThreads()
+      .then(res => { const list = (res && Array.isArray(res.data)) ? res.data : (Array.isArray(res) ? res : []); if (list.length) setCoachThreads(list); })
+      .catch(() => {});
   }, []);
+  React.useEffect(() => { loadCoachThreads(); }, [loadCoachThreads]);
   const _threadPalette = ['#147b68', '#c0533b', '#a07a2e', '#2e6fa0', '#8a5cf6'];
   const threadRows = (coachThreads || []).map((th, i) => ({
     n: th.who || 'Coach',
@@ -5838,6 +5834,18 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       .catch(() => {});
   }, []);
   React.useEffect(() => { loadMemberThreads(); }, [loadMemberThreads]);
+  // Realtime: when a DM message arrives (member or coach), refresh both thread
+  // lists so new threads + latest-message previews appear live. The per-row /
+  // tab unread badges are already handled app-wide by ShapeUnread.
+  React.useEffect(() => {
+    if (!window.ShapeMessages?.subscribeMessages) return undefined;
+    let timer = null;
+    const off = window.ShapeMessages.subscribeMessages(() => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { loadMemberThreads(); loadCoachThreads(); }, 350);
+    });
+    return () => { clearTimeout(timer); try { off && off(); } catch (e) {} };
+  }, [loadMemberThreads, loadCoachThreads]);
   const friendRows = (memberThreads || []).map((th, i) => ({
     n: th.who || 'Member',
     s: 'Direct message',
