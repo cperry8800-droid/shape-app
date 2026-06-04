@@ -9836,20 +9836,20 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
         const aisleDone = aisle.items.filter((_, ii) => checked.has(`${ai}-${ii}`)).length;
         return (
           <>
-            {/* Food-group tabs — wrap so they all stay on screen */}
+            {/* Food-group tabs — equal-width, all fit on one row */}
             <div style={{ padding: `${t.sectGap}px ${t.padX}px 12px` }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, rowGap: 7 }}>
+              <div style={{ display: 'flex', gap: 5 }}>
                 {list.aisles.map((a, idx) => {
                   const on = idx === ai;
                   const aDone = a.items.filter((_, ii) => checked.has(`${idx}-${ii}`)).length;
                   const aAll = a.items.length > 0 && aDone === a.items.length;
                   return (
                     <button key={a.aisle} onClick={() => setActiveAisle(idx)} style={{
-                      flex: '0 0 auto', padding: '7px 11px', borderRadius: 999, cursor: 'pointer',
+                      flex: '1 1 0', minWidth: 0, padding: '7px 4px', borderRadius: 999, cursor: 'pointer',
                       background: on ? t.INK : 'transparent', color: on ? t.PAPER : (aAll ? t.INK50 : t.INK),
                       border: `1px solid ${on ? t.INK : t.RULE}`,
-                      fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
-                      whiteSpace: 'nowrap', textDecoration: aAll && !on ? 'line-through' : 'none',
+                      fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.03em', textTransform: 'uppercase',
+                      whiteSpace: 'normal', lineHeight: 1.1, textAlign: 'center', textDecoration: aAll && !on ? 'line-through' : 'none',
                     }}>{a.aisle}</button>
                   );
                 })}
