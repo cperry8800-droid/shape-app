@@ -20,11 +20,15 @@
 <script type="text/babel" src="clientNav.jsx"></script>
 <script type="text/babel">
 const DEFAULT_GOALS_STATE = {
-  goals: [
+  share: true,
+  training: [
     { t: "Reach Peak tier by Q1 2027",   cur: 1284, tgt: 5000, sub: "3,716 points to go · holding +100/wk lands you at Peak in ~37 weeks" },
     { t: "Squat 1.5× bodyweight",        cur: 135,  tgt: 175,  sub: "40 lb to go · +5 lb every 3 weeks gets there by Aug 15" },
     { t: "4 workouts / week average",    cur: 3.2,  tgt: 4,    sub: "30d rolling · +0.8 sessions/wk closes the gap" },
+  ],
+  nutrition: [
     { t: "85% protein adherence",        cur: 82,   tgt: 85,   sub: "30d rolling · hit target 6 of 7 days", pct: true },
+    { t: "150g protein daily",           cur: 120,  tgt: 150,  sub: "g protein · per day" },
   ],
   calc: { workouts: 4, sessions: 2, proteinDays: 6, sleepNights: 5, programsOwned: 1, mealPlansOwned: 1, currentWeekly: 36 },
   momentum: [
@@ -284,6 +288,7 @@ function ClientGoalPage() {
   const [editGoalIdx, setEditGoalIdx] = React.useState(null);
   const [editCalc, setEditCalc] = React.useState(false);
   const [editMomentum, setEditMomentum] = React.useState(false);
+  const [tab, setTab] = React.useState("training"); // training | nutrition
 
   React.useEffect(() => {
     (async () => {
@@ -293,7 +298,17 @@ function ClientGoalPage() {
       setSignedIn(true);
       const remote = await window.shapeDb.getUserGoals("client");
       if (remote && Object.keys(remote).length > 0) {
-        setState(s => ({ ...s, ...remote, calc: { ...s.calc, ...(remote.calc || {}) } }));
+        setState(s => {
+          // Migrate the legacy flat `goals` array into the Training tab.
+          const legacy = Array.isArray(remote.goals) ? remote.goals : null;
+          return {
+            ...s, ...remote,
+            share: remote.share !== false,
+            training: Array.isArray(remote.training) ? remote.training : (legacy || s.training),
+            nutrition: Array.isArray(remote.nutrition) ? remote.nutrition : s.nutrition,
+            calc: { ...s.calc, ...(remote.calc || {}) },
+          };
+        });
       }
     })();
   }, []);
@@ -311,19 +326,20 @@ function ClientGoalPage() {
   }
 
   function saveGoal(g) {
-    const goals = [...state.goals];
+    const goals = [...(state[tab] || [])];
     if (editGoalIdx === "new") goals.push(g);
     else goals[editGoalIdx] = g;
     setEditGoalIdx(null);
-    persist({ ...state, goals });
+    persist({ ...state, [tab]: goals });
   }
   function deleteGoal() {
-    const goals = state.goals.filter((_, i) => i !== editGoalIdx);
+    const goals = (state[tab] || []).filter((_, i) => i !== editGoalIdx);
     setEditGoalIdx(null);
-    persist({ ...state, goals });
+    persist({ ...state, [tab]: goals });
   }
 
-  const { goals, calc, momentum } = state;
+  const { calc, momentum } = state;
+  const goals = state[tab] || [];
   const { workouts, sessions, proteinDays, sleepNights, programsOwned = 0, mealPlansOwned = 0, currentWeekly } = calc;
   // Shape Score points per action (matches score.jsx tuned rates)
   const PTS = { workout: 8, session: 15, protein: 5, sleep: 3, review: 15, programBoost: 6, mealPlanBoost: 4 };
@@ -342,10 +358,37 @@ function ClientGoalPage() {
       title="Goal"
       subtitle={signedIn ? "What you're shaping toward — strength, sleep, calm, confidence, a marathon, body comp, or just feeling like yourself again." : "Sample view — sign in to save your own goals."}
       actions={<>
-        <button onClick={() => persist({ ...state, goals: [] })} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Archive</button>
+        <button onClick={() => persist({ ...state, [tab]: [] })} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Archive</button>
         <button onClick={() => setEditGoalIdx("new")} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ New goal</button>
       </>}
     >
+      {/* Share with assigned coaches */}
+      <Card style={{ marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: 20 }}>
+        <div>
+          <div style={{ fontFamily: serif, fontSize: 19, letterSpacing: "-0.015em", marginBottom: 4 }}>Share with your coaches</div>
+          <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.6)" }}>{state.share ? "Your assigned coaches can see these goals and tailor your plan around them." : "Private — your coaches can’t see these goals."}</div>
+        </div>
+        <button onClick={() => persist({ ...state, share: !state.share })} aria-label="Toggle coach visibility"
+          style={{ flexShrink: 0, width: 52, height: 30, borderRadius: 999, border: 0, cursor: "pointer", padding: 3, background: state.share ? TEAL : "rgba(242,237,228,0.18)", display: "flex", justifyContent: state.share ? "flex-end" : "flex-start", alignItems: "center", transition: "all .15s" }}>
+          <span style={{ width: 24, height: 24, borderRadius: 999, background: "#fff", display: "block" }} />
+        </button>
+      </Card>
+
+      {/* Training / Nutrition tabs */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+        {[["training", "Training"], ["nutrition", "Nutrition"]].map(([k, l]) => {
+          const on = tab === k;
+          return (
+            <button key={k} onClick={() => setTab(k)}
+              style={{ padding: "9px 20px", borderRadius: 999, cursor: "pointer", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase",
+                border: on ? "1px solid rgba(10,197,168,0.4)" : "1px solid rgba(242,237,228,0.16)",
+                background: on ? "rgba(10,197,168,0.14)" : "transparent", color: on ? "#2ee0c4" : "rgba(242,237,228,0.62)" }}>
+              {l} <span style={{ opacity: 0.6 }}>· {(state[k] || []).length}</span>
+            </button>
+          );
+        })}
+      </div>
+
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
         {goals.map((g, i) => {
           const pct = Math.min((Number(g.cur)||0) / (Number(g.tgt)||1), 1);
