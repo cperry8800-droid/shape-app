@@ -578,11 +578,11 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
             position: 'absolute', inset: 0, pointerEvents: 'none',
             background: `radial-gradient(ellipse 80% 90% at 50% 50%, transparent 35%, rgba(${inkRgb},0.05) 100%)`,
           }} />
-          {/* Top hairline — single thin rule */}
-          <div aria-hidden style={{
+          {/* Top hairline — single thin rule (suppressed when noRule, e.g. the feed) */}
+          {!noRule && <div aria-hidden style={{
             position: 'absolute', left: 0, right: 0, top: 44, height: 1,
             background: `rgba(${inkRgb},0.5)`,
-          }} />
+          }} />}
           {/* Bottom double-rule strip */}
           {showDoubleRule && <div aria-hidden style={{
             position: 'absolute', left: 0, right: 0, bottom: 0, height: 4,

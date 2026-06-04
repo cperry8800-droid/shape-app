@@ -16,6 +16,19 @@ const {
   RadioEffects,
 } = window;
 
+// The signed-in member's display name + initials, from the same source as the
+// Me page (profiles.full_name, which the edit-profile flow writes + mirrors to
+// the auth cache). Falls back to the demo identity when signed out, so the
+// header avatars always read sensibly. Keeps every "your own" avatar in sync
+// with the account's real name instead of a hardcoded "A".
+function bsMyName() {
+  const p = (typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().profile) || {};
+  return (p.full_name && String(p.full_name).trim()) || 'Alex Rivera';
+}
+function bsMyInitials() {
+  return bsMyName().split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'A';
+}
+
 // Renders the music-reactive overlay (edge glow / bloom / hologram DJ)
 // only while radio is on, not paused, and fxMode != 'off'.
 function BSRadioFx() {
@@ -1673,7 +1686,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         </span>}
         leftKicker={`${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][_now.getDay()]} · ${_BS_MON[_now.getMonth()]} ${_now.getDate()} · ${_now.getFullYear()}`}
         rightKicker={`${bsHomeProgram.nutritionPhase || 'Cut'} · W${isoWeek}`}
-        trailing={<BSAvatar init="A" size={32} onClick={onProfile} />}
+        trailing={<BSAvatar init={bsMyInitials()} size={32} onClick={onProfile} />}
         showDoubleRule={false}
       />
 
@@ -2797,7 +2810,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       <BSPageHeader
         kicker={`${bsTrainProgram.trainingPhase || 'Build'} · Week ${bsProgramWeek()}`}
         title={cur.title}
-        trailing={<BSAvatar init="A" size={32} onClick={onProfile} />}
+        trailing={<BSAvatar init={bsMyInitials()} size={32} onClick={onProfile} />}
       />
 
       <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} />
@@ -5061,7 +5074,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
       <BSPageHeader
         kicker={`${bsEatProgram.nutritionPhase || 'Cut'} · Week ${bsProgramWeek()}`}
         title={cur.title}
-        trailing={<BSAvatar init="A" size={32} onClick={onProfile} />}
+        trailing={<BSAvatar init={bsMyInitials()} size={32} onClick={onProfile} />}
       />
 
       <BSNutritionTopTabs active="eat" onChange={setView} />
@@ -6385,7 +6398,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         showDotTexture={false}
         showDoubleRule={false}
         noRule
-        trailing={<BSAvatar init="A" size={32} onClick={onProfile} />}
+        trailing={<BSAvatar init={bsMyInitials()} size={32} onClick={onProfile} />}
       />
 
       {/* Feed / Messages / Teams */}
@@ -8239,7 +8252,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
     <BSPage>
       <BSPageHeader
         title={<>{firstName}<br/><span style={{ color: t.ACCENT }}>{lastName}.</span></>}
-        trailing={<BSAvatar init="A" size={32} fill={t.RUST} onClick={onProfile} />}
+        trailing={<BSAvatar init={bsMyInitials()} size={32} fill={t.RUST} onClick={onProfile} />}
       />
 
       {/* SHAPE SCORE — tappable card: ring + category bars */}
@@ -10288,10 +10301,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const settingsScore = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client);
   const settingsTierC = bsTierColor(settingsScore.tier);
 
-  // Identity editing
+  // Identity editing — seed name/handle from the signed-in account so the profile
+  // matches before any edit; a saved client_identity (below) then overrides.
+  const _myName = bsMyName();
   const [identity, setIdentity] = useStateBSC({
-    name: 'Alex Rivera',
-    handle: '@alex.rivera',
+    name: _myName,
+    handle: _myName === 'Alex Rivera' ? '@alex.rivera' : '@' + _myName.toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/(^\.+|\.+$)/g, ''),
     location: 'Brooklyn, NY',
     bio: 'Cutting for summer. 14-week streak. Logging the wins and the pizza.',
     accent: '#c0533b',
