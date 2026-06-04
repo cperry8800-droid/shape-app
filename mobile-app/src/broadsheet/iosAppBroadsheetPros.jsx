@@ -2219,7 +2219,11 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
   const t = useBS();
   const isCoach = role === 'trainer';
   const accent = isCoach ? t.AMBER : t.RUST;
-  const init = name[0];
+  // Use the signed-in account's real name (same source as Settings) so the Me
+  // header matches; fall back to the demo prop when signed out.
+  const authProfile = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.().profile) || {};
+  const displayName = (authProfile.full_name && String(authProfile.full_name).trim()) || name;
+  const init = (displayName || 'S').trim().charAt(0).toUpperCase();
   const [showScore, setShowScore] = useStateBSP(false);
   const [showStore, setShowStore] = useStateBSP(false);
   const [showContact, setShowContact] = useStateBSP(false);
@@ -2253,7 +2257,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
     return <BSCoachGoalPlanPage role={role} onBack={() => setShowGoals(false)} />;
   }
   if (showPublicProfile) {
-    return <BSProPublicProfilePage role={role} name={name} onBack={() => setShowPublicProfile(false)} />;
+    return <BSProPublicProfilePage role={role} name={displayName} onBack={() => setShowPublicProfile(false)} />;
   }
   if (showBookingCalendar) {
     return <BSCalendarScreen role={role} onProfile={() => setShowPublicProfile(true)} onBack={() => setShowBookingCalendar(false)} />;
@@ -2264,7 +2268,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
 
   return (
     <BSPage>
-      <BSPageHeader kicker={isCoach ? 'Coach · 4.9 ★' : 'Nutritionist · 4.9 ★'} title={<>{name.split(' ')[0]}<br/>{name.split(' ').slice(1).join(' ')}.</>} trailing={<BSAvatar init={init} size={32} fill={accent} ink={t.PAPER} onClick={onSettings} />} />
+      <BSPageHeader kicker={isCoach ? 'Coach · 4.9 ★' : 'Nutritionist · 4.9 ★'} title={<>{displayName.split(' ')[0]}<br/>{displayName.split(' ').slice(1).join(' ')}.</>} trailing={<BSAvatar init={init} size={32} fill={accent} ink={t.PAPER} onClick={onSettings} />} />
 
       {(() => {
         const total = scoreProfile.total || 0;

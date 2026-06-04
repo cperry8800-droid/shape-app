@@ -6113,7 +6113,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     const mine = !!(p.author_id && myUserId && p.author_id === myUserId);
     const authorKind = mine ? myRoleChip : KIND_OF(p.role);
     return {
-      id: p.id, userId: p.author_id || null, mine, who: p.name || 'Member', kind, authorKind, init: (p.avatar || p.name || '?').toString().trim().charAt(0).toUpperCase(),
+      id: p.id, userId: p.author_id || null, mine, who: mine ? 'You' : (p.name || 'Member'), kind, authorKind, init: (mine ? bsMyName() : (p.avatar || p.name || '?')).toString().trim().charAt(0).toUpperCase(),
       hue: HUE[kind], time: p.time || 'now', pinned: !!p.pinned, official: kind === 'SHAPE',
       body: p.note || p.status || p.body || p.workout || '',
       hearts: typeof p.likes === 'number' ? p.likes : (p.likeCount || 0),
@@ -6132,7 +6132,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           const mapped = res.data.map(mapPost).filter(p => p.body);
           setPosts(mapped); setPostsLive(true);
           // Batch the authors' all-time points → real tier per user for the bubbles.
-          const ids = [...new Set(mapped.map(p => p.userId).filter(Boolean))];
+          const ids = [...new Set([myUserId, ...mapped.map(p => p.userId)].filter(Boolean))];
           if (ids.length && window.ShapeProfiles?.getUserPoints) {
             window.ShapeProfiles.getUserPoints(ids).then(pointsMap => {
               if (!active || !pointsMap) return;
@@ -6160,7 +6160,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     // role channel) so it lands on that feed — not always the Client feed.
     const kind = (filter && ROLE[filter]) ? filter : myRoleChip;
     const where = ROLE[kind] ? ROLE[kind].label : 'the group';
-    setPosts(prev => [{ id: 'tmp-' + Date.now(), who: 'You', kind, authorKind: myRoleChip, init: 'Y', hue: HUE[kind] || ROLE[kind].color, time: 'now', body, hearts: 0, replies: 0 }, ...prev]);
+    setPosts(prev => [{ id: 'tmp-' + Date.now(), who: 'You', mine: true, userId: myUserId, kind, authorKind: myRoleChip, init: bsMyName().trim().charAt(0).toUpperCase(), hue: HUE[kind] || ROLE[kind].color, time: 'now', body, hearts: 0, replies: 0 }, ...prev]);
     try { await window.ShapeCommunity?.createPost?.({ title: body, note: body, channel: kind, privacy: 'community' }); window.__bsToast?.(`Posted to ${where}`, 'ok'); }
     catch (e) { window.__bsToast?.(e?.message || 'Could not post.', 'err'); }
   };
@@ -6208,8 +6208,14 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     // posts go right (everyone else is an incoming/left feed message).
     const right = p.who === 'You' || p.mine || (filter === 'COMMUNITY' && (akind === 'CLIENT' || akind === 'SHAPE'));
     const replyCount = (p.replies || 0) + (actComments[p.id] || []).length;
-    // Avatar + bubble tint follow the author's TIER (not the role).
-    const tier = p.tier || (p.userId && tierByUser[p.userId]) || bsPostTier(p);
+    // Avatar + bubble tint follow the author's TIER (not the role). For my OWN
+    // posts, always derive from my real account identity (real tier when known,
+    // else a stable hash of my name) — so the optimistic "You" post and the
+    // persisted copy never resolve to different colors.
+    const isMe = p.mine || p.who === 'You';
+    const tier = p.tier || (isMe
+      ? ((myUserId && tierByUser[myUserId]) || bsPostTier({ who: bsMyName() }))
+      : ((p.userId && tierByUser[p.userId]) || bsPostTier(p)));
     const tc = bsTierColor(tier);
     const bubbleBg = p.official ? '#f3eee4' : (t.isLight ? `${tc}16` : `${tc}22`);
     const linkable = !p.mine && p.who !== 'You' && p.public !== false; // open the author's public profile
