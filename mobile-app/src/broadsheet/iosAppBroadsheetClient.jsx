@@ -25,8 +25,16 @@ function bsMyName() {
   const p = (typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().profile) || {};
   return (p.full_name && String(p.full_name).trim()) || 'Alex Rivera';
 }
+// Up-to-two-letter initials from a display name (drops a leading "# " for channels).
+function bsInitials(name) {
+  return String(name || '').replace(/^#\s*/, '').split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+}
 function bsMyInitials() {
-  return bsMyName().split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'A';
+  // A custom override (set in edit-profile, cached on window.ShapeIdentity) wins;
+  // otherwise derive from the display name.
+  const custom = (typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.initials) || '';
+  const c = String(custom).trim().toUpperCase().slice(0, 2);
+  return c || bsInitials(bsMyName()) || 'A';
 }
 
 // Renders the music-reactive overlay (edge glow / bloom / hologram DJ)
@@ -80,6 +88,16 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     const open = () => { setShowSettings(false); setSettingsStart(''); goMarket(); };
     window.addEventListener('shape:openMarket', open);
     return () => window.removeEventListener('shape:openMarket', open);
+  }, []);
+
+  // Hydrate the global identity cache (custom avatar initials / accent / name) at
+  // startup so every avatar — header + feed — reflects it before the Me page is
+  // ever opened.
+  React.useEffect(() => {
+    if (!window.shapeDb?.getUserGoals) return;
+    window.shapeDb.getUserGoals('client_identity').then(d => {
+      if (d && typeof d === 'object') { try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), ...d }; } catch (e) {} }
+    }).catch(() => {});
   }, []);
 
   // "Start session" from the calendar event sheet → close calendar, jump to the
@@ -6209,22 +6227,23 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     const right = p.who === 'You' || p.mine || (filter === 'COMMUNITY' && (akind === 'CLIENT' || akind === 'SHAPE'));
     const replyCount = (p.replies || 0) + (actComments[p.id] || []).length;
     // Avatar + bubble tint follow the author's TIER (not the role). For my OWN
-    // posts, always derive from my real account identity (real tier when known,
-    // else a stable hash of my name) — so the optimistic "You" post and the
-    // persisted copy never resolve to different colors.
+    // posts the bubble matches MY real Shape Score tier (Base/steel until I earn
+    // points) — resolved consistently for the optimistic "You" post and the
+    // persisted copy, so it never flips color.
     const isMe = p.mine || p.who === 'You';
     const tier = p.tier || (isMe
-      ? ((myUserId && tierByUser[myUserId]) || bsPostTier({ who: bsMyName() }))
+      ? ((myUserId && tierByUser[myUserId]) || bsTierForPoints(0))
       : ((p.userId && tierByUser[p.userId]) || bsPostTier(p)));
     const tc = bsTierColor(tier);
     const bubbleBg = p.official ? '#f3eee4' : (t.isLight ? `${tc}16` : `${tc}22`);
     const linkable = !p.mine && p.who !== 'You' && p.public !== false; // open the author's public profile
-    const AV_OFFSET = 41; // avatar (32) + gap (9), to align meta/reactions under the bubble
+    const avInit = isMe ? bsMyInitials() : (bsInitials(p.who) || p.init || '?'); // full (2-letter) initials
+    const AV_OFFSET = 45; // avatar (36) + gap (9), to align meta/reactions under the bubble
     return (
       <div key={p.id || i} style={{ display: 'flex', flexDirection: 'column', alignItems: right ? 'flex-end' : 'flex-start' }}>
         {p.pinned && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', color: TEALB, marginBottom: 6 }}><PinIcon filled size={13} /> Pinned</div>}
         <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'flex-end', gap: 9, maxWidth: '90%' }}>
-          <button onClick={() => linkable && setOpenProfile({ ...p, kind: akind, tier })} aria-label={linkable ? `View ${p.who}'s profile` : undefined} style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, background: tc, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13, border: 0, padding: 0, cursor: linkable ? 'pointer' : 'default' }}>{p.init}</button>
+          <button onClick={() => linkable && setOpenProfile({ ...p, kind: akind, tier })} aria-label={linkable ? `View ${p.who}'s profile` : undefined} style={{ width: 36, height: 36, flexShrink: 0, borderRadius: 999, background: tc, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13, letterSpacing: '0.02em', border: 0, padding: 0, cursor: linkable ? 'pointer' : 'default' }}>{avInit}</button>
           <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'baseline', gap: 8, marginBottom: 5 }}>
               <button onClick={() => linkable && setOpenProfile({ ...p, kind: akind, tier })} style={{ background: 'transparent', border: 0, padding: 0, cursor: linkable ? 'pointer' : 'default', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk }}>{p.who}</button>
@@ -6275,7 +6294,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     return (
       <div style={{ borderRadius: 16, border: `1px solid ${hair}`, background: card, padding: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-          <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: a.hue, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 15 }}>{a.who[0]}</div>
+          <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: a.hue, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14, letterSpacing: '0.02em' }}>{bsInitials(a.who) || '?'}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14, color: cardInk }}>{a.who}</span>
@@ -10313,6 +10332,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [identity, setIdentity] = useStateBSC({
     name: _myName,
     handle: _myName === 'Alex Rivera' ? '@alex.rivera' : '@' + _myName.toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/(^\.+|\.+$)/g, ''),
+    initials: '', // optional custom avatar initials (max 2); blank = derive from name
     location: 'Brooklyn, NY',
     bio: 'Cutting for summer. 14-week streak. Logging the wins and the pizza.',
     accent: '#c0533b',
@@ -10326,7 +10346,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   React.useEffect(() => {
     if (!window.shapeDb?.getUserGoals) return;
     window.shapeDb.getUserGoals('client_identity').then(d => {
-      if (d && typeof d === 'object' && Object.keys(d).length) setIdentity(prev => ({ ...prev, ...d }));
+      if (d && typeof d === 'object' && Object.keys(d).length) {
+        setIdentity(prev => ({ ...prev, ...d }));
+        try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), ...d }; } catch (e) {}
+      }
     }).catch(() => {});
   }, []);
   const startEdit = () => { setDraft(identity); setEditing(true); };
@@ -10335,6 +10358,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     try { window.shapeDb?.saveUserGoals?.('client_identity', draft); } catch (e) {}
     // Mirror the display name to the auth-cached profile so other surfaces pick it up.
     try { window.ShapeAuth?.updateProfileName?.(draft.name); } catch (e) {}
+    // Cache the custom initials/accent globally so every avatar (header + feed) updates.
+    try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), initials: draft.initials || '', accent: draft.accent, name: draft.name }; } catch (e) {}
   };
   const cancelEdit = () => setEditing(false);
 
@@ -10699,7 +10724,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         {!editing ? (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <BSAvatar init={(identity.name || 'A').split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase()} size={72} fill={identity.accent || t.RUST} round glow cursive />
+              <BSAvatar init={(identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name) || 'A'} size={72} fill={identity.accent || t.RUST} round glow cursive />
               <div style={{ minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700 }}>
                   <span style={{ color: settingsTierC, fontWeight: 800 }}>{settingsScore.tier} tier</span>
@@ -10732,7 +10757,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             <div>
               {/* Avatar + photo + accent swatches */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
-                <BSAvatar init={(draft.name || 'A').split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase()} size={60} fill={acc} round glow cursive />
+                <BSAvatar init={(draft.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(draft.name) || 'A'} size={60} fill={acc} round glow cursive />
                 <div style={{ minWidth: 0 }}>
                   <button style={{ borderRadius: 999,
                     padding: '9px 14px', border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, cursor: 'pointer',
@@ -10748,6 +10773,15 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                   </div>
                 </div>
               </div>
+
+              {/* Custom avatar initials — optional override, max 2 characters */}
+              <label style={{ display: 'block', marginBottom: 13 }}>
+                <span style={lbl}>Avatar initials <span style={{ textTransform: 'none', letterSpacing: 0, color: t.INK50, fontWeight: 600 }}>· max 2</span></span>
+                <input value={draft.initials || ''} placeholder={bsInitials(draft.name) || 'AB'} maxLength={2}
+                  onChange={(e) => setDraft({ ...draft, initials: e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 2) })}
+                  onFocus={(e) => { e.target.style.borderColor = acc; }} onBlur={(e) => { e.target.style.borderColor = t.RULE; }}
+                  style={{ ...field, width: 110, textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700 }} />
+              </label>
 
               {[
                 { k: 'name',     label: 'Display name', ph: 'Your name' },

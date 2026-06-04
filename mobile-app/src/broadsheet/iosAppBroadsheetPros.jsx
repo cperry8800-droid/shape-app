@@ -2223,7 +2223,9 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
   // header matches; fall back to the demo prop when signed out.
   const authProfile = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.().profile) || {};
   const displayName = (authProfile.full_name && String(authProfile.full_name).trim()) || name;
-  const init = (displayName || 'S').trim().charAt(0).toUpperCase();
+  // Custom avatar initials (edit-profile) win; else full (2-letter) initials.
+  const customInit = (typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.initials) ? String(window.ShapeIdentity.initials).trim().toUpperCase().slice(0, 2) : '';
+  const init = customInit || (displayName || 'S').split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'S';
   const [showScore, setShowScore] = useStateBSP(false);
   const [showStore, setShowStore] = useStateBSP(false);
   const [showContact, setShowContact] = useStateBSP(false);

@@ -46,6 +46,20 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Feed avatars: 2-letter initials, tier-colored own bubble, custom initials
+- **Full (2-letter) initials** in the feed + community-activity avatars (e.g. "CP"
+  not "C"); the role-feed avatar grew 32→36px to fit them cleanly. New `bsInitials()`
+  helper (DM threads already did this).
+- **Own bubble matches my real tier**: in chat, my own posts now tint to my actual
+  Shape Score tier (Base/steel until I earn points) instead of a name-hash — resolved
+  the same for the optimistic + persisted copies so it never flips.
+- **Custom avatar initials** — edit-profile gained an **"Avatar initials · max 2"**
+  field (alphanumeric, auto-uppercased, clamped to 2). Stored in `client_identity`
+  and cached on `window.ShapeIdentity`, hydrated at app startup, so the override shows
+  on **every** avatar — header, feed, Me card, and the coach Me page (`BSProMe`) —
+  not just the edit form. Blank = derive from the display name. `bsMyInitials()` reads
+  the override first.
+
 ### 2026-06-04 — Fix self-identity in feed + coach Me page
 - **Feed: own posts kept flipping color.** The optimistic **"You"** post derived its
   tier from a hash of the string `'You'` (→ one color) while the persisted copy hashed
