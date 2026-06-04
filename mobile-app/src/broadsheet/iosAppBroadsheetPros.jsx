@@ -842,6 +842,17 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         showDotTexture={false}
       />
 
+      <BSTicker items={(() => {
+        const tk = ticker || {};
+        return [
+          { label: 'BOOKED',  value: tk.bookedToday != null ? `${tk.bookedToday} SESN` : '8 SESN', note: 'TODAY' },
+          { label: 'CLIENTS', value: tk.activeClients != null ? String(tk.activeClients) : '14', note: 'ACTIVE' },
+          { label: 'ADHR',    value: tk.avgAdherencePct != null ? `${tk.avgAdherencePct}%` : '78%', color: '#a3e09a' },
+          { label: 'PRGRM',   value: tk.programsCount != null ? String(tk.programsCount) : '12',  note: 'PUBLISHED' },
+          { label: '7D LOG',  value: tk.workouts7d != null ? `${tk.workouts7d} WO` : '32 WO', note: 'ROSTER' },
+        ];
+      })()} />
+
       {/* Edition strip — sub-hero under the masthead */}
       <div style={{
         padding: `8px ${t.padX}px 12px`,
@@ -857,19 +868,28 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         </span>
       </div>
 
-      <BSTicker items={(() => {
-        const tk = ticker || {};
-        return [
-          { label: 'BOOKED',  value: tk.bookedToday != null ? `${tk.bookedToday} SESN` : '8 SESN', note: 'TODAY' },
-          { label: 'CLIENTS', value: tk.activeClients != null ? String(tk.activeClients) : '14', note: 'ACTIVE' },
-          { label: 'ADHR',    value: tk.avgAdherencePct != null ? `${tk.avgAdherencePct}%` : '78%', color: '#a3e09a' },
-          { label: 'PRGRM',   value: tk.programsCount != null ? String(tk.programsCount) : '12',  note: 'PUBLISHED' },
-          { label: '7D LOG',  value: tk.workouts7d != null ? `${tk.workouts7d} WO` : '32 WO', note: 'ROSTER' },
-        ];
-      })()} />
+      {/* NOW PLAYING — Shape Radio */}
+      <BSNowPlaying onOpen={goRadio} />
 
+      {/* THIS WEEK — trainer view, dots = booking density */}
+      <BSProWeekStrip
+        goCalendar={goCalendar}
+        selDay={selDay}
+        onSelectDay={setSelDay}
+        dots={dataByIdx.map(dd => ({
+          20: [t.RUST, t.RUST, t.BLUE],
+          21: [t.RUST, t.RUST, t.RUST],
+          22: [t.AMBER, t.GREEN],
+          23: [t.RUST, t.BLUE],
+          24: [t.RUST, t.RUST],
+          25: [],
+          26: [t.GREEN],
+        }[dd] || []))}
+      />
+
+      {/* Quick chips — below the week strip to match the client home layout */}
       <div style={{
-        padding: `10px ${t.padX}px 12px`,
+        padding: `12px ${t.padX}px 12px`,
         borderBottom: `1px solid ${t.RULE}`,
         background: t.PAPER,
       }}>
@@ -928,25 +948,6 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
           ))}
         </div>
       </div>
-
-      {/* NOW PLAYING — Shape Radio */}
-      <BSNowPlaying onOpen={goRadio} />
-
-      {/* THIS WEEK — trainer view, dots = booking density */}
-      <BSProWeekStrip
-        goCalendar={goCalendar}
-        selDay={selDay}
-        onSelectDay={setSelDay}
-        dots={dataByIdx.map(dd => ({
-          20: [t.RUST, t.RUST, t.BLUE],
-          21: [t.RUST, t.RUST, t.RUST],
-          22: [t.AMBER, t.GREEN],
-          23: [t.RUST, t.BLUE],
-          24: [t.RUST, t.RUST],
-          25: [],
-          26: [t.GREEN],
-        }[dd] || []))}
-      />
 
       <div style={{ padding: `24px ${t.padX}px 22px`, borderBottom: `1px solid ${t.RULE}` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
@@ -2941,6 +2942,17 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
         showDotTexture={false}
       />
 
+      <BSTicker items={(() => {
+        const tk = ticker || {};
+        return [
+          { label: 'CONSLT', value: tk.consultsToday != null ? `${tk.consultsToday} TODAY` : '5 TODAY', note: tk.upcomingSessions != null ? `${tk.upcomingSessions} UPCOMING` : '12 UPCOMING' },
+          { label: 'CLIENTS', value: tk.activeClients != null ? String(tk.activeClients) : '22', note: 'ACTIVE' },
+          { label: 'ADHR',   value: tk.proteinAdherencePct != null ? `${tk.proteinAdherencePct}%` : '78%', color: '#a3e09a', note: 'PROTEIN' },
+          { label: 'NEW',    value: tk.newClients7d != null ? `+${tk.newClients7d} 7D` : '+3 7D',    color: '#7ed4ff' },
+          { label: 'LOGS',   value: tk.avgLogsPerClient != null ? `${tk.avgLogsPerClient} AVG` : '22 AVG', note: 'PER CLIENT' },
+        ];
+      })()} />
+
       {/* Edition strip — sub-hero under the masthead */}
       <div style={{
         padding: `8px ${t.padX}px 12px`,
@@ -2956,19 +2968,28 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
         </span>
       </div>
 
-      <BSTicker items={(() => {
-        const tk = ticker || {};
-        return [
-          { label: 'CONSLT', value: tk.consultsToday != null ? `${tk.consultsToday} TODAY` : '5 TODAY', note: tk.upcomingSessions != null ? `${tk.upcomingSessions} UPCOMING` : '12 UPCOMING' },
-          { label: 'CLIENTS', value: tk.activeClients != null ? String(tk.activeClients) : '22', note: 'ACTIVE' },
-          { label: 'ADHR',   value: tk.proteinAdherencePct != null ? `${tk.proteinAdherencePct}%` : '78%', color: '#a3e09a', note: 'PROTEIN' },
-          { label: 'NEW',    value: tk.newClients7d != null ? `+${tk.newClients7d} 7D` : '+3 7D',    color: '#7ed4ff' },
-          { label: 'LOGS',   value: tk.avgLogsPerClient != null ? `${tk.avgLogsPerClient} AVG` : '22 AVG', note: 'PER CLIENT' },
-        ];
-      })()} />
+      {/* NOW PLAYING — Shape Radio */}
+      <BSNowPlaying onOpen={goRadio} />
 
+      {/* THIS WEEK — nutritionist view, dots = consult density */}
+      <BSProWeekStrip
+        goCalendar={goCalendar}
+        selDay={selDay}
+        onSelectDay={setSelDay}
+        dots={dataByIdx.map(dd => ({
+          20: [t.BLUE, t.BLUE],
+          21: [t.GREEN, t.BLUE, t.BLUE],
+          22: [t.BLUE],
+          23: [t.GREEN, t.BLUE],
+          24: [t.BLUE, t.BLUE],
+          25: [],
+          26: [t.AMBER],
+        }[dd] || []))}
+      />
+
+      {/* Quick chips — below the week strip to match the client home layout */}
       <div style={{
-        padding: `10px ${t.padX}px 12px`,
+        padding: `12px ${t.padX}px 12px`,
         borderBottom: `1px solid ${t.RULE}`,
         background: t.PAPER,
       }}>
@@ -3027,25 +3048,6 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
           ))}
         </div>
       </div>
-
-      {/* NOW PLAYING — Shape Radio */}
-      <BSNowPlaying onOpen={goRadio} />
-
-      {/* THIS WEEK — nutritionist view, dots = consult density */}
-      <BSProWeekStrip
-        goCalendar={goCalendar}
-        selDay={selDay}
-        onSelectDay={setSelDay}
-        dots={dataByIdx.map(dd => ({
-          20: [t.BLUE, t.BLUE],
-          21: [t.GREEN, t.BLUE, t.BLUE],
-          22: [t.BLUE],
-          23: [t.GREEN, t.BLUE],
-          24: [t.BLUE, t.BLUE],
-          25: [],
-          26: [t.AMBER],
-        }[dd] || []))}
-      />
 
       <div style={{ padding: `24px ${t.padX}px 22px`, borderBottom: `1px solid ${t.RULE}` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
