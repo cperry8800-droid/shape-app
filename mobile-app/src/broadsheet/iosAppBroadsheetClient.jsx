@@ -1738,6 +1738,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         rightKicker={`${bsHomeProgram.nutritionPhase || 'Cut'} · W${isoWeek}`}
         trailing={<BSAvatar init={bsMyInitials()} size={32} fill={bsMyTierColor()} onClick={onProfile} />}
         showDoubleRule={false}
+        showDotTexture={false}
       />
 
       <BSTicker items={(() => {
