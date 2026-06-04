@@ -46,6 +46,12 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-13 — Home quick-chips restyle (Today / Log / Habits / Score)
+- The 4 home quick-action chips got a bolder, more modern look: rounder (15px), a
+  soft **accent-tinted fill** + accent eyebrow, and a **bold display value** (15px/800,
+  was tiny mono). The **Today** chip is now **hollow** (transparent fill, white `INK`
+  border + text) instead of a solid black block.
+
 ### 2026-06-13 — Me-page featured goal box
 - Client **Me** page: new **featured goal** card right below the Shape Score card —
   teal-tinted, taps through to the Goal page. Eyebrow `YOUR GOAL · BY {date} ›` +
