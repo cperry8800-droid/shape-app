@@ -971,6 +971,11 @@ function BSRadioScreen({ onBack }) {
         <div style={{ position: 'relative', zIndex: 2, padding: `0 ${t.padX}px 18px` }}>
           {/* Now playing — centered hero */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+            {/* On air + active listeners */}
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, marginBottom: 16, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: CREAM }}>
+              <span style={{ width: 6, height: 6, borderRadius: 3, background: '#ff5b4a', animation: 'bs-blink 1.2s ease-in-out infinite' }} />
+              {onLive ? `On Air · ${r.LIVE.listeners.toLocaleString()}` : 'Coach Playlist'}
+            </div>
             {/* BPM ring */}
             <div style={{ position: 'relative', width: 112, height: 112 }}>
               <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: `1px solid ${CREAM25}` }} />
