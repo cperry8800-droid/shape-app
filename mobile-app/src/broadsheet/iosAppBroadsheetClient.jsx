@@ -8192,6 +8192,19 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
   const [showLeaderboard, setShowLeaderboard] = useStateBSC(false);
   const [showLibrary, setShowLibrary] = useStateBSC(false);
   const [showGoals, setShowGoals] = useStateBSC(false);
+  // Featured goal for the Me-page goal box (the client's top goal — training first).
+  const [meGoal, setMeGoal] = useStateBSC(BS_GOALS_DEFAULT.training[0]);
+  React.useEffect(() => {
+    if (!window.shapeDb?.getUserGoals) return;
+    window.shapeDb.getUserGoals('client_goals').then(d => {
+      if (d && typeof d === 'object') {
+        const tr = Array.isArray(d.training) ? d.training : [];
+        const nu = Array.isArray(d.nutrition) ? d.nutrition : [];
+        const g = tr[0] || nu[0] || null;
+        if (g) setMeGoal(g);
+      }
+    }).catch(() => {});
+  }, []);
   const scoreProfile = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client); // live points/tier when signed in
   const authProfile = window.ShapeAuth?.getCachedState?.().profile || {};
   const displayName = authProfile.full_name || 'Alex Rivera';
@@ -8569,6 +8582,34 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
                   </div>
                 ))}
               </div>
+            </button>
+          </div>
+        );
+      })()}
+
+      {/* FEATURED GOAL — top goal, tap to open the Goal page */}
+      {meGoal && (() => {
+        const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+        const gp = Math.min((Number(meGoal.cur) || 0) / (Number(meGoal.tgt) || 1), 1);
+        const dateLabel = meGoal.date ? new Date(meGoal.date).toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase() : null;
+        const words = String(meGoal.t || '').trim().split(/\s+/);
+        const last = words.length ? words.pop() : '';
+        const head = words.join(' ');
+        return (
+          <div style={{ padding: `12px ${t.padX}px 4px` }}>
+            <button onClick={() => setShowGoals(true)} style={{
+              width: '100%', textAlign: 'left', cursor: 'pointer', color: t.INK,
+              border: `1px solid ${teal}44`, borderRadius: 16,
+              background: `linear-gradient(150deg, ${teal}1f, ${teal}07 55%, ${t.PAPER2} 92%), ${t.PAPER2}`,
+              padding: 14,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>Your goal{dateLabel ? ` · By ${dateLabel}` : ''} ›</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{Math.round(gp * 100)}% there</span>
+              </div>
+              <div style={{ marginTop: 6, fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontSize: 26, fontWeight: 600, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.05 }}>{head ? head + ' ' : ''}<span style={{ fontStyle: 'italic', color: teal }}>{last}</span></div>
+              <div style={{ marginTop: 11, height: 7, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${gp * 100}%`, background: teal, borderRadius: 999 }} /></div>
+              {meGoal.sub && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK70, fontWeight: 600 }}>{meGoal.sub}</div>}
             </button>
           </div>
         );
