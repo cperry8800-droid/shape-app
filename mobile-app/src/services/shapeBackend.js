@@ -2851,6 +2851,35 @@ window.ShapeAI = {
   generatePlanDraft,
 };
 
+// Per-client program phase (training block + nutrition phase). Self-scoped by
+// default; a coach passes a client's userId to read/set their phase.
+async function getClientProgram(userId) {
+  if (!supabase || !state.user?.id) return null;
+  const uid = userId || state.user.id;
+  const { data, error } = await supabase
+    .from('client_programs')
+    .select('training_phase, nutrition_phase')
+    .eq('user_id', uid)
+    .maybeSingle();
+  if (error) return null;
+  return data ? { trainingPhase: data.training_phase, nutritionPhase: data.nutrition_phase } : null;
+}
+async function setClientProgram({ userId, trainingPhase, nutritionPhase } = {}) {
+  if (!supabase || !state.user?.id) return null;
+  const uid = userId || state.user.id;
+  const payload = { user_id: uid, updated_by: state.user.id, updated_at: new Date().toISOString() };
+  if (trainingPhase != null) payload.training_phase = trainingPhase;
+  if (nutritionPhase != null) payload.nutrition_phase = nutritionPhase;
+  const { data, error } = await supabase
+    .from('client_programs')
+    .upsert(payload, { onConflict: 'user_id' })
+    .select('training_phase, nutrition_phase')
+    .maybeSingle();
+  if (error) throw error;
+  return data ? { trainingPhase: data.training_phase, nutritionPhase: data.nutrition_phase } : null;
+}
+window.ShapeProgramApi = { get: getClientProgram, set: setClientProgram };
+
 window.ShapeMessages = {
   getOrCreateDirectConversation,
   getOrCreateMemberConversation,

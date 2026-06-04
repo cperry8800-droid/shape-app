@@ -1209,8 +1209,34 @@ function BSProClientPreviewPage({ client, onBack, onViewFullProfile }) {
   );
 }
 
-function BSProClientFullProfilePage({ client, onBack }) {
+function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const isNutri = role === 'nutritionist';
+  const [phase, setPhase] = useStateBSP({ trainingPhase: 'Build', nutritionPhase: 'Cut' });
+  // Real per-client store when the row carries a user id (uuid); otherwise the
+  // selector is local (demo roster has mock clients).
+  const clientUid = client && (client.userId || client.user_id || (typeof client.id === 'string' && client.id.includes('-') ? client.id : null));
+  useEffectBSP(() => {
+    if (clientUid && window.ShapeProgramApi?.get) {
+      window.ShapeProgramApi.get(clientUid).then(p => { if (p && (p.trainingPhase || p.nutritionPhase)) setPhase(prev => ({ ...prev, ...p })); }).catch(() => {});
+    }
+  }, [clientUid]);
+  const setPhaseKey = (key, val) => {
+    setPhase(prev => ({ ...prev, [key]: val }));
+    if (clientUid) { try { window.ShapeProgramApi?.set?.({ userId: clientUid, [key]: val }); } catch (e) {} }
+  };
+  const phaseRow = (key, label, opts) => (
+    <div style={{ marginTop: 12 }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 7 }}>{label}</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {opts.map(o => {
+          const on = phase[key] === o;
+          return <button key={o} onClick={() => setPhaseKey(key, o)} style={{ padding: '8px 13px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}1c` : 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em' }}>{o}</button>;
+        })}
+      </div>
+    </div>
+  );
   if (!client) return null;
   return (
     <BSPage>
@@ -1219,9 +1245,17 @@ function BSProClientFullProfilePage({ client, onBack }) {
         <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr', gap: 12, alignItems: 'center', padding: `${t.rowY + 6}px 0`, borderBottom: `1px solid ${t.HAIR}` }}>
           <BSAvatar init={client.i} fill={client.c} size={36} />
           <div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK }}>{client.n}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>{phase.nutritionPhase || 'Cut'} · {phase.trainingPhase || 'Build'}</div>
+            <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK }}>{client.n}</div>
             <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase' }}>{client.r}</div>
           </div>
+        </div>
+        {/* Program phase — coach sets the block the client sees on Home/Train/Eat */}
+        <div style={{ padding: `${t.rowY + 8}px 0`, borderBottom: `1px solid ${t.HAIR}` }}>
+          <BSEyebrow color={teal}>Program phase</BSEyebrow>
+          {phaseRow('trainingPhase', 'Training block', ['Build', 'Cut', 'Peak', 'Maintain', 'Deload', 'Base'])}
+          {phaseRow('nutritionPhase', 'Nutrition phase', ['Cut', 'Bulk', 'Maintain', 'Recomp', 'Refeed'])}
+          {!clientUid && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Demo client · saves once linked to a live member</div>}
         </div>
         <div style={{ padding: `${t.rowY + 8}px 0`, borderBottom: `1px solid ${t.HAIR}` }}>
           <BSEyebrow>Coach notes</BSEyebrow>

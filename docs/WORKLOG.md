@@ -46,6 +46,22 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Per-client program phase (coach-writable) + presence confirm
+- **Presence at launch** confirmed live (`getCurrentSession` → `startPresence`), so
+  "● N online" is app-wide.
+- **Program phase is now a real per-client store**: migration
+  `2026-06-04-client-program-phase.sql` adds `client_programs` (user_id PK,
+  training_phase, nutrition_phase) with RLS — **client owns their row; a coach with an
+  active sub can read AND set it** (via `is_coach_on_client`). **Run on Supabase.**
+- `shapeBackend.js`: `ShapeProgramApi.get(userId?)` / `.set({ userId, trainingPhase,
+  nutritionPhase })`.
+- Client `useBSProgram` hydrates from the real store (client_settings fallback); the
+  Settings phase dropdowns now also write to it.
+- **Coach app**: the client **full-profile** page shows a `{nutrition} · {training}`
+  phase eyebrow and **Training block / Nutrition phase chips the coach can set** —
+  persists to the client's row when the roster entry has a real user id (demo roster is
+  local-only, labeled as such).
+
 ### 2026-06-04 — Calendar Start session + real Reschedule; profile persistence
 - **Start session** (calendar workout sheet, client): fires a `shape:startWorkout`
   window event → the app shell closes the calendar, jumps to **Train**, and

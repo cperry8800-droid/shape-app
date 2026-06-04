@@ -563,13 +563,16 @@ function useBSProgram() {
   const [p, setP] = useStateBSC(() => (window.ShapeProgram?.get?.() || { trainingPhase: 'Build', nutritionPhase: 'Cut' }));
   React.useEffect(() => {
     let alive = true;
+    // Prefer the real per-client store (coach-writable); fall back to the
+    // self-only client_settings mirror for older data / offline.
+    const hydrate = (next) => { if (alive && next && (next.trainingPhase || next.nutritionPhase)) { window.ShapeProgram?.set?.(next); setP({ ...(window.ShapeProgram?.get?.() || {}) }); } };
+    if (window.ShapeProgramApi?.get) {
+      window.ShapeProgramApi.get().then(hydrate).catch(() => {});
+    }
     if (window.shapeDb?.getUserGoals) {
       window.shapeDb.getUserGoals('client_settings').then(s => {
-        if (!alive || !s || typeof s !== 'object') return;
-        const next = {};
-        if (s.trainingPhase) next.trainingPhase = s.trainingPhase;
-        if (s.nutritionPhase) next.nutritionPhase = s.nutritionPhase;
-        if (Object.keys(next).length) { window.ShapeProgram?.set?.(next); setP({ ...(window.ShapeProgram?.get?.() || {}) }); }
+        if (!s || typeof s !== 'object') return;
+        hydrate({ trainingPhase: s.trainingPhase, nutritionPhase: s.nutritionPhase });
       }).catch(() => {});
     }
     const onEvt = () => setP({ ...(window.ShapeProgram?.get?.() || {}) });
@@ -10043,7 +10046,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
       if (key === 'units') window.ShapeUnits?.set(next[key]); // propagate app-wide
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
-      if (key === 'trainingPhase' || key === 'nutritionPhase') window.ShapeProgram?.set?.({ [key]: next[key] });
+      if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
       return next;
     });
   };
@@ -10054,7 +10057,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
       if (key === 'units') window.ShapeUnits?.set(value);
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
-      if (key === 'trainingPhase' || key === 'nutritionPhase') window.ShapeProgram?.set?.({ [key]: next[key] });
+      if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
       return next;
     });
   };
