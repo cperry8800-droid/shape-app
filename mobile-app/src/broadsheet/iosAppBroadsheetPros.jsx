@@ -4031,187 +4031,207 @@ function BSProNotificationsPage({ onBack }) {
 function BSCoachGoalPlanPage({ role = 'trainer', onBack }) {
   const t = useBS();
   const isNutri = role === 'nutritionist';
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const accent = isNutri ? '#d8b25a' : '#d98a3c';
+  const rust = t.RUST || '#c0533b';
+  const purple = '#8a5cf6';
+  const green = t.GREEN || '#3f9a5c';
+  const muted = t.INK50;
+  const D = isNutri ? {
+    who: 'Dr. Maya Patel', whoRole: 'Registered Dietitian',
+    eyebrow: 'PRACTICE GOAL · DR. MAYA PATEL',
+    head: 'Six-K by', accentWord: 'September.',
+    sub: 'A full, sustainable practice — no burnout.',
+    featLabel: 'MONTHLY REVENUE', featVal: '$4.1k', featPct: 47,
+    start: '$2.4k', now: '$4.1k', target: '$6k', startL: 'START · JAN', targetL: 'TARGET · SEP 30',
+    stats: [
+      { l: 'MRR', v: '$4.1k', s: 'this month', c: accent },
+      { l: 'Active', v: '11', s: 'clients', c: teal },
+      { l: 'Retention', v: '92', s: '%', c: rust },
+      { l: 'Plans', v: '4', s: 'published', c: purple },
+    ],
+    trendVal: '$4.1k', trendMeta: 'MRR · 7 months', newTotal: 10,
+    milestones: [
+      { done: true, t: 'First 8 clients', sub: 'referrals + marketplace', when: 'Dec' },
+      { done: true, t: '$3k month', sub: 'crossed in February', when: 'Feb' },
+      { n: '03', t: '12 active clients', sub: 'two consults pending', when: 'Next', next: true },
+      { n: '04', t: '3rd plan published', sub: 'PCOS-focused', when: 'Jun' },
+      { n: '05', t: '$6k MRR · 15 clients', sub: 'sustainable roster', when: 'Sep 30' },
+    ],
+    growing: [
+      { t: 'Lean Cut', sub: '12 on it · $1,680 MRR', r: '$140' },
+      { t: 'Marketplace · #4', sub: 'Sports Nutrition · 1,120 views', r: 'View' },
+      { t: 'Shape RDs community', sub: '142 online · your posts', r: 'Open' },
+    ],
+    targets: [
+      { l: 'Consults', v: '8/14', s: 'booked this wk', c: rust },
+      { l: 'Plans', v: '3/5', s: 'delivered', c: purple },
+      { l: 'Reviews', v: '47', s: '+3 this month', c: teal },
+      { l: 'Retention', v: '92%', s: 'goal 95%', c: green },
+    ],
+    vision: 'Enough clients to do this full-time and well — but capped so every plan still gets my full attention. Six grand a month, fifteen people I actually help. That’s the practice I want.',
+  } : {
+    who: 'Jordan Chen', whoRole: 'Strength Coach',
+    eyebrow: 'PRACTICE GOAL · JORDAN CHEN',
+    head: 'Twenty by', accentWord: 'September.',
+    sub: 'Full roster, going full-time by fall.',
+    featLabel: 'ACTIVE CLIENTS', featVal: '17', featPct: 63,
+    start: '12', now: '17', target: '20', startL: 'START · JAN', targetL: 'TARGET · SEP 30',
+    stats: [
+      { l: 'Active', v: '17', s: 'clients', c: accent },
+      { l: 'MRR', v: '$6.2k', s: 'this month', c: teal },
+      { l: 'Retention', v: '94', s: '%', c: rust },
+      { l: 'New', v: '+3', s: 'this month', c: purple },
+    ],
+    trendVal: '$6.2k', trendMeta: 'MRR · 7 months', newTotal: 13,
+    milestones: [
+      { done: true, t: 'First 10 clients', sub: 'all word-of-mouth', when: 'Dec' },
+      { done: true, t: 'First $5k month', sub: 'crossed in March', when: 'Mar' },
+      { n: '03', t: '18 active clients', sub: 'one signup away', when: 'Next', next: true },
+      { n: '04', t: '2nd program live', sub: 'fat-loss block', when: 'Jun' },
+      { n: '05', t: '20 clients · $8k MRR', sub: 'full-time leap', when: 'Sep 30' },
+    ],
+    growing: [
+      { t: 'Push / Pull / Legs', sub: '48 on it · $5,760 MRR', r: '$120/mo' },
+      { t: 'Marketplace · #12', sub: 'Hypertrophy · SF · 1,842 views', r: 'View' },
+      { t: 'Shape Pros community', sub: '318 online · your posts', r: 'Open' },
+    ],
+    targets: [
+      { l: 'New intros', v: '3/4', s: 'booked this wk', c: rust },
+      { l: 'Content', v: '2/3', s: 'posts shipped', c: purple },
+      { l: 'Reviews', v: '86', s: '+4 this month', c: teal },
+      { l: 'Retention', v: '94%', s: 'goal 95%', c: green },
+    ],
+    vision: 'I want this to be the whole thing — quit the gym floor shifts, coach who I choose, and still be home for dinner. Twenty good clients is the number that makes it real.',
+  };
+  const init = D.who.replace(/^Dr\.?\s+/i, '').charAt(0).toUpperCase();
+  const SecHead = ({ eyebrow, title, action, onAction }) => (
+    <div style={{ padding: `22px ${t.padX}px 0`, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+      <div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>{eyebrow}</div>
+        <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{title}</div>
+      </div>
+      {action && <button onClick={onAction} style={{ border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: teal, paddingBottom: 4 }}>{action}</button>}
+    </div>
+  );
+  const statCard = (s, i) => (
+    <div key={i} style={{ borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: s.c }}>{s.l}</div>
+      <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: '-0.02em' }}>{s.v}</div>
+      <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted }}>{s.s}</div>
+    </div>
+  );
   return (
     <BSPage>
-      <BSPageHeader
-        kicker={`${isNutri ? 'Nutritionist' : 'Coach'} settings`}
-        title={<>Goal<br/>plan.</>}
-        trailing={<button onClick={onBack} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '8px 10px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Back</button>}
-      />
-      <BSCoachGoalPlan role={role} />
-      <BSFooter left={isNutri ? 'The Nutri Edition' : 'The Coach Edition'} right="Goal plan" />
-    </BSPage>
-  );
-}
-
-function BSCoachGoalPlan({ role = 'trainer' }) {
-  const t = useBS();
-  const isNutri = role === 'nutritionist';
-  const ACC   = isNutri ? t.RUST : t.AMBER;
-  const MONO  = t.MONO;
-  const DISP  = t.DISPLAY;
-
-  const goals = isNutri ? [
-    { kicker: 'GOAL · 73%',  pct: 0.73, title: '30 active clients by July',     a: '22',     b: '30',     note: '8 to go · +2/wk intake gets there Jun 22' },
-    { kicker: 'GOAL · 56%',  pct: 0.56, title: '$15k MRR by Q3',                a: '$8,420',  b: '$15,000', note: '$6.6k to go · 90% retention holds = Aug 30' },
-    { kicker: 'GOAL · 50%',  pct: 0.50, title: 'Publish 2 meal-plan templates', a: '1',      b: '2',      note: 'Low-FODMAP cut shipping next week' },
-    { kicker: 'GOAL · 89%',  pct: 0.89, title: '85% avg plan adherence',        a: '78%',    b: '85%',    note: '30d rolling · +7 pts needed' },
-  ] : [
-    { kicker: 'GOAL · 68%',  pct: 0.68, title: '50 active clients by July',     a: '34',     b: '50',     note: '16 to go · +3/wk pace gets there Jun 29' },
-    { kicker: 'GOAL · 74%',  pct: 0.74, title: '$20k MRR by Q3',                a: '$14,829', b: '$20,000', note: '$5.2k to go · 92% retention holds = Aug 16' },
-    { kicker: 'GOAL · 50%',  pct: 0.50, title: 'Publish 2 new programs',        a: '1',      b: '2',      note: 'Return-to-lifting shipping next week' },
-    { kicker: 'GOAL · 97%',  pct: 0.97, title: '95% avg client adherence',      a: '92%',    b: '95%',    note: '30d rolling · +3 pts needed' },
-  ];
-
-  // Revenue calculator — live sliders. Different defaults for nutritionist vs trainer.
-  const [rate,  setRate]  = useStateBSP(isNutri ? 120 : 85);   // $/consult or $/session
-  const [sess,  setSess]  = useStateBSP(isNutri ? 14 : 22);    // consults or sessions / wk
-  const [subs,  setSubs]  = useStateBSP(isNutri ? 540 : 486);  // $/wk meal-plan or program subs
-  const [sales, setSales] = useStateBSP(isNutri ? 220 : 330);  // $/wk handouts or workout sales
-
-  const grossWeek    = rate * sess + subs + sales;
-  const takeWeek     = Math.round(grossWeek * 0.85);
-  const grossMonth   = Math.round(grossWeek * 4.33);
-  const takeMonth    = Math.round(takeWeek * 4.33);
-  const grossQuarter = Math.round(grossWeek * 13);
-  const takeQuarter  = Math.round(takeWeek * 13);
-  const grossYear    = Math.round(grossWeek * 52);
-  const takeYear     = Math.round(takeWeek * 52);
-  const fmt = (n) => '$' + Math.round(n).toLocaleString('en-US');
-  const currentPaceWeek = 3897;
-  const delta = takeWeek - currentPaceWeek;
-
-  const eyebrow = (txt, color) => (
-    <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: color || t.INK50, fontWeight: 700 }}>{txt}</span>
-  );
-
-  const Slider = ({ label, value, set, min, max, step, fmtVal }) => (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'baseline', alignItems: 'baseline', marginBottom: 6, gap: 8 }}>
-        <span style={{ fontFamily: DISP, fontSize: 13, color: t.INK, letterSpacing: '-0.005em', flex: 1 }}>{label}</span>
-        <span style={{ fontFamily: MONO, fontSize: 11, color: t.INK, fontWeight: 700, letterSpacing: '0.04em', fontVariantNumeric: 'tabular-nums' }}>{fmtVal(value)}</span>
-      </div>
-      <input
-        type="range" min={min} max={max} step={step} value={value}
-        onChange={(e) => set(Number(e.target.value))}
-        className="bs-coach-range"
-        style={{ width: '100%', height: 4, accentColor: ACC, cursor: 'pointer', background: 'transparent' }}
-      />
-    </div>
-  );
-
-  const GoalRow = (g) => (
-    <div style={{
-      padding: `${t.rowY + 6}px 0`,
-      borderBottom: `1px solid ${t.HAIR}`,
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-        {eyebrow(g.kicker, ACC)}
-        {eyebrow('EDIT →', t.ACCENT)}
-      </div>
-      <div style={{ fontFamily: DISP, fontWeight: t.W.display, fontSize: 22, color: t.INK, letterSpacing: '-0.025em', lineHeight: 1.1, marginBottom: 12 }}>{g.title}</div>
-      <div style={{ height: 4, background: t.HAIR, position: 'relative', marginBottom: 6 }}>
-        <div style={{ position: 'absolute', inset: 0, width: `${g.pct * 100}%`, background: t.INK }} />
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.06em', marginBottom: 6, fontVariantNumeric: 'tabular-nums' }}>
-        <span>{g.a}</span>
-        <span>{g.b}</span>
-      </div>
-      <div style={{ fontFamily: MONO, fontSize: 9.5, color: t.INK70, letterSpacing: '0.04em' }}>{g.note}</div>
-    </div>
-  );
-
-  const StatCell = ({ l, v, sub, accent, borderLeft, borderTop }) => (
-    <div style={{
-      padding: 14,
-      borderLeft: borderLeft ? `1px solid ${t.RULE}` : 0,
-      borderTop:  borderTop  ? `1px solid ${t.RULE}` : 0,
-    }}>
-      <div style={{ marginBottom: 6 }}>{eyebrow(l)}</div>
-      <div style={{ fontFamily: DISP, fontWeight: t.W.display, fontSize: 28, color: t.INK, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
-      {sub && <div style={{ marginTop: 6, fontFamily: MONO, fontSize: 9, color: accent || t.INK50, letterSpacing: '0.04em', lineHeight: 1.5 }}>{sub}</div>}
-    </div>
-  );
-
-  return (
-    <>
-      {/* Range track styling — paper-and-ink */}
-      <style>{`
-        .bs-coach-range { -webkit-appearance: none; appearance: none; }
-        .bs-coach-range::-webkit-slider-runnable-track { height: 2px; background: ${t.RULE}; border-radius: 0; }
-        .bs-coach-range::-moz-range-track { height: 2px; background: ${t.RULE}; border-radius: 0; }
-        .bs-coach-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; background: ${t.INK}; margin-top: -6px; cursor: pointer; border-radius: 0; }
-        .bs-coach-range::-moz-range-thumb { width: 14px; height: 14px; background: ${t.INK}; border: 0; cursor: pointer; border-radius: 0; }
-      `}</style>
-
-      <BSSection title="Goal plan" meta="Q2 · 2026" />
-
-      {/* Goals — stacked rows, broadsheet rule-line list */}
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
-        {goals.map((g, i) => <GoalRow key={i} {...g} />)}
+      <div style={{ padding: `48px ${t.padX}px 0` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent, lineHeight: 1.5, minWidth: 0 }}>{D.eyebrow}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <button style={{ padding: '7px 12px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Edit</button>
+            <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: 0 }}>← Back</button>
+          </div>
+        </div>
+        <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, color: t.INK, lineHeight: 1.0, letterSpacing: '-0.03em' }}>{D.head} <span style={{ fontStyle: 'italic', color: accent }}>{D.accentWord}</span></div>
+        <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 15, fontStyle: 'italic', color: t.INK70, lineHeight: 1.4 }}>{D.sub}</div>
       </div>
 
-      {/* Revenue calculator — paper card with hairline frame */}
-      <BSSection title="Revenue calculator" kicker="Set your target" />
-      <div style={{
-        margin: `0 ${t.padX}px`,
-        padding: `${t.rowY + 4}px 14px`,
-        borderTop: `2px solid ${t.INK}`,
-        borderBottom: `1px solid ${t.RULE}`,
-        background: t.PAPER2,
-      }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <Slider label={isNutri ? 'Consult rate' : 'Session rate'}                              value={rate}  set={setRate}  min={40} max={250}  step={5}  fmtVal={v => '$' + v} />
-          <Slider label={isNutri ? 'Consults / week' : 'Sessions / week'}                        value={sess}  set={setSess}  min={0}  max={40}   step={1}  fmtVal={v => v} />
-          <Slider label={isNutri ? 'Meal-plan subscriptions / week' : 'Program subscriptions / week'}     value={subs}  set={setSubs}  min={0}  max={2000} step={10} fmtVal={v => '$' + v} />
-          <Slider label={isNutri ? 'One-time handouts & guides / week' : 'One-time workout sales / week'} value={sales} set={setSales} min={0}  max={1500} step={10} fmtVal={v => '$' + v} />
+      <div style={{ margin: `18px ${t.padX}px 0`, borderRadius: 18, border: `1px solid ${accent}44`, background: `linear-gradient(160deg, ${accent}22, ${accent}08 55%, ${t.PAPER2} 92%), ${t.PAPER2}`, padding: 18 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>{D.featLabel}</div>
+            <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 44, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: '-0.03em' }}>{D.featVal}</div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: accent, lineHeight: 1 }}>{D.featPct}%</div>
+            <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: muted }}>THERE</div>
+          </div>
+        </div>
+        <div style={{ marginTop: 16, position: 'relative', height: 6 }}>
+          <div style={{ position: 'absolute', inset: 0, borderRadius: 999, background: t.HAIR }} />
+          <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${D.featPct}%`, borderRadius: 999, background: accent }} />
+          <div style={{ position: 'absolute', left: `${D.featPct}%`, top: '50%', transform: 'translate(-50%,-50%)', width: 14, height: 14, borderRadius: '50%', background: accent, boxShadow: `0 0 0 3px ${t.PAPER2}` }} />
+        </div>
+        <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'baseline' }}>
+          <div style={{ textAlign: 'left' }}><div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK }}>{D.start}</div><div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', color: muted }}>{D.startL}</div></div>
+          <div style={{ textAlign: 'center' }}><div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: accent }}>{D.now}</div><div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', color: accent }}>NOW</div></div>
+          <div style={{ textAlign: 'right' }}><div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK }}>{D.target}</div><div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', color: muted }}>{D.targetL}</div></div>
         </div>
       </div>
 
-      {/* Take-home — 2×2, hairline-divided like the page-header stat block */}
-      <div style={{ margin: `0 ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
-          <StatCell l="Weekly take-home"    v={fmt(takeWeek)}    sub={`${delta >= 0 ? '+' : '−'}${fmt(Math.abs(delta)).slice(1)} vs $${currentPaceWeek.toLocaleString()} pace · ${fmt(grossWeek)} gross`} accent={delta >= 0 ? ACC : t.RUST} />
-          <StatCell l="Monthly take-home"   v={fmt(takeMonth)}   sub={`${fmt(grossMonth)} gross · 4.33 wks`} borderLeft />
-          <StatCell l="Quarterly take-home" v={fmt(takeQuarter)} sub={`${fmt(grossQuarter)} gross · 3 months`} borderTop />
-          <StatCell l="Annual take-home"    v={fmt(takeYear)}    sub={`${fmt(grossYear)} gross · 12 months`} borderTop borderLeft />
+      <div style={{ margin: `12px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        {D.stats.map(statCard)}
+      </div>
+
+      <SecHead eyebrow="Trend" title="Revenue" action="Payouts →" onAction={() => {}} />
+      <div style={{ margin: `10px ${t.padX}px 0`, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK }}>{D.trendVal}</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent }}>{D.trendMeta}</div>
+        </div>
+        <svg viewBox="0 0 300 70" preserveAspectRatio="none" style={{ width: '100%', height: 70, marginTop: 12, display: 'block' }}>
+          <polygon points="0,60 50,54 100,56 150,42 200,34 250,24 300,14 300,70 0,70" fill={`${accent}14`} />
+          <polyline points="0,60 50,54 100,56 150,42 200,34 250,24 300,14" fill="none" stroke={accent} strokeWidth="2" vectorEffect="non-scaling-stroke" />
+          <circle cx="300" cy="14" r="3.5" fill={accent} />
+        </svg>
+      </div>
+
+      <div style={{ margin: `10px ${t.padX}px 0`, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: accent }}>NEW CLIENTS · LAST 7 MONTHS</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', color: muted }}>{D.newTotal} TOTAL</div>
+        </div>
+        <div style={{ marginTop: 14, display: 'flex', alignItems: 'flex-end', gap: 8, height: 54 }}>
+          {[42, 38, 66, 46, 72, 50, 100].map((h, i, a) => <div key={i} style={{ flex: 1, height: `${h}%`, borderRadius: 4, background: i === a.length - 1 ? accent : `${accent}40` }} />)}
         </div>
       </div>
 
-      <div style={{ padding: `12px ${t.padX}px 18px`, fontFamily: t.DISPLAY || DISP, fontSize: 12, color: t.INK70, lineHeight: 1.5, fontStyle: 'italic' }}>
-        {isNutri
-          ? <>Based on consult earnings, meal-plan subscriptions, and one-time guides. Figures shown are <strong style={{ color: t.INK }}>take-home</strong> after Shape's 15% platform fee. Gross this week: {fmt(grossWeek)}.</>
-          : <>Based on session earnings, program subscriptions, and one-time workout sales. Figures shown are <strong style={{ color: t.INK }}>take-home</strong> after Shape's 15% platform fee. Gross this week: {fmt(grossWeek)}.</>}
-      </div>
-
-      {/* Momentum */}
-      <BSSection title="Momentum" meta="This quarter" />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}`, borderBottom: `1px solid ${t.RULE}` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', padding: `${t.rowY + 4}px 0` }}>
-          {(isNutri ? [
-            { v: '+8',     l: 'Net new clients',     sub: 'vs +4 last Q' },
-            { v: '+$2.1k', l: 'MRR growth',          sub: 'vs +$0.9k last Q' },
-            { v: '3',      l: 'Plans published',     sub: 'vs 1 last Q' },
-            { v: '+5 pts', l: 'Adherence',           sub: 'vs +2 pts last Q' },
-          ] : [
-            { v: '+11',    l: 'Net new clients',     sub: 'vs +6 last Q' },
-            { v: '+$3.4k', l: 'MRR growth',          sub: 'vs +$1.5k last Q' },
-            { v: '2',      l: 'Programs shipped',    sub: 'vs 1 last Q' },
-            { v: '+4 pts', l: 'Adherence',           sub: 'vs +1 pts last Q' },
-          ]).map((m, i) => (
-            <div key={i} style={{
-              padding: `12px ${i % 2 === 1 ? 0 : 14}px 12px ${i % 2 === 0 ? 0 : 14}px`,
-              borderLeft: i % 2 === 1 ? `1px solid ${t.RULE}` : 0,
-              borderTop:  i >= 2      ? `1px solid ${t.RULE}` : 0,
-            }}>
-              <div style={{ fontFamily: DISP, fontWeight: t.W.display, fontSize: 28, color: t.INK, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{m.v}</div>
-              <div style={{ marginTop: 6, fontFamily: DISP, fontSize: 13, color: t.INK, letterSpacing: '-0.005em', fontWeight: 600 }}>{m.l}</div>
-              <div style={{ marginTop: 3, fontFamily: MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.06em' }}>{m.sub}</div>
+      <SecHead eyebrow="The path" title="Milestones" />
+      <div style={{ marginTop: 6 }}>
+        {D.milestones.map((m, i) => (
+          <div key={i} style={{ padding: `13px ${t.padX}px`, borderTop: i ? `1px solid ${t.HAIR}` : 0, display: 'grid', gridTemplateColumns: '24px 1fr auto', gap: 12, alignItems: 'center' }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: m.next ? accent : muted }}>{m.done ? '✓' : m.n}</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: m.done ? muted : t.INK, letterSpacing: '-0.01em' }}>{m.t}</div>
+              <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: m.next ? accent : muted }}>{m.sub}</div>
             </div>
-          ))}
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', color: m.next ? accent : muted }}>{m.when}</span>
+          </div>
+        ))}
+      </div>
+
+      <SecHead eyebrow="Driving it" title="What's growing it" />
+      <div style={{ marginTop: 6 }}>
+        {D.growing.map((g, i) => (
+          <div key={i} style={{ padding: `14px ${t.padX}px`, borderTop: i ? `1px solid ${t.HAIR}` : 0, display: 'grid', gridTemplateColumns: '24px 1fr auto', gap: 12, alignItems: 'center' }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: muted }}>{String(i + 1).padStart(2, '0')}</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{g.t}</div>
+              <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: muted }}>{g.sub}</div>
+            </div>
+            <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.06em', color: g.r.charAt(0) === '$' ? muted : teal }}>{g.r}</span>
+          </div>
+        ))}
+      </div>
+
+      <SecHead eyebrow="This week" title="Targets that move it" />
+      <div style={{ margin: `10px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        {D.targets.map(statCard)}
+      </div>
+
+      <SecHead eyebrow="Your why" title="The vision" />
+      <div style={{ margin: `10px ${t.padX}px 0`, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontStyle: 'italic', color: t.INK, lineHeight: 1.55 }}>{'“'}{D.vision}{'”'}</div>
+        <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ width: 30, height: 30, borderRadius: 999, background: accent, color: '#241c08', display: 'grid', placeItems: 'center', fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 800 }}>{init}</span>
+          <div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK }}>{D.who}</div>
+            <div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>{D.whoRole}</div>
+          </div>
         </div>
       </div>
-    </>
+
+      <BSFooter left={isNutri ? 'The Nutri Edition' : 'The Coach Edition'} right="Practice goal" />
+    </BSPage>
   );
 }
 
