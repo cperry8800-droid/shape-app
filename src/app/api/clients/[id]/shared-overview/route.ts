@@ -175,7 +175,12 @@ export async function GET(
 
   // The client's goals — only when they've left sharing on (the RPC gates on
   // is_coach_on_client + the `share` flag, using this coach's session).
-  const { data: goals } = await supabase.rpc('get_client_goals', { p_user_id: clientId });
+  // Live KPI + strength rollups ride alongside (each gated on is_coach_on_client).
+  const [{ data: goals }, { data: stats }, { data: lifts }] = await Promise.all([
+    supabase.rpc('get_client_goals', { p_user_id: clientId }),
+    supabase.rpc('get_client_stats', { p_user_id: clientId }),
+    supabase.rpc('get_client_lifts', { p_user_id: clientId }),
+  ]);
 
   return NextResponse.json({
     client: clientProfile
@@ -186,5 +191,7 @@ export async function GET(
     sessions,
     plans,
     goals: goals ?? null,
+    stats: stats ?? null,
+    lifts: lifts ?? null,
   });
 }

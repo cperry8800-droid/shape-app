@@ -46,6 +46,19 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-13 — MESSAGE button wired + website coach client page redesigned
+- **MESSAGE** button (mobile client profile) is wired: both coach shells listen for
+  `shape:proMessageClient` → `getOrCreateMemberConversation` with the client + jump to the
+  **Chat** tab (thread appears at the top of the coach's DMs).
+- **`/api/clients/[id]/shared-overview`** now also returns **`stats`** (`get_client_stats`)
+  and **`lifts`** (`get_client_lifts`) alongside `goals` (all share-gated).
+- **Website coach client page** (`public/newdesign/coachClientDetail.jsx`) rebuilt in line
+  with the mobile redesign: **Overview / Analysis** tabs, role-accented (teal trainer / gold
+  nutritionist). Overview = KPI stat grid, **Key lifts** (trainer) / **Macros vs target**
+  (nutri), a **bodyweight / weight-trend** chart, plus the existing Care team / Current plans
+  / Goals / Upcoming+Recent. Analysis = a 6-up KPI grid + a trendline. Live values from the
+  new rollups with per-field demo fallback.
+
 ### 2026-06-13 — Nutritionist Adjust Plan + Schedule (distinct bodies)
 - **`BSProAdjustProgram`** now renders a **nutritionist-specific body** (gold) when
   `role==='nutritionist'`: ENERGY · Calorie target stepper (kcal, step 50), MACROS · Daily
