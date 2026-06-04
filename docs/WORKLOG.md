@@ -46,6 +46,12 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-13 — Soundtrack import resolves real Spotify metadata
+- `/api/coach/soundtracks` POST now resolves a pasted **Spotify** playlist link via the
+  client-credentials flow (`SPOTIFY_CLIENT_ID/SECRET`): pulls the playlist **name** (when
+  the coach left it blank), **track count**, and **duration**, stored in existing columns.
+  Graceful no-op when creds are absent or the link isn't a Spotify playlist. No schema change.
+
 ### 2026-06-13 — Coach soundtracks sync (web ↔ mobile) + Assign by-client tab
 - **Migration `2026-06-13-coach-soundtracks.sql`** (**run on Supabase**): `coach_soundtracks`
   (owner-scoped, RLS; `attached` jsonb of `{id,kind,name}`) + updated_at trigger.
