@@ -46,6 +46,16 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-13 — Coach plans persist + sync (coach_plans) — AI draft saves
+- **Migration `2026-06-13-coach-plans.sql`** (**run on Supabase**): `coach_plans`
+  (owner-scoped RLS; kind program|meal_plan; name/meta/price/published/detail jsonb).
+- **API `/api/coach/plans`** (GET ?kind / POST / PATCH / DELETE, owner-scoped).
+- `shapeBackend.js`: `ShapeCoachPlans.list/create/update/remove`.
+- **Mobile** `BSTrainerPrograms` / `BSNutriPlans`: catalogue now loads the coach's saved
+  plans from the API (merged ahead of the demo seeds). The **AI draft → Generate** saves a
+  real `coach_plans` row (persists + syncs), and **Duplicate** persists a copy
+  (localStorage fallback when signed out).
+
 ### 2026-06-13 — Soundtrack import resolves real Spotify metadata
 - `/api/coach/soundtracks` POST now resolves a pasted **Spotify** playlist link via the
   client-credentials flow (`SPOTIFY_CLIENT_ID/SECRET`): pulls the playlist **name** (when
