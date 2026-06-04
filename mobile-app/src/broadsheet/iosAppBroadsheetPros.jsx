@@ -3183,10 +3183,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
         const settings = [
           { l: 'Notifications', sub: 'Sessions · messages · plans', r: '→', onClick: () => setShowNotifications(true) },
           { l: 'Certifications', sub: isCoach ? 'NASM · FMS · CSCS' : 'RDN · CSSD', r: '→', onClick: onSettings },
-          { l: 'Shape Store', sub: `${(scoreProfile.available || 0).toLocaleString()} pts available`, r: '→', onClick: () => setShowStore(true) },
           { l: 'Help & support', sub: 'Docs · email · community', r: '→', onClick: () => setShowContact(true) },
-          { l: 'Terms of service', sub: 'Privacy · legal', r: '→', onClick: () => setShowTerms(true) },
-          { l: 'Sign out', sub: '', r: '', onClick: onLogout, danger: true },
         ];
         const head = (eyebrow, title, mt) => (
           <div style={{ marginTop: mt }}>
@@ -3194,12 +3191,21 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
             <div style={{ marginTop: 5, fontFamily: t.SERIF, fontSize: 30, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{title}</div>
           </div>
         );
+        const footLink = { background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', padding: 0 };
         return (
           <div style={{ padding: `4px ${t.padX}px 8px` }}>
             {head('YOUR PRACTICE', 'Shortcuts', 22)}
             <div style={{ marginTop: 8 }}>{shortcuts.map((it, i) => numRow(it, i, accent))}</div>
             {head('ACCOUNT', 'Settings', 26)}
             <div style={{ marginTop: 8 }}>{settings.map((it, i) => numRow(it, i, t.INK50))}</div>
+            {/* Utility footer — keeps Shape Store / Terms / Sign out reachable. */}
+            <div style={{ marginTop: 24, paddingTop: 16, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ display: 'flex', gap: 18 }}>
+                <button onClick={() => setShowStore(true)} style={footLink}>Shape Store</button>
+                <button onClick={() => setShowTerms(true)} style={footLink}>Terms</button>
+              </div>
+              <button onClick={onLogout} style={{ borderRadius: 999, border: `1px solid ${t.RUST}`, background: `${t.RUST}1c`, color: t.RUST, padding: '8px 16px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Sign out</button>
+            </div>
           </div>
         );
       })()}
