@@ -3774,13 +3774,18 @@ function bsSkParseIngredient(s) {
 // Recipe box — your personal recipes: All / Saved (liked) / meal-type filters,
 // each card sends to ITS OWN grocery list, with a ♥ Save toggle. Shape Kitchen
 // (the full catalog) stays reachable via the "Browse" card.
-function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onBrowseKitchen, onChangeView }) {
+function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView }) {
   const t = useBS();
   _bsScrollTopOnMount();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const lib = useBSLibrary();
   const [filter, setFilter] = useStateBSC('all');
   const [q, setQ] = useStateBSC('');
+  // Advanced filters (folded in from the old Shape Kitchen page).
+  const [diet, setDiet] = useStateBSC('All');
+  const [needs, setNeeds] = useStateBSC([]);
+  const [filtersOpen, setFiltersOpen] = useStateBSC(false);
+  const toggleNeed = (n) => setNeeds(prev => prev.includes(n) ? prev.filter(x => x !== n) : [...prev, n]);
   const recId = (r) => `recipe:${bsSkSlug(r.title)}`;
   const savedIds = new Set(lib.filter(x => x.kind === 'recipe').map(x => x.id));
   const tagHas = (r, word) => (r.tags || []).some(tg => String(tg).toLowerCase().includes(word));
@@ -3792,14 +3797,35 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onBrowseKitchen, 
     return tagHas(r, filter);
   };
   const query = q.trim().toLowerCase();
-  const list = recipes.filter(matchFilter).filter(r => !query || [r.title, r.by, ...(r.tags || [])].join(' ').toLowerCase().includes(query));
+  const list = recipes
+    .filter(matchFilter)
+    .filter(r => recipeMatchesDiet(r, diet))
+    .filter(r => needs.length === 0 || needs.every(n => recipeNeeds(r).includes(n)))
+    .filter(r => !query || [r.title, r.by, ...(r.tags || [])].join(' ').toLowerCase().includes(query));
   const savedCount = recipes.filter(r => savedIds.has(recId(r))).length;
   const pills = [['all', 'All', recipes.length], ['saved', 'Saved', savedCount], ['breakfast', 'Breakfast'], ['lunch', 'Lunch'], ['dinner', 'Dinner'], ['snack', 'Snack'], ['plant', 'Plant-based']];
+  const dietCount = (d) => recipes.filter(r => recipeMatchesDiet(r, d)).length;
+  const advCount = (diet !== 'All' ? 1 : 0) + needs.length;
+  const resetAdv = () => { setDiet('All'); setNeeds([]); };
+  const Chip = ({ label, on, color, onClick, count }) => (
+    <button onClick={onClick} style={{
+      flex: '0 0 auto', padding: '8px 12px', borderRadius: 999, cursor: 'pointer',
+      border: `1px solid ${on ? (color || t.INK) : t.RULE}`, background: on ? (color || t.INK) : 'transparent',
+      color: on ? (color ? '#0a0f0d' : t.PAPER) : t.INK70,
+      fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase',
+    }}>{label}{typeof count === 'number' ? ` ${count}` : ''}</button>
+  );
+  const Group = ({ label, children }) => (
+    <div>
+      <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: t.INK50, marginBottom: 7 }}>{label}</div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{children}</div>
+    </div>
+  );
   return (
     <BSPage>
       <div style={{ padding: `14px ${t.padX}px 0` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Eat · Recipe box</div>
-        <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>Recipe<br/><span style={{ fontStyle: 'italic', color: teal }}>box.</span></h1>
+        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Eat · Shape Kitchen</div>
+        <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>Shape<br/><span style={{ fontStyle: 'italic', color: teal }}>Kitchen.</span></h1>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, lineHeight: 1.4, color: t.INK70 }}>Save the meals you cook — send any recipe straight to its own grocery list.</div>
       </div>
       <BSNutritionTopTabs active="recipes" onChange={onChangeView} />
@@ -3812,12 +3838,39 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onBrowseKitchen, 
           return <button key={k} onClick={() => setFilter(k)} style={{ flex: '0 0 auto', padding: '8px 13px', borderRadius: 999, border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{label}{typeof count === 'number' ? ` · ${count}` : ''}</button>;
         })}
       </div>
-      <div style={{ padding: `0 ${t.padX}px 6px` }}>
-        <button onClick={onBrowseKitchen} style={{ width: '100%', padding: '12px 14px', borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>▍ Browse Shape Kitchen</span>
-          <span style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK50 }}>→</span>
+      {/* Advanced filters — Diet / Protein / Free-from / Goals (collapsible) */}
+      <div style={{ padding: `0 ${t.padX}px 6px`, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button onClick={() => setFiltersOpen(o => !o)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '11px 14px', borderRadius: 12, border: `1px solid ${advCount ? t.INK : t.RULE}`, background: t.PAPER2, color: t.INK, cursor: 'pointer' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
+            Filters
+            {advCount > 0 && <span style={{ minWidth: 16, height: 16, padding: '0 4px', borderRadius: 999, background: t.ACCENT, color: '#0a0f0d', fontSize: 9, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{advCount}</span>}
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', color: t.INK50 }}>
+            {list.length} recipes
+            <span style={{ display: 'inline-block', transform: filtersOpen ? 'rotate(180deg)' : 'none', transition: 'transform .18s ease' }}>▾</span>
+          </span>
         </button>
+        {advCount > 0 && (
+          <button onClick={resetAdv} style={{ flexShrink: 0, padding: '11px 12px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Clear</button>
+        )}
       </div>
+      {filtersOpen && (
+        <div style={{ padding: `2px ${t.padX}px 12px`, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <Group label="DIET">
+            <Chip label="All" on={diet === 'All'} onClick={() => setDiet('All')} count={recipes.length} />
+            {RECIPE_DIETS.map(d => <Chip key={d} label={d} on={diet === d} color={BS_SK_DIET_COLOR[d]} onClick={() => setDiet(diet === d ? 'All' : d)} count={dietCount(d)} />)}
+          </Group>
+          <Group label="PROTEIN">
+            {RECIPE_PROTEINS.map(d => <Chip key={d} label={d} on={diet === d} color={BS_SK_DIET_COLOR[d]} onClick={() => setDiet(diet === d ? 'All' : d)} count={dietCount(d)} />)}
+          </Group>
+          <Group label="FREE FROM">
+            {RECIPE_FREE_FROM.map(n => <Chip key={n} label={n} on={needs.includes(n)} onClick={() => toggleNeed(n)} count={recipes.filter(r => recipeNeeds(r).includes(n)).length} />)}
+          </Group>
+          <Group label="GOALS">
+            {RECIPE_GOALS.map(n => <Chip key={n} label={n} on={needs.includes(n)} onClick={() => toggleNeed(n)} count={recipes.filter(r => recipeNeeds(r).includes(n)).length} />)}
+          </Group>
+        </div>
+      )}
       <div style={{ padding: `8px ${t.padX}px 8px`, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {list.length === 0 ? (
           <div style={{ borderRadius: 18, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 24, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 15, color: t.INK70 }}>{filter === 'saved' ? 'No saved recipes yet — tap ♡ Save on any recipe.' : 'No recipes match.'}</div>
@@ -3837,101 +3890,11 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onBrowseKitchen, 
                   <span style={{ display: 'block', marginTop: 5, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.kcal} kcal · {r.macros.p}P / {r.macros.c}C / {r.macros.f}F · {r.time}</span>
                 </span>
               </button>
-              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                <button onClick={() => onSendToGrocery(r)} style={{ flex: 1, padding: '11px', borderRadius: 999, border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Send to grocery list →</button>
-                <button onClick={() => bsLibToggle({ id, kind: 'recipe', title: r.title, meta: `${r.kcal} kcal · serves ${r.servings}`, coach: r.by })} style={{ flex: '0 0 auto', padding: '11px 14px', borderRadius: 999, border: `1px solid ${saved ? teal : t.RULE}`, background: saved ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: saved ? teal : t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{saved ? '✓ Saved' : '♡ Save'}</button>
+              <div style={{ display: 'flex', gap: 7, marginTop: 10 }}>
+                <button onClick={() => onSendToGrocery(r)} style={{ flex: 1, padding: '7px 10px', borderRadius: 999, border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Send to grocery list →</button>
+                <button onClick={() => bsLibToggle({ id, kind: 'recipe', title: r.title, meta: `${r.kcal} kcal · serves ${r.servings}`, coach: r.by })} style={{ flex: '0 0 auto', padding: '7px 11px', borderRadius: 999, border: `1px solid ${saved ? teal : t.RULE}`, background: saved ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: saved ? teal : t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{saved ? '✓ Saved' : '♡ Save'}</button>
               </div>
             </div>
-          );
-        })}
-      </div>
-      <BSFooter right="Recipe box" />
-    </BSPage>
-  );
-}
-
-function BSShapeKitchen({ onChangeView, onOpenRecipe }) {
-  const t = useBS();
-  _bsScrollTopOnMount();
-  const [diet, setDiet] = useStateBSC('All');
-  const [needs, setNeeds] = useStateBSC([]);
-  const [filtersOpen, setFiltersOpen] = useStateBSC(false);
-  const all = SHAPE_KITCHEN_RECIPES;
-  const toggleNeed = (n) => setNeeds(prev => prev.includes(n) ? prev.filter(x => x !== n) : [...prev, n]);
-  const filtered = all.filter(r => recipeMatchesDiet(r, diet) && (needs.length === 0 || needs.every(n => recipeNeeds(r).includes(n))));
-  const dietCount = (d) => all.filter(r => recipeMatchesDiet(r, d)).length;
-  const Chip = ({ label, on, color, onClick, count }) => (
-    <button onClick={onClick} style={{
-      flex: '0 0 auto', padding: '8px 12px', borderRadius: 999, cursor: 'pointer',
-      border: `1px solid ${on ? (color || t.INK) : t.RULE}`, background: on ? (color || t.INK) : 'transparent',
-      color: on ? (color ? '#0a0f0d' : t.PAPER) : t.INK70,
-      fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase',
-    }}>{label}{typeof count === 'number' ? ` ${count}` : ''}</button>
-  );
-  const Group = ({ label, children }) => (
-    <div>
-      <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: t.INK50, marginBottom: 7 }}>{label}</div>
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{children}</div>
-    </div>
-  );
-  const activeCount = (diet !== 'All' ? 1 : 0) + needs.length;
-  const resetFilters = () => { setDiet('All'); setNeeds([]); };
-  return (
-    <BSPage>
-      <BSPageHeader kicker="Section · Nutrition" title={<>Shape<br/>Kitchen.</>} />
-      <BSNutritionTopTabs active="recipes" onChange={onChangeView} />
-      {/* Collapsible filter disclosure — keeps the recipe grid front-and-centre. */}
-      <div style={{ borderBottom: `1px solid ${t.RULE}` }}>
-        <div style={{ padding: `12px ${t.padX}px`, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button onClick={() => setFiltersOpen(o => !o)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '11px 14px', borderRadius: 12, border: `1px solid ${activeCount ? t.INK : t.RULE}`, background: t.PAPER2, color: t.INK, cursor: 'pointer' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
-              Filters
-              {activeCount > 0 && <span style={{ minWidth: 16, height: 16, padding: '0 4px', borderRadius: 999, background: t.ACCENT, color: '#0a0f0d', fontSize: 9, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{activeCount}</span>}
-            </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', color: t.INK50 }}>
-              {filtered.length} recipes
-              <span style={{ display: 'inline-block', transform: filtersOpen ? 'rotate(180deg)' : 'none', transition: 'transform .18s ease' }}>▾</span>
-            </span>
-          </button>
-          {activeCount > 0 && (
-            <button onClick={resetFilters} style={{ flexShrink: 0, padding: '11px 12px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Clear</button>
-          )}
-        </div>
-        {filtersOpen && (
-          <div style={{ padding: `2px ${t.padX}px 14px`, display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <Group label="DIET">
-              <Chip label="All" on={diet === 'All'} onClick={() => setDiet('All')} count={all.length} />
-              {RECIPE_DIETS.map(d => <Chip key={d} label={d} on={diet === d} color={BS_SK_DIET_COLOR[d]} onClick={() => setDiet(diet === d ? 'All' : d)} count={dietCount(d)} />)}
-            </Group>
-            <Group label="PROTEIN">
-              {RECIPE_PROTEINS.map(d => <Chip key={d} label={d} on={diet === d} color={BS_SK_DIET_COLOR[d]} onClick={() => setDiet(diet === d ? 'All' : d)} count={dietCount(d)} />)}
-            </Group>
-            <Group label="FREE FROM">
-              {RECIPE_FREE_FROM.map(n => <Chip key={n} label={n} on={needs.includes(n)} onClick={() => toggleNeed(n)} count={all.filter(r => recipeNeeds(r).includes(n)).length} />)}
-            </Group>
-            <Group label="GOALS">
-              {RECIPE_GOALS.map(n => <Chip key={n} label={n} on={needs.includes(n)} onClick={() => toggleNeed(n)} count={all.filter(r => recipeNeeds(r).includes(n)).length} />)}
-            </Group>
-          </div>
-        )}
-      </div>
-      <div style={{ padding: `14px ${t.padX}px 6px`, display: 'grid', gap: 12 }}>
-        {filtered.map((r, i) => {
-          const dc = BS_SK_DIET_COLOR[r.diet] || t.ACCENT;
-          return (
-            <button key={`${r.title}-${i}`} onClick={() => onOpenRecipe(r)} style={{ textAlign: 'left', cursor: 'pointer', padding: 0, border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: t.RADIUS_SM, overflow: 'hidden', display: 'block' }}>
-              <div style={{ height: 96, background: r.hero, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: 10 }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', color: '#0a0f0d', background: dc, padding: '3px 8px', borderRadius: 999 }}>{(r.diet || '').toUpperCase()}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', color: '#fff', background: 'rgba(0,0,0,0.4)', padding: '3px 8px', borderRadius: 999 }}>{r.time.toUpperCase()} · {r.kcal} KCAL</span>
-              </div>
-              <div style={{ padding: '12px 14px 14px' }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', color: t.ACCENT, marginBottom: 6 }}>{(r.byRole || '').toUpperCase()} · {r.by.toUpperCase()}</div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', marginBottom: 8 }}>{r.title}</div>
-                <div style={{ display: 'flex', gap: 12, fontFamily: t.MONO, fontSize: 10, color: t.INK70 }}>
-                  <span>{r.macros.p}P</span><span>{r.macros.c}C</span><span>{r.macros.f}F</span>
-                </div>
-              </div>
-            </button>
           );
         })}
       </div>
@@ -4144,7 +4107,6 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
   const bsEatProgram = useBSProgram();
   const [view, setView] = useStateBSC('eat'); // 'eat' | 'grocery' | 'library'
   const [skRecipe, setSkRecipe] = useStateBSC(null); // selected Shape Kitchen recipe
-  const [showKitchen, setShowKitchen] = useStateBSC(false); // browse the full Shape Kitchen catalog
   const [previewMealId, setPreviewMealId] = useStateBSC(null);
   const [previewRecipe, setPreviewRecipe] = useStateBSC(false);
   const [previewRecipeReturnView, setPreviewRecipeReturnView] = useStateBSC('eat');
@@ -5186,21 +5148,12 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
         />
       );
     }
-    if (showKitchen) {
-      return (
-        <BSShapeKitchen
-          onChangeView={(v) => { setSkRecipe(null); setShowKitchen(false); setView(v); }}
-          onOpenRecipe={(r) => setSkRecipe(r)}
-        />
-      );
-    }
     return (
       <BSRecipeBox
         recipes={SHAPE_KITCHEN_RECIPES}
         onChangeView={(v) => { setSkRecipe(null); setView(v); }}
         onOpenRecipe={(r) => setSkRecipe(r)}
         onSendToGrocery={sendRecipeToGrocery}
-        onBrowseKitchen={() => setShowKitchen(true)}
       />
     );
   }
