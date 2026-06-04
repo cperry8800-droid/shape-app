@@ -46,6 +46,17 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Tier-colored chat + tappable avatars → public profile
+- **Feed bubbles**: avatar fill **and** bubble tint now follow the author's **tier**
+  (`bsPostTier` → `bsTierColor`; explicit `tier` wins, else stable per-name). Role tag
+  keeps its role color.
+- **Alignment**: in the mixed **Community** feed coaches sit left / members + you sit
+  right (conversation feel, matches the mock); single-role sections keep "only your own
+  on the right".
+- **Tappable avatars** (and names) open a new **`BSPublicProfile`** page — works for
+  **clients and coaches** — tier-ringed avatar, tier·role, bio, **Message →**, plus a
+  **Coaching →** link for coaches. Gated on `p.public !== false` (privacy-aware).
+
 ### 2026-06-04 — Per-client program phase (coach-writable) + presence confirm
 - **Presence at launch** confirmed live (`getCurrentSession` → `startPresence`), so
   "● N online" is app-wide.
