@@ -2192,120 +2192,169 @@ function BSPlanGeneratorCard({ role = 'trainer', kind = 'workout' }) {
 
 function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   const t = useBS();
-  const [planTab, setPlanTab] = useStateBSP(initialTab);
-  useEffectBSP(() => {
-    setPlanTab(initialTab);
-  }, [initialTab]);
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const purple = '#8a5cf6';
+  const [showSoundtracks, setShowSoundtracks] = useStateBSP(false);
+  const [drafting, setDrafting] = useStateBSP(false);
+  const [desc, setDesc] = useStateBSP('');
+  const [focus, setFocus] = useStateBSP('Full body');
+  const [exp, setExp] = useStateBSP('Intermediate');
+  const [equip, setEquip] = useStateBSP('Full gym');
+  const [length, setLength] = useStateBSP('45 min');
+  const [draftStatus, setDraftStatus] = useStateBSP('');
+
   const programs = [
-    { n: 'Cut Block 6',         v: '12 wk program', meta: '14 clients - subscription', c: t.AMBER, price: '$149/mo' },
-    { n: 'Build Hypertrophy',   v: '8 wk program',  meta: '9 clients - subscription',  c: t.BLUE,  price: '$129/mo' },
-    { n: 'Peak Push/Pull',      v: '4 wk program',  meta: '6 clients - subscription',  c: t.RUST,  price: '$89/mo' },
-    { n: 'Strength Foundation', v: '6 wk program',  meta: '4 clients - subscription',  c: t.GREEN, price: '$99/mo' },
+    { n: 'Push / Pull / Legs', meta: '12 wk · 48 on it · 4.9 ★', price: '$120/mo' },
+    { n: 'Starting Strength', meta: '8 wk · 31 on it · 4.8 ★', price: '$95' },
+    { n: 'Fat Loss 101', meta: '12 wk · 22 on it · 4.7 ★', price: '$160' },
+    { n: 'Hypertrophy Block', meta: '8 wk · 19 on it · 4.8 ★', price: '$110' },
   ];
-  const workouts = [
-    { n: 'Upper Push - Peak',       v: 'Single workout', meta: '60 min - dumbbell + bench',  c: t.RUST,  price: '$19' },
-    { n: 'Marathon Strength Block', v: 'One-time plan',  meta: '45 min - runner-specific',   c: t.BLUE,  price: '$24' },
-    { n: 'Tempo Run Prep',          v: 'Single workout', meta: '35 min - warmup + strides',   c: t.GREEN, price: '$15' },
-    { n: 'Hotel Gym Full Body',     v: 'Single workout', meta: '40 min - minimal equipment',  c: t.AMBER, price: '$17' },
+  const cues = [
+    { n: 'Push Day cues', meta: '6 videos · 9 min · used by 14' },
+    { n: 'Warmup routines', meta: '8 videos · 11 min · used by 31' },
+    { n: 'Cooldown & stretch', meta: '5 videos · 7 min · used by 17' },
   ];
-  const musicTargets = [
-    ...programs.map((p) => ({ id: `program-${p.n}`, name: p.n, type: 'PROGRAM' })),
-    ...workouts.map((w) => ({ id: `workout-${w.n}`, name: w.n, type: 'WORKOUT' })),
-  ];
-  const ProductRow = ({ item, i, arr, action }) => (
-    <div style={{
-      marginBottom: i === arr.length - 1 ? 0 : 10,
-      padding: '13px 12px',
-      border: `1px solid ${t.RULE}`,
-      borderRadius: 12,
-      background: t.SURFACE,
-      boxShadow: '0 8px 18px rgba(0,0,0,0.24)',
-      display: 'grid', gridTemplateColumns: '12px 1fr auto', gap: 12, alignItems: 'center',
-    }}>
-      <div style={{ width: 9, height: 9, borderRadius: 99, background: item.c, boxShadow: `0 0 0 4px ${item.c}22` }} />
-      <div style={{ minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.n}</div>
-          <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 800, flexShrink: 0 }}>{item.price}</span>
+
+  if (showSoundtracks) return <BSProSoundtracks role="trainer" onBack={() => setShowSoundtracks(false)} />;
+
+  // ── AI draft sheet (workout builder) ──
+  if (drafting) {
+    const chips = (label, value, set, opts) => (
+      <div style={{ marginTop: 18 }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: t.INK50, marginBottom: 9 }}>{label}</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {opts.map(o => {
+            const on = value === o;
+            return <button key={o} onClick={() => set(o)} style={{ borderRadius: 999, padding: '9px 15px', cursor: 'pointer', border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}1c` : 'transparent', color: on ? teal : t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.06em' }}>{o}</button>;
+          })}
         </div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{item.v} - {item.meta}</div>
       </div>
-      <span style={{ borderRadius: 999, border: `1px solid ${t.SURFACE_BORDER}`, padding: '6px 8px', background: t.PAPER2, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 900 }}>
-        {action}
-      </span>
+    );
+    const generate = async () => {
+      setDraftStatus('Generating…');
+      try { await window.ShapeAI?.generatePlanDraft?.({ kind: 'workout', goal: focus, client: '', level: exp, duration: length, preferences: `${desc} · ${equip}`, equipment: equip }); } catch (e) {}
+      setDraftStatus('Draft ready · edit before publishing');
+      setTimeout(() => setDrafting(false), 900);
+    };
+    return (
+      <BSPage>
+        <div style={{ padding: `50px ${t.padX}px 28px` }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: teal }}>✦ AI DRAFT · WORKOUT</div>
+            <button onClick={() => setDrafting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>CANCEL</button>
+          </div>
+          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Describe the <span style={{ fontStyle: 'italic', color: teal }}>workout.</span></div>
+          <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={3} placeholder="e.g. 45-min upper body for an intermediate lifter, shoulder-friendly, dumbbells only" style={{ width: '100%', boxSizing: 'border-box', marginTop: 18, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: 14, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, resize: 'vertical', outline: 'none' }} />
+          {chips('FOCUS', focus, setFocus, ['Push', 'Pull', 'Legs', 'Upper', 'Lower', 'Full body', 'Conditioning'])}
+          {chips('EXPERIENCE', exp, setExp, ['Beginner', 'Intermediate', 'Advanced'])}
+          {chips('EQUIPMENT', equip, setEquip, ['Full gym', 'Dumbbells', 'Bodyweight'])}
+          {chips('LENGTH', length, setLength, ['30 min', '45 min', '60 min', '75 min'])}
+          <button onClick={generate} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: teal, color: '#04201d', padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>✦ {draftStatus || 'Generate draft'}</button>
+          <div style={{ marginTop: 12, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>You can edit everything before publishing</div>
+        </div>
+        <BSFooter left="AI draft" right="Workout" />
+      </BSPage>
+    );
+  }
+
+  const numRow = (it, i, trailing) => (
+    <div key={i} onClick={it.onClick} style={{ display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 12, alignItems: 'center', padding: '15px 0', borderTop: `1px solid ${t.HAIR}`, cursor: it.onClick ? 'pointer' : 'default' }}>
+      <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</span>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{it.n}</div>
+        <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.04em', color: t.INK50 }}>{it.meta}</div>
+      </div>
+      <span style={{ fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.04em', color: t.INK50, whiteSpace: 'nowrap' }}>{trailing}</span>
     </div>
   );
-  const PlanTabs = () => (
-    <div style={{ padding: `0 ${t.padX}px 14px`, borderBottom: `1px solid ${t.HAIR}` }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, padding: 4, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 14, background: t.SURFACE, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 18px rgba(0,0,0,0.22)' }}>
-        {[
-          { key: 'programs', label: 'Programs' },
-          { key: 'workouts', label: 'Workouts' },
-          { key: 'playlists', label: 'Playlists' },
-        ].map((tab, i) => {
-          const active = planTab === tab.key;
-          return (
-            <button key={tab.key} onClick={() => setPlanTab(tab.key)} style={{ borderRadius: 10,
-              minHeight: 40,
-              border: 0,
-              background: active ? t.INK : 'transparent',
-              color: active ? t.PAPER : t.INK,
-              boxShadow: active ? '0 6px 12px rgba(10,13,12,0.16)' : 'none',
-              fontFamily: t.MONO,
-              fontSize: 9,
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
-              fontWeight: 800,
-              cursor: 'pointer',
-            }}>
-              {tab.label}
-            </button>
-          );
-        })}
+  const secHead = (eyebrow, title, trailing, onTrailing) => (
+    <div style={{ marginTop: 26, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+      <div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: teal }}>{eyebrow}</div>
+        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{title}</div>
       </div>
+      {trailing && <button onClick={onTrailing} style={{ border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', color: teal, paddingBottom: 4 }}>{trailing}</button>}
     </div>
   );
+
   return (
     <BSPage>
-      <BSPageHeader kicker="Section · Plans" title={<>Programs<br/>& workouts.</>} trailing={<BSProAvatarButton size={32} />} />
-      <PlanTabs />
-      {planTab === 'programs' && <>
-      <BSPlanGeneratorCard role="trainer" kind="program" />
-      <BSSection title="Programs" meta="Recurring blocks - subscriptions" />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        {programs.map((p, i, arr) => <ProductRow key={p.n} item={p} i={i} arr={arr} action="EDIT" />)}
-      </div>
-      </>}
-
-      {planTab === 'workouts' && <>
-      <BSPlanGeneratorCard role="trainer" kind="workout" />
-      <BSSection title="Workouts" meta="One-time purchases - single sessions" />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        {workouts.map((w, i, arr) => <ProductRow key={w.n} item={w} i={i} arr={arr} action="SELL" />)}
-      </div>
-      </>}
-
-      {planTab === 'playlists' && (
-      <BSCoachPlaylistStudio
-        role="trainer"
-        targets={musicTargets}
-        title="Playlist studio"
-        meta="Spotify + Apple Music"
-        copy="Create custom playlists, attach them to programs or one-time workouts, and send playable Spotify or Apple Music links to clients."
-      />
-      )}
-
-      {planTab !== 'playlists' && (
-      <div style={{ margin: `16px ${t.padX}px 0`, padding: 14, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 14, background: t.PAPER2, boxShadow: t.ELEVATION_SOFT }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 800 }}>
-          Storefront setup
+      <div style={{ padding: `46px ${t.padX}px 28px` }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+          <div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: teal }}>4 PUBLISHED · 1 DRAFT</div>
+            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>Your<br /><span style={{ fontStyle: 'italic', color: teal }}>programs.</span></div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <BSProAvatarButton size={34} />
+            <button onClick={() => setDrafting(true)} aria-label="New program" style={{ width: 38, height: 38, borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 18, fontWeight: 400, cursor: 'pointer', lineHeight: 1 }}>+</button>
+          </div>
         </div>
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.35, color: t.INK, fontWeight: 600 }}>
-          Programs are multi-week products. Workouts are single purchases clients can buy once, save, and run anytime.
+
+        {/* Generate with AI */}
+        <button onClick={() => setDrafting(true)} style={{ width: '100%', marginTop: 18, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 14, alignItems: 'center', borderRadius: 16, border: `1px solid ${teal}44`, background: `linear-gradient(150deg, ${teal}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 16 }}>
+          <span style={{ width: 48, height: 48, borderRadius: 12, background: teal, color: '#04201d', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>✦</span>
+          <div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: teal }}>GENERATE WITH AI</div>
+            <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, lineHeight: 1.15 }}>Draft a workout in seconds</div>
+          </div>
+          <span style={{ color: teal, fontSize: 16 }}>→</span>
+        </button>
+        <button onClick={() => setDrafting(true)} style={{ display: 'block', width: '100%', marginTop: 12, textAlign: 'center', border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Or start from blank →</button>
+
+        {/* Top seller */}
+        <div style={{ marginTop: 18, borderRadius: 18, border: `1px solid ${teal}44`, background: `linear-gradient(150deg, ${teal}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 18 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: teal }}>TOP SELLER</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>$120/MO</span>
+          </div>
+          <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Push / Pull / <span style={{ fontStyle: 'italic', color: teal }}>Legs.</span></div>
+          <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.04em' }}>12 weeks · 48 on it · $5,760 MRR · 4.9 ★</div>
+          <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
+            <button style={{ borderRadius: 999, border: 0, background: teal, color: '#04201d', padding: '9px 18px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>EDIT</button>
+            <button style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '9px 16px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>DUPLICATE</button>
+            <button style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '9px 16px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SHARE →</button>
+          </div>
         </div>
+
+        {/* Catalogue */}
+        {secHead('TRACKLIST', 'Catalogue', 'SORT →', () => {})}
+        <div style={{ marginTop: 6 }}>{programs.map((p, i) => numRow(p, i, p.price))}</div>
+
+        {/* Cues & mobility (video playlists) */}
+        {secHead('PLAYLISTS', 'Cues & mobility', 'NEW →', () => {})}
+        <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 13, alignItems: 'center', borderRadius: 16, border: `1px solid ${purple}44`, background: `linear-gradient(150deg, ${purple}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 14 }}>
+          <span style={{ width: 50, height: 50, borderRadius: 12, background: `linear-gradient(150deg, ${purple}, ${purple}99)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="#ffffffd0"><path d="M9 17a3 3 0 1 1-2-2.83V4l11-2v11a3 3 0 1 1-2-2.83V5.2L9 6.6V17z" /></svg>
+          </span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>Mobility essentials</div>
+            <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.02em' }}>12 videos · 18 min · Used by 23</div>
+          </div>
+          <span style={{ width: 40, height: 40, borderRadius: 999, background: `${purple}2e`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: purple, fontSize: 14 }}>▶</span>
+        </div>
+        <div style={{ marginTop: 4 }}>{cues.map((c, i) => numRow({ ...c, onClick: () => {} }, i, '→'))}</div>
+
+        {/* Soundtracks → Soundtracks page */}
+        {secHead('SOUNDTRACKS', 'Music library', 'ALL →', () => setShowSoundtracks(true))}
+        <button onClick={() => setShowSoundtracks(true)} style={{ width: '100%', marginTop: 10, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 13, alignItems: 'center', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 13 }}>
+          <span style={{ position: 'relative', width: 54, height: 54, borderRadius: 12, background: `linear-gradient(150deg, ${t.RUST}, ${t.RUST}99)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {bsEqGlyph('#ffffffd0')}
+            <span style={{ position: 'absolute', top: 6, right: 6, width: 9, height: 9, borderRadius: 999, background: '#1ED760', border: '1.5px solid rgba(0,0,0,0.25)' }} />
+          </span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.2 }}>Attach music to any workout</div>
+            <div style={{ marginTop: 5, display: 'flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>
+              <span style={{ width: 6, height: 6, borderRadius: 999, background: '#1ED760' }} />SPOTIFY
+              <span style={{ width: 6, height: 6, borderRadius: 999, background: '#fc3c44', marginLeft: 4 }} />APPLE MUSIC
+            </div>
+            <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50 }}>· 6 playlists</div>
+          </div>
+          <span style={{ color: purple, fontSize: 16 }}>→</span>
+        </button>
       </div>
-      )}
-      <BSFooter left="The Coach Edition" right="Pg 3 of 4" />
+      <BSFooter left="The Coach Edition" right="Programs" />
     </BSPage>
   );
 }
@@ -3028,7 +3077,10 @@ function BSNutriPlans() {
             <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>4 PUBLISHED · 40 ON IT</div>
             <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>Your<br /><span style={{ fontStyle: 'italic', color: gold }}>plans.</span></div>
           </div>
-          <button onClick={() => setDrafting(true)} aria-label="New plan" style={{ flexShrink: 0, width: 38, height: 38, borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 18, fontWeight: 400, cursor: 'pointer', lineHeight: 1 }}>+</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <BSProAvatarButton size={34} />
+            <button onClick={() => setDrafting(true)} aria-label="New plan" style={{ width: 38, height: 38, borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 18, fontWeight: 400, cursor: 'pointer', lineHeight: 1 }}>+</button>
+          </div>
         </div>
 
         {/* Generate with AI */}
@@ -3507,14 +3559,14 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
 
       <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 14 }}>
         {/* Practice goal */}
-        <button onClick={() => setShowGoals(true)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', color: t.INK, border: `1px solid ${accent}33`, borderRadius: 18, background: `linear-gradient(155deg, ${accent}14, ${t.PAPER2} 70%), ${t.PAPER2}`, padding: 18 }}>
+        <button onClick={() => setShowGoals(true)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', color: t.INK, border: `1px solid ${accent}33`, borderRadius: 16, background: `linear-gradient(155deg, ${accent}14, ${t.PAPER2} 70%), ${t.PAPER2}`, padding: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
             <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', color: accent }}>PRACTICE GOAL · Q3 ›</span>
             <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>{isCoach ? '62% THERE' : '47% THERE'}</span>
           </div>
-          <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{isCoach ? 'Twenty by ' : 'Six-K by '}<span style={{ fontStyle: 'italic', color: accent }}>September.</span></div>
-          <div style={{ marginTop: 12, height: 6, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${(isCoach ? 0.62 : 0.47) * 100}%`, background: accent, borderRadius: 999 }} /></div>
-          <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.04em', color: accent }}>{isCoach ? '17 / 20 clients · $6.2k MRR · on track' : '$4.1k / $6k MRR · 11 clients · on track'}</div>
+          <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{isCoach ? 'Twenty by ' : 'Six-K by '}<span style={{ fontStyle: 'italic', color: accent }}>September.</span></div>
+          <div style={{ marginTop: 10, height: 5, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${(isCoach ? 0.62 : 0.47) * 100}%`, background: accent, borderRadius: 999 }} /></div>
+          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: accent }}>{isCoach ? '17 / 20 clients · $6.2k MRR · on track' : '$4.1k / $6k MRR · 11 clients · on track'}</div>
         </button>
         {/* This month — toggling HIDDEN collapses the whole box to a slim
             "show" control so the revenue isn't on screen at all. */}
@@ -3527,7 +3579,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
             <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: accent, border: `1px solid ${accent}`, borderRadius: 999, padding: '5px 11px' }}>SHOW</span>
           </button>
         ) : (
-          <div style={{ border: `1px solid ${accent}33`, borderRadius: 18, background: `linear-gradient(155deg, ${accent}14, ${t.PAPER2} 70%), ${t.PAPER2}`, padding: 18 }}>
+          <div style={{ border: `1px solid ${accent}33`, borderRadius: 16, background: `linear-gradient(155deg, ${accent}14, ${t.PAPER2} 70%), ${t.PAPER2}`, padding: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
               <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>THIS MONTH</span>
               <button onClick={toggleRev} aria-label="Hide this month" style={{ display: 'flex', alignItems: 'center', gap: 6, borderRadius: 999, border: `1px solid ${accent}`, background: `${accent}1c`, color: accent, padding: '5px 11px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em' }}>
@@ -3535,9 +3587,9 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
                 <span>VISIBLE</span>
               </button>
             </div>
-            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 54, fontWeight: 600, color: t.INK, lineHeight: 0.95, letterSpacing: '-0.02em' }}>{isCoach ? '$6,240' : '$4,120'}</div>
-            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: accent }}>{isCoach ? '17 active · 94% retention · +3 mo' : '11 active · 92% retention · +3 mo'}</div>
-            <div style={{ marginTop: 18, display: 'flex', gap: 8, alignItems: 'flex-end', height: 30 }}>
+            <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 42, fontWeight: 600, color: t.INK, lineHeight: 0.95, letterSpacing: '-0.02em' }}>{isCoach ? '$6,240' : '$4,120'}</div>
+            <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: accent }}>{isCoach ? '17 active · 94% retention · +3 mo' : '11 active · 92% retention · +3 mo'}</div>
+            <div style={{ marginTop: 14, display: 'flex', gap: 8, alignItems: 'flex-end', height: 24 }}>
               {(isCoach ? [0.5, 0.58, 0.52, 0.66, 0.7, 0.82, 0.95] : [0.55, 0.5, 0.6, 0.58, 0.7, 0.78, 0.9]).map((h, i, a) => (
                 <div key={i} style={{ flex: 1, height: `${Math.max(0.2, h) * 100}%`, borderRadius: 5, background: i === a.length - 1 ? accent : `${accent}2e` }} />
               ))}
