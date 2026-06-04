@@ -9815,11 +9815,6 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
             padding: '12px 12px', background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, cursor: 'pointer',
             fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700,
           }}>Library {recipeLists.length ? `(${recipeLists.length})` : ''}</button>
-          <button onClick={() => bsLibToggle(groceryItem)} aria-label={grocerySaved ? 'Remove from library' : 'Save to library'} style={{ borderRadius: t.RADIUS_SM,
-            flex: '0 0 auto', whiteSpace: 'nowrap',
-            padding: '12px 12px', background: grocerySaved ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: grocerySaved ? teal : t.INK, border: `1px solid ${grocerySaved ? teal : t.INK}`, cursor: 'pointer',
-            fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700,
-          }}>{grocerySaved ? '✓' : '♡'}</button>
           <button onClick={onCreate} style={{ borderRadius: t.RADIUS_SM,
             flex: '0 0 auto', whiteSpace: 'nowrap',
             padding: '12px 12px', background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, cursor: 'pointer',
