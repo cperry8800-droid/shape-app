@@ -174,7 +174,7 @@ function AboutCTA() {
     <section style={{ padding: "40px 72px 140px" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", textAlign: "center" }}>
         <h3 style={{ fontFamily: serif, fontSize: "clamp(36px, 5vw, 64px)", letterSpacing: "-0.035em", fontWeight: 300, fontStyle: "italic", margin: 0, lineHeight: 1.0 }}>
-          Come <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>shape</em> with us.
+          Join the <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>community.</em>
         </h3>
       </div>
     </section>
