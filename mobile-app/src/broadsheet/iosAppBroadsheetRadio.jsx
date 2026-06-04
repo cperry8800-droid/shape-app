@@ -950,6 +950,7 @@ function BSRadioScreen({ onBack }) {
         borderBottom: `1px solid ${RULE_DK}`,
         background: 'transparent',
       }}>
+        {/* Framed inset — keeps the border spacing, soft teal glow instead of texture */}
         <div aria-hidden style={{
           position: 'absolute',
           left: t.padX,
@@ -958,51 +959,11 @@ function BSRadioScreen({ onBack }) {
           bottom: 16,
           zIndex: 0,
           border: `1px solid ${RULE_DK}`,
-          backgroundImage: `radial-gradient(circle, ${isLight ? 'rgba(15,14,12,0.24)' : 'rgba(244,237,224,0.22)'} 1px, transparent 1.35px)`,
-          backgroundSize: '8px 8px',
-          opacity: isLight ? 0.34 : 0.42,
+          borderRadius: 18,
+          background: `radial-gradient(110% 70% at 50% 26%, ${TEAL}26, ${TEAL}0a 46%, transparent 72%)`,
           pointerEvents: 'none',
         }} />
-        <BSStageLight color={TEAL} opacity={0.18} paused={r.paused} />
-        <div aria-hidden style={{
-          position: 'absolute',
-          inset: '28px 0 auto 0',
-          height: 154,
-          zIndex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 5,
-          opacity: isLight ? 0.16 : 0.28,
-          pointerEvents: 'none',
-          maskImage: 'linear-gradient(90deg, transparent 0%, #000 18%, #000 82%, transparent 100%)',
-          WebkitMaskImage: 'linear-gradient(90deg, transparent 0%, #000 18%, #000 82%, transparent 100%)',
-        }}>
-          {Array.from({ length: 44 }, (_, i) => {
-            const h = 18 + Math.round(Math.abs(Math.sin((i + 1) * 0.58)) * 96);
-            return (
-              <span key={i} style={{
-                width: 4,
-                height: h,
-                background: i % 5 === 0 ? TEAL : CREAM,
-                transform: `translateY(${Math.sin(i * 0.7) * 10}px)`,
-              }} />
-            );
-          })}
-        </div>
-        <div aria-hidden style={{
-          position: 'absolute',
-          right: -38,
-          top: 34,
-          zIndex: 1,
-          width: 178,
-          height: 178,
-          borderRadius: 999,
-          border: `1px solid ${CREAM25}`,
-          boxShadow: `inset 0 0 0 18px ${isLight ? 'rgba(15,14,12,0.035)' : 'rgba(244,237,224,0.045)'}, inset 0 0 0 48px ${isLight ? 'rgba(15,14,12,0.025)' : 'rgba(244,237,224,0.032)'}`,
-          opacity: 0.9,
-          pointerEvents: 'none',
-        }} />
+        <BSStageLight color={TEAL} opacity={0.1} paused={r.paused} />
 
         {/* Top breathing room before live readout */}
         <div style={{ height: 36 }} />
@@ -1011,13 +972,13 @@ function BSRadioScreen({ onBack }) {
           {/* Now playing — centered hero */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
             {/* BPM ring */}
-            <div style={{ position: 'relative', width: 150, height: 150 }}>
+            <div style={{ position: 'relative', width: 112, height: 112 }}>
               <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: `1px solid ${CREAM25}` }} />
-              <div style={{ position: 'absolute', inset: 16, borderRadius: '50%', border: `1px solid ${TEAL}44` }} />
-              <div style={{ position: 'absolute', inset: 8, borderRadius: '50%', border: `1.5px solid ${TEAL}`, animation: r.paused ? 'none' : `bs-beat-ring ${(60 / trackBpm).toFixed(3)}s ease-out infinite` }} />
+              <div style={{ position: 'absolute', inset: 11, borderRadius: '50%', border: `1px solid ${TEAL}44` }} />
+              <div style={{ position: 'absolute', inset: 6, borderRadius: '50%', border: `1.5px solid ${TEAL}`, animation: r.paused ? 'none' : `bs-beat-ring ${(60 / trackBpm).toFixed(3)}s ease-out infinite` }} />
               <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 46, fontWeight: 700, color: CREAM, lineHeight: 1, letterSpacing: '-0.03em' }}>{trackBpm}</div>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', color: TEAL, fontWeight: 700, marginTop: 4 }}>BPM</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 35, fontWeight: 700, color: CREAM, lineHeight: 1, letterSpacing: '-0.03em' }}>{trackBpm}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.24em', color: TEAL, fontWeight: 700, marginTop: 3 }}>BPM</div>
               </div>
             </div>
 
@@ -1035,8 +996,8 @@ function BSRadioScreen({ onBack }) {
           </div>
 
           {/* Waveform */}
-          <div style={{ marginTop: 16 }}>
-            <BSEQ bars={32} color={TEAL} height={42} gap={3} paused={r.paused} />
+          <div style={{ margin: '16px auto 0', maxWidth: 210 }}>
+            <BSEQ bars={17} color={TEAL} height={26} gap={3} paused={r.paused} />
           </div>
 
           {/* Scrubber */}
