@@ -46,6 +46,17 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Rounded-card redesign: Recipe / Shape Score / Shape Store
+- **Recipe detail** (`BSShapeKitchenRecipe`): macro grid, Ingredients, and Method are
+  now rounded `PAPER2` cards (1px RULE, hairline dividers) — dropped the 2px-INK ledger
+  tops, matching the meal preview.
+- **Shape Score**: Reward tiers, Rewards, Point values, and Recent-points ledger wrapped
+  in rounded cards; "How it works" is now a rounded card too (less full-bleed).
+- **Shape Store**: Catalog + Unlocked-codes lists wrapped in rounded cards; removed the
+  hard rule under the category filters.
+- **Grocery food-group tabs** shrunk (smaller pill font/padding) with edge padding so
+  they fit/scroll cleanly without the last tab clipping.
+
 ### 2026-06-04 — Live tier + real messaging from chat profiles
 - **Migration `2026-06-04-public-profile-card.sql`**: `get_public_profile(user_id)`
   (name, role, all-time points → tier, + public bio/pronouns/goal/link gated on
