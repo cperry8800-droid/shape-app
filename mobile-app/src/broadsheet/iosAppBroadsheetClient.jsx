@@ -8015,6 +8015,12 @@ const BS_GOALS_DEFAULT = {
   overall: {
     title: 'Lean by August', by: '2026-07-01', unit: 'kg',
     start: 80.4, startMonth: 'Feb', now: 79.2, target: 76,
+    // Logged weigh-ins drive the live numbers (now/down/%/to-go) + the trend chart.
+    weighIns: [
+      { d: '2026-02-15', kg: 80.4 }, { d: '2026-02-28', kg: 80.2 }, { d: '2026-03-14', kg: 80.3 },
+      { d: '2026-03-28', kg: 79.9 }, { d: '2026-04-11', kg: 79.7 }, { d: '2026-04-25', kg: 79.8 },
+      { d: '2026-05-09', kg: 79.5 }, { d: '2026-05-23', kg: 79.4 }, { d: '2026-06-06', kg: 79.3 }, { d: '2026-06-13', kg: 79.2 },
+    ],
     why: "Lean enough to feel quick on the bike again, strong enough that nothing slips. Wedding's in July — but really it's about staying this person after.",
   },
   // Editable headline (title + subtitle) for the Training / Nutrition dashboards.
@@ -8032,6 +8038,15 @@ const BS_GOALS_DEFAULT = {
 };
 function bsGoalIsoFromWeeks(w) { const d = new Date(); d.setDate(d.getDate() + (Number(w) || 0) * 7); return d.toISOString().slice(0, 10); }
 function bsGoalDaysUntil(iso) { if (!iso) return null; const ms = new Date(iso).getTime() - Date.now(); return Math.max(0, Math.round(ms / 86400000)); }
+// Live body-comp helpers — derive "now" + the trend series from logged weigh-ins.
+function bsGoalWeighIns(overall) { return (overall && Array.isArray(overall.weighIns)) ? overall.weighIns.slice().filter(x => x && Number.isFinite(Number(x.kg))) : []; }
+function bsGoalNow(overall) { const wi = bsGoalWeighIns(overall); return wi.length ? Number(wi[wi.length - 1].kg) : (Number(overall && overall.now) || 0); }
+function bsGoalSeries(overall) {
+  const wi = bsGoalWeighIns(overall);
+  if (wi.length >= 2) return wi.map(x => ['', Number(x.kg)]);
+  const n = bsGoalNow(overall);
+  return [['', Number(overall && overall.start) || n], ['', n]];
+}
 
 // Bottom-sheet add/edit flow with a categorized template picker (filtered to the
 // active tab's group) + the same fields as the website's GoalEditModal.
@@ -8129,7 +8144,7 @@ function BSGoalsOverall({ overall, onLog }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const purple = '#8a5cf6';
-  const start = Number(overall.start) || 0, now = Number(overall.now) || 0, target = Number(overall.target) || 0;
+  const start = Number(overall.start) || 0, now = bsGoalNow(overall), target = Number(overall.target) || 0;
   const unit = overall.unit || 'kg';
   const down = +(now - start).toFixed(1);
   const range = +(start - target).toFixed(1);
@@ -8137,7 +8152,7 @@ function BSGoalsOverall({ overall, onLog }) {
   const pct = range > 0 ? Math.max(0, Math.min(1, (start - now) / range)) : 0;
   const byD = overall.by ? new Date(overall.by) : null;
   const byLabel = byD && !isNaN(byD) ? byD.toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase() : '';
-  const series = [['', 80.4], ['', 80.2], ['', 80.3], ['', 79.9], ['', 79.7], ['', 79.8], ['', 79.5], ['', 79.4], ['', 79.2], ['', 79.2]];
+  const series = bsGoalSeries(overall);
   const stats = [
     { l: 'Current', c: teal,    v: now.toLocaleString(), u: unit, sub: 'Latest weigh-in' },
     { l: 'To go',   c: t.RUST,  v: toGo.toLocaleString(), u: unit, sub: `of ${range} ${unit}` },
@@ -8219,7 +8234,7 @@ function BSGoalsOverall({ overall, onLog }) {
         <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
             <span style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em' }}>{now.toLocaleString()}<span style={{ fontSize: 12, color: t.INK50, marginLeft: 2 }}>{unit}</span></span>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: teal }}>{down} {unit} · 10 weeks · target {target}</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: teal }}>{down} {unit} · {bsGoalWeighIns(overall).length} logs · target {target}</span>
           </div>
           <BSGoalsTrend teal={teal} series={series} />
         </div>
@@ -8455,13 +8470,13 @@ function BSGoalsNutrition({ overall, onLog }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const gold = '#d8b25a', purple = '#8a5cf6';
-  const start = Number(overall.start) || 0, now = Number(overall.now) || 0, target = Number(overall.target) || 0;
+  const start = Number(overall.start) || 0, now = bsGoalNow(overall), target = Number(overall.target) || 0;
   const unit = overall.unit || 'kg';
   const down = +(now - start).toFixed(1), range = +(start - target).toFixed(1), toGo = +(now - target).toFixed(1);
   const pct = range > 0 ? Math.max(0, Math.min(1, (start - now) / range)) : 0;
   const byD = overall.by ? new Date(overall.by) : null;
   const byLabel = byD && !isNaN(byD) ? byD.toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase() : '';
-  const series = [['', 80.4], ['', 80.2], ['', 80.3], ['', 79.9], ['', 79.7], ['', 79.8], ['', 79.5], ['', 79.4], ['', 79.2], ['', 79.2]];
+  const series = bsGoalSeries(overall);
   const stats = [
     { l: 'Current', c: gold, v: now.toLocaleString(), u: unit, sub: 'Latest weigh-in' },
     { l: 'To go', c: t.RUST, v: toGo.toLocaleString(), u: unit, sub: `of ${range} ${unit}` },
@@ -8542,7 +8557,7 @@ function BSGoalsNutrition({ overall, onLog }) {
         <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
             <span style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em' }}>{now.toLocaleString()}<span style={{ fontSize: 12, color: t.INK50, marginLeft: 2 }}>{unit}</span></span>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: gold }}>{down} {unit} · 10 weeks · target {target}</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: gold }}>{down} {unit} · {bsGoalWeighIns(overall).length} logs · target {target}</span>
           </div>
           <BSGoalsTrend teal={gold} series={series} />
         </div>
@@ -8632,6 +8647,38 @@ function BSHeadlineEditSheet({ meta, accent, onClose, onSave }) {
   return target ? createPortal(sheet, target) : sheet;
 }
 
+// Log a weigh-in — records today's weight, which updates now/down/%/to-go and the
+// trend chart across the Overall + Nutrition tabs.
+function BSWeighInSheet({ overall, onClose, onSave }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const unit = overall.unit || 'kg';
+  const [kg, setKg] = useStateBSC(String(bsGoalNow(overall) || ''));
+  const inputRef = React.useRef(null);
+  React.useEffect(() => { const id = setTimeout(() => inputRef.current && inputRef.current.focus(), 60); return () => clearTimeout(id); }, []);
+  const val = parseFloat(kg);
+  const ok = Number.isFinite(val) && val > 0;
+  const sheet = (
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Log · Weigh-in</div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>Today's <span style={{ fontStyle: 'italic', color: teal }}>weight.</span></div>
+        <div style={{ marginTop: 16, display: 'flex', alignItems: 'baseline', gap: 10, border: `1px solid ${t.RULE}`, borderRadius: 14, background: t.PAPER2, padding: '14px 16px' }}>
+          <input ref={inputRef} value={kg} onChange={(e) => setKg(e.target.value.replace(/[^0-9.]/g, ''))} onKeyDown={(e) => { if (e.key === 'Enter' && ok) onSave(val); }} inputMode="decimal" placeholder="0.0" style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, letterSpacing: '-0.03em' }} />
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK50 }}>{unit}</span>
+        </div>
+        <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Updates your trend + progress · start {Number(overall.start).toLocaleString()} · target {Number(overall.target).toLocaleString()}</div>
+        <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+          <button onClick={onClose} style={{ padding: '13px 20px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Cancel</button>
+          <button onClick={() => ok && onSave(val)} disabled={!ok} style={{ flex: 1, padding: '13px', borderRadius: 999, border: 0, background: ok ? teal : t.RULE, color: ok ? '#04201d' : t.INK50, cursor: ok ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Save weigh-in</button>
+        </div>
+      </div>
+    </div>
+  );
+  const target = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
+  return target ? createPortal(sheet, target) : sheet;
+}
+
 function BSClientGoals({ onBack }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -8640,6 +8687,14 @@ function BSClientGoals({ onBack }) {
   const [tab, setTab] = useStateBSC('overall'); // overall | training | nutrition
   const [editing, setEditing] = useStateBSC(null); // goal-list edit: 'new' | index | null
   const [editOverall, setEditOverall] = useStateBSC(false);
+  const [logWeigh, setLogWeigh] = useStateBSC(false);
+  const logWeighIn = (kg) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const prev = bsGoalWeighIns(overall);
+    const wi = (prev.length && prev[prev.length - 1].d === today) ? [...prev.slice(0, -1), { d: today, kg }] : [...prev, { d: today, kg }];
+    persist({ ...data, overall: { ...overall, weighIns: wi, now: kg } });
+    setLogWeigh(false);
+  };
   React.useEffect(() => {
     if (!window.shapeDb?.getUserGoals) return;
     window.shapeDb.getUserGoals('client_goals').then(d => {
@@ -8696,11 +8751,11 @@ function BSClientGoals({ onBack }) {
       </div>
 
       {tab === 'overall' ? (
-        <BSGoalsOverall overall={overall} onLog={() => setEditOverall(true)} />
+        <BSGoalsOverall overall={overall} onLog={() => setLogWeigh(true)} />
       ) : tab === 'training' ? (
         <BSGoalsTraining onOpenProgram={() => {}} />
       ) : (
-        <BSGoalsNutrition overall={overall} onLog={() => setEditOverall(true)} />
+        <BSGoalsNutrition overall={overall} onLog={() => setLogWeigh(true)} />
       )}
 
       {/* Share with coaches — applies to all goal tabs */}
@@ -8716,6 +8771,7 @@ function BSClientGoals({ onBack }) {
         </div>
       </div>
       <div style={{ height: 28 }} />
+      {logWeigh && <BSWeighInSheet overall={overall} onClose={() => setLogWeigh(false)} onSave={logWeighIn} />}
       {editOverall && (tab === 'overall'
         ? <BSOverallEditSheet overall={overall} onClose={() => setEditOverall(false)} onSave={(g) => { persist({ ...data, overall: g }); setEditOverall(false); }} />
         : <BSHeadlineEditSheet meta={tab === 'training' ? trainingMeta : nutritionMeta} accent={accent} onClose={() => setEditOverall(false)} onSave={(m) => { persist({ ...data, [tab + 'Meta']: m }); setEditOverall(false); }} />
@@ -8739,17 +8795,12 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
   const [showLeaderboard, setShowLeaderboard] = useStateBSC(false);
   const [showLibrary, setShowLibrary] = useStateBSC(false);
   const [showGoals, setShowGoals] = useStateBSC(false);
-  // Featured goal for the Me-page goal box (the client's top goal — training first).
-  const [meGoal, setMeGoal] = useStateBSC(BS_GOALS_DEFAULT.training[0]);
+  // Featured goal for the Me-page goal box — the headline (Overall) body-comp goal.
+  const [meGoal, setMeGoal] = useStateBSC(BS_GOALS_DEFAULT.overall);
   React.useEffect(() => {
     if (!window.shapeDb?.getUserGoals) return;
     window.shapeDb.getUserGoals('client_goals').then(d => {
-      if (d && typeof d === 'object') {
-        const tr = Array.isArray(d.training) ? d.training : [];
-        const nu = Array.isArray(d.nutrition) ? d.nutrition : [];
-        const g = tr[0] || nu[0] || null;
-        if (g) setMeGoal(g);
-      }
+      if (d && d.overall && typeof d.overall === 'object') setMeGoal({ ...BS_GOALS_DEFAULT.overall, ...d.overall });
     }).catch(() => {});
   }, []);
   const scoreProfile = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client); // live points/tier when signed in
@@ -9137,11 +9188,17 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
       {/* FEATURED GOAL — top goal, tap to open the Goal page */}
       {meGoal && (() => {
         const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-        const gp = Math.min((Number(meGoal.cur) || 0) / (Number(meGoal.tgt) || 1), 1);
-        const dateLabel = meGoal.date ? new Date(meGoal.date).toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase() : null;
-        const words = String(meGoal.t || '').trim().split(/\s+/);
+        const start = Number(meGoal.start) || 0, now = bsGoalNow(meGoal), target = Number(meGoal.target) || 0;
+        const unit = meGoal.unit || 'kg';
+        const range = start - target;
+        const gp = range > 0 ? Math.max(0, Math.min(1, (start - now) / range)) : Math.min(now / (target || 1), 1);
+        const down = +(now - start).toFixed(1), toGo = +(now - target).toFixed(1);
+        const byD = meGoal.by ? new Date(meGoal.by) : null;
+        const dateLabel = byD && !isNaN(byD) ? byD.toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase() : null;
+        const words = String(meGoal.title || 'Your goal').trim().split(/\s+/);
         const last = words.length ? words.pop() : '';
         const head = words.join(' ');
+        const meSub = `${down > 0 ? '+' : '−'}${Math.abs(down)} ${unit} so far · ${Math.abs(toGo)} ${unit} to go · on track`;
         return (
           <div style={{ padding: `12px ${t.padX}px 4px` }}>
             <button onClick={() => setShowGoals(true)} style={{
@@ -9156,7 +9213,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
               </div>
               <div style={{ marginTop: 6, fontFamily: t.SERIF || `'Newsreader', Georgia, serif`, fontSize: 26, fontWeight: 600, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.05 }}>{head ? head + ' ' : ''}<span style={{ fontStyle: 'italic', color: teal }}>{last}</span></div>
               <div style={{ marginTop: 11, height: 7, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${gp * 100}%`, background: teal, borderRadius: 999 }} /></div>
-              {meGoal.sub && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK70, fontWeight: 600 }}>{meGoal.sub}</div>}
+              <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK70, fontWeight: 600 }}>{meSub}</div>
             </button>
           </div>
         );
