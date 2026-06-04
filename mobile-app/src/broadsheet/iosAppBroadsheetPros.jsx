@@ -978,17 +978,6 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         </div>
       </div>
 
-      {/* ── HABIT TRACKER ─────────────────────────────────────────── */}
-
-      <div style={{ margin: `22px ${t.padX}px 0`, padding: 20, background: t.INK, color: t.PAPER }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.AMBER, marginBottom: 12, fontWeight: 700 }}>
-          ▍ Editorial · Cohort 6 review
-        </div>
-        <div style={{ fontFamily: t.DISPLAY, fontWeight: 500, fontSize: 18, lineHeight: 1.3, letterSpacing: '-0.01em' }}>
-          11 of 14 hit RPE targets last week. Casey and Drew need a deload — pull them off Block 3 if RPE creeps.
-        </div>
-      </div>
-
       <div style={{ marginTop: 8 }}>
         <BSProHomeWidgets role="trainer" onOpen={onWidgetOpen} />
       </div>
@@ -1991,17 +1980,6 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
         ) : (
           schedule.map((r, i) => <BSRow key={i} {...r} />)
         )}
-      </div>
-
-      {/* ── HABIT TRACKER ─────────────────────────────────────────── */}
-
-      <div style={{ margin: `22px ${t.padX}px 0`, padding: 20, background: t.INK, color: t.PAPER }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.AMBER, marginBottom: 12, fontWeight: 700 }}>
-          ▍ Field notes
-        </div>
-        <div style={{ fontFamily: t.DISPLAY, fontWeight: 500, fontSize: 18, lineHeight: 1.3, letterSpacing: '-0.01em' }}>
-          Adherence is up 11% on the simplified macro template. Push it to the next 4 intakes.
-        </div>
       </div>
 
       <div style={{ marginTop: 22 }}>
