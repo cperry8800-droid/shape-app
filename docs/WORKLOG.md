@@ -46,6 +46,17 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Fix: Train "Plan" → calendar → back no longer auto-starts a workout
+- The Train **"On deck · Plan →"** action opens the calendar overlay, which (early
+  `return` in `BSClientAppInner`) **unmounts** `BSClientTrain`. The auto-launch was a
+  **monotonic counter** (`trainAutoStart`) and the screen started a session whenever
+  `autoStart > 0` on mount — so hitting **back** remounted Train and re-fired the live
+  session if the counter had ever been bumped.
+- Replaced the counter with a **one-shot `pendingTrainStart` flag**: the calendar's
+  "Start session" sets it true; `BSClientTrain` consumes it (`onAutoStartConsumed` →
+  back to false) the moment it launches, so a remount with no pending start does
+  nothing. Plan → calendar → back now returns to the Train deck, as expected.
+
 ### 2026-06-04 — Home "Up next" workout reflects today's real session
 - The home **"Up next" workout card** + its **preview** (`BSHomeWorkoutPreview`) were
   hardcoded to "Upper Pull — Peak", so the featured workout didn't match the day.
