@@ -46,6 +46,20 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-13 — Coach soundtracks sync (web ↔ mobile) + Assign by-client tab
+- **Migration `2026-06-13-coach-soundtracks.sql`** (**run on Supabase**): `coach_soundtracks`
+  (owner-scoped, RLS; `attached` jsonb of `{id,kind,name}`) + updated_at trigger.
+- **API `/api/coach/soundtracks`** (GET/POST/PATCH/DELETE, owner-scoped).
+- `shapeBackend.js`: `ShapeSoundtracks.list/create/update/remove`.
+- **Mobile `BSProSoundtracks`** now syncs: loads the coach's saved playlists from the API,
+  Import creates server-side, Assign attaches via PATCH (falls back to localStorage when
+  signed out). New **Assign tabs** — *Plans & workouts* and *By client* (search a client →
+  attach the soundtrack to their assigned workouts).
+- **Website Playlists page** (`trainerPlaylistsPage.jsx`) reads the same `coach_soundtracks`
+  (server playlists merge into the library) and its Import modal saves to the API — so
+  playlists created on either surface appear on both. (Attach-on-website still local for the
+  demo seed rows; server rows carry their attachments.)
+
 ### 2026-06-13 — MESSAGE button wired + website coach client page redesigned
 - **MESSAGE** button (mobile client profile) is wired: both coach shells listen for
   `shape:proMessageClient` → `getOrCreateMemberConversation` with the client + jump to the

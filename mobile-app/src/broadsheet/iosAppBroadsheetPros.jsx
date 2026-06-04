@@ -3046,6 +3046,15 @@ const BS_SOUNDTRACK_TARGETS = [
   { id: 'm1', kind: 'Meal plan', name: 'Lean Cut · 1900 kcal' },
   { id: 'm2', kind: 'Meal plan', name: 'Performance · 2600 kcal' },
 ];
+// Per-client workouts — the Assign page's "By client" tab attaches a soundtrack
+// straight to a client's assigned workouts.
+const BS_SOUNDTRACK_CLIENTS = [
+  { id: 'sofia', name: 'Sofia Martinez', workouts: ['Upper Push — Peak', 'Lower Pull — Build', 'Conditioning — HIIT'] },
+  { id: 'alex', name: 'Alex Rivera', workouts: ['Push / Pull / Legs', 'Tempo Run'] },
+  { id: 'priya', name: 'Priya Singh', workouts: ['Fat Loss Circuit', 'Core & Mobility'] },
+  { id: 'marcus', name: 'Marcus Lee', workouts: ['Intro Full Body'] },
+  { id: 'jamal', name: 'Jamal Green', workouts: ['Strength A', 'Strength B', 'Deadlift Focus'] },
+];
 function bsEqGlyph(color) {
   return (
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="3" y="11" width="3.4" height="10" rx="1.2" fill={color} /><rect x="8.3" y="6" width="3.4" height="15" rx="1.2" fill={color} /><rect x="13.6" y="9" width="3.4" height="12" rx="1.2" fill={color} /><rect x="18.9" y="4" width="2.6" height="17" rx="1.2" fill={color} /></svg>
@@ -3055,40 +3064,66 @@ function BSProSoundtracks({ role = 'trainer', onBack }) {
   const t = useBS();
   const gold = '#d8b25a', teal = t.isLight ? '#0a8f87' : '#34d6c5', purple = '#8a5cf6';
   const [extra, setExtra] = useStateBSP(() => bsReadJSON('bs_coach_soundtracks', []));
+  const [serverList, setServerList] = useStateBSP(null); // array once synced from the API
   const [assign, setAssign] = useStateBSP(() => bsReadJSON('bs_coach_soundtrack_assign', {}));
   const [query, setQuery] = useStateBSP('');
   const [filter, setFilter] = useStateBSP('all');
   const [importing, setImporting] = useStateBSP(false);
   const [assignFor, setAssignFor] = useStateBSP(null);
+  const [assignTab, setAssignTab] = useStateBSP('plans'); // 'plans' | 'clients'
+  const [clientQuery, setClientQuery] = useStateBSP('');
   // import form
   const [iName, setIName] = useStateBSP('');
   const [iProvider, setIProvider] = useStateBSP('spotify');
   const [iTag, setITag] = useStateBSP('');
   const [iUrl, setIUrl] = useStateBSP('');
 
-  const all = [...extra, ...BS_SOUNDTRACKS_DEMO];
+  const hydrate = (r) => ({ ...r, c: r.provider === 'apple' ? '#b9a13e' : '#4a6fb0', dur: r.duration || '—', bpm: r.bpm || '—', used: 0 });
+  useEffectBSP(() => {
+    if (!window.ShapeSoundtracks?.list) return;
+    window.ShapeSoundtracks.list().then(rows => { if (Array.isArray(rows)) setServerList(rows.map(hydrate)); }).catch(() => {});
+  }, []);
+
+  // Custom playlists are server-backed when signed in (synced with the website),
+  // else local. Server rows carry an `attached` array; demo rows use localStorage.
+  const customList = serverList || extra;
+  const all = [...customList, ...BS_SOUNDTRACKS_DEMO];
+  const isServerRow = (p) => Array.isArray(p.attached);
   const providerLabel = (p) => p === 'apple' ? 'APPLE MUSIC' : 'SPOTIFY';
   const providerDot = (p) => p === 'apple' ? '#fc3c44' : '#1ED760';
-  const assignedCount = (id) => (assign[id] || []).length;
+  const attachedFor = (p) => (p ? (isServerRow(p) ? p.attached : (assign[p.id] || [])) : []);
+  const assignedCount = (p) => attachedFor(p).length;
   const shown = all
     .filter(p => filter === 'all' ? true : p.provider === filter)
     .filter(p => { const q = query.trim().toLowerCase(); return !q || p.name.toLowerCase().includes(q) || (p.tag || '').toLowerCase().includes(q); });
-  const totalAttached = all.reduce((s, p) => s + (p.used || 0) + assignedCount(p.id), 0);
+  const totalAttached = all.reduce((s, p) => s + (p.used || 0) + assignedCount(p), 0);
 
-  const saveImport = () => {
+  const saveImport = async () => {
     const name = iName.trim();
     if (!name) return;
-    const pl = { id: 'c' + Date.now(), name, provider: iProvider, tag: iTag.trim() || 'Custom', tracks: 0, dur: '—', bpm: '—', used: 0, url: iUrl.trim(), c: iProvider === 'apple' ? '#b9a13e' : '#4a6fb0', custom: true };
+    const payload = { name, provider: iProvider, tag: iTag.trim() || 'Custom', url: iUrl.trim(), tracks: 0, duration: '—', bpm: '—' };
+    if (window.ShapeSoundtracks?.create) {
+      try {
+        const row = await window.ShapeSoundtracks.create(payload);
+        if (row) { setServerList(list => [hydrate(row), ...(list || [])]); setIName(''); setITag(''); setIUrl(''); setIProvider('spotify'); setImporting(false); return; }
+      } catch (e) {}
+    }
+    const pl = { id: 'c' + Date.now(), name, provider: iProvider, tag: payload.tag, tracks: 0, dur: '—', bpm: '—', used: 0, url: payload.url, c: iProvider === 'apple' ? '#b9a13e' : '#4a6fb0', custom: true };
     const next = [pl, ...extra];
     setExtra(next); bsWriteJSON('bs_coach_soundtracks', next);
-    setIName(''); setITag(''); setIUrl(''); setIProvider('spotify');
-    setImporting(false);
+    setIName(''); setITag(''); setIUrl(''); setIProvider('spotify'); setImporting(false);
   };
-  const toggleAssign = (playlistId, targetId) => {
-    const cur = assign[playlistId] || [];
-    const nextArr = cur.includes(targetId) ? cur.filter(x => x !== targetId) : [...cur, targetId];
-    const next = { ...assign, [playlistId]: nextArr };
-    setAssign(next); bsWriteJSON('bs_coach_soundtrack_assign', next);
+  const toggleAttach = (p, target) => {
+    const cur = attachedFor(p);
+    const exists = cur.some(a => a && a.id === target.id);
+    const nextArr = exists ? cur.filter(a => a && a.id !== target.id) : [...cur, target];
+    if (isServerRow(p)) {
+      setServerList(list => (list || []).map(x => x.id === p.id ? { ...x, attached: nextArr } : x));
+      if (window.ShapeSoundtracks?.update) window.ShapeSoundtracks.update({ id: p.id, attached: nextArr }).catch(() => {});
+    } else {
+      const next = { ...assign, [p.id]: nextArr };
+      setAssign(next); bsWriteJSON('bs_coach_soundtrack_assign', next);
+    }
   };
 
   // ── Import sub-view ──
@@ -3129,10 +3164,24 @@ function BSProSoundtracks({ role = 'trainer', onBack }) {
     );
   }
 
-  // ── Assign sub-view ──
+  // ── Assign sub-view (Plans / Clients tabs) ──
   if (assignFor) {
     const pl = all.find(p => p.id === assignFor) || {};
-    const sel = assign[assignFor] || [];
+    const cur = attachedFor(pl);
+    const isOn = (id) => cur.some(a => a && a.id === id);
+    const row = (target, tone) => {
+      const on = isOn(target.id);
+      return (
+        <button key={target.id} onClick={() => toggleAttach(pl, target)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', borderRadius: 14, border: `1px solid ${on ? gold : t.RULE}`, background: on ? `${gold}14` : t.PAPER2, padding: '14px 15px' }}>
+          <div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.12em', color: tone }}>{target.kind.toUpperCase()}</div>
+            <div style={{ marginTop: 4, fontFamily: t.SERIF, fontSize: 16, fontWeight: 600, color: t.INK }}>{target.name}</div>
+          </div>
+          <span style={{ width: 24, height: 24, borderRadius: 999, border: `1px solid ${on ? gold : t.RULE}`, background: on ? gold : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#241c08', fontSize: 13, fontWeight: 800 }}>{on ? '✓' : ''}</span>
+        </button>
+      );
+    };
+    const clients = BS_SOUNDTRACK_CLIENTS.filter(c => { const q = clientQuery.trim().toLowerCase(); return !q || c.name.toLowerCase().includes(q); });
     return (
       <BSPage>
         <div style={{ padding: `50px ${t.padX}px 28px` }}>
@@ -3141,22 +3190,36 @@ function BSProSoundtracks({ role = 'trainer', onBack }) {
             <button onClick={() => setAssignFor(null)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
           </div>
           <div style={{ marginTop: 10, fontFamily: t.SERIF, fontSize: 32, fontWeight: 600, color: t.INK, lineHeight: 1.02, letterSpacing: '-0.02em' }}>{pl.name} <span style={{ fontStyle: 'italic', color: gold }}>→</span></div>
-          <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: t.INK50 }}>{providerLabel(pl.provider)} · attach to workouts & meal plans</div>
-          <div style={{ marginTop: 22, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {BS_SOUNDTRACK_TARGETS.map(tg => {
-              const on = sel.includes(tg.id);
-              return (
-                <button key={tg.id} onClick={() => toggleAssign(assignFor, tg.id)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', borderRadius: 14, border: `1px solid ${on ? gold : t.RULE}`, background: on ? `${gold}14` : t.PAPER2, padding: '14px 15px' }}>
-                  <div>
-                    <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.12em', color: tg.kind === 'Meal plan' ? teal : t.RUST }}>{tg.kind.toUpperCase()}</div>
-                    <div style={{ marginTop: 4, fontFamily: t.SERIF, fontSize: 16, fontWeight: 600, color: t.INK }}>{tg.name}</div>
-                  </div>
-                  <span style={{ width: 24, height: 24, borderRadius: 999, border: `1px solid ${on ? gold : t.RULE}`, background: on ? gold : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#241c08', fontSize: 13, fontWeight: 800 }}>{on ? '✓' : ''}</span>
-                </button>
-              );
+          <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: t.INK50 }}>{providerLabel(pl.provider)} · attach to plans or a client's workouts</div>
+          {/* Tabs */}
+          <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {[['plans', 'Plans & workouts'], ['clients', 'By client']].map(([k, l]) => {
+              const on = assignTab === k;
+              return <button key={k} onClick={() => setAssignTab(k)} style={{ borderRadius: 999, padding: '9px 6px', cursor: 'pointer', border: `1px solid ${on ? gold : t.RULE}`, background: on ? `${gold}1c` : 'transparent', color: on ? gold : t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{l}</button>;
             })}
           </div>
-          <button onClick={() => setAssignFor(null)} style={{ width: '100%', marginTop: 18, borderRadius: 14, border: 0, background: gold, color: '#241c08', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Done · {sel.length} attached</button>
+          {assignTab === 'plans' ? (
+            <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {BS_SOUNDTRACK_TARGETS.map(tg => row(tg, tg.kind === 'Meal plan' ? teal : t.RUST))}
+            </div>
+          ) : (
+            <div style={{ marginTop: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9, borderBottom: `1px solid ${t.RULE}`, padding: '8px 2px', marginBottom: 14 }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={t.INK50} strokeWidth="2" style={{ flexShrink: 0 }}><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" strokeLinecap="round" /></svg>
+                <input value={clientQuery} onChange={(e) => setClientQuery(e.target.value)} placeholder="Search clients…" style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 15 }} />
+              </div>
+              {clients.length === 0 && <div style={{ padding: '18px 4px', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>No clients match.</div>}
+              {clients.map(c => (
+                <div key={c.id} style={{ marginBottom: 18 }}>
+                  <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: t.INK50, marginBottom: 8 }}>{c.name.toUpperCase()} · {c.workouts.length} WORKOUTS</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {c.workouts.map((w, i) => row({ id: `cli:${c.id}:${i}`, kind: 'Client workout', name: `${w} · ${c.name.split(' ')[0]}` }, t.RUST))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <button onClick={() => setAssignFor(null)} style={{ width: '100%', marginTop: 18, borderRadius: 14, border: 0, background: gold, color: '#241c08', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Done · {cur.length} attached</button>
         </div>
         <BSFooter left="Assign" right={pl.name} />
       </BSPage>
@@ -3219,7 +3282,7 @@ function BSProSoundtracks({ role = 'trainer', onBack }) {
             <div style={{ padding: '22px 16px', borderRadius: 16, border: `1px dashed ${t.RULE}`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>No soundtracks match.</div>
           )}
           {shown.map((p) => {
-            const att = assignedCount(p.id);
+            const att = assignedCount(p);
             return (
               <div key={p.id} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 13, alignItems: 'center', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 13 }}>
                 <div style={{ position: 'relative', width: 58, height: 58, borderRadius: 12, background: `linear-gradient(150deg, ${p.c}, ${p.c}99)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
