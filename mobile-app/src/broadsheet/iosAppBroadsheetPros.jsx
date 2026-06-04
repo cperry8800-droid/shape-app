@@ -2928,93 +2928,162 @@ function BSProPlansTabBar({ active, onChange }) {
 
 function BSNutriPlans() {
   const t = useBS();
-  const [subtab, setSubtab] = useStateBSP('meal');
-  const mealPlans = [
-    { n: 'Cut - 1700-1900 kcal',   v: 'Meal plan subscription', meta: '8 active clients', c: t.RUST, price: '$119/mo' },
-    { n: 'Build - 2200-2600 kcal', v: 'Meal plan subscription', meta: '6 active clients', c: t.AMBER, price: '$129/mo' },
-    { n: 'Maintenance',            v: 'Meal plan subscription', meta: '5 active clients', c: t.GREEN, price: '$99/mo' },
-    { n: 'Recomp - macro-flex',    v: 'Meal plan subscription', meta: '3 active clients', c: t.BLUE, price: '$109/mo' },
+  const gold = '#d8b25a', teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const [showSoundtracks, setShowSoundtracks] = useStateBSP(false);
+  const [drafting, setDrafting] = useStateBSP(false);
+  // AI draft form
+  const [desc, setDesc] = useStateBSP('');
+  const [goal, setGoal] = useStateBSP('Cut');
+  const [diet, setDiet] = useStateBSP('Omnivore');
+  const [cals, setCals] = useStateBSP('~2100');
+  const [mealsDay, setMealsDay] = useStateBSP(4);
+  const [draftStatus, setDraftStatus] = useStateBSP('');
+
+  const plans = [
+    { n: 'Lean Cut', meta: '2,100 kcal · 12 on it · 4.9 ★', price: '$140' },
+    { n: 'Performance', meta: '3,200 kcal · 8 on it · 4.8 ★', price: '$140' },
+    { n: 'Vegetarian Base', meta: '2,400 kcal · 6 on it · 4.7 ★', price: '$120' },
+    { n: 'Maintenance', meta: '2,700 kcal · 14 on it · 4.9 ★', price: '$120' },
   ];
-  const templates = [
-    { n: 'High-protein breakfast bank', v: 'Template', meta: '12 meals - reusable', c: t.GREEN, price: 'Template' },
-    { n: 'Race week carb load',         v: 'Template', meta: '7-day protocol', c: t.BLUE, price: 'Template' },
-    { n: 'Plant-based cut swap',        v: 'Template', meta: '8 substitutions', c: t.AMBER, price: 'Template' },
+  const recipes = [
+    { n: 'High-protein breakfasts', meta: '22 recipes · 380 kcal avg' },
+    { n: 'Sub-500 kcal bowls', meta: '18 recipes · under 30 min' },
+    { n: 'Batch-cookable dinners', meta: '14 recipes · 4 servings' },
+    { n: 'Pre-workout snacks', meta: '12 recipes · quick carbs' },
   ];
-  const oneTime = [
-    { n: 'Grocery audit',           v: 'One-time purchase', meta: 'Pantry list + swaps', c: t.RUST, price: '$29' },
-    { n: 'Restaurant ordering kit', v: 'One-time guide', meta: 'Macro-safe orders', c: t.BLUE, price: '$17' },
-    { n: 'Travel nutrition guide',  v: 'One-time guide', meta: 'Airport + hotel strategy', c: t.GREEN, price: '$21' },
-    { n: 'Supplement stack review', v: 'One-time purchase', meta: 'Review + written feedback', c: t.AMBER, price: '$35' },
-  ];
-  const musicTargets = [
-    ...mealPlans.map((p) => ({ id: `meal-${p.n}`, name: p.n, type: 'MEAL PLAN' })),
-    ...templates.map((p) => ({ id: `template-${p.n}`, name: p.n, type: 'TEMPLATE' })),
-    ...oneTime.map((p) => ({ id: `one-time-${p.n}`, name: p.n, type: 'ONE-TIME' })),
-  ];
-  const ProductRow = ({ item, i, arr, action }) => (
-    <div style={{
-      marginBottom: i === arr.length - 1 ? 0 : 10,
-      padding: '13px 12px',
-      border: `1px solid ${t.SURFACE_BORDER}`,
-      borderRadius: 12,
-      background: t.PAPER2,
-      boxShadow: t.ELEVATION_SOFT,
-      display: 'grid', gridTemplateColumns: '12px 1fr auto', gap: 12, alignItems: 'center',
-    }}>
-      <div style={{ width: 9, height: 9, borderRadius: 99, background: item.c, boxShadow: `0 0 0 4px ${item.c}22` }} />
-      <div style={{ minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.n}</div>
-          <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 800, flexShrink: 0 }}>{item.price}</span>
+
+  if (showSoundtracks) return <BSProSoundtracks role="nutritionist" onBack={() => setShowSoundtracks(false)} />;
+
+  // ── AI draft sheet (meal-plan builder) ──
+  if (drafting) {
+    const chips = (label, value, set, opts) => (
+      <div style={{ marginTop: 18 }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: t.INK50, marginBottom: 9 }}>{label}</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {opts.map(o => {
+            const on = value === o;
+            return <button key={o} onClick={() => set(o)} style={{ borderRadius: 999, padding: '9px 15px', cursor: 'pointer', border: `1px solid ${on ? gold : t.RULE}`, background: on ? `${gold}1c` : 'transparent', color: on ? gold : t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.06em' }}>{o}</button>;
+          })}
         </div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{item.v} - {item.meta}</div>
       </div>
-      <span style={{ borderRadius: 999, border: `1px solid ${t.SURFACE_BORDER}`, padding: '6px 8px', background: t.PAPER, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 900 }}>
-        {action}
-      </span>
+    );
+    const generate = async () => {
+      setDraftStatus('Generating…');
+      try { await window.ShapeAI?.generatePlanDraft?.({ kind: 'meal_plan', goal, client: '', level: diet, duration: '7 days', calories: cals.replace('~', ''), preferences: desc, protein: '' }); } catch (e) {}
+      setDraftStatus('Draft ready · edit before publishing');
+      setTimeout(() => setDrafting(false), 900);
+    };
+    return (
+      <BSPage>
+        <div style={{ padding: `50px ${t.padX}px 28px` }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: gold }}>✦ AI DRAFT · MEAL PLAN</div>
+            <button onClick={() => setDrafting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>CANCEL</button>
+          </div>
+          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Describe the <span style={{ fontStyle: 'italic', color: gold }}>meal plan.</span></div>
+          <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={3} placeholder="e.g. high-protein cut, vegetarian, around 2,000 kcal, hates seafood, loves oats" style={{ width: '100%', boxSizing: 'border-box', marginTop: 18, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: 14, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, resize: 'vertical', outline: 'none' }} />
+          {chips('GOAL', goal, setGoal, ['Cut', 'Maintain', 'Lean bulk', 'Performance'])}
+          {chips('DIET', diet, setDiet, ['Omnivore', 'Vegetarian', 'Vegan', 'Pescatarian'])}
+          {chips('DAILY CALORIES', cals, setCals, ['~1800', '~2100', '~2600', '~3000'])}
+          <div style={{ marginTop: 18 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: t.INK50, marginBottom: 9 }}>MEALS / DAY</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {[3, 4, 5, 6].map(n => { const on = mealsDay === n; return <button key={n} onClick={() => setMealsDay(n)} style={{ width: 40, height: 40, borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? gold : t.RULE}`, background: on ? gold : 'transparent', color: on ? '#241c08' : t.INK, fontFamily: t.MONO, fontSize: 12, fontWeight: 800 }}>{n}</button>; })}
+            </div>
+          </div>
+          <button onClick={generate} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: gold, color: '#241c08', padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>✦ {draftStatus || 'Generate draft'}</button>
+          <div style={{ marginTop: 12, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>You can edit everything before publishing</div>
+        </div>
+        <BSFooter left="AI draft" right="Meal plan" />
+      </BSPage>
+    );
+  }
+
+  const numRow = (it, i, trailing) => (
+    <div key={i} onClick={it.onClick} style={{ display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 12, alignItems: 'center', padding: '15px 0', borderTop: `1px solid ${t.HAIR}`, cursor: it.onClick ? 'pointer' : 'default' }}>
+      <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</span>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{it.n}</div>
+        <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.04em', color: t.INK50 }}>{it.meta}</div>
+      </div>
+      <span style={{ fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.04em', color: t.INK50, whiteSpace: 'nowrap' }}>{trailing}</span>
     </div>
   );
+  const secHead = (eyebrow, title, trailing, onTrailing) => (
+    <div style={{ marginTop: 26, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+      <div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: teal }}>{eyebrow}</div>
+        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{title}</div>
+      </div>
+      {trailing && <button onClick={onTrailing} style={{ border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', color: teal, paddingBottom: 4 }}>{trailing}</button>}
+    </div>
+  );
+
   return (
     <BSPage>
-      <BSPageHeader kicker="Section · Plans" title={<>Meals<br/>& templates.</>} trailing={<BSProAvatarButton size={32} />} />
-      <BSProPlansTabBar active={subtab} onChange={setSubtab} />
-      <BSPlanGeneratorCard role="nutritionist" kind="meal_plan" />
-      {subtab === 'meal' && (<>
-        <BSSection title="Meal plans" meta="Recurring subscriptions" />
-        <div style={{ padding: `0 ${t.padX}px` }}>
-          {mealPlans.map((p, i, arr) => <ProductRow key={p.n} item={p} i={i} arr={arr} action="EDIT" />)}
+      <div style={{ padding: `46px ${t.padX}px 28px` }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+          <div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>4 PUBLISHED · 40 ON IT</div>
+            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>Your<br /><span style={{ fontStyle: 'italic', color: gold }}>plans.</span></div>
+          </div>
+          <button onClick={() => setDrafting(true)} aria-label="New plan" style={{ flexShrink: 0, width: 38, height: 38, borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 18, fontWeight: 400, cursor: 'pointer', lineHeight: 1 }}>+</button>
         </div>
-      </>)}
-      {subtab === 'tmpl' && (<>
-        <BSSection title="Templates" meta="Reusable meal frameworks" />
-        <div style={{ padding: `0 ${t.padX}px` }}>
-          {templates.map((p, i, arr) => <ProductRow key={p.n} item={p} i={i} arr={arr} action="EDIT" />)}
-        </div>
-      </>)}
-      {subtab === 'onetime' && (<>
-        <BSSection title="One-time purchases" meta="Not meal plans - not subscriptions" />
-        <div style={{ padding: `0 ${t.padX}px` }}>
-          {oneTime.map((p, i, arr) => <ProductRow key={p.n} item={p} i={i} arr={arr} action="SELL" />)}
-        </div>
-      </>)}
 
-      <BSCoachPlaylistStudio
-        role="nutritionist"
-        targets={musicTargets}
-        title="Playlist studio"
-        meta="Spotify + Apple Music"
-        copy="Create custom playlists, attach them to meal plans, templates, or one-time nutrition assets, and send playable Spotify or Apple Music links to clients."
-      />
+        {/* Generate with AI */}
+        <button onClick={() => setDrafting(true)} style={{ width: '100%', marginTop: 18, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 14, alignItems: 'center', borderRadius: 16, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 16 }}>
+          <span style={{ width: 48, height: 48, borderRadius: 12, background: gold, color: '#241c08', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>✦</span>
+          <div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>GENERATE WITH AI</div>
+            <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, lineHeight: 1.15 }}>Draft a meal plan in seconds</div>
+          </div>
+          <span style={{ color: gold, fontSize: 16 }}>→</span>
+        </button>
+        <button onClick={() => setDrafting(true)} style={{ display: 'block', width: '100%', marginTop: 12, textAlign: 'center', border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Or start from blank →</button>
 
-      <div style={{ margin: `16px ${t.padX}px 0`, padding: 14, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 14, background: t.PAPER2, boxShadow: t.ELEVATION_SOFT }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 800 }}>
-          Storefront setup
+        {/* Top plan */}
+        <div style={{ marginTop: 18, borderRadius: 18, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 18 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>TOP PLAN</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>$140/MO</span>
+          </div>
+          <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Lean <span style={{ fontStyle: 'italic', color: gold }}>Cut.</span></div>
+          <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.04em' }}>2,100 kcal · 12 on it · 165g protein · 4.9 ★</div>
+          <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
+            <button style={{ borderRadius: 999, border: 0, background: gold, color: '#241c08', padding: '9px 18px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>EDIT</button>
+            <button style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '9px 16px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>DUPLICATE</button>
+            <button style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '9px 16px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SHARE →</button>
+          </div>
         </div>
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.35, color: t.INK, fontWeight: 600 }}>
-          Meal plans are recurring products. Templates are reusable frameworks. One-time purchases are standalone nutrition assets clients buy once.
-        </div>
+
+        {/* Catalogue */}
+        {secHead('TRACKLIST', 'Catalogue')}
+        <div style={{ marginTop: 6 }}>{plans.map((p, i) => numRow(p, i, p.price))}</div>
+
+        {/* Recipes */}
+        {secHead('RECIPES', 'Library', 'BROWSE →', () => {})}
+        <div style={{ marginTop: 6 }}>{recipes.map((r, i) => numRow({ ...r, onClick: () => {} }, i, '→'))}</div>
+
+        {/* Soundtracks → links to the Soundtracks page */}
+        {secHead('SOUNDTRACKS', 'Music library', 'ALL →', () => setShowSoundtracks(true))}
+        <button onClick={() => setShowSoundtracks(true)} style={{ width: '100%', marginTop: 10, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 13, alignItems: 'center', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 13 }}>
+          <span style={{ position: 'relative', width: 54, height: 54, borderRadius: 12, background: `linear-gradient(150deg, ${gold}, ${gold}99)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {bsEqGlyph('#ffffffd0')}
+            <span style={{ position: 'absolute', top: 6, right: 6, width: 9, height: 9, borderRadius: 999, background: '#fc3c44', border: '1.5px solid rgba(0,0,0,0.25)' }} />
+          </span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.2 }}>Attach music to any meal plan</div>
+            <div style={{ marginTop: 5, display: 'flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>
+              <span style={{ width: 6, height: 6, borderRadius: 999, background: '#1ED760' }} />SPOTIFY
+              <span style={{ width: 6, height: 6, borderRadius: 999, background: '#fc3c44', marginLeft: 4 }} />APPLE MUSIC
+            </div>
+            <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50 }}>· prep & focus playlists</div>
+          </div>
+          <span style={{ color: '#8a5cf6', fontSize: 16 }}>→</span>
+        </button>
       </div>
-      <BSFooter left="The Nutri Edition" right="Pg 3 of 4" />
+      <BSFooter left="The Nutri Edition" right="Plans" />
     </BSPage>
   );
 }
