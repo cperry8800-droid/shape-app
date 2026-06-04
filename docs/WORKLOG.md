@@ -46,6 +46,14 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-13 — Coach goal view on the website + goal-sheet polish
+- **Website coach client page** (`coachClientDetail.jsx`): added a **GOALS** card showing
+  the client's shared Training/Nutrition goals (progress + target), fed by the
+  `shared-overview` API route which now calls `get_client_goals` (server-side, the coach's
+  session → RLS-gated). Same states as mobile: private / none / list.
+- **Mobile goal sheet**: per-goal **Edit** button now teal; removed the drag-handle bar
+  at the top of the add/edit sheet.
+
 ### 2026-06-13 — Coach sees a client's shared goals (read-only)
 - **Migration `2026-06-13-client-goals-coach-read.sql`** (idempotent): SECURITY DEFINER
   `get_client_goals(p_user_id)` — returns the client's `user_goals('client_goals')`
