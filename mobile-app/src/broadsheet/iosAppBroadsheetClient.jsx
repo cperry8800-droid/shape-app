@@ -532,6 +532,25 @@ const BS_TICKER_METRICS = [
 
 // Full read-only preview of an upcoming workout — opened from the home
 // "Up next" workout card's Preview button.
+// Program week — weeks since a fixed program start, so page eyebrows ("Week 6")
+// advance over real time. Shared by the Eat / Train / home headers.
+function bsProgramWeek() {
+  const start = new Date(2026, 3, 6); // Apr 6 2026 — program start (mock anchor)
+  const w = Math.floor((Date.now() - start.getTime()) / 6048e5) + 1;
+  return Math.min(52, Math.max(1, w));
+}
+// Live "online now" count via Supabase Realtime presence (hook below).
+function useBSOnline() {
+  const [n, setN] = useStateBSC(() => (window.ShapePresence?.count?.() || 0));
+  React.useEffect(() => {
+    if (!window.ShapePresence) return undefined;
+    window.ShapePresence.start?.();
+    setN(window.ShapePresence.count?.() || 0);
+    return window.ShapePresence.onChange?.((c) => setN(c)) || undefined;
+  }, []);
+  return n;
+}
+
 // ── Client Library — saved coach content (workouts, programs, meals) ─────────
 // Persists to localStorage immediately, mirrored to window.shapeDb (user_goals)
 // for cross-device sync. Screens subscribe via the `bs-library` window event.
@@ -2859,7 +2878,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   return (
     <BSPage>
       <BSPageHeader
-        kicker={cur.kicker}
+        kicker={`Build · Week ${bsProgramWeek()}`}
         title={cur.title}
         trailing={<BSAvatar init="A" size={32} onClick={onProfile} />}
       />
@@ -5043,7 +5062,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
   return (
     <BSPage>
       <BSPageHeader
-        kicker={cur.kicker}
+        kicker={`Cut · Week ${bsProgramWeek()}`}
         title={cur.title}
         trailing={<BSAvatar init="A" size={32} onClick={onProfile} />}
       />
@@ -5938,6 +5957,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const sumUnread = (prefix) => Object.keys(unread || {}).reduce((a, k) => a + (k.indexOf(prefix) === 0 ? (unread[k] || 0) : 0), 0);
   const dmUnread = sumUnread('dm:');
   const chUnread = sumUnread('ch:');
+  const online = useBSOnline(); // live "N online" presence count for the masthead
   const unreadBadge = (key) => {
     const n = (unread && unread[key]) || 0;
     if (!n) return null;
@@ -6259,11 +6279,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   return (
     <BSPage>
       <BSMasthead
-        title={<span style={{ display: 'block', textAlign: 'center', lineHeight: 0.92, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 38, letterSpacing: '-0.04em' }}>
+        title={<span style={{ display: 'block', textAlign: 'left', lineHeight: 0.92, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 38, letterSpacing: '-0.04em' }}>
           The <span style={{ fontStyle: 'italic', color: TEALB }}>feed.</span>
         </span>}
         leftKicker="Section · Community"
-        rightKicker="Live"
+        rightKicker={online > 0 ? `● ${online} online` : 'Live'}
         showDotTexture={false}
         showDoubleRule={false}
         noRule

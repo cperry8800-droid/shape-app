@@ -3026,6 +3026,28 @@ window.ShapeUnread = {
   markConversationRead: (id) => { _unread.map['dm:' + id] = 0; _unreadEmit(); if (supabase) supabase.rpc('mark_conversation_read', { p_conversation_id: id }).then(() => {}).catch(() => {}); },
 };
 
+// ── Live presence — "N online now". Everyone with the app open joins one
+//    Supabase Realtime presence channel keyed by user id; the count is the
+//    number of distinct present users (genuinely live, updates on join/leave).
+const _presence = { channel: null, count: 0, listeners: new Set() };
+function _presenceEmit() { _presence.listeners.forEach(fn => { try { fn(_presence.count); } catch (e) {} }); }
+function startPresence() {
+  if (_presence.channel || !supabase || !state.user?.id) return;
+  const ch = supabase.channel('online-users', { config: { presence: { key: state.user.id } } });
+  ch.on('presence', { event: 'sync' }, () => {
+    try { _presence.count = Object.keys(ch.presenceState() || {}).length; } catch (e) { _presence.count = 0; }
+    _presenceEmit();
+  }).subscribe(async (status) => {
+    if (status === 'SUBSCRIBED') { try { await ch.track({ online_at: new Date().toISOString() }); } catch (e) {} }
+  });
+  _presence.channel = ch;
+}
+window.ShapePresence = {
+  start: startPresence,
+  count: () => _presence.count,
+  onChange: (cb) => { _presence.listeners.add(cb); return () => _presence.listeners.delete(cb); },
+};
+
 window.ShapeWorkoutLogs = {
   saveSessionLog: saveWorkoutSessionLog,
   saveStructuredSession: saveStructuredWorkoutSession,
