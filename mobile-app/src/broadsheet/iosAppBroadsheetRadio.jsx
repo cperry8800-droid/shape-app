@@ -293,7 +293,7 @@ function BSShapeRadioLogo({ cream, accent }) {
   const ink = cream || t.INK;
   const glow = accent || t.ACCENT;
   const logoFont = "'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif";
-  const logoSize = 'clamp(17px, 5.3vw, 23px)';
+  const logoSize = 'clamp(19px, 6vw, 26px)';
   const shapeTracking = '0.2em';
   const radioTracking = '0.18em';
 
@@ -325,8 +325,8 @@ function BSShapeRadioLogo({ cream, accent }) {
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        width: 'clamp(12px, 3.2vw, 16px)',
-        height: 'clamp(18px, 4.7vw, 23px)',
+        width: 'clamp(10px, 2.7vw, 13px)',
+        height: 'clamp(15px, 4vw, 19px)',
         flexShrink: 0,
       }}>
         <span style={{
@@ -336,9 +336,9 @@ function BSShapeRadioLogo({ cream, accent }) {
           transform: 'translateY(-12%)',
           width: 0,
           height: 0,
-          borderTop: 'clamp(5px, 1.25vw, 6.5px) solid transparent',
-          borderBottom: 'clamp(5px, 1.25vw, 6.5px) solid transparent',
-          borderLeft: `clamp(8px, 2.2vw, 11px) solid ${glow}`,
+          borderTop: 'clamp(4px, 1vw, 5px) solid transparent',
+          borderBottom: 'clamp(4px, 1vw, 5px) solid transparent',
+          borderLeft: `clamp(6px, 1.6vw, 8px) solid ${glow}`,
         }} />
         <span style={{
           position: 'absolute',
@@ -347,9 +347,9 @@ function BSShapeRadioLogo({ cream, accent }) {
           transform: 'translateY(-88%)',
           width: 0,
           height: 0,
-          borderTop: 'clamp(5px, 1.25vw, 6.5px) solid transparent',
-          borderBottom: 'clamp(5px, 1.25vw, 6.5px) solid transparent',
-          borderRight: `clamp(8px, 2.2vw, 11px) solid ${ink}`,
+          borderTop: 'clamp(4px, 1vw, 5px) solid transparent',
+          borderBottom: 'clamp(4px, 1vw, 5px) solid transparent',
+          borderRight: `clamp(6px, 1.6vw, 8px) solid ${ink}`,
         }} />
       </span>
       <span style={{
@@ -1085,8 +1085,9 @@ function BSRadioScreen({ onBack }) {
 
           <style>{`@keyframes bs-beat-ring { 0% { transform: scale(0.92); opacity: 0.95; } 50% { transform: scale(1.0); opacity: 0.55; } 100% { transform: scale(1.18); opacity: 0; } } @keyframes bs-radio-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }`}</style>
 
-          {/* Heart-rate sync — stages: not connected → free → matching → in sync */}
-          <div style={{ marginTop: 18, borderTop: `1px solid ${CREAM25}`, paddingTop: 14 }}>
+          {/* Heart-rate sync — stages: not connected → free → matching → in sync.
+              Full-bleed opaque band so no glow / stage-light shows through (plain black). */}
+          <div style={{ marginTop: 18, marginLeft: -t.padX, marginRight: -t.padX, marginBottom: -18, padding: `14px ${t.padX}px 18px`, background: t.PAPER, position: 'relative', zIndex: 3, borderTop: `1px solid ${CREAM25}` }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: CREAM, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ width: 4, height: 11, background: TEAL, display: 'inline-block' }} />
