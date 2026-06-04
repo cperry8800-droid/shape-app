@@ -247,21 +247,21 @@ function BSHabitScoreCard({ habits, onOpenScore }) {
   const donts = habits.filter(h => h.type === 'avoid');
   const breakdown = [
     { label: 'To do', c: teal, e: sumE(dos), p: sumP(dos) },
-    { label: "Don't do it", c: t.RUST, e: sumE(donts), p: sumP(donts) },
+    { label: "To don't", c: t.RUST, e: sumE(donts), p: sumP(donts) },
   ];
   return (
     <button onClick={onOpenScore} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 16, border: `1px solid ${teal}44`, background: `linear-gradient(150deg, ${teal}1f, ${teal}07 55%, ${t.PAPER2} 92%), ${t.PAPER2}`, padding: 13, display: 'block' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Earned today</div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginTop: 5 }}>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, letterSpacing: '-0.04em', color: t.INK, lineHeight: 1 }}>+{earned}</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>pts</span>
+          <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>Earned today</div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 4 }}>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>+{earned}</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>pts</span>
           </div>
-          <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.05em', textTransform: 'uppercase', color: teal, fontWeight: 600, lineHeight: 1.4 }}>of {possible} possible · to your Shape Score</div>
+          <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.05em', textTransform: 'uppercase', color: teal, fontWeight: 600, lineHeight: 1.4 }}>of {possible} possible · to your Shape Score</div>
         </div>
-        <div style={{ width: 48, height: 48, borderRadius: 999, flexShrink: 0, background: `conic-gradient(${teal} ${pct * 3.6}deg, ${t.HAIR} 0deg)`, display: 'grid', placeItems: 'center' }}>
-          <div style={{ width: 37, height: 37, borderRadius: 999, background: t.PAPER, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, color: t.INK }}>{pct}%</div>
+        <div style={{ width: 42, height: 42, borderRadius: 999, flexShrink: 0, background: `conic-gradient(${teal} ${pct * 3.6}deg, ${t.HAIR} 0deg)`, display: 'grid', placeItems: 'center' }}>
+          <div style={{ width: 32, height: 32, borderRadius: 999, background: t.PAPER, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: t.INK }}>{pct}%</div>
         </div>
       </div>
       <div style={{ height: 3, borderRadius: 999, background: t.HAIR, marginTop: 11, overflow: 'hidden' }}>
@@ -499,7 +499,7 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
         <BSHabitScoreCard habits={habits} onOpenScore={onOpenScore} />
       </div>
       <BSHabitSection title="To do" type="do" accent={teal} habits={dos} onToggle={toggle} onRemove={removeHabit} onAdd={() => setAdding('do')} />
-      <BSHabitSection title="Don't do it" type="avoid" accent={t.RUST} habits={donts} onToggle={toggle} onRemove={removeHabit} onAdd={() => setAdding('avoid')} />
+      <BSHabitSection title="To don't" type="avoid" accent={t.RUST} habits={donts} onToggle={toggle} onRemove={removeHabit} onAdd={() => setAdding('avoid')} />
       <div style={{ height: 28 }} />
       {adding && <BSHabitAddSheet type={adding} accent={adding === 'avoid' ? t.RUST : teal} onClose={() => setAdding(null)} onCreate={onCreate} />}
     </BSPage>
