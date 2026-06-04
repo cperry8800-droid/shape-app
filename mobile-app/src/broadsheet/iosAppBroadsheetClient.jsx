@@ -8894,15 +8894,6 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         </div>
       </div>
 
-      <div style={{ padding: `14px ${t.padX}px 0` }}>
-        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '14px 16px' }}>
-          <BSEyebrow color={t.ACCENT}>How it works</BSEyebrow>
-          <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 15.5, lineHeight: 1.32, color: t.INK, letterSpacing: '-0.015em' }}>
-            Every logged workout, tracked meal, kept session, and habit you hit adds up. Climb tiers and spend points on training credits, nutrition services, or Shape merch. No expiry, no gotchas.
-          </div>
-        </div>
-      </div>
-
       {/* Rewards header — "Spend your points" centered, teal, and tappable
           straight to the Shape Store where points are redeemed. */}
       <div style={{ padding: `${t.sectGap}px ${t.padX}px 10px`, display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'baseline', gap: 8 }}>
@@ -9807,10 +9798,6 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
           <span>{pct}% complete</span>
           <span>{list.aisles.length} aisles · ~22 min</span>
         </div>
-        <div style={{ borderRadius: 16, marginTop: 14, padding: 14, background: `linear-gradient(155deg, ${t.AMBER}1c, ${t.AMBER}06 50%, ${t.PAPER2} 90%), ${t.PAPER2}`, border: `1px solid ${t.AMBER}44` }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.AMBER, fontWeight: 700, marginBottom: 6 }}>▍ From {noteAuthor}</div>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, fontStyle: 'italic', lineHeight: 1.4, letterSpacing: '-0.005em' }}>{noteText}</div>
-        </div>
         <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'nowrap' }}>
           <button onClick={async () => {
             try {
@@ -10018,56 +10005,51 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreat
 
       {/* New list */}
       <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <button onClick={onCreate} style={{ width: '100%', borderRadius: t.RADIUS_SM,
-          padding: '13px 14px', background: t.INK, color: t.PAPER, border: 0, cursor: 'pointer',
-          fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase',
+        <button onClick={onCreate} style={{ width: '100%', borderRadius: 14,
+          padding: '14px 14px', background: t.INK, color: t.PAPER, border: 0, cursor: 'pointer',
+          fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase',
         }}>+ New grocery list</button>
       </div>
 
-      {/* Filter chips — wrap so they never run off-screen on mobile (the app's
-          touch handling blocks horizontal scroll of inner rows). */}
-      <div style={{ padding: `12px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}`, display: 'flex', gap: 6, flexWrap: 'wrap', rowGap: 8 }}>
-        {[['all','All'],['recipe','Recipes'],['custom','Custom'],['mealplan','Meal Plans']].map(([k, l]) => (
-          <button key={k} onClick={() => setFilter(k)} style={{ borderRadius: t.RADIUS_SM,
-            flex: '0 0 auto',
-            padding: '8px 12px', border: `1px solid ${t.INK}`,
-            background: filter === k ? t.INK : 'transparent',
-            color: filter === k ? t.PAPER : t.INK, cursor: 'pointer',
-            fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase',
-          }}>{l}</button>
-        ))}
+      {/* Filter chips — rounded pills */}
+      <div style={{ padding: `12px ${t.padX}px 6px`, display: 'flex', gap: 7, flexWrap: 'wrap', rowGap: 8 }}>
+        {[['all','All'],['recipe','Recipes'],['custom','Custom'],['mealplan','Meal Plans']].map(([k, l]) => {
+          const on = filter === k;
+          return (
+            <button key={k} onClick={() => setFilter(k)} style={{
+              flex: '0 0 auto', padding: '8px 14px', borderRadius: 999,
+              border: `1px solid ${on ? t.INK : t.RULE}`,
+              background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK, cursor: 'pointer',
+              fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
+            }}>{l}</button>
+          );
+        })}
       </div>
 
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        {filtered.map((l, i, arr) => {
+      <div style={{ padding: `4px ${t.padX}px`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {filtered.map((l) => {
           const color = l.kind === 'template' ? t.AMBER : l.kind === 'mealplan' ? t.GREEN : l.kind === 'recipe' ? t.RUST : t.ACCENT;
           const open = openList === l.id;
           const previewItems = l.items || bsLibraryPreviewItems(l);
           const btn = {
-            borderRadius: t.RADIUS_SM, padding: '8px 12px', cursor: 'pointer',
-            fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase',
+            borderRadius: 999, padding: '9px 14px', cursor: 'pointer',
+            fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
           };
           return (
-            <div key={l.id} style={{
-              padding: `${t.rowY + 6}px 0`,
-              borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-            }}>
-              <div
-                onClick={() => setOpenList(open ? null : l.id)}
-                style={{ cursor: 'pointer' }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+            <div key={l.id} style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
+              <div onClick={() => setOpenList(open ? null : l.id)} style={{ cursor: 'pointer' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6, gap: 10 }}>
                   <BSEyebrow color={color}>{l.eyebrow}</BSEyebrow>
                   <BSEyebrow>{l.usedCount} uses</BSEyebrow>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', marginBottom: 4 }}>{l.name}</div>
-                  <span style={{ fontFamily: t.MONO, fontSize: 14, color: t.INK50, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>▾</span>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{l.name}</div>
+                  <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 13, color: t.INK50, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>▾</span>
                 </div>
-                <div style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK70, letterSpacing: '0.06em', marginBottom: 10 }}>{l.count} items · {l.preview}</div>
+                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9.5, color: t.INK70, letterSpacing: '0.06em' }}>{l.count} items · {l.preview}</div>
               </div>
               {open && previewItems && previewItems.length > 0 && (
-                <div style={{ borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, marginBottom: 10, overflow: 'hidden' }}>
+                <div style={{ borderRadius: 12, border: `1px solid ${t.HAIR}`, background: t.PAPER, margin: '12px 0 2px', overflow: 'hidden' }}>
                   {previewItems.map((it, idx) => (
                     <div key={it.id || idx} style={{
                       display: 'grid', gridTemplateColumns: '64px 1fr', gap: 10, padding: '10px 12px',
@@ -10082,14 +10064,14 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreat
                   ))}
                 </div>
               )}
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 12 }}>
                 <button onClick={() => onLoad(l)} style={{ ...btn, background: t.INK, color: t.PAPER, border: 0 }}>Load →</button>
-                <button onClick={() => onEdit(l)} style={{ ...btn, background: 'transparent', color: t.INK, border: `1px solid ${t.INK}` }}>Edit</button>
+                <button onClick={() => onEdit(l)} style={{ ...btn, background: 'transparent', color: t.INK, border: `1px solid ${t.RULE}` }}>Edit</button>
                 {l.kind === 'mealplan' && (
-                  <button onClick={() => onDuplicate(l)} style={{ ...btn, background: 'transparent', color: t.INK, border: `1px solid ${t.INK}` }}>Duplicate</button>
+                  <button onClick={() => onDuplicate(l)} style={{ ...btn, background: 'transparent', color: t.INK, border: `1px solid ${t.RULE}` }}>Duplicate</button>
                 )}
                 {l.kind === 'custom' && (
-                  <button onClick={() => onDelete(l)} style={{ ...btn, background: 'transparent', color: t.RUST, border: `1px solid ${t.RUST}` }}>Delete</button>
+                  <button onClick={() => onDelete(l)} style={{ ...btn, background: 'transparent', color: t.RUST, border: `1px solid ${t.RUST}66` }}>Delete</button>
                 )}
               </div>
             </div>
