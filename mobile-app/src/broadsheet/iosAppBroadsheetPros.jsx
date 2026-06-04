@@ -2240,12 +2240,12 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     return [...list].sort((a, b) => numFrom(b.meta, /(\d+) on it/) - numFrom(a.meta, /(\d+) on it/));
   })();
   const cues = [
-    { n: 'Push Day cues', meta: '6 videos · 9 min · used by 14' },
-    { n: 'Warmup routines', meta: '8 videos · 11 min · used by 31' },
-    { n: 'Cooldown & stretch', meta: '5 videos · 7 min · used by 17' },
+    { n: 'Push / Pull / Legs — demos', meta: '12 videos · 22 min · in 1 plan' },
+    { n: 'Squat & deadlift form', meta: '8 videos · 14 min · in 3 plans' },
+    { n: 'Warmup & mobility', meta: '6 videos · 9 min · in 4 plans' },
   ];
   const [tab, setTab] = useStateBSP('plans');
-  const TABS = [['plans', 'Plans'], ['workouts', 'Workouts'], ['clients', 'Client programs'], ['soundtracks', 'Soundtracks']];
+  const TABS = [['plans', 'Plans'], ['workouts', 'Workouts'], ['clients', 'Programs'], ['soundtracks', 'Soundtracks']];
   const workouts = [
     { n: 'Lower Push — Peak', meta: '6 lifts · 62 min · RPE 8' },
     { n: 'Upper Pull — Volume', meta: '7 lifts · 58 min · RPE 7.5' },
@@ -2336,15 +2336,14 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             <BSProAvatarButton size={34} />
-            <button onClick={() => setDrafting(true)} aria-label="New program" style={{ width: 38, height: 38, borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 18, fontWeight: 400, cursor: 'pointer', lineHeight: 1 }}>+</button>
           </div>
         </div>
         {note && <div style={{ marginTop: 14, borderRadius: 999, border: `1px solid ${teal}`, background: `${teal}1c`, color: teal, padding: '9px 14px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em' }}>✓ {note}</div>}
 
         {/* Tabs — Plans / Workouts / Client programs / Soundtracks */}
-        <div className="bs-hide-scroll" style={{ marginTop: 18, display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 2 }}>
+        <div style={{ marginTop: 18, display: 'flex', gap: 5 }}>
           {TABS.map(([k, l]) => (
-            <button key={k} onClick={() => setTab(k)} style={{ flexShrink: 0, borderRadius: 999, border: `1px solid ${tab === k ? teal : t.RULE}`, background: tab === k ? `${teal}1c` : 'transparent', color: tab === k ? teal : t.INK, padding: '8px 14px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{l}</button>
+            <button key={k} onClick={() => setTab(k)} style={{ flex: 1, minWidth: 0, borderRadius: 999, border: `1px solid ${tab === k ? teal : t.RULE}`, background: tab === k ? `${teal}1c` : 'transparent', color: tab === k ? teal : t.INK, padding: '8px 4px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.03em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l}</button>
           ))}
         </div>
 
@@ -2385,19 +2384,19 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         {secHead('LIBRARY', 'Workouts', 'NEW →', () => setDrafting(true))}
         <div style={{ marginTop: 6 }}>{workouts.map((w, i) => numRow({ ...w, onClick: () => setDrafting(true) }, i, '→'))}</div>
 
-        {/* Cues & mobility (video sets) */}
-        {secHead('CUE LIBRARY', 'Cues & mobility', 'NEW →', () => flash('New cue set — add videos in the editor'))}
-        <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 13, alignItems: 'center', borderRadius: 16, border: `1px solid ${purple}44`, background: `linear-gradient(150deg, ${purple}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 14 }}>
+        {/* Video library — upload videos of the workouts in your plans */}
+        {secHead('WORKOUT VIDEOS', 'Video library', 'UPLOAD →', () => flash('Upload a workout video — record or add from camera roll'))}
+        <button onClick={() => flash('Upload a workout video — record or add from camera roll')} style={{ width: '100%', marginTop: 10, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 13, alignItems: 'center', borderRadius: 16, border: `1px dashed ${purple}66`, background: `linear-gradient(150deg, ${purple}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 14 }}>
           <span style={{ width: 50, height: 50, borderRadius: 12, background: `linear-gradient(150deg, ${purple}, ${purple}99)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="#ffffffd0"><path d="M8 5v14l11-7z" /></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffffe0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg>
           </span>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>Mobility essentials</div>
-            <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.02em' }}>12 videos · 18 min · Used by 23</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>Upload a workout video</div>
+            <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.02em' }}>Record or add from camera roll · link it to a plan</div>
           </div>
-          <span style={{ color: purple, fontSize: 16 }}>→</span>
-        </div>
-        <div style={{ marginTop: 4 }}>{cues.map((c, i) => numRow({ ...c, onClick: () => flash('Cue set — open in the editor') }, i, '→'))}</div>
+          <span style={{ color: purple, fontSize: 18, fontWeight: 700 }}>＋</span>
+        </button>
+        <div style={{ marginTop: 4 }}>{cues.map((c, i) => numRow({ ...c, onClick: () => flash('Open video set') }, i, '→'))}</div>
         </>)}
 
         {tab === 'clients' && (<>
@@ -3103,7 +3102,7 @@ function BSNutriPlans() {
     { n: 'Pre-workout snacks', meta: '12 recipes · quick carbs' },
   ];
   const [tab, setTab] = useStateBSP('plans');
-  const TABS = [['plans', 'Plans'], ['recipes', 'Recipes'], ['clients', 'Client plans'], ['soundtracks', 'Soundtracks']];
+  const TABS = [['plans', 'Plans'], ['recipes', 'Recipes'], ['clients', 'Clients'], ['soundtracks', 'Soundtracks']];
   const enrolled = [
     { prog: 'Lean Cut', n: 12, who: [['A', t.RUST], ['J', '#3b7de0']] },
     { prog: 'Performance', n: 8, who: [['R', t.AMBER]] },
@@ -3192,15 +3191,14 @@ function BSNutriPlans() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             <BSProAvatarButton size={34} />
-            <button onClick={() => setDrafting(true)} aria-label="New plan" style={{ width: 38, height: 38, borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 18, fontWeight: 400, cursor: 'pointer', lineHeight: 1 }}>+</button>
           </div>
         </div>
         {note && <div style={{ marginTop: 14, borderRadius: 999, border: `1px solid ${gold}`, background: `${gold}1c`, color: gold, padding: '9px 14px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em' }}>✓ {note}</div>}
 
         {/* Tabs — Plans / Recipes / Client plans / Soundtracks */}
-        <div className="bs-hide-scroll" style={{ marginTop: 18, display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 2 }}>
+        <div style={{ marginTop: 18, display: 'flex', gap: 5 }}>
           {TABS.map(([k, l]) => (
-            <button key={k} onClick={() => setTab(k)} style={{ flexShrink: 0, borderRadius: 999, border: `1px solid ${tab === k ? gold : t.RULE}`, background: tab === k ? `${gold}1c` : 'transparent', color: tab === k ? gold : t.INK, padding: '8px 14px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{l}</button>
+            <button key={k} onClick={() => setTab(k)} style={{ flex: 1, minWidth: 0, borderRadius: 999, border: `1px solid ${tab === k ? gold : t.RULE}`, background: tab === k ? `${gold}1c` : 'transparent', color: tab === k ? gold : t.INK, padding: '8px 4px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.03em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l}</button>
           ))}
         </div>
 
