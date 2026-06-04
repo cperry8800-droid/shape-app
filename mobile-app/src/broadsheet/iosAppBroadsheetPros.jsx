@@ -71,8 +71,16 @@ const {
   BSTabBar, BSFooter,
   BSSheetProvider, useBSSheet, BSCalendarScreen,
   BSRadioPrompt, BSRadioScreen, BSNowPlaying,
-  BSClientChat, BSSettings, BSShapeScorePage, BSShapeStorePage, BSContactPage, BSTermsPage, SHAPE_SCORE_PROFILES, _bsUseLiveScore, bsTierColor, bsMyInitials, bsMyTierColor,
+  BSClientChat, BSSettings, BSShapeScorePage, BSShapeStorePage, BSContactPage, BSTermsPage, SHAPE_SCORE_PROFILES, _bsUseLiveScore,
 } = window;
+
+// These identity/tier helpers are set on `window` by the CLIENT bundle, which
+// may evaluate AFTER this module. Read them lazily at call time (with safe
+// fallbacks) instead of capturing `undefined` at module load — otherwise a
+// coach session that loads this bundle first crashes with "… is not a function".
+const bsTierColor   = (...a) => { try { return (window.bsTierColor && window.bsTierColor(...a)) || '#8a8f98'; } catch (e) { return '#8a8f98'; } };
+const bsMyInitials  = () => { try { return (window.bsMyInitials && window.bsMyInitials()) || 'A'; } catch (e) { return 'A'; } };
+const bsMyTierColor = () => { try { return (window.bsMyTierColor && window.bsMyTierColor()) || '#8a8f98'; } catch (e) { return '#8a8f98'; } };
 
 // Hydrate the coach's Shape Score tier into window.ShapeScore at app startup so
 // every coach avatar (home header, Me) reflects the right tier color before the
