@@ -46,6 +46,23 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-13 — Client Goal page redesign: Overall / Training / Nutrition dashboards
+- Rebuilt `BSClientGoals` into **three themed dashboards** (per the new designs):
+  - **Overall** (teal): "down so far" weight card (start/now/target + draggable progress),
+    current/to-go/weekly-pace/on-track stats, weight trend chart (`BSGoalsTrend`),
+    milestones, your plans, this-week targets, consistency heatmap, "your why", log
+    weigh-in CTA.
+  - **Training** (rust): "strength held" card + 7-week heatmap, sessions/streak/RPE/PRs
+    stats, lift targets, milestones, "your program" card.
+  - **Nutrition** (gold): shared weight card + trend (gold), current/to-go/adherence/pace
+    stats, **macros vs target** rows, milestones, "your plan" card, weekly nutrition targets.
+- **Tab-aware header**: per-tab eyebrow + serif title (last word accent-italic) + subtitle,
+  an **Edit** button (Overall → body-comp fields incl. start/now/target/why; Training/
+  Nutrition → headline title+subtitle), and a per-tab accent on the 3-up tab pills.
+- Persists `overall` + `trainingMeta`/`nutritionMeta` to `user_goals('client_goals')`;
+  the **share-with-coaches** toggle moved to the page bottom (applies to all tabs). The
+  dashboards' trend/milestones/targets are illustrative demo data for now.
+
 ### 2026-06-13 — Home quick-chips restyle (Today / Log / Habits / Score)
 - The 4 home quick-action chips got a bolder, more modern look: rounder (15px), a
   soft **accent-tinted fill** + accent eyebrow, and a **bold display value** (15px/800,
