@@ -950,17 +950,12 @@ function BSRadioScreen({ onBack }) {
         borderBottom: `1px solid ${RULE_DK}`,
         background: 'transparent',
       }}>
-        {/* Framed inset — keeps the border spacing, soft teal glow instead of texture */}
+        {/* Full-bleed soft teal glow — fills the whole screen, no inset frame */}
         <div aria-hidden style={{
           position: 'absolute',
-          left: t.padX,
-          right: t.padX,
-          top: 16,
-          bottom: 16,
+          inset: 0,
           zIndex: 0,
-          border: `1px solid ${RULE_DK}`,
-          borderRadius: 18,
-          background: `radial-gradient(110% 70% at 50% 26%, ${TEAL}26, ${TEAL}0a 46%, transparent 72%)`,
+          background: `radial-gradient(125% 78% at 50% 22%, ${TEAL}2e, ${TEAL}0d 48%, transparent 78%)`,
           pointerEvents: 'none',
         }} />
         <BSStageLight color={TEAL} opacity={0.1} paused={r.paused} />
