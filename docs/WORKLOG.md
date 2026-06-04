@@ -46,6 +46,18 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-13 — Coach sees a client's shared goals (read-only)
+- **Migration `2026-06-13-client-goals-coach-read.sql`** (idempotent): SECURITY DEFINER
+  `get_client_goals(p_user_id)` — returns the client's `user_goals('client_goals')`
+  document **only** to a coach linked via `is_coach_on_client`, and **only** when the
+  client's `share` flag is on (else `{share:false}`; `null` when not their coach).
+  **Run on Supabase.**
+- `shapeBackend.js`: `ShapeGoalsApi.getForClient(userId)` → the RPC.
+- **Coach app** (`BSProClientFullProfilePage`): new **Client goals** section under the
+  program-phase chips — fetches via the RPC and renders the client's Training/Nutrition
+  goal cards read-only (progress + target). States: private ("keeps their goals
+  private"), none shared, or demo ("appears once linked to a live member").
+
 ### 2026-06-13 — Client Goal page (Training/Nutrition tabs + coach-visibility toggle)
 - **Mobile**: new `BSClientGoals` (linked from the **Me** tab → "Goals"). Mirrors the
   website goal page (`public/newdesign/ClientGoal.html`): goal cards (eyebrow `GOAL ·
