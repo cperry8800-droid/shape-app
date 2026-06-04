@@ -47,6 +47,13 @@ function bsMyTierColor() {
   return bsTierColor(bsMyTier());
 }
 
+// Top-right profile avatar for sub-pages — taps through to Settings/profile via
+// a window event (handled in BSClientAppInner), so a page needn't thread an
+// onProfile prop. Drop it into a page's back-button row, right-aligned.
+function BSMeCorner({ size = 30 }) {
+  return <BSAvatar init={bsMyInitials()} size={size} fill={bsMyTierColor()} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />;
+}
+
 // Renders the music-reactive overlay (edge glow / bloom / hologram DJ)
 // only while radio is on, not paused, and fxMode != 'off'.
 function BSRadioFx() {
@@ -91,6 +98,14 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     const open = () => goIntegrations();
     window.addEventListener('shape:openIntegrations', open);
     return () => window.removeEventListener('shape:openIntegrations', open);
+  }, []);
+
+  // Tapping the top-right profile avatar on any screen opens Settings/profile
+  // — fired as an event so sub-pages don't need an onProfile prop threaded in.
+  React.useEffect(() => {
+    const open = () => goSettings();
+    window.addEventListener('shape:openProfile', open);
+    return () => window.removeEventListener('shape:openProfile', open);
   }, []);
 
   // Jump to the marketplace from anywhere (e.g. the Pricing page's "Browse all
@@ -802,7 +817,10 @@ function BSClientLibrary({ onBack, goMarket = () => {} }) {
   return (
     <BSPage>
       <div style={{ padding: `14px ${t.padX}px 0` }}>
-        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0 }}>← Back</button>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0 }}>← Back</button>
+          <BSMeCorner size={28} />
+        </div>
         <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Your library</div>
         <h1 style={{ margin: '6px 0 0', fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>Saved<br/><span style={{ fontStyle: 'italic', color: teal }}>everything.</span></h1>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, lineHeight: 1.4, color: t.INK70 }}>Every workout, meal, recipe and grocery list you keep — in one place.</div>
@@ -10143,17 +10161,20 @@ Object.assign(window, {
 // ═══════════════════════════════════════════════════════════
 // SHARED: detail page back-header
 // ═══════════════════════════════════════════════════════════
-function BSDetailHeader({ onBack, eyebrow, kicker, title, trailing }) {
+function BSDetailHeader({ onBack, eyebrow, kicker, title, trailing, noCorner = false }) {
   const t = useBS();
   return (
     <div style={{ padding: '54px 18px 14px', background: t.PAPER, position: 'sticky', top: 0, zIndex: 2 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 12 }}>
         <button onClick={onBack} style={{ borderRadius: t.RADIUS_SM,
           background: 'transparent', border: 0, cursor: 'pointer', padding: 0,
           fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 700,
           display: 'inline-flex', alignItems: 'center', gap: 6,
         }}>← Back</button>
-        {eyebrow && <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 }}>{eyebrow}</span>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+          {eyebrow && <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{eyebrow}</span>}
+          {!noCorner && <BSMeCorner size={28} />}
+        </div>
       </div>
       {kicker && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700, marginBottom: 8 }}>{kicker}</div>}
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
@@ -12525,7 +12546,7 @@ function BSAboutPage({ onBack }) {
       </div>
 
       <div style={{ padding: `26px ${t.padX}px 32px`, textAlign: 'center' }}>
-        <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 30, fontWeight: 600, letterSpacing: '-0.03em', color: t.INK }}>Join the <span style={{ color: teal }}>community.</span></div>
+        <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 30, fontWeight: 600, letterSpacing: '-0.03em', color: t.INK }}>Shape your <span style={{ color: teal }}>community.</span></div>
       </div>
       <BSFooter right="About" />
     </BSPage>
