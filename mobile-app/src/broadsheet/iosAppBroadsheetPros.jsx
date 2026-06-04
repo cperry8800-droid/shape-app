@@ -3457,7 +3457,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
         const total = scoreProfile.total || 0;
         const goal = scoreProfile.goal || 5000;
         const pct = goal ? Math.min(1, total / goal) : 0;
-        const RAD = 34, CIRC = 2 * Math.PI * RAD;
+        const RAD = 26, CIRC = 2 * Math.PI * RAD;
         const tierC = bsTierColor(scoreProfile.tier);
         const bars = [
           { k: 'WEEK',   v: scoreProfile.weekRatio, n: scoreProfile.week, c: t.AMBER },
@@ -3469,34 +3469,34 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
           <div style={{ padding: `16px ${t.padX}px 6px` }}>
             <button onClick={() => setShowScore(true)} style={{
               width: '100%', textAlign: 'left', cursor: 'pointer', color: t.INK,
-              border: `1px solid ${accent}33`, borderRadius: 18,
+              border: `1px solid ${accent}33`, borderRadius: 16,
               background: `linear-gradient(155deg, ${accent}10, ${t.PAPER2} 75%), ${t.PAPER2}`,
-              padding: 18,
+              padding: 14,
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Shape Score</div>
-                  <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: tierC, lineHeight: 1 }}>{scoreProfile.tier}<span style={{ marginLeft: 8, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', verticalAlign: '2px' }}>tier</span></div>
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, marginTop: 10 }}>
-                    <span style={{ fontFamily: t.DISPLAY, fontSize: 46, fontWeight: 700, lineHeight: 0.9, letterSpacing: '-0.04em' }}>{total.toLocaleString()}</span>
-                    <span style={{ fontFamily: t.DISPLAY, fontSize: 16, color: t.INK50, marginBottom: 5 }}>of {goal.toLocaleString()}</span>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Shape Score</div>
+                  <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: tierC, lineHeight: 1 }}>{scoreProfile.tier}<span style={{ marginLeft: 7, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', verticalAlign: '2px' }}>tier</span></div>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, marginTop: 7 }}>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, lineHeight: 0.9, letterSpacing: '-0.04em' }}>{total.toLocaleString()}</span>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 13, color: t.INK50, marginBottom: 4 }}>of {goal.toLocaleString()}</span>
                   </div>
-                  <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: tierC, fontWeight: 700 }}>{scoreProfile.week} this week · {(scoreProfile.pointsToNext || 0).toLocaleString()} to {scoreProfile.nextTier}</div>
+                  <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: tierC, fontWeight: 700 }}>{scoreProfile.week} this week · {(scoreProfile.pointsToNext || 0).toLocaleString()} to {scoreProfile.nextTier}</div>
                 </div>
-                <svg width="84" height="84" viewBox="0 0 84 84" style={{ flexShrink: 0 }}>
-                  <circle cx="42" cy="42" r={RAD} fill="none" stroke={t.HAIR} strokeWidth="6" />
-                  <circle cx="42" cy="42" r={RAD} fill="none" stroke={tierC} strokeWidth="6" strokeLinecap="round" strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - pct)} transform="rotate(-90 42 42)" />
-                  <text x="42" y="43" textAnchor="middle" dominantBaseline="central" style={{ fontFamily: t.DISPLAY, fontSize: '17px', fontWeight: 700, fill: t.INK }}>{Math.round(pct * 100)}%</text>
+                <svg width="64" height="64" viewBox="0 0 64 64" style={{ flexShrink: 0 }}>
+                  <circle cx="32" cy="32" r={RAD} fill="none" stroke={t.HAIR} strokeWidth="5" />
+                  <circle cx="32" cy="32" r={RAD} fill="none" stroke={tierC} strokeWidth="5" strokeLinecap="round" strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - pct)} transform="rotate(-90 32 32)" />
+                  <text x="32" y="33" textAnchor="middle" dominantBaseline="central" style={{ fontFamily: t.DISPLAY, fontSize: '14px', fontWeight: 700, fill: t.INK }}>{Math.round(pct * 100)}%</text>
                 </svg>
               </div>
-              <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 7 }}>
+              <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 5 }}>
                 {bars.map(r => (
-                  <div key={r.k} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ width: 86, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70, fontWeight: 600 }}>{r.k}</div>
-                    <div style={{ flex: 1, height: 5, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}>
+                  <div key={r.k} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 70, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70, fontWeight: 600 }}>{r.k}</div>
+                    <div style={{ flex: 1, height: 4, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}>
                       <div style={{ width: `${(r.v || 0) * 100}%`, height: '100%', background: r.c, borderRadius: 999 }} />
                     </div>
-                    <div style={{ width: 40, textAlign: 'right', fontFamily: t.MONO, fontSize: 10.5, color: t.INK, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{r.n}</div>
+                    <div style={{ width: 38, textAlign: 'right', fontFamily: t.MONO, fontSize: 10, color: t.INK, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{r.n}</div>
                   </div>
                 ))}
               </div>
