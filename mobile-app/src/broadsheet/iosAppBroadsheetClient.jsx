@@ -11985,15 +11985,15 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       </button>
       {showAppearance && (
       <div style={{ padding: `14px ${t.padX}px` }}>
-        {/* Paper / Texture / Accent as tabs — saves space */}
-        <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-          {[['paper','Paper'],['texture','Texture'],['accent','Accent']].map(([k, l]) => (
+        {/* Paper / Texture / Accent / Ink as tabs — saves space */}
+        <div style={{ display: 'flex', gap: 5, marginBottom: 14 }}>
+          {[['paper','Paper'],['texture','Texture'],['accent','Accent'],['ink','Ink']].map(([k, l]) => (
             <button key={k} onClick={() => setAppearTab(k)} style={{
-              flex: 1, padding: '9px 6px', borderRadius: 999, cursor: 'pointer',
+              flex: 1, padding: '9px 4px', borderRadius: 999, cursor: 'pointer',
               border: `1px solid ${appearTab === k ? t.ACCENT : t.RULE}`,
               background: appearTab === k ? `${t.ACCENT}22` : 'transparent',
               color: appearTab === k ? t.INK : t.INK70,
-              fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
+              fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
             }}>{l}</button>
           ))}
         </div>
@@ -12035,7 +12035,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         </div>
         )}
 
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginTop: 12, marginBottom: 6, fontWeight: 700 }}>Ink color <span style={{ color: t.INK30, marginLeft: 6, letterSpacing: '0.16em' }}>· text</span></div>
+        {appearTab === 'ink' && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
           {[
             ['default', null,        'Default'],
@@ -12084,6 +12084,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             Custom
           </label>
         </div>
+        )}
 
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginTop: 12, marginBottom: 6, fontWeight: 700 }}>Display weight</div>
         <div style={{ display: 'flex', gap: 6 }}>
