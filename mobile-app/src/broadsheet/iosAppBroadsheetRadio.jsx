@@ -293,9 +293,9 @@ function BSShapeRadioLogo({ cream, accent }) {
   const ink = cream || t.INK;
   const glow = accent || t.ACCENT;
   const logoFont = "'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif";
-  const logoSize = 'clamp(19px, 6vw, 26px)';
-  const shapeTracking = '0.2em';
-  const radioTracking = '0.18em';
+  const logoSize = 'clamp(23px, 7.4vw, 33px)';
+  const shapeTracking = '0.3em';
+  const radioTracking = '0.28em';
 
   return (
     <div style={{
@@ -303,7 +303,7 @@ function BSShapeRadioLogo({ cream, accent }) {
       alignItems: 'center',
       justifyContent: 'center',
       width: '100%',
-      gap: 'clamp(8px, 2.2vw, 13px)',
+      gap: 'clamp(13px, 3.6vw, 22px)',
       maxWidth: '100%',
       whiteSpace: 'nowrap',
     }}>
