@@ -46,6 +46,13 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-13 — Me-page featured goal box
+- Client **Me** page: new **featured goal** card right below the Shape Score card —
+  teal-tinted, taps through to the Goal page. Eyebrow `YOUR GOAL · BY {date} ›` +
+  `{N}% THERE`, serif title (last word teal italic), teal progress bar, and the goal's
+  subtext. Driven by the client's top goal (training[0] → nutrition[0], loaded from
+  `user_goals('client_goals')`; demo default until loaded).
+
 ### 2026-06-13 — Coach goal view on the website + goal-sheet polish
 - **Website coach client page** (`coachClientDetail.jsx`): added a **GOALS** card showing
   the client's shared Training/Nutrition goals (progress + target), fed by the
