@@ -667,6 +667,17 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
       window.__bsToast?.('Could not remove', 'err');
     }
   };
+  const dateRef = useRefBSCal(null);
+  const reschedule = async (newDate) => {
+    if (!newDate || newDate === event.date) return;
+    const isLive = live && event.editable && event.source === 'event';
+    if (isLive) {
+      try { await window.ShapeCalendar?.update?.({ id: event.id, date: newDate }); window.__bsToast?.('Rescheduled', 'ok'); onClose(); onChanged(); }
+      catch (e) { window.__bsToast?.(e?.message || 'Could not reschedule', 'err'); }
+    } else {
+      window.__bsToast?.('Rescheduled', 'ok'); onClose();
+    }
+  };
   const isWorkout = event.kind === 'TRN' || event.kind === 'SES' || event.kind === 'WORKOUT';
   const isMeal    = event.kind === 'MEAL';
   const isConsult = event.kind === 'CON';
@@ -696,14 +707,17 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
       {/* Actions */}
       <div style={{ padding: `16px 14px calc(84px + env(safe-area-inset-bottom, 0px))`, background: t.PAPER, borderTop: `1px solid ${t.RULE}`, display: 'flex', gap: 8 }}>
         {(isWorkout || isMeal) && (
-          <button onClick={() => { onClose(); window.__bsToast?.('Logged ✓', 'ok'); }} style={primaryBtn(t)}>{role === 'trainer' ? 'Mark complete' : (isMeal ? 'Log meal' : 'Start session →')}</button>
+          <button onClick={() => {
+            if (role !== 'trainer' && isWorkout) { try { window.dispatchEvent(new Event('shape:startWorkout')); } catch (e) {} onClose(); }
+            else { onClose(); window.__bsToast?.('Logged ✓', 'ok'); }
+          }} style={primaryBtn(t)}>{role === 'trainer' ? 'Mark complete' : (isMeal ? 'Log meal' : 'Start session →')}</button>
         )}
         {isConsult && <button onClick={() => { if (event.meetingUrl) { try { window.open(event.meetingUrl, '_blank', 'noopener'); } catch (e) {} onClose(); } else { onClose(); window.__bsToast?.('No meeting link yet — your coach will add one.', 'warn'); } }} style={primaryBtn(t)}>Join consult →</button>}
         {isCheck   && <button onClick={() => { onClose(); window.__bsToast?.('Submitted check-in', 'ok'); }} style={primaryBtn(t)}>Submit check-in</button>}
         {!isWorkout && !isMeal && !isConsult && !isCheck && <button onClick={onClose} style={primaryBtn(t)}>Done</button>}
-        {canDelete
-          ? <button onClick={removeEvent} style={secondaryBtn(t)}>Delete</button>
-          : <button onClick={() => { onClose(); window.__bsToast?.('Rescheduled to tomorrow', 'warn'); }} style={secondaryBtn(t)}>Reschedule</button>}
+        <input type="date" ref={dateRef} defaultValue={event.date || ''} onChange={(e) => reschedule(e.target.value)} style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }} />
+        <button onClick={() => { const el = dateRef.current; if (el) { try { el.showPicker ? el.showPicker() : el.click(); } catch (e2) { el.click(); } } }} style={secondaryBtn(t)}>Reschedule</button>
+        {canDelete && <button onClick={removeEvent} style={secondaryBtn(t)}>Delete</button>}
       </div>
     </div>
   );

@@ -46,6 +46,18 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Calendar Start session + real Reschedule; profile persistence
+- **Start session** (calendar workout sheet, client): fires a `shape:startWorkout`
+  window event → the app shell closes the calendar, jumps to **Train**, and
+  auto-launches the live session (`BSClientTrain` `autoStart` prop → `BSSession`).
+- **Reschedule** is now real: a native date picker → `ShapeCalendar.update({ id, date })`
+  for live editable events (PATCH /api/calendar); demo events fall back to a toast.
+  Delete kept for live editable events.
+- **Edit-profile persists**: identity (name/handle/location/bio/accent/pronouns/link/goal)
+  saved to `user_goals('client_identity')` + loaded on open, so it survives sessions/
+  devices. Display name also mirrors to `profiles.full_name` via new
+  `ShapeAuth.updateProfileName` (keeps chat/search/leaderboard names in sync).
+
 ### 2026-06-04 — Edit-profile redesign + more customizations
 - Settings **edit profile** form modernized (less analog): rounded-14 fields with
   accent-colored focus, lighter labels, pill Change-photo + Cancel, teal Save.
