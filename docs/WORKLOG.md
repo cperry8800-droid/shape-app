@@ -46,6 +46,13 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Habits: "To don't" rename + compact Earned-today header
+- The avoid section + the Earned-today card breakdown now read **"To don't"** (was
+  "Don't do it"); "To do" unchanged.
+- **Earned-today card top compacted** to match the breakdown sizes below it: big
+  number 38→22, eyebrow 8.5→8, pts 10→8.5, subline 9→8.5, ring 48→42 (inner 37→32,
+  % 10→9).
+
 ### 2026-06-04 — Header avatars match the signed-in account + chat top-rule removed
 - The five "your own" header avatars (home / train / eat / chat / me) were hardcoded
   to **"A"**. New `bsMyName()` / `bsMyInitials()` helpers read `profiles.full_name`
