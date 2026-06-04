@@ -46,6 +46,19 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Recipe box ⇒ merged into Shape Kitchen (one page)
+- The Recipe box and the old `BSShapeKitchen` page showed the **same recipes**; the
+  only thing Kitchen had extra was its **advanced filters**. Merged them into one:
+  - `BSRecipeBox` is **rebranded "Shape Kitchen."** (eyebrow + serif hero) and now
+    carries the advanced **Diet / Protein / Free-from / Goals** filters as a
+    collapsible "Filters" disclosure (badge = active count, "Clear", live recipe
+    count), folded in alongside the existing quick meal-type pills + search.
+  - **Removed** the redundant "Browse Shape Kitchen →" link, the `showKitchen` route,
+    and the now-dead `BSShapeKitchen` component (~90 lines). `BSShapeKitchenRecipe`
+    (the detail page) is unchanged.
+  - **Recipe-card actions shrunk** (Send to grocery / Save): padding 11→7px, font 9→8.
+- One place for recipes now; nothing lost.
+
 ### 2026-06-04 — Unify recipe ⇄ meal detail "anatomy"
 - The Shape Kitchen recipe detail (`BSShapeKitchenRecipe`) and the meal-plan meal
   detail (`BSMealPreview`) had drifted. Brought the recipe page up to the meal page's
