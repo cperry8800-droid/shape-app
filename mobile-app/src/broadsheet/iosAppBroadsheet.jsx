@@ -652,41 +652,48 @@ function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing, t
   );
 }
 
-// Optical-centering for avatar monograms. Rather than hand-tuned per-font
-// offsets, we measure the glyph metrics and compute the vertical shift that
-// lands the rendered ink's centre on the bubble's centre — so any typeface
-// (mono, serif, or a script face whose capitals sit high in the line box)
-// self-corrects. Results are cached by font string + initials; the cache is
-// cleared once web fonts load so early system-font fallbacks get recomputed.
-let _bsMeasureCanvas = null;
-const _bsAvatarOff = new Map();
-if (typeof document !== 'undefined' && document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
-  document.fonts.ready.then(() => { try { _bsAvatarOff.clear(); } catch (e) {} }).catch(() => {});
-}
-function bsAvatarInkOffset(init, fontStr, fontSizePx, fallbackEm) {
-  const fallback = (fallbackEm || 0) * (fontSizePx || 0);
-  if (typeof document === 'undefined') return fallback;
-  const key = fontStr + '|' + (init || '');
-  if (_bsAvatarOff.has(key)) return _bsAvatarOff.get(key);
-  let off = null;
-  try {
-    const c = _bsMeasureCanvas || (_bsMeasureCanvas = document.createElement('canvas'));
-    const ctx = c.getContext('2d');
-    ctx.font = fontStr;
-    const m = ctx.measureText(init || '');
-    const fa = m.fontBoundingBoxAscent, fd = m.fontBoundingBoxDescent;
-    const aa = m.actualBoundingBoxAscent, ad = m.actualBoundingBoxDescent;
-    if ([fa, fd, aa, ad].every(v => typeof v === 'number' && isFinite(v))) {
-      // Baseline sits (fa−fd)/2 below the line-box centre; the ink centre sits
-      // (aa−ad)/2 above the baseline. Combine, negate → land ink on the centre.
-      off = (fd - fa) / 2 + (aa - ad) / 2;
-    } else if (typeof aa === 'number' && typeof ad === 'number' && isFinite(aa) && isFinite(ad)) {
-      off = (aa - ad) / 2;
+// Renders a styled (serif / script) avatar monogram as SVG and centres it by
+// its REAL rendered geometry (getBBox) — i.e. the actual ink, not the font's
+// line-box metrics — so any typeface (incl. script faces whose capitals sit
+// high, or whatever the browser falls back to) lands dead-centre on both axes.
+// Re-measures once web fonts finish loading.
+function BSAvatarGlyph({ init, size, fontFamily, fontStyle, fontWeight, fontSize, color, skew }) {
+  const ref = React.useRef(null);
+  const [shift, setShift] = React.useState(null);
+  React.useLayoutEffect(() => {
+    let cancelled = false, raf = 0;
+    const measure = () => {
+      const el = ref.current;
+      if (cancelled || !el || typeof el.getBBox !== 'function') return;
+      try {
+        const b = el.getBBox();
+        if (b && isFinite(b.x) && isFinite(b.y) && b.width > 0 && b.height > 0) {
+          setShift({ x: size / 2 - (b.x + b.width / 2), y: size / 2 - (b.y + b.height / 2) });
+        }
+      } catch (e) {}
+    };
+    measure();
+    if (typeof document !== 'undefined' && document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
+      document.fonts.ready.then(() => { raf = requestAnimationFrame(measure); }).catch(() => {});
     }
-  } catch (e) {}
-  if (off == null || !isFinite(off)) off = fallback;
-  _bsAvatarOff.set(key, off);
-  return off;
+    return () => { cancelled = true; if (raf) cancelAnimationFrame(raf); };
+  }, [init, fontFamily, fontStyle, fontWeight, fontSize, size]);
+  const C = size / 2;
+  const dx = shift ? shift.x : 0;
+  const dy = shift ? shift.y : 0;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true" focusable="false" style={{ display: 'block', overflow: 'visible' }}>
+      <text
+        ref={ref}
+        x={C} y={C}
+        textAnchor="middle"
+        dominantBaseline="central"
+        transform={`translate(${dx} ${dy})${skew ? ` skewX(-11)` : ''}`}
+        fill={color}
+        style={{ fontFamily, fontStyle, fontWeight, fontSize: `${fontSize}px`, letterSpacing: '0' }}
+      >{init}</text>
+    </svg>
+  );
 }
 
 // Avatar — circular (or soft-square) bubble with mono / serif / cursive initials
@@ -698,9 +705,6 @@ function BSAvatar({ init = 'A', size = 32, fill, ink, onClick, round = true, glo
   const fontSize = cursive ? Math.round(size * 0.46) : serif ? Math.round(size * 0.5) : size * 0.42;
   const fontWeight = cursive ? 600 : 700;
   const styled = serif || cursive;
-  // Auto-centre the styled monograms from the font's own metrics (no magic
-  // numbers). Plain mono initials already centre cleanly, so leave them be.
-  const dy = styled ? bsAvatarInkOffset(init, `${fontStyle} ${fontWeight} ${Math.round(fontSize)}px ${fontFamily}`, fontSize, cursive ? 0.08 : 0) : 0;
   return (
     <button onClick={onClick} style={{
       width: size, height: size,
@@ -709,13 +713,12 @@ function BSAvatar({ init = 'A', size = 32, fill, ink, onClick, round = true, glo
       fontFamily, fontStyle, fontSize, fontWeight,
       lineHeight: 1,
       border: 0, padding: 0, cursor: onClick ? 'pointer' : 'default',
-      // No trailing letter-spacing for cursive/serif — it shifts the glyphs off
-      // the optical centre of the circle.
       letterSpacing: styled ? '0' : '-0.02em',
       borderRadius: round ? '50%' : t.RADIUS_SM,
       boxShadow: glow ? `0 0 22px ${bg}5e, 0 0 0 4px ${bg}26` : 'none',
     }}>{styled
-      ? <span style={{ display: 'inline-block', lineHeight: 1, transform: `translateY(${dy}px)${serif ? ' skewX(-11deg)' : ''}` }}>{init}</span>
+      // Styled monograms (script/serif) are SVG-centred by their real geometry.
+      ? <BSAvatarGlyph init={init} size={size} fontFamily={fontFamily} fontStyle={fontStyle} fontWeight={fontWeight} fontSize={fontSize} color={ink || t.PAPER} skew={serif} />
       : init}</button>
   );
 }
