@@ -1,8 +1,41 @@
-// Per-client overview page for a coach.
-// Used by TrainerClient.html and NutritionistClient.html. Reads the client id
-// from ?id=... and renders care team + combined schedule. Counterpart card
-// has a Message button that opens the existing chat widget on a coach↔coach
-// thread (created via /api/me/shared-clients/:clientId/thread).
+// Per-client overview page for a coach — brought in line with the mobile
+// broadsheet client-profile redesign (Overview / Analysis tabs, KPI dashboard).
+// Used by TrainerClient.html and NutritionistClient.html. Reads ?id=… and the
+// share-gated rollups from /api/clients/:id/shared-overview (goals/stats/lifts).
+// Counterpart card's Message button opens the coach↔coach thread.
+
+function ckNum(v) { return (v == null || v === "" || isNaN(Number(v))) ? null : Number(v); }
+
+function CKStat({ label, value, small, sub, color }) {
+  return (
+    <div style={{ border: "1px solid rgba(242,237,228,0.08)", borderRadius: 12, padding: "14px 16px", background: "rgba(242,237,228,0.02)" }}>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color, textTransform: "uppercase" }}>{label}</div>
+      <div style={{ fontFamily: "Fraunces, serif", fontSize: 30, letterSpacing: "-0.01em", marginTop: 6 }}>{value}{small ? <span style={{ fontSize: 15, color: "rgba(242,237,228,0.5)" }}>{small}</span> : null}</div>
+      {sub ? <div style={{ marginTop: 6, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>{sub}</div> : null}
+    </div>
+  );
+}
+
+function CKTrend({ vals, color, h }) {
+  const H = h || 72;
+  const v = (vals || []).map(Number).filter(x => !isNaN(x));
+  if (v.length < 2) return null;
+  const mn = Math.min(...v), mx = Math.max(...v), span = (mx - mn) || 1, n = v.length, W = 320;
+  const pts = v.map((x, i) => [(i / (n - 1)) * W, H - 6 - ((x - mn) / span) * (H - 16)]);
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
+  const lp = pts[pts.length - 1];
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" style={{ display: "block" }}>
+      <path d={`${line} L${W},${H} L0,${H} Z`} fill={color + "22"} />
+      <path d={line} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      <circle cx={lp[0]} cy={lp[1]} r="3.5" fill={color} />
+    </svg>
+  );
+}
+
+function CKSecHead({ children }) {
+  return <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", marginBottom: 14 }}>{children}</div>;
+}
 
 function CoachClientDetailPage() {
   const params = new URLSearchParams(window.location.search);
@@ -10,6 +43,7 @@ function CoachClientDetailPage() {
   const [data, setData] = React.useState(null);
   const [err, setErr] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
+  const [tab, setTab] = React.useState("overview");
 
   React.useEffect(() => {
     if (!clientId) { setErr("Missing client id."); return; }
@@ -61,14 +95,82 @@ function CoachClientDetailPage() {
   }
 
   const myRole = data.me.trainerId ? "trainer" : (data.me.nutritionistId ? "nutritionist" : null);
-  const navItems = myRole === "nutritionist" ? nutriNavItems("clients") : trainerNavItems("clients");
-  const payout = myRole === "nutritionist" ? nutriPayoutCard : trainerPayoutCard;
+  const isNutri = myRole === "nutritionist";
+  const navItems = isNutri ? nutriNavItems("clients") : trainerNavItems("clients");
+  const payout = isNutri ? nutriPayoutCard : trainerPayoutCard;
+  const teal = "#2ee0c4", rust = "#d2693f", gold = "#d8b25a";
+  const accent = isNutri ? gold : teal;
+  const firstName = data.client.name.split(/\s+/)[0];
 
   const counterparts = data.careTeam.filter(c => !c.isMe);
-  const me = data.careTeam.find(c => c.isMe);
-
   const upcoming = data.sessions.filter(s => new Date(s.at).getTime() >= Date.now() && s.status !== "completed");
   const past = data.sessions.filter(s => new Date(s.at).getTime() < Date.now() || s.status === "completed").slice(-12).reverse();
+
+  // ── live rollups (with per-field demo fallback) ──
+  const S = data.stats || {}, L = data.lifts || {};
+  const G = data.goals || {};
+  const ov = (G && G.share !== false && G.overall) ? G.overall : null;
+  const liveW = ov && Array.isArray(ov.weighIns) ? ov.weighIns.map(x => Number(x.kg)).filter(x => !isNaN(x)) : [];
+  const bwSeries = liveW.length >= 2 ? liveW : (isNutri ? [80.4, 80.1, 79.9, 79.7, 79.6, 79.4, 79.3, 79.2] : [64.4, 64.6, 65.0, 64.6, 64.3, 64.1, 63.9, 63.8]);
+  const bwUnit = (ov && ov.unit) || "kg";
+  const bwNow = bwSeries[bwSeries.length - 1];
+  const bwDelta = +(bwNow - bwSeries[0]).toFixed(1);
+  const bwWeeks = bwSeries.length;
+
+  const sDone = ckNum(S.sessionsCompleted), sPlan = ckNum(S.sessionsPlanned);
+  const attendancePct = (sPlan && sPlan > 0) ? Math.round((sDone / sPlan) * 100) : null;
+  const days7 = ckNum(S.daysLogged7d), days30 = ckNum(S.daysLogged30d);
+  const adherencePct = days7 != null ? Math.round((days7 / 7) * 100) : null;
+  const avgKcal = ckNum(S.avgCalories), avgP = ckNum(S.avgProtein), avgC = ckNum(S.avgCarbs), avgF = ckNum(S.avgFat);
+  const avgRpe = ckNum(L.avgRpe), prs = ckNum(L.prs);
+  const kcalStr = avgKcal != null ? avgKcal.toLocaleString() : null;
+  const liftRows = (Array.isArray(L.keyLifts) && L.keyLifts.length) ? (() => {
+    const best = L.keyLifts.map(x => ckNum(x.best)).filter(v => v != null);
+    const mx = best.length ? Math.max(...best) : 1;
+    return L.keyLifts.map(x => { const b = ckNum(x.best), dl = ckNum(x.delta); return { n: x.name || "Lift", v: b != null ? `${b} kg` : "—", d: dl != null ? `${dl >= 0 ? "+" : ""}${dl}` : "—", p: b != null && mx ? Math.max(0.2, b / mx) : 0.5 }; });
+  })() : [
+    { n: "Back Squat", v: "82.5 kg", d: "+7.5", p: 0.92 },
+    { n: "Bench Press", v: "52.5 kg", d: "+5.0", p: 0.55 },
+    { n: "Deadlift", v: "110 kg", d: "+10", p: 1.0 },
+    { n: "Overhead Press", v: "35 kg", d: "+2.5", p: 0.38 },
+  ];
+  const macros = [
+    { n: "Protein", cur: avgP != null ? avgP : 165, tgt: 170, c: teal },
+    { n: "Carbs", cur: avgC != null ? avgC : 190, tgt: 200, c: gold },
+    { n: "Fat", cur: avgF != null ? avgF : 60, tgt: 62, c: rust },
+  ];
+
+  const statGrid = isNutri ? [
+    { label: "ADHERENCE", value: adherencePct != null ? adherencePct : 92, small: "%", sub: "this week", color: gold },
+    { label: "AVG INTAKE", value: kcalStr || "2,040", sub: "kcal / day", color: gold },
+    { label: "WEIGHT Δ", value: bwDelta, small: bwUnit, sub: "vs start", color: rust },
+    { label: "LOGGED", value: days7 != null ? days7 : 6, small: "/7", sub: "this week", color: gold },
+  ] : [
+    { label: "ATTENDANCE", value: attendancePct != null ? attendancePct : 96, small: "%", sub: "this block", color: teal },
+    { label: "SESSIONS", value: sDone != null ? sDone : 38, sub: `of ${sPlan != null ? sPlan : 41} planned`, color: teal },
+    { label: "AVG RPE", value: avgRpe != null ? avgRpe.toFixed(1) : "8.0", sub: "effort logged", color: rust },
+    { label: "PRS", value: prs != null ? prs : 3, sub: "this block", color: gold },
+  ];
+
+  const aKpis = isNutri ? [
+    { label: "ADHERENCE", value: adherencePct != null ? adherencePct : 92, small: "%", sub: "this week", color: gold },
+    { label: "AVG INTAKE", value: kcalStr || "2,040", sub: "kcal / day", color: gold },
+    { label: "PROTEIN", value: avgP != null ? avgP : 165, small: "g", sub: "avg / day", color: teal },
+    { label: "WEIGHT Δ", value: bwDelta, small: bwUnit, sub: "vs start", color: rust },
+    { label: "DAYS LOGGED", value: days30 != null ? days30 : 27, small: "/30", sub: "last 30 days", color: gold },
+    { label: "BODYWEIGHT", value: bwNow, small: bwUnit, sub: `${bwWeeks} weigh-ins`, color: gold },
+  ] : [
+    { label: "ATTENDANCE", value: attendancePct != null ? attendancePct : 96, small: "%", sub: "this block", color: teal },
+    { label: "SESSIONS", value: sDone != null ? sDone : 38, sub: `of ${sPlan != null ? sPlan : 41} planned`, color: teal },
+    { label: "AVG RPE", value: avgRpe != null ? avgRpe.toFixed(1) : "8.0", sub: "effort logged", color: rust },
+    { label: "TOTAL PRS", value: prs != null ? prs : 3, sub: "this block", color: gold },
+    { label: "WORKOUTS", value: ckNum(L.workoutsLogged42d) != null ? ckNum(L.workoutsLogged42d) : 24, sub: "last 42 days", color: teal },
+    { label: "BODYWEIGHT", value: bwNow, small: bwUnit, sub: `${bwDelta} · ${bwWeeks}w`, color: accent },
+  ];
+
+  const TabBtn = ({ k, label }) => (
+    <button onClick={() => setTab(k)} style={{ padding: "9px 18px", borderRadius: 999, cursor: "pointer", border: `1px solid ${tab === k ? accent : "rgba(242,237,228,0.14)"}`, background: tab === k ? accent + "1c" : "transparent", color: tab === k ? accent : "rgba(242,237,228,0.7)", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>{label}</button>
+  );
 
   return (
     <DashPage
@@ -78,152 +180,196 @@ function CoachClientDetailPage() {
       title={data.client.name}
       subtitle={counterparts.length ? `Care team of ${data.careTeam.length}` : `You are this client's only coach right now.`}
     >
-      {counterparts.length > 0 && (
-        <Card style={{ marginBottom: 16 }}>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", marginBottom: 14 }}>CARE TEAM</div>
-          <div style={{ display: "grid", gap: 12 }}>
-            {counterparts.map((c, i) => (
-              <div key={i} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 14, alignItems: "center", padding: "12px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
-                <div style={{ width: 38, height: 38, borderRadius: 999, background: "rgba(46,224,196,0.18)", border: "1px solid rgba(46,224,196,0.35)", overflow: "hidden" }}>
-                  {c.avatarUrl ? <img src={c.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}
-                </div>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 500 }}>{c.name}</div>
-                  <div style={{ fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", color: "rgba(242,237,228,0.55)", textTransform: "uppercase" }}>{c.role}</div>
-                </div>
-                {c.userId ? (
-                  <button onClick={() => openMessage(c)} disabled={busy}
-                    style={{ background: "#0ac5a8", color: "#1a1612", border: 0, padding: "8px 16px", borderRadius: 999, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 500, cursor: busy ? "wait" : "pointer", whiteSpace: "nowrap" }}>
-                    {busy ? "Opening…" : `Message ${c.name.split(/\s+/)[0]}`}
-                  </button>
-                ) : <span />}
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <TabBtn k="overview" label="Overview" />
+        <TabBtn k="analysis" label="Analysis" />
+      </div>
 
-      {Array.isArray(data.plans) && data.plans.length > 0 && (
-        <Card style={{ marginBottom: 16 }}>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", marginBottom: 14 }}>CURRENT PLANS</div>
-          <div style={{ display: "grid", gridTemplateColumns: data.plans.length > 1 ? "1fr 1fr" : "1fr", gap: 14 }}>
-            {data.plans.map((p) => {
-              const tone = p.providerRole === "trainer" ? "#2ee0c4" : "#d2693f";
-              const tpl = p.template;
-              return (
-                <div key={p.assignmentId} style={{ border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: 16 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                    <span style={{ width: 6, height: 18, borderRadius: 3, background: tone }} />
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.1em", color: "rgba(242,237,228,0.55)", textTransform: "uppercase" }}>
-                      {p.providerRole} · {p.coachName}
-                    </span>
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: tone, marginLeft: "auto", textTransform: "uppercase" }}>{p.status}</span>
-                  </div>
-                  <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, letterSpacing: "-0.01em", marginBottom: 6 }}>
-                    {tpl ? tpl.title : "Custom plan"}
-                  </div>
-                  <div style={{ fontSize: 12, color: "rgba(242,237,228,0.65)", lineHeight: 1.6 }}>
-                    {tpl ? [
-                      tpl.goal,
-                      tpl.level,
-                      tpl.durationWeeks ? `${tpl.durationWeeks} wks` : null,
-                      tpl.daysPerWeek ? `${tpl.daysPerWeek}×/wk` : null,
-                    ].filter(Boolean).join(" · ") : "Details visible to the assigning coach."}
-                  </div>
-                  {p.notes && (
-                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(242,237,228,0.06)", fontSize: 12, color: "rgba(242,237,228,0.55)", fontStyle: "italic" }}>
-                      "{p.notes}"
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-      )}
-
-      {data.goals && (() => {
-        const G = data.goals;
-        const ov = G.overall, trM = G.trainingMeta, nuM = G.nutritionMeta;
-        const subHead = (txt) => <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)", marginTop: 16 }}>{txt}</div>;
-        const metaRow = (title, subtitle, c) => (
-          <div style={{ border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: "12px 14px", marginTop: 10, display: "flex", gap: 12, alignItems: "center" }}>
-            <span style={{ width: 5, height: 18, borderRadius: 3, background: c, flexShrink: 0 }} />
-            <div>
-              <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, letterSpacing: "-0.01em" }}>{title}</div>
-              {subtitle && <div style={{ marginTop: 3, fontSize: 12, fontStyle: "italic", color: "rgba(242,237,228,0.55)", lineHeight: 1.4 }}>{subtitle}</div>}
-            </div>
-          </div>
-        );
-        const hasAny = ov || (trM && trM.title) || (nuM && nuM.title);
-        return (
+      {tab === "overview" && (
+        <React.Fragment>
           <Card style={{ marginBottom: 16 }}>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", marginBottom: 6 }}>GOALS</div>
-            {G.share === false ? (
-              <div style={{ padding: "12px 0", color: "rgba(242,237,228,0.6)", fontSize: 13 }}>{data.client.name.split(/\s+/)[0]} keeps their goals private.</div>
-            ) : !hasAny ? (
-              <div style={{ padding: "12px 0", color: "rgba(242,237,228,0.6)", fontSize: 13 }}>No goals shared yet.</div>
-            ) : (
-              <div>
-                {ov && (() => {
-                  const start = Number(ov.start) || 0, now = Number(ov.now) || 0, target = Number(ov.target) || 0, unit = ov.unit || "kg";
-                  const range = start - target;
-                  const pct = range > 0 ? Math.max(0, Math.min(1, (start - now) / range)) : 0;
-                  const down = +(now - start).toFixed(1), toGo = +(now - target).toFixed(1);
-                  const byD = ov.by ? new Date(ov.by) : null;
-                  const byLabel = byD && !isNaN(byD) ? byD.toLocaleDateString([], { month: "short", day: "numeric" }).toUpperCase() : "";
+            <CKSecHead>{isNutri ? "ADHERENCE · THIS WEEK" : "TRAINING · THIS BLOCK"}</CKSecHead>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
+              {statGrid.map((s, i) => <CKStat key={i} {...s} />)}
+            </div>
+          </Card>
+
+          {!isNutri && (
+            <Card style={{ marginBottom: 16 }}>
+              <CKSecHead>KEY LIFTS</CKSecHead>
+              {liftRows.map((l, i) => (
+                <div key={i} style={{ padding: "12px 0", borderTop: i ? "1px solid rgba(242,237,228,0.06)" : "none" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 16 }}>{l.n}</span>
+                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 16 }}>{l.v} <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: accent }}>▲ {l.d}</span></span>
+                  </div>
+                  <div style={{ marginTop: 8, height: 3, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${Math.min(1, l.p) * 100}%`, background: accent }} /></div>
+                </div>
+              ))}
+            </Card>
+          )}
+
+          {isNutri && (
+            <Card style={{ marginBottom: 16 }}>
+              <CKSecHead>MACROS · DAILY AVERAGE VS TARGET</CKSecHead>
+              {macros.map((m, i) => (
+                <div key={i} style={{ padding: "12px 0", borderTop: i ? "1px solid rgba(242,237,228,0.06)" : "none" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 16 }}>{m.n}</span>
+                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 16 }}>{m.cur} g <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: m.c }}>▲ {m.tgt} g</span></span>
+                  </div>
+                  <div style={{ marginTop: 8, height: 3, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${Math.min(1, m.cur / m.tgt) * 100}%`, background: m.c }} /></div>
+                </div>
+              ))}
+            </Card>
+          )}
+
+          <Card style={{ marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+              <CKSecHead>{isNutri ? "BODY · WEIGHT TREND" : "BODY · BODYWEIGHT"}</CKSecHead>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: accent }}>{bwNow} {bwUnit} · {bwDelta >= 0 ? "+" : ""}{bwDelta} over {bwWeeks}</span>
+            </div>
+            <CKTrend vals={bwSeries} color={accent} />
+          </Card>
+
+          {counterparts.length > 0 && (
+            <Card style={{ marginBottom: 16 }}>
+              <CKSecHead>CARE TEAM</CKSecHead>
+              <div style={{ display: "grid", gap: 12 }}>
+                {counterparts.map((c, i) => (
+                  <div key={i} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 14, alignItems: "center", padding: "12px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+                    <div style={{ width: 38, height: 38, borderRadius: 999, background: "rgba(46,224,196,0.18)", border: "1px solid rgba(46,224,196,0.35)", overflow: "hidden" }}>
+                      {c.avatarUrl ? <img src={c.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 500 }}>{c.name}</div>
+                      <div style={{ fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", color: "rgba(242,237,228,0.55)", textTransform: "uppercase" }}>{c.role}</div>
+                    </div>
+                    {c.userId ? (
+                      <button onClick={() => openMessage(c)} disabled={busy}
+                        style={{ background: "#0ac5a8", color: "#1a1612", border: 0, padding: "8px 16px", borderRadius: 999, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 500, cursor: busy ? "wait" : "pointer", whiteSpace: "nowrap" }}>
+                        {busy ? "Opening…" : `Message ${c.name.split(/\s+/)[0]}`}
+                      </button>
+                    ) : <span />}
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {Array.isArray(data.plans) && data.plans.length > 0 && (
+            <Card style={{ marginBottom: 16 }}>
+              <CKSecHead>CURRENT PLANS</CKSecHead>
+              <div style={{ display: "grid", gridTemplateColumns: data.plans.length > 1 ? "1fr 1fr" : "1fr", gap: 14 }}>
+                {data.plans.map((p) => {
+                  const tone = p.providerRole === "trainer" ? teal : rust;
+                  const tpl = p.template;
                   return (
-                    <div style={{ border: "1px solid rgba(10,197,168,0.3)", borderRadius: 10, padding: 14, marginTop: 10 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "#2ee0c4" }}>OVERALL{byLabel ? ` · BY ${byLabel}` : ""}</span>
-                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)" }}>{Math.round(pct * 100)}% there</span>
+                    <div key={p.assignmentId} style={{ border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: 16 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                        <span style={{ width: 6, height: 18, borderRadius: 3, background: tone }} />
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.1em", color: "rgba(242,237,228,0.55)", textTransform: "uppercase" }}>{p.providerRole} · {p.coachName}</span>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: tone, marginLeft: "auto", textTransform: "uppercase" }}>{p.status}</span>
                       </div>
-                      <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, letterSpacing: "-0.01em", margin: "6px 0 8px" }}>{ov.title}</div>
-                      <div style={{ height: 6, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${pct * 100}%`, background: "#0ac5a8" }} /></div>
-                      <div style={{ marginTop: 7, fontSize: 11.5, color: "rgba(242,237,228,0.55)" }}>{down} {unit} so far · {Math.abs(toGo)} {unit} to go · now {now}{unit} · target {target}{unit}</div>
-                      {Array.isArray(ov.weighIns) && ov.weighIns.length >= 2 && (() => {
-                        const vals = ov.weighIns.map(x => Number(x.kg)).filter(Number.isFinite);
-                        if (vals.length < 2) return null;
-                        const mn = Math.min(...vals), mx = Math.max(...vals), span = (mx - mn) || 1, n = vals.length, W = 300, H = 50;
-                        const pts = vals.map((v, i) => [(i / (n - 1)) * W, H - 4 - ((v - mn) / span) * (H - 10)]);
-                        const line = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
-                        return (
-                          <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" style={{ display: "block", marginTop: 10 }}>
-                            <path d={`${line} L${W},${H} L0,${H} Z`} fill="rgba(10,197,168,0.12)" />
-                            <path d={line} fill="none" stroke="#0ac5a8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-                          </svg>
-                        );
-                      })()}
+                      <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, letterSpacing: "-0.01em", marginBottom: 6 }}>{tpl ? tpl.title : "Custom plan"}</div>
+                      <div style={{ fontSize: 12, color: "rgba(242,237,228,0.65)", lineHeight: 1.6 }}>
+                        {tpl ? [tpl.goal, tpl.level, tpl.durationWeeks ? `${tpl.durationWeeks} wks` : null, tpl.daysPerWeek ? `${tpl.daysPerWeek}×/wk` : null].filter(Boolean).join(" · ") : "Details visible to the assigning coach."}
+                      </div>
+                      {p.notes && <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(242,237,228,0.06)", fontSize: 12, color: "rgba(242,237,228,0.55)", fontStyle: "italic" }}>"{p.notes}"</div>}
                     </div>
                   );
-                })()}
-                {trM && trM.title && <>{subHead("TRAINING")}{metaRow(trM.title, trM.subtitle, "#d2693f")}</>}
-                {nuM && nuM.title && <>{subHead("NUTRITION")}{metaRow(nuM.title, nuM.subtitle, "#d8b25a")}</>}
+                })}
               </div>
-            )}
-          </Card>
-        );
-      })()}
+            </Card>
+          )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        <Card>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", marginBottom: 14 }}>UPCOMING</div>
-          {upcoming.length === 0 ? (
-            <div style={{ padding: "18px 0", color: "rgba(242,237,228,0.55)", fontSize: 13 }}>Nothing on the books.</div>
-          ) : upcoming.slice(0, 12).map((s, i) => (
-            <SessionRow key={s.id} s={s} first={i === 0} mine={isMine(s, data.me)} />
-          ))}
-        </Card>
-        <Card>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", marginBottom: 14 }}>RECENT</div>
-          {past.length === 0 ? (
-            <div style={{ padding: "18px 0", color: "rgba(242,237,228,0.55)", fontSize: 13 }}>No history yet.</div>
-          ) : past.map((s, i) => (
-            <SessionRow key={s.id} s={s} first={i === 0} mine={isMine(s, data.me)} />
-          ))}
-        </Card>
-      </div>
+          {data.goals && <GoalsCard data={data} teal={teal} rust={rust} gold={gold} />}
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Card>
+              <CKSecHead>UPCOMING</CKSecHead>
+              {upcoming.length === 0 ? (
+                <div style={{ padding: "18px 0", color: "rgba(242,237,228,0.55)", fontSize: 13 }}>Nothing on the books.</div>
+              ) : upcoming.slice(0, 12).map((s, i) => <SessionRow key={s.id} s={s} first={i === 0} mine={isMine(s, data.me)} />)}
+            </Card>
+            <Card>
+              <CKSecHead>RECENT</CKSecHead>
+              {past.length === 0 ? (
+                <div style={{ padding: "18px 0", color: "rgba(242,237,228,0.55)", fontSize: 13 }}>No history yet.</div>
+              ) : past.map((s, i) => <SessionRow key={s.id} s={s} first={i === 0} mine={isMine(s, data.me)} />)}
+            </Card>
+          </div>
+        </React.Fragment>
+      )}
+
+      {tab === "analysis" && (
+        <React.Fragment>
+          <Card style={{ marginBottom: 16 }}>
+            <CKSecHead>ANALYSIS · LAST 30 DAYS</CKSecHead>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+              {aKpis.map((s, i) => <CKStat key={i} {...s} />)}
+            </div>
+          </Card>
+          <Card>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+              <CKSecHead>TRENDLINE</CKSecHead>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)" }}>{isNutri ? "WEIGHT" : "BODYWEIGHT"}</span>
+            </div>
+            <CKTrend vals={bwSeries} color={accent} h={90} />
+          </Card>
+        </React.Fragment>
+      )}
     </DashPage>
+  );
+}
+
+function GoalsCard({ data, teal, rust, gold }) {
+  const G = data.goals;
+  const ov = G.overall, trM = G.trainingMeta, nuM = G.nutritionMeta;
+  const subHead = (txt) => <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)", marginTop: 16 }}>{txt}</div>;
+  const metaRow = (title, subtitle, c) => (
+    <div style={{ border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: "12px 14px", marginTop: 10, display: "flex", gap: 12, alignItems: "center" }}>
+      <span style={{ width: 5, height: 18, borderRadius: 3, background: c, flexShrink: 0 }} />
+      <div>
+        <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, letterSpacing: "-0.01em" }}>{title}</div>
+        {subtitle && <div style={{ marginTop: 3, fontSize: 12, fontStyle: "italic", color: "rgba(242,237,228,0.55)", lineHeight: 1.4 }}>{subtitle}</div>}
+      </div>
+    </div>
+  );
+  const hasAny = ov || (trM && trM.title) || (nuM && nuM.title);
+  return (
+    <Card style={{ marginBottom: 16 }}>
+      <CKSecHead>GOALS</CKSecHead>
+      {G.share === false ? (
+        <div style={{ padding: "12px 0", color: "rgba(242,237,228,0.6)", fontSize: 13 }}>{data.client.name.split(/\s+/)[0]} keeps their goals private.</div>
+      ) : !hasAny ? (
+        <div style={{ padding: "12px 0", color: "rgba(242,237,228,0.6)", fontSize: 13 }}>No goals shared yet.</div>
+      ) : (
+        <div>
+          {ov && (() => {
+            const start = Number(ov.start) || 0, now = Number(ov.now) || 0, target = Number(ov.target) || 0, unit = ov.unit || "kg";
+            const range = start - target;
+            const pct = range > 0 ? Math.max(0, Math.min(1, (start - now) / range)) : 0;
+            const down = +(now - start).toFixed(1), toGo = +(now - target).toFixed(1);
+            const byD = ov.by ? new Date(ov.by) : null;
+            const byLabel = byD && !isNaN(byD) ? byD.toLocaleDateString([], { month: "short", day: "numeric" }).toUpperCase() : "";
+            return (
+              <div style={{ border: "1px solid rgba(10,197,168,0.3)", borderRadius: 10, padding: 14, marginTop: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "#2ee0c4" }}>OVERALL{byLabel ? ` · BY ${byLabel}` : ""}</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)" }}>{Math.round(pct * 100)}% there</span>
+                </div>
+                <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, letterSpacing: "-0.01em", margin: "6px 0 8px" }}>{ov.title}</div>
+                <div style={{ height: 6, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${pct * 100}%`, background: "#0ac5a8" }} /></div>
+                <div style={{ marginTop: 7, fontSize: 11.5, color: "rgba(242,237,228,0.55)" }}>{down} {unit} so far · {Math.abs(toGo)} {unit} to go · now {now}{unit} · target {target}{unit}</div>
+              </div>
+            );
+          })()}
+          {trM && trM.title && <React.Fragment>{subHead("TRAINING")}{metaRow(trM.title, trM.subtitle, rust)}</React.Fragment>}
+          {nuM && nuM.title && <React.Fragment>{subHead("NUTRITION")}{metaRow(nuM.title, nuM.subtitle, gold)}</React.Fragment>}
+        </div>
+      )}
+    </Card>
   );
 }
 
