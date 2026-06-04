@@ -46,6 +46,13 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Edit-profile redesign + more customizations
+- Settings **edit profile** form modernized (less analog): rounded-14 fields with
+  accent-colored focus, lighter labels, pill Change-photo + Cancel, teal Save.
+- New customizations: **avatar accent color** swatches (reflected on the profile
+  avatar), **Pronouns** chips, **Website / link**, **Primary goal** chips, and a Bio
+  character counter. Non-edit view shows handle · goal + pronouns and the chosen accent.
+
 ### 2026-06-04 — Calendar event sheet fixes + app-wide presence + dynamic phase
 - **Calendar event sheet** (tap a workout/consult from month/week view): now **fills
   the full screen** (top 36→0, no rounded gap), has a proper **← Back** button in the
