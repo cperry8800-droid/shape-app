@@ -3198,21 +3198,22 @@ function BSNutriPlans() {
     { n: 'Vegetarian Base', meta: '2,400 kcal · 6 on it · 4.7 ★', price: '$120' },
     { n: 'Maintenance', meta: '2,700 kcal · 14 on it · 4.9 ★', price: '$120' },
   ];
-  const recipes = [
-    { n: 'High-protein breakfasts', meta: '22 recipes · 380 kcal avg' },
-    { n: 'Sub-500 kcal bowls', meta: '18 recipes · under 30 min' },
-    { n: 'Batch-cookable dinners', meta: '14 recipes · 4 servings' },
-    { n: 'Pre-workout snacks', meta: '12 recipes · quick carbs' },
+  // Lifestyle-based meal programs a client can buy (the "Programs" sub-tab)
+  const nutriPrograms = [
+    { n: 'Busy professional', meta: '4 wks · fast & balanced · $130' },
+    { n: 'New-parent reset', meta: '6 wks · simple batch meals · $120' },
+    { n: 'Athlete fuel', meta: '8 wks · performance · $160' },
+    { n: 'Weight-loss kickstart', meta: '4 wks · calorie-controlled · $110' },
   ];
   const [tab, setTab] = useStateBSP('library');
   const TABS = [['library', 'Library'], ['soundtracks', 'Soundtracks']];
-  // Library sub-tabs. Plans = multi-week paid meal plans, Recipes = recipe
-  // sets, Templates = reusable weekly meal templates.
+  // Library sub-tabs. Plans = multi-week paid meal plans, Programs = lifestyle
+  // meal programs you sell, Diet = diet-specific meals / plans.
   const [libTab, setLibTab] = useStateBSP('plans');
-  const LIB_TABS = [['plans', 'Plans'], ['recipes', 'Recipes'], ['templates', 'Templates']];
-  const [buildType, setBuildType] = useStateBSP('mealplan'); // mealplan | recipe | template
+  const LIB_TABS = [['plans', 'Plans'], ['programs', 'Programs'], ['diet', 'Diet']];
+  const [buildType, setBuildType] = useStateBSP('mealplan'); // mealplan | program | diet
   const [blankMode, setBlankMode] = useStateBSP(false); // false = AI draft, true = build from scratch
-  const BUILD_LABEL = { mealplan: 'meal plan', recipe: 'recipe', template: 'template' };
+  const BUILD_LABEL = { mealplan: 'meal plan', program: 'program', diet: 'diet' };
   const openDraft = (type, blank = false) => { setBuildType(type); setBlankMode(blank); setDrafting(true); };
   const [editDraft, setEditDraft] = useStateBSP(null); // generated/blank draft being customized before publish
   const publishDraft = async ({ name, blocks, note }) => {
@@ -3222,13 +3223,14 @@ function BSNutriPlans() {
     flash(`${typeName.charAt(0).toUpperCase()}${typeName.slice(1)} published`);
     setEditDraft(null); setDrafting(false);
   };
-  const libBuild = ({ plans: 'mealplan', recipes: 'recipe', templates: 'template' })[libTab] || 'mealplan';
-  // Reusable weekly meal templates (the "Templates" sub-tab)
-  const mealTemplates = [
-    { n: '5-day high-protein', meta: '5 days · 2,000 kcal/day' },
-    { n: 'Vegetarian week', meta: '7 days · plant-based' },
-    { n: 'Carb-cycling block', meta: '6 days · training-day high' },
-    { n: 'Quick & batch-cook', meta: '5 days · <30 min meals' },
+  const libBuild = ({ plans: 'mealplan', programs: 'program', diet: 'diet' })[libTab] || 'mealplan';
+  // Diet-specific meals / plans (the "Diet" sub-tab)
+  const diets = [
+    { n: 'Keto · 7-day', meta: '20g net carbs · high fat · $90' },
+    { n: 'Mediterranean', meta: 'whole-food · heart-healthy · $90' },
+    { n: 'High-protein cut', meta: '180g+ protein · lean · $100' },
+    { n: 'Plant-based week', meta: 'vegan · balanced macros · $90' },
+    { n: 'Low-FODMAP', meta: 'gut-friendly · gentle · $110' },
   ];
   // Clients enrolled per paid plan (shown under the Plans sub-tab)
   const enrolled = [
@@ -3260,12 +3262,12 @@ function BSNutriPlans() {
       setDraftStatus(blankMode ? 'Opening editor…' : 'Generating…');
       if (!blankMode) { try { await window.ShapeAI?.generatePlanDraft?.({ kind: buildType, goal, client: '', level: diet, duration: '7 days', calories: cals.replace('~', ''), preferences: desc, protein: '' }); } catch (e) {} }
       const mk = (arr) => arr.map((s, i) => ({ id: 'b' + i, text: s }));
-      const outline = blankMode ? mk(['', '', '']) : (buildType === 'recipe'
-        ? mk(['Protein · base', 'Carb · base', 'Veg / fibre', 'Healthy fats', 'Flavour / sauce'])
-        : buildType === 'template'
-        ? mk(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
+      const outline = blankMode ? mk(['', '', '']) : (buildType === 'program'
+        ? mk(['Week 1 — Reset & habits', 'Week 2 — Build routine', 'Week 3 — Dial macros', 'Week 4 — Lock it in', 'Grocery + prep guide'])
+        : buildType === 'diet'
+        ? mk(['Breakfast options', 'Lunch options', 'Dinner options', 'Snacks', 'Foods to favour', 'Foods to avoid'])
         : mk(['Breakfast · ~500 kcal', 'Lunch · ~600 kcal', 'Snack · ~250 kcal', 'Dinner · ~650 kcal', 'Evening · ~150 kcal']));
-      const blockLabel = buildType === 'recipe' ? 'Components' : buildType === 'template' ? 'Week' : 'Daily meals';
+      const blockLabel = buildType === 'program' ? 'Weeks' : buildType === 'diet' ? 'Meal options' : 'Daily meals';
       setDrafting(false);
       setEditDraft({ name: `${goal} ${BUILD_LABEL[buildType]}`, blocks: outline, note: '', blockLabel });
     };
@@ -3281,12 +3283,12 @@ function BSNutriPlans() {
           <div style={{ marginTop: 16 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: t.INK50, marginBottom: 8 }}>BUILDING</div>
             <div style={{ display: 'flex', gap: 8 }}>
-              {[['mealplan', 'Meal plan'], ['recipe', 'Recipe'], ['template', 'Template']].map(([k, l]) => {
+              {[['mealplan', 'Meal plan'], ['program', 'Program'], ['diet', 'Diet']].map(([k, l]) => {
                 const on = buildType === k;
                 return <button key={k} onClick={() => setBuildType(k)} style={{ flex: 1, borderRadius: 999, padding: '10px 6px', cursor: 'pointer', border: `1px solid ${on ? gold : t.RULE}`, background: on ? `${gold}1c` : 'transparent', color: on ? gold : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{l}</button>;
               })}
             </div>
-            <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK50 }}>{buildType === 'mealplan' ? 'A multi-week paid plan clients enroll in.' : buildType === 'template' ? 'A reusable weekly meal template.' : 'A single recipe or recipe set.'}</div>
+            <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK50 }}>{buildType === 'mealplan' ? 'A multi-week paid plan clients enroll in.' : buildType === 'program' ? 'A lifestyle meal program a client can buy.' : 'A diet-specific set of meals / plans.'}</div>
           </div>
           {!blankMode && <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={3} placeholder="e.g. high-protein cut, vegetarian, around 2,000 kcal, hates seafood, loves oats" style={{ width: '100%', boxSizing: 'border-box', marginTop: 18, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: 14, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, resize: 'vertical', outline: 'none' }} />}
           {chips('GOAL', goal, setGoal, ['Cut', 'Maintain', 'Lean bulk', 'Performance'])}
@@ -3368,20 +3370,6 @@ function BSNutriPlans() {
         </div>
 
         {libTab === 'plans' && (<>
-        {/* Top plan (multi-week paid) */}
-        <div style={{ marginTop: 14, borderRadius: 16, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 14 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>TOP PLAN</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>$140/MO</span>
-          </div>
-          <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Lean <span style={{ fontStyle: 'italic', color: gold }}>Cut.</span></div>
-          <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em' }}>2,100 kcal · 12 on it · 165g protein · 4.9 ★</div>
-          <div style={{ marginTop: 11, display: 'flex', gap: 7 }}>
-            <button onClick={() => openDraft('mealplan')} style={{ borderRadius: 999, border: 0, background: gold, color: '#241c08', padding: '8px 15px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>EDIT</button>
-            <button onClick={() => duplicate({ n: 'Lean Cut', meta: '2,100 kcal · 12 on it · 4.9 ★', price: '$140' })} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '8px 13px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>DUPLICATE</button>
-            <button onClick={() => share('Lean Cut')} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '8px 13px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SHARE →</button>
-          </div>
-        </div>
         {secHead('PAID PLANS', 'Catalogue')}
         <div style={{ marginTop: 6 }}>{plans.map((p, i) => numRow({ ...p, onClick: () => openDraft('mealplan') }, i, p.price))}</div>
         {secHead('ENROLLED', 'Clients on plans')}
@@ -3405,16 +3393,42 @@ function BSNutriPlans() {
         </div>
         </>)}
 
-        {libTab === 'recipes' && (<>
-        {/* Recipe library */}
-        {secHead('RECIPES', 'Library', 'NEW →', () => openDraft('recipe'))}
-        <div style={{ marginTop: 6 }}>{recipes.map((r, i) => numRow({ ...r, onClick: () => openDraft('recipe') }, i, '→'))}</div>
+        {libTab === 'programs' && (<>
+        {/* Top program (lifestyle meal program for sale) */}
+        <div style={{ marginTop: 14, borderRadius: 14, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 11 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>TOP PROGRAM</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>$130</span>
+          </div>
+          <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Busy <span style={{ fontStyle: 'italic', color: gold }}>professional.</span></div>
+          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.04em' }}>4 wks · fast & balanced · 24 on it · 4.8 ★</div>
+          <div style={{ marginTop: 9, display: 'flex', gap: 7 }}>
+            <button onClick={() => openDraft('program')} style={{ borderRadius: 999, border: 0, background: gold, color: '#241c08', padding: '7px 13px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>EDIT</button>
+            <button onClick={() => duplicate({ n: 'Busy professional', meta: '4 wks · 24 on it · 4.8 ★', price: '$130' })} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '7px 11px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>DUPLICATE</button>
+            <button onClick={() => share('Busy professional')} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '7px 11px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SHARE →</button>
+          </div>
+        </div>
+        {secHead('LIFESTYLE', 'Programs', 'NEW →', () => openDraft('program'))}
+        <div style={{ marginTop: 6 }}>{nutriPrograms.map((r, i) => numRow({ ...r, onClick: () => openDraft('program') }, i, '→'))}</div>
         </>)}
 
-        {libTab === 'templates' && (<>
-        {/* Reusable weekly meal templates */}
-        {secHead('TEMPLATES', 'Templates', 'NEW →', () => openDraft('template'))}
-        <div style={{ marginTop: 6 }}>{mealTemplates.map((r, i) => numRow({ ...r, onClick: () => openDraft('template') }, i, '→'))}</div>
+        {libTab === 'diet' && (<>
+        {/* Top diet (diet-specific plan for sale) */}
+        <div style={{ marginTop: 14, borderRadius: 14, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 11 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>TOP DIET</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>$90</span>
+          </div>
+          <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Keto · <span style={{ fontStyle: 'italic', color: gold }}>7-day.</span></div>
+          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.04em' }}>20g net carbs · high fat · 31 on it · 4.7 ★</div>
+          <div style={{ marginTop: 9, display: 'flex', gap: 7 }}>
+            <button onClick={() => openDraft('diet')} style={{ borderRadius: 999, border: 0, background: gold, color: '#241c08', padding: '7px 13px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>EDIT</button>
+            <button onClick={() => duplicate({ n: 'Keto · 7-day', meta: '20g net carbs · 31 on it · 4.7 ★', price: '$90' })} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '7px 11px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>DUPLICATE</button>
+            <button onClick={() => share('Keto 7-day')} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '7px 11px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SHARE →</button>
+          </div>
+        </div>
+        {secHead('DIET-SPECIFIC', 'Diet', 'NEW →', () => openDraft('diet'))}
+        <div style={{ marginTop: 6 }}>{diets.map((r, i) => numRow({ ...r, onClick: () => openDraft('diet') }, i, '→'))}</div>
         </>)}
         </>)}
 
