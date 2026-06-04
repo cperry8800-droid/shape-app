@@ -46,6 +46,16 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Fix: logging in as a coach lands in their app (not client)
+- Signing in as a trainer/nutritionist dropped you into the **client** app until you
+  manually switched role in Settings — the role state wasn't reliably re-derived from
+  the signed-in profile at login.
+- `BSAppShell` now (1) has a reactive effect that **follows `authState.profile.role`**
+  whenever a session resolves (login OR restore), and (2) `handleLogin` sets both
+  `role` and the `role` tweak from the account's profile — so a coach lands in their
+  own app, and a stale dev-override can't pull them back to client. The Tweaks-panel
+  override still works after login.
+
 ### 2026-06-04 — Recover from stale-chunk "failed to fetch dynamically imported module"
 - Switching profiles (role → `loadProsBundle`) could throw **"Failed to fetch
   dynamically imported module … iosApp…-<hash>.js"** — a stale chunk after a redeploy
