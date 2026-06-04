@@ -896,7 +896,7 @@ function BSRadioScreen({ onBack }) {
     if (!matching) return undefined;
     const id = setInterval(() => {
       setDemoHr(prev => (prev === trackBpm ? prev : prev + (prev < trackBpm ? 1 : -1)));
-    }, 240);
+    }, 200);
     return () => clearInterval(id);
   }, [matching, trackBpm]);
   const connectMonitor = () => { setHrmConnected(true); setMatching(false); setDemoHr(114); };
@@ -1153,7 +1153,7 @@ function BSRadioScreen({ onBack }) {
                     <span style={{ fontSize: 10 }}>{matching ? '◉' : '○'}</span>
                     {matching ? (isSynced ? 'In sync' : 'Matching beat') : 'Match my BPM'}
                   </button>
-                  <button onClick={() => (matching ? setMatching(false) : disconnectHrm())} aria-label={matching ? 'End beat matching' : 'Disconnect monitor'} style={{ borderRadius: 11, width: 44,
+                  <button onClick={disconnectHrm} aria-label="Disconnect monitor" style={{ borderRadius: 11, width: 44,
                     border: `1px solid ${CREAM25}`, background: 'transparent', color: CREAM, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontFamily: t.MONO, fontSize: 11, fontWeight: 800,

@@ -1717,7 +1717,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   // visibility toggle persisted in Settings → Preferences (client_settings),
   // mirrored on window.ShapeHomeCards so this page reacts live.
   const [homeCardsHidden, setHomeCardsHidden] = useStateBSC(() => (typeof window !== 'undefined' && window.ShapeHomeCards ? window.ShapeHomeCards.get() : false));
-  useEffect(() => {
+  React.useEffect(() => {
     let alive = true;
     const sync = () => { if (alive) setHomeCardsHidden(window.ShapeHomeCards ? window.ShapeHomeCards.get() : false); };
     window.addEventListener('shape:homecards', sync);
