@@ -689,6 +689,18 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     }
     if (action === 'pr') setQueueView('pr');
   };
+  // MESSAGE button on a client profile → ensure the 1:1 conversation exists and
+  // jump to the Chat tab (the thread shows at the top of the coach's DMs).
+  React.useEffect(() => {
+    const onMsg = (e) => {
+      const c = e?.detail?.client;
+      const uid = c && (c.userId || c.user_id || (typeof c.id === 'string' && c.id.includes('-') ? c.id : null));
+      if (uid && window.ShapeMessages?.getOrCreateMemberConversation) window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: uid }).catch(() => {});
+      setTab('chat');
+    };
+    window.addEventListener('shape:proMessageClient', onMsg);
+    return () => window.removeEventListener('shape:proMessageClient', onMsg);
+  }, []);
   if (showSettings) return <BSSettings onBack={() => setShowSettings(false)} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />;
   if (showCalendar) return <BSCalendarScreen role="trainer" onProfile={goSettings} onBack={() => setShowCalendar(false)} />;
   if (showReviews) return <BSWorkoutReviewPage role="trainer" onBack={() => setShowReviews(false)} />;
@@ -2526,6 +2538,16 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     if (action === 'clients') { setTab('clients'); return; }
     if (action === 'grocery') setQueueView('grocery');
   };
+  React.useEffect(() => {
+    const onMsg = (e) => {
+      const c = e?.detail?.client;
+      const uid = c && (c.userId || c.user_id || (typeof c.id === 'string' && c.id.includes('-') ? c.id : null));
+      if (uid && window.ShapeMessages?.getOrCreateMemberConversation) window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: uid }).catch(() => {});
+      setTab('chat');
+    };
+    window.addEventListener('shape:proMessageClient', onMsg);
+    return () => window.removeEventListener('shape:proMessageClient', onMsg);
+  }, []);
   if (showSettings) return <BSSettings onBack={() => setShowSettings(false)} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />;
   if (showCalendar) return <BSCalendarScreen role="nutritionist" onProfile={goSettings} onBack={() => setShowCalendar(false)} />;
   if (showReviews) return <BSWorkoutReviewPage role="nutritionist" onBack={() => setShowReviews(false)} />;
