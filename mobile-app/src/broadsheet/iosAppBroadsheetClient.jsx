@@ -6955,7 +6955,7 @@ function BSChatThread({ thread, eyebrow, onBack }) {
             if (quick === '❤️') rx.toggle(rKey, '❤️');
             else rx.setPickerKey(pickerOpen ? null : rKey);
           });
-          const initial = (m.who || thread.who || '?').toString().trim().charAt(0).toUpperCase();
+          const initial = (m.who || thread.who || '?').toString().replace(/^#\s*/, '').split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase() || '?';
           return (
             <div key={i} style={{ display: 'flex', flexDirection: me ? 'row-reverse' : 'row', alignItems: 'flex-end', gap: 8, alignSelf: me ? 'flex-end' : 'flex-start', maxWidth: '88%' }}>
               {!me && (
