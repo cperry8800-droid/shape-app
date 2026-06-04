@@ -9830,8 +9830,9 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
         const aisleDone = aisle.items.filter((_, ii) => checked.has(`${ai}-${ii}`)).length;
         return (
           <>
-            <div style={{ padding: `${t.sectGap}px ${t.padX}px 10px`, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', flex: 1, minWidth: 0, scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+            {/* Food-group tabs get the full width (scroll horizontally) */}
+            <div style={{ padding: `${t.sectGap}px ${t.padX}px 12px` }}>
+              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', minWidth: 0, scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
                 {list.aisles.map((a, idx) => {
                   const on = idx === ai;
                   const aDone = a.items.filter((_, ii) => checked.has(`${idx}-${ii}`)).length;
@@ -9847,16 +9848,20 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
                   );
                 })}
               </div>
-              <button onClick={() => resetAisle(ai)} aria-label={`Reset ${aisle.aisle}`} disabled={aisleDone === 0} style={{
-                flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', gap: 5,
-                padding: '8px 13px', borderRadius: 999, cursor: aisleDone > 0 ? 'pointer' : 'default',
-                background: aisleDone > 0 ? t.PAPER2 : 'transparent',
-                color: aisleDone > 0 ? t.INK : t.INK50,
-                border: `1px solid ${aisleDone > 0 ? t.INK : t.RULE}`, opacity: aisleDone > 0 ? 1 : 0.5,
-                fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase',
-              }}>Reset ↺</button>
             </div>
             <div style={{ padding: `0 ${t.padX}px` }}>
+              {/* List header — active group on the left, Reset pinned top-right */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 9 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK }}>▍ {aisle.aisle}</span>
+                <button onClick={() => resetAisle(ai)} aria-label={`Reset ${aisle.aisle}`} disabled={aisleDone === 0} style={{
+                  flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', gap: 5,
+                  padding: '7px 12px', borderRadius: 999, cursor: aisleDone > 0 ? 'pointer' : 'default',
+                  background: aisleDone > 0 ? t.PAPER2 : 'transparent',
+                  color: aisleDone > 0 ? t.INK : t.INK50,
+                  border: `1px solid ${aisleDone > 0 ? t.INK : t.RULE}`, opacity: aisleDone > 0 ? 1 : 0.5,
+                  fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase',
+                }}>Reset ↺</button>
+              </div>
               <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
               {aisle.items.map((it, ii, arr) => {
                 const k = `${ai}-${ii}`;
