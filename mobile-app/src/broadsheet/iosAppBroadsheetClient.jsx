@@ -5811,8 +5811,8 @@ function BSPublicProfile({ person, onBack, onMessage = () => {} }) {
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const tier = person.tier || bsPostTier(person);
   const tc = bsTierColor(tier);
-  const ROLE_LABEL = { TRAINER: 'Trainer', NUTRI: 'Nutritionist', CLIENT: 'Member', SHAPE: 'Member', COMMUNITY: 'Member' };
-  const roleLabel = ROLE_LABEL[person.kind] || 'Member';
+  const ROLE_LABEL = { TRAINER: 'Trainer', NUTRI: 'Nutritionist', CLIENT: 'Client', SHAPE: 'Client', COMMUNITY: 'Client' };
+  const roleLabel = ROLE_LABEL[person.kind] || 'Client';
   const isCoach = person.kind === 'TRAINER' || person.kind === 'NUTRI';
   return (
     <BSPage>
@@ -6074,10 +6074,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const muted = t.INK50;
   const hair = t.RULE;
   const ROLE = {
-    SHAPE: { color: TEALB, label: 'Member' },
+    SHAPE: { color: TEALB, label: 'Client' },
     TRAINER: { color: '#ff7a59', label: 'Trainer' },
     CLIENT: { color: '#2ee0c4', label: 'Client' },
-    NUTRI: { color: '#e0b15a', label: 'Nutri' },
+    NUTRI: { color: '#e0b15a', label: 'Nutritionist' },
     COMMUNITY: { color: '#8a5cf6', label: 'Community' },
   };
   // Feed chips depend on the signed-in role: everyone sees Shape + Community,
