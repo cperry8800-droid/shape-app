@@ -46,6 +46,13 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Saved-carts redesign + removed coach note / How-it-works
+- **Saved carts** (`BSGroceryLibrary`): filter tabs are rounded pills; each list is a
+  rounded `PAPER2` card (eyebrow, title + chevron, preview, rounded Load/Edit/Delete
+  pills); the open preview is a nested rounded card.
+- Removed the amber **coach-note quote box** from the grocery list page.
+- Removed the **"How it works"** box from the Shape Score page.
+
 ### 2026-06-04 — Rounded-card redesign: Recipe / Shape Score / Shape Store
 - **Recipe detail** (`BSShapeKitchenRecipe`): macro grid, Ingredients, and Method are
   now rounded `PAPER2` cards (1px RULE, hairline dividers) — dropped the 2px-INK ledger
