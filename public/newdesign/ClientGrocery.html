@@ -13,6 +13,8 @@
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/supabase.js"></script>
 <script type="text/babel" src="pageShell.jsx"></script>
 <script type="text/babel" src="chatWidget.jsx"></script>
 <script type="text/babel" src="clientChatThreads.jsx"></script>
@@ -94,6 +96,19 @@ function saveHidden(set) { try { window.localStorage.setItem(HIDE_KEY, JSON.stri
 function loadChecks() { try { return JSON.parse(window.localStorage.getItem(CHECK_KEY) || "{}"); } catch (e) { return {}; } }
 function saveChecks(map) { try { window.localStorage.setItem(CHECK_KEY, JSON.stringify(map)); } catch (e) {} }
 
+// Cross-device sync with the mobile app via user_goals('client_grocery_lists').
+const SYNC_KEY = "client_grocery_lists";
+function syncedToWeb(list) {
+  const items = (list.items && list.items.length) ? list.items : ((list.aisles || []).flatMap(a => a.items || []));
+  return { id: list.id, name: list.name || "Saved list", items: (items || []).map((it, i) => ({ id: it.id || `s${list.id}-${i}`, item: it.n || it.item || "", qty: it.q || it.qty || "", category: guessCategory(it.n || it.item || ""), checked: false })) };
+}
+function webToSynced(lists) {
+  return lists.map(l => {
+    const flat = (l.items || []).map(it => ({ id: it.id, n: it.item, q: it.qty || "1", meals: l.name }));
+    return { id: l.id, name: l.name, kind: "custom", editable: true, eyebrow: "Custom · Synced", usedCount: 0, count: flat.length, preview: flat.slice(0, 3).map(i => i.n).join(" · "), items: flat, aisles: [{ aisle: "Items", items: flat }] };
+  });
+}
+
 function ClientGroceryPage() {
   const [lists, setLists] = React.useState(loadLists);
   const [activeListId, setActiveListId] = React.useState(() => loadActiveId(loadLists()));
@@ -106,7 +121,22 @@ function ClientGroceryPage() {
   const [hidden, setHidden] = React.useState(loadHidden);
   const [planChecks, setPlanChecks] = React.useState(loadChecks);
 
-  React.useEffect(() => { saveLists(lists); }, [lists]);
+  const grocSynced = React.useRef(false);
+  // Pull saved lists from the shared store (lists created on the mobile app).
+  React.useEffect(() => {
+    if (!(window.shapeDb && window.shapeDb.getUserGoals)) { grocSynced.current = true; return; }
+    let cancelled = false;
+    window.shapeDb.getUserGoals(SYNC_KEY).then(saved => {
+      if (!cancelled && Array.isArray(saved) && saved.length) {
+        setLists(prev => { const have = new Set(prev.map(l => l.id)); const extra = saved.filter(l => l && l.id && !have.has(l.id)).map(syncedToWeb); return extra.length ? [...prev, ...extra] : prev; });
+      }
+    }).catch(() => {}).finally(() => { grocSynced.current = true; });
+    return () => { cancelled = true; };
+  }, []);
+  React.useEffect(() => {
+    saveLists(lists);
+    if (grocSynced.current && window.shapeDb && window.shapeDb.saveUserGoals) { try { window.shapeDb.saveUserGoals(SYNC_KEY, webToSynced(lists)); } catch (e) {} }
+  }, [lists]);
   React.useEffect(() => { if (activeListId) saveActiveId(activeListId); }, [activeListId]);
   React.useEffect(() => { saveHidden(hidden); }, [hidden]);
   React.useEffect(() => { saveChecks(planChecks); }, [planChecks]);
