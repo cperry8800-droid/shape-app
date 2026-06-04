@@ -6495,7 +6495,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           };
           return (
             <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 6 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 14 }}>
                 {selectors.map(sec => {
                   const on = active.key === sec.key;
                   return (
@@ -6563,7 +6563,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       ) : (
         <>
           {/* Role filter chips */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 6, padding: `10px ${t.padX}px` }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 14, padding: `10px ${t.padX}px` }}>
             {CHIP_KEYS.map(k => {
               const on = filter === k;
               return (
