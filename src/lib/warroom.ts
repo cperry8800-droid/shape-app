@@ -486,6 +486,18 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'Client goals & weigh-ins',
+      items: [
+        { label: 'Client Goal page rebuilt as 3 themed dashboards (Overall · Training · Nutrition) with a tab-aware header + Edit sheets', status: 'done' },
+        { label: 'Me-page featured goal box (down-so-far / % there) taps through to the Goal page', status: 'done' },
+        { label: 'Share-with-coaches toggle persists to user_goals(client_goals) (overall + training/nutrition metas + lists)', status: 'done' },
+        { label: 'Coach reads a client’s shared goals (share-gated): mobile full-profile + website client page + /shared-overview', status: 'done' },
+        { label: 'Live weigh-ins: client_weigh_ins table + ShapeWeighIns.list/log (one row/day upsert); Log weigh-in writes to the table when signed in', status: 'done' },
+        { label: 'get_client_goals merges the live weigh-in series into overall.weighIns + latest into overall.now; coach sees the weight trend chart (mobile + website)', status: 'done' },
+        { label: 'Migrations applied on Supabase: 2026-06-13-client-goals-coach-read.sql + 2026-06-13-client-weigh-ins.sql', status: 'manual' },
+      ],
+    },
+    {
       section: 'Client surfaces & library',
       items: [
         { label: 'Home ticker editor in Settings (client picks which metrics show)', status: 'done' },
