@@ -2349,28 +2349,28 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
 
         {tab === 'plans' && (<>
         {/* Generate with AI */}
-        <button onClick={() => setDrafting(true)} style={{ width: '100%', marginTop: 18, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 14, alignItems: 'center', borderRadius: 16, border: `1px solid ${teal}44`, background: `linear-gradient(150deg, ${teal}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 16 }}>
-          <span style={{ width: 48, height: 48, borderRadius: 12, background: teal, color: '#04201d', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>✦</span>
+        <button onClick={() => setDrafting(true)} style={{ width: '100%', marginTop: 14, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', borderRadius: 14, border: `1px solid ${teal}44`, background: `linear-gradient(150deg, ${teal}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 12 }}>
+          <span style={{ width: 40, height: 40, borderRadius: 10, background: teal, color: '#04201d', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✦</span>
           <div>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: teal }}>GENERATE WITH AI</div>
-            <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, lineHeight: 1.15 }}>Draft a workout in seconds</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', color: teal }}>GENERATE WITH AI</div>
+            <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, lineHeight: 1.15 }}>Draft a workout in seconds</div>
           </div>
-          <span style={{ color: teal, fontSize: 16 }}>→</span>
+          <span style={{ color: teal, fontSize: 15 }}>→</span>
         </button>
-        <button onClick={() => setDrafting(true)} style={{ display: 'block', width: '100%', marginTop: 12, textAlign: 'center', border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Or start from blank →</button>
+        <button onClick={() => setDrafting(true)} style={{ display: 'block', width: '100%', marginTop: 9, textAlign: 'center', border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Or start from blank →</button>
 
         {/* Top seller */}
-        <div style={{ marginTop: 18, borderRadius: 18, border: `1px solid ${teal}44`, background: `linear-gradient(150deg, ${teal}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 18 }}>
+        <div style={{ marginTop: 14, borderRadius: 16, border: `1px solid ${teal}44`, background: `linear-gradient(150deg, ${teal}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: teal }}>TOP SELLER</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>$120/MO</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: teal }}>TOP SELLER</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>$120/MO</span>
           </div>
-          <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Push / Pull / <span style={{ fontStyle: 'italic', color: teal }}>Legs.</span></div>
-          <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.04em' }}>12 weeks · 48 on it · $5,760 MRR · 4.9 ★</div>
-          <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
-            <button onClick={() => setDrafting(true)} style={{ borderRadius: 999, border: 0, background: teal, color: '#04201d', padding: '9px 18px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>EDIT</button>
-            <button onClick={() => duplicate({ n: 'Push / Pull / Legs', meta: '12 wk · 48 on it · 4.9 ★', price: '$120/mo' })} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '9px 16px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>DUPLICATE</button>
-            <button onClick={() => share('Push Pull Legs')} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '9px 16px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SHARE →</button>
+          <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Push / Pull / <span style={{ fontStyle: 'italic', color: teal }}>Legs.</span></div>
+          <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em' }}>12 weeks · 48 on it · $5,760 MRR · 4.9 ★</div>
+          <div style={{ marginTop: 11, display: 'flex', gap: 7 }}>
+            <button onClick={() => setDrafting(true)} style={{ borderRadius: 999, border: 0, background: teal, color: '#04201d', padding: '8px 15px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>EDIT</button>
+            <button onClick={() => duplicate({ n: 'Push / Pull / Legs', meta: '12 wk · 48 on it · 4.9 ★', price: '$120/mo' })} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '8px 13px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>DUPLICATE</button>
+            <button onClick={() => share('Push Pull Legs')} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '8px 13px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SHARE →</button>
           </div>
         </div>
 
@@ -3204,28 +3204,28 @@ function BSNutriPlans() {
 
         {tab === 'plans' && (<>
         {/* Generate with AI */}
-        <button onClick={() => setDrafting(true)} style={{ width: '100%', marginTop: 18, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 14, alignItems: 'center', borderRadius: 16, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 16 }}>
-          <span style={{ width: 48, height: 48, borderRadius: 12, background: gold, color: '#241c08', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>✦</span>
+        <button onClick={() => setDrafting(true)} style={{ width: '100%', marginTop: 14, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', borderRadius: 14, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 12 }}>
+          <span style={{ width: 40, height: 40, borderRadius: 10, background: gold, color: '#241c08', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✦</span>
           <div>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>GENERATE WITH AI</div>
-            <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, lineHeight: 1.15 }}>Draft a meal plan in seconds</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>GENERATE WITH AI</div>
+            <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, lineHeight: 1.15 }}>Draft a meal plan in seconds</div>
           </div>
-          <span style={{ color: gold, fontSize: 16 }}>→</span>
+          <span style={{ color: gold, fontSize: 15 }}>→</span>
         </button>
-        <button onClick={() => setDrafting(true)} style={{ display: 'block', width: '100%', marginTop: 12, textAlign: 'center', border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Or start from blank →</button>
+        <button onClick={() => setDrafting(true)} style={{ display: 'block', width: '100%', marginTop: 9, textAlign: 'center', border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Or start from blank →</button>
 
         {/* Top plan */}
-        <div style={{ marginTop: 18, borderRadius: 18, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 18 }}>
+        <div style={{ marginTop: 14, borderRadius: 16, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>TOP PLAN</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>$140/MO</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>TOP PLAN</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>$140/MO</span>
           </div>
-          <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Lean <span style={{ fontStyle: 'italic', color: gold }}>Cut.</span></div>
-          <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.04em' }}>2,100 kcal · 12 on it · 165g protein · 4.9 ★</div>
-          <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
-            <button onClick={() => setDrafting(true)} style={{ borderRadius: 999, border: 0, background: gold, color: '#241c08', padding: '9px 18px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>EDIT</button>
-            <button onClick={() => duplicate({ n: 'Lean Cut', meta: '2,100 kcal · 12 on it · 4.9 ★', price: '$140' })} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '9px 16px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>DUPLICATE</button>
-            <button onClick={() => share('Lean Cut')} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '9px 16px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SHARE →</button>
+          <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Lean <span style={{ fontStyle: 'italic', color: gold }}>Cut.</span></div>
+          <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em' }}>2,100 kcal · 12 on it · 165g protein · 4.9 ★</div>
+          <div style={{ marginTop: 11, display: 'flex', gap: 7 }}>
+            <button onClick={() => setDrafting(true)} style={{ borderRadius: 999, border: 0, background: gold, color: '#241c08', padding: '8px 15px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>EDIT</button>
+            <button onClick={() => duplicate({ n: 'Lean Cut', meta: '2,100 kcal · 12 on it · 4.9 ★', price: '$140' })} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '8px 13px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>DUPLICATE</button>
+            <button onClick={() => share('Lean Cut')} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '8px 13px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SHARE →</button>
           </div>
         </div>
 
