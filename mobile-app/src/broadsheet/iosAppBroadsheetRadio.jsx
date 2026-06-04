@@ -293,9 +293,9 @@ function BSShapeRadioLogo({ cream, accent }) {
   const ink = cream || t.INK;
   const glow = accent || t.ACCENT;
   const logoFont = "'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif";
-  const logoSize = 'clamp(18px, 5.7vw, 25px)';
-  const shapeTracking = '0.31em';
-  const radioTracking = '0.27em';
+  const logoSize = 'clamp(17px, 5.3vw, 23px)';
+  const shapeTracking = '0.2em';
+  const radioTracking = '0.18em';
 
   return (
     <div style={{
@@ -303,7 +303,7 @@ function BSShapeRadioLogo({ cream, accent }) {
       alignItems: 'center',
       justifyContent: 'center',
       width: '100%',
-      gap: 'clamp(18px, 4.4vw, 28px)',
+      gap: 'clamp(8px, 2.2vw, 13px)',
       maxWidth: '100%',
       whiteSpace: 'nowrap',
     }}>
@@ -325,7 +325,7 @@ function BSShapeRadioLogo({ cream, accent }) {
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        width: 'clamp(16px, 4.2vw, 21px)',
+        width: 'clamp(12px, 3.2vw, 16px)',
         height: 'clamp(18px, 4.7vw, 23px)',
         flexShrink: 0,
       }}>
@@ -934,7 +934,7 @@ function BSRadioScreen({ onBack }) {
       }} />
 
       {/* HEADER — translucent so portrait shows through */}
-      <div style={{ padding: `48px ${t.padX}px 11px`, borderBottom: `1px solid ${RULE_DK}`, position: 'relative' }}>
+      <div style={{ padding: `50px ${t.padX}px 18px`, borderBottom: `1px solid ${RULE_DK}`, position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <BSLogo size={16} color={CREAM} />
@@ -947,11 +947,11 @@ function BSRadioScreen({ onBack }) {
             fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700,
           }}>← Back</button>
         </div>
-        <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEAL, fontWeight: 700, textAlign: 'center' }}>
+        <div style={{ marginTop: 18, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEAL, fontWeight: 700, textAlign: 'center' }}>
           Section · Music
         </div>
         <div style={{
-          marginTop: 7,
+          marginTop: 12,
           textAlign: 'center',
           whiteSpace: 'nowrap',
         }}>
@@ -970,7 +970,7 @@ function BSRadioScreen({ onBack }) {
           position: 'absolute',
           inset: 0,
           zIndex: 0,
-          background: `radial-gradient(125% 78% at 50% 22%, ${TEAL}2e, ${TEAL}0d 48%, transparent 78%)`,
+          background: `radial-gradient(95% 42% at 50% 17%, ${TEAL}1f, ${TEAL}08 42%, transparent 62%)`,
           pointerEvents: 'none',
         }} />
         <BSStageLight color={TEAL} opacity={0.1} paused={r.paused} />
@@ -1068,17 +1068,17 @@ function BSRadioScreen({ onBack }) {
           })()}
 
           {/* Transport */}
-          <div style={{ marginTop: 16, display: 'flex', alignItems: 'stretch', gap: 8 }}>
-            <button onClick={() => r.setPaused(p => !p)} style={{ borderRadius: 14,
-              flex: 1, padding: '15px', background: TEAL, color: '#050707', border: 0, cursor: 'pointer',
-              fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 800,
+          <div style={{ marginTop: 14, display: 'flex', alignItems: 'stretch', gap: 8 }}>
+            <button onClick={() => r.setPaused(p => !p)} style={{ borderRadius: 12,
+              flex: 1, padding: '11px', background: TEAL, color: '#050707', border: 0, cursor: 'pointer',
+              fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 800,
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             }}>
               {r.paused ? '▶  Resume' : '❚❚  Pause'}
             </button>
-            <button onClick={() => r.setRadioPreference(false)} aria-label="Stop" style={{ borderRadius: 14,
-              width: 58, background: 'transparent', color: CREAM, border: `1px solid ${CREAM25}`, cursor: 'pointer',
-              fontFamily: t.MONO, fontSize: 13, fontWeight: 800,
+            <button onClick={() => r.setRadioPreference(false)} aria-label="Stop" style={{ borderRadius: 12,
+              width: 46, background: 'transparent', color: CREAM, border: `1px solid ${CREAM25}`, cursor: 'pointer',
+              fontFamily: t.MONO, fontSize: 11, fontWeight: 800,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>■</button>
           </div>
@@ -1086,7 +1086,7 @@ function BSRadioScreen({ onBack }) {
           <style>{`@keyframes bs-beat-ring { 0% { transform: scale(0.92); opacity: 0.95; } 50% { transform: scale(1.0); opacity: 0.55; } 100% { transform: scale(1.18); opacity: 0; } } @keyframes bs-radio-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }`}</style>
 
           {/* Heart-rate sync — stages: not connected → free → matching → in sync */}
-          <div style={{ marginTop: 22, borderTop: `1px solid ${CREAM25}`, paddingTop: 16 }}>
+          <div style={{ marginTop: 18, borderTop: `1px solid ${CREAM25}`, paddingTop: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: CREAM, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ width: 4, height: 11, background: TEAL, display: 'inline-block' }} />
@@ -1097,10 +1097,10 @@ function BSRadioScreen({ onBack }) {
               </span>
             </div>
 
-            <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'auto 1fr auto', alignItems: 'center', gap: 14 }}>
+            <div style={{ marginTop: 13, display: 'grid', gridTemplateColumns: 'auto 1fr auto', alignItems: 'center', gap: 14 }}>
               <div>
-                <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM50, fontWeight: 700 }}>Track</div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, color: CREAM, lineHeight: 1, letterSpacing: '-0.03em', marginTop: 2 }}>{trackBpm}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM50, fontWeight: 700 }}>Track</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: CREAM, lineHeight: 1, letterSpacing: '-0.03em', marginTop: 2 }}>{trackBpm}</div>
               </div>
               {hrStage === 'off' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
@@ -1127,36 +1127,36 @@ function BSRadioScreen({ onBack }) {
                 </div>
               )}
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM50, fontWeight: 700 }}>You</div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, color: hrStage === 'off' ? CREAM50 : CREAM, lineHeight: 1, letterSpacing: '-0.03em', marginTop: 2 }}>{hrStage === 'off' ? '— —' : demoHr}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM50, fontWeight: 700 }}>You</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: hrStage === 'off' ? CREAM50 : CREAM, lineHeight: 1, letterSpacing: '-0.03em', marginTop: 2 }}>{hrStage === 'off' ? '— —' : demoHr}</div>
               </div>
             </div>
 
             {/* Stage controls */}
-            <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+            <div style={{ marginTop: 13, display: 'flex', gap: 8 }}>
               {hrStage === 'off' ? (
-                <button onClick={connectMonitor} style={{ borderRadius: 12, flex: 1,
+                <button onClick={connectMonitor} style={{ borderRadius: 11, flex: 1,
                   border: `1px solid ${CREAM25}`, background: 'transparent', color: CREAM,
-                  padding: '13px', cursor: 'pointer',
-                  fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 800,
+                  padding: '11px', cursor: 'pointer',
+                  fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 800,
                 }}>Connect monitor</button>
               ) : (
                 <>
-                  <button onClick={() => setMatching(m => !m)} style={{ borderRadius: 12, flex: 1,
+                  <button onClick={() => setMatching(m => !m)} style={{ borderRadius: 11, flex: 1,
                     border: `1px solid ${matching ? TEAL : CREAM50}`,
                     background: matching ? TEAL : 'transparent',
                     color: matching ? '#050707' : CREAM,
-                    padding: '13px', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 800,
+                    padding: '11px', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                    fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 800,
                   }}>
-                    <span style={{ fontSize: 11 }}>{matching ? '◉' : '○'}</span>
+                    <span style={{ fontSize: 10 }}>{matching ? '◉' : '○'}</span>
                     {matching ? (isSynced ? 'In sync' : 'Matching beat') : 'Match my BPM'}
                   </button>
-                  <button onClick={() => (matching ? setMatching(false) : disconnectHrm())} aria-label={matching ? 'End beat matching' : 'Disconnect monitor'} style={{ borderRadius: 12, width: 52,
+                  <button onClick={() => (matching ? setMatching(false) : disconnectHrm())} aria-label={matching ? 'End beat matching' : 'Disconnect monitor'} style={{ borderRadius: 11, width: 44,
                     border: `1px solid ${CREAM25}`, background: 'transparent', color: CREAM, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontFamily: t.MONO, fontSize: 13, fontWeight: 800,
+                    fontFamily: t.MONO, fontSize: 11, fontWeight: 800,
                   }}>✕</button>
                 </>
               )}
