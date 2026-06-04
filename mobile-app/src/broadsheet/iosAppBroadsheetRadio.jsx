@@ -881,11 +881,26 @@ function BSRadioScreen({ onBack }) {
   const playlist = null;
   const tr = r.LIVE.tracks[r.trackIdx];
   const [hrmConnected, setHrmConnected] = useStateBR(false);
-  const [demoHr, setDemoHr] = useStateBR(120);
+  const [demoHr, setDemoHr] = useStateBR(114);
+  const [matching, setMatching] = useStateBR(false);
+  const [vizMode, setVizMode] = useStateBR('dial'); // dial | wave | marquee
   const trackBpm = tr.bpm;
-  const syncDelta = Math.abs(demoHr - trackBpm);
-  const isSynced = hrmConnected && syncDelta <= 6;
-  const syncLabel = !hrmConnected ? 'HRM not connected' : isSynced ? 'In sync' : 'Out of sync';
+  const signedDelta = demoHr - trackBpm;
+  const syncDelta = Math.abs(signedDelta);
+  const isSynced = hrmConnected && syncDelta <= 4;
+  // HR sync stage machine: off → free (connected) → matching → synced
+  const hrStage = !hrmConnected ? 'off' : (matching ? (isSynced ? 'synced' : 'matching') : 'free');
+  const hrStatus = { off: 'Not connected', free: 'Free', matching: 'Matching…', synced: 'In sync' }[hrStage];
+  // Beat-matching — ease YOU heart-rate toward the track BPM while matching is on
+  useEffectBR(() => {
+    if (!matching) return undefined;
+    const id = setInterval(() => {
+      setDemoHr(prev => (prev === trackBpm ? prev : prev + (prev < trackBpm ? 1 : -1)));
+    }, 240);
+    return () => clearInterval(id);
+  }, [matching, trackBpm]);
+  const connectMonitor = () => { setHrmConnected(true); setMatching(false); setDemoHr(114); };
+  const disconnectHrm = () => { setMatching(false); setHrmConnected(false); setDemoHr(114); };
 
   // Section accent — follows the global Appearance accent so Radio's
   // colored highlights (kicker, italic "Radio.", EQ, beat ring, play button,
@@ -964,14 +979,28 @@ function BSRadioScreen({ onBack }) {
         <div style={{ height: 36 }} />
 
         <div style={{ position: 'relative', zIndex: 2, padding: `0 ${t.padX}px 18px` }}>
+          {/* On air + visualizer selector (Marquee / Dial / Wave) */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 18 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700, color: CREAM }}>
+              <span style={{ width: 6, height: 6, borderRadius: 3, flexShrink: 0, background: '#ff5b4a', animation: 'bs-blink 1.2s ease-in-out infinite' }} />
+              {onLive ? `On Air · ${r.LIVE.listeners.toLocaleString()}` : 'Coach Playlist'}
+            </span>
+            <div style={{ display: 'inline-flex', flexShrink: 0, border: `1px solid ${CREAM25}`, borderRadius: 999, overflow: 'hidden' }}>
+              {[['marquee', 'Marquee'], ['dial', 'Dial'], ['wave', 'Wave']].map(([k, l]) => (
+                <button key={k} onClick={() => setVizMode(k)} style={{
+                  padding: '6px 9px', border: 0, cursor: 'pointer',
+                  background: vizMode === k ? TEAL : 'transparent',
+                  color: vizMode === k ? '#050707' : CREAM70,
+                  fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
+                }}>{l}</button>
+              ))}
+            </div>
+          </div>
+
           {/* Now playing — centered hero */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-            {/* On air + active listeners */}
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, marginBottom: 16, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: CREAM }}>
-              <span style={{ width: 6, height: 6, borderRadius: 3, background: '#ff5b4a', animation: 'bs-blink 1.2s ease-in-out infinite' }} />
-              {onLive ? `On Air · ${r.LIVE.listeners.toLocaleString()}` : 'Coach Playlist'}
-            </div>
-            {/* BPM ring */}
+            {/* Visualizer — Dial (BPM ring) / Wave / Marquee */}
+            {vizMode === 'dial' && (
             <div style={{ position: 'relative', width: 112, height: 112 }}>
               <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: `1px solid ${CREAM25}` }} />
               <div style={{ position: 'absolute', inset: 11, borderRadius: '50%', border: `1px solid ${TEAL}44` }} />
@@ -981,6 +1010,23 @@ function BSRadioScreen({ onBack }) {
                 <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.24em', color: TEAL, fontWeight: 700, marginTop: 3 }}>BPM</div>
               </div>
             </div>
+            )}
+            {vizMode === 'wave' && (
+            <div style={{ width: '100%', height: 112, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: '100%', maxWidth: 270 }}>
+                <BSEQ bars={29} color={TEAL} height={96} gap={3} paused={r.paused} />
+              </div>
+            </div>
+            )}
+            {vizMode === 'marquee' && (
+            <div style={{ position: 'relative', width: '100%', height: 112, overflow: 'hidden', display: 'flex', alignItems: 'center', borderTop: `1px solid ${CREAM25}`, borderBottom: `1px solid ${CREAM25}` }}>
+              <div style={{ display: 'inline-flex', whiteSpace: 'nowrap', animation: r.paused ? 'none' : 'bs-radio-marquee 13s linear infinite', fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, letterSpacing: '-0.02em', color: CREAM }}>
+                {[0, 1].map(i => (
+                  <span key={i} style={{ paddingRight: 30 }}>{onLive ? tr.a : playlist.name} <span style={{ color: TEAL }}>· {trackBpm} BPM ·</span> {onLive ? tr.b : ''} <span style={{ color: TEAL }}>· On Air ·</span>&nbsp;</span>
+                ))}
+              </div>
+            </div>
+            )}
 
             {/* Now playing label + track */}
             <div style={{ marginTop: 18, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: TEAL, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -1037,17 +1083,17 @@ function BSRadioScreen({ onBack }) {
             }}>■</button>
           </div>
 
-          <style>{`@keyframes bs-beat-ring { 0% { transform: scale(0.92); opacity: 0.95; } 50% { transform: scale(1.0); opacity: 0.55; } 100% { transform: scale(1.18); opacity: 0; } }`}</style>
+          <style>{`@keyframes bs-beat-ring { 0% { transform: scale(0.92); opacity: 0.95; } 50% { transform: scale(1.0); opacity: 0.55; } 100% { transform: scale(1.18); opacity: 0; } } @keyframes bs-radio-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }`}</style>
 
-          {/* Heart-rate sync */}
+          {/* Heart-rate sync — stages: not connected → free → matching → in sync */}
           <div style={{ marginTop: 22, borderTop: `1px solid ${CREAM25}`, paddingTop: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: CREAM, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ width: 4, height: 11, background: TEAL, display: 'inline-block' }} />
                 Heart-rate sync
               </span>
-              <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700, color: hrmConnected ? TEAL : CREAM50 }}>
-                {hrmConnected ? (isSynced ? 'In sync' : `${syncDelta} BPM off`) : 'Not connected'}
+              <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700, color: hrStage === 'off' ? CREAM50 : TEAL }}>
+                {hrStatus}
               </span>
             </div>
 
@@ -1056,42 +1102,66 @@ function BSRadioScreen({ onBack }) {
                 <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM50, fontWeight: 700 }}>Track</div>
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, color: CREAM, lineHeight: 1, letterSpacing: '-0.03em', marginTop: 2 }}>{trackBpm}</div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                <div style={{ position: 'relative', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', borderTop: `1px dashed ${CREAM25}` }} />
-                  <svg width="22" height="22" viewBox="0 0 22 22" style={{ position: 'relative', background: t.PAPER, borderRadius: '50%' }}>
-                    <circle cx="11" cy="11" r="6.5" fill="none" stroke={hrmConnected ? TEAL : CREAM50} strokeWidth="1" />
-                    <line x1="11" y1="1.5" x2="11" y2="20.5" stroke={hrmConnected ? TEAL : CREAM50} strokeWidth="1" />
-                    <line x1="1.5" y1="11" x2="20.5" y2="11" stroke={hrmConnected ? TEAL : CREAM50} strokeWidth="1" />
-                  </svg>
+              {hrStage === 'off' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                  <div style={{ position: 'relative', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', borderTop: `1px dashed ${CREAM25}` }} />
+                    <svg width="22" height="22" viewBox="0 0 22 22" style={{ position: 'relative', background: t.PAPER, borderRadius: '50%' }}>
+                      <circle cx="11" cy="11" r="6.5" fill="none" stroke={CREAM50} strokeWidth="1" />
+                      <line x1="11" y1="1.5" x2="11" y2="20.5" stroke={CREAM50} strokeWidth="1" />
+                      <line x1="1.5" y1="11" x2="20.5" y2="11" stroke={CREAM50} strokeWidth="1" />
+                    </svg>
+                  </div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM50, fontWeight: 700 }}>Awaiting signal</div>
                 </div>
-                <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: hrmConnected ? TEAL : CREAM50, fontWeight: 700 }}>
-                  {hrmConnected ? (isSynced ? 'Locked in' : 'Adjusting') : 'Awaiting signal'}
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7 }}>
+                  <div style={{ position: 'relative', width: '100%', height: 14, display: 'flex', alignItems: 'center' }}>
+                    <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', height: 2, transform: 'translateY(-50%)', background: CREAM25, borderRadius: 999 }} />
+                    <div style={{ position: 'absolute', left: '58%', top: '50%', transform: 'translate(-50%,-50%)', width: 1.5, height: 14, background: CREAM50 }} />
+                    <div style={{ position: 'absolute', left: `${Math.max(6, Math.min(94, 58 + signedDelta * 0.9))}%`, top: '50%', transform: 'translate(-50%,-50%)', width: 14, height: 14, borderRadius: '50%', background: TEAL, boxShadow: `0 0 0 3px ${t.PAPER}`, transition: 'left 0.24s linear' }} />
+                  </div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: isSynced ? TEAL : CREAM50, fontWeight: 700 }}>
+                    {isSynced ? 'In sync' : `${signedDelta > 0 ? '+' : ''}${signedDelta} BPM`}
+                  </div>
                 </div>
-              </div>
+              )}
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM50, fontWeight: 700 }}>You</div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, color: hrmConnected ? CREAM : CREAM50, lineHeight: 1, letterSpacing: '-0.03em', marginTop: 2 }}>{hrmConnected ? demoHr : '— —'}</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, color: hrStage === 'off' ? CREAM50 : CREAM, lineHeight: 1, letterSpacing: '-0.03em', marginTop: 2 }}>{hrStage === 'off' ? '— —' : demoHr}</div>
               </div>
             </div>
 
+            {/* Stage controls */}
             <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
-              <button onClick={() => setHrmConnected(true)} style={{ borderRadius: 12, flex: 1,
-                border: `1px solid ${hrmConnected ? TEAL : CREAM25}`,
-                background: hrmConnected ? TEAL : 'transparent',
-                color: hrmConnected ? '#050707' : CREAM,
-                padding: '12px', cursor: 'pointer',
-                fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 800,
-              }}>{hrmConnected ? 'Connected' : 'Connect monitor'}</button>
-              <button onClick={() => { setHrmConnected(true); setDemoHr(trackBpm); }} style={{ borderRadius: 12,
-                border: `1px solid ${CREAM25}`, background: 'transparent', color: CREAM,
-                padding: '12px 18px', cursor: 'pointer',
-                fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 800,
-              }}>Demo</button>
+              {hrStage === 'off' ? (
+                <button onClick={connectMonitor} style={{ borderRadius: 12, flex: 1,
+                  border: `1px solid ${CREAM25}`, background: 'transparent', color: CREAM,
+                  padding: '13px', cursor: 'pointer',
+                  fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 800,
+                }}>Connect monitor</button>
+              ) : (
+                <>
+                  <button onClick={() => setMatching(m => !m)} style={{ borderRadius: 12, flex: 1,
+                    border: `1px solid ${matching ? TEAL : CREAM50}`,
+                    background: matching ? TEAL : 'transparent',
+                    color: matching ? '#050707' : CREAM,
+                    padding: '13px', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 800,
+                  }}>
+                    <span style={{ fontSize: 11 }}>{matching ? '◉' : '○'}</span>
+                    {matching ? (isSynced ? 'In sync' : 'Matching beat') : 'Match my BPM'}
+                  </button>
+                  <button onClick={() => (matching ? setMatching(false) : disconnectHrm())} aria-label={matching ? 'End beat matching' : 'Disconnect monitor'} style={{ borderRadius: 12, width: 52,
+                    border: `1px solid ${CREAM25}`, background: 'transparent', color: CREAM, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontFamily: t.MONO, fontSize: 13, fontWeight: 800,
+                  }}>✕</button>
+                </>
+              )}
             </div>
           </div>
-
-          {onLive && <BSRadioInlineFeedback track={tr} cream={CREAM} cream50={CREAM50} accent={TEAL} />}
         </div>
       </div>
 
