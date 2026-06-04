@@ -1087,56 +1087,115 @@ function bsClientMatchesFilter(c, key, role) {
   if (key === 'build') return r.startsWith('BUILD');
   if (key === 'peak') return r.startsWith('PEAK');
   if (role === 'nutritionist') {
-    if (key === 'ontrack') return c.good === true;
-    if (key === 'eyes') return c.warn === true;
+    if (key === 'ontrack') return c.good === true || c.s === 'on track';
+    if (key === 'eyes') return c.warn === true || c.s === 'review form' || c.s === 'missed';
   } else {
     if (key === 'ontrack') return c.s === 'on track';
-    if (key === 'eyes') return c.s === 'review form' || c.s === 'deload soon';
+    if (key === 'eyes') return c.s === 'review form' || c.s === 'deload soon' || c.s === 'missed';
   }
   return false;
 }
 function bsClientMatchesQuery(c, query) {
   const q = (query || '').trim().toLowerCase();
   if (!q) return true;
-  return (c.n || '').toLowerCase().includes(q) || (c.r || '').toLowerCase().includes(q);
+  return (c.n || '').toLowerCase().includes(q) || (c.prog || '').toLowerCase().includes(q) || (c.r || '').toLowerCase().includes(q);
 }
-function BSProRosterFilter({ role = 'trainer', count, query, onQuery, filter, onFilter }) {
+function BSProStatusPill({ s }) {
   const t = useBS();
-  const accent = t.isLight ? '#0a8f87' : '#34d6c5';
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const gold = '#d8b25a';
+  const map = {
+    'on track': ['ON TRACK', teal],
+    'review form': ['NEEDS EYES', gold],
+    'deload soon': ['DELOAD', t.RUST],
+    'onboard': ['NEW', gold],
+    'missed': ['MISSED', t.RUST],
+    'pr': ['PR', teal],
+    'past': ['PAST', t.INK50],
+  };
+  const [label, color] = map[s] || ['ACTIVE', t.INK50];
+  return <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', color, border: `1px solid ${color}`, borderRadius: 999, padding: '5px 9px', whiteSpace: 'nowrap' }}>{label}</span>;
+}
+// Card-based coach roster — header, search, scrollable filter pills (scrollbar
+// hidden via .bs-hide-scroll), an Active/Past toggle, and tappable client cards.
+function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, totalCount, newThisMonth = 3, roster, setRoster, query, setQuery, filter, setFilter, onOpen, footerLeft, footerRight }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const filters = BS_ROSTER_FILTERS[role] || BS_ROSTER_FILTERS.trainer;
   return (
-    <div style={{ padding: `14px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 9, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '11px 13px' }}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={t.INK50} strokeWidth="2" style={{ flexShrink: 0 }}><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" strokeLinecap="round" /></svg>
-        <input value={query} onChange={(e) => onQuery(e.target.value)} placeholder={`Search ${count} clients`} style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 13.5 }} />
+    <BSPage>
+      <div style={{ padding: `46px ${t.padX}px 24px` }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+          <div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: teal }}>{activeCount} ACTIVE · +{newThisMonth} THIS MONTH</div>
+            <div style={{ marginTop: 8, fontFamily: t.SERIF, fontSize: 40, fontWeight: 600, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>Your<br /><span style={{ fontStyle: 'italic', color: teal }}>clients.</span></div>
+          </div>
+          <button onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:proAddClient', { detail: { role } })); } catch (e) {} }} style={{ flexShrink: 0, width: 38, height: 38, borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 18, fontWeight: 400, cursor: 'pointer', lineHeight: 1 }}>+</button>
+        </div>
+        {/* Search */}
+        <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 9, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '12px 14px' }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={t.INK50} strokeWidth="2" style={{ flexShrink: 0 }}><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" strokeLinecap="round" /></svg>
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Search ${totalCount} clients`} style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 14 }} />
+        </div>
+        {/* Filter pills (no scrollbar) */}
+        <div className="bs-hide-scroll" style={{ marginTop: 11, display: 'flex', gap: 7, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          {filters.map(f => {
+            const on = filter === f.k;
+            return <button key={f.k} onClick={() => setFilter(f.k)} style={{ flexShrink: 0, borderRadius: 999, padding: '8px 15px', cursor: 'pointer', border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}1c` : 'transparent', color: on ? teal : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>{f.label}</button>;
+          })}
+        </div>
+        {/* Active / Past toggle */}
+        <div style={{ marginTop: 11, display: 'flex', gap: 6 }}>
+          {[['active', `Active · ${activeCount}`], ['past', `Past · ${pastCount}`]].map(([k, label]) => {
+            const on = roster === k;
+            return <button key={k} onClick={() => setRoster(k)} style={{ flex: 1, borderRadius: 999, padding: '9px 6px', cursor: 'pointer', border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{label}</button>;
+          })}
+        </div>
+        {/* Client cards */}
+        <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {clients.length === 0 && (
+            <div style={{ padding: '22px 16px', borderRadius: 16, border: `1px dashed ${t.RULE}`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>No matching clients.</div>
+          )}
+          {clients.map((c, i) => {
+            const subtitle = `${c.prog || (c.r || '').split('·')[0].trim()}${c.streak != null ? ` · ${c.streak}d streak` : ''}`;
+            return (
+              <button key={i} onClick={() => onOpen(c)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 13, alignItems: 'center', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '15px 15px' }}>
+                <BSAvatar init={c.i} fill={c.c} size={42} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: t.SERIF, fontSize: 18, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.1 }}>{c.n}</div>
+                  <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.04em', color: t.INK50, lineHeight: 1.35 }}>{subtitle}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <BSProStatusPill s={c.s} />
+                  <span style={{ color: t.INK50, fontSize: 16, lineHeight: 1 }}>›</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
-      <div style={{ marginTop: 10, display: 'flex', gap: 7, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 2 }}>
-        {filters.map(f => {
-          const on = filter === f.k;
-          return <button key={f.k} onClick={() => onFilter(f.k)} style={{ flexShrink: 0, borderRadius: 999, padding: '8px 14px', cursor: 'pointer', border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1c` : 'transparent', color: on ? accent : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>{f.label}</button>;
-        })}
-      </div>
-    </div>
+      <BSFooter left={footerLeft} right={footerRight} />
+    </BSPage>
   );
 }
 function BSTrainerClients() {
   const t = useBS();
   const [previewClient, setPreviewClient] = useStateBSP(null);
   const [fullClient, setFullClient] = useStateBSP(null);
-  const [subtab, setSubtab] = useStateBSP('roster');
   const [roster, setRoster] = useStateBSP('active'); // 'active' | 'past'
   const [cQuery, setCQuery] = useStateBSP('');
   const [cFilter, setCFilter] = useStateBSP('all');
   const COACH_CLIENTS = [
-    { i: 'A', c: t.RUST,  n: 'Alex Rivera',    r: 'CUT · W6 · D38',   d: 'JUST NOW',   s: 'on track',    active: true },
-    { i: 'S', c: t.BLUE,  n: 'Sam Patel',      r: 'BUILD · W3',       d: '2H AGO',     s: 'on track',    active: true },
-    { i: 'R', c: t.AMBER, n: 'Riley Kim',      r: 'CUT · W8',         d: '1D AGO',     s: 'review form', active: true },
-    { i: 'C', c: t.AMBER, n: 'Casey Lee',      r: 'PEAK · W11',       d: '1D AGO',     s: 'deload soon', active: true },
-    { i: 'D', c: t.GREEN, n: 'Drew Park',      r: 'PEAK · W11',       d: '2D AGO',     s: 'deload soon', active: true },
-    { i: 'M', c: t.RUST,  n: 'Morgan Liu',     r: 'INTAKE',           d: 'NEW',        s: 'onboard',     active: true },
-    { i: 'Q', c: t.BLUE,  n: 'Quinn Choi',     r: 'BUILD · W2',       d: '3D AGO',     s: 'on track',    active: true },
-    { i: 'B', c: t.INK50, n: 'Bailey Cruz',    r: 'PAST · finished block', d: '6W AGO', s: 'past',       active: false },
-    { i: 'T', c: t.INK50, n: 'Taylor Reed',    r: 'PAST · paused',    d: '3M AGO',     s: 'past',        active: false },
+    { i: 'S', c: t.GREEN,  n: 'Sofia Martinez', prog: 'Hypertrophy',        streak: 14, r: 'BUILD · W6',  d: 'JUST NOW', s: 'on track',    active: true },
+    { i: 'A', c: t.RUST,   n: 'Alex Rivera',    prog: 'Push / Pull / Legs', streak: 8,  r: 'CUT · W6',    d: '2H AGO',   s: 'on track',    active: true },
+    { i: 'P', c: '#8a5cf6',n: 'Priya Singh',    prog: 'Fat Loss 101',       streak: 0,  r: 'CUT · W3',    d: '3D AGO',   s: 'missed',      active: true },
+    { i: 'M', c: t.AMBER,  n: 'Marcus Lee',     prog: 'Intro Block',        streak: 3,  r: 'INTAKE',      d: 'NEW',      s: 'onboard',     active: true },
+    { i: 'J', c: t.BLUE,   n: 'Jamal Green',    prog: 'Strength',           streak: 21, r: 'PEAK · W11',  d: '1D AGO',   s: 'pr',          active: true },
+    { i: 'R', c: t.AMBER,  n: 'Riley Kim',      prog: 'Cut Block',          streak: 6,  r: 'CUT · W8',    d: '1D AGO',   s: 'review form', active: true },
+    { i: 'Q', c: t.BLUE,   n: 'Quinn Choi',     prog: 'Build Phase',        streak: 11, r: 'BUILD · W2',  d: '3D AGO',   s: 'on track',    active: true },
+    { i: 'B', c: t.INK50,  n: 'Bailey Cruz',    prog: 'Finished block',     streak: 0,  r: 'PAST · finished block', d: '6W AGO', s: 'past', active: false },
+    { i: 'T', c: t.INK50,  n: 'Taylor Reed',    prog: 'Paused',             streak: 0,  r: 'PAST · paused', d: '3M AGO', s: 'past',        active: false },
   ];
   const shownClients = COACH_CLIENTS
     .filter(c => roster === 'active' ? c.active : !c.active)
@@ -1159,71 +1218,24 @@ function BSTrainerClients() {
       />
     );
   }
-  if (subtab === 'console') {
-    return (
-      <BSPage>
-        <BSPageHeader kicker="Section · Clients" title={<>14<br/>clients.</>} />
-        <BSProClientsTabBar active={subtab} onChange={setSubtab} role="trainer" />
-        <BSProConsoleScreen role="trainer" embedded />
-        <BSFooter left="The Coach Edition" right="Pg 2 of 4" />
-      </BSPage>
-    );
-  }
-  if (subtab === 'analysis') {
-    return (
-      <BSPage>
-        <BSPageHeader kicker="Section · Clients" title={<>14<br/>clients.</>} />
-        <BSProClientsTabBar active={subtab} onChange={setSubtab} role="trainer" />
-        <BSProAnalyticsScreen role="trainer" />
-        <BSFooter left="The Coach Edition" right="Pg 2 of 4" />
-      </BSPage>
-    );
-  }
   return (
-    <BSPage>
-      <BSPageHeader kicker="Section · Clients" title={<>14<br/>clients.</>} />
-      <BSProClientsTabBar active={subtab} onChange={setSubtab} role="trainer" />
-      <BSProRosterFilter role="trainer" count={COACH_CLIENTS.length} query={cQuery} onQuery={setCQuery} filter={cFilter} onFilter={setCFilter} />
-      {/* Active / Past clients toggle */}
-      <div style={{ padding: `12px ${t.padX}px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, borderBottom: `1px solid ${t.RULE}` }}>
-        {[['active', `Active · ${activeCount}`], ['past', `Past · ${pastCount}`]].map(([k, label]) => {
-          const on = roster === k;
-          return (
-            <button key={k} onClick={() => setRoster(k)} style={{ borderRadius: t.RADIUS_SM,
-              padding: '10px 6px', border: `1px solid ${on ? t.INK : t.RULE}`,
-              background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK,
-              fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer',
-            }}>{label}</button>
-          );
-        })}
-      </div>
-      <BSSection title={roster === 'active' ? 'By status' : 'Past clients'} meta={roster === 'active' ? 'Sorted by last seen' : 'Archived'} />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
-        {shownClients.length === 0 && (
-          <div style={{ padding: `${t.rowY + 8}px 0`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>
-            No {roster} clients.
-          </div>
-        )}
-        {shownClients.map((c, i, arr) => (
-          <button key={i} onClick={() => setPreviewClient(c)} style={{ width: '100%', border: 0, background: 'transparent',
-            display: 'grid', gridTemplateColumns: '40px 1fr 90px',
-            gap: 12, padding: `${t.rowY + 4}px 0`, alignItems: 'center',
-            borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-            cursor: 'pointer',
-          }}>
-            <BSAvatar init={c.i} fill={c.c} size={36} />
-            <div style={{ textAlign: 'left' }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{c.n}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.16em' }}>{c.r}</div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <BSEyebrow color={c.s === 'deload soon' ? t.RUST : t.INK50}>{c.d}</BSEyebrow>
-            </div>
-          </button>
-        ))}
-      </div>
-      <BSFooter left="The Coach Edition" right="Pg 2 of 4" />
-    </BSPage>
+    <BSProRosterView
+      role="trainer"
+      clients={shownClients}
+      activeCount={activeCount}
+      pastCount={pastCount}
+      totalCount={COACH_CLIENTS.length}
+      newThisMonth={3}
+      roster={roster}
+      setRoster={setRoster}
+      query={cQuery}
+      setQuery={setCQuery}
+      filter={cFilter}
+      setFilter={setCFilter}
+      onOpen={(c) => setFullClient(c)}
+      footerLeft="The Coach Edition"
+      footerRight="Clients"
+    />
   );
 }
 
@@ -2385,21 +2397,20 @@ function BSNutriClients() {
   const t = useBS();
   const [previewClient, setPreviewClient] = useStateBSP(null);
   const [fullClient, setFullClient] = useStateBSP(null);
-  const [subtab, setSubtab] = useStateBSP('roster');
   const [roster, setRoster] = useStateBSP('active'); // 'active' | 'past'
   const [cQuery, setCQuery] = useStateBSP('');
   const [cFilter, setCFilter] = useStateBSP('all');
   const NUTRI_CLIENTS = [
-    { i: 'A', c: t.RUST,  n: 'Alex Rivera',  r: 'CUT · 1900 KCAL',  d: '94%', good: true, active: true },
-    { i: 'J', c: t.BLUE,  n: 'Jamie Wong',   r: 'CUT · 1700 KCAL',  d: '88%', good: true, active: true },
-    { i: 'R', c: t.AMBER, n: 'Riley Kim',    r: 'CUT · 1850 KCAL',  d: '72%', active: true },
-    { i: 'S', c: t.GREEN, n: 'Sara Mendez',  r: 'INTAKE',           d: 'NEW', active: true },
-    { i: 'P', c: t.BLUE,  n: 'Pat Doan',     r: 'INTAKE',           d: 'NEW', active: true },
-    { i: 'C', c: t.AMBER, n: 'Casey Lee',    r: 'BUILD · 2400',     d: '64%', warn: true, active: true },
-    { i: 'D', c: t.RUST,  n: 'Drew Park',    r: 'BUILD · 2200',     d: '58%', warn: true, active: true },
-    { i: 'M', c: t.INK50, n: 'Morgan Liu',   r: 'PAST · ended Apr', d: '—', active: false },
-    { i: 'T', c: t.INK50, n: 'Taylor Reed',  r: 'PAST · paused',    d: '—', active: false },
-    { i: 'N', c: t.INK50, n: 'Noah Bennett', r: 'PAST · completed', d: '—', active: false },
+    { i: 'A', c: t.RUST,  n: 'Alex Rivera',  prog: 'Cut · 1900 kcal', streak: 19, r: 'CUT · 1900 KCAL',  d: '94%', good: true, s: 'on track',    active: true },
+    { i: 'J', c: t.BLUE,  n: 'Jamie Wong',   prog: 'Cut · 1700 kcal', streak: 12, r: 'CUT · 1700 KCAL',  d: '88%', good: true, s: 'on track',    active: true },
+    { i: 'R', c: t.AMBER, n: 'Riley Kim',    prog: 'Cut · 1850 kcal', streak: 4,  r: 'CUT · 1850 KCAL',  d: '72%', s: 'review form', active: true },
+    { i: 'S', c: t.GREEN, n: 'Sara Mendez',  prog: 'Intake',          streak: 0,  r: 'INTAKE',           d: 'NEW', s: 'onboard',     active: true },
+    { i: 'P', c: t.BLUE,  n: 'Pat Doan',     prog: 'Intake',          streak: 0,  r: 'INTAKE',           d: 'NEW', s: 'onboard',     active: true },
+    { i: 'C', c: t.AMBER, n: 'Casey Lee',    prog: 'Build · 2400',    streak: 9,  r: 'BUILD · 2400',     d: '64%', warn: true, s: 'missed', active: true },
+    { i: 'D', c: t.RUST,  n: 'Drew Park',    prog: 'Build · 2200',    streak: 7,  r: 'BUILD · 2200',     d: '58%', warn: true, s: 'missed', active: true },
+    { i: 'M', c: t.INK50, n: 'Morgan Liu',   prog: 'Ended Apr',       streak: 0,  r: 'PAST · ended Apr', d: '—', s: 'past', active: false },
+    { i: 'T', c: t.INK50, n: 'Taylor Reed',  prog: 'Paused',          streak: 0,  r: 'PAST · paused',    d: '—', s: 'past', active: false },
+    { i: 'N', c: t.INK50, n: 'Noah Bennett', prog: 'Completed',       streak: 0,  r: 'PAST · completed', d: '—', s: 'past', active: false },
   ];
   const shownClients = NUTRI_CLIENTS
     .filter(c => roster === 'active' ? c.active : !c.active)
@@ -2422,71 +2433,24 @@ function BSNutriClients() {
       />
     );
   }
-  if (subtab === 'console') {
-    return (
-      <BSPage>
-        <BSPageHeader kicker="Section · Clients" title={<>22<br/>plans.</>} />
-        <BSProClientsTabBar active={subtab} onChange={setSubtab} role="nutritionist" />
-        <BSProConsoleScreen role="nutritionist" embedded />
-        <BSFooter left="The Nutritionist Edition" right="Pg 2 of 4" />
-      </BSPage>
-    );
-  }
-  if (subtab === 'analysis') {
-    return (
-      <BSPage>
-        <BSPageHeader kicker="Section · Clients" title={<>22<br/>plans.</>} />
-        <BSProClientsTabBar active={subtab} onChange={setSubtab} role="nutritionist" />
-        <BSProAnalyticsScreen role="nutritionist" />
-        <BSFooter left="The Nutritionist Edition" right="Pg 2 of 4" />
-      </BSPage>
-    );
-  }
   return (
-    <BSPage>
-      <BSPageHeader kicker="Section · Clients" title={<>22<br/>plans.</>} />
-      <BSProClientsTabBar active={subtab} onChange={setSubtab} role="nutritionist" />
-      <BSProRosterFilter role="nutritionist" count={NUTRI_CLIENTS.length} query={cQuery} onQuery={setCQuery} filter={cFilter} onFilter={setCFilter} />
-      {/* Active / Past clients toggle */}
-      <div style={{ padding: `12px ${t.padX}px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, borderBottom: `1px solid ${t.RULE}` }}>
-        {[['active', `Active · ${activeCount}`], ['past', `Past · ${pastCount}`]].map(([k, label]) => {
-          const on = roster === k;
-          return (
-            <button key={k} onClick={() => setRoster(k)} style={{ borderRadius: t.RADIUS_SM,
-              padding: '10px 6px', border: `1px solid ${on ? t.INK : t.RULE}`,
-              background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK,
-              fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer',
-            }}>{label}</button>
-          );
-        })}
-      </div>
-      <BSSection title={roster === 'active' ? 'By adherence' : 'Past clients'} meta={roster === 'active' ? 'Past 7d' : 'Archived'} />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
-        {shownClients.length === 0 && (
-          <div style={{ padding: `${t.rowY + 8}px 0`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>
-            No {roster} clients.
-          </div>
-        )}
-        {shownClients.map((c, i, arr) => (
-          <button key={i} onClick={() => setPreviewClient(c)} style={{ width: '100%', border: 0, background: 'transparent',
-            display: 'grid', gridTemplateColumns: '40px 1fr 80px',
-            gap: 12, padding: `${t.rowY + 4}px 0`, alignItems: 'center',
-            borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-            cursor: 'pointer',
-          }}>
-            <BSAvatar init={c.i} fill={c.c} size={36} />
-            <div style={{ textAlign: 'left' }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{c.n}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.16em' }}>{c.r}</div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <BSEyebrow color={c.warn ? t.RUST : (c.good ? t.GREEN : t.INK50)}>{c.d}</BSEyebrow>
-            </div>
-          </button>
-        ))}
-      </div>
-      <BSFooter left="The Nutri Edition" right="Pg 2 of 4" />
-    </BSPage>
+    <BSProRosterView
+      role="nutritionist"
+      clients={shownClients}
+      activeCount={activeCount}
+      pastCount={pastCount}
+      totalCount={NUTRI_CLIENTS.length}
+      newThisMonth={3}
+      roster={roster}
+      setRoster={setRoster}
+      query={cQuery}
+      setQuery={setCQuery}
+      filter={cFilter}
+      setFilter={setCFilter}
+      onOpen={(c) => setFullClient(c)}
+      footerLeft="The Nutri Edition"
+      footerRight="Clients"
+    />
   );
 }
 
