@@ -36,6 +36,16 @@ function bsMyInitials() {
   const c = String(custom).trim().toUpperCase().slice(0, 2);
   return c || bsInitials(bsMyName()) || 'A';
 }
+// My current Shape Score tier (cached on window.ShapeScore from /api/client/score)
+// and its color. Avatars across the app fill with my tier color — Base/steel until
+// I earn points — so the avatar reflects standing, not a chosen accent.
+function bsMyTier() {
+  const s = (typeof window !== 'undefined' && window.ShapeScore) || null;
+  return (s && s.tier) || 'Base';
+}
+function bsMyTierColor() {
+  return bsTierColor(bsMyTier());
+}
 
 // Renders the music-reactive overlay (edge glow / bloom / hologram DJ)
 // only while radio is on, not paused, and fxMode != 'off'.
@@ -58,6 +68,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const [pendingTrainStart, setPendingTrainStart] = useStateBSC(false); // one-shot: auto-launch the live session, then cleared so it doesn't re-fire on remount
   const [storeView, setStoreView] = useStateBSC('store');
   const [marketRole, setMarketRole] = useStateBSC(null); // 'trainer' | 'nutritionist' | null
+  const [identityVersion, setIdentityVersion] = useStateBSC(0); // bumped on profile save → re-render avatars now
   const scoreProfile = SHAPE_SCORE_PROFILES.client;
   const goSettings = () => { setSettingsStart(''); setShowSettings(true); };
   const goIntegrations = () => { setSettingsStart('integrations'); setShowSettings(true); };
@@ -90,14 +101,27 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => window.removeEventListener('shape:openMarket', open);
   }, []);
 
-  // Hydrate the global identity cache (custom avatar initials / accent / name) at
-  // startup so every avatar — header + feed — reflects it before the Me page is
-  // ever opened.
+  // Hydrate the global identity cache (custom avatar initials / accent / name) and
+  // the Shape Score tier at startup, so every avatar — header + feed — reflects the
+  // right initials + tier color before the Me page is ever opened.
   React.useEffect(() => {
-    if (!window.shapeDb?.getUserGoals) return;
-    window.shapeDb.getUserGoals('client_identity').then(d => {
-      if (d && typeof d === 'object') { try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), ...d }; } catch (e) {} }
-    }).catch(() => {});
+    if (window.shapeDb?.getUserGoals) {
+      window.shapeDb.getUserGoals('client_identity').then(d => {
+        if (d && typeof d === 'object') { try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), ...d }; } catch (e) {} }
+      }).catch(() => {});
+    }
+    fetch('/api/client/score', { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d && typeof d.points_total === 'number') { try { window.ShapeScore = { points: d.points_total || 0, tier: d.current_tier ? d.current_tier.name : 'Base' }; } catch (e) {} setIdentityVersion(v => v + 1); } })
+      .catch(() => {});
+  }, []);
+
+  // A profile save (or score load) fires `shape:identity` → re-render so the avatars
+  // on the CURRENT screen pick up new initials / tier color without navigating.
+  React.useEffect(() => {
+    const bump = () => setIdentityVersion(v => v + 1);
+    window.addEventListener('shape:identity', bump);
+    return () => window.removeEventListener('shape:identity', bump);
   }, []);
 
   // "Start session" from the calendar event sheet → close calendar, jump to the
@@ -140,7 +164,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     me:      <BSClientMe       onProfile={goSettings} onLogout={onLogout} onIntegrations={goIntegrations} goMarket={goMarket} sheet={sheet} tweaks={tweaks} setTweak={setTweak} />,
   };
   return (
-    <div style={{ position: 'absolute', inset: 0 }}>
+    <div style={{ position: 'absolute', inset: 0 }} data-identity-version={identityVersion}>
       {screens[tab]}
       <BSRadioFx />
       {/* Pinned message composers (chat feed + DM threads) portal into this
@@ -1704,7 +1728,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         </span>}
         leftKicker={`${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][_now.getDay()]} · ${_BS_MON[_now.getMonth()]} ${_now.getDate()} · ${_now.getFullYear()}`}
         rightKicker={`${bsHomeProgram.nutritionPhase || 'Cut'} · W${isoWeek}`}
-        trailing={<BSAvatar init={bsMyInitials()} size={32} onClick={onProfile} />}
+        trailing={<BSAvatar init={bsMyInitials()} size={32} fill={bsMyTierColor()} onClick={onProfile} />}
         showDoubleRule={false}
       />
 
@@ -2828,7 +2852,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       <BSPageHeader
         kicker={`${bsTrainProgram.trainingPhase || 'Build'} · Week ${bsProgramWeek()}`}
         title={cur.title}
-        trailing={<BSAvatar init={bsMyInitials()} size={32} onClick={onProfile} />}
+        trailing={<BSAvatar init={bsMyInitials()} size={32} fill={bsMyTierColor()} onClick={onProfile} />}
       />
 
       <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} />
@@ -5092,7 +5116,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
       <BSPageHeader
         kicker={`${bsEatProgram.nutritionPhase || 'Cut'} · Week ${bsProgramWeek()}`}
         title={cur.title}
-        trailing={<BSAvatar init={bsMyInitials()} size={32} onClick={onProfile} />}
+        trailing={<BSAvatar init={bsMyInitials()} size={32} fill={bsMyTierColor()} onClick={onProfile} />}
       />
 
       <BSNutritionTopTabs active="eat" onChange={setView} />
@@ -6423,7 +6447,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         showDotTexture={false}
         showDoubleRule={false}
         noRule
-        trailing={<BSAvatar init={bsMyInitials()} size={32} onClick={onProfile} />}
+        trailing={<BSAvatar init={bsMyInitials()} size={32} fill={bsMyTierColor()} onClick={onProfile} />}
       />
 
       {/* Feed / Messages / Teams */}
@@ -8277,7 +8301,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
     <BSPage>
       <BSPageHeader
         title={<>{firstName}<br/><span style={{ color: t.ACCENT }}>{lastName}.</span></>}
-        trailing={<BSAvatar init={bsMyInitials()} size={32} fill={t.RUST} onClick={onProfile} />}
+        trailing={<BSAvatar init={bsMyInitials()} size={32} fill={bsMyTierColor()} onClick={onProfile} />}
       />
 
       {/* SHAPE SCORE — tappable card: ring + category bars */}
@@ -8749,7 +8773,7 @@ function _bsUseLiveScore(profile) {
     let cancelled = false;
     fetch('/api/client/score', { credentials: 'same-origin' })
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (!cancelled && d && typeof d.points_total === 'number') setData(d); })
+      .then(d => { if (!cancelled && d && typeof d.points_total === 'number') { setData(d); try { window.ShapeScore = { points: d.points_total || 0, tier: d.current_tier ? d.current_tier.name : 'Base' }; } catch (e) {} } })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [loggedIn]);
@@ -9114,6 +9138,9 @@ Object.assign(window, {
   SHAPE_SCORE_PROFILES,
   _bsUseLiveScore,
   bsTierColor,
+  bsMyName,
+  bsMyInitials,
+  bsMyTierColor,
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -10358,8 +10385,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     try { window.shapeDb?.saveUserGoals?.('client_identity', draft); } catch (e) {}
     // Mirror the display name to the auth-cached profile so other surfaces pick it up.
     try { window.ShapeAuth?.updateProfileName?.(draft.name); } catch (e) {}
-    // Cache the custom initials/accent globally so every avatar (header + feed) updates.
-    try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), initials: draft.initials || '', accent: draft.accent, name: draft.name }; } catch (e) {}
+    // Cache the custom initials globally so every avatar (header + feed) updates,
+    // then signal a re-render so the current screen reflects it without navigating.
+    try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), initials: draft.initials || '', name: draft.name }; } catch (e) {}
+    try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
   };
   const cancelEdit = () => setEditing(false);
 
@@ -10724,7 +10753,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         {!editing ? (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <BSAvatar init={(identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name) || 'A'} size={72} fill={identity.accent || t.RUST} round glow cursive />
+              <BSAvatar init={(identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name) || 'A'} size={72} fill={bsMyTierColor()} round glow cursive />
               <div style={{ minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700 }}>
                   <span style={{ color: settingsTierC, fontWeight: 800 }}>{settingsScore.tier} tier</span>
@@ -10747,8 +10776,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         ) : (
           (() => {
             const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-            const accents = ['#c0533b', '#0a8f87', '#a07a2e', '#2e6fa0', '#8a5cf6', '#5fae7e', '#e0518a'];
-            const acc = draft.accent || t.RUST;
+            const acc = bsMyTierColor(); // avatar + form accent follow my Shape Score tier (not a chosen color)
             const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 7 };
             const field = { width: '100%', boxSizing: 'border-box', padding: '13px 14px', border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: 14, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', outline: 'none' };
             const goals = ['Lose fat', 'Build muscle', 'Maintain', 'Endurance', 'Mobility'];
@@ -10763,13 +10791,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                     padding: '9px 14px', border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, cursor: 'pointer',
                     fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700,
                   }}>Change photo</button>
-                  <div style={{ display: 'flex', gap: 7, marginTop: 10 }}>
-                    {accents.map(c => (
-                      <button key={c} onClick={() => setDraft({ ...draft, accent: c })} aria-label={`Accent ${c}`} style={{
-                        width: 22, height: 22, borderRadius: 999, background: c, cursor: 'pointer', padding: 0,
-                        border: acc === c ? `2px solid ${t.INK}` : `2px solid transparent`, boxShadow: acc === c ? `0 0 0 1px ${c}` : 'none',
-                      }} />
-                    ))}
+                  <div style={{ marginTop: 9, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 9, height: 9, borderRadius: 999, background: acc, display: 'inline-block' }} />
+                    {bsMyTier()} tier color
                   </div>
                 </div>
               </div>

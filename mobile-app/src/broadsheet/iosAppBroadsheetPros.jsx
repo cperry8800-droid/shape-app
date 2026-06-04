@@ -71,8 +71,19 @@ const {
   BSTabBar, BSFooter,
   BSSheetProvider, useBSSheet, BSCalendarScreen,
   BSRadioPrompt, BSRadioScreen, BSNowPlaying,
-  BSClientChat, BSSettings, BSShapeScorePage, BSShapeStorePage, BSContactPage, BSTermsPage, SHAPE_SCORE_PROFILES, _bsUseLiveScore, bsTierColor,
+  BSClientChat, BSSettings, BSShapeScorePage, BSShapeStorePage, BSContactPage, BSTermsPage, SHAPE_SCORE_PROFILES, _bsUseLiveScore, bsTierColor, bsMyInitials, bsMyTierColor,
 } = window;
+
+// Hydrate the coach's Shape Score tier into window.ShapeScore at app startup so
+// every coach avatar (home header, Me) reflects the right tier color before the
+// Me tab is opened. Mirrors the client shell's startup fetch.
+function _bsHydrateProScore() {
+  if (typeof window === 'undefined') return;
+  fetch('/api/client/score', { credentials: 'same-origin' })
+    .then(r => (r.ok ? r.json() : null))
+    .then(d => { if (d && typeof d.points_total === 'number') { try { window.ShapeScore = { points: d.points_total || 0, tier: d.current_tier ? d.current_tier.name : 'Base' }; } catch (e) {} } })
+    .catch(() => {});
+}
 
 function formatReviewSeconds(value) {
   const seconds = Math.max(0, Math.round(Number(value) || 0));
@@ -656,6 +667,7 @@ function BSTrainerApp({ onLogout, tweaks, setTweak }) {
 function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   const t = useBS();
   const sheet = useBSSheet();
+  React.useEffect(() => { _bsHydrateProScore(); }, []);
   const [tab, setTab] = useStateBSP('today');
   const [showSettings, setShowSettings] = useStateBSP(false);
   const [showCalendar, setShowCalendar] = useStateBSP(false);
@@ -796,7 +808,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         </span>}
         leftKicker={`${_BS_DOW[todayIdx]} · ${_BS_MON[dates[todayIdx].getMonth()]} ${dates[todayIdx].getDate()} · ${dates[todayIdx].getFullYear()}`}
         rightKicker="14 active clients"
-        trailing={<BSAvatar init="J" size={32} fill={t.AMBER} ink={t.PAPER} onClick={onProfile} />}
+        trailing={<BSAvatar init={bsMyInitials()} size={32} fill={bsMyTierColor()} ink={'#fff'} onClick={onProfile} />}
       />
 
       {/* Edition strip — sub-hero under the masthead */}
@@ -1714,6 +1726,7 @@ function BSNutritionistApp({ onLogout, tweaks, setTweak }) {
 function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   const t = useBS();
   const sheet = useBSSheet();
+  React.useEffect(() => { _bsHydrateProScore(); }, []);
   const [tab, setTab] = useStateBSP('today');
   const [showSettings, setShowSettings] = useStateBSP(false);
   const [showCalendar, setShowCalendar] = useStateBSP(false);
@@ -1848,7 +1861,7 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
         </span>}
         leftKicker={`${_BS_DOW[todayIdx]} · ${_BS_MON[dates[todayIdx].getMonth()]} ${dates[todayIdx].getDate()} · ${dates[todayIdx].getFullYear()}`}
         rightKicker="22 plans · 5 sessions"
-        trailing={<BSAvatar init="M" size={32} fill={t.RUST} ink={t.PAPER} onClick={onProfile} />}
+        trailing={<BSAvatar init={bsMyInitials()} size={32} fill={bsMyTierColor()} ink={'#fff'} onClick={onProfile} />}
       />
 
       {/* Edition strip — sub-hero under the masthead */}
@@ -2270,7 +2283,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
 
   return (
     <BSPage>
-      <BSPageHeader kicker={isCoach ? 'Coach · 4.9 ★' : 'Nutritionist · 4.9 ★'} title={<>{displayName.split(' ')[0]}<br/>{displayName.split(' ').slice(1).join(' ')}.</>} trailing={<BSAvatar init={init} size={32} fill={accent} ink={t.PAPER} onClick={onSettings} />} />
+      <BSPageHeader kicker={isCoach ? 'Coach · 4.9 ★' : 'Nutritionist · 4.9 ★'} title={<>{displayName.split(' ')[0]}<br/>{displayName.split(' ').slice(1).join(' ')}.</>} trailing={<BSAvatar init={init} size={32} fill={bsTierColor(scoreProfile.tier)} ink={'#fff'} onClick={onSettings} />} />
 
       {(() => {
         const total = scoreProfile.total || 0;
