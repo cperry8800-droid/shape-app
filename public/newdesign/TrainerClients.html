@@ -68,7 +68,9 @@ function TrainerClientsPage() {
   // ON TRACK = everyone else.
   const fltStyle = (on) => ({ background: on ? "rgba(46,224,196,0.14)" : "transparent", color: on ? "#2ee0c4" : "rgba(242,237,228,0.7)", border: on ? "1px solid rgba(46,224,196,0.35)" : "1px solid rgba(242,237,228,0.12)", padding: "7px 14px", borderRadius: 999, fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" });
   const isStale = (c) => { if (c.isNew) return false; if (!c.lastAt) return (c.sessions || 0) < 3; const days = (Date.now() - new Date(c.lastAt).getTime()) / 86400000; return days > 14; };
-  const matchesFlt = (c) => flt === "all" ? true : flt === "new" ? !!c.isNew : flt === "eyes" ? isStale(c) : /* ontrack */ (!c.isNew && !isStale(c));
+  // Prefer the server-computed status; fall back to a local derive for the mock roster.
+  const statusOf = (c) => c.status || (c.isNew ? "new" : isStale(c) ? "eyes" : "ontrack");
+  const matchesFlt = (c) => flt === "all" || statusOf(c) === flt;
   const FILTERS = [["all", "All"], ["ontrack", "On track"], ["eyes", "Needs eyes"], ["new", "New"]];
   const shown = clients.filter(matchesFlt).filter((c) => { const s = q.trim().toLowerCase(); return !s || (c.name || "").toLowerCase().includes(s); });
 
