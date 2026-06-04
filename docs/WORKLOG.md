@@ -46,6 +46,15 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-13 — War Room: register client goals & weigh-ins
+- New checklist section **"Client goals & weigh-ins"** in `src/lib/warroom.ts`: the
+  3-tab Goal page, Me-page featured goal box, share-with-coaches toggle, coach read of
+  shared goals (mobile + website + `/shared-overview`), live `client_weigh_ins` table +
+  `ShapeWeighIns`, and the coach weight-trend chart — all `done`; the two migrations
+  (`2026-06-13-client-goals-coach-read.sql`, `2026-06-13-client-weigh-ins.sql`) tracked
+  as `manual` (applied on Supabase). No new API routes (`/shared-overview` already in
+  `RAW_ROUTES`).
+
 ### 2026-06-13 — Client Goal page redesign: Overall / Training / Nutrition dashboards
 - Rebuilt `BSClientGoals` into **three themed dashboards** (per the new designs):
   - **Overall** (teal): "down so far" weight card (start/now/target + draggable progress),
