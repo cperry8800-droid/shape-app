@@ -2397,20 +2397,6 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         </div>
 
         {libTab === 'plans' && (<>
-        {/* Top seller (multi-week paid plan) */}
-        <div style={{ marginTop: 14, borderRadius: 16, border: `1px solid ${teal}44`, background: `linear-gradient(150deg, ${teal}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 14 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: teal }}>TOP SELLER</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>$120/MO</span>
-          </div>
-          <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Push / Pull / <span style={{ fontStyle: 'italic', color: teal }}>Legs.</span></div>
-          <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em' }}>12 weeks · 48 on it · $5,760 MRR · 4.9 ★</div>
-          <div style={{ marginTop: 11, display: 'flex', gap: 7 }}>
-            <button onClick={() => openDraft('plan')} style={{ borderRadius: 999, border: 0, background: teal, color: '#04201d', padding: '8px 15px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>EDIT</button>
-            <button onClick={() => duplicate({ n: 'Push / Pull / Legs', meta: '12 wk · 48 on it · 4.9 ★', price: '$120/mo' })} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '8px 13px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>DUPLICATE</button>
-            <button onClick={() => share('Push Pull Legs')} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '8px 13px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SHARE →</button>
-          </div>
-        </div>
         {secHead('PAID PLANS', 'Catalogue', `SORT · ${sort.toUpperCase()} →`, cycleSort)}
         <div style={{ marginTop: 6 }}>{programs.map((p, i) => numRow({ ...p, onClick: () => openDraft('plan') }, i, p.price))}</div>
         {secHead('ENROLLED', 'Clients on plans')}
@@ -2435,6 +2421,20 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         </>)}
 
         {libTab === 'workouts' && (<>
+        {/* Top workout */}
+        <div style={{ marginTop: 14, borderRadius: 16, border: `1px solid ${teal}44`, background: `linear-gradient(150deg, ${teal}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: teal }}>TOP WORKOUT</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>62 MIN</span>
+          </div>
+          <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Lower Push — <span style={{ fontStyle: 'italic', color: teal }}>Peak.</span></div>
+          <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em' }}>6 lifts · used by 34 · RPE 8 · 4.9 ★</div>
+          <div style={{ marginTop: 11, display: 'flex', gap: 7 }}>
+            <button onClick={() => openDraft('workout')} style={{ borderRadius: 999, border: 0, background: teal, color: '#04201d', padding: '8px 15px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>EDIT</button>
+            <button onClick={() => duplicate({ n: 'Lower Push — Peak', meta: '6 lifts · 62 min · RPE 8' })} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '8px 13px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>DUPLICATE</button>
+            <button onClick={() => share('Lower Push Peak')} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '8px 13px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SHARE →</button>
+          </div>
+        </div>
         {/* Single day workouts */}
         {secHead('SESSIONS', 'Workouts', 'NEW →', () => openDraft('workout'))}
         <div style={{ marginTop: 6 }}>{workouts.map((w, i) => numRow({ ...w, onClick: () => openDraft('workout') }, i, '→'))}</div>
@@ -2455,6 +2455,20 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         </>)}
 
         {libTab === 'programs' && (<>
+        {/* Top program */}
+        <div style={{ marginTop: 14, borderRadius: 16, border: `1px solid ${teal}44`, background: `linear-gradient(150deg, ${teal}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: teal }}>TOP PROGRAM</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>8 WK</span>
+          </div>
+          <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>5-day Upper / <span style={{ fontStyle: 'italic', color: teal }}>Lower.</span></div>
+          <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em' }}>5 days/wk · 8-week block · used by 22 · 4.8 ★</div>
+          <div style={{ marginTop: 11, display: 'flex', gap: 7 }}>
+            <button onClick={() => openDraft('program')} style={{ borderRadius: 999, border: 0, background: teal, color: '#04201d', padding: '8px 15px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>EDIT</button>
+            <button onClick={() => duplicate({ n: '5-day Upper / Lower', meta: '5 days/wk · 8-week block' })} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '8px 13px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>DUPLICATE</button>
+            <button onClick={() => share('5-day Upper Lower')} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '8px 13px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SHARE →</button>
+          </div>
+        </div>
         {/* Reusable weekly routines / templates */}
         {secHead('TEMPLATES', 'Programs', 'NEW →', () => openDraft('program'))}
         <div style={{ marginTop: 6 }}>{routines.map((r, i) => numRow({ ...r, onClick: () => openDraft('program') }, i, '→'))}</div>
