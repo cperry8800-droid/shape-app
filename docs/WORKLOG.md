@@ -46,6 +46,16 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Shape Kitchen polish: top buffer, clear Send button, one filter section
+- **Top buffer**: the Shape Kitchen header sat too high (`14px` top) — bumped to
+  `54px` to match the standard page buffer (`BSPageHeader`).
+- **Send to grocery list** button de-emphasized: removed the solid teal fill →
+  transparent with a hairline border (matches the Save button's outline).
+- **Filters merged into one section**: the meal-type quick pills and the separate
+  collapsible "FILTERS" bar are now a single block — the pills row gains an inline
+  **Filters ▾** toggle (active-count + Clear) that expands the Diet / Protein /
+  Free-from / Goals groups in place. Removed the standalone FILTERS disclosure bar.
+
 ### 2026-06-04 — Fix: Train "Plan" → calendar → back no longer auto-starts a workout
 - The Train **"On deck · Plan →"** action opens the calendar overlay, which (early
   `return` in `BSClientAppInner`) **unmounts** `BSClientTrain`. The auto-launch was a

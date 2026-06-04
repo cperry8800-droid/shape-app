@@ -3823,7 +3823,7 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView }) {
   );
   return (
     <BSPage>
-      <div style={{ padding: `14px ${t.padX}px 0` }}>
+      <div style={{ padding: `54px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Eat · Shape Kitchen</div>
         <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>Shape<br/><span style={{ fontStyle: 'italic', color: teal }}>Kitchen.</span></h1>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, lineHeight: 1.4, color: t.INK70 }}>Save the meals you cook — send any recipe straight to its own grocery list.</div>
@@ -3832,45 +3832,40 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView }) {
       <div style={{ padding: `12px ${t.padX}px 8px` }}>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search recipes…" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 2px', border: 0, borderBottom: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 16, outline: 'none' }} />
       </div>
-      <div style={{ padding: `2px ${t.padX}px 10px`, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {pills.map(([k, label, count]) => {
-          const on = filter === k;
-          return <button key={k} onClick={() => setFilter(k)} style={{ flex: '0 0 auto', padding: '8px 13px', borderRadius: 999, border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{label}{typeof count === 'number' ? ` · ${count}` : ''}</button>;
-        })}
-      </div>
-      {/* Advanced filters — Diet / Protein / Free-from / Goals (collapsible) */}
-      <div style={{ padding: `0 ${t.padX}px 6px`, display: 'flex', alignItems: 'center', gap: 8 }}>
-        <button onClick={() => setFiltersOpen(o => !o)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '11px 14px', borderRadius: 12, border: `1px solid ${advCount ? t.INK : t.RULE}`, background: t.PAPER2, color: t.INK, cursor: 'pointer' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
-            Filters
-            {advCount > 0 && <span style={{ minWidth: 16, height: 16, padding: '0 4px', borderRadius: 999, background: t.ACCENT, color: '#0a0f0d', fontSize: 9, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{advCount}</span>}
-          </span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', color: t.INK50 }}>
-            {list.length} recipes
+      {/* One filter section: quick type pills + a Filters toggle that expands
+          the advanced Diet / Protein / Free-from / Goals groups in place. */}
+      <div style={{ padding: `2px ${t.padX}px 10px` }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+          {pills.map(([k, label, count]) => {
+            const on = filter === k;
+            return <button key={k} onClick={() => setFilter(k)} style={{ flex: '0 0 auto', padding: '8px 13px', borderRadius: 999, border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{label}{typeof count === 'number' ? ` · ${count}` : ''}</button>;
+          })}
+          <button onClick={() => setFiltersOpen(o => !o)} style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 13px', borderRadius: 999, border: `1px solid ${(filtersOpen || advCount) ? t.INK : t.RULE}`, background: 'transparent', color: (filtersOpen || advCount) ? t.INK : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
+            Filters{advCount > 0 ? ` · ${advCount}` : ''}
             <span style={{ display: 'inline-block', transform: filtersOpen ? 'rotate(180deg)' : 'none', transition: 'transform .18s ease' }}>▾</span>
-          </span>
-        </button>
-        {advCount > 0 && (
-          <button onClick={resetAdv} style={{ flexShrink: 0, padding: '11px 12px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Clear</button>
+          </button>
+          {advCount > 0 && (
+            <button onClick={resetAdv} style={{ flex: '0 0 auto', padding: '8px 11px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK50, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>Clear</button>
+          )}
+        </div>
+        {filtersOpen && (
+          <div style={{ marginTop: 13, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <Group label="DIET">
+              <Chip label="All" on={diet === 'All'} onClick={() => setDiet('All')} count={recipes.length} />
+              {RECIPE_DIETS.map(d => <Chip key={d} label={d} on={diet === d} color={BS_SK_DIET_COLOR[d]} onClick={() => setDiet(diet === d ? 'All' : d)} count={dietCount(d)} />)}
+            </Group>
+            <Group label="PROTEIN">
+              {RECIPE_PROTEINS.map(d => <Chip key={d} label={d} on={diet === d} color={BS_SK_DIET_COLOR[d]} onClick={() => setDiet(diet === d ? 'All' : d)} count={dietCount(d)} />)}
+            </Group>
+            <Group label="FREE FROM">
+              {RECIPE_FREE_FROM.map(n => <Chip key={n} label={n} on={needs.includes(n)} onClick={() => toggleNeed(n)} count={recipes.filter(r => recipeNeeds(r).includes(n)).length} />)}
+            </Group>
+            <Group label="GOALS">
+              {RECIPE_GOALS.map(n => <Chip key={n} label={n} on={needs.includes(n)} onClick={() => toggleNeed(n)} count={recipes.filter(r => recipeNeeds(r).includes(n)).length} />)}
+            </Group>
+          </div>
         )}
       </div>
-      {filtersOpen && (
-        <div style={{ padding: `2px ${t.padX}px 12px`, display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <Group label="DIET">
-            <Chip label="All" on={diet === 'All'} onClick={() => setDiet('All')} count={recipes.length} />
-            {RECIPE_DIETS.map(d => <Chip key={d} label={d} on={diet === d} color={BS_SK_DIET_COLOR[d]} onClick={() => setDiet(diet === d ? 'All' : d)} count={dietCount(d)} />)}
-          </Group>
-          <Group label="PROTEIN">
-            {RECIPE_PROTEINS.map(d => <Chip key={d} label={d} on={diet === d} color={BS_SK_DIET_COLOR[d]} onClick={() => setDiet(diet === d ? 'All' : d)} count={dietCount(d)} />)}
-          </Group>
-          <Group label="FREE FROM">
-            {RECIPE_FREE_FROM.map(n => <Chip key={n} label={n} on={needs.includes(n)} onClick={() => toggleNeed(n)} count={recipes.filter(r => recipeNeeds(r).includes(n)).length} />)}
-          </Group>
-          <Group label="GOALS">
-            {RECIPE_GOALS.map(n => <Chip key={n} label={n} on={needs.includes(n)} onClick={() => toggleNeed(n)} count={recipes.filter(r => recipeNeeds(r).includes(n)).length} />)}
-          </Group>
-        </div>
-      )}
       <div style={{ padding: `8px ${t.padX}px 8px`, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {list.length === 0 ? (
           <div style={{ borderRadius: 18, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 24, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 15, color: t.INK70 }}>{filter === 'saved' ? 'No saved recipes yet — tap ♡ Save on any recipe.' : 'No recipes match.'}</div>
@@ -3891,7 +3886,7 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView }) {
                 </span>
               </button>
               <div style={{ display: 'flex', gap: 7, marginTop: 10 }}>
-                <button onClick={() => onSendToGrocery(r)} style={{ flex: 1, padding: '7px 10px', borderRadius: 999, border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Send to grocery list →</button>
+                <button onClick={() => onSendToGrocery(r)} style={{ flex: 1, padding: '7px 10px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Send to grocery list →</button>
                 <button onClick={() => bsLibToggle({ id, kind: 'recipe', title: r.title, meta: `${r.kcal} kcal · serves ${r.servings}`, coach: r.by })} style={{ flex: '0 0 auto', padding: '7px 11px', borderRadius: 999, border: `1px solid ${saved ? teal : t.RULE}`, background: saved ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: saved ? teal : t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{saved ? '✓ Saved' : '♡ Save'}</button>
               </div>
             </div>
