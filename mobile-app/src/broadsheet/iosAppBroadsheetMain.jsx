@@ -900,7 +900,12 @@ function BSAppShell({ tweaks, setTweak }) {
   // Always open on the splash so the intro is seen on every launch; onDone
   // routes to the app (demo) or login as before.
   const [stage, setStage] = useStateBSM('splash');
-  const [role, setRole] = useStateBSM(tweaks.role || 'client');
+  // Seed from the signed-in profile's role first (so a trainer/nutritionist lands
+  // on their own app, not the client one) before the persisted/demo role.
+  const [role, setRole] = useStateBSM(() => {
+    const cachedRole = window.ShapeAuth?.getCachedState?.()?.profile?.role;
+    return cachedRole || tweaks.role || 'client';
+  });
   const [authState, setAuthState] = useStateBSM(() => window.ShapeAuth?.getCachedState?.() || {});
   const [browseMode, setBrowseMode] = useStateBSM(false);
   const [bannerDismissed, setBannerDismissed] = useStateBSM(false);
@@ -911,7 +916,12 @@ function BSAppShell({ tweaks, setTweak }) {
   const [bundleError, setBundleError] = useStateBSM('');
   const t = useBS();
 
-  useEffectBSM(() => { setRole(tweaks.role || 'client'); }, [tweaks.role]);
+  useEffectBSM(() => {
+    // Prefer the signed-in profile's role so a coach isn't downgraded to client
+    // when the persisted tweak is empty.
+    const cachedRole = window.ShapeAuth?.getCachedState?.()?.profile?.role;
+    setRole(tweaks.role || cachedRole || 'client');
+  }, [tweaks.role]);
 
   // Apply the saved units preference (Imperial / Metric) at startup so weight
   // & distance readouts format correctly before Settings is ever opened.
@@ -969,7 +979,10 @@ function BSAppShell({ tweaks, setTweak }) {
     nutritionist: window.BSNutritionistApp,
     shape_radio: window.BSClientApp,
   };
-  const App = appByRole[role] || window.BSClientApp;
+  // Don't silently fall back to the client app for coach roles — if their app
+  // module isn't loaded yet, render nothing (the loader below shows) until it is.
+  const isCoachRole = role === 'trainer' || role === 'nutritionist';
+  const App = appByRole[role] || (isCoachRole ? null : window.BSClientApp);
   const appProps = role === 'shape_radio' ? { initialTab: 'radio' } : {};
 
   useEffectBSM(() => {
