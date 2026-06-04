@@ -7965,6 +7965,220 @@ function BSLeaderboard({ onBack }) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════
+// CLIENT GOALS — Training / Nutrition tabs + coach-visibility toggle.
+// Mirrors the website goal page (public/newdesign/ClientGoal.html): goal cards
+// (progress + target date) and a categorized template picker on add. Persisted
+// to user_goals('client_goals') as { share, training:[], nutrition:[] }.
+// ═══════════════════════════════════════════════════════════
+const BS_GOAL_CATS = [
+  { id: 'cardio',      label: 'Endurance',  group: 'training' },
+  { id: 'strength',    label: 'Strength',   group: 'training' },
+  { id: 'habits',      label: 'Habits',     group: 'training' },
+  { id: 'wellbeing',   label: 'Wellbeing',  group: 'training' },
+  { id: 'composition', label: 'Body comp',  group: 'nutrition' },
+  { id: 'nutrition',   label: 'Nutrition',  group: 'nutrition' },
+];
+const BS_GOAL_TEMPLATES = [
+  { cat: 'cardio', t: 'Run a marathon',          cur: 0,   tgt: 26.2, sub: 'miles · 26.2',                 pct: false, weeksOut: 26 },
+  { cat: 'cardio', t: 'Complete a triathlon',    cur: 0,   tgt: 100,  sub: 'Olympic distance · swim/bike/run', pct: true,  weeksOut: 24 },
+  { cat: 'cardio', t: 'Sub-25:00 5K',            cur: 0,   tgt: 25,   sub: 'minutes · 3.1 miles',          pct: false, weeksOut: 12 },
+  { cat: 'cardio', t: 'Half marathon under 1:45', cur: 0,  tgt: 105,  sub: 'minutes · 13.1 miles',         pct: false, weeksOut: 16 },
+  { cat: 'cardio', t: 'Bike 100 miles',          cur: 0,   tgt: 100,  sub: 'miles · century ride',         pct: false, weeksOut: 20 },
+  { cat: 'strength', t: 'Bench press 225 lbs',   cur: 135, tgt: 225,  sub: 'lbs · one rep max',            pct: false, weeksOut: 16 },
+  { cat: 'strength', t: 'Squat 2× bodyweight',   cur: 0,   tgt: 100,  sub: '% of bodyweight',              pct: true,  weeksOut: 20 },
+  { cat: 'strength', t: 'Deadlift 405 lbs',      cur: 0,   tgt: 405,  sub: 'lbs · one rep max',            pct: false, weeksOut: 24 },
+  { cat: 'strength', t: '10 strict pull-ups',    cur: 0,   tgt: 10,   sub: 'consecutive · dead-hang',      pct: false, weeksOut: 12 },
+  { cat: 'habits', t: 'Sleep 8 hours nightly',   cur: 0,   tgt: 7,    sub: 'nights · per week',            pct: false, weeksOut: 8 },
+  { cat: 'habits', t: 'Train 4× per week',       cur: 0,   tgt: 4,    sub: 'sessions · per week',          pct: false, weeksOut: 12 },
+  { cat: 'habits', t: '30-day streak',           cur: 0,   tgt: 30,   sub: 'consecutive days',             pct: false, weeksOut: 5 },
+  { cat: 'habits', t: 'Drink 1 gallon water daily', cur: 0, tgt: 7,   sub: 'days hit · per week',          pct: false, weeksOut: 6 },
+  { cat: 'wellbeing', t: 'Feel like myself again', cur: 0, tgt: 100,  sub: '% · weekly self-check-in',     pct: true,  weeksOut: 12 },
+  { cat: 'wellbeing', t: 'More calm, less stress', cur: 0, tgt: 100,  sub: '% · stress-down weeks',        pct: true,  weeksOut: 10 },
+  { cat: 'wellbeing', t: 'Build confidence',     cur: 0,   tgt: 100,  sub: '% · confidence score',         pct: true,  weeksOut: 12 },
+  { cat: 'wellbeing', t: 'Better sleep quality', cur: 0,   tgt: 8,    sub: 'avg hours · 7-day avg',        pct: false, weeksOut: 8 },
+  { cat: 'wellbeing', t: 'Mood-up days',         cur: 0,   tgt: 5,    sub: 'good days · per week',         pct: false, weeksOut: 8 },
+  { cat: 'wellbeing', t: 'Daily meditation',     cur: 0,   tgt: 10,   sub: 'minutes · per day',            pct: false, weeksOut: 8 },
+  { cat: 'wellbeing', t: 'Time outside daily',   cur: 0,   tgt: 30,   sub: 'minutes · per day',            pct: false, weeksOut: 6 },
+  { cat: 'wellbeing', t: 'Cut back on alcohol',  cur: 0,   tgt: 100,  sub: '% · reduction from baseline',  pct: true,  weeksOut: 12 },
+  { cat: 'wellbeing', t: 'Practice gratitude',   cur: 0,   tgt: 7,    sub: 'entries · per week',           pct: false, weeksOut: 4 },
+  { cat: 'composition', t: 'Lose 10 lbs',        cur: 0,   tgt: 10,   sub: 'lbs · sustainably',            pct: false, weeksOut: 12 },
+  { cat: 'composition', t: 'Body fat under 15%', cur: 20,  tgt: 15,   sub: '%',                            pct: true,  weeksOut: 20 },
+  { cat: 'composition', t: 'Gain 5 lbs muscle',  cur: 0,   tgt: 5,    sub: 'lbs · lean mass',              pct: false, weeksOut: 16 },
+  { cat: 'nutrition', t: 'Hit 150g protein daily', cur: 0, tgt: 150,  sub: 'g protein · per day',          pct: false, weeksOut: 8 },
+  { cat: 'nutrition', t: 'Cook at home 5×/week', cur: 0,   tgt: 5,    sub: 'meals · per week',             pct: false, weeksOut: 8 },
+  { cat: 'nutrition', t: 'Cut added sugar',      cur: 0,   tgt: 100,  sub: '% reduction from baseline',    pct: true,  weeksOut: 8 },
+  { cat: 'nutrition', t: '85% protein adherence', cur: 0,  tgt: 85,   sub: '% · days on target',           pct: true,  weeksOut: 8 },
+];
+const BS_GOALS_DEFAULT = {
+  share: true,
+  training: [
+    { t: 'Reach Peak tier', cur: 1284, tgt: 5000, sub: '3,716 points to go · +100/wk lands Peak in ~37 weeks', cat: 'strength' },
+    { t: 'Squat 1.5× bodyweight', cur: 135, tgt: 175, sub: '40 lb to go · +5 lb every 3 weeks gets there by Aug 15', cat: 'strength' },
+    { t: '4 workouts / week average', cur: 3.2, tgt: 4, sub: '30d rolling · +0.8 sessions/wk closes the gap', cat: 'habits' },
+  ],
+  nutrition: [
+    { t: '85% protein adherence', cur: 82, tgt: 85, sub: '30d rolling · hit target 6 of 7 days', pct: true, cat: 'nutrition' },
+    { t: 'Hit 150g protein daily', cur: 120, tgt: 150, sub: 'g protein · per day', cat: 'nutrition' },
+  ],
+};
+function bsGoalIsoFromWeeks(w) { const d = new Date(); d.setDate(d.getDate() + (Number(w) || 0) * 7); return d.toISOString().slice(0, 10); }
+function bsGoalDaysUntil(iso) { if (!iso) return null; const ms = new Date(iso).getTime() - Date.now(); return Math.max(0, Math.round(ms / 86400000)); }
+
+// Bottom-sheet add/edit flow with a categorized template picker (filtered to the
+// active tab's group) + the same fields as the website's GoalEditModal.
+function BSGoalEditSheet({ tab, goal, onClose, onSave, onDelete }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const isNew = !goal;
+  const [g, setG] = useStateBSC(goal || { t: '', cur: 0, tgt: 100, sub: '', pct: false, cat: '', date: '' });
+  const cats = BS_GOAL_CATS.filter(c => c.group === tab);
+  const [showTpl, setShowTpl] = useStateBSC(isNew);
+  const [activeCat, setActiveCat] = useStateBSC((cats[0] && cats[0].id) || 'cardio');
+  const pick = (tpl) => { setG({ ...g, t: tpl.t, cur: tpl.cur, tgt: tpl.tgt, sub: tpl.sub, pct: tpl.pct, cat: tpl.cat, date: bsGoalIsoFromWeeks(tpl.weeksOut) }); setShowTpl(false); };
+  const days = bsGoalDaysUntil(g.date);
+  const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 6 };
+  const field = { width: '100%', boxSizing: 'border-box', padding: '11px 12px', border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: 12, fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, outline: 'none' };
+  const sheet = (
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', maxHeight: '88%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `10px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
+        <div style={{ width: 40, height: 4, borderRadius: 999, background: t.RULE, margin: '0 auto 14px' }} />
+        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>{isNew ? 'New · Goal' : 'Edit · Goal'}</div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>{isNew ? <>New <span style={{ fontStyle: 'italic', color: teal }}>goal.</span></> : <>Edit <span style={{ fontStyle: 'italic', color: teal }}>goal.</span></>}</div>
+        {isNew && (
+          <div style={{ marginTop: 14 }}>
+            <button onClick={() => setShowTpl(s => !s)} style={{ background: 'transparent', border: 0, padding: 0, color: teal, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{showTpl ? '▾ Hide templates' : '▸ Browse goal templates'}</button>
+            {showTpl && (
+              <div style={{ marginTop: 10, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 12 }}>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+                  {cats.map(c => { const on = activeCat === c.id; return <button key={c.id} onClick={() => setActiveCat(c.id)} style={{ padding: '7px 12px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? teal : t.RULE}`, background: on ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: on ? teal : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{c.label}</button>; })}
+                </div>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {BS_GOAL_TEMPLATES.filter(x => x.cat === activeCat).map((tpl, i) => (
+                    <button key={i} onClick={() => pick(tpl)} style={{ textAlign: 'left', cursor: 'pointer', borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent', padding: '10px 12px', color: t.INK }}>
+                      <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, letterSpacing: '-0.01em' }}>{tpl.t}</div>
+                      <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em' }}>{tpl.sub} · ~{tpl.weeksOut} wks</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        <div style={{ marginTop: 16 }}>
+          <label style={{ display: 'block', marginBottom: 12 }}><span style={lbl}>Title</span><input value={g.t} onChange={(e) => setG({ ...g, t: e.target.value })} placeholder="What are you shaping toward?" style={field} /></label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <label style={{ display: 'block', marginBottom: 12 }}><span style={lbl}>Current</span><input type="number" value={g.cur} onChange={(e) => setG({ ...g, cur: e.target.value === '' ? '' : Number(e.target.value) })} style={field} /></label>
+            <label style={{ display: 'block', marginBottom: 12 }}><span style={lbl}>Target</span><input type="number" value={g.tgt} onChange={(e) => setG({ ...g, tgt: e.target.value === '' ? '' : Number(e.target.value) })} style={field} /></label>
+          </div>
+          <label style={{ display: 'block', marginBottom: 12 }}><span style={lbl}>Subtext</span><input value={g.sub} onChange={(e) => setG({ ...g, sub: e.target.value })} placeholder="e.g. 40 lb to go · +5 lb / 3 weeks" style={field} /></label>
+          <label style={{ display: 'block', marginBottom: 12 }}><span style={lbl}>Target date</span><input type="date" value={g.date || ''} onChange={(e) => setG({ ...g, date: e.target.value })} style={field} /></label>
+          {g.date && days != null && (
+            <div style={{ marginBottom: 12, borderRadius: 10, border: `1px solid ${teal}40`, background: t.isLight ? `${teal}10` : `${teal}1c`, padding: '10px 13px', display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK70 }}>
+              <span>Timeline</span><span style={{ color: teal }}>{days} days · ~{Math.max(1, Math.round(days / 7))} wks</span>
+            </div>
+          )}
+          <button onClick={() => setG({ ...g, pct: !g.pct })} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, marginBottom: 6 }}>
+            <span style={{ width: 18, height: 18, borderRadius: 5, border: `1.5px solid ${g.pct ? teal : t.RULE}`, background: g.pct ? teal : 'transparent', color: '#04201d', display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 900 }}>{g.pct ? '✓' : ''}</span>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>Show values as percent (%)</span>
+          </button>
+        </div>
+        <div style={{ display: 'flex', gap: 10, marginTop: 18, alignItems: 'center' }}>
+          {onDelete && <button onClick={onDelete} style={{ marginRight: 'auto', padding: '13px 18px', borderRadius: 999, border: `1px solid ${t.RUST}66`, background: 'transparent', color: t.RUST, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Delete</button>}
+          <button onClick={onClose} style={{ padding: '13px 20px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Cancel</button>
+          <button onClick={() => g.t && onSave(g)} disabled={!g.t} style={{ padding: '13px 22px', borderRadius: 999, border: 0, background: g.t ? teal : t.RULE, color: g.t ? '#04201d' : t.INK50, cursor: g.t ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Save goal</button>
+        </div>
+      </div>
+    </div>
+  );
+  const target = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
+  return target ? createPortal(sheet, target) : sheet;
+}
+
+function BSClientGoals({ onBack }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  _bsScrollTopOnMount();
+  const [data, setData] = useStateBSC(BS_GOALS_DEFAULT);
+  const [tab, setTab] = useStateBSC('training');
+  const [editing, setEditing] = useStateBSC(null); // 'new' | index | null
+  React.useEffect(() => {
+    if (!window.shapeDb?.getUserGoals) return;
+    window.shapeDb.getUserGoals('client_goals').then(d => {
+      if (d && typeof d === 'object' && (Array.isArray(d.training) || Array.isArray(d.nutrition))) {
+        setData(prev => ({ share: d.share !== false, training: Array.isArray(d.training) ? d.training : prev.training, nutrition: Array.isArray(d.nutrition) ? d.nutrition : prev.nutrition }));
+      }
+    }).catch(() => {});
+  }, []);
+  const persist = (next) => { setData(next); try { window.shapeDb?.saveUserGoals?.('client_goals', next); } catch (e) {} };
+  const goals = data[tab] || [];
+  const saveGoal = (g) => { const arr = goals.slice(); if (editing === 'new') arr.push(g); else arr[editing] = g; persist({ ...data, [tab]: arr }); setEditing(null); };
+  const deleteGoal = () => { const arr = goals.filter((_, i) => i !== editing); persist({ ...data, [tab]: arr }); setEditing(null); };
+  return (
+    <BSPage>
+      <BSDetailHeader onBack={onBack} eyebrow="Your goals · Q2 2026" kicker="Section · Goals" title={<>Your <span style={{ color: teal }}>goal.</span></>} />
+      {/* Share with coaches */}
+      <div style={{ padding: `4px ${t.padX}px 0` }}>
+        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>Share with your coaches</div>
+            <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.4 }}>{data.share ? 'Your assigned coaches can see these goals' : 'Private — coaches can’t see your goals'}</div>
+          </div>
+          <button onClick={() => persist({ ...data, share: !data.share })} aria-label="Toggle coach visibility" style={{ flexShrink: 0, width: 46, height: 28, borderRadius: 999, border: 0, cursor: 'pointer', padding: 3, background: data.share ? teal : t.RULE, display: 'flex', justifyContent: data.share ? 'flex-end' : 'flex-start', alignItems: 'center' }}>
+            <span style={{ width: 22, height: 22, borderRadius: 999, background: '#fff', display: 'block' }} />
+          </button>
+        </div>
+      </div>
+      {/* Training / Nutrition tabs */}
+      <div style={{ padding: `14px ${t.padX}px 0` }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, border: `1px solid ${t.RULE}`, borderRadius: 12, padding: 3 }}>
+          {[['training', 'Training'], ['nutrition', 'Nutrition']].map(([k, l]) => { const on = tab === k; return <button key={k} onClick={() => setTab(k)} style={{ padding: '10px', borderRadius: 9, border: 0, cursor: 'pointer', background: on ? teal : 'transparent', color: on ? '#04201d' : t.INK70, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{l}</button>; })}
+        </div>
+      </div>
+      <div style={{ padding: `16px ${t.padX}px 0`, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.025em', color: t.INK }}>{tab === 'training' ? 'Training goals' : 'Nutrition goals'}</div>
+        <button onClick={() => setEditing('new')} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: teal, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: 0 }}>+ New goal →</button>
+      </div>
+      <div style={{ padding: `12px ${t.padX}px 8px`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {goals.length === 0 ? (
+          <button onClick={() => setEditing('new')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 16, border: `1px dashed ${t.RULE}`, background: 'transparent', padding: '18px 14px', color: t.INK50, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>+ Add your first {tab} goal</button>
+        ) : goals.map((g, i) => {
+          const pct = Math.min((Number(g.cur) || 0) / (Number(g.tgt) || 1), 1);
+          const curF = g.pct ? `${g.cur}%` : Number(g.cur).toLocaleString();
+          const tgtF = g.pct ? `${g.tgt}%` : Number(g.tgt).toLocaleString();
+          const days = bsGoalDaysUntil(g.date);
+          return (
+            <div key={i} style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 8 }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: teal }}>Goal · {Math.round(pct * 100)}%</div>
+                <button onClick={() => setEditing(i)} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: 0 }}>Edit</button>
+              </div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.05, marginBottom: 12 }}>{g.t}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 10.5, color: t.INK50, marginBottom: 6 }}><span>{curF}</span><span>{tgtF}</span></div>
+              <div style={{ height: 8, borderRadius: 999, background: t.HAIR, overflow: 'hidden', marginBottom: 12 }}><div style={{ height: '100%', width: `${pct * 100}%`, background: teal, borderRadius: 999 }} /></div>
+              {g.sub && <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.5 }}>{g.sub}</div>}
+              {g.date && days != null && (
+                <div style={{ marginTop: 12, paddingTop: 11, borderTop: `1px solid ${t.HAIR}`, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
+                  <span>Target · {new Date(g.date).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()}</span>
+                  <span style={{ color: days < 14 ? t.RUST : teal }}>{days} days left</span>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ padding: `2px ${t.padX}px 0`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.5 }}>
+        {data.share ? '● Visible to your assigned coaches' : '○ Hidden from coaches — only you can see these'}
+      </div>
+      <div style={{ height: 28 }} />
+      {editing != null && (
+        <BSGoalEditSheet tab={tab} goal={editing === 'new' ? null : goals[editing]} onClose={() => setEditing(null)} onSave={saveGoal} onDelete={editing === 'new' ? null : deleteGoal} />
+      )}
+      <BSFooter right="Goals" />
+    </BSPage>
+  );
+}
+
 function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket = () => {}, tweaks = {}, setTweak = () => {} }) {
   const t = useBS();
   const [showHabits, setShowHabits] = useStateBSC(false);
@@ -7978,6 +8192,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
   const [showNotifications, setShowNotifications] = useStateBSC(false);
   const [showLeaderboard, setShowLeaderboard] = useStateBSC(false);
   const [showLibrary, setShowLibrary] = useStateBSC(false);
+  const [showGoals, setShowGoals] = useStateBSC(false);
   const scoreProfile = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client); // live points/tier when signed in
   const authProfile = window.ShapeAuth?.getCachedState?.().profile || {};
   const displayName = authProfile.full_name || 'Alex Rivera';
@@ -8135,6 +8350,9 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
   }
   if (showLibrary) {
     return <BSClientLibrary onBack={() => setShowLibrary(false)} goMarket={() => { setShowLibrary(false); goMarket(); }} />;
+  }
+  if (showGoals) {
+    return <BSClientGoals onBack={() => setShowGoals(false)} />;
   }
   if (showHabits) {
     return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => setShowHabits(false)} onOpenScore={() => { setShowHabits(false); setShowScore(true); }} />;
@@ -8385,6 +8603,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
       </div>
       <div style={{ padding: `0 ${t.padX}px` }}>
         {[
+          { l: 'Goals', s: 'Training & nutrition targets', onClick: () => setShowGoals(true) },
           { l: 'Library', s: 'Saved workouts, programs & meals', onClick: () => setShowLibrary(true) },
           { l: 'Habits', s: 'To-dos, to-don’ts & streaks', onClick: () => setShowHabits(true) },
           { l: 'Marketplace', s: 'Find coaches, plans, programs', onClick: () => goMarket() },

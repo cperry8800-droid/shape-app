@@ -46,6 +46,20 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-13 — Client Goal page (Training/Nutrition tabs + coach-visibility toggle)
+- **Mobile**: new `BSClientGoals` (linked from the **Me** tab → "Goals"). Mirrors the
+  website goal page (`public/newdesign/ClientGoal.html`): goal cards (eyebrow `GOAL ·
+  N%`, title, current/target, progress bar, subtext, optional target-date countdown)
+  and a bottom-sheet add/edit flow with a **categorized template picker** (the website's
+  templates, filtered to the active tab's group). Persists to `user_goals('client_goals')`
+  as `{ share, training:[], nutrition:[] }`.
+  - **Training / Nutrition tabs** split the goal lists; **Share with your coaches**
+    toggle controls coach visibility (stored on `share`).
+- **Website** (`ClientGoal.html`): added the same **Training/Nutrition tabs** + **Share
+  with coaches** toggle; split `DEFAULT_GOALS_STATE.goals` into `training`/`nutrition`
+  (+ `share`), migrate the legacy flat `goals` array into Training on load, and
+  save/delete/Archive now operate on the active tab.
+
 ### 2026-06-04 — Fix: logging in as a coach lands in their app (not client)
 - Signing in as a trainer/nutritionist dropped you into the **client** app until you
   manually switched role in Settings — the role state wasn't reliably re-derived from
