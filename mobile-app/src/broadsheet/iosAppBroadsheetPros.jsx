@@ -1069,12 +1069,64 @@ function BSProAnalyticsScreen({ role = 'trainer' }) {
   );
 }
 
+const BS_ROSTER_FILTERS = {
+  trainer: [
+    { k: 'all', label: 'ALL' }, { k: 'ontrack', label: 'ON TRACK' }, { k: 'eyes', label: 'NEEDS EYES' },
+    { k: 'new', label: 'NEW' }, { k: 'cut', label: 'CUT' }, { k: 'build', label: 'BUILD' }, { k: 'peak', label: 'PEAK' },
+  ],
+  nutritionist: [
+    { k: 'all', label: 'ALL' }, { k: 'ontrack', label: 'ON TRACK' }, { k: 'eyes', label: 'NEEDS EYES' },
+    { k: 'new', label: 'NEW' }, { k: 'cut', label: 'CUT' }, { k: 'build', label: 'BUILD' },
+  ],
+};
+function bsClientMatchesFilter(c, key, role) {
+  if (key === 'all') return true;
+  const r = (c.r || '').toUpperCase();
+  if (key === 'new') return r.includes('INTAKE') || c.d === 'NEW' || c.s === 'onboard';
+  if (key === 'cut') return r.startsWith('CUT');
+  if (key === 'build') return r.startsWith('BUILD');
+  if (key === 'peak') return r.startsWith('PEAK');
+  if (role === 'nutritionist') {
+    if (key === 'ontrack') return c.good === true;
+    if (key === 'eyes') return c.warn === true;
+  } else {
+    if (key === 'ontrack') return c.s === 'on track';
+    if (key === 'eyes') return c.s === 'review form' || c.s === 'deload soon';
+  }
+  return false;
+}
+function bsClientMatchesQuery(c, query) {
+  const q = (query || '').trim().toLowerCase();
+  if (!q) return true;
+  return (c.n || '').toLowerCase().includes(q) || (c.r || '').toLowerCase().includes(q);
+}
+function BSProRosterFilter({ role = 'trainer', count, query, onQuery, filter, onFilter }) {
+  const t = useBS();
+  const accent = t.isLight ? '#0a8f87' : '#34d6c5';
+  const filters = BS_ROSTER_FILTERS[role] || BS_ROSTER_FILTERS.trainer;
+  return (
+    <div style={{ padding: `14px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '11px 13px' }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={t.INK50} strokeWidth="2" style={{ flexShrink: 0 }}><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" strokeLinecap="round" /></svg>
+        <input value={query} onChange={(e) => onQuery(e.target.value)} placeholder={`Search ${count} clients`} style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 13.5 }} />
+      </div>
+      <div style={{ marginTop: 10, display: 'flex', gap: 7, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 2 }}>
+        {filters.map(f => {
+          const on = filter === f.k;
+          return <button key={f.k} onClick={() => onFilter(f.k)} style={{ flexShrink: 0, borderRadius: 999, padding: '8px 14px', cursor: 'pointer', border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1c` : 'transparent', color: on ? accent : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>{f.label}</button>;
+        })}
+      </div>
+    </div>
+  );
+}
 function BSTrainerClients() {
   const t = useBS();
   const [previewClient, setPreviewClient] = useStateBSP(null);
   const [fullClient, setFullClient] = useStateBSP(null);
   const [subtab, setSubtab] = useStateBSP('roster');
   const [roster, setRoster] = useStateBSP('active'); // 'active' | 'past'
+  const [cQuery, setCQuery] = useStateBSP('');
+  const [cFilter, setCFilter] = useStateBSP('all');
   const COACH_CLIENTS = [
     { i: 'A', c: t.RUST,  n: 'Alex Rivera',    r: 'CUT · W6 · D38',   d: 'JUST NOW',   s: 'on track',    active: true },
     { i: 'S', c: t.BLUE,  n: 'Sam Patel',      r: 'BUILD · W3',       d: '2H AGO',     s: 'on track',    active: true },
@@ -1086,7 +1138,10 @@ function BSTrainerClients() {
     { i: 'B', c: t.INK50, n: 'Bailey Cruz',    r: 'PAST · finished block', d: '6W AGO', s: 'past',       active: false },
     { i: 'T', c: t.INK50, n: 'Taylor Reed',    r: 'PAST · paused',    d: '3M AGO',     s: 'past',        active: false },
   ];
-  const shownClients = COACH_CLIENTS.filter(c => roster === 'active' ? c.active : !c.active);
+  const shownClients = COACH_CLIENTS
+    .filter(c => roster === 'active' ? c.active : !c.active)
+    .filter(c => bsClientMatchesFilter(c, cFilter, 'trainer'))
+    .filter(c => bsClientMatchesQuery(c, cQuery));
   const activeCount = COACH_CLIENTS.filter(c => c.active).length;
   const pastCount = COACH_CLIENTS.length - activeCount;
   if (fullClient) {
@@ -1128,6 +1183,7 @@ function BSTrainerClients() {
     <BSPage>
       <BSPageHeader kicker="Section · Clients" title={<>14<br/>clients.</>} />
       <BSProClientsTabBar active={subtab} onChange={setSubtab} role="trainer" />
+      <BSProRosterFilter role="trainer" count={COACH_CLIENTS.length} query={cQuery} onQuery={setCQuery} filter={cFilter} onFilter={setCFilter} />
       {/* Active / Past clients toggle */}
       <div style={{ padding: `12px ${t.padX}px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, borderBottom: `1px solid ${t.RULE}` }}>
         {[['active', `Active · ${activeCount}`], ['past', `Past · ${pastCount}`]].map(([k, label]) => {
@@ -1226,26 +1282,12 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // The client's shared goals (read-only here) — server-gated on the share flag.
   const [cGoals, setCGoals] = useStateBSP(null);
   const [cGoalsLoaded, setCGoalsLoaded] = useStateBSP(false);
+  const [showAdjust, setShowAdjust] = useStateBSP(false);
+  const [view, setView] = useStateBSP('profile'); // 'profile' | 'analysis'
   useEffectBSP(() => {
     if (!clientUid || !window.ShapeGoalsApi?.getForClient) return;
     window.ShapeGoalsApi.getForClient(clientUid).then(d => { setCGoals(d || null); setCGoalsLoaded(true); }).catch(() => setCGoalsLoaded(true));
   }, [clientUid]);
-  const goalCard = (g, i) => {
-    const pct = Math.min((Number(g.cur) || 0) / (Number(g.tgt) || 1), 1);
-    const curF = g.pct ? `${g.cur}%` : Number(g.cur).toLocaleString();
-    const tgtF = g.pct ? `${g.tgt}%` : Number(g.tgt).toLocaleString();
-    return (
-      <div key={i} style={{ marginTop: 10, borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 12 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', color: teal }}>GOAL · {Math.round(pct * 100)}%</div>
-          <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50 }}>{curF} / {tgtF}</div>
-        </div>
-        <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', lineHeight: 1.15 }}>{g.t}</div>
-        <div style={{ marginTop: 8, height: 6, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${pct * 100}%`, background: teal, borderRadius: 999 }} /></div>
-        {g.sub && <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45 }}>{g.sub}</div>}
-      </div>
-    );
-  };
   const setPhaseKey = (key, val) => {
     setPhase(prev => ({ ...prev, [key]: val }));
     if (clientUid) { try { window.ShapeProgramApi?.set?.({ userId: clientUid, [key]: val }); } catch (e) {} }
@@ -1262,97 +1304,344 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     </div>
   );
   if (!client) return null;
-  return (
-    <BSPage>
-      <BSPageHeader kicker="Section · Client" title={<>Full<br/>profile.</>} trailing={<button onClick={onBack} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '8px 10px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Back</button>} />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr', gap: 12, alignItems: 'center', padding: `${t.rowY + 6}px 0`, borderBottom: `1px solid ${t.HAIR}` }}>
-          <BSAvatar init={client.i} fill={client.c} size={36} />
-          <div>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>{phase.nutritionPhase || 'Cut'} · {phase.trainingPhase || 'Build'}</div>
-            <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK }}>{client.n}</div>
-            <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase' }}>{client.r}</div>
+
+  // ---- theme + derived facts ----
+  const accent = isNutri ? '#d8b25a' : teal;   // gold for nutrition, teal for training
+  const gold = '#d8b25a';
+  const rust = t.RUST;
+  const nm = (client.n || '').trim().split(/\s+/);
+  const first = nm[0] || client.n || 'Client';
+  const last = nm.slice(1).join(' ');
+  const isPast = client.s === 'past' || client.active === false;
+  const statusLabel = isPast ? 'PAST' : client.warn ? 'WATCH' : isNutri ? 'STRONG' : 'ON TRACK';
+  const phaseUp = (isNutri ? (phase.nutritionPhase || 'Cut') : (phase.trainingPhase || 'Build')).toUpperCase();
+  const headEyebrow = isNutri ? `${phaseUp} · 2100 KCAL` : `${phaseUp} · WEEK 6 OF 12`;
+  const sinceLabel = isNutri ? 'Since Feb 2026 · 19d streak' : 'Since Jan 2026 · 14d streak';
+
+  // Live weigh-ins (share-gated) drive the body chart; else illustrative demo.
+  const liveW = (cGoals && cGoals.share !== false && cGoals.overall && Array.isArray(cGoals.overall.weighIns))
+    ? cGoals.overall.weighIns.map(x => Number(x.kg)).filter(Number.isFinite) : [];
+  const bwUnit = (cGoals && cGoals.overall && cGoals.overall.unit) || 'kg';
+  const bwSeries = liveW.length >= 2 ? liveW : (isNutri
+    ? [80.4, 80.1, 79.9, 79.7, 79.6, 79.4, 79.3, 79.2]
+    : [64.4, 64.6, 65.0, 64.6, 64.3, 64.1, 63.9, 63.8]);
+  const bwNow = bwSeries[bwSeries.length - 1];
+  const bwDelta = +(bwNow - bwSeries[0]).toFixed(1);
+  const bwWeeks = bwSeries.length;
+
+  // ---- presentational helpers ----
+  const Section = ({ eyebrow, title, trailing, color }) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 12 }}>
+      <div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: color || accent }}>{eyebrow}</div>
+        <div style={{ marginTop: 5, fontFamily: t.SERIF, fontSize: 25, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1 }}>{title}</div>
+      </div>
+      {trailing && <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.12em', color: accent, whiteSpace: 'nowrap', paddingBottom: 3 }}>{trailing}</div>}
+    </div>
+  );
+  const lineChart = (series, color, h = 64) => {
+    const vals = series.map(Number).filter(Number.isFinite);
+    if (vals.length < 2) return null;
+    const mn = Math.min(...vals), mx = Math.max(...vals), span = (mx - mn) || 1, n = vals.length, W = 320, H = h;
+    const pts = vals.map((v, i) => [(i / (n - 1)) * W, H - 6 - ((v - mn) / span) * (H - 16)]);
+    const ln = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+    const lp = pts[pts.length - 1];
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" style={{ display: 'block', overflow: 'visible' }}>
+        <path d={`${ln} L${W},${H} L0,${H} Z`} fill={`${color}1f`} />
+        <path d={ln} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+        <circle cx={lp[0]} cy={lp[1]} r="3.5" fill={color} />
+      </svg>
+    );
+  };
+  const StatCard = ({ label, labelColor, big, small, sub }) => (
+    <div style={{ borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '13px 14px' }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: labelColor || accent }}>{label}</div>
+      <div style={{ marginTop: 6, fontFamily: t.SERIF, fontSize: 27, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1 }}>{big}{small && <span style={{ fontSize: 14, color: t.INK50, fontFamily: t.MONO, marginLeft: 1 }}>{small}</span>}</div>
+      {sub && <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{sub}</div>}
+    </div>
+  );
+  const numberedList = (items) => items.map((it, i) => (
+    <div key={i} style={{ display: 'grid', gridTemplateColumns: '24px 1fr auto', gap: 10, alignItems: 'center', padding: '13px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
+      <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, fontWeight: 700 }}>{String(i + 1).padStart(2, '0')}</span>
+      <div>
+        <div style={{ fontFamily: t.SERIF, fontSize: 15.5, fontWeight: 600, color: t.INK }}>{it.n}</div>
+        <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.02em' }}>{it.s}</div>
+      </div>
+      <span style={{ fontFamily: t.MONO, fontSize: 9, color: it.cta ? accent : t.INK50, fontWeight: it.cta ? 800 : 400, letterSpacing: '0.06em' }}>{it.d}</span>
+    </div>
+  ));
+
+  // ---- header (shared across tabs) ----
+  const fireEvt = (name) => { try { window.dispatchEvent(new CustomEvent(name, { detail: { client } })); } catch (e) {} };
+  const headerBlock = (
+    <div style={{ paddingTop: 50 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{headEyebrow}</div>
+        <button onClick={onBack} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
+      </div>
+      <div style={{ marginTop: 10, fontFamily: t.SERIF, fontSize: 40, fontWeight: 600, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>
+        {first}<br /><span style={{ fontStyle: 'italic', color: accent }}>{last ? `${last}.` : '.'}</span>
+      </div>
+      <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 11 }}>
+        <BSAvatar init={client.i} fill={client.c} size={40} />
+        <div style={{ flex: 1, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.04em', color: t.INK50 }}>{sinceLabel}</div>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: isPast ? t.INK50 : teal, border: `1px solid ${isPast ? t.RULE : teal}`, borderRadius: 999, padding: '6px 11px' }}>{statusLabel}</span>
+      </div>
+      <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+        <button onClick={() => fireEvt('shape:proMessageClient')} style={{ borderRadius: 999, border: `1px solid ${accent}`, background: `${accent}1f`, color: t.INK, padding: '9px 16px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>MESSAGE</button>
+        <button onClick={() => { setView('manage'); setShowAdjust(false); }} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '9px 16px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>{isNutri ? 'ADJUST PLAN' : 'ADJUST PROGRAM'}</button>
+        <button onClick={() => fireEvt('shape:proScheduleClient')} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '9px 16px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SCHEDULE</button>
+      </div>
+      <div style={{ marginTop: 18, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+        {[['profile', isNutri ? 'Plan' : 'Profile'], ['analysis', 'Analysis'], ['manage', 'Manage']].map(([k, label]) => {
+          const on = view === k;
+          return <button key={k} onClick={() => setView(k)} style={{ borderRadius: 999, padding: '9px 6px', cursor: 'pointer', border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1c` : 'transparent', color: on ? t.INK : t.INK70, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{label}</button>;
+        })}
+      </div>
+    </div>
+  );
+
+  // ---- PROFILE tab ----
+  const bigCard = isNutri
+    ? { eyebrow: 'ADHERENCE · THIS WEEK', big: '92', small: '%', sub: '6/7 days logged · -1.2 kg', barsLabel: 'DAILY ADHERENCE', barsRight: 'MON — SUN', bars: [0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8], barLetters: ['M', 'T', 'W', 'T', 'F', 'S', 'S'], uniform: true }
+    : { eyebrow: 'ATTENDANCE · THIS BLOCK', big: '96', small: '%', sub: '38/41 sessions · 6 wks left', barsLabel: 'SESSIONS / WEEK', barsRight: 'LAST 7 WEEKS', bars: [0.55, 0.72, 0.5, 0.86, 0.46, 0.7, 1], barLetters: null, uniform: false };
+  const renderBigCard = () => (
+    <div style={{ borderRadius: 18, border: `1px solid ${accent}33`, background: `linear-gradient(155deg, ${accent}12, ${t.PAPER2} 70%), ${t.PAPER2}`, padding: 18 }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>{bigCard.eyebrow}</div>
+      <div style={{ marginTop: 4, fontFamily: t.SERIF, fontSize: 64, fontWeight: 600, color: t.INK, lineHeight: 0.95, letterSpacing: '-0.02em' }}>{bigCard.big}<span style={{ fontSize: 26, color: t.INK50, fontFamily: t.MONO }}>{bigCard.small}</span></div>
+      <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: accent }}>{bigCard.sub}</div>
+      <div style={{ marginTop: 18, display: 'flex', justifyContent: 'space-between' }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', color: t.INK50 }}>{bigCard.barsLabel}</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', color: t.INK50 }}>{bigCard.barsRight}</span>
+      </div>
+      <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'flex-end', height: 64 }}>
+        {bigCard.bars.map((hgt, i) => {
+          const hot = !bigCard.uniform && i === bigCard.bars.length - 1;
+          const bg = bigCard.uniform ? accent : (hot ? accent : `${accent}2e`);
+          return <div key={i} style={{ flex: 1, height: `${Math.max(0.18, hgt) * 100}%`, borderRadius: 7, background: bg }} />;
+        })}
+      </div>
+      {bigCard.barLetters && (
+        <div style={{ marginTop: 7, display: 'flex', gap: 8 }}>
+          {bigCard.barLetters.map((l, i) => <div key={i} style={{ flex: 1, textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, color: t.INK50 }}>{l}</div>)}
+        </div>
+      )}
+    </div>
+  );
+  const stats = isNutri ? [
+    { label: 'AVG INTAKE', labelColor: gold, big: '2,040', sub: 'TARGET 2,180' },
+    { label: 'PROTEIN HIT', labelColor: teal, big: '88', small: '%', sub: 'OF TARGET DAYS' },
+    { label: 'WEIGHT Δ', labelColor: rust, big: '-1.2', small: 'kg', sub: 'GOAL -4 KG' },
+    { label: 'LOGGED', labelColor: gold, big: '6', small: '/7', sub: 'THIS WEEK' },
+  ] : [
+    { label: 'SESSIONS', labelColor: teal, big: '38', sub: 'OF 41 PLANNED' },
+    { label: 'STREAK', labelColor: teal, big: '14d', sub: 'CONSISTENCY' },
+    { label: 'AVG RPE', labelColor: rust, big: '8.0', sub: 'EFFORT LOGGED' },
+    { label: 'PRS', labelColor: gold, big: '3', sub: 'THIS BLOCK' },
+  ];
+  const lifts = [
+    { n: 'Back Squat', v: '82.5 kg', d: '+7.5', p: 0.92 },
+    { n: 'Bench Press', v: '52.5 kg', d: '+5.0', p: 0.55 },
+    { n: 'Deadlift', v: '110 kg', d: '+10', p: 1.0 },
+    { n: 'Overhead Press', v: '35 kg', d: '+2.5', p: 0.38 },
+  ];
+  const macros = [
+    { n: 'Protein', cur: 165, tgt: 170, c: teal },
+    { n: 'Carbs', cur: 190, tgt: 200, c: gold },
+    { n: 'Fat', cur: 60, tgt: 62, c: rust },
+  ];
+  const trackRow = (label, value, deltaColor, delta, pct, barColor) => (
+    <div style={{ padding: '12px 0', borderTop: `1px solid ${t.HAIR}` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <span style={{ fontFamily: t.SERIF, fontSize: 16, fontWeight: 600, color: t.INK }}>{label}</span>
+        <span style={{ fontFamily: t.SERIF, fontSize: 16, fontWeight: 600, color: t.INK }}>{value} <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: deltaColor, fontWeight: 700 }}>▲ {delta}</span></span>
+      </div>
+      <div style={{ marginTop: 8, height: 3, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${Math.min(1, pct) * 100}%`, background: barColor, borderRadius: 999 }} /></div>
+    </div>
+  );
+  const recent = isNutri ? [
+    { n: 'Tue · 2,040 kcal', s: '162P / 188C / 58F · on target', d: 'Today' },
+    { n: 'Mon · 2,110 kcal', s: '168P / 201C / 61F · +protein', d: 'Mon' },
+    { n: 'Sun · 1,980 kcal', s: '155P / 176C / 64F · low carb', d: 'Sun' },
+  ] : [
+    { n: 'Push Day A', s: 'Completed · 52 min · RPE 8', d: 'Today' },
+    { n: 'Squat form video', s: 'Uploaded · awaiting review', d: '2h' },
+    { n: 'Pull Day B', s: 'Completed · 48 min · RPE 7', d: 'Mon' },
+    { n: 'Leg Day', s: 'Completed · 61 min · RPE 9', d: 'Sat' },
+  ];
+  const inbox = isNutri
+    ? [{ n: 'Food log · this week', s: 'Submitted 4h ago · 18 entries', d: 'Review', cta: true }]
+    : [{ n: 'Squat form video', s: 'Uploaded 2h ago · 1:42', d: 'Review', cta: true }];
+  const note = isNutri
+    ? 'Adherence excellent. Refeed Saturday to support training — bump carbs +40g.'
+    : 'Knee valgus on heavy squats — cue knees out, film week 6 top set.';
+  const profileView = (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 22, marginTop: 22 }}>
+      {renderBigCard()}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>{stats.map((s, i) => <StatCard key={i} {...s} />)}</div>
+      {!isNutri && (
+        <div>
+          <Section eyebrow="STRENGTH" title="Key lifts" trailing="HISTORY →" />
+          {lifts.map((l, i) => <div key={i} style={i === 0 ? { } : null}>{trackRow(l.n, l.v, accent, l.d, l.p, accent)}</div>)}
+        </div>
+      )}
+      <div>
+        <Section eyebrow="BODY" title={isNutri ? 'Weight trend' : 'Bodyweight'} trailing={isNutri ? 'HISTORY →' : 'LOG →'} />
+        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+            <span style={{ fontFamily: t.SERIF, fontSize: 30, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{bwNow}<span style={{ fontSize: 15, color: t.INK50, fontFamily: t.MONO }}> {bwUnit}</span></span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: accent, letterSpacing: '0.04em', textAlign: 'right' }}>{bwDelta > 0 ? '+' : ''}{bwDelta} {bwUnit} · {bwWeeks} weeks{isNutri ? ' · goal -4 kg' : ''}</span>
           </div>
-        </div>
-        {/* Program phase — coach sets the block the client sees on Home/Train/Eat */}
-        <div style={{ padding: `${t.rowY + 8}px 0`, borderBottom: `1px solid ${t.HAIR}` }}>
-          <BSEyebrow color={teal}>Program phase</BSEyebrow>
-          {phaseRow('trainingPhase', 'Training block', ['Build', 'Cut', 'Peak', 'Maintain', 'Deload', 'Base'])}
-          {phaseRow('nutritionPhase', 'Nutrition phase', ['Cut', 'Bulk', 'Maintain', 'Recomp', 'Refeed'])}
-          {!clientUid && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Demo client · saves once linked to a live member</div>}
-        </div>
-        {/* Client goals — read-only; visible only when the client shares them. */}
-        <div style={{ padding: `${t.rowY + 8}px 0`, borderBottom: `1px solid ${t.HAIR}` }}>
-          <BSEyebrow color={teal}>Client goals</BSEyebrow>
-          {!clientUid ? (
-            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Appears once linked to a live member</div>
-          ) : !cGoalsLoaded ? (
-            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
-          ) : (cGoals && cGoals.share === false) ? (
-            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.4 }}>{client.n.split(' ')[0]} keeps their goals private.</div>
-          ) : (() => {
-            const ov = cGoals && cGoals.overall;
-            const trM = (cGoals && cGoals.trainingMeta) || null;
-            const nuM = (cGoals && cGoals.nutritionMeta) || null;
-            if (!ov && !(trM && trM.title) && !(nuM && nuM.title)) return <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.4 }}>No goals shared yet.</div>;
-            const sub = (txt) => <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{txt}</div>;
-            const metaRow = (title, subtitle, c) => (
-              <div style={{ marginTop: 10, borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '12px 13px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ width: 5, height: 16, borderRadius: 3, background: c, flexShrink: 0 }} />
-                  <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{title}</span>
-                </div>
-                {subtitle && <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 12.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.4 }}>{subtitle}</div>}
-              </div>
-            );
-            return (
-              <div>
-                {ov && (() => {
-                  const start = Number(ov.start) || 0, now = Number(ov.now) || 0, target = Number(ov.target) || 0, unit = ov.unit || 'kg';
-                  const range = start - target;
-                  const pct = range > 0 ? Math.max(0, Math.min(1, (start - now) / range)) : 0;
-                  const down = +(now - start).toFixed(1), toGo = +(now - target).toFixed(1);
-                  const byD = ov.by ? new Date(ov.by) : null;
-                  const byLabel = byD && !isNaN(byD) ? byD.toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase() : '';
-                  return (
-                    <div style={{ marginTop: 10, borderRadius: 12, border: `1px solid ${teal}44`, background: `linear-gradient(150deg, ${teal}16, ${t.PAPER2} 80%), ${t.PAPER2}`, padding: 13 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-                        <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', color: teal }}>OVERALL{byLabel ? ` · BY ${byLabel}` : ''}</span>
-                        <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}>{Math.round(pct * 100)}% there</span>
-                      </div>
-                      <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{ov.title}</div>
-                      <div style={{ marginTop: 8, height: 6, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${pct * 100}%`, background: teal, borderRadius: 999 }} /></div>
-                      <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em' }}>{down} {unit} so far · {Math.abs(toGo)} {unit} to go · now {now}{unit} · target {target}{unit}</div>
-                      {Array.isArray(ov.weighIns) && ov.weighIns.length >= 2 && (() => {
-                        const vals = ov.weighIns.map(x => Number(x.kg)).filter(Number.isFinite);
-                        if (vals.length < 2) return null;
-                        const mn = Math.min(...vals), mx = Math.max(...vals), span = (mx - mn) || 1, n = vals.length, W = 300, H = 46;
-                        const pts = vals.map((v, i) => [(i / (n - 1)) * W, H - 4 - ((v - mn) / span) * (H - 10)]);
-                        const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
-                        return (
-                          <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" style={{ display: 'block', marginTop: 10 }}>
-                            <path d={`${line} L${W},${H} L0,${H} Z`} fill={`${teal}1f`} />
-                            <path d={line} fill="none" stroke={teal} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-                          </svg>
-                        );
-                      })()}
-                    </div>
-                  );
-                })()}
-                {trM && trM.title && <>{sub('Training')}{metaRow(trM.title, trM.subtitle, t.RUST)}</>}
-                {nuM && nuM.title && <>{sub('Nutrition')}{metaRow(nuM.title, nuM.subtitle, '#a07a2e')}</>}
-              </div>
-            );
-          })()}
-        </div>
-        <div style={{ padding: `${t.rowY + 8}px 0`, borderBottom: `1px solid ${t.HAIR}` }}>
-          <BSEyebrow>Coach notes</BSEyebrow>
-          <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.4, color: t.INK70 }}>
-            Client profile drill-down page for {client.n}. Training history, compliance, habits, nutrition logs, and messaging context can be expanded here.
-          </div>
+          <div style={{ marginTop: 14 }}>{lineChart(bwSeries, accent, 64)}</div>
         </div>
       </div>
-      <BSFooter left="Full profile" right={client.n} />
+      {isNutri && (
+        <div>
+          <Section eyebrow="MACROS" title="Daily average vs target" />
+          {macros.map((m, i) => <div key={i}>{trackRow(m.n, `${m.cur} g`, m.c, `${m.tgt} g`, m.cur / m.tgt, m.c)}</div>)}
+        </div>
+      )}
+      <div>
+        <Section eyebrow="ACTIVITY" title={isNutri ? 'Recent logs' : 'Recent sessions'} />
+        {numberedList(recent)}
+      </div>
+      <div>
+        <Section eyebrow="INBOX" title="Needs your eyes" />
+        {numberedList(inbox)}
+      </div>
+      <div>
+        <Section eyebrow="PRIVATE" title={isNutri ? 'Clinical note' : 'Coach note'} />
+        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: `linear-gradient(150deg, ${accent}10, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 16 }}>
+          <div style={{ fontFamily: t.SERIF, fontSize: 15, fontStyle: 'italic', fontWeight: 600, color: t.INK, lineHeight: 1.5 }}>{note}</div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ---- ANALYSIS tab ----
+  const aKpis = isNutri ? [
+    { label: 'ADHERENCE', big: '92', small: '%', sub: '+6pt vs last mo', c: accent },
+    { label: 'AVG INTAKE', big: '2,040', sub: 'target 2,180', c: accent },
+    { label: 'PROTEIN HIT', big: '88', small: '%', sub: 'of target days', c: teal },
+    { label: 'WEIGHT Δ', big: '-1.2', small: 'kg', sub: 'goal -4 kg', c: rust },
+    { label: 'DAYS LOGGED', big: '27', small: '/30', sub: 'last 30 days', c: accent },
+    { label: 'CONSISTENCY', big: '90', small: '%', sub: 'cohort top 15%', c: teal },
+  ] : [
+    { label: 'ADHERENCE', big: '96', small: '%', sub: '+4pt vs last mo', c: accent },
+    { label: 'SESSIONS', big: '38', sub: 'of 41 planned', c: accent },
+    { label: 'AVG RPE', big: '8.0', sub: 'effort logged', c: rust },
+    { label: 'TOTAL PRS', big: '3', sub: 'this block', c: gold },
+    { label: 'VOLUME', big: '+12', small: '%', sub: 'week / week', c: teal },
+    { label: 'BODYWEIGHT', big: String(bwNow), small: bwUnit, sub: `${bwDelta} · ${bwWeeks}w`, c: accent },
+  ];
+  const summaryLine = isNutri
+    ? 'Adherence high and weight tracking to goal — refeed timing is the next lever.'
+    : 'Strong block — attendance up, lifts trending, weight on plan.';
+  const trendSeries = isNutri ? bwSeries : [0.4, 0.5, 0.45, 0.6, 0.55, 0.72, 0.68, 0.85];
+  const analysisView = (
+    <div style={{ marginTop: 22 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingBottom: 12, borderBottom: `2px solid ${t.INK}` }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>▌ ANALYSIS · LAST 30 DAYS</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', color: t.INK50 }}>{isNutri ? 'NUTRITION KPIS' : 'TRAINING KPIS'}</div>
+      </div>
+      <div style={{ fontFamily: t.SERIF, fontSize: 19, fontWeight: 600, color: t.INK, lineHeight: 1.3, letterSpacing: '-0.01em' }}>{summaryLine}</div>
+      <div style={{ marginTop: 16, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, display: 'grid', gridTemplateColumns: '1fr 1fr', overflow: 'hidden' }}>
+        {aKpis.map((k, i) => (
+          <div key={i} style={{ padding: 15, borderTop: i >= 2 ? `1px solid ${t.HAIR}` : 0, borderLeft: i % 2 ? `1px solid ${t.HAIR}` : 0 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: k.c }}>{k.label}</div>
+            <div style={{ marginTop: 6, fontFamily: t.SERIF, fontSize: 25, fontWeight: 600, color: t.INK, lineHeight: 1 }}>{k.big}{k.small && <span style={{ fontSize: 13, color: t.INK50, fontFamily: t.MONO }}>{k.small}</span>}</div>
+            <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: k.c === rust ? rust : t.INK50 }}>{k.sub}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>▌ TRENDLINE</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', color: t.INK50 }}>{isNutri ? 'WEIGHT' : 'WEEKLY VOLUME'}</span>
+      </div>
+      <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>{lineChart(trendSeries, accent, 80)}</div>
+    </div>
+  );
+
+  // ---- MANAGE tab (program phase + shared goals + coach notes) ----
+  const goalsContent = !clientUid ? (
+    <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Appears once linked to a live member</div>
+  ) : !cGoalsLoaded ? (
+    <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
+  ) : (cGoals && cGoals.share === false) ? (
+    <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.4 }}>{first} keeps their goals private.</div>
+  ) : (() => {
+    const ov = cGoals && cGoals.overall;
+    const trM = (cGoals && cGoals.trainingMeta) || null;
+    const nuM = (cGoals && cGoals.nutritionMeta) || null;
+    if (!ov && !(trM && trM.title) && !(nuM && nuM.title)) return <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.4 }}>No goals shared yet.</div>;
+    const subH = (txt) => <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{txt}</div>;
+    const metaRow = (title, subtitle, c) => (
+      <div style={{ marginTop: 10, borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '12px 13px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ width: 5, height: 16, borderRadius: 3, background: c, flexShrink: 0 }} />
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{title}</span>
+        </div>
+        {subtitle && <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 12.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.4 }}>{subtitle}</div>}
+      </div>
+    );
+    return (
+      <div>
+        {ov && (() => {
+          const start = Number(ov.start) || 0, now = Number(ov.now) || 0, target = Number(ov.target) || 0, unit = ov.unit || 'kg';
+          const range = start - target;
+          const pct = range > 0 ? Math.max(0, Math.min(1, (start - now) / range)) : 0;
+          const down = +(now - start).toFixed(1), toGo = +(now - target).toFixed(1);
+          const byD = ov.by ? new Date(ov.by) : null;
+          const byLabel = byD && !isNaN(byD) ? byD.toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase() : '';
+          return (
+            <div style={{ borderRadius: 12, border: `1px solid ${teal}44`, background: `linear-gradient(150deg, ${teal}16, ${t.PAPER2} 80%), ${t.PAPER2}`, padding: 13 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', color: teal }}>OVERALL{byLabel ? ` · BY ${byLabel}` : ''}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}>{Math.round(pct * 100)}% there</span>
+              </div>
+              <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{ov.title}</div>
+              <div style={{ marginTop: 8, height: 6, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${pct * 100}%`, background: teal, borderRadius: 999 }} /></div>
+              <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em' }}>{down} {unit} so far · {Math.abs(toGo)} {unit} to go · now {now}{unit} · target {target}{unit}</div>
+              {lineChart((ov.weighIns || []).map(x => Number(x.kg)).filter(Number.isFinite), teal, 46)}
+            </div>
+          );
+        })()}
+        {trM && trM.title && <>{subH('Training')}{metaRow(trM.title, trM.subtitle, t.RUST)}</>}
+        {nuM && nuM.title && <>{subH('Nutrition')}{metaRow(nuM.title, nuM.subtitle, '#a07a2e')}</>}
+      </div>
+    );
+  })();
+  const manageView = (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 22, marginTop: 22 }}>
+      <div>
+        <Section eyebrow="PROGRAM PHASE" title="Block & phase" />
+        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>
+          {phaseRow('trainingPhase', 'Training block', ['Build', 'Cut', 'Peak', 'Maintain', 'Deload', 'Base'])}
+          {phaseRow('nutritionPhase', 'Nutrition phase', ['Cut', 'Bulk', 'Maintain', 'Recomp', 'Refeed'])}
+          {!clientUid && <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Demo client · saves once linked to a live member</div>}
+        </div>
+      </div>
+      <div>
+        <Section eyebrow="CLIENT GOALS" title="Shared goals" />
+        {goalsContent}
+      </div>
+      <div>
+        <Section eyebrow="PRIVATE" title="Coach notes" />
+        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, color: t.INK70 }}>
+          {isNutri ? 'Clinical notes' : 'Training notes'} for {client.n} — history, compliance, habits, and messaging context live here.
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <BSPage>
+      <div style={{ padding: `0 ${t.padX}px 28px` }}>
+        {headerBlock}
+        {view === 'analysis' ? analysisView : view === 'manage' ? manageView : profileView}
+      </div>
+      <BSFooter left={isNutri ? 'Client plan' : 'Full profile'} right={client.n} />
     </BSPage>
   );
 }
@@ -2098,6 +2387,8 @@ function BSNutriClients() {
   const [fullClient, setFullClient] = useStateBSP(null);
   const [subtab, setSubtab] = useStateBSP('roster');
   const [roster, setRoster] = useStateBSP('active'); // 'active' | 'past'
+  const [cQuery, setCQuery] = useStateBSP('');
+  const [cFilter, setCFilter] = useStateBSP('all');
   const NUTRI_CLIENTS = [
     { i: 'A', c: t.RUST,  n: 'Alex Rivera',  r: 'CUT · 1900 KCAL',  d: '94%', good: true, active: true },
     { i: 'J', c: t.BLUE,  n: 'Jamie Wong',   r: 'CUT · 1700 KCAL',  d: '88%', good: true, active: true },
@@ -2110,11 +2401,14 @@ function BSNutriClients() {
     { i: 'T', c: t.INK50, n: 'Taylor Reed',  r: 'PAST · paused',    d: '—', active: false },
     { i: 'N', c: t.INK50, n: 'Noah Bennett', r: 'PAST · completed', d: '—', active: false },
   ];
-  const shownClients = NUTRI_CLIENTS.filter(c => roster === 'active' ? c.active : !c.active);
+  const shownClients = NUTRI_CLIENTS
+    .filter(c => roster === 'active' ? c.active : !c.active)
+    .filter(c => bsClientMatchesFilter(c, cFilter, 'nutritionist'))
+    .filter(c => bsClientMatchesQuery(c, cQuery));
   const activeCount = NUTRI_CLIENTS.filter(c => c.active).length;
   const pastCount = NUTRI_CLIENTS.length - activeCount;
   if (fullClient) {
-    return <BSProClientFullProfilePage client={fullClient} onBack={() => setFullClient(null)} />;
+    return <BSProClientFullProfilePage client={fullClient} onBack={() => setFullClient(null)} role="nutritionist" />;
   }
   if (previewClient) {
     return (
@@ -2152,6 +2446,7 @@ function BSNutriClients() {
     <BSPage>
       <BSPageHeader kicker="Section · Clients" title={<>22<br/>plans.</>} />
       <BSProClientsTabBar active={subtab} onChange={setSubtab} role="nutritionist" />
+      <BSProRosterFilter role="nutritionist" count={NUTRI_CLIENTS.length} query={cQuery} onQuery={setCQuery} filter={cFilter} onFilter={setCFilter} />
       {/* Active / Past clients toggle */}
       <div style={{ padding: `12px ${t.padX}px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, borderBottom: `1px solid ${t.RULE}` }}>
         {[['active', `Active · ${activeCount}`], ['past', `Past · ${pastCount}`]].map(([k, label]) => {
