@@ -3771,6 +3771,85 @@ function bsSkParseIngredient(s) {
   return { q: '', n: s };
 }
 
+// Recipe box — your personal recipes: All / Saved (liked) / meal-type filters,
+// each card sends to ITS OWN grocery list, with a ♥ Save toggle. Shape Kitchen
+// (the full catalog) stays reachable via the "Browse" card.
+function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onBrowseKitchen, onChangeView }) {
+  const t = useBS();
+  _bsScrollTopOnMount();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const lib = useBSLibrary();
+  const [filter, setFilter] = useStateBSC('all');
+  const [q, setQ] = useStateBSC('');
+  const recId = (r) => `recipe:${bsSkSlug(r.title)}`;
+  const savedIds = new Set(lib.filter(x => x.kind === 'recipe').map(x => x.id));
+  const tagHas = (r, word) => (r.tags || []).some(tg => String(tg).toLowerCase().includes(word));
+  const isPlant = (r) => ['vegan', 'vegetarian', 'plant-based'].includes(String(r.diet || '').toLowerCase()) || tagHas(r, 'plant');
+  const matchFilter = (r) => {
+    if (filter === 'all') return true;
+    if (filter === 'saved') return savedIds.has(recId(r));
+    if (filter === 'plant') return isPlant(r);
+    return tagHas(r, filter);
+  };
+  const query = q.trim().toLowerCase();
+  const list = recipes.filter(matchFilter).filter(r => !query || [r.title, r.by, ...(r.tags || [])].join(' ').toLowerCase().includes(query));
+  const savedCount = recipes.filter(r => savedIds.has(recId(r))).length;
+  const pills = [['all', 'All', recipes.length], ['saved', 'Saved', savedCount], ['breakfast', 'Breakfast'], ['lunch', 'Lunch'], ['dinner', 'Dinner'], ['snack', 'Snack'], ['plant', 'Plant-based']];
+  return (
+    <BSPage>
+      <div style={{ padding: `14px ${t.padX}px 0` }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Eat · Recipe box</div>
+        <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>Recipe<br/><span style={{ fontStyle: 'italic', color: teal }}>box.</span></h1>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, lineHeight: 1.4, color: t.INK70 }}>Save the meals you cook — send any recipe straight to its own grocery list.</div>
+      </div>
+      <BSNutritionTopTabs active="recipes" onChange={onChangeView} />
+      <div style={{ padding: `12px ${t.padX}px 8px` }}>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search recipes…" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 2px', border: 0, borderBottom: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 16, outline: 'none' }} />
+      </div>
+      <div style={{ padding: `2px ${t.padX}px 10px`, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {pills.map(([k, label, count]) => {
+          const on = filter === k;
+          return <button key={k} onClick={() => setFilter(k)} style={{ flex: '0 0 auto', padding: '8px 13px', borderRadius: 999, border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{label}{typeof count === 'number' ? ` · ${count}` : ''}</button>;
+        })}
+      </div>
+      <div style={{ padding: `0 ${t.padX}px 6px` }}>
+        <button onClick={onBrowseKitchen} style={{ width: '100%', padding: '12px 14px', borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>▍ Browse Shape Kitchen</span>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK50 }}>→</span>
+        </button>
+      </div>
+      <div style={{ padding: `8px ${t.padX}px 8px`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {list.length === 0 ? (
+          <div style={{ borderRadius: 18, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 24, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 15, color: t.INK70 }}>{filter === 'saved' ? 'No saved recipes yet — tap ♡ Save on any recipe.' : 'No recipes match.'}</div>
+        ) : list.map((r, i) => {
+          const dc = BS_SK_DIET_COLOR[r.diet] || teal;
+          const id = recId(r);
+          const saved = savedIds.has(id);
+          const cat = (r.tags && r.tags[0]) || r.diet || 'Recipe';
+          const coach = String(r.by || '').split(' ')[0];
+          return (
+            <div key={`${r.title}-${i}`} style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
+              <button onClick={() => onOpenRecipe(r)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, padding: 0, display: 'grid', gridTemplateColumns: '62px 1fr', gap: 12, alignItems: 'center' }}>
+                <span style={{ width: 62, height: 62, borderRadius: 14, background: r.hero, flexShrink: 0, border: `1px solid ${t.HAIR}` }} />
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: dc, marginBottom: 4 }}>{cat} · {coach}</span>
+                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.05 }}>{r.title}</span>
+                  <span style={{ display: 'block', marginTop: 5, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.kcal} kcal · {r.macros.p}P / {r.macros.c}C / {r.macros.f}F · {r.time}</span>
+                </span>
+              </button>
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <button onClick={() => onSendToGrocery(r)} style={{ flex: 1, padding: '11px', borderRadius: 999, border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Send to grocery list →</button>
+                <button onClick={() => bsLibToggle({ id, kind: 'recipe', title: r.title, meta: `${r.kcal} kcal · serves ${r.servings}`, coach: r.by })} style={{ flex: '0 0 auto', padding: '11px 14px', borderRadius: 999, border: `1px solid ${saved ? teal : t.RULE}`, background: saved ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: saved ? teal : t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{saved ? '✓ Saved' : '♡ Save'}</button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <BSFooter right="Recipe box" />
+    </BSPage>
+  );
+}
+
 function BSShapeKitchen({ onChangeView, onOpenRecipe }) {
   const t = useBS();
   _bsScrollTopOnMount();
@@ -4041,6 +4120,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
   const bsEatProgram = useBSProgram();
   const [view, setView] = useStateBSC('eat'); // 'eat' | 'grocery' | 'library'
   const [skRecipe, setSkRecipe] = useStateBSC(null); // selected Shape Kitchen recipe
+  const [showKitchen, setShowKitchen] = useStateBSC(false); // browse the full Shape Kitchen catalog
   const [previewMealId, setPreviewMealId] = useStateBSC(null);
   const [previewRecipe, setPreviewRecipe] = useStateBSC(false);
   const [previewRecipeReturnView, setPreviewRecipeReturnView] = useStateBSC('eat');
@@ -4910,6 +4990,12 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
     const list = { id, name: `${recipe.title} grocery list`, kind: 'recipe', eyebrow: `Shape Kitchen · ${recipe.byRole}`, usedCount: 1, preview: items.slice(0, 3).map(i => i.n).join(' · '), count: items.length, items };
     setRecipeLists(prev => [list, ...prev.filter(l => l.id !== id)]);
     window.__bsToast?.('Added to grocery list', 'ok');
+    return list;
+  };
+  // From the Recipe box: build this recipe's OWN list and open it.
+  const sendRecipeToGrocery = (recipe) => {
+    const list = addSKRecipeToGrocery(recipe);
+    if (list) loadGroceryList(list);
   };
 
   React.useEffect(() => {
@@ -5076,10 +5162,21 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
         />
       );
     }
+    if (showKitchen) {
+      return (
+        <BSShapeKitchen
+          onChangeView={(v) => { setSkRecipe(null); setShowKitchen(false); setView(v); }}
+          onOpenRecipe={(r) => setSkRecipe(r)}
+        />
+      );
+    }
     return (
-      <BSShapeKitchen
+      <BSRecipeBox
+        recipes={SHAPE_KITCHEN_RECIPES}
         onChangeView={(v) => { setSkRecipe(null); setView(v); }}
         onOpenRecipe={(r) => setSkRecipe(r)}
+        onSendToGrocery={sendRecipeToGrocery}
+        onBrowseKitchen={() => setShowKitchen(true)}
       />
     );
   }
