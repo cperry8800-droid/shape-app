@@ -10822,7 +10822,7 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
   const savedLib = useBSLibrary();
   const groceryItem = { id: `grocery:${list.id || String(list.name || 'list').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`, kind: 'grocery', title: list.name, meta: `${total} items · ${list.aisles.length} aisles` };
   const grocerySaved = savedLib.some(x => x.id === groceryItem.id);
-  const rust = t.RUST;
+  const rust = teal; // grocery (food list) page uses the nutrition teal accent
   const aisleDoneCount = (ai) => list.aisles[ai].items.filter((_, ii) => checked.has(`${ai}-${ii}`)).length;
   const saveToLib = () => { if (onSaveToLibrary) onSaveToLibrary(list); else bsLibToggle(groceryItem); };
   const shareList = () => { try { const txt = list.aisles.flatMap(a => a.items.map(it => `${it.q} ${it.n}`)).join('\n'); navigator.clipboard?.writeText(`${list.name} — Shop list\n\n${txt}`); } catch (e) {} window.__bsToast?.('Shop list copied', 'ok'); };
@@ -10842,7 +10842,7 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: rust }}>{(list.eyebrow || 'Auto-built from plan').toUpperCase()}</div>
-            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>{(list.name && list.name !== 'Grocery') ? list.name : 'Shop'}<br /><span style={{ fontStyle: 'italic', color: rust }}>food list.</span></div>
+            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>Food<br /><span style={{ fontStyle: 'italic', color: rust }}>list.</span></div>
           </div>
           <button onClick={onLibrary} style={{ flexShrink: 0, border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: rust, paddingTop: 6 }}>+ NEW LIBRARY</button>
         </div>
