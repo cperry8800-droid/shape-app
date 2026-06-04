@@ -2913,6 +2913,48 @@ async function getClientLifts(userId) {
 }
 window.ShapeClientStats = { get: getClientStats, getLifts: getClientLifts };
 
+// Coach soundtracks — saved playlists shared with the website Playlists page
+// (coach_soundtracks, owner-scoped). All calls hit the same-origin API so the
+// signed-in coach's session is used; returns null when signed out / offline so
+// the UI can fall back to local storage.
+async function listSoundtracks() {
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/coach/soundtracks`, { credentials: 'same-origin', headers: sessionsAuthHeaders() });
+    if (!res.ok) return null;
+    const d = await res.json().catch(() => ({}));
+    return Array.isArray(d.soundtracks) ? d.soundtracks : [];
+  } catch (e) { return null; }
+}
+async function createSoundtrack(body = {}) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/coach/soundtracks`, {
+    method: 'POST', credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(body),
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d.error || 'Could not save soundtrack.');
+  return d.soundtrack;
+}
+async function updateSoundtrack(body = {}) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/coach/soundtracks`, {
+    method: 'PATCH', credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(body),
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d.error || 'Could not update soundtrack.');
+  return d.soundtrack;
+}
+async function removeSoundtrack(id) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/coach/soundtracks`, {
+    method: 'DELETE', credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ id }),
+  });
+  return res.ok;
+}
+window.ShapeSoundtracks = { list: listSoundtracks, create: createSoundtrack, update: updateSoundtrack, remove: removeSoundtrack };
+
 // Weigh-ins — the live body-comp series (client_weigh_ins). One row per day
 // (upsert), owned by the client; a linked coach reads them via get_client_goals.
 async function listWeighIns() {
