@@ -10900,16 +10900,16 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
           const aisle = list.aisles[ai];
           return (
             <div style={{ marginTop: 22 }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+              <div className="bs-hide-scroll" style={{ display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 2 }}>
                 {list.aisles.map((a, i) => {
                   const on = i === ai; const dn = aisleDoneCount(i); const full = a.items.length > 0 && dn >= a.items.length;
                   return (
-                    <button key={a.aisle} onClick={() => setActiveAisle(i)} style={{ flexShrink: 0, borderRadius: 999, border: `1px solid ${on ? rust : t.RULE}`, background: on ? rust : 'transparent', color: on ? '#fff' : (full ? t.INK50 : t.INK), padding: '7px 12px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap', textDecoration: full ? 'line-through' : 'none' }}>{a.aisle} · {dn}/{a.items.length}</button>
+                    <button key={a.aisle} onClick={() => setActiveAisle(i)} style={{ flexShrink: 0, borderRadius: 999, border: `1px solid ${on ? rust : t.RULE}`, background: on ? rust : 'transparent', color: on ? '#fff' : (full ? t.INK50 : t.INK), padding: '7px 14px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap', textDecoration: full ? 'line-through' : 'none' }}>{a.aisle}</button>
                   );
                 })}
               </div>
               <div style={{ marginTop: 16 }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: teal }}>AISLE · {aisleDoneCount(ai)}/{aisle.items.length}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: teal }}>AISLE · {aisleDoneCount(ai)}/{aisle.items.length} ITEMS</div>
                 <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{aisle.aisle}</div>
                 <div style={{ marginTop: 8 }}>
                   {aisle.items.map((it, ii) => {
