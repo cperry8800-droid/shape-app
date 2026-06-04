@@ -6134,16 +6134,6 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     { id: 'c6', who: 'Dani Cole', kind: 'CLIENT', init: 'D', hue: '#147b68', time: '2d', body: 'Three months ago a flight of stairs wrecked me. Did a 5k this morning without stopping. 🥹', hearts: 58, replies: 13 },
     { id: 'c7', who: 'Sam Okafor', kind: 'CLIENT', init: 'S', hue: '#147b68', time: '3d', body: 'Down 14 lb and my resting HR went 72 → 61. The wearable doesn\'t lie. 📉', hearts: 49, replies: 9 },
     { id: 'c8', who: 'Renée Dubois', kind: 'CLIENT', init: 'R', hue: '#147b68', time: '4d', body: 'Slept 7.5h five nights straight for the first time in years. Recovery scores are night and day.', hearts: 31, replies: 5 },
-    // COMMUNITY = the global feed — everyone (clients, trainers, nutritionists),
-    // tagged + aligned by their real role (authorKind).
-    { id: 'co1', who: 'Sofia Martinez', kind: 'COMMUNITY', authorKind: 'CLIENT', init: 'S', hue: '#147b68', time: '1h', body: 'First sub-9 min mile today! Started this program barely able to jog. The Wednesday intervals are cursed but they work.', hearts: 41, replies: 12 },
-    { id: 'co2', who: 'Jordan Chen', kind: 'COMMUNITY', authorKind: 'TRAINER', init: 'J', hue: '#c0533b', time: '2h', body: 'Coach drop-in: if your knees cave on squats, it\'s usually not "weak glutes" — it\'s foot pressure. Screw your feet into the floor and re-test.', hearts: 57, replies: 18 },
-    { id: 'co3', who: 'Dr. Maya Patel', kind: 'COMMUNITY', authorKind: 'NUTRI', init: 'M', hue: '#a07a2e', time: '3h', body: 'Pre-workout snack question keeps coming up — here\'s my short list: rice cake + honey, banana + almond butter, or dates + salt. Oats optional.', hearts: 49, replies: 9 },
-    { id: 'co4', who: 'Andre Willis', kind: 'COMMUNITY', authorKind: 'CLIENT', init: 'A', hue: '#147b68', time: '5h', body: 'Hit a 200 lb deadlift for the first time. Started at 95 back in January 😤 Tag your coach, they earned it too.', hearts: 88, replies: 21 },
-    { id: 'co5', who: 'Diego Morales', kind: 'COMMUNITY', authorKind: 'TRAINER', init: 'D', hue: '#c0533b', time: '8h', body: 'Friendly trainer PSA: deload weeks aren\'t lazy weeks. They\'re where the adaptation actually cashes in. Take the down week.', hearts: 36, replies: 6 },
-    { id: 'co6', who: 'Priya Iyer', kind: 'COMMUNITY', authorKind: 'NUTRI', init: 'P', hue: '#a07a2e', time: '1d', body: 'Nutritionist note for the group: "eating back" your workout calories isn\'t cheating — under-fueling is the #1 reason people stall. Eat the food.', hearts: 62, replies: 14 },
-    { id: 'co7', who: 'Lena Park', kind: 'COMMUNITY', authorKind: 'CLIENT', init: 'L', hue: '#147b68', time: '1d', body: 'Meal-prepped all five lunches on Sunday. Future me is so grateful. Small habit, huge payoff.', hearts: 28, replies: 4 },
-    { id: 'co8', who: 'Tariq Osei', kind: 'COMMUNITY', authorKind: 'TRAINER', init: 'T', hue: '#c0533b', time: '2d', body: 'Coaches in the thread — proud of this community. The way you all cheer each other\'s PRs is the whole point. Keep showing up.', hearts: 73, replies: 17 },
   ];
   // Map a live community post into the feed-card shape.
   const KIND_OF = (r) => { const s = String(r || '').toLowerCase(); if (s.includes('shape') || s.includes('mod') || s.includes('official')) return 'SHAPE'; if (s.includes('train') || s.includes('coach')) return 'TRAINER'; if (s.includes('nutri') || s.includes('diet')) return 'NUTRI'; return 'CLIENT'; };
@@ -6629,8 +6619,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           </div>
 
           {filter === 'COMMUNITY' ? (
-            <div style={{ padding: `14px ${t.padX}px 84px`, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {(postsLive ? posts : (loggedIn ? [] : SAMPLE.filter(p => p.kind === 'COMMUNITY'))).map(renderPost)}
+            <div style={{ padding: `14px ${t.padX}px 84px`, display: 'flex', flexDirection: 'column', gap: postsLive ? 13 : 14 }}>
+              {postsLive ? posts.map(renderPost) : (loggedIn ? null : COMMUNITY_ACTIVITIES.map((a, i) => <ActivityCard key={i} a={a} />))}
             </div>
           ) : (
           <div style={{ padding: `10px ${t.padX}px 84px`, display: 'flex', flexDirection: 'column', gap: 13 }}>
