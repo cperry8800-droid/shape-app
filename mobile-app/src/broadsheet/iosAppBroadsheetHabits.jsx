@@ -209,17 +209,16 @@ function BSHabitRow({ habit, accent, onToggle, onRemove }) {
 // Section: "To-dos" / "To-don'ts" — count eyebrow, +Add link, card rows.
 function BSHabitSection({ title, type, accent, habits, onToggle, onRemove, onAdd }) {
   const t = useBS();
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const done = habits.filter(h => (h.history || []).includes(_bsHabitsToday)).length;
-  const word = type === 'avoid' ? 'Clean' : 'Done';
+  const word = type === 'avoid' ? 'Stop' : 'Done';
   return (
     <div style={{ padding: `${t.sectGap || 22}px ${t.padX}px 0` }}>
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10, marginBottom: 12 }}>
         <div>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>{done}/{habits.length} {word}</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: accent }}>{done}/{habits.length} {word}</div>
           <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.025em', color: t.INK, lineHeight: 1 }}>{title}</div>
         </div>
-        <button onClick={onAdd} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, padding: 0 }}>+ Add →</button>
+        <button onClick={onAdd} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent, padding: 0 }}>+ Add →</button>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {habits.length === 0 ? (
@@ -241,6 +240,15 @@ function BSHabitScoreCard({ habits, onOpenScore }) {
   const earned = habits.filter(h => (h.history || []).includes(_bsHabitsToday)).reduce((s, h) => s + _bsHabitPts(h), 0);
   const possible = habits.reduce((s, h) => s + _bsHabitPts(h), 0);
   const pct = possible ? Math.round((earned / possible) * 100) : 0;
+  // Per-type breakdown — split the day's points into To do vs Don't do it.
+  const sumE = (list) => list.filter(h => (h.history || []).includes(_bsHabitsToday)).reduce((s, h) => s + _bsHabitPts(h), 0);
+  const sumP = (list) => list.reduce((s, h) => s + _bsHabitPts(h), 0);
+  const dos = habits.filter(h => h.type !== 'avoid');
+  const donts = habits.filter(h => h.type === 'avoid');
+  const breakdown = [
+    { label: 'To do', c: teal, e: sumE(dos), p: sumP(dos) },
+    { label: "Don't do it", c: t.RUST, e: sumE(donts), p: sumP(donts) },
+  ];
   return (
     <button onClick={onOpenScore} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 16, border: `1px solid ${teal}44`, background: `linear-gradient(150deg, ${teal}1f, ${teal}07 55%, ${t.PAPER2} 92%), ${t.PAPER2}`, padding: 13, display: 'block' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -259,7 +267,22 @@ function BSHabitScoreCard({ habits, onOpenScore }) {
       <div style={{ height: 3, borderRadius: 999, background: t.HAIR, marginTop: 11, overflow: 'hidden' }}>
         <div style={{ width: `${pct}%`, height: '100%', background: teal, borderRadius: 999 }} />
       </div>
-      <div style={{ marginTop: 9, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Tap to see your Shape Score →</div>
+      {/* Breakdown — To do vs Don't do it */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.HAIR}` }}>
+        {breakdown.map((b) => (
+          <div key={b.label}>
+            <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: b.c }}>{b.label}</div>
+            <div style={{ marginTop: 4, display: 'flex', alignItems: 'baseline', gap: 4 }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>+{b.e}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50 }}>/ {b.p} pts</span>
+            </div>
+            <div style={{ height: 3, borderRadius: 999, background: t.HAIR, marginTop: 7, overflow: 'hidden' }}>
+              <div style={{ width: `${b.p ? Math.round((b.e / b.p) * 100) : 0}%`, height: '100%', background: b.c, borderRadius: 999 }} />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 11, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Tap to see your Shape Score →</div>
     </button>
   );
 }
@@ -475,8 +498,8 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
       <div style={{ padding: `4px ${t.padX}px 0` }}>
         <BSHabitScoreCard habits={habits} onOpenScore={onOpenScore} />
       </div>
-      <BSHabitSection title="To-dos" type="do" accent={teal} habits={dos} onToggle={toggle} onRemove={removeHabit} onAdd={() => setAdding('do')} />
-      <BSHabitSection title="To-don'ts" type="avoid" accent={t.RUST} habits={donts} onToggle={toggle} onRemove={removeHabit} onAdd={() => setAdding('avoid')} />
+      <BSHabitSection title="To do" type="do" accent={teal} habits={dos} onToggle={toggle} onRemove={removeHabit} onAdd={() => setAdding('do')} />
+      <BSHabitSection title="Don't do it" type="avoid" accent={t.RUST} habits={donts} onToggle={toggle} onRemove={removeHabit} onAdd={() => setAdding('avoid')} />
       <div style={{ height: 28 }} />
       {adding && <BSHabitAddSheet type={adding} accent={adding === 'avoid' ? t.RUST : teal} onClose={() => setAdding(null)} onCreate={onCreate} />}
     </BSPage>

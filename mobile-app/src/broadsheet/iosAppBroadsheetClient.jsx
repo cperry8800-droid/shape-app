@@ -11353,7 +11353,7 @@ function BSAboutPage({ onBack }) {
         onBack={onBack}
         eyebrow="Shape"
         kicker="About"
-        title={<>A place to<br/>shape a life.</>}
+        title={<>A place to<br/><span style={{ color: teal }}>shape</span> a life.</>}
         trailing={<BSAvatar init="S" size={36} fill={t.INK} ink={t.PAPER} />}
       />
       <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
@@ -11384,7 +11384,7 @@ function BSAboutPage({ onBack }) {
       </div>
 
       <div style={{ padding: `26px ${t.padX}px 32px`, textAlign: 'center' }}>
-        <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 30, fontWeight: 600, letterSpacing: '-0.03em', color: t.INK }}>Come <span style={{ color: teal }}>shape</span> with us.</div>
+        <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 30, fontWeight: 600, letterSpacing: '-0.03em', color: t.INK }}>Join the <span style={{ color: teal }}>community.</span></div>
       </div>
       <BSFooter right="About" />
     </BSPage>
