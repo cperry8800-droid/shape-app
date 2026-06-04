@@ -46,6 +46,21 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Fix self-identity in feed + coach Me page
+- **Feed: own posts kept flipping color.** The optimistic **"You"** post derived its
+  tier from a hash of the string `'You'` (→ one color) while the persisted copy hashed
+  the real name (→ another), so a just-sent message changed color after navigating away
+  and back. Now any post that's **mine** resolves its tier from my real account
+  identity — my real tier when known, else a stable hash of `bsMyName()` — so the
+  optimistic and persisted copies always match. Own posts also read **"You"**
+  consistently (was "You" → real name on refetch), and `myUserId` is included in the
+  feed's tier batch.
+- **Coach Me page showed "Jordan Chen".** `BSProMe` (trainer/nutritionist Me tab) was
+  hardcoded via a `name` prop, so the header didn't match the name in Settings. It now
+  uses the signed-in account's `full_name` (same source as Settings + the client Me
+  page), falling back to the demo prop when signed out; the public-profile link uses it
+  too.
+
 ### 2026-06-04 — Habits: "To don't" rename + compact Earned-today header
 - The avoid section + the Earned-today card breakdown now read **"To don't"** (was
   "Don't do it"); "To do" unchanged.
