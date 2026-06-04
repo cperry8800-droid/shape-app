@@ -293,7 +293,7 @@ function BSShapeRadioLogo({ cream, accent }) {
   const ink = cream || t.INK;
   const glow = accent || t.ACCENT;
   const logoFont = "'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif";
-  const logoSize = 'clamp(22px, 6.9vw, 30px)';
+  const logoSize = 'clamp(18px, 5.7vw, 25px)';
   const shapeTracking = '0.31em';
   const radioTracking = '0.27em';
 
@@ -942,7 +942,6 @@ function BSRadioScreen({ onBack }) {
         }}>
           <BSShapeRadioLogo cream={CREAM} accent={TEAL} />
         </div>
-        <div style={{ margin: '13px auto 0', width: '100%', maxWidth: 360, borderBottom: `2px solid ${CREAM}` }} />
       </div>
 
       {/* HERO — translucent over the portraits */}
