@@ -3209,6 +3209,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
           { l: 'Payouts', sub: 'Weekly · Stripe · Fri', r: '$4,820', onClick: startPayoutSetup },
           { l: 'Availability', sub: 'Mon-Fri · 9 am - 6 pm', r: 'Edit', onClick: () => setShowBookingCalendar(true) },
           { l: 'Rates', sub: isCoach ? '$95/session · $120/mo' : '$140/plan · $80/consult', r: 'Edit', onClick: () => setShowPublicProfile(true) },
+          { l: 'Shape Store', sub: `${(scoreProfile.available || 0).toLocaleString()} pts available`, r: '→', onClick: () => setShowStore(true) },
         ];
         const settings = [
           { l: 'Notifications', sub: 'Sessions · messages · plans', r: '→', onClick: () => setShowNotifications(true) },
@@ -3228,12 +3229,9 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
             <div style={{ marginTop: 8 }}>{shortcuts.map((it, i) => numRow(it, i, accent))}</div>
             {head('ACCOUNT', 'Settings', 26)}
             <div style={{ marginTop: 8 }}>{settings.map((it, i) => numRow(it, i, t.INK50))}</div>
-            {/* Utility footer — keeps Shape Store / Terms / Sign out reachable. */}
+            {/* Utility footer — Terms + Sign out. */}
             <div style={{ marginTop: 24, paddingTop: 16, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-              <div style={{ display: 'flex', gap: 18 }}>
-                <button onClick={() => setShowStore(true)} style={footLink}>Shape Store</button>
-                <button onClick={() => setShowTerms(true)} style={footLink}>Terms</button>
-              </div>
+              <button onClick={() => setShowTerms(true)} style={footLink}>Terms</button>
               <button onClick={onLogout} style={{ borderRadius: 999, border: `1px solid ${t.RUST}`, background: `${t.RUST}1c`, color: t.RUST, padding: '8px 16px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Sign out</button>
             </div>
           </div>
