@@ -740,7 +740,6 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
         { key: 'clients',  label: 'Clients' },
         { key: 'programs', label: 'Plans' },
         { key: 'chat',     label: 'Chat' },
-        { key: 'store',    label: 'Store' },
         { key: 'me',       label: 'Me' },
       ]} />
       <BSRadioPrompt />
@@ -2608,7 +2607,6 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
         { key: 'clients',  label: 'Clients' },
         { key: 'plans',    label: 'Plans' },
         { key: 'chat',     label: 'Chat' },
-        { key: 'store',    label: 'Store' },
         { key: 'me',       label: 'Me' },
       ]} />
       <BSRadioPrompt />
