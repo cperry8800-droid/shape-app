@@ -1186,15 +1186,15 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
             return <button key={k} onClick={() => setRoster(k)} style={{ flex: 1, borderRadius: 999, padding: '9px 6px', cursor: 'pointer', border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{label}</button>;
           })}
         </div>
-        {/* Client cards */}
-        <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {/* Client list — clean divider rows */}
+        <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column' }}>
           {clients.length === 0 && (
-            <div style={{ padding: '22px 16px', borderRadius: 16, border: `1px dashed ${t.RULE}`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>No matching clients.</div>
+            <div style={{ padding: '22px 2px', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>No matching clients.</div>
           )}
           {clients.map((c, i) => {
             const subtitle = `${c.prog || (c.r || '').split('·')[0].trim()}${c.streak != null ? ` · ${c.streak}d streak` : ''}`;
             return (
-              <button key={i} onClick={() => onOpen(c)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 13, alignItems: 'center', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '15px 15px' }}>
+              <button key={i} onClick={() => onOpen(c)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 13, alignItems: 'center', border: 0, borderTop: i ? `1px solid ${t.HAIR}` : 0, background: 'transparent', padding: '14px 2px' }}>
                 <BSAvatar init={c.i} fill={c.c} size={42} />
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.1 }}>{c.n}</div>
