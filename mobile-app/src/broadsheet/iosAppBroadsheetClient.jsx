@@ -10764,7 +10764,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             <div>
               {/* Avatar + photo + accent swatches */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
-                <BSAvatar init={(draft.name || 'A').charAt(0)} size={60} fill={acc} round glow cursive />
+                <BSAvatar init={(draft.name || 'A').split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase()} size={60} fill={acc} round glow cursive />
                 <div style={{ minWidth: 0 }}>
                   <button style={{ borderRadius: 999,
                     padding: '9px 14px', border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, cursor: 'pointer',
