@@ -3022,6 +3022,229 @@ function BSNutriPlans() {
 // ═══════════════════════════════════════════════════════════
 // SHARED PRO ME
 // ═══════════════════════════════════════════════════════════
+// Coach soundtrack library — save Spotify/Apple playlists once and assign them
+// to workouts / meal plans. Custom imports + assignments persist to
+// localStorage (no backend yet); demo playlists seed the list.
+function bsReadJSON(k, d) { try { return JSON.parse(localStorage.getItem(k) || 'null') || d; } catch (e) { return d; } }
+function bsWriteJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+const BS_SOUNDTRACKS_DEMO = [
+  { id: 'heavy', name: 'Heavy Lifts', provider: 'spotify', tag: 'High energy', tracks: 18, dur: '1h 12m', bpm: '138-150', used: 31, c: '#c0533b' },
+  { id: 'tempo', name: 'Tempo Run', provider: 'apple', tag: 'Cardio surge', tracks: 24, dur: '1h 48m', bpm: '160-172', used: 22, c: '#2c7fb8' },
+  { id: 'pull', name: 'Pull Day Pulse', provider: 'spotify', tag: 'Steady push', tracks: 14, dur: '52m', bpm: '95-130', used: 14, c: '#7a5cc0' },
+  { id: 'hiit', name: 'HIIT Inferno', provider: 'spotify', tag: 'High energy', tracks: 16, dur: '44m', bpm: '150-175', used: 19, c: '#d8743b' },
+  { id: 'cool', name: 'Cooldown & Stretch', provider: 'spotify', tag: 'Cooldown', tracks: 10, dur: '32m', bpm: '60-80', used: 17, c: '#2bb0a0' },
+  { id: 'sunday', name: 'Sunday Meal Prep', provider: 'apple', tag: 'Calm prep', tracks: 16, dur: '1h 05m', bpm: '85-100', used: 12, c: '#b9a13e' },
+  { id: 'morning', name: 'Morning Flow', provider: 'apple', tag: 'Calm prep', tracks: 12, dur: '38m', bpm: '70-90', used: 9, c: '#8a9a4e' },
+  { id: 'focus', name: 'Deep Focus', provider: 'apple', tag: 'Focus', tracks: 20, dur: '1h 14m', bpm: 'Low', used: 8, c: '#5566c0' },
+  { id: 'power', name: 'Power Hour', provider: 'spotify', tag: 'Steady push', tracks: 22, dur: '1h 22m', bpm: '120-140', used: 27, c: '#4a6fb0' },
+];
+const BS_SOUNDTRACK_TARGETS = [
+  { id: 'w1', kind: 'Workout', name: 'Upper Push — Peak' },
+  { id: 'w2', kind: 'Workout', name: 'Lower Pull — Build' },
+  { id: 'w3', kind: 'Workout', name: 'Conditioning — HIIT' },
+  { id: 'p1', kind: 'Program', name: 'Cut Block 6' },
+  { id: 'm1', kind: 'Meal plan', name: 'Lean Cut · 1900 kcal' },
+  { id: 'm2', kind: 'Meal plan', name: 'Performance · 2600 kcal' },
+];
+function bsEqGlyph(color) {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="3" y="11" width="3.4" height="10" rx="1.2" fill={color} /><rect x="8.3" y="6" width="3.4" height="15" rx="1.2" fill={color} /><rect x="13.6" y="9" width="3.4" height="12" rx="1.2" fill={color} /><rect x="18.9" y="4" width="2.6" height="17" rx="1.2" fill={color} /></svg>
+  );
+}
+function BSProSoundtracks({ role = 'trainer', onBack }) {
+  const t = useBS();
+  const gold = '#d8b25a', teal = t.isLight ? '#0a8f87' : '#34d6c5', purple = '#8a5cf6';
+  const [extra, setExtra] = useStateBSP(() => bsReadJSON('bs_coach_soundtracks', []));
+  const [assign, setAssign] = useStateBSP(() => bsReadJSON('bs_coach_soundtrack_assign', {}));
+  const [query, setQuery] = useStateBSP('');
+  const [filter, setFilter] = useStateBSP('all');
+  const [importing, setImporting] = useStateBSP(false);
+  const [assignFor, setAssignFor] = useStateBSP(null);
+  // import form
+  const [iName, setIName] = useStateBSP('');
+  const [iProvider, setIProvider] = useStateBSP('spotify');
+  const [iTag, setITag] = useStateBSP('');
+  const [iUrl, setIUrl] = useStateBSP('');
+
+  const all = [...extra, ...BS_SOUNDTRACKS_DEMO];
+  const providerLabel = (p) => p === 'apple' ? 'APPLE MUSIC' : 'SPOTIFY';
+  const providerDot = (p) => p === 'apple' ? '#fc3c44' : '#1ED760';
+  const assignedCount = (id) => (assign[id] || []).length;
+  const shown = all
+    .filter(p => filter === 'all' ? true : p.provider === filter)
+    .filter(p => { const q = query.trim().toLowerCase(); return !q || p.name.toLowerCase().includes(q) || (p.tag || '').toLowerCase().includes(q); });
+  const totalAttached = all.reduce((s, p) => s + (p.used || 0) + assignedCount(p.id), 0);
+
+  const saveImport = () => {
+    const name = iName.trim();
+    if (!name) return;
+    const pl = { id: 'c' + Date.now(), name, provider: iProvider, tag: iTag.trim() || 'Custom', tracks: 0, dur: '—', bpm: '—', used: 0, url: iUrl.trim(), c: iProvider === 'apple' ? '#b9a13e' : '#4a6fb0', custom: true };
+    const next = [pl, ...extra];
+    setExtra(next); bsWriteJSON('bs_coach_soundtracks', next);
+    setIName(''); setITag(''); setIUrl(''); setIProvider('spotify');
+    setImporting(false);
+  };
+  const toggleAssign = (playlistId, targetId) => {
+    const cur = assign[playlistId] || [];
+    const nextArr = cur.includes(targetId) ? cur.filter(x => x !== targetId) : [...cur, targetId];
+    const next = { ...assign, [playlistId]: nextArr };
+    setAssign(next); bsWriteJSON('bs_coach_soundtrack_assign', next);
+  };
+
+  // ── Import sub-view ──
+  if (importing) {
+    const field = (label, value, set, placeholder) => (
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: gold, marginBottom: 7 }}>{label}</div>
+        <input value={value} onChange={(e) => set(e.target.value)} placeholder={placeholder} style={{ width: '100%', boxSizing: 'border-box', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '12px 13px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' }} />
+      </div>
+    );
+    return (
+      <BSPage>
+        <div style={{ padding: `50px ${t.padX}px 28px` }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>NEW SOUNDTRACK</div>
+            <button onClick={() => setImporting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
+          </div>
+          <div style={{ marginTop: 10, fontFamily: t.SERIF, fontSize: 36, fontWeight: 600, color: t.INK, lineHeight: 1, letterSpacing: '-0.02em' }}>Import a<br /><span style={{ fontStyle: 'italic', color: gold }}>playlist.</span></div>
+          <div style={{ marginTop: 22 }}>
+            {field('NAME', iName, setIName, 'Heavy Lifts')}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: gold, marginBottom: 7 }}>SOURCE</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {[['spotify', 'Spotify'], ['apple', 'Apple Music']].map(([k, l]) => {
+                  const on = iProvider === k;
+                  return <button key={k} onClick={() => setIProvider(k)} style={{ flex: 1, borderRadius: 999, padding: '11px 6px', cursor: 'pointer', border: `1px solid ${on ? gold : t.RULE}`, background: on ? `${gold}1c` : 'transparent', color: on ? gold : t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}><span style={{ width: 8, height: 8, borderRadius: 999, background: providerDot(k) }} />{l}</button>;
+                })}
+              </div>
+            </div>
+            {field('TAG', iTag, setITag, 'High energy')}
+            {field('PLAYLIST LINK', iUrl, setIUrl, 'https://open.spotify.com/playlist/…')}
+            <button onClick={saveImport} disabled={!iName.trim()} style={{ width: '100%', marginTop: 6, borderRadius: 14, border: 0, background: gold, color: '#241c08', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: iName.trim() ? 1 : 0.5 }}>Save soundtrack →</button>
+            <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Saved to your library · assign it to any workout or plan</div>
+          </div>
+        </div>
+        <BSFooter left="New soundtrack" right="Library" />
+      </BSPage>
+    );
+  }
+
+  // ── Assign sub-view ──
+  if (assignFor) {
+    const pl = all.find(p => p.id === assignFor) || {};
+    const sel = assign[assignFor] || [];
+    return (
+      <BSPage>
+        <div style={{ padding: `50px ${t.padX}px 28px` }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>ASSIGN SOUNDTRACK</div>
+            <button onClick={() => setAssignFor(null)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
+          </div>
+          <div style={{ marginTop: 10, fontFamily: t.SERIF, fontSize: 32, fontWeight: 600, color: t.INK, lineHeight: 1.02, letterSpacing: '-0.02em' }}>{pl.name} <span style={{ fontStyle: 'italic', color: gold }}>→</span></div>
+          <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: t.INK50 }}>{providerLabel(pl.provider)} · attach to workouts & meal plans</div>
+          <div style={{ marginTop: 22, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {BS_SOUNDTRACK_TARGETS.map(tg => {
+              const on = sel.includes(tg.id);
+              return (
+                <button key={tg.id} onClick={() => toggleAssign(assignFor, tg.id)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', borderRadius: 14, border: `1px solid ${on ? gold : t.RULE}`, background: on ? `${gold}14` : t.PAPER2, padding: '14px 15px' }}>
+                  <div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.12em', color: tg.kind === 'Meal plan' ? teal : t.RUST }}>{tg.kind.toUpperCase()}</div>
+                    <div style={{ marginTop: 4, fontFamily: t.SERIF, fontSize: 16, fontWeight: 600, color: t.INK }}>{tg.name}</div>
+                  </div>
+                  <span style={{ width: 24, height: 24, borderRadius: 999, border: `1px solid ${on ? gold : t.RULE}`, background: on ? gold : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#241c08', fontSize: 13, fontWeight: 800 }}>{on ? '✓' : ''}</span>
+                </button>
+              );
+            })}
+          </div>
+          <button onClick={() => setAssignFor(null)} style={{ width: '100%', marginTop: 18, borderRadius: 14, border: 0, background: gold, color: '#241c08', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Done · {sel.length} attached</button>
+        </div>
+        <BSFooter left="Assign" right={pl.name} />
+      </BSPage>
+    );
+  }
+
+  // ── Library (main) ──
+  const stat = (label, value, sub, color) => (
+    <div style={{ borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '13px 14px' }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color }}>{label}</div>
+      <div style={{ marginTop: 5, fontFamily: t.SERIF, fontSize: 26, fontWeight: 600, color: t.INK, lineHeight: 1 }}>{value}</div>
+      <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{sub}</div>
+    </div>
+  );
+  return (
+    <BSPage>
+      <div style={{ padding: `46px ${t.padX}px 28px` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <button onClick={onBack} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
+          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>{all.length} PLAYLISTS</span>
+        </div>
+        <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>SOUNDTRACK LIBRARY</div>
+        <div style={{ marginTop: 8, fontFamily: t.SERIF, fontSize: 40, fontWeight: 600, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>Your<br /><span style={{ fontStyle: 'italic', color: gold }}>soundtracks.</span></div>
+        <div style={{ marginTop: 12, fontFamily: t.SERIF, fontSize: 14.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.5 }}>Premade playlists you can attach to any workout or meal plan — no need to build a new one each time.</div>
+
+        {/* New soundtrack */}
+        <button onClick={() => setImporting(true)} style={{ width: '100%', marginTop: 20, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 14, alignItems: 'center', borderRadius: 16, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 16 }}>
+          <span style={{ width: 48, height: 48, borderRadius: 12, background: gold, color: '#241c08', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, fontWeight: 300, lineHeight: 1 }}>+</span>
+          <div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>NEW SOUNDTRACK</div>
+            <div style={{ marginTop: 4, fontFamily: t.SERIF, fontSize: 18, fontWeight: 600, color: t.INK, lineHeight: 1.15 }}>Import from Spotify or Apple Music</div>
+          </div>
+          <span style={{ color: gold, fontSize: 16 }}>→</span>
+        </button>
+
+        {/* Stats */}
+        <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+          {stat('PLAYLISTS', String(all.length), '', gold)}
+          {stat('ATTACHED', String(totalAttached), 'to plans', teal)}
+          {stat('SOURCES', '2', 'connected', purple)}
+        </div>
+
+        {/* Search */}
+        <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', gap: 9, borderBottom: `1px solid ${t.RULE}`, padding: '8px 2px' }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={t.INK50} strokeWidth="2" style={{ flexShrink: 0 }}><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" strokeLinecap="round" /></svg>
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search soundtracks…" style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 15 }} />
+        </div>
+
+        {/* Filter pills */}
+        <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {[['all', `All · ${all.length}`], ['spotify', 'Spotify'], ['apple', 'Apple Music']].map(([k, l]) => {
+            const on = filter === k;
+            return <button key={k} onClick={() => setFilter(k)} style={{ borderRadius: 999, padding: '8px 15px', cursor: 'pointer', border: `1px solid ${on ? gold : t.RULE}`, background: on ? `${gold}1c` : 'transparent', color: on ? gold : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{l}</button>;
+          })}
+        </div>
+
+        {/* Playlist cards */}
+        <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {shown.length === 0 && (
+            <div style={{ padding: '22px 16px', borderRadius: 16, border: `1px dashed ${t.RULE}`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>No soundtracks match.</div>
+          )}
+          {shown.map((p) => {
+            const att = assignedCount(p.id);
+            return (
+              <div key={p.id} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 13, alignItems: 'center', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 13 }}>
+                <div style={{ position: 'relative', width: 58, height: 58, borderRadius: 12, background: `linear-gradient(150deg, ${p.c}, ${p.c}99)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {bsEqGlyph('#ffffffd0')}
+                  <span style={{ position: 'absolute', top: 6, right: 6, width: 9, height: 9, borderRadius: 999, background: providerDot(p.provider), border: '1.5px solid rgba(0,0,0,0.25)' }} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: 999, background: providerDot(p.provider) }} />
+                    {providerLabel(p.provider)} · {(p.tag || '').toUpperCase()}
+                  </div>
+                  <div style={{ marginTop: 3, fontFamily: t.SERIF, fontSize: 18, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.1 }}>{p.name}</div>
+                  <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.02em', lineHeight: 1.4 }}>{p.tracks} tracks · {p.dur} · {p.bpm} BPM · {att > 0 ? `assigned ${att}` : `used by ${p.used}`}</div>
+                </div>
+                <button onClick={() => setAssignFor(p.id)} style={{ alignSelf: 'stretch', minWidth: 64, borderRadius: 12, border: `1px solid ${att > 0 ? gold : `${gold}77`}`, background: att > 0 ? `${gold}1c` : 'transparent', color: gold, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer', padding: '0 10px' }}>ASSIGN</button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <BSFooter left="Soundtracks" right={`${all.length} playlists`} />
+    </BSPage>
+  );
+}
+
 function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
   const t = useBS();
   const isCoach = role === 'trainer';
@@ -3044,6 +3267,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
   const [showPublicProfile, setShowPublicProfile] = useStateBSP(false);
   const [showBookingCalendar, setShowBookingCalendar] = useStateBSP(false);
   const [showNotifications, setShowNotifications] = useStateBSP(false);
+  const [showSoundtracks, setShowSoundtracks] = useStateBSP(false);
   const scoreProfile = _bsUseLiveScore(SHAPE_SCORE_PROFILES?.[role] || SHAPE_SCORE_PROFILES?.client); // live points/tier when signed in
   const startPayoutSetup = async () => {
     try {
@@ -3073,6 +3297,9 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
   }
   if (showBookingCalendar) {
     return <BSCalendarScreen role={role} onProfile={() => setShowPublicProfile(true)} onBack={() => setShowBookingCalendar(false)} />;
+  }
+  if (showSoundtracks) {
+    return <BSProSoundtracks role={role} onBack={() => setShowSoundtracks(false)} />;
   }
   if (showNotifications) {
     return <BSProNotificationsPage onBack={() => setShowNotifications(false)} />;
@@ -3207,6 +3434,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
           { l: 'Payouts', sub: 'Weekly · Stripe · Fri', r: '$4,820', onClick: startPayoutSetup },
           { l: 'Availability', sub: 'Mon-Fri · 9 am - 6 pm', r: 'Edit', onClick: () => setShowBookingCalendar(true) },
           { l: 'Rates', sub: isCoach ? '$95/session · $120/mo' : '$140/plan · $80/consult', r: 'Edit', onClick: () => setShowPublicProfile(true) },
+          { l: 'Soundtracks', sub: 'Saved playlists · assign to plans', r: '→', onClick: () => setShowSoundtracks(true) },
           { l: 'Shape Store', sub: `${(scoreProfile.available || 0).toLocaleString()} pts available`, r: '→', onClick: () => setShowStore(true) },
         ];
         const settings = [
