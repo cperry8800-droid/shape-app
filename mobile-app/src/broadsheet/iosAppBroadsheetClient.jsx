@@ -3729,7 +3729,7 @@ function bsSkParseIngredient(s) {
 // Recipe box — your personal recipes: All / Saved (liked) / meal-type filters,
 // each card sends to ITS OWN grocery list, with a ♥ Save toggle. Shape Kitchen
 // (the full catalog) stays reachable via the "Browse" card.
-function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView }) {
+function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onProfile = () => {} }) {
   const t = useBS();
   _bsScrollTopOnMount();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -3778,7 +3778,8 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView }) {
   );
   return (
     <BSPage>
-      <div style={{ padding: `54px ${t.padX}px 0` }}>
+      <BSPageHeader trailing={<BSAvatar init={bsMyInitials()} size={32} fill={bsMyTierColor()} onClick={onProfile} />} />
+      <div style={{ padding: `4px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Eat · Shape Kitchen</div>
         <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 34, fontWeight: t.W.display, lineHeight: 0.92, letterSpacing: '-0.035em', color: t.INK }}>Shape<br/><span style={{ fontStyle: 'italic', color: teal }}>Kitchen.</span></h1>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, lineHeight: 1.4, color: t.INK70 }}>Save the meals you cook — send any recipe straight to its own grocery list.</div>
@@ -5158,7 +5159,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
     </div>
   ), (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body) : null;
 
-  if (view === 'grocery') return <>{newListSheet}{saveSheet}<BSGrocery list={activeGroceryList} onBack={() => setView('eat')} onLibrary={() => setView('library')} recipeLists={recipeLists} onChangeView={setView} editable={!!activeGroceryList.editable} onUpdate={persistGroceryList} onCreate={createGroceryList} onSaveToLibrary={openSaveToLibrary} /></>;
+  if (view === 'grocery') return <>{newListSheet}{saveSheet}<BSGrocery list={activeGroceryList} onBack={() => setView('eat')} onLibrary={() => setView('library')} recipeLists={recipeLists} onChangeView={setView} editable={!!activeGroceryList.editable} onUpdate={persistGroceryList} onCreate={createGroceryList} onSaveToLibrary={openSaveToLibrary} onProfile={onProfile} /></>;
   if (view === 'library') return <>{newListSheet}<BSGroceryLibrary onBack={() => setView('grocery')} onLoad={loadGroceryList} recipeLists={recipeLists} onCreate={createGroceryList} onEdit={editGroceryList} onDuplicate={duplicateGroceryList} onDelete={deleteGroceryList} deletedIds={deletedGroceryIds} /></>;
   if (view === 'build') return <BSGroceryBuilder onCancel={() => setView('grocery')} onCreate={createListFromBuilder} />;
   if (view === 'recipes') {
@@ -5179,6 +5180,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
         onChangeView={(v) => { setSkRecipe(null); setView(v); }}
         onOpenRecipe={(r) => setSkRecipe(r)}
         onSendToGrocery={sendRecipeToGrocery}
+        onProfile={onProfile}
       />
     );
   }
@@ -10796,7 +10798,7 @@ function BSGroceryBuilder({ onCancel, onCreate }) {
   );
 }
 
-function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onChangeView = () => {}, editable = false, onUpdate = () => {}, onCreate = () => {}, onSaveToLibrary = null }) {
+function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onChangeView = () => {}, editable = false, onUpdate = () => {}, onCreate = () => {}, onSaveToLibrary = null, onProfile = () => {} }) {
   const t = useBS();
   _bsScrollTopOnMount();
   const list = bsNormalizeGroceryList(activeList || BS_GROCERY_DEFAULT);
@@ -10858,8 +10860,9 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
 
   return (
     <BSPage>
+      <BSPageHeader trailing={<BSAvatar init={bsMyInitials()} size={32} fill={bsMyTierColor()} onClick={onProfile} />} />
       {/* Header */}
-      <div style={{ padding: `54px ${t.padX}px 0` }}>
+      <div style={{ padding: `4px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: rust }}>{(list.eyebrow || 'Auto-built from plan').toUpperCase()}</div>
