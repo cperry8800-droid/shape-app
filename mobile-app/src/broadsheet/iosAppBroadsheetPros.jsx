@@ -2244,8 +2244,16 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     { n: 'Squat & deadlift form', meta: '8 videos · 14 min · in 3 plans' },
     { n: 'Warmup & mobility', meta: '6 videos · 9 min · in 4 plans' },
   ];
-  const [tab, setTab] = useStateBSP('plans');
-  const TABS = [['plans', 'Plans'], ['workouts', 'Workouts'], ['clients', 'Programs'], ['soundtracks', 'Soundtracks']];
+  const [tab, setTab] = useStateBSP('library');
+  const TABS = [['library', 'Library'], ['soundtracks', 'Soundtracks']];
+  // Library sub-tabs. NOTE the labels: Plans = multi-week paid programs,
+  // Programs = reusable weekly routines/templates, Workouts = single sessions.
+  const [libTab, setLibTab] = useStateBSP('plans');
+  const LIB_TABS = [['plans', 'Plans'], ['workouts', 'Workouts'], ['programs', 'Programs']];
+  const [buildType, setBuildType] = useStateBSP('plan'); // plan | workout | program
+  const BUILD_LABEL = { plan: 'plan', workout: 'workout', program: 'program' };
+  const openDraft = (type) => { setBuildType(type); setDrafting(true); };
+  // Single day workouts
   const workouts = [
     { n: 'Lower Push — Peak', meta: '6 lifts · 62 min · RPE 8' },
     { n: 'Upper Pull — Volume', meta: '7 lifts · 58 min · RPE 7.5' },
@@ -2253,12 +2261,21 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     { n: 'Full-body Conditioning', meta: '5 rounds · 35 min · RPE 8' },
     { n: 'Deload Circuit', meta: '4 lifts · 40 min · RPE 6' },
   ];
+  // Reusable weekly routines / templates (the "Programs" sub-tab)
+  const routines = [
+    { n: '5-day Upper / Lower', meta: '5 days/wk · 8-week block' },
+    { n: '3-day Full Body', meta: '3 days/wk · beginner' },
+    { n: 'PPL · 6-day split', meta: '6 days/wk · intermediate' },
+    { n: 'Bro split · 5-day', meta: '5 days/wk · hypertrophy' },
+  ];
+  // Clients enrolled per paid plan (shown under the Plans sub-tab)
   const enrolled = [
     { prog: 'Push / Pull / Legs', n: 48, who: [['A', t.RUST], ['J', '#3b7de0'], ['C', t.AMBER]] },
     { prog: 'Starting Strength', n: 31, who: [['R', t.AMBER], ['P', '#3b7de0']] },
     { prog: 'Fat Loss 101', n: 22, who: [['P', '#8a5cf6'], ['D', t.RUST]] },
     { prog: 'Hypertrophy Block', n: 19, who: [['S', '#2f7d4f']] },
   ];
+  const libBuild = ({ plans: 'plan', workouts: 'workout', programs: 'program' })[libTab] || 'plan';
 
   if (showSoundtracks) return <BSProSoundtracks role="trainer" onBack={() => setShowSoundtracks(false)} />;
 
@@ -2277,8 +2294,9 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     );
     const generate = async () => {
       setDraftStatus('Generating…');
-      try { await window.ShapeAI?.generatePlanDraft?.({ kind: 'workout', goal: focus, client: '', level: exp, duration: length, preferences: `${desc} · ${equip}`, equipment: equip }); } catch (e) {}
-      const payload = { kind: 'program', name: `${focus} block`, meta: `${length} · ${exp.toLowerCase()} · new`, price: '$110', detail: { focus, exp, equip, length, desc } };
+      try { await window.ShapeAI?.generatePlanDraft?.({ kind: buildType, goal: focus, client: '', level: exp, duration: length, preferences: `${desc} · ${equip}`, equipment: equip }); } catch (e) {}
+      const typeName = BUILD_LABEL[buildType];
+      const payload = { kind: 'program', name: `${focus} ${typeName}`, meta: `${typeName} · ${length} · ${exp.toLowerCase()}`, price: buildType === 'plan' ? '$110' : null, detail: { buildType, focus, exp, equip, length, desc } };
       let saved = false;
       if (window.ShapeCoachPlans?.create) { try { const row = await window.ShapeCoachPlans.create(payload); if (row) { setServerPlans(list => [row, ...(list || [])]); saved = true; } } catch (e) {} }
       setDraftStatus(saved ? 'Draft saved · edit before publishing' : 'Draft ready · edit before publishing');
@@ -2288,10 +2306,21 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
       <BSPage>
         <div style={{ padding: `50px ${t.padX}px 28px` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: teal }}>✦ AI DRAFT · WORKOUT</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: teal }}>✦ AI DRAFT · {BUILD_LABEL[buildType].toUpperCase()}</div>
             <button onClick={() => setDrafting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>CANCEL</button>
           </div>
-          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Describe the <span style={{ fontStyle: 'italic', color: teal }}>workout.</span></div>
+          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Describe the <span style={{ fontStyle: 'italic', color: teal }}>{BUILD_LABEL[buildType]}.</span></div>
+          {/* What are you building? */}
+          <div style={{ marginTop: 16 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: t.INK50, marginBottom: 8 }}>BUILDING</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {[['plan', 'Plan'], ['workout', 'Workout'], ['program', 'Program']].map(([k, l]) => {
+                const on = buildType === k;
+                return <button key={k} onClick={() => setBuildType(k)} style={{ flex: 1, borderRadius: 999, padding: '10px 6px', cursor: 'pointer', border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}1c` : 'transparent', color: on ? teal : t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{l}</button>;
+              })}
+            </div>
+            <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK50 }}>{buildType === 'plan' ? 'A multi-week paid program clients enroll in.' : buildType === 'program' ? 'A reusable weekly routine / template.' : 'A single day workout session.'}</div>
+          </div>
           <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={3} placeholder="e.g. 45-min upper body for an intermediate lifter, shoulder-friendly, dumbbells only" style={{ width: '100%', boxSizing: 'border-box', marginTop: 18, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: 14, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, resize: 'vertical', outline: 'none' }} />
           {chips('FOCUS', focus, setFocus, ['Push', 'Pull', 'Legs', 'Upper', 'Lower', 'Full body', 'Conditioning'])}
           {chips('EXPERIENCE', exp, setExp, ['Beginner', 'Intermediate', 'Advanced'])}
@@ -2340,26 +2369,34 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         </div>
         {note && <div style={{ marginTop: 14, borderRadius: 999, border: `1px solid ${teal}`, background: `${teal}1c`, color: teal, padding: '9px 14px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em' }}>✓ {note}</div>}
 
-        {/* Tabs — Plans / Workouts / Client programs / Soundtracks */}
-        <div style={{ marginTop: 18, display: 'flex', gap: 5 }}>
+        {/* Top tabs — Library / Soundtracks */}
+        <div style={{ marginTop: 18, display: 'flex', gap: 6 }}>
           {TABS.map(([k, l]) => (
-            <button key={k} onClick={() => setTab(k)} style={{ flex: 1, minWidth: 0, borderRadius: 999, border: `1px solid ${tab === k ? teal : t.RULE}`, background: tab === k ? `${teal}1c` : 'transparent', color: tab === k ? teal : t.INK, padding: '8px 4px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.03em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l}</button>
+            <button key={k} onClick={() => setTab(k)} style={{ flex: 1, minWidth: 0, borderRadius: 999, border: `1px solid ${tab === k ? teal : t.RULE}`, background: tab === k ? `${teal}1c` : 'transparent', color: tab === k ? teal : t.INK, padding: '9px 6px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{l}</button>
           ))}
         </div>
 
-        {tab === 'plans' && (<>
-        {/* Generate with AI */}
-        <button onClick={() => setDrafting(true)} style={{ width: '100%', marginTop: 14, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', borderRadius: 14, border: `1px solid ${teal}44`, background: `linear-gradient(150deg, ${teal}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 12 }}>
+        {tab === 'library' && (<>
+        {/* Generate with AI — builds the active library type */}
+        <button onClick={() => openDraft(libBuild)} style={{ width: '100%', marginTop: 14, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', borderRadius: 14, border: `1px solid ${teal}44`, background: `linear-gradient(150deg, ${teal}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 12 }}>
           <span style={{ width: 40, height: 40, borderRadius: 10, background: teal, color: '#04201d', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✦</span>
           <div>
             <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', color: teal }}>GENERATE WITH AI</div>
-            <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, lineHeight: 1.15 }}>Draft a workout in seconds</div>
+            <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, lineHeight: 1.15 }}>Draft a {libBuild} in seconds</div>
           </div>
           <span style={{ color: teal, fontSize: 15 }}>→</span>
         </button>
-        <button onClick={() => setDrafting(true)} style={{ display: 'block', width: '100%', marginTop: 9, textAlign: 'center', border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Or start from blank →</button>
+        <button onClick={() => openDraft(libBuild)} style={{ display: 'block', width: '100%', marginTop: 9, textAlign: 'center', border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Or start from blank →</button>
 
-        {/* Top seller */}
+        {/* Library sub-tabs — Plans / Workouts / Programs */}
+        <div style={{ marginTop: 16, display: 'flex', gap: 6 }}>
+          {LIB_TABS.map(([k, l]) => (
+            <button key={k} onClick={() => setLibTab(k)} style={{ flex: 1, borderRadius: 999, border: `1px solid ${libTab === k ? teal : t.RULE}`, background: libTab === k ? `${teal}1c` : 'transparent', color: libTab === k ? teal : t.INK50, padding: '8px 6px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{l}</button>
+          ))}
+        </div>
+
+        {libTab === 'plans' && (<>
+        {/* Top seller (multi-week paid plan) */}
         <div style={{ marginTop: 14, borderRadius: 16, border: `1px solid ${teal}44`, background: `linear-gradient(150deg, ${teal}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: teal }}>TOP SELLER</span>
@@ -2368,40 +2405,14 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
           <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Push / Pull / <span style={{ fontStyle: 'italic', color: teal }}>Legs.</span></div>
           <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em' }}>12 weeks · 48 on it · $5,760 MRR · 4.9 ★</div>
           <div style={{ marginTop: 11, display: 'flex', gap: 7 }}>
-            <button onClick={() => setDrafting(true)} style={{ borderRadius: 999, border: 0, background: teal, color: '#04201d', padding: '8px 15px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>EDIT</button>
+            <button onClick={() => openDraft('plan')} style={{ borderRadius: 999, border: 0, background: teal, color: '#04201d', padding: '8px 15px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>EDIT</button>
             <button onClick={() => duplicate({ n: 'Push / Pull / Legs', meta: '12 wk · 48 on it · 4.9 ★', price: '$120/mo' })} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '8px 13px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>DUPLICATE</button>
             <button onClick={() => share('Push Pull Legs')} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '8px 13px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SHARE →</button>
           </div>
         </div>
-
-        {/* Catalogue */}
-        {secHead('TRACKLIST', 'Catalogue', `SORT · ${sort.toUpperCase()} →`, cycleSort)}
-        <div style={{ marginTop: 6 }}>{programs.map((p, i) => numRow({ ...p, onClick: () => setDrafting(true) }, i, p.price))}</div>
-        </>)}
-
-        {tab === 'workouts' && (<>
-        {/* Single workouts library */}
-        {secHead('LIBRARY', 'Workouts', 'NEW →', () => setDrafting(true))}
-        <div style={{ marginTop: 6 }}>{workouts.map((w, i) => numRow({ ...w, onClick: () => setDrafting(true) }, i, '→'))}</div>
-
-        {/* Video library — upload videos of the workouts in your plans */}
-        {secHead('WORKOUT VIDEOS', 'Video library', 'UPLOAD →', () => flash('Upload a workout video — record or add from camera roll'))}
-        <button onClick={() => flash('Upload a workout video — record or add from camera roll')} style={{ width: '100%', marginTop: 10, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 13, alignItems: 'center', borderRadius: 16, border: `1px dashed ${purple}66`, background: `linear-gradient(150deg, ${purple}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 14 }}>
-          <span style={{ width: 50, height: 50, borderRadius: 12, background: `linear-gradient(150deg, ${purple}, ${purple}99)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffffe0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg>
-          </span>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>Upload a workout video</div>
-            <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.02em' }}>Record or add from camera roll · link it to a plan</div>
-          </div>
-          <span style={{ color: purple, fontSize: 18, fontWeight: 700 }}>＋</span>
-        </button>
-        <div style={{ marginTop: 4 }}>{cues.map((c, i) => numRow({ ...c, onClick: () => flash('Open video set') }, i, '→'))}</div>
-        </>)}
-
-        {tab === 'clients' && (<>
-        {/* Programs → clients on each */}
-        {secHead('ENROLLED', 'Client programs')}
+        {secHead('PAID PLANS', 'Catalogue', `SORT · ${sort.toUpperCase()} →`, cycleSort)}
+        <div style={{ marginTop: 6 }}>{programs.map((p, i) => numRow({ ...p, onClick: () => openDraft('plan') }, i, p.price))}</div>
+        {secHead('ENROLLED', 'Clients on plans')}
         <div style={{ marginTop: 6 }}>
           {enrolled.map((e, i) => (
             <div key={i} onClick={() => flash(`${e.n} clients on ${e.prog}`)} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', padding: '15px 0', borderTop: `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
@@ -2420,6 +2431,33 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
             </div>
           ))}
         </div>
+        </>)}
+
+        {libTab === 'workouts' && (<>
+        {/* Single day workouts */}
+        {secHead('SESSIONS', 'Workouts', 'NEW →', () => openDraft('workout'))}
+        <div style={{ marginTop: 6 }}>{workouts.map((w, i) => numRow({ ...w, onClick: () => openDraft('workout') }, i, '→'))}</div>
+
+        {/* Video library — upload videos of the workouts in your plans */}
+        {secHead('WORKOUT VIDEOS', 'Video library', 'UPLOAD →', () => flash('Upload a workout video — record or add from camera roll'))}
+        <button onClick={() => flash('Upload a workout video — record or add from camera roll')} style={{ width: '100%', marginTop: 10, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 13, alignItems: 'center', borderRadius: 16, border: `1px dashed ${purple}66`, background: `linear-gradient(150deg, ${purple}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 14 }}>
+          <span style={{ width: 50, height: 50, borderRadius: 12, background: `linear-gradient(150deg, ${purple}, ${purple}99)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffffe0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg>
+          </span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>Upload a workout video</div>
+            <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.02em' }}>Record or add from camera roll · link it to a plan</div>
+          </div>
+          <span style={{ color: purple, fontSize: 18, fontWeight: 700 }}>＋</span>
+        </button>
+        <div style={{ marginTop: 4 }}>{cues.map((c, i) => numRow({ ...c, onClick: () => flash('Open video set') }, i, '→'))}</div>
+        </>)}
+
+        {libTab === 'programs' && (<>
+        {/* Reusable weekly routines / templates */}
+        {secHead('TEMPLATES', 'Programs', 'NEW →', () => openDraft('program'))}
+        <div style={{ marginTop: 6 }}>{routines.map((r, i) => numRow({ ...r, onClick: () => openDraft('program') }, i, '→'))}</div>
+        </>)}
         </>)}
 
         {tab === 'soundtracks' && (<>
