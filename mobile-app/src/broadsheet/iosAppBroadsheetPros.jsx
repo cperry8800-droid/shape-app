@@ -4031,17 +4031,65 @@ function BSProNotificationsPage({ onBack }) {
 // Broadsheet-style goal-plan section — paper, ink, serif headings,
 // rule-lines and mono kickers. Lives at the bottom of the Me page.
 // Edit sheet for the coach practice goal — module-level (stable) so inputs
-// keep focus. Edits the headline, target, vision and milestones; persists.
+// keep focus. Edits the headline, target, vision, milestones, stat cards,
+// "what's growing it" rows and the weekly targets; persists.
 function BSGoalEditSheet({ t, accent, accentInk = '#241c08', goal, onSave, onCancel }) {
-  const [g, setG] = useStateBSP(() => ({ ...goal, milestones: (goal.milestones || []).map(m => ({ ...m })) }));
+  const [g, setG] = useStateBSP(() => ({
+    ...goal,
+    milestones: (goal.milestones || []).map(m => ({ ...m })),
+    stats: (goal.stats || []).map(s => ({ ...s })),
+    growing: (goal.growing || []).map(s => ({ ...s })),
+    targets: (goal.targets || []).map(s => ({ ...s })),
+  }));
   const set = (k, v) => setG(s => ({ ...s, [k]: v }));
   const setM = (i, k, v) => setG(s => ({ ...s, milestones: s.milestones.map((m, j) => (j === i ? { ...m, [k]: v } : m)) }));
   const toggleM = (i) => setG(s => ({ ...s, milestones: s.milestones.map((m, j) => (j === i ? { ...m, done: !m.done } : m)) }));
   const rmM = (i) => setG(s => ({ ...s, milestones: s.milestones.filter((_, j) => j !== i) }));
   const addM = () => setG(s => ({ ...s, milestones: [...s.milestones, { t: '', sub: '', when: '', done: false }] }));
+  const setList = (key, i, k, v) => setG(s => ({ ...s, [key]: (s[key] || []).map((it, j) => (j === i ? { ...it, [k]: v } : it)) }));
+  const rmList = (key, i) => setG(s => ({ ...s, [key]: (s[key] || []).filter((_, j) => j !== i) }));
+  const addList = (key, blank) => setG(s => ({ ...s, [key]: [...(s[key] || []), blank] }));
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const rust = t.RUST || '#c0533b';
+  const purple = '#8a5cf6';
+  const green = t.GREEN || '#3f9a5c';
+  const PALETTE = [['accent', accent], ['teal', teal], ['rust', rust], ['purple', purple], ['green', green]];
   const lbl = (x) => <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: accent, marginBottom: 7 }}>{x}</div>;
   const inputStyle = { width: '100%', boxSizing: 'border-box', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '11px 12px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' };
+  const addBtn = { border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: accent };
+  const rmBtn = { border: 0, background: 'transparent', color: t.INK50, fontSize: 18, lineHeight: 1, cursor: 'pointer', padding: '0 2px' };
+  const cardBox = { borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 11 };
   const field = (label, key, ph) => <div style={{ marginTop: 14 }}>{lbl(label)}<input value={g[key] || ''} onChange={(e) => set(key, e.target.value)} placeholder={ph} style={inputStyle} /></div>;
+  const swatchRow = (key, i, val) => (
+    <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+      {PALETTE.map(([ck, cc]) => (
+        <button key={ck} onClick={() => setList(key, i, 'c', ck)} aria-label={ck} style={{ width: 22, height: 22, borderRadius: 999, background: cc, border: val === ck ? `2px solid ${t.INK}` : '2px solid transparent', cursor: 'pointer', padding: 0 }} />
+      ))}
+    </div>
+  );
+  const cardListEditor = (key, label, addBlank) => (
+    <div style={{ marginTop: 18 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        {lbl(label)}
+        <button onClick={() => addList(key, addBlank)} style={addBtn}>+ ADD</button>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {(g[key] || []).map((it, i) => (
+          <div key={i} style={cardBox}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input value={it.l || ''} onChange={(e) => setList(key, i, 'l', e.target.value)} placeholder="Label" style={{ ...inputStyle, padding: '9px 11px' }} />
+              <button onClick={() => rmList(key, i)} aria-label="Remove" style={rmBtn}>×</button>
+            </div>
+            <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <input value={it.v || ''} onChange={(e) => setList(key, i, 'v', e.target.value)} placeholder="Value" style={{ ...inputStyle, padding: '9px 11px' }} />
+              <input value={it.s || ''} onChange={(e) => setList(key, i, 's', e.target.value)} placeholder="Sub" style={{ ...inputStyle, padding: '9px 11px', fontSize: 12 }} />
+            </div>
+            {swatchRow(key, i, it.c)}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
   return (
     <BSPage>
       <div style={{ padding: `50px ${t.padX}px 28px` }}>
@@ -4068,19 +4116,43 @@ function BSGoalEditSheet({ t, accent, accentInk = '#241c08', goal, onSave, onCan
         <div style={{ marginTop: 18 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             {lbl('MILESTONES')}
-            <button onClick={addM} style={{ border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: accent }}>+ ADD</button>
+            <button onClick={addM} style={addBtn}>+ ADD</button>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {g.milestones.map((m, i) => (
-              <div key={i} style={{ borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 11 }}>
+              <div key={i} style={cardBox}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <button onClick={() => toggleM(i)} aria-label="Toggle done" style={{ width: 22, height: 22, flexShrink: 0, borderRadius: 6, border: `1.5px solid ${m.done ? accent : t.RULE}`, background: m.done ? accent : 'transparent', color: accentInk, cursor: 'pointer', fontSize: 12, fontWeight: 800, lineHeight: 1 }}>{m.done ? '✓' : ''}</button>
                   <input value={m.t || ''} onChange={(e) => setM(i, 't', e.target.value)} placeholder="Milestone" style={{ ...inputStyle, padding: '9px 11px' }} />
-                  <button onClick={() => rmM(i)} aria-label="Remove" style={{ border: 0, background: 'transparent', color: t.INK50, fontSize: 18, lineHeight: 1, cursor: 'pointer', padding: '0 2px' }}>×</button>
+                  <button onClick={() => rmM(i)} aria-label="Remove" style={rmBtn}>×</button>
                 </div>
                 <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: '1fr 90px', gap: 8 }}>
                   <input value={m.sub || ''} onChange={(e) => setM(i, 'sub', e.target.value)} placeholder="detail" style={{ ...inputStyle, padding: '9px 11px', fontSize: 12 }} />
                   <input value={m.when || ''} onChange={(e) => setM(i, 'when', e.target.value)} placeholder="When" style={{ ...inputStyle, padding: '9px 11px', fontSize: 12, textAlign: 'center' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {cardListEditor('stats', 'METRICS · STAT CARDS', { l: '', v: '', s: '', c: 'accent' })}
+        {cardListEditor('targets', 'THIS WEEK · TARGETS', { l: '', v: '', s: '', c: 'teal' })}
+
+        <div style={{ marginTop: 18 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            {lbl("WHAT'S GROWING IT")}
+            <button onClick={() => addList('growing', { t: '', sub: '', r: '' })} style={addBtn}>+ ADD</button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {(g.growing || []).map((it, i) => (
+              <div key={i} style={cardBox}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input value={it.t || ''} onChange={(e) => setList('growing', i, 't', e.target.value)} placeholder="Title" style={{ ...inputStyle, padding: '9px 11px' }} />
+                  <button onClick={() => rmList('growing', i)} aria-label="Remove" style={rmBtn}>×</button>
+                </div>
+                <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: '1fr 96px', gap: 8 }}>
+                  <input value={it.sub || ''} onChange={(e) => setList('growing', i, 'sub', e.target.value)} placeholder="detail" style={{ ...inputStyle, padding: '9px 11px', fontSize: 12 }} />
+                  <input value={it.r || ''} onChange={(e) => setList('growing', i, 'r', e.target.value)} placeholder="$ / link" style={{ ...inputStyle, padding: '9px 11px', fontSize: 12, textAlign: 'center' }} />
                 </div>
               </div>
             ))}
@@ -4106,6 +4178,7 @@ function BSCoachGoalPlanPage({ role = 'trainer', onBack }) {
   const purple = '#8a5cf6';
   const green = t.GREEN || '#3f9a5c';
   const muted = t.INK50;
+  const colorFor = (k) => ({ accent, teal, rust, purple, green }[k]) || k || accent;
   const DEMO = isNutri ? {
     who: 'Dr. Maya Patel', whoRole: 'Registered Dietitian',
     eyebrow: 'PRACTICE GOAL · DR. MAYA PATEL',
@@ -4120,6 +4193,23 @@ function BSCoachGoalPlanPage({ role = 'trainer', onBack }) {
       { t: '12 active clients', sub: 'two consults pending', when: 'Next' },
       { t: '3rd plan published', sub: 'PCOS-focused', when: 'Jun' },
       { t: '$6k MRR · 15 clients', sub: 'sustainable roster', when: 'Sep 30' },
+    ],
+    stats: [
+      { l: 'MRR', v: '$4.1k', s: 'this month', c: 'accent' },
+      { l: 'Active', v: '11', s: 'clients', c: 'teal' },
+      { l: 'Retention', v: '92', s: '%', c: 'rust' },
+      { l: 'Plans', v: '4', s: 'published', c: 'purple' },
+    ],
+    growing: [
+      { t: 'Lean Cut', sub: '12 on it · $1,680 MRR', r: '$140' },
+      { t: 'Marketplace · #4', sub: 'Sports Nutrition · 1,120 views', r: 'View' },
+      { t: 'Shape RDs community', sub: '142 online · your posts', r: 'Open' },
+    ],
+    targets: [
+      { l: 'Consults', v: '8/14', s: 'booked this wk', c: 'rust' },
+      { l: 'Plans', v: '3/5', s: 'delivered', c: 'purple' },
+      { l: 'Reviews', v: '47', s: '+3 this month', c: 'teal' },
+      { l: 'Retention', v: '92%', s: 'goal 95%', c: 'green' },
     ],
     vision: 'Enough clients to do this full-time and well — but capped so every plan still gets my full attention. Six grand a month, fifteen people I actually help. That’s the practice I want.',
   } : {
@@ -4137,17 +4227,25 @@ function BSCoachGoalPlanPage({ role = 'trainer', onBack }) {
       { t: '2nd program live', sub: 'fat-loss block', when: 'Jun' },
       { t: '20 clients · $8k MRR', sub: 'full-time leap', when: 'Sep 30' },
     ],
+    stats: [
+      { l: 'Active', v: '17', s: 'clients', c: 'accent' },
+      { l: 'MRR', v: '$6.2k', s: 'this month', c: 'teal' },
+      { l: 'Retention', v: '94', s: '%', c: 'rust' },
+      { l: 'New', v: '+3', s: 'this month', c: 'purple' },
+    ],
+    growing: [
+      { t: 'Push / Pull / Legs', sub: '48 on it · $5,760 MRR', r: '$120/mo' },
+      { t: 'Marketplace · #12', sub: 'Hypertrophy · SF · 1,842 views', r: 'View' },
+      { t: 'Shape Pros community', sub: '318 online · your posts', r: 'Open' },
+    ],
+    targets: [
+      { l: 'New intros', v: '3/4', s: 'booked this wk', c: 'rust' },
+      { l: 'Content', v: '2/3', s: 'posts shipped', c: 'purple' },
+      { l: 'Reviews', v: '86', s: '+4 this month', c: 'teal' },
+      { l: 'Retention', v: '94%', s: 'goal 95%', c: 'green' },
+    ],
     vision: 'I want this to be the whole thing — quit the gym floor shifts, coach who I choose, and still be home for dinner. Twenty good clients is the number that makes it real.',
   };
-  const stats = isNutri
-    ? [{ l: 'MRR', v: DEMO.featVal, s: 'this month', c: accent }, { l: 'Active', v: '11', s: 'clients', c: teal }, { l: 'Retention', v: '92', s: '%', c: rust }, { l: 'Plans', v: '4', s: 'published', c: purple }]
-    : [{ l: 'Active', v: '17', s: 'clients', c: accent }, { l: 'MRR', v: '$6.2k', s: 'this month', c: teal }, { l: 'Retention', v: '94', s: '%', c: rust }, { l: 'New', v: '+3', s: 'this month', c: purple }];
-  const growing = isNutri
-    ? [{ t: 'Lean Cut', sub: '12 on it · $1,680 MRR', r: '$140' }, { t: 'Marketplace · #4', sub: 'Sports Nutrition · 1,120 views', r: 'View' }, { t: 'Shape RDs community', sub: '142 online · your posts', r: 'Open' }]
-    : [{ t: 'Push / Pull / Legs', sub: '48 on it · $5,760 MRR', r: '$120/mo' }, { t: 'Marketplace · #12', sub: 'Hypertrophy · SF · 1,842 views', r: 'View' }, { t: 'Shape Pros community', sub: '318 online · your posts', r: 'Open' }];
-  const targets = isNutri
-    ? [{ l: 'Consults', v: '8/14', s: 'booked this wk', c: rust }, { l: 'Plans', v: '3/5', s: 'delivered', c: purple }, { l: 'Reviews', v: '47', s: '+3 this month', c: teal }, { l: 'Retention', v: '92%', s: 'goal 95%', c: green }]
-    : [{ l: 'New intros', v: '3/4', s: 'booked this wk', c: rust }, { l: 'Content', v: '2/3', s: 'posts shipped', c: purple }, { l: 'Reviews', v: '86', s: '+4 this month', c: teal }, { l: 'Retention', v: '94%', s: 'goal 95%', c: green }];
 
   const KEY = `coach_practice_goal_${role}`;
   const [goal, setGoal] = useStateBSP(DEMO);
@@ -4156,7 +4254,13 @@ function BSCoachGoalPlanPage({ role = 'trainer', onBack }) {
     let alive = true;
     if (window.shapeDb && window.shapeDb.getUserGoals) {
       window.shapeDb.getUserGoals(KEY).then(d => {
-        if (alive && d && typeof d === 'object') setGoal(g => ({ ...DEMO, ...d, milestones: (Array.isArray(d.milestones) && d.milestones.length) ? d.milestones : DEMO.milestones }));
+        if (alive && d && typeof d === 'object') setGoal(g => ({
+          ...DEMO, ...d,
+          milestones: (Array.isArray(d.milestones) && d.milestones.length) ? d.milestones : DEMO.milestones,
+          stats: Array.isArray(d.stats) ? d.stats : DEMO.stats,
+          growing: Array.isArray(d.growing) ? d.growing : DEMO.growing,
+          targets: Array.isArray(d.targets) ? d.targets : DEMO.targets,
+        }));
       }).catch(() => {});
     }
     return () => { alive = false; };
@@ -4179,7 +4283,7 @@ function BSCoachGoalPlanPage({ role = 'trainer', onBack }) {
 
   const D = goal;
   const init = (D.who || 'S').replace(/^Dr\.?\s+/i, '').charAt(0).toUpperCase();
-  const firstPending = D.milestones.findIndex(m => !m.done);
+  const firstPending = (D.milestones || []).findIndex(m => !m.done);
   const SecHead = ({ eyebrow, title, action, onAction }) => (
     <div style={{ padding: `22px ${t.padX}px 0`, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
       <div>
@@ -4191,7 +4295,7 @@ function BSCoachGoalPlanPage({ role = 'trainer', onBack }) {
   );
   const statCard = (s, i) => (
     <div key={i} style={{ borderRadius: 13, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 11 }}>
-      <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: s.c }}>{s.l}</div>
+      <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: colorFor(s.c) }}>{s.l}</div>
       <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: '-0.02em' }}>{s.v}</div>
       <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted }}>{s.s}</div>
     </div>
@@ -4234,7 +4338,7 @@ function BSCoachGoalPlanPage({ role = 'trainer', onBack }) {
       </div>
 
       <div style={{ margin: `12px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        {stats.map(statCard)}
+        {(D.stats || []).map(statCard)}
       </div>
 
       <SecHead eyebrow="Trend" title="Revenue" action="Payouts →" onAction={openPayouts} />
@@ -4262,7 +4366,7 @@ function BSCoachGoalPlanPage({ role = 'trainer', onBack }) {
 
       <SecHead eyebrow="The path" title="Milestones" action="Edit →" onAction={() => setEditing(true)} />
       <div style={{ marginTop: 6 }}>
-        {D.milestones.map((m, i) => {
+        {(D.milestones || []).map((m, i) => {
           const isNext = i === firstPending;
           return (
             <button key={i} onClick={() => toggleMilestone(i)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: 0, background: 'transparent', padding: `13px ${t.padX}px`, borderTop: i ? `1px solid ${t.HAIR}` : 0, display: 'grid', gridTemplateColumns: '24px 1fr auto', gap: 12, alignItems: 'center' }}>
@@ -4277,23 +4381,23 @@ function BSCoachGoalPlanPage({ role = 'trainer', onBack }) {
         })}
       </div>
 
-      <SecHead eyebrow="Driving it" title="What's growing it" />
+      <SecHead eyebrow="Driving it" title="What's growing it" action="Edit →" onAction={() => setEditing(true)} />
       <div style={{ marginTop: 6 }}>
-        {growing.map((g, i) => (
+        {(D.growing || []).map((g, i) => (
           <button key={i} onClick={() => toast(`${g.t} · ${g.sub}`)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: 0, background: 'transparent', padding: `14px ${t.padX}px`, borderTop: i ? `1px solid ${t.HAIR}` : 0, display: 'grid', gridTemplateColumns: '24px 1fr auto', gap: 12, alignItems: 'center' }}>
             <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: muted }}>{String(i + 1).padStart(2, '0')}</span>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{g.t}</div>
               <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: muted }}>{g.sub}</div>
             </div>
-            <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.06em', color: g.r.charAt(0) === '$' ? muted : teal }}>{g.r}</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.06em', color: (g.r || '').charAt(0) === '$' ? muted : teal }}>{g.r}</span>
           </button>
         ))}
       </div>
 
-      <SecHead eyebrow="This week" title="Targets that move it" />
+      <SecHead eyebrow="This week" title="Targets that move it" action="Edit →" onAction={() => setEditing(true)} />
       <div style={{ margin: `10px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        {targets.map(statCard)}
+        {(D.targets || []).map(statCard)}
       </div>
 
       <SecHead eyebrow="Your why" title="The vision" action="Edit →" onAction={() => setEditing(true)} />
