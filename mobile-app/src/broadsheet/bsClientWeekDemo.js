@@ -85,6 +85,7 @@ export const BS_CLIENT_WEEK_DOT_ORDER = ['TRN', 'MEAL', 'CHK', 'CON'];
 export const BS_CLIENT_WORKOUTS = {
   'Upper Pull — Peak': {
     meta: '52 min · 6 moves · RPE 8 · ~420 kcal',
+    brief: 'Three weeks of intent buys one chance to test. Six moves, three-second eccentrics on every pull — bar speed decides the rep, never the load.',
     note: 'Peak week — tempo matters more than load. 3s eccentric on every pull. If bar speed drops, drop a rep, not the tempo.',
     moves: [
       { name: 'Pull-up',        scheme: '4 × 6-8 · 3 min rest', cue: 'Dead hang. Chest to bar.',      load: '42 lb', up: true },
@@ -97,6 +98,7 @@ export const BS_CLIENT_WORKOUTS = {
   },
   'Upper Push — Peak': {
     meta: '54 min · 6 moves · RPE 8 · ~430 kcal',
+    brief: 'Press for the lockout you keep losing. Heavy top sets, then volume to back it up — own every inch of the range.',
     note: 'Peak push. Brace hard off the chest, own the lockout. Leave one clean rep in the tank on the top sets.',
     moves: [
       { name: 'Bench press',     scheme: '4 × 5 · 3 min rest',  cue: 'Tuck elbows, drive heels.',     load: '165 lb', up: true },
@@ -109,6 +111,7 @@ export const BS_CLIENT_WORKOUTS = {
   },
   'Lower Pull — Vol.': {
     meta: '58 min · 6 moves · RPE 7 · ~460 kcal',
+    brief: 'Hinge-biased volume. Hamstrings under tension the whole way down — the floor doesn’t move until your hips do.',
     note: 'Volume day — chase the stretch, not the ego. Smooth bar path off the floor, hips and bar rise together.',
     moves: [
       { name: 'Deadlift',        scheme: '4 × 5 · 3 min rest',  cue: 'Wedge in. Push the floor away.',load: '275 lb', up: true },
@@ -121,6 +124,7 @@ export const BS_CLIENT_WORKOUTS = {
   },
   'Lower Push — Peak': {
     meta: '54 min · 6 moves · RPE 8 · ~440 kcal',
+    brief: 'Peak-week legs. Depth before load — every squat to the same mark, drive the floor apart out of the hole.',
     note: 'Peak legs. Stay tight in the hole, drive the floor apart. Depth before load — every rep to the same mark.',
     moves: [
       { name: 'Back squat',      scheme: '5 × 3 · 3 min rest',  cue: 'Big air, brace, sit between hips.', load: '255 lb', up: true },
@@ -134,6 +138,7 @@ export const BS_CLIENT_WORKOUTS = {
   'Z2 run · 45 min': {
     cardio: true,
     meta: '45 min · Zone 2 · ~5.6k · ~380 kcal',
+    brief: 'An easy aerobic build. Conversational the whole way — if you can’t talk, you’re going too hard.',
     note: 'Keep it conversational — nose-breathing pace. If HR drifts over Z2, walk it back. Easy is the point.',
     moves: [
       { name: 'Warm-up',     scheme: '10 min · easy', cue: 'Build from a walk to an easy jog.' },
@@ -144,6 +149,7 @@ export const BS_CLIENT_WORKOUTS = {
   'Long run · 75 min': {
     cardio: true,
     meta: '75 min · easy · ~11k · ~620 kcal',
+    brief: 'Time on feet, not pace. Steady aerobic effort, fuel at the midpoint, finish like you could keep going.',
     note: 'Time on feet, not pace. Fuel at 45 min, sip water throughout. Finish feeling like you could keep going.',
     moves: [
       { name: 'Warm-up',     scheme: '10 min · easy',   cue: 'Loose and relaxed, let it open up.' },
@@ -160,4 +166,54 @@ export function bsClientWorkoutForDay(weekIdx) {
   const item = day.find((it) => it.kind === 'TRN');
   if (!item) return null;
   return { ...item, detail: BS_CLIENT_WORKOUTS[item.title] || null };
+}
+
+// Build the 7-day Train demo PROGRAM (Mon..Sun) from the shared week, so the
+// Train deck / live session / preview show the SAME workout as the home hero and
+// the calendar for each day. Mirrors the day shape of bsBuildTrainProgram (the
+// live-plan builder): { d, kicker, title, tag, tagColor, accent, headline, meta,
+// copy, moves:[{n,m,s,l,cue}], total, coachLine }, plus time/timeLabel.
+export function bsBuildDemoTrainProgram(t) {
+  const DOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  const monday = new Date(); monday.setHours(0, 0, 0, 0);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  const dateNum = (i) => { const d = new Date(monday); d.setDate(d.getDate() + i); return d.getDate(); };
+  const fmt12 = (hhmm) => {
+    const [h, m] = String(hhmm || '').split(':').map(Number);
+    if (Number.isNaN(h)) return '';
+    const ap = h >= 12 ? 'PM' : 'AM';
+    return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${ap}`;
+  };
+  return BS_CLIENT_WEEK_DEMO.map((day, i) => {
+    const label = `${DOW[i]} ${dateNum(i)}`;
+    const item = day.find((it) => it.kind === 'TRN');
+    if (!item) {
+      return {
+        d: label, kicker: 'The Recovery', title: 'Rest day.', tag: 'REST',
+        tagColor: t.GREEN, accent: t.GREEN, headline: 'Full rest.', time: '', timeLabel: '',
+        meta: 'No session · 0 min',
+        copy: 'No training today — recover, eat well, sleep. Tomorrow’s session is built on today’s rest.',
+        moves: [], total: '0 sessions', coachLine: 'A skipped rest day is a skipped peak. Take it.',
+      };
+    }
+    const detail = BS_CLIENT_WORKOUTS[item.title] || null;
+    const cardio = !!(detail && detail.cardio);
+    const moves = (detail ? detail.moves : []).map((m, j) => ({
+      n: String(j + 1).padStart(2, '0'), m: m.name, s: m.scheme || '—', l: m.load || '—', cue: m.cue || '',
+    }));
+    const parts = detail && detail.meta ? detail.meta.split(' · ') : [];
+    const timePart = parts[0] || (item.dur ? `${item.dur} min` : '—');
+    const intensity = cardio ? (parts[1] || 'Zone 2') : (parts.find((p) => /rpe/i.test(p)) || 'RPE 8');
+    return {
+      d: label, kicker: cardio ? 'The Conditioning' : 'The Training',
+      title: item.title, tag: cardio ? 'COND' : 'FEATURE',
+      tagColor: cardio ? t.RUST : t.AMBER, accent: cardio ? t.RUST : t.AMBER,
+      headline: item.title, time: item.time, timeLabel: fmt12(item.time),
+      meta: `${timePart} · ${intensity}`,
+      copy: (detail && detail.brief) || item.sub || 'Programmed by your coach.',
+      moves,
+      total: cardio ? `${moves.length} segment${moves.length === 1 ? '' : 's'}` : `${moves.length} move${moves.length === 1 ? '' : 's'}`,
+      coachLine: (detail && detail.note) || 'Move with intent. Quality over load.',
+    };
+  });
 }

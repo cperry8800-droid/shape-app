@@ -46,6 +46,27 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Train session wired to the shared week (end-to-end workout consistency)
+- The Train tab's demo program (`MOCK_PROGRAM`) was a **different week** than the
+  shared one — e.g. Thursday read "Lower Pull — Peak" on Train but "Z2 run · 45 min"
+  on home/calendar. Now the Train **deck, live session, and preview** all build from
+  the same source.
+- New **`bsBuildDemoTrainProgram(t)`** (in `bsClientWeekDemo.js`) builds the 7-day
+  Train program from `BS_CLIENT_WEEK_DEMO` + `BS_CLIENT_WORKOUTS`, mirroring the
+  live-plan builder's day shape. `MOCK_PROGRAM` is now just `bsBuildDemoTrainProgram(t)`
+  (~135 lines of hardcoded data removed). Real assigned plans still win (`liveProgram`).
+- **Live session reflects the real scheme**: the player now parses `4 × 8 · …` →
+  `{ sets:4, reps:'8' }` per move (was a hardcoded `sets:4, reps:'6-8'`); cardio
+  segments fall back to one set.
+- **Hero** eyebrow shows the day + the workout's real time (e.g. "Today · 5:45 PM"),
+  and meta comes from the workout (no more hardcoded "52 min · … RPE 8 · ~420 kcal").
+- **"On deck"** list is derived from the program (next 3 days, tap to jump) instead
+  of a hardcoded list.
+- **Preview** prefers each move's authored `cue`; added a distinct `brief` to each
+  workout so the preview's brief + coach line differ.
+- Net: a given weekday now shows the **same workout** on the home hero, the week
+  strip, the calendar, the Train deck, the preview, and the live player.
+
 ### 2026-06-04 — Shape Kitchen polish: top buffer, clear Send button, one filter section
 - **Top buffer**: the Shape Kitchen header sat too high (`14px` top) — bumped to
   `54px` to match the standard page buffer (`BSPageHeader`).

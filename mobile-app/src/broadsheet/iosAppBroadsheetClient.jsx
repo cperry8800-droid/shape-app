@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM, RECIPE_GOALS, recipeNeeds, recipeMatchesDiet } from './shapeKitchenData.js';
-import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, bsClientWorkoutForDay } from './bsClientWeekDemo.js';
+import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, bsClientWorkoutForDay, bsBuildDemoTrainProgram } from './bsClientWeekDemo.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
 
@@ -2776,142 +2776,10 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   }, []);
 
   // ── Per-day program (demo fallback, May 8–14, 2026) ──
-  const MOCK_PROGRAM = React.useMemo(() => [
-    {
-      d: 'M 17',
-      kicker: 'The Training',
-      title: <>Lower<br/>push.</>,
-      tag: 'FEATURE',
-      tagColor: t.AMBER,
-      accent: t.RUST,
-      headline: <>Lower Push —<br/>Volume.</>,
-      meta: '58 min · RPE 7',
-      copy: 'Pre-peak quad work. Hold the down-phase honest, drive vertical out of the bottom. Last set is the only set that hurts.',
-      moves: [
-        { n: '01', m: 'Back squat',       s: '5 × 6 · 3:00',     l: '205 LB' },
-        { n: '02', m: 'Walking lunge',    s: '4 × 16 · 1:30',    l: '40 LB'  },
-        { n: '03', m: 'Hack squat',       s: '3 × 10 · 1:30',    l: '160 LB' },
-        { n: '04', m: 'Leg ext.',         s: '3 × 12 · 1:00',    l: '110 LB' },
-        { n: '05', m: 'Standing calf',    s: '4 × 12 · 1:00',    l: '180 LB' },
-      ],
-      total: '5 moves · 1820 lb',
-      coachLine: 'Pause one beat at the bottom of every squat. No bouncing — drive the floor away.',
-    },
-    {
-      d: 'T 18',
-      kicker: 'The Training',
-      title: <>Upper<br/>push.</>,
-      tag: 'FEATURE',
-      tagColor: t.AMBER,
-      accent: t.AMBER,
-      headline: <>Upper Push —<br/>Volume.</>,
-      meta: '52 min · RPE 7',
-      copy: 'Press for reps, fly for stretch. Two extra sets on triceps to bias the lockout you keep losing on the bench.',
-      moves: [
-        { n: '01', m: 'Bench press',      s: '4 × 8 · 2:30',     l: '155 LB' },
-        { n: '02', m: 'Overhead press',   s: '4 × 8 · 2:00',     l: '95 LB'  },
-        { n: '03', m: 'Incline DB press', s: '3 × 10 · 1:30',    l: '55 LB'  },
-        { n: '04', m: 'Cable fly',        s: '3 × 12 · 1:00',    l: '30 LB'  },
-        { n: '05', m: 'Triceps push',     s: '3 × 12 · 0:45',    l: '60 LB'  },
-      ],
-      total: '5 moves · 1640 lb',
-      coachLine: 'On the bench, set the back, set the feet, then breathe. Press is the third action, not the first.',
-    },
-    {
-      d: 'W 19',
-      kicker: 'The Recovery',
-      title: <>Active<br/>recovery.</>,
-      tag: 'REST',
-      tagColor: t.GREEN,
-      accent: t.GREEN,
-      headline: <>Mobility &amp;<br/>walk.</>,
-      meta: '40 min · RPE 3',
-      copy: 'Joints over loads. Walk the easy 30, then 10 minutes on the floor: hips, t-spine, ankles. Tomorrow needs the recovery, today gets the work.',
-      moves: [
-        { n: '01', m: 'Easy walk',           s: '30:00 · zone 2', l: '—' },
-        { n: '02', m: '90/90 hip rotation',  s: '3 × 8/side',     l: '—' },
-        { n: '03', m: 'Cat-cow',             s: '3 × 10',         l: '—' },
-        { n: '04', m: 'Couch stretch',       s: '2 × 60s/side',   l: '—' },
-        { n: '05', m: 'Ankle dorsiflexion',  s: '3 × 10/side',    l: '—' },
-      ],
-      total: '5 movements · low load',
-      coachLine: 'Recovery is training. Don\'t skip the boring part — the boring part is what compounds.',
-    },
-    {
-      d: 'T 20',
-      kicker: 'The Training',
-      title: <>Lower<br/>pull.</>,
-      tag: 'FEATURE',
-      tagColor: t.AMBER,
-      accent: t.RUST,
-      headline: <>Lower Pull —<br/>Peak.</>,
-      meta: '54 min · RPE 8',
-      copy: 'Hinges over heels, hamstrings under tension the whole way. Bar speed off the floor decides the rep — never the load.',
-      moves: [
-        { n: '01', m: 'Deadlift',         s: '4 × 5 · 3:00',     l: '275 LB' },
-        { n: '02', m: 'Romanian DL',      s: '4 × 8 · 2:00',     l: '185 LB' },
-        { n: '03', m: 'Hip thrust',       s: '3 × 10 · 1:30',    l: '225 LB' },
-        { n: '04', m: 'Leg curl',         s: '3 × 12 · 1:00',    l: '90 LB'  },
-        { n: '05', m: 'Reverse hyper',    s: '3 × 15 · 1:00',    l: '70 LB'  },
-      ],
-      total: '5 moves · 2150 lb',
-      coachLine: 'Hinges, not squats. Push the floor back with your heels. The bar should drag your shins.',
-    },
-    {
-      d: 'F 21',
-      kicker: 'The Training',
-      title: <>Pull day.<br/>Peak week.</>,
-      tag: 'FEATURE',
-      tagColor: t.AMBER,
-      accent: t.BLUE,
-      headline: <>Upper Pull —<br/>Peak.</>,
-      meta: '52 min · RPE 8',
-      copy: 'Three weeks of intent has bought one chance to test. 6 moves. 3-second eccentrics on every pull. Bar speed, not load, decides the rep.',
-      moves: [
-        { n: '01', m: 'Pull-up',          s: '4 × 6–8 · 3:00',   l: '+42 LB'  },
-        { n: '02', m: 'Barbell row',      s: '4 × 8 · 2:00',     l: '155 LB'  },
-        { n: '03', m: 'Chest-sup. row',   s: '3 × 10 · 1:30',    l: '60 LB'   },
-        { n: '04', m: 'Face pull',        s: '3 × 15 · 1:00',    l: '35 LB'   },
-        { n: '05', m: 'Incline curl',     s: '3 × 12 · 1:00',    l: '27.5 LB' },
-        { n: '06', m: 'Farmer carry',     s: '3 × 40 m · 1:00',  l: '80 LB'   },
-      ],
-      total: '6 moves · 1900 lb',
-      coachLine: 'Dead hang every pull-up. Chest to bar or it doesn\'t count. If bar speed drops on row, drop a rep — never the tempo.',
-    },
-    {
-      d: 'S 22',
-      kicker: 'The Conditioning',
-      title: <>Conditioning.</>,
-      tag: 'COND',
-      tagColor: t.RUST,
-      accent: t.RUST,
-      headline: <>Threshold<br/>intervals.</>,
-      meta: '45 min · RPE 8',
-      copy: '5 × 4-min hard, 2-min easy. Rower, bike, or run — pick one and stay on it. Hard means you can\'t finish a sentence; easy means you can.',
-      moves: [
-        { n: '01', m: 'Warm-up',          s: '10:00 · zone 2',   l: '—'    },
-        { n: '02', m: 'Threshold rep',    s: '5 × 4:00',         l: 'RPE 8' },
-        { n: '03', m: 'Recovery jog',     s: '5 × 2:00',         l: 'RPE 4' },
-        { n: '04', m: 'Cool-down',        s: '5:00',             l: '—'    },
-      ],
-      total: '4 segments · 45 min',
-      coachLine: 'On the hard pieces, you should hate every fourth minute. If you don\'t, the pace was too easy.',
-    },
-    {
-      d: 'S 23',
-      kicker: 'The Recovery',
-      title: <>Rest<br/>day.</>,
-      tag: 'REST',
-      tagColor: t.GREEN,
-      accent: t.GREEN,
-      headline: <>Full rest.</>,
-      meta: 'No session · 0 min',
-      copy: 'No training, no logging, no Strava. Walk the dog, eat well, sleep. Monday\'s squat is built today.',
-      moves: [],
-      total: '0 sessions',
-      coachLine: 'A skipped rest day is a skipped peak. Take it.',
-    },
-  ], [t]);
+  // Demo fallback program (Mon..Sun) — built from the SHARED client week so the
+  // Train deck / live session / preview show the same workout as the home hero
+  // and the calendar for each day. Real assigned plans still win (liveProgram).
+  const MOCK_PROGRAM = React.useMemo(() => bsBuildDemoTrainProgram(t), [t]);
 
   const PROGRAM = liveProgram || MOCK_PROGRAM;
   const cur = PROGRAM[day] || PROGRAM[0];
@@ -2919,7 +2787,9 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   // Apply any coach-approved exercise swaps the user picked for this day.
   const effMoves = (cur.moves || []).map((r, i) => ({ ...r, ...(moveOverrides[`${day}:${i}`] || {}) }));
 
-  if (session) return <BSSession title={cur.title} moves={effMoves.map(m => ({ ...m, sets: 4, reps: '6-8' }))} onBack={() => setSession(false)} />;
+  // Parse "4 × 8 · …" → { sets: 4, reps: '8' } so the live player reflects the
+  // actual session; segment-style cardio (no "× reps") falls back to one set.
+  if (session) return <BSSession title={cur.title} moves={effMoves.map(m => { const mm = String(m.s || '').match(/(\d+)\s*×\s*([\d–-]+)/); return { ...m, sets: mm ? Number(mm[1]) : 1, reps: mm ? mm[2] : '' }; })} onBack={() => setSession(false)} />;
   if (previewing) return <BSWorkoutPreview program={{ ...cur, moves: effMoves }} onBack={() => setPreviewing(false)} onStart={() => { setPreviewing(false); setSession(true); }} />;
 
   return (
@@ -2935,12 +2805,12 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       {/* Today hero — the session at a glance, with the coach + play. */}
       <div style={{ margin: `14px ${t.padX}px 0`, borderRadius: 16, border: `1px solid ${t.RULE}`, background: `linear-gradient(160deg, rgba(10,197,168,0.10), ${t.PAPER2} 62%)`, padding: 15 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700 }}>
-          <span style={{ color: t.ACCENT }}>Today · 9 AM</span>
-          <span style={{ color: t.INK50 }}>W6 · D{day + 1}</span>
+          <span style={{ color: t.ACCENT }}>{day === bsWeekdayIdx() ? 'Today' : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][day]}{cur.timeLabel ? ` · ${cur.timeLabel}` : ''}</span>
+          <span style={{ color: t.INK50 }}>Week {bsProgramWeek()} · D{day + 1}</span>
         </div>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 26, lineHeight: 0.96, letterSpacing: '-0.04em', color: t.INK }}>{cur.headline}</div>
         <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, color: t.INK70, letterSpacing: '0.06em' }}>
-          {effMoves.length > 0 ? `52 min · ${effMoves.length} moves · RPE 8 · ~420 kcal` : cur.copy}
+          {effMoves.length > 0 ? cur.meta : cur.copy}
         </div>
         <div style={{ marginTop: 13, display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, background: '#c0533b', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13 }}>J</div>
@@ -3007,22 +2877,25 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
           }} />;
       })()}
 
-      {/* This week — on deck */}
+      {/* This week — on deck. Derived from the shared week (PROGRAM): the next few
+          days after today, so it matches the calendar + home. Tap to jump there. */}
       <BSTrackHeader kicker="This week" title="On deck" actionLabel="Plan" onAction={goCalendar} />
       <div style={{ padding: `10px ${t.padX}px 0` }}>
-        {[
-          { done: true, m: 'Conditioning', s: 'Thu · 25 min · Z2' },
-          { m: 'Lower Body — Peak', s: 'Fri · 55 min', r: 'W6 · D5' },
-          { m: 'Active rest', s: 'Sat · walk + mobility', r: '40 min' },
-        ].map((x, i) => (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 10, alignItems: 'start', padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 10, color: x.done ? t.ACCENT : t.INK50, fontWeight: 600, marginTop: 3 }}>{x.done ? '✓' : String(i + 1).padStart(2, '0')}</span>
+        {[1, 2, 3].map((off) => {
+          const idx = (bsWeekdayIdx() + off) % 7;
+          const p = PROGRAM[idx] || {};
+          const rest = p.tag === 'REST';
+          const dow = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][idx];
+          return { idx, m: rest ? 'Active rest' : (p.headline || p.title || '—'), s: `${dow} · ${rest ? 'walk + mobility' : (p.meta || '')}`, r: '' };
+        }).map((x, i) => (
+          <button key={i} onClick={() => setDay(x.idx)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 10, alignItems: 'start', padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 600, marginTop: 3 }}>{String(i + 1).padStart(2, '0')}</span>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: x.done ? t.INK50 : t.INK, letterSpacing: '-0.01em', textDecoration: x.done ? 'line-through' : 'none' }}>{x.m}</div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{x.m}</div>
               <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3, letterSpacing: '0.04em' }}>{x.s}</div>
             </div>
             <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3 }}>{x.r || ''}</span>
-          </div>
+          </button>
         ))}
       </div>
 
@@ -9344,7 +9217,7 @@ function BSWorkoutPreview({ program, onBack, onStart }) {
             <div style={{ padding: `0 ${t.padX}px` }}>
               <div style={{ borderTop: `2px solid ${t.INK}` }}>
                 {bk.moves.map((m, i) => {
-                  const cue = _bsCueLibrary[m.m];
+                  const cue = m.cue || _bsCueLibrary[m.m];
                   return (
                     <div key={i} style={{ padding: '14px 0', borderBottom: i === bk.moves.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
