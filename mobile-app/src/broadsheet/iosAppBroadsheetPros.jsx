@@ -831,6 +831,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         leftKicker={`${_BS_DOW[todayIdx]} · ${_BS_MON[dates[todayIdx].getMonth()]} ${dates[todayIdx].getDate()} · ${dates[todayIdx].getFullYear()}`}
         rightKicker="14 active clients"
         trailing={<BSAvatar init={bsMyInitials()} size={32} fill={bsMyTierColor()} ink={'#fff'} onClick={onProfile} />}
+        showDotTexture={false}
       />
 
       {/* Edition strip — sub-hero under the masthead */}
@@ -2202,13 +2203,27 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   const [equip, setEquip] = useStateBSP('Full gym');
   const [length, setLength] = useStateBSP('45 min');
   const [draftStatus, setDraftStatus] = useStateBSP('');
+  const [sort, setSort] = useStateBSP('Popular');
+  const [dupes, setDupes] = useStateBSP([]);
+  const [note, setNote] = useStateBSP('');
+  const flash = (m) => { setNote(m); setTimeout(() => setNote(''), 1700); };
+  const share = (name) => { try { navigator.clipboard?.writeText(`https://shape.app/p/${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`); } catch (e) {} flash('Share link copied'); };
+  const duplicate = (p) => { setDupes(d => [{ ...p, n: `${p.n} (copy)` }, ...d]); flash('Program duplicated'); };
+  const cycleSort = () => setSort(s => s === 'Popular' ? 'Price' : s === 'Price' ? 'Rating' : 'Popular');
 
-  const programs = [
+  const basePrograms = [
     { n: 'Push / Pull / Legs', meta: '12 wk · 48 on it · 4.9 ★', price: '$120/mo' },
     { n: 'Starting Strength', meta: '8 wk · 31 on it · 4.8 ★', price: '$95' },
     { n: 'Fat Loss 101', meta: '12 wk · 22 on it · 4.7 ★', price: '$160' },
     { n: 'Hypertrophy Block', meta: '8 wk · 19 on it · 4.8 ★', price: '$110' },
   ];
+  const numFrom = (s, re) => { const m = (s || '').match(re); return m ? parseFloat(m[1]) : 0; };
+  const programs = (() => {
+    const list = [...dupes, ...basePrograms];
+    if (sort === 'Price') return [...list].sort((a, b) => numFrom(b.price, /(\d+)/) - numFrom(a.price, /(\d+)/));
+    if (sort === 'Rating') return [...list].sort((a, b) => numFrom(b.meta, /([\d.]+) ★/) - numFrom(a.meta, /([\d.]+) ★/));
+    return [...list].sort((a, b) => numFrom(b.meta, /(\d+) on it/) - numFrom(a.meta, /(\d+) on it/));
+  })();
   const cues = [
     { n: 'Push Day cues', meta: '6 videos · 9 min · used by 14' },
     { n: 'Warmup routines', meta: '8 videos · 11 min · used by 31' },
@@ -2291,6 +2306,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
             <button onClick={() => setDrafting(true)} aria-label="New program" style={{ width: 38, height: 38, borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 18, fontWeight: 400, cursor: 'pointer', lineHeight: 1 }}>+</button>
           </div>
         </div>
+        {note && <div style={{ marginTop: 14, borderRadius: 999, border: `1px solid ${teal}`, background: `${teal}1c`, color: teal, padding: '9px 14px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em' }}>✓ {note}</div>}
 
         {/* Generate with AI */}
         <button onClick={() => setDrafting(true)} style={{ width: '100%', marginTop: 18, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 14, alignItems: 'center', borderRadius: 16, border: `1px solid ${teal}44`, background: `linear-gradient(150deg, ${teal}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 16 }}>
@@ -2312,18 +2328,18 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
           <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Push / Pull / <span style={{ fontStyle: 'italic', color: teal }}>Legs.</span></div>
           <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.04em' }}>12 weeks · 48 on it · $5,760 MRR · 4.9 ★</div>
           <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
-            <button style={{ borderRadius: 999, border: 0, background: teal, color: '#04201d', padding: '9px 18px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>EDIT</button>
-            <button style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '9px 16px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>DUPLICATE</button>
-            <button style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '9px 16px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SHARE →</button>
+            <button onClick={() => setDrafting(true)} style={{ borderRadius: 999, border: 0, background: teal, color: '#04201d', padding: '9px 18px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>EDIT</button>
+            <button onClick={() => duplicate({ n: 'Push / Pull / Legs', meta: '12 wk · 48 on it · 4.9 ★', price: '$120/mo' })} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '9px 16px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>DUPLICATE</button>
+            <button onClick={() => share('Push Pull Legs')} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '9px 16px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SHARE →</button>
           </div>
         </div>
 
         {/* Catalogue */}
-        {secHead('TRACKLIST', 'Catalogue', 'SORT →', () => {})}
-        <div style={{ marginTop: 6 }}>{programs.map((p, i) => numRow(p, i, p.price))}</div>
+        {secHead('TRACKLIST', 'Catalogue', `SORT · ${sort.toUpperCase()} →`, cycleSort)}
+        <div style={{ marginTop: 6 }}>{programs.map((p, i) => numRow({ ...p, onClick: () => setDrafting(true) }, i, p.price))}</div>
 
         {/* Cues & mobility (video playlists) */}
-        {secHead('PLAYLISTS', 'Cues & mobility', 'NEW →', () => {})}
+        {secHead('PLAYLISTS', 'Cues & mobility', 'NEW →', () => flash('New cue list — add videos in the editor'))}
         <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 13, alignItems: 'center', borderRadius: 16, border: `1px solid ${purple}44`, background: `linear-gradient(150deg, ${purple}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 14 }}>
           <span style={{ width: 50, height: 50, borderRadius: 12, background: `linear-gradient(150deg, ${purple}, ${purple}99)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="#ffffffd0"><path d="M9 17a3 3 0 1 1-2-2.83V4l11-2v11a3 3 0 1 1-2-2.83V5.2L9 6.6V17z" /></svg>
@@ -2334,7 +2350,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
           </div>
           <span style={{ width: 40, height: 40, borderRadius: 999, background: `${purple}2e`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: purple, fontSize: 14 }}>▶</span>
         </div>
-        <div style={{ marginTop: 4 }}>{cues.map((c, i) => numRow({ ...c, onClick: () => {} }, i, '→'))}</div>
+        <div style={{ marginTop: 4 }}>{cues.map((c, i) => numRow({ ...c, onClick: () => flash('Cue preview coming soon') }, i, '→'))}</div>
 
         {/* Soundtracks → Soundtracks page */}
         {secHead('SOUNDTRACKS', 'Music library', 'ALL →', () => setShowSoundtracks(true))}
@@ -2747,6 +2763,7 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
         leftKicker={`${_BS_DOW[todayIdx]} · ${_BS_MON[dates[todayIdx].getMonth()]} ${dates[todayIdx].getDate()} · ${dates[todayIdx].getFullYear()}`}
         rightKicker="22 plans · 5 sessions"
         trailing={<BSAvatar init={bsMyInitials()} size={32} fill={bsMyTierColor()} ink={'#fff'} onClick={onProfile} />}
+        showDotTexture={false}
       />
 
       {/* Edition strip — sub-hero under the masthead */}
@@ -2987,8 +3004,13 @@ function BSNutriPlans() {
   const [cals, setCals] = useStateBSP('~2100');
   const [mealsDay, setMealsDay] = useStateBSP(4);
   const [draftStatus, setDraftStatus] = useStateBSP('');
+  const [dupes, setDupes] = useStateBSP([]);
+  const [note, setNote] = useStateBSP('');
+  const flash = (m) => { setNote(m); setTimeout(() => setNote(''), 1700); };
+  const share = (name) => { try { navigator.clipboard?.writeText(`https://shape.app/p/${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`); } catch (e) {} flash('Share link copied'); };
+  const duplicate = (p) => { setDupes(d => [{ ...p, n: `${p.n} (copy)` }, ...d]); flash('Plan duplicated'); };
 
-  const plans = [
+  const plans = [...dupes,
     { n: 'Lean Cut', meta: '2,100 kcal · 12 on it · 4.9 ★', price: '$140' },
     { n: 'Performance', meta: '3,200 kcal · 8 on it · 4.8 ★', price: '$140' },
     { n: 'Vegetarian Base', meta: '2,400 kcal · 6 on it · 4.7 ★', price: '$120' },
@@ -3082,6 +3104,7 @@ function BSNutriPlans() {
             <button onClick={() => setDrafting(true)} aria-label="New plan" style={{ width: 38, height: 38, borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 18, fontWeight: 400, cursor: 'pointer', lineHeight: 1 }}>+</button>
           </div>
         </div>
+        {note && <div style={{ marginTop: 14, borderRadius: 999, border: `1px solid ${gold}`, background: `${gold}1c`, color: gold, padding: '9px 14px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em' }}>✓ {note}</div>}
 
         {/* Generate with AI */}
         <button onClick={() => setDrafting(true)} style={{ width: '100%', marginTop: 18, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 14, alignItems: 'center', borderRadius: 16, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 16 }}>
@@ -3103,19 +3126,19 @@ function BSNutriPlans() {
           <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Lean <span style={{ fontStyle: 'italic', color: gold }}>Cut.</span></div>
           <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.04em' }}>2,100 kcal · 12 on it · 165g protein · 4.9 ★</div>
           <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
-            <button style={{ borderRadius: 999, border: 0, background: gold, color: '#241c08', padding: '9px 18px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>EDIT</button>
-            <button style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '9px 16px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>DUPLICATE</button>
-            <button style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '9px 16px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SHARE →</button>
+            <button onClick={() => setDrafting(true)} style={{ borderRadius: 999, border: 0, background: gold, color: '#241c08', padding: '9px 18px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>EDIT</button>
+            <button onClick={() => duplicate({ n: 'Lean Cut', meta: '2,100 kcal · 12 on it · 4.9 ★', price: '$140' })} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '9px 16px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>DUPLICATE</button>
+            <button onClick={() => share('Lean Cut')} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '9px 16px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SHARE →</button>
           </div>
         </div>
 
         {/* Catalogue */}
         {secHead('TRACKLIST', 'Catalogue')}
-        <div style={{ marginTop: 6 }}>{plans.map((p, i) => numRow(p, i, p.price))}</div>
+        <div style={{ marginTop: 6 }}>{plans.map((p, i) => numRow({ ...p, onClick: () => setDrafting(true) }, i, p.price))}</div>
 
         {/* Recipes */}
-        {secHead('RECIPES', 'Library', 'BROWSE →', () => {})}
-        <div style={{ marginTop: 6 }}>{recipes.map((r, i) => numRow({ ...r, onClick: () => {} }, i, '→'))}</div>
+        {secHead('RECIPES', 'Library', 'BROWSE →', () => flash('Recipe library coming soon'))}
+        <div style={{ marginTop: 6 }}>{recipes.map((r, i) => numRow({ ...r, onClick: () => flash('Recipe preview coming soon') }, i, '→'))}</div>
 
         {/* Soundtracks → links to the Soundtracks page */}
         {secHead('SOUNDTRACKS', 'Music library', 'ALL →', () => setShowSoundtracks(true))}
