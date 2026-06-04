@@ -397,7 +397,7 @@ function _bsCardBtn(t, color) {
 function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
   // manual: once the user drags, we respect their explicit order (and stop
   // auto-sorting by aliveness) so a deliberate arrangement sticks.
-  const defaultLayout = { order: BS_CARD_DEFAULTS.slice(), pinned: [], manual: false };
+  const defaultLayout = { order: BS_CARD_DEFAULTS.slice(), pinned: [], manual: false, hidden: false };
   // Synchronous localStorage mirror so a removed/reordered card sticks across
   // remounts (tab switches) even when signed-out / the backend no-ops.
   const LS_CARDS = 'bs_home_cards';
@@ -406,7 +406,7 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
       const v = JSON.parse(window.localStorage.getItem(LS_CARDS) || 'null');
       if (v && Array.isArray(v.order)) {
         const order = v.order.filter(x => BS_CARD_TYPES.includes(x));
-        return { order, pinned: Array.isArray(v.pinned) ? v.pinned.filter(x => order.includes(x)) : [], manual: !!v.manual };
+        return { order, pinned: Array.isArray(v.pinned) ? v.pinned.filter(x => order.includes(x)) : [], manual: !!v.manual, hidden: !!v.hidden };
       }
     } catch (e) {}
     return null;
@@ -455,7 +455,7 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
       if (cancelled || !saved || !Array.isArray(saved.order)) return;
       const order = saved.order.filter(x => BS_CARD_TYPES.includes(x));
       const pinned = Array.isArray(saved.pinned) ? saved.pinned.filter(x => order.includes(x)) : [];
-      setLayout({ order, pinned, manual: !!saved.manual });
+      setLayout({ order, pinned, manual: !!saved.manual, hidden: !!saved.hidden });
     }).catch(() => {});
     return () => { cancelled = true; };
   }, []);
@@ -464,6 +464,9 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
     try { window.localStorage.setItem(LS_CARDS, JSON.stringify(next)); } catch (e) {}
     try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_home_cards', next); } catch (e) {}
   };
+  // Whole-section visibility — toggled from this section (Cards ▾ menu → Hide;
+  // a slim restore chip brings it back). Persisted in the same doc.
+  const setSectionHidden = (v) => { persist({ ...layout, hidden: !!v }); setMenuOpen(false); };
 
   // Build models, then order: pinned first (in pin order), then unpinned —
   // either the user's manual order, or auto by aliveness desc (stable on ties).
@@ -507,6 +510,20 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
     const order = BS_CARD_TYPES.filter(x => layout.order.includes(x) || x === type);
     persist({ ...layout, order });
   };
+
+  // Collapsed — the section is hidden from home; show a slim restore chip so
+  // it can be brought back without leaving the home page.
+  if (layout.hidden) {
+    return (
+      <div style={{ padding: `2px ${t.padX}px 6px` }}>
+        <button onClick={() => setSectionHidden(false)} style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          padding: '7px 13px', borderRadius: 999, border: `1px dashed ${t.RULE}`, background: 'transparent',
+          color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase',
+        }}>▸ Show home cards</button>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -553,6 +570,10 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
                     </button>
                   );
                 })}
+                <button onClick={() => setSectionHidden(true)} style={{
+                  width: '100%', padding: '11px 12px', border: 0, borderTop: `1px solid ${t.RULE}`, background: 'transparent', cursor: 'pointer', textAlign: 'left',
+                  fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50,
+                }}>✕ Hide section from home</button>
               </div>
             </>,
             document.getElementById('bs-phone-surface') || document.body
@@ -1713,22 +1734,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     mood: () => setShowMood(true),
   };
 
-  // Whether the customizable card-stack section shows on home — a general
-  // visibility toggle persisted in Settings → Preferences (client_settings),
-  // mirrored on window.ShapeHomeCards so this page reacts live.
-  const [homeCardsHidden, setHomeCardsHidden] = useStateBSC(() => (typeof window !== 'undefined' && window.ShapeHomeCards ? window.ShapeHomeCards.get() : false));
-  React.useEffect(() => {
-    let alive = true;
-    const sync = () => { if (alive) setHomeCardsHidden(window.ShapeHomeCards ? window.ShapeHomeCards.get() : false); };
-    window.addEventListener('shape:homecards', sync);
-    if (window.shapeDb && window.shapeDb.getUserGoals) {
-      window.shapeDb.getUserGoals('client_settings').then(s => {
-        if (alive && s && typeof s === 'object' && 'homeCards' in s) window.ShapeHomeCards?.set(s.homeCards === 'Hidden');
-      }).catch(() => {});
-    }
-    return () => { alive = false; window.removeEventListener('shape:homecards', sync); };
-  }, []);
-
   if (previewMeal) {
     return <BSMealPreview meal={previewMeal} onBack={() => setPreviewMeal(null)} onLog={() => { setPreviewMeal(null); setShowLogMeal(true); }} />;
   }
@@ -1933,7 +1938,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
       </div>
 
       {/* CUSTOMIZABLE CARD STACK — Training / Recovery / Energy / … */}
-      {!homeCardsHidden && (
       <div style={{ paddingTop: 16, borderTop: `1px solid ${t.RULE}` }}>
         <BSHomeCards
           t={t}
@@ -1942,7 +1946,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
           openers={homeCardOpeners}
         />
       </div>
-      )}
 
       <BSSection title="Up next" kicker="3 of 8 done" />
 
@@ -3172,16 +3175,6 @@ if (typeof window !== 'undefined' && !window.ShapeMealTimes) {
       if (p.mealDinner)    next.DINNER = _bs12to24(p.mealDinner) || next.DINNER;
       _mt = next;
     },
-  };
-}
-// Home card-stack visibility — a general show/hide toggle (Settings →
-// Preferences). Cached on window so the home page can react live via the
-// `shape:homecards` event without prop threading.
-if (typeof window !== 'undefined' && !window.ShapeHomeCards) {
-  let _hidden = false;
-  window.ShapeHomeCards = {
-    get: () => _hidden,
-    set: (v) => { const nv = !!v; if (nv === _hidden) return; _hidden = nv; try { window.dispatchEvent(new Event('shape:homecards')); } catch (e) {} },
   };
 }
 
@@ -11188,7 +11181,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     weeklyDigest:      ['Sun 7am', 'Mon 7am', 'Fri 5pm', 'Off'],
     community:         ['Off', 'Mentions only', 'All activity'],
     units:             ['Imperial · lb / mi', 'Metric · kg / km'],
-    homeCards:         ['Shown', 'Hidden'],
     weekStarts:        ['Monday', 'Sunday'],
     timeZone:          ['America/Los_Angeles', 'America/New_York', 'America/Chicago', 'America/Denver', 'Europe/London', 'UTC'],
     language:          ['English (US)', 'English (UK)', 'Español', 'Français', 'Deutsch'],
@@ -11211,7 +11203,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       if (alive && s && typeof s === 'object') {
         setPrefs(p => ({ ...p, ...s }));
         if (s.units) window.ShapeUnits?.set(s.units);
-        if ('homeCards' in s) window.ShapeHomeCards?.set(s.homeCards === 'Hidden');
         window.ShapeMealTimes?.setFromPrefs({ ...PREF_DEFAULTS, ...s });
         if (s.trainingPhase || s.nutritionPhase) window.ShapeProgram?.set?.({ trainingPhase: s.trainingPhase, nutritionPhase: s.nutritionPhase });
       }
@@ -11228,7 +11219,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       const next = { ...p, [key]: opts[(idx + 1) % opts.length] };
       try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
       if (key === 'units') window.ShapeUnits?.set(next[key]); // propagate app-wide
-      if (key === 'homeCards') window.ShapeHomeCards?.set(next[key] === 'Hidden');
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
       if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
       return next;
@@ -11240,7 +11230,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       const next = { ...p, [key]: value };
       try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
       if (key === 'units') window.ShapeUnits?.set(value);
-      if (key === 'homeCards') window.ShapeHomeCards?.set(next[key] === 'Hidden');
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
       if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
       return next;
@@ -11699,7 +11688,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       meta: '',
       rows: [
         { l: 'Units',           key: 'units', segmented: PREF_OPTIONS.units, segLabels: ['Imperial', 'Metric'] },
-        { l: 'Home cards',      key: 'homeCards', segmented: PREF_OPTIONS.homeCards, segLabels: ['Shown', 'Hidden'] },
         { l: 'Week starts',     key: 'weekStarts', dropdown: PREF_OPTIONS.weekStarts },
         { l: 'Time zone',       key: 'timeZone', dropdown: BS_TIMEZONES },
         { l: 'Language',        key: 'language', dropdown: PREF_OPTIONS.language },
