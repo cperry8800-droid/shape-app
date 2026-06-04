@@ -46,6 +46,23 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-13 — Coach "Adjust program" + "Schedule" action pages (wired)
+- The profile header's **ADJUST PROGRAM / ADJUST PLAN** and **SCHEDULE** buttons now open
+  real full pages (`BSProAdjustProgram` / `BSProScheduleSession`, role-accented teal/gold)
+  instead of firing no-op events.
+- **Adjust program** ("Tune the program.") — Intensity segmented control (Deload/Maintain/
+  Progress) with a live descriptor, Frequency & block steppers (sessions/week, weeks
+  remaining), multi-select Focus chips, a tappable Weekly-split editor (⇄ cycles each day),
+  and an auto-generated, editable **Note to {client}**. **Apply & Send / Apply & Notify**
+  open/find the 1:1 conversation (`getOrCreateMemberConversation`) and **send the note to
+  the client** (`sendMessage`, metadata `{kind:'program_update',notify}`); demo clients
+  (no user id) show a "sends once linked" hint.
+- **Schedule** ("Book a session.") — session type, day picker (next 7 days), open-slot grid,
+  duration segmented control, mode chips, repeat-weekly toggle, a live booking summary, and
+  **Add to calendar** → `ShapeCalendar.create({ userId: client, kind, title, date, time,
+  durationMin, … })` (writes to the client's calendar via `/api/calendar`, coach role).
+- Shared chrome helpers added: `BSProActionHead/ClientMini/ActionSec/Chips/Segment/Stepper`.
+
 ### 2026-06-13 — Coach client dashboard wired to live KPIs (get_client_stats)
 - **Migration `2026-06-13-client-stats.sql`** (idempotent, **run on Supabase**): SECURITY
   DEFINER `get_client_stats(p_user_id)` gated on `is_coach_on_client`. Aggregates the

@@ -1278,6 +1278,280 @@ function BSProClientPreviewPage({ client, onBack, onViewFullProfile }) {
   );
 }
 
+// ── Shared chrome for the coach action pages (Adjust program / Schedule) ──────
+function bsProAccent(t, role) { return role === 'nutritionist' ? '#d8b25a' : (t.isLight ? '#0a8f87' : '#34d6c5'); }
+function BSProActionHead({ eyebrow, titleA, titleB, accent, onBack }) {
+  const t = useBS();
+  return (
+    <div style={{ paddingTop: 50 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{eyebrow}</div>
+        <button onClick={onBack} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
+      </div>
+      <div style={{ marginTop: 10, fontFamily: t.SERIF, fontSize: 40, fontWeight: 600, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>{titleA}<br /><span style={{ fontStyle: 'italic', color: accent }}>{titleB}</span></div>
+    </div>
+  );
+}
+function BSProClientMini({ client }) {
+  const t = useBS();
+  if (!client) return null;
+  const prog = client.prog || (client.r || '').split('·')[0].trim() || 'Program';
+  return (
+    <div style={{ marginTop: 18, display: 'flex', alignItems: 'center', gap: 12, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '14px 15px' }}>
+      <BSAvatar init={client.i} fill={client.c} size={40} />
+      <div>
+        <div style={{ fontFamily: t.SERIF, fontSize: 17, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{client.n}</div>
+        <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: t.INK50 }}>{prog} · Week 6 of 12</div>
+      </div>
+    </div>
+  );
+}
+function BSProActionSec({ eyebrow, title, trailing, accent }) {
+  const t = useBS();
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 12 }}>
+      <div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{eyebrow}</div>
+        <div style={{ marginTop: 5, fontFamily: t.SERIF, fontSize: 25, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1 }}>{title}</div>
+      </div>
+      {trailing && <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', color: accent, paddingBottom: 3, whiteSpace: 'nowrap' }}>{trailing}</div>}
+    </div>
+  );
+}
+function BSProChips({ options, value, multi, onPick, accent }) {
+  const t = useBS();
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      {options.map(o => {
+        const on = multi ? (value || []).includes(o.k) : value === o.k;
+        return <button key={o.k} onClick={() => onPick(o.k)} style={{ borderRadius: 999, padding: '9px 15px', cursor: 'pointer', border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1c` : 'transparent', color: on ? accent : t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{o.l}</button>;
+      })}
+    </div>
+  );
+}
+function BSProSegment({ options, value, onPick, accent }) {
+  const t = useBS();
+  return (
+    <div style={{ display: 'flex', gap: 6, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 6 }}>
+      {options.map(o => {
+        const on = value === o.k;
+        return <button key={o.k} onClick={() => onPick(o.k)} style={{ flex: 1, borderRadius: 10, padding: '11px 6px', cursor: 'pointer', border: 0, background: on ? accent : 'transparent', color: on ? '#06231f' : t.INK70, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{o.l}</button>;
+      })}
+    </div>
+  );
+}
+function BSProStepper({ label, sub, value, set, min = 1, max = 14, accent }) {
+  const t = useBS();
+  const rnd = (txt, on) => <button onClick={on} style={{ width: 38, height: 38, borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 16, cursor: 'pointer', lineHeight: 1 }}>{txt}</button>;
+  return (
+    <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+      <div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: accent }}>{label}</div>
+        <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{sub}</div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        {rnd('−', () => set(Math.max(min, value - 1)))}
+        <span style={{ fontFamily: t.SERIF, fontSize: 26, fontWeight: 600, color: t.INK, minWidth: 24, textAlign: 'center' }}>{value}</span>
+        {rnd('+', () => set(Math.min(max, value + 1)))}
+      </div>
+    </div>
+  );
+}
+
+function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
+  const t = useBS();
+  const accent = bsProAccent(t, role);
+  const isNutri = role === 'nutritionist';
+  const first = (client?.n || 'there').split(' ')[0];
+  const [intensity, setIntensity] = useStateBSP('progress');
+  const [sessions, setSessions] = useStateBSP(4);
+  const [weeks, setWeeks] = useStateBSP(6);
+  const [focus, setFocus] = useStateBSP(['strength', 'hypertrophy']);
+  const DAY_OPTS = ['Push day', 'Pull day', 'Legs day', 'Upper day', 'Lower day', 'Conditioning', 'Rest'];
+  const [days, setDays] = useStateBSP(['Push day', 'Pull day', 'Legs day', 'Rest', 'Push day', 'Pull day', 'Rest']);
+  const [noteText, setNoteText] = useStateBSP(null);
+  const [status, setStatus] = useStateBSP('');
+  const DOW = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+  const intensityDesc = { deload: 'Pull volume back ~40% and cap intensity. Recover and resensitize.', maintain: 'Hold volume and loads — keep the engine ticking, no new stress.', progress: 'Add a set to main lifts and nudge top-set loads. Keep RPE ≤ 8.' }[intensity];
+  const focusOpts = [{ k: 'strength', l: 'Strength' }, { k: 'hypertrophy', l: 'Hypertrophy' }, { k: 'conditioning', l: 'Conditioning' }, { k: 'mobility', l: 'Mobility' }, { k: 'power', l: 'Power' }];
+  const toggleFocus = (k) => setFocus(f => f.includes(k) ? f.filter(x => x !== k) : [...f, k]);
+  const cycleDay = (i) => setDays(d => d.map((v, j) => j === i ? DAY_OPTS[(DAY_OPTS.indexOf(v) + 1) % DAY_OPTS.length] : v));
+  const focusLabel = focus.map(k => focusOpts.find(o => o.k === k)?.l.toLowerCase()).filter(Boolean).join(' + ') || 'general fitness';
+  const verb = intensity === 'progress' ? 'progressing top sets' : intensity === 'deload' ? 'deloading this week' : 'maintaining volume';
+  const autoNote = `Adjusting your ${isNutri ? 'plan' : 'block'}: ${sessions}×/week, ${verb}. Focus stays on ${focusLabel}. Check the updated split in your Train tab.`;
+  const body = noteText == null ? autoNote : noteText;
+  const apply = async (notify) => {
+    setStatus('saving');
+    try {
+      if (clientUid && window.ShapeMessages?.getOrCreateMemberConversation) {
+        const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: clientUid });
+        const cid = conv?.data;
+        if (cid && window.ShapeMessages?.sendMessage) await window.ShapeMessages.sendMessage({ conversationId: cid, body, metadata: { kind: 'program_update', notify: !!notify } });
+      }
+      setStatus('done');
+      setTimeout(onBack, 950);
+    } catch (e) { setStatus('error'); }
+  };
+  const cta = (txt, onClick, mt) => (
+    <button onClick={onClick} disabled={status === 'saving' || status === 'done'} style={{ width: '100%', marginTop: mt || 0, borderRadius: 14, border: 0, background: accent, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: status === 'saving' ? 0.6 : 1 }}>{txt}</button>
+  );
+  const sendLabel = status === 'saving' ? 'Sending…' : status === 'done' ? 'Sent ✓' : 'Apply & Send →';
+  return (
+    <BSPage>
+      <div style={{ padding: `0 ${t.padX}px 28px` }}>
+        <BSProActionHead eyebrow={isNutri ? 'ADJUST PLAN' : 'ADJUST PROGRAM'} titleA="Tune the" titleB={isNutri ? 'plan.' : 'program.'} accent={accent} onBack={onBack} />
+        <BSProClientMini client={client} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 26 }}>
+          <div>
+            <BSProActionSec eyebrow="THIS WEEK" title="Intensity" accent={accent} />
+            <BSProSegment options={[{ k: 'deload', l: 'Deload' }, { k: 'maintain', l: 'Maintain' }, { k: 'progress', l: 'Progress' }]} value={intensity} onPick={setIntensity} accent={accent} />
+            <div style={{ marginTop: 14, fontFamily: t.SERIF, fontSize: 14.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.5 }}>{intensityDesc}</div>
+          </div>
+          <div>
+            <BSProActionSec eyebrow="STRUCTURE" title="Frequency & block" accent={accent} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <BSProStepper label="SESSIONS / WEEK" sub="Per microcycle" value={sessions} set={setSessions} min={1} max={7} accent={accent} />
+              <BSProStepper label="WEEKS REMAINING" sub="Until next review" value={weeks} set={setWeeks} min={1} max={16} accent={accent} />
+            </div>
+          </div>
+          <div>
+            <BSProActionSec eyebrow="EMPHASIS" title="Focus" accent={accent} />
+            <BSProChips options={focusOpts} value={focus} multi onPick={toggleFocus} accent={accent} />
+          </div>
+          <div>
+            <BSProActionSec eyebrow="WEEKLY SPLIT" title="Training days" trailing="TAP TO CHANGE →" accent={accent} />
+            {days.map((label, i) => {
+              const rest = label === 'Rest';
+              return (
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '42px 1fr auto', gap: 10, alignItems: 'center', padding: '13px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', color: rest ? t.INK50 : accent }}>{DOW[i]}</span>
+                  <span style={{ fontFamily: t.SERIF, fontSize: 16, fontWeight: 600, color: rest ? t.INK50 : t.INK }}>{label}</span>
+                  <button onClick={() => cycleDay(i)} style={{ border: 0, background: 'transparent', cursor: 'pointer', color: rest ? t.INK50 : accent, fontSize: 16, lineHeight: 1 }}>⇄</button>
+                </div>
+              );
+            })}
+          </div>
+          <div>
+            <BSProActionSec eyebrow="MESSAGE" title={`Note to ${first}`} accent={accent} />
+            <textarea value={body} onChange={(e) => setNoteText(e.target.value)} rows={4} style={{ width: '100%', boxSizing: 'border-box', borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: 14, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, resize: 'vertical', outline: 'none' }} />
+            <div style={{ marginTop: 14 }}>
+              {cta(sendLabel, () => apply(false))}
+              {cta('Apply & Notify →', () => apply(true), 10)}
+            </div>
+            {status === 'error' && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.08em' }}>Couldn't send — try again.</div>}
+            {!clientUid && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Demo client · sends once linked to a live member</div>}
+          </div>
+        </div>
+      </div>
+      <BSFooter left={isNutri ? 'Adjust plan' : 'Adjust program'} right={client?.n} />
+    </BSPage>
+  );
+}
+
+function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
+  const t = useBS();
+  const accent = bsProAccent(t, role);
+  const isNutri = role === 'nutritionist';
+  const first = (client?.n || 'there').split(' ')[0];
+  const TYPES = isNutri
+    ? [{ k: 'consult', l: 'Consult' }, { k: 'checkin', l: 'Check-in' }, { k: 'review', l: 'Food log' }, { k: 'intro', l: 'Intro call' }]
+    : [{ k: 'session', l: 'Session' }, { k: 'checkin', l: 'Check-in' }, { k: 'review', l: 'Form review' }, { k: 'intro', l: 'Intro call' }];
+  const [type, setType] = useStateBSP(TYPES[0].k);
+  const [dayIdx, setDayIdx] = useStateBSP(0);
+  const [time, setTime] = useStateBSP('9:00');
+  const [duration, setDuration] = useStateBSP(45);
+  const [mode, setMode] = useStateBSP('zoom');
+  const [repeat, setRepeat] = useStateBSP(false);
+  const [status, setStatus] = useStateBSP('');
+  const WD = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const today = new Date();
+  const dayCells = Array.from({ length: 7 }, (_, k) => { const d = new Date(today); d.setDate(today.getDate() + k); return d; });
+  const sel = dayCells[dayIdx] || today;
+  const times = ['7:00', '8:00', '9:00', '11:30', '14:00', '16:00', '17:00', '18:30'];
+  const modeOpts = [{ k: 'zoom', l: 'Zoom' }, { k: 'gym', l: 'Gym' }, { k: 'call', l: 'Call' }, { k: 'inperson', l: 'In-person' }];
+  const kindMap = { session: 'SESSION', consult: 'CONSULT', checkin: 'CHECKIN', review: 'REVIEW', intro: 'CONSULT' };
+  const typeLabel = TYPES.find(x => x.k === type)?.l || 'Session';
+  const modeLabel = modeOpts.find(m => m.k === mode)?.l || 'Zoom';
+  const dateStr = `${sel.getFullYear()}-${String(sel.getMonth() + 1).padStart(2, '0')}-${String(sel.getDate()).padStart(2, '0')}`;
+  const summaryWhen = `${WD[sel.getDay()]} ${MON[sel.getMonth()]} ${sel.getDate()} · ${time} · ${duration} min · ${modeLabel}`;
+  const add = async () => {
+    setStatus('saving');
+    try {
+      if (clientUid && window.ShapeCalendar?.create) {
+        await window.ShapeCalendar.create({ userId: clientUid, kind: kindMap[type] || 'SESSION', title: `${typeLabel} · ${first}`, sub: repeat ? `${modeLabel} · weekly` : modeLabel, date: dateStr, time, durationMin: duration, with: client?.n, location: modeLabel });
+      }
+      setStatus('done');
+      setTimeout(onBack, 950);
+    } catch (e) { setStatus('error'); }
+  };
+  return (
+    <BSPage>
+      <div style={{ padding: `0 ${t.padX}px 28px` }}>
+        <BSProActionHead eyebrow="SCHEDULE" titleA="Book a" titleB={isNutri ? 'consult.' : 'session.'} accent={accent} onBack={onBack} />
+        <BSProClientMini client={client} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 26 }}>
+          <div>
+            <BSProActionSec eyebrow="WHAT" title="Session type" accent={accent} />
+            <BSProChips options={TYPES} value={type} onPick={setType} accent={accent} />
+          </div>
+          <div>
+            <BSProActionSec eyebrow="WHEN" title="Pick a day" accent={accent} />
+            <div className="bs-hide-scroll" style={{ display: 'flex', gap: 7, overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+              {dayCells.map((d, i) => {
+                const on = dayIdx === i;
+                return (
+                  <button key={i} onClick={() => setDayIdx(i)} style={{ flexShrink: 0, width: 52, borderRadius: 12, padding: '10px 0', cursor: 'pointer', border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1c` : t.PAPER2, textAlign: 'center' }}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', color: on ? accent : t.INK50 }}>{WD[d.getDay()]}</div>
+                    <div style={{ marginTop: 4, fontFamily: t.SERIF, fontSize: 20, fontWeight: 600, color: t.INK }}>{d.getDate()}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div>
+            <BSProActionSec eyebrow="TIME" title="Open slots" accent={accent} />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
+              {times.map(tm => {
+                const on = time === tm;
+                return <button key={tm} onClick={() => setTime(tm)} style={{ borderRadius: 12, padding: '12px 0', cursor: 'pointer', border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1c` : t.PAPER2, color: on ? accent : t.INK, fontFamily: t.MONO, fontSize: 11, fontWeight: 700 }}>{tm}</button>;
+              })}
+            </div>
+          </div>
+          <div>
+            <BSProActionSec eyebrow="HOW LONG" title="Duration" accent={accent} />
+            <BSProSegment options={[{ k: 30, l: '30 min' }, { k: 45, l: '45 min' }, { k: 60, l: '60 min' }]} value={duration} onPick={setDuration} accent={accent} />
+          </div>
+          <div>
+            <BSProActionSec eyebrow="WHERE" title="Mode" accent={accent} />
+            <BSProChips options={modeOpts} value={mode} onPick={setMode} accent={accent} />
+          </div>
+          <button onClick={() => setRepeat(r => !r)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '15px 16px', cursor: 'pointer', textAlign: 'left' }}>
+            <div>
+              <div style={{ fontFamily: t.SERIF, fontSize: 16, fontWeight: 600, color: t.INK }}>Repeat weekly</div>
+              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>Every {WD[sel.getDay()]} at {time}</div>
+            </div>
+            <span style={{ width: 42, height: 24, borderRadius: 999, padding: 3, flexShrink: 0, border: `1px solid ${repeat ? accent : t.RULE}`, background: repeat ? accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: repeat ? 'flex-end' : 'flex-start' }}>
+              <span style={{ width: 16, height: 16, borderRadius: 999, background: repeat ? '#06231f' : t.INK50, display: 'block' }} />
+            </span>
+          </button>
+          <div>
+            <BSProActionSec eyebrow="SUMMARY" title="The booking" accent={accent} />
+            <div style={{ borderRadius: 16, border: `1px solid ${accent}44`, background: `linear-gradient(150deg, ${accent}16, ${t.PAPER2} 80%), ${t.PAPER2}`, padding: 16 }}>
+              <div style={{ fontFamily: t.SERIF, fontSize: 19, fontWeight: 600, color: t.INK }}>{typeLabel} · <span style={{ fontStyle: 'italic', color: accent }}>{first}</span></div>
+              <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: accent }}>{summaryWhen}</div>
+            </div>
+            <button onClick={add} disabled={status === 'saving' || status === 'done'} style={{ width: '100%', marginTop: 14, borderRadius: 14, border: 0, background: accent, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: status === 'saving' ? 0.6 : 1 }}>{status === 'saving' ? 'Adding…' : status === 'done' ? 'Added ✓' : 'Add to calendar →'}</button>
+            {status === 'error' && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.08em' }}>Couldn't add — try again.</div>}
+            {!clientUid && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Demo client · books once linked to a live member</div>}
+          </div>
+        </div>
+      </div>
+      <BSFooter left="Schedule" right={client?.n} />
+    </BSPage>
+  );
+}
+
 function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -1295,6 +1569,8 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const [cGoals, setCGoals] = useStateBSP(null);
   const [cGoalsLoaded, setCGoalsLoaded] = useStateBSP(false);
   const [showAdjust, setShowAdjust] = useStateBSP(false);
+  const [showAdjustPage, setShowAdjustPage] = useStateBSP(false);
+  const [showSchedulePage, setShowSchedulePage] = useStateBSP(false);
   const [view, setView] = useStateBSP('profile'); // 'profile' | 'analysis'
   const [cStats, setCStats] = useStateBSP(null); // live KPI rollup (coach read)
   useEffectBSP(() => {
@@ -1321,6 +1597,8 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     </div>
   );
   if (!client) return null;
+  if (showAdjustPage) return <BSProAdjustProgram client={client} role={role} clientUid={clientUid} onBack={() => setShowAdjustPage(false)} />;
+  if (showSchedulePage) return <BSProScheduleSession client={client} role={role} clientUid={clientUid} onBack={() => setShowSchedulePage(false)} />;
 
   // ---- theme + derived facts ----
   const accent = isNutri ? '#d8b25a' : teal;   // gold for nutrition, teal for training
@@ -1424,8 +1702,8 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       </div>
       <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
         <button onClick={() => fireEvt('shape:proMessageClient')} style={{ borderRadius: 999, border: `1px solid ${accent}`, background: `${accent}1f`, color: t.INK, padding: '9px 16px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>MESSAGE</button>
-        <button onClick={() => { setView('manage'); setShowAdjust(false); }} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '9px 16px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>{isNutri ? 'ADJUST PLAN' : 'ADJUST PROGRAM'}</button>
-        <button onClick={() => fireEvt('shape:proScheduleClient')} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '9px 16px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SCHEDULE</button>
+        <button onClick={() => setShowAdjustPage(true)} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '9px 16px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>{isNutri ? 'ADJUST PLAN' : 'ADJUST PROGRAM'}</button>
+        <button onClick={() => setShowSchedulePage(true)} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '9px 16px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SCHEDULE</button>
       </div>
       <div style={{ marginTop: 18, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
         {[['profile', isNutri ? 'Plan' : 'Profile'], ['analysis', 'Analysis'], ['manage', 'Manage']].map(([k, label]) => {
