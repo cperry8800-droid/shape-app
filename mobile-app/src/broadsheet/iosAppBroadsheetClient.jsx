@@ -1713,6 +1713,22 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     mood: () => setShowMood(true),
   };
 
+  // Whether the customizable card-stack section shows on home — a general
+  // visibility toggle persisted in Settings → Preferences (client_settings),
+  // mirrored on window.ShapeHomeCards so this page reacts live.
+  const [homeCardsHidden, setHomeCardsHidden] = useStateBSC(() => (typeof window !== 'undefined' && window.ShapeHomeCards ? window.ShapeHomeCards.get() : false));
+  useEffect(() => {
+    let alive = true;
+    const sync = () => { if (alive) setHomeCardsHidden(window.ShapeHomeCards ? window.ShapeHomeCards.get() : false); };
+    window.addEventListener('shape:homecards', sync);
+    if (window.shapeDb && window.shapeDb.getUserGoals) {
+      window.shapeDb.getUserGoals('client_settings').then(s => {
+        if (alive && s && typeof s === 'object' && 'homeCards' in s) window.ShapeHomeCards?.set(s.homeCards === 'Hidden');
+      }).catch(() => {});
+    }
+    return () => { alive = false; window.removeEventListener('shape:homecards', sync); };
+  }, []);
+
   if (previewMeal) {
     return <BSMealPreview meal={previewMeal} onBack={() => setPreviewMeal(null)} onLog={() => { setPreviewMeal(null); setShowLogMeal(true); }} />;
   }
@@ -1917,6 +1933,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
       </div>
 
       {/* CUSTOMIZABLE CARD STACK — Training / Recovery / Energy / … */}
+      {!homeCardsHidden && (
       <div style={{ paddingTop: 16, borderTop: `1px solid ${t.RULE}` }}>
         <BSHomeCards
           t={t}
@@ -1925,6 +1942,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
           openers={homeCardOpeners}
         />
       </div>
+      )}
 
       <BSSection title="Up next" kicker="3 of 8 done" />
 
@@ -3154,6 +3172,16 @@ if (typeof window !== 'undefined' && !window.ShapeMealTimes) {
       if (p.mealDinner)    next.DINNER = _bs12to24(p.mealDinner) || next.DINNER;
       _mt = next;
     },
+  };
+}
+// Home card-stack visibility — a general show/hide toggle (Settings →
+// Preferences). Cached on window so the home page can react live via the
+// `shape:homecards` event without prop threading.
+if (typeof window !== 'undefined' && !window.ShapeHomeCards) {
+  let _hidden = false;
+  window.ShapeHomeCards = {
+    get: () => _hidden,
+    set: (v) => { const nv = !!v; if (nv === _hidden) return; _hidden = nv; try { window.dispatchEvent(new Event('shape:homecards')); } catch (e) {} },
   };
 }
 
@@ -11160,6 +11188,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     weeklyDigest:      ['Sun 7am', 'Mon 7am', 'Fri 5pm', 'Off'],
     community:         ['Off', 'Mentions only', 'All activity'],
     units:             ['Imperial · lb / mi', 'Metric · kg / km'],
+    homeCards:         ['Shown', 'Hidden'],
     weekStarts:        ['Monday', 'Sunday'],
     timeZone:          ['America/Los_Angeles', 'America/New_York', 'America/Chicago', 'America/Denver', 'Europe/London', 'UTC'],
     language:          ['English (US)', 'English (UK)', 'Español', 'Français', 'Deutsch'],
@@ -11182,6 +11211,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       if (alive && s && typeof s === 'object') {
         setPrefs(p => ({ ...p, ...s }));
         if (s.units) window.ShapeUnits?.set(s.units);
+        if ('homeCards' in s) window.ShapeHomeCards?.set(s.homeCards === 'Hidden');
         window.ShapeMealTimes?.setFromPrefs({ ...PREF_DEFAULTS, ...s });
         if (s.trainingPhase || s.nutritionPhase) window.ShapeProgram?.set?.({ trainingPhase: s.trainingPhase, nutritionPhase: s.nutritionPhase });
       }
@@ -11198,6 +11228,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       const next = { ...p, [key]: opts[(idx + 1) % opts.length] };
       try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
       if (key === 'units') window.ShapeUnits?.set(next[key]); // propagate app-wide
+      if (key === 'homeCards') window.ShapeHomeCards?.set(next[key] === 'Hidden');
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
       if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
       return next;
@@ -11209,6 +11240,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       const next = { ...p, [key]: value };
       try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
       if (key === 'units') window.ShapeUnits?.set(value);
+      if (key === 'homeCards') window.ShapeHomeCards?.set(next[key] === 'Hidden');
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
       if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
       return next;
@@ -11667,6 +11699,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       meta: '',
       rows: [
         { l: 'Units',           key: 'units', segmented: PREF_OPTIONS.units, segLabels: ['Imperial', 'Metric'] },
+        { l: 'Home cards',      key: 'homeCards', segmented: PREF_OPTIONS.homeCards, segLabels: ['Shown', 'Hidden'] },
         { l: 'Week starts',     key: 'weekStarts', dropdown: PREF_OPTIONS.weekStarts },
         { l: 'Time zone',       key: 'timeZone', dropdown: BS_TIMEZONES },
         { l: 'Language',        key: 'language', dropdown: PREF_OPTIONS.language },
