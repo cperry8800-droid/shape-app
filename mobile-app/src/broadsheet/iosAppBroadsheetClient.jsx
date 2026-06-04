@@ -6227,7 +6227,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             <div style={{ borderRadius: 16, [right ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 5, padding: '11px 14px', background: bubbleBg, color: p.official ? '#1a1713' : cardInk, border: p.official ? 'none' : `1px solid ${tc}40`, fontFamily: p.official ? `'Newsreader', Georgia, serif` : t.DISPLAY, fontStyle: p.official ? 'italic' : 'normal', fontSize: p.official ? 15 : 14, lineHeight: 1.4 }}>{p.body}</div>
           </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'center', gap: 20, marginTop: 7, padding: right ? `0 ${AV_OFFSET}px 0 0` : `0 0 0 ${AV_OFFSET}px`, fontFamily: t.MONO, fontSize: 14, color: muted }}>
+        <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'center', gap: 16, marginTop: 6, padding: right ? `0 ${AV_OFFSET}px 0 0` : `0 0 0 ${AV_OFFSET}px`, fontFamily: t.MONO, fontSize: 11, color: muted }}>
           <button onClick={() => like(p)} style={{ background: 'transparent', border: 0, color: muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>♥ {p.hearts}</button>
           <button onClick={() => openActComments(p.id, actCmtOpen === p.id)} style={{ background: 'transparent', border: 0, color: actCmtOpen === p.id ? TEALB : muted, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: actCmtOpen === p.id ? 800 : 400, cursor: 'pointer', padding: 0 }}>↳ {replyCount}</button>
         </div>
