@@ -933,7 +933,7 @@ function BSRadioScreen({ onBack }) {
       }} />
 
       {/* HEADER — translucent so portrait shows through */}
-      <div style={{ padding: `50px ${t.padX}px 18px`, borderBottom: `1px solid ${RULE_DK}`, position: 'relative' }}>
+      <div style={{ padding: `50px ${t.padX}px 11px`, borderBottom: `1px solid ${RULE_DK}`, position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <BSLogo size={16} color={CREAM} />
@@ -950,7 +950,7 @@ function BSRadioScreen({ onBack }) {
           Section · Music
         </div>
         <div style={{
-          marginTop: 12,
+          marginTop: 17,
           textAlign: 'center',
           whiteSpace: 'nowrap',
         }}>

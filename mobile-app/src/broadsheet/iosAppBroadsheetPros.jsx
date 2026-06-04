@@ -2199,6 +2199,58 @@ function BSPlanGeneratorCard({ role = 'trainer', kind = 'workout' }) {
   );
 }
 
+// Editable draft — after an AI (or blank) generation the coach lands here to
+// customize the name, the sections (add / rename / remove / reorder-by-edit),
+// and a note, then publishes. Shared by the trainer + nutritionist pages.
+function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockLabel = 'Sections', initialName, initialBlocks, initialNote, onPublish, onCancel }) {
+  const [name, setName] = useStateBSP(initialName || '');
+  const [blocks, setBlocks] = useStateBSP(initialBlocks || []);
+  const [note, setNote] = useStateBSP(initialNote || '');
+  const [status, setStatus] = useStateBSP('');
+  const setBlock = (i, v) => setBlocks(bs => bs.map((b, j) => (j === i ? { ...b, text: v } : b)));
+  const addBlock = () => setBlocks(bs => [...bs, { id: 'b' + Date.now() + Math.round(Math.random() * 1e4), text: '' }]);
+  const rmBlock = (i) => setBlocks(bs => bs.filter((_, j) => j !== i));
+  const lbl = (s) => <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: accent, marginBottom: 8 }}>{s}</div>;
+  const inputStyle = { width: '100%', boxSizing: 'border-box', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '12px 13px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' };
+  return (
+    <BSPage>
+      <div style={{ padding: `50px ${t.padX}px 28px` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>EDIT · {(typeName || '').toUpperCase()}</div>
+          <button onClick={onCancel} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>CANCEL</button>
+        </div>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Customize <span style={{ fontStyle: 'italic', color: accent }}>your {typeName}.</span></div>
+        <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK50 }}>Tweak anything below, then publish. Nothing's live until you do.</div>
+
+        <div style={{ marginTop: 20 }}>{lbl('NAME')}<input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} /></div>
+
+        <div style={{ marginTop: 18 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            {lbl(blockLabel)}
+            <button onClick={addBlock} style={{ border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: accent }}>+ ADD</button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {blocks.map((b, i) => (
+              <div key={b.id} style={{ display: 'grid', gridTemplateColumns: '20px 1fr auto', gap: 8, alignItems: 'center' }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</span>
+                <input value={b.text} onChange={(e) => setBlock(i, e.target.value)} style={inputStyle} />
+                <button onClick={() => rmBlock(i)} aria-label="Remove" style={{ border: 0, background: 'transparent', color: t.INK50, fontSize: 18, lineHeight: 1, cursor: 'pointer', padding: '0 4px' }}>×</button>
+              </div>
+            ))}
+            {blocks.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, padding: '8px 2px' }}>None yet — add one.</div>}
+          </div>
+        </div>
+
+        <div style={{ marginTop: 18 }}>{lbl('COACH NOTE')}<textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="Anything the client should know…" style={{ ...inputStyle, lineHeight: 1.5, resize: 'vertical' }} /></div>
+
+        <button onClick={async () => { setStatus('Publishing…'); await onPublish({ name, blocks, note }); }} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: accent, color: accentInk, padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{status || `Publish ${typeName} →`}</button>
+        <div style={{ marginTop: 12, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>Saves to your library · you can edit again anytime</div>
+      </div>
+      <BSFooter left="Edit draft" right={typeName} />
+    </BSPage>
+  );
+}
+
 function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -2254,6 +2306,14 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   const [blankMode, setBlankMode] = useStateBSP(false); // false = AI draft, true = build from scratch
   const BUILD_LABEL = { plan: 'plan', workout: 'workout', program: 'program' };
   const openDraft = (type, blank = false) => { setBuildType(type); setBlankMode(blank); setDrafting(true); };
+  const [editDraft, setEditDraft] = useStateBSP(null); // generated/blank draft being customized before publish
+  const publishDraft = async ({ name, blocks, note }) => {
+    const typeName = BUILD_LABEL[buildType];
+    const payload = { kind: 'program', name: name || `${focus} ${typeName}`, meta: `${typeName} · ${length} · ${exp.toLowerCase()}`, price: buildType === 'plan' ? '$110' : null, detail: { buildType, focus, exp, equip, length, blocks, note } };
+    if (window.ShapeCoachPlans?.create) { try { const row = await window.ShapeCoachPlans.create(payload); if (row) setServerPlans(list => [row, ...(list || [])]); } catch (e) {} }
+    flash(`${typeName.charAt(0).toUpperCase()}${typeName.slice(1)} published`);
+    setEditDraft(null); setDrafting(false);
+  };
   // Single day workouts
   const workouts = [
     { n: 'Lower Push — Peak', meta: '6 lifts · 62 min · RPE 8' },
@@ -2280,6 +2340,9 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
 
   if (showSoundtracks) return <BSProSoundtracks role="trainer" onBack={() => setShowSoundtracks(false)} />;
 
+  // ── Customize the generated/blank draft before publishing ──
+  if (editDraft) return <BSCoachDraftEditor t={t} accent={teal} accentInk="#04201d" typeName={BUILD_LABEL[buildType]} blockLabel={editDraft.blockLabel} initialName={editDraft.name} initialBlocks={editDraft.blocks} initialNote={editDraft.note} onPublish={publishDraft} onCancel={() => { setEditDraft(null); setDrafting(false); }} />;
+
   // ── AI draft sheet (workout builder) ──
   if (drafting) {
     const chips = (label, value, set, opts) => (
@@ -2294,14 +2357,17 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
       </div>
     );
     const generate = async () => {
-      setDraftStatus(blankMode ? 'Creating…' : 'Generating…');
+      setDraftStatus(blankMode ? 'Opening editor…' : 'Generating…');
       if (!blankMode) { try { await window.ShapeAI?.generatePlanDraft?.({ kind: buildType, goal: focus, client: '', level: exp, duration: length, preferences: `${desc} · ${equip}`, equipment: equip }); } catch (e) {} }
-      const typeName = BUILD_LABEL[buildType];
-      const payload = { kind: 'program', name: `${focus} ${typeName}`, meta: `${typeName} · ${length} · ${exp.toLowerCase()}`, price: buildType === 'plan' ? '$110' : null, detail: { buildType, focus, exp, equip, length, desc } };
-      let saved = false;
-      if (window.ShapeCoachPlans?.create) { try { const row = await window.ShapeCoachPlans.create(payload); if (row) { setServerPlans(list => [row, ...(list || [])]); saved = true; } } catch (e) {} }
-      setDraftStatus(saved ? `${blankMode ? 'Created' : 'Draft saved'} · edit before publishing` : `${blankMode ? 'Ready' : 'Draft ready'} · edit before publishing`);
-      setTimeout(() => setDrafting(false), 900);
+      const mk = (arr) => arr.map((s, i) => ({ id: 'b' + i, text: s }));
+      const outline = blankMode ? mk(['', '', '']) : (buildType === 'workout'
+        ? mk(['Warm-up · 8 min', `Main lift — ${focus}`, 'Secondary compound · 4×8', 'Accessory superset · 3×12', 'Core finisher', 'Cooldown · mobility'])
+        : buildType === 'program'
+        ? mk(['Mon — Upper (push)', 'Tue — Lower (squat)', 'Wed — Rest / mobility', 'Thu — Upper (pull)', 'Fri — Lower (hinge)', 'Sat — Conditioning', 'Sun — Rest'])
+        : mk(['Week 1 — Accumulation', 'Week 2 — Accumulation', 'Week 3 — Intensification', 'Week 4 — Deload', 'Week 5 — Peak', 'Week 6 — Retest']));
+      const blockLabel = buildType === 'workout' ? 'Exercises' : buildType === 'program' ? 'Weekly split' : 'Weeks';
+      setDrafting(false);
+      setEditDraft({ name: `${focus} ${BUILD_LABEL[buildType]}`, blocks: outline, note: '', blockLabel });
     };
     return (
       <BSPage>
@@ -3148,6 +3214,14 @@ function BSNutriPlans() {
   const [blankMode, setBlankMode] = useStateBSP(false); // false = AI draft, true = build from scratch
   const BUILD_LABEL = { mealplan: 'meal plan', recipe: 'recipe', template: 'template' };
   const openDraft = (type, blank = false) => { setBuildType(type); setBlankMode(blank); setDrafting(true); };
+  const [editDraft, setEditDraft] = useStateBSP(null); // generated/blank draft being customized before publish
+  const publishDraft = async ({ name, blocks, note }) => {
+    const typeName = BUILD_LABEL[buildType];
+    const payload = { kind: 'meal_plan', name: name || `${goal} ${typeName}`, meta: `${typeName} · ${cals.replace('~', '')} kcal · ${diet.toLowerCase()}`, price: buildType === 'mealplan' ? '$120' : null, detail: { buildType, goal, diet, cals, mealsDay, blocks, note } };
+    if (window.ShapeCoachPlans?.create) { try { const row = await window.ShapeCoachPlans.create(payload); if (row) setServerPlans(list => [row, ...(list || [])]); } catch (e) {} }
+    flash(`${typeName.charAt(0).toUpperCase()}${typeName.slice(1)} published`);
+    setEditDraft(null); setDrafting(false);
+  };
   const libBuild = ({ plans: 'mealplan', recipes: 'recipe', templates: 'template' })[libTab] || 'mealplan';
   // Reusable weekly meal templates (the "Templates" sub-tab)
   const mealTemplates = [
@@ -3166,6 +3240,9 @@ function BSNutriPlans() {
 
   if (showSoundtracks) return <BSProSoundtracks role="nutritionist" onBack={() => setShowSoundtracks(false)} />;
 
+  // ── Customize the generated/blank draft before publishing ──
+  if (editDraft) return <BSCoachDraftEditor t={t} accent={gold} accentInk="#241c08" typeName={BUILD_LABEL[buildType]} blockLabel={editDraft.blockLabel} initialName={editDraft.name} initialBlocks={editDraft.blocks} initialNote={editDraft.note} onPublish={publishDraft} onCancel={() => { setEditDraft(null); setDrafting(false); }} />;
+
   // ── AI draft sheet (meal-plan builder) ──
   if (drafting) {
     const chips = (label, value, set, opts) => (
@@ -3180,14 +3257,17 @@ function BSNutriPlans() {
       </div>
     );
     const generate = async () => {
-      setDraftStatus(blankMode ? 'Creating…' : 'Generating…');
+      setDraftStatus(blankMode ? 'Opening editor…' : 'Generating…');
       if (!blankMode) { try { await window.ShapeAI?.generatePlanDraft?.({ kind: buildType, goal, client: '', level: diet, duration: '7 days', calories: cals.replace('~', ''), preferences: desc, protein: '' }); } catch (e) {} }
-      const typeName = BUILD_LABEL[buildType];
-      const payload = { kind: 'meal_plan', name: `${goal} ${typeName}`, meta: `${typeName} · ${cals.replace('~', '')} kcal · ${diet.toLowerCase()}`, price: buildType === 'mealplan' ? '$120' : null, detail: { buildType, goal, diet, cals, mealsDay, desc } };
-      let saved = false;
-      if (window.ShapeCoachPlans?.create) { try { const row = await window.ShapeCoachPlans.create(payload); if (row) { setServerPlans(list => [row, ...(list || [])]); saved = true; } } catch (e) {} }
-      setDraftStatus(saved ? `${blankMode ? 'Created' : 'Draft saved'} · edit before publishing` : `${blankMode ? 'Ready' : 'Draft ready'} · edit before publishing`);
-      setTimeout(() => setDrafting(false), 900);
+      const mk = (arr) => arr.map((s, i) => ({ id: 'b' + i, text: s }));
+      const outline = blankMode ? mk(['', '', '']) : (buildType === 'recipe'
+        ? mk(['Protein · base', 'Carb · base', 'Veg / fibre', 'Healthy fats', 'Flavour / sauce'])
+        : buildType === 'template'
+        ? mk(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
+        : mk(['Breakfast · ~500 kcal', 'Lunch · ~600 kcal', 'Snack · ~250 kcal', 'Dinner · ~650 kcal', 'Evening · ~150 kcal']));
+      const blockLabel = buildType === 'recipe' ? 'Components' : buildType === 'template' ? 'Week' : 'Daily meals';
+      setDrafting(false);
+      setEditDraft({ name: `${goal} ${BUILD_LABEL[buildType]}`, blocks: outline, note: '', blockLabel });
     };
     return (
       <BSPage>
