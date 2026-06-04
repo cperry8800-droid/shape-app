@@ -1323,6 +1323,19 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
                       <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{ov.title}</div>
                       <div style={{ marginTop: 8, height: 6, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${pct * 100}%`, background: teal, borderRadius: 999 }} /></div>
                       <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em' }}>{down} {unit} so far · {Math.abs(toGo)} {unit} to go · now {now}{unit} · target {target}{unit}</div>
+                      {Array.isArray(ov.weighIns) && ov.weighIns.length >= 2 && (() => {
+                        const vals = ov.weighIns.map(x => Number(x.kg)).filter(Number.isFinite);
+                        if (vals.length < 2) return null;
+                        const mn = Math.min(...vals), mx = Math.max(...vals), span = (mx - mn) || 1, n = vals.length, W = 300, H = 46;
+                        const pts = vals.map((v, i) => [(i / (n - 1)) * W, H - 4 - ((v - mn) / span) * (H - 10)]);
+                        const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+                        return (
+                          <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" style={{ display: 'block', marginTop: 10 }}>
+                            <path d={`${line} L${W},${H} L0,${H} Z`} fill={`${teal}1f`} />
+                            <path d={line} fill="none" stroke={teal} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+                          </svg>
+                        );
+                      })()}
                     </div>
                   );
                 })()}

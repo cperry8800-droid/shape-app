@@ -181,6 +181,19 @@ function CoachClientDetailPage() {
                       <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, letterSpacing: "-0.01em", margin: "6px 0 8px" }}>{ov.title}</div>
                       <div style={{ height: 6, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${pct * 100}%`, background: "#0ac5a8" }} /></div>
                       <div style={{ marginTop: 7, fontSize: 11.5, color: "rgba(242,237,228,0.55)" }}>{down} {unit} so far · {Math.abs(toGo)} {unit} to go · now {now}{unit} · target {target}{unit}</div>
+                      {Array.isArray(ov.weighIns) && ov.weighIns.length >= 2 && (() => {
+                        const vals = ov.weighIns.map(x => Number(x.kg)).filter(Number.isFinite);
+                        if (vals.length < 2) return null;
+                        const mn = Math.min(...vals), mx = Math.max(...vals), span = (mx - mn) || 1, n = vals.length, W = 300, H = 50;
+                        const pts = vals.map((v, i) => [(i / (n - 1)) * W, H - 4 - ((v - mn) / span) * (H - 10)]);
+                        const line = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
+                        return (
+                          <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" style={{ display: "block", marginTop: 10 }}>
+                            <path d={`${line} L${W},${H} L0,${H} Z`} fill="rgba(10,197,168,0.12)" />
+                            <path d={line} fill="none" stroke="#0ac5a8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+                          </svg>
+                        );
+                      })()}
                     </div>
                   );
                 })()}

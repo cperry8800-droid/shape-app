@@ -8688,26 +8688,47 @@ function BSClientGoals({ onBack }) {
   const [editing, setEditing] = useStateBSC(null); // goal-list edit: 'new' | index | null
   const [editOverall, setEditOverall] = useStateBSC(false);
   const [logWeigh, setLogWeigh] = useStateBSC(false);
+  const loggedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.().user);
   const logWeighIn = (kg) => {
     const today = new Date().toISOString().slice(0, 10);
     const prev = bsGoalWeighIns(overall);
     const wi = (prev.length && prev[prev.length - 1].d === today) ? [...prev.slice(0, -1), { d: today, kg }] : [...prev, { d: today, kg }];
-    persist({ ...data, overall: { ...overall, weighIns: wi, now: kg } });
+    const nextOverall = { ...overall, weighIns: wi, now: kg };
+    if (loggedIn && window.ShapeWeighIns?.log) {
+      setData(d => ({ ...d, overall: nextOverall }));          // optimistic; table is the source of truth
+      window.ShapeWeighIns.log({ weight: kg, unit: overall.unit || 'kg' }).catch(() => {});
+    } else {
+      persist({ ...data, overall: nextOverall });              // signed out / demo → user_goals JSONB
+    }
     setLogWeigh(false);
   };
+  // Load the editable goal fields (user_goals) + the live weigh-in series. When
+  // signed in, the dedicated client_weigh_ins table wins for weighIns/now.
   React.useEffect(() => {
-    if (!window.shapeDb?.getUserGoals) return;
-    window.shapeDb.getUserGoals('client_goals').then(d => {
-      if (d && typeof d === 'object') {
-        setData(prev => ({
-          share: d.share !== false,
-          overall: (d.overall && typeof d.overall === 'object') ? { ...prev.overall, ...d.overall } : prev.overall,
-          training: Array.isArray(d.training) ? d.training : prev.training,
-          nutrition: Array.isArray(d.nutrition) ? d.nutrition : prev.nutrition,
-        }));
-      }
-    }).catch(() => {});
-  }, []);
+    let alive = true;
+    (async () => {
+      let doc = null, weigh = null;
+      try { doc = window.shapeDb?.getUserGoals ? await window.shapeDb.getUserGoals('client_goals') : null; } catch (e) {}
+      if (loggedIn) { try { weigh = window.ShapeWeighIns?.list ? await window.ShapeWeighIns.list() : null; } catch (e) {} }
+      if (!alive) return;
+      setData(prev => {
+        const m = { ...prev };
+        if (doc && typeof doc === 'object') {
+          m.share = doc.share !== false;
+          m.overall = (doc.overall && typeof doc.overall === 'object') ? { ...prev.overall, ...doc.overall } : prev.overall;
+          m.trainingMeta = (doc.trainingMeta && typeof doc.trainingMeta === 'object') ? { ...prev.trainingMeta, ...doc.trainingMeta } : prev.trainingMeta;
+          m.nutritionMeta = (doc.nutritionMeta && typeof doc.nutritionMeta === 'object') ? { ...prev.nutritionMeta, ...doc.nutritionMeta } : prev.nutritionMeta;
+          m.training = Array.isArray(doc.training) ? doc.training : prev.training;
+          m.nutrition = Array.isArray(doc.nutrition) ? doc.nutrition : prev.nutrition;
+        }
+        if (Array.isArray(weigh) && weigh.length) {
+          m.overall = { ...m.overall, weighIns: weigh, now: Number(weigh[weigh.length - 1].kg) };
+        }
+        return m;
+      });
+    })();
+    return () => { alive = false; };
+  }, [loggedIn]);
   const persist = (next) => { setData(next); try { window.shapeDb?.saveUserGoals?.('client_goals', next); } catch (e) {} };
   const overall = data.overall || BS_GOALS_DEFAULT.overall;
   const trainingMeta = data.trainingMeta || BS_GOALS_DEFAULT.trainingMeta;
