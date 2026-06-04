@@ -46,6 +46,20 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Avatar color = your tier (app-wide); accent picker removed; instant save
+- **Every "your own" avatar now fills with your Shape Score tier color** (Base/steel
+  until you earn points): the 5 client header avatars, the **Settings** identity editor
+  (edit + non-edit), and — via newly window-exposed `bsMyName/bsMyInitials/bsMyTierColor`
+  — the coach home headers + `BSProMe`. Tier is cached on **`window.ShapeScore`**
+  (`_bsUseLiveScore` + a startup `/api/client/score` fetch in both the client and the
+  two coach shells).
+- **Removed the avatar accent-color picker** in Settings → edit-profile; the swatch row
+  is now a read-only "{tier} tier color" chip. (`accent` is no longer used for the
+  avatar; the editor's focus/chip accent follows the tier color too.)
+- **Instant update on save**: saving the profile fires a `shape:identity` event; the
+  app shell bumps `identityVersion`, so the avatars on the **current** screen pick up
+  new initials immediately — no navigation needed.
+
 ### 2026-06-04 — Feed avatars: 2-letter initials, tier-colored own bubble, custom initials
 - **Full (2-letter) initials** in the feed + community-activity avatars (e.g. "CP"
   not "C"); the role-feed avatar grew 32→36px to fit them cleanly. New `bsInitials()`
