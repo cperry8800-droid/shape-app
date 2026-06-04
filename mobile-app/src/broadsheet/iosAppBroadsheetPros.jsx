@@ -2205,10 +2205,16 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   const [draftStatus, setDraftStatus] = useStateBSP('');
   const [sort, setSort] = useStateBSP('Popular');
   const [dupes, setDupes] = useStateBSP([]);
+  const [serverPlans, setServerPlans] = useStateBSP(null); // synced coach_plans rows
   const [note, setNote] = useStateBSP('');
   const flash = (m) => { setNote(m); setTimeout(() => setNote(''), 1700); };
   const share = (name) => { try { navigator.clipboard?.writeText(`https://shape.app/p/${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`); } catch (e) {} flash('Share link copied'); };
-  const duplicate = (p) => { setDupes(d => [{ ...p, n: `${p.n} (copy)` }, ...d]); flash('Program duplicated'); };
+  useEffectBSP(() => { if (window.ShapeCoachPlans?.list) window.ShapeCoachPlans.list('program').then(rows => { if (Array.isArray(rows)) setServerPlans(rows); }).catch(() => {}); }, []);
+  const duplicate = async (p) => {
+    const copy = { kind: 'program', name: `${p.n} (copy)`, meta: p.meta, price: p.price };
+    if (window.ShapeCoachPlans?.create) { try { const row = await window.ShapeCoachPlans.create(copy); if (row) { setServerPlans(list => [row, ...(list || [])]); flash('Program duplicated'); return; } } catch (e) {} }
+    setDupes(d => [{ n: copy.name, meta: p.meta, price: p.price }, ...d]); flash('Program duplicated');
+  };
   const cycleSort = () => setSort(s => s === 'Popular' ? 'Price' : s === 'Price' ? 'Rating' : 'Popular');
 
   const basePrograms = [
@@ -2217,9 +2223,10 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     { n: 'Fat Loss 101', meta: '12 wk · 22 on it · 4.7 ★', price: '$160' },
     { n: 'Hypertrophy Block', meta: '8 wk · 19 on it · 4.8 ★', price: '$110' },
   ];
+  const customCards = (serverPlans || dupes).map(p => p.id ? { n: p.name, meta: p.meta || 'New program', price: p.price || '$—', id: p.id, server: true } : p);
   const numFrom = (s, re) => { const m = (s || '').match(re); return m ? parseFloat(m[1]) : 0; };
   const programs = (() => {
-    const list = [...dupes, ...basePrograms];
+    const list = [...customCards, ...basePrograms];
     if (sort === 'Price') return [...list].sort((a, b) => numFrom(b.price, /(\d+)/) - numFrom(a.price, /(\d+)/));
     if (sort === 'Rating') return [...list].sort((a, b) => numFrom(b.meta, /([\d.]+) ★/) - numFrom(a.meta, /([\d.]+) ★/));
     return [...list].sort((a, b) => numFrom(b.meta, /(\d+) on it/) - numFrom(a.meta, /(\d+) on it/));
@@ -2248,7 +2255,10 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     const generate = async () => {
       setDraftStatus('Generating…');
       try { await window.ShapeAI?.generatePlanDraft?.({ kind: 'workout', goal: focus, client: '', level: exp, duration: length, preferences: `${desc} · ${equip}`, equipment: equip }); } catch (e) {}
-      setDraftStatus('Draft ready · edit before publishing');
+      const payload = { kind: 'program', name: `${focus} block`, meta: `${length} · ${exp.toLowerCase()} · new`, price: '$110', detail: { focus, exp, equip, length, desc } };
+      let saved = false;
+      if (window.ShapeCoachPlans?.create) { try { const row = await window.ShapeCoachPlans.create(payload); if (row) { setServerPlans(list => [row, ...(list || [])]); saved = true; } } catch (e) {} }
+      setDraftStatus(saved ? 'Draft saved · edit before publishing' : 'Draft ready · edit before publishing');
       setTimeout(() => setDrafting(false), 900);
     };
     return (
@@ -3005,12 +3015,19 @@ function BSNutriPlans() {
   const [mealsDay, setMealsDay] = useStateBSP(4);
   const [draftStatus, setDraftStatus] = useStateBSP('');
   const [dupes, setDupes] = useStateBSP([]);
+  const [serverPlans, setServerPlans] = useStateBSP(null); // synced coach_plans (meal_plan)
   const [note, setNote] = useStateBSP('');
   const flash = (m) => { setNote(m); setTimeout(() => setNote(''), 1700); };
   const share = (name) => { try { navigator.clipboard?.writeText(`https://shape.app/p/${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`); } catch (e) {} flash('Share link copied'); };
-  const duplicate = (p) => { setDupes(d => [{ ...p, n: `${p.n} (copy)` }, ...d]); flash('Plan duplicated'); };
+  useEffectBSP(() => { if (window.ShapeCoachPlans?.list) window.ShapeCoachPlans.list('meal_plan').then(rows => { if (Array.isArray(rows)) setServerPlans(rows); }).catch(() => {}); }, []);
+  const duplicate = async (p) => {
+    const copy = { kind: 'meal_plan', name: `${p.n} (copy)`, meta: p.meta, price: p.price };
+    if (window.ShapeCoachPlans?.create) { try { const row = await window.ShapeCoachPlans.create(copy); if (row) { setServerPlans(list => [row, ...(list || [])]); flash('Plan duplicated'); return; } } catch (e) {} }
+    setDupes(d => [{ n: copy.name, meta: p.meta, price: p.price }, ...d]); flash('Plan duplicated');
+  };
 
-  const plans = [...dupes,
+  const customCards = (serverPlans || dupes).map(p => p.id ? { n: p.name, meta: p.meta || 'New meal plan', price: p.price || '$—', id: p.id, server: true } : p);
+  const plans = [...customCards,
     { n: 'Lean Cut', meta: '2,100 kcal · 12 on it · 4.9 ★', price: '$140' },
     { n: 'Performance', meta: '3,200 kcal · 8 on it · 4.8 ★', price: '$140' },
     { n: 'Vegetarian Base', meta: '2,400 kcal · 6 on it · 4.7 ★', price: '$120' },
@@ -3041,7 +3058,10 @@ function BSNutriPlans() {
     const generate = async () => {
       setDraftStatus('Generating…');
       try { await window.ShapeAI?.generatePlanDraft?.({ kind: 'meal_plan', goal, client: '', level: diet, duration: '7 days', calories: cals.replace('~', ''), preferences: desc, protein: '' }); } catch (e) {}
-      setDraftStatus('Draft ready · edit before publishing');
+      const payload = { kind: 'meal_plan', name: `${goal} · ${cals.replace('~', '')} kcal`, meta: `${cals.replace('~', '')} kcal · ${diet.toLowerCase()} · ${mealsDay} meals`, price: '$120', detail: { goal, diet, cals, mealsDay, desc } };
+      let saved = false;
+      if (window.ShapeCoachPlans?.create) { try { const row = await window.ShapeCoachPlans.create(payload); if (row) { setServerPlans(list => [row, ...(list || [])]); saved = true; } } catch (e) {} }
+      setDraftStatus(saved ? 'Draft saved · edit before publishing' : 'Draft ready · edit before publishing');
       setTimeout(() => setDrafting(false), 900);
     };
     return (

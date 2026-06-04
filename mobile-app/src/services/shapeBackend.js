@@ -2955,6 +2955,47 @@ async function removeSoundtrack(id) {
 }
 window.ShapeSoundtracks = { list: listSoundtracks, create: createSoundtrack, update: updateSoundtrack, remove: removeSoundtrack };
 
+// Coach plans — published programs / meal plans (coach_plans, owner-scoped),
+// shared with the website. The AI draft builder + Duplicate persist here.
+async function listCoachPlans(kind) {
+  try {
+    const qs = kind ? `?kind=${encodeURIComponent(kind)}` : '';
+    const res = await fetch(`${apiBaseUrl || ''}/api/coach/plans${qs}`, { credentials: 'same-origin', headers: sessionsAuthHeaders() });
+    if (!res.ok) return null;
+    const d = await res.json().catch(() => ({}));
+    return Array.isArray(d.plans) ? d.plans : [];
+  } catch (e) { return null; }
+}
+async function createCoachPlan(body = {}) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/coach/plans`, {
+    method: 'POST', credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(body),
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d.error || 'Could not save plan.');
+  return d.plan;
+}
+async function updateCoachPlan(body = {}) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/coach/plans`, {
+    method: 'PATCH', credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(body),
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d.error || 'Could not update plan.');
+  return d.plan;
+}
+async function removeCoachPlan(id) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/coach/plans`, {
+    method: 'DELETE', credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ id }),
+  });
+  return res.ok;
+}
+window.ShapeCoachPlans = { list: listCoachPlans, create: createCoachPlan, update: updateCoachPlan, remove: removeCoachPlan };
+
 // Weigh-ins — the live body-comp series (client_weigh_ins). One row per day
 // (upsert), owned by the client; a linked coach reads them via get_client_goals.
 async function listWeighIns() {
