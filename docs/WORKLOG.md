@@ -76,6 +76,20 @@ changelog whenever something ships.
   subtext. Driven by the client's top goal (training[0] → nutrition[0], loaded from
   `user_goals('client_goals')`; demo default until loaded).
 
+### 2026-06-13 — Weigh-ins are live (dedicated table) + coach sees the trend chart
+- **Migration `2026-06-13-client-weigh-ins.sql`** (idempotent, **run on Supabase**):
+  new `client_weigh_ins` table (user_id, logged_on date, weight, unit; one row/day via
+  upsert), RLS (client owns; coach reads via `is_coach_on_client`). Also **extends
+  `get_client_goals`** to merge the live series into `overall.weighIns` + set
+  `overall.now` to the latest weigh-in (still share-gated).
+- `shapeBackend.js`: **`ShapeWeighIns.list()` / `.log({weight,unit})`** (upsert today).
+- **Client goal page**: when signed in, loads the series from the table (table wins for
+  weighIns/now) and **Log weigh-in writes to the table**; signed-out/demo still uses the
+  `user_goals` JSONB. The headline metas (training/nutrition) now load too.
+- **Coach view** (mobile `BSProClientFullProfilePage` + website `coachClientDetail.jsx`):
+  the Overall goal card now draws the client's **weight trend chart** from the live
+  `overall.weighIns`.
+
 ### 2026-06-13 — Coach goal view follows the redesigned goal (Overall + headlines)
 - The redesign moved client goals to `overall` + `trainingMeta`/`nutritionMeta`; the
   `get_client_goals` RPC already returns the whole doc, so just the coach UIs changed.

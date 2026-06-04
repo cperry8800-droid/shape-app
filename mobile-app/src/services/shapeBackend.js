@@ -2893,6 +2893,33 @@ async function getClientGoals(userId) {
 }
 window.ShapeGoalsApi = { getForClient: getClientGoals };
 
+// Weigh-ins — the live body-comp series (client_weigh_ins). One row per day
+// (upsert), owned by the client; a linked coach reads them via get_client_goals.
+async function listWeighIns() {
+  if (!supabase || !state.user?.id) return null;
+  const { data, error } = await supabase
+    .from('client_weigh_ins')
+    .select('logged_on, weight, unit')
+    .eq('user_id', state.user.id)
+    .order('logged_on', { ascending: true });
+  if (error) return null;
+  return (data || []).map(r => ({ d: r.logged_on, kg: Number(r.weight), unit: r.unit || 'kg' }));
+}
+async function logWeighIn({ weight, unit = 'kg' } = {}) {
+  if (!supabase || !state.user?.id) return null;
+  const w = Number(weight);
+  if (!Number.isFinite(w)) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  const { data, error } = await supabase
+    .from('client_weigh_ins')
+    .upsert({ user_id: state.user.id, logged_on: today, weight: w, unit }, { onConflict: 'user_id,logged_on' })
+    .select('logged_on, weight')
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+window.ShapeWeighIns = { list: listWeighIns, log: logWeighIn };
+
 window.ShapeMessages = {
   getOrCreateDirectConversation,
   getOrCreateMemberConversation,
