@@ -46,6 +46,19 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Home "Up next" workout reflects today's real session
+- The home **"Up next" workout card** + its **preview** (`BSHomeWorkoutPreview`) were
+  hardcoded to "Upper Pull — Peak", so the featured workout didn't match the day.
+  Now both read **today's actual workout** from the shared week (`bsClientWorkoutForDay`).
+- Added **`BS_CLIENT_WORKOUTS`** (in `bsClientWeekDemo.js`) — move lists + coach note +
+  summary keyed by the week's TRN titles (4 strength days + 2 cardio days). The hero
+  card shows the title, the day's scheduled time, a short meta, and the first 3 moves
+  (+N more); the preview shows the full move list, coach note, and a "Today · …" date.
+- **Cardio** workouts (Z2 / long run) render as segments (no load); the **rest day**
+  (Sun) shows an "Active recovery." card instead of a session.
+- *Note:* the Train-tab session itself isn't wired to this yet — only the home hero +
+  preview. (Possible follow-up.)
+
 ### 2026-06-04 — Month-view day cells are square
 - `BSCalendarMonth` day cells were a fixed `minHeight: 58` over a ~46px-wide track
   (portrait rectangles). Swapped to **`aspectRatio: '1 / 1'`** (padding/gap trimmed)

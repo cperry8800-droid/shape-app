@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM, RECIPE_GOALS, recipeNeeds, recipeMatchesDiet } from './shapeKitchenData.js';
-import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER } from './bsClientWeekDemo.js';
+import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, bsClientWorkoutForDay } from './bsClientWeekDemo.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
 
@@ -780,11 +780,15 @@ function BSClientLibrary({ onBack, goMarket = () => {} }) {
   );
 }
 
-function BSHomeWorkoutPreview({ onBack, onMove = () => {}, onStart = () => {}, onMessage = () => {} }) {
+function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onStart = () => {}, onMessage = () => {} }) {
   const t = useBS();
   const rust = t.RUST;
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const moves = [
+  const detail = workout && workout.detail;
+  const wkTitle = (workout && workout.title) || 'Upper Pull — Peak';
+  const wkMeta = (detail && detail.meta) || '52 min · 6 moves · RPE 8 · ~420 kcal';
+  const wkNote = (detail && detail.note) || 'Peak week — tempo matters more than load. 3s eccentric on every pull. If bar speed drops, drop a rep, not the tempo.';
+  const moves = (detail && detail.moves) || [
     { name: 'Pull-up',        scheme: '4 × 6-8 · 3 min rest', cue: 'Dead hang. Chest to bar.',      load: '42 lb', up: true },
     { name: 'Barbell row',    scheme: '4 × 8 · 2 min rest',   cue: 'Hinge 45°, pull to sternum.',   load: '155 lb' },
     { name: 'Chest-sup. row', scheme: '3 × 10 · 90s rest',    cue: 'Pause 1s at peak contraction.', load: '60 lb' },
@@ -792,6 +796,16 @@ function BSHomeWorkoutPreview({ onBack, onMove = () => {}, onStart = () => {}, o
     { name: 'Incline curl',   scheme: '3 × 12 · 60s rest',    cue: 'Full stretch. 3s eccentric.',   load: '27.5 lb' },
     { name: 'Farmer carry',   scheme: '3 × 40m · 60s rest',   cue: 'Crush grip. Ribs down.',        load: '80 lb' },
   ];
+  // "Today · Thu Jun 4 · 5:45 PM" — the workout is today's session.
+  const _wd = new Date();
+  const _dow = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][_wd.getDay()];
+  const _mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][_wd.getMonth()];
+  const wkTimeLabel = (() => {
+    const [h, m] = String((workout && workout.time) || '09:00').split(':').map(Number);
+    if (Number.isNaN(h)) return '9:00 AM';
+    const ap = h >= 12 ? 'PM' : 'AM';
+    return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${ap}`;
+  })();
   const [reminded, setReminded] = useStateBSC(false);
   const headBtn = { background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK };
   const footBtn = { flex: 1, padding: '14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' };
@@ -804,9 +818,9 @@ function BSHomeWorkoutPreview({ onBack, onMove = () => {}, onStart = () => {}, o
       </div>
 
       <div style={{ padding: `18px ${t.padX}px 4px` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Tomorrow · Wed Apr 22 · 9:00 AM</div>
-        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, color: t.INK, letterSpacing: '-0.035em', lineHeight: 0.98 }}>Upper Pull — Peak<span style={{ color: rust }}>.</span></div>
-        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>52 min · 6 moves · RPE 8 · ~420 kcal</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Today · {_dow} {_mon} {_wd.getDate()} · {wkTimeLabel}</div>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, color: t.INK, letterSpacing: '-0.035em', lineHeight: 0.98 }}>{wkTitle}<span style={{ color: rust }}>.</span></div>
+        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{wkMeta}</div>
       </div>
 
       {/* Coach note card */}
@@ -823,7 +837,7 @@ function BSHomeWorkoutPreview({ onBack, onMove = () => {}, onStart = () => {}, o
             <button onClick={onMessage} style={{ flexShrink: 0, padding: '8px 14px', borderRadius: 999, border: `1px solid ${teal}`, background: 'transparent', color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Message</button>
           </div>
           <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, fontWeight: 500, color: t.INK70, lineHeight: 1.5, letterSpacing: '-0.01em' }}>
-            “Peak week — tempo matters more than load. 3s eccentric on every pull. If bar speed drops, drop a rep, not the tempo.”
+            “{wkNote}”
           </div>
         </div>
       </div>
@@ -845,7 +859,7 @@ function BSHomeWorkoutPreview({ onBack, onMove = () => {}, onStart = () => {}, o
               <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{m.scheme}</div>
               <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 12.5, fontWeight: 500, color: t.INK50, letterSpacing: '-0.01em' }}>“{m.cue}”</div>
             </div>
-            <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: rust, fontVariantNumeric: 'tabular-nums', paddingTop: 4, whiteSpace: 'nowrap' }}>{m.load}{m.up ? ' +' : ''}</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: rust, fontVariantNumeric: 'tabular-nums', paddingTop: 4, whiteSpace: 'nowrap' }}>{m.load || ''}{m.load && m.up ? ' +' : ''}</span>
           </div>
         ))}
       </div>
@@ -1340,6 +1354,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   const _BS_DOWL = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
   const _now = new Date();
   const todayIdx = (_now.getDay() + 6) % 7;
+  // Today's workout from the shared week — drives the "Up next" card + its preview
+  // so the featured session matches the calendar/week strip (null on a rest day).
+  const todayWorkout = bsClientWorkoutForDay(todayIdx);
   const weekDates = (() => {
     const mon = new Date(_now); mon.setHours(0, 0, 0, 0); mon.setDate(_now.getDate() - todayIdx);
     return Array.from({ length: 7 }, (_, i) => { const d = new Date(mon); d.setDate(mon.getDate() + i); return d; });
@@ -1637,7 +1654,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     return <BSMealPreview meal={previewMeal} onBack={() => setPreviewMeal(null)} onLog={() => { setPreviewMeal(null); setShowLogMeal(true); }} />;
   }
   if (showWorkoutPreview) {
-    return <BSHomeWorkoutPreview onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.(); }} onMessage={() => { setShowWorkoutPreview(false); goChat('Jordan Chen', 'Coach · Hypertrophy'); }} />;
+    return <BSHomeWorkoutPreview workout={todayWorkout} onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.(); }} onMessage={() => { setShowWorkoutPreview(false); goChat('Jordan Chen', 'Coach · Hypertrophy'); }} />;
   }
   if (showLogMeal) {
     return <BSLogMealFlow onClose={() => setShowLogMeal(false)} onLogged={() => setNextMealLogged(true)} />;
@@ -1872,9 +1889,18 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
           </div>
         );
         // Coach-scheduled times for each item (24h minutes) — drive both the
-        // displayed time and the order (earliest first). The meal follows the
-        // client's lunch-time preference so it stays in sync with the day-log.
-        const WORKOUT_AT = 9 * 60;        // 9:00 AM
+        // displayed time and the order (earliest first). The workout is today's
+        // actual session (shared week); the meal follows the client's lunch-time
+        // preference so it stays in sync with the day-log.
+        const _wkAt = (todayWorkout && todayWorkout.time && todayWorkout.time !== '—') ? todayWorkout.time : '09:00';
+        const [_wkH, _wkM] = String(_wkAt).split(':').map(Number);
+        const WORKOUT_AT = (Number.isNaN(_wkH) ? 9 : _wkH) * 60 + (Number.isNaN(_wkM) ? 0 : _wkM);
+        const _wkMoves = (todayWorkout && todayWorkout.detail && todayWorkout.detail.moves) || [];
+        const _wkShortMeta = (todayWorkout && todayWorkout.detail && todayWorkout.detail.meta)
+          ? todayWorkout.detail.meta.split(' · ').slice(0, 3).join(' · ')
+          : (todayWorkout && todayWorkout.sub) || '';
+        const _wkCompact = _wkMoves.slice(0, 3).map((m, i) => [String(i + 1).padStart(2, '0'), m.name, String(m.scheme || '').replace(' rest', ''), m.load || '']);
+        if (_wkMoves.length > 3) _wkCompact.push(['+', `+ ${_wkMoves.length - 3} more`, _wkMoves.slice(3).map(m => m.name).slice(0, 3).join(' · '), '']);
         const _lunchPref = (typeof window !== 'undefined' && window.ShapeMealTimes && window.ShapeMealTimes.get().LUNCH) || '12:40';
         const [_lh, _lm] = String(_lunchPref).split(':').map(Number);
         const MEAL_AT = (Number.isNaN(_lh) ? 12 : _lh) * 60 + (Number.isNaN(_lm) ? 40 : _lm);
@@ -1884,38 +1910,52 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
           const h12 = h % 12 === 0 ? 12 : h % 12;
           return `${h12}:${String(m).padStart(2, '0')} ${ap}`;
         };
-        const workoutCard = (
+        const workoutCard = todayWorkout ? (
           <div style={cardBase(rust)}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
               <span style={eyebrow(rust)}>Workout · {fmtAt(WORKOUT_AT)}</span>
-              <span style={metaRight}>52 min · 6 moves · RPE 8</span>
+              <span style={metaRight}>{_wkShortMeta}</span>
             </div>
             <div onClick={() => setShowWorkoutPreview(true)} style={{ cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 25, lineHeight: 1.0, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
-              Upper Pull — Peak
+              {todayWorkout.title}
             </div>
-            <div style={{ marginTop: 12 }}>
-              {[
-                ['01', 'Pull-up', '4 × 6-8 · 3 min', '42 lb'],
-                ['02', 'Barbell row', '4 × 8 · 2 min', '155 lb'],
-                ['03', 'Chest-sup. row', '3 × 10 · 90s', '60 lb'],
-                ['04', '+ 3 more', 'Face pull · curl · carry', ''],
-              ].map(([n, name, sub, wt], i, arr) => (
-                <div key={n} onClick={() => setShowWorkoutPreview(true)} style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK50 }}>{n}</span>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{name}</div>
-                    <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>{sub}</div>
+            {_wkCompact.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                {_wkCompact.map(([n, name, sub, wt], i, arr) => (
+                  <div key={`${n}-${i}`} onClick={() => setShowWorkoutPreview(true)} style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
+                    <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK50 }}>{n}</span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{name}</div>
+                      <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>{sub}</div>
+                    </div>
+                    {wt ? <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{wt}</span> : <span />}
                   </div>
-                  {wt ? <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{wt}</span> : <span />}
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
             <div style={{ marginTop: 10, paddingTop: 12, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
               <Person init="J" name="Jordan Chen" role="Coach" fill={rust} />
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                 <button onClick={() => setShowWorkoutPreview(true)} style={pillOutline}>Preview →</button>
                 <button onClick={() => goTrain?.()} style={pillFilled}>Start →</button>
               </div>
+            </div>
+          </div>
+        ) : (
+          <div style={cardBase(t.GREEN)}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+              <span style={eyebrow(t.GREEN)}>Recovery · today</span>
+              <span style={metaRight}>Rest day</span>
+            </div>
+            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 25, lineHeight: 1.0, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
+              Active <span style={{ fontStyle: 'italic', color: t.GREEN }}>recovery.</span>
+            </div>
+            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.45 }}>
+              No session today — an easy walk and 10 minutes of mobility keeps the streak alive.
+            </div>
+            <div style={{ marginTop: 13, paddingTop: 12, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+              <Person init="J" name="Jordan Chen" role="Coach" fill={rust} />
+              <button onClick={() => goChat('Jordan Chen', 'Coach · Hypertrophy')} style={pillOutline}>Message →</button>
             </div>
           </div>
         );
