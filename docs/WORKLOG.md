@@ -46,6 +46,16 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Contextual page eyebrows + live "online" count
+- **Feed header** left-aligned ("The feed.") to match other pages.
+- **Live presence**: `window.ShapePresence` (Supabase Realtime presence on an
+  `online-users` channel keyed by user id) exposes a genuine live online count;
+  `useBSOnline()` hook. The feed masthead right kicker now shows **"● N online"**
+  (falls back to "Live" when 0 / signed out). No migration — presence is ephemeral.
+- **Contextual week eyebrows**: `bsProgramWeek()` (weeks since program start) drives
+  the **Eat** header (`Cut · Week N`, nutrition) and **Train** header (`Build · Week N`,
+  training); home already showed `Cut · W{week}`.
+
 ### 2026-06-04 — Realtime DM thread refresh + smaller habit cards
 - **Realtime member/coach DM lists**: `BSClientFeed` now subscribes to
   `ShapeMessages.subscribeMessages` and (debounced) reloads both member + coach thread
