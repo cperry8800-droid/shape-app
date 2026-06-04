@@ -10207,6 +10207,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     handle: '@alex.rivera',
     location: 'Brooklyn, NY',
     bio: 'Cutting for summer. 14-week streak. Logging the wins and the pizza.',
+    accent: '#c0533b',
+    pronouns: '',
+    link: '',
+    goal: 'Lose fat',
   });
   const [editing, setEditing] = useStateBSC(false);
   const [draft, setDraft] = useStateBSC(identity);
@@ -10575,14 +10579,18 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         {!editing ? (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <BSAvatar init={(identity.name || 'A').split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase()} size={72} fill={t.RUST} round glow cursive />
+              <BSAvatar init={(identity.name || 'A').split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase()} size={72} fill={identity.accent || t.RUST} round glow cursive />
               <div style={{ minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700 }}>
                   <span style={{ color: settingsTierC, fontWeight: 800 }}>{settingsScore.tier} tier</span>
                   <span style={{ color: t.INK50 }}>·</span>
                   <span style={{ color: t.RUST }}>14 week streak</span>
                 </div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', marginTop: 4, lineHeight: 1 }}>{identity.name}<span style={{ color: t.ACCENT }}>.</span></div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', lineHeight: 1 }}>{identity.name}<span style={{ color: t.ACCENT }}>.</span></span>
+                  {identity.pronouns ? <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{identity.pronouns}</span> : null}
+                </div>
+                {identity.handle ? <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: t.INK50 }}>{identity.handle}{identity.goal ? ` · ${identity.goal}` : ''}</div> : null}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 6, marginTop: 16, flexWrap: 'nowrap' }}>
@@ -10592,54 +10600,92 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             </div>
           </div>
         ) : (
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
-              <BSAvatar init={(draft.name || 'A').charAt(0)} size={56} fill={t.RUST} />
-              <button style={{ borderRadius: 12,
-                padding: '8px 12px', border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer',
-                fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700,
-              }}>Change photo</button>
-            </div>
-            {[
-              { k: 'name',     label: 'Display name' },
-              { k: 'handle',   label: 'Handle' },
-              { k: 'location', label: 'Location' },
-            ].map(f => (
-              <label key={f.k} style={{ display: 'block', marginBottom: 12 }}>
-                <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 6 }}>{f.label}</span>
-                <input
-                  value={draft[f.k]}
-                  onChange={(e) => setDraft({ ...draft, [f.k]: e.target.value })}
-                  style={{ borderRadius: t.RADIUS_SM,
-                    width: '100%', padding: '11px 13px', border: `1px solid ${t.RULE}`, background: t.PAPER2,
-                    fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', outline: 'none',
-                  }}
-                />
+          (() => {
+            const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+            const accents = ['#c0533b', '#0a8f87', '#a07a2e', '#2e6fa0', '#8a5cf6', '#5fae7e', '#e0518a'];
+            const acc = draft.accent || t.RUST;
+            const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 7 };
+            const field = { width: '100%', boxSizing: 'border-box', padding: '13px 14px', border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: 14, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', outline: 'none' };
+            const goals = ['Lose fat', 'Build muscle', 'Maintain', 'Endurance', 'Mobility'];
+            const pronounOpts = ['She/Her', 'He/Him', 'They/Them'];
+            return (
+            <div>
+              {/* Avatar + photo + accent swatches */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
+                <BSAvatar init={(draft.name || 'A').charAt(0)} size={60} fill={acc} round glow cursive />
+                <div style={{ minWidth: 0 }}>
+                  <button style={{ borderRadius: 999,
+                    padding: '9px 14px', border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, cursor: 'pointer',
+                    fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700,
+                  }}>Change photo</button>
+                  <div style={{ display: 'flex', gap: 7, marginTop: 10 }}>
+                    {accents.map(c => (
+                      <button key={c} onClick={() => setDraft({ ...draft, accent: c })} aria-label={`Accent ${c}`} style={{
+                        width: 22, height: 22, borderRadius: 999, background: c, cursor: 'pointer', padding: 0,
+                        border: acc === c ? `2px solid ${t.INK}` : `2px solid transparent`, boxShadow: acc === c ? `0 0 0 1px ${c}` : 'none',
+                      }} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {[
+                { k: 'name',     label: 'Display name', ph: 'Your name' },
+                { k: 'handle',   label: 'Handle',       ph: '@handle' },
+                { k: 'location', label: 'Location',     ph: 'City, State' },
+                { k: 'link',     label: 'Website / link', ph: 'instagram.com/you' },
+              ].map(f => (
+                <label key={f.k} style={{ display: 'block', marginBottom: 13 }}>
+                  <span style={lbl}>{f.label}</span>
+                  <input value={draft[f.k] || ''} placeholder={f.ph} onChange={(e) => setDraft({ ...draft, [f.k]: e.target.value })}
+                    onFocus={(e) => { e.target.style.borderColor = acc; }} onBlur={(e) => { e.target.style.borderColor = t.RULE; }}
+                    style={field} />
+                </label>
+              ))}
+
+              {/* Pronouns — quick chips + free text */}
+              <div style={{ marginBottom: 13 }}>
+                <span style={lbl}>Pronouns</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {pronounOpts.map(p => {
+                    const on = draft.pronouns === p;
+                    return <button key={p} onClick={() => setDraft({ ...draft, pronouns: on ? '' : p })} style={{ padding: '8px 13px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? acc : t.RULE}`, background: on ? `${acc}1c` : 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em' }}>{p}</button>;
+                  })}
+                </div>
+              </div>
+
+              {/* Primary goal — chips */}
+              <div style={{ marginBottom: 13 }}>
+                <span style={lbl}>Primary goal</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {goals.map(g => {
+                    const on = draft.goal === g;
+                    return <button key={g} onClick={() => setDraft({ ...draft, goal: g })} style={{ padding: '8px 13px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? acc : t.RULE}`, background: on ? `${acc}1c` : 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em' }}>{g}</button>;
+                  })}
+                </div>
+              </div>
+
+              {/* Bio + counter */}
+              <label style={{ display: 'block', marginBottom: 16 }}>
+                <span style={{ ...lbl, display: 'flex', justifyContent: 'space-between' }}><span>Bio</span><span style={{ color: (draft.bio || '').length > 160 ? t.RUST : t.INK50 }}>{(draft.bio || '').length}/160</span></span>
+                <textarea value={draft.bio} maxLength={180} onChange={(e) => setDraft({ ...draft, bio: e.target.value })} rows={3}
+                  onFocus={(e) => { e.target.style.borderColor = acc; }} onBlur={(e) => { e.target.style.borderColor = t.RULE; }}
+                  style={{ ...field, fontSize: 15, resize: 'vertical', lineHeight: 1.45 }} />
               </label>
-            ))}
-            <label style={{ display: 'block', marginBottom: 14 }}>
-              <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 6 }}>Bio</span>
-              <textarea
-                value={draft.bio}
-                onChange={(e) => setDraft({ ...draft, bio: e.target.value })}
-                rows={3}
-                style={{ borderRadius: t.RADIUS_SM,
-                  width: '100%', padding: '11px 13px', border: `1px solid ${t.RULE}`, background: t.PAPER2,
-                  fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', outline: 'none', resize: 'vertical',
-                }}
-              />
-            </label>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={cancelEdit} style={{ borderRadius: 12,
-                flex: 1, padding: '13px', border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer',
-                fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
-              }}>Cancel</button>
-              <button onClick={saveEdit} style={{ borderRadius: 12,
-                flex: 1, padding: '13px', border: `1px solid ${t.INK}`, background: t.INK, color: t.PAPER, cursor: 'pointer',
-                fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
-              }}>Save changes</button>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={cancelEdit} style={{ borderRadius: 999,
+                  flex: '0 0 auto', padding: '13px 22px', border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer',
+                  fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800,
+                }}>Cancel</button>
+                <button onClick={saveEdit} style={{ borderRadius: 999,
+                  flex: 1, padding: '13px', border: 0, background: teal, color: '#04201d', cursor: 'pointer',
+                  fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800,
+                }}>Save changes</button>
+              </div>
             </div>
-          </div>
+            );
+          })()
         )}
       </div>
 
