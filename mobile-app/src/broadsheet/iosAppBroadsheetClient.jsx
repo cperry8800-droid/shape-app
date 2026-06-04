@@ -34,7 +34,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const [showSettings, setShowSettings] = useStateBSC(false);
   const [settingsStart, setSettingsStart] = useStateBSC('');
   const [showCalendar, setShowCalendar] = useStateBSC(false);
-  const [trainAutoStart, setTrainAutoStart] = useStateBSC(0); // bumped to auto-launch the live session
+  const [pendingTrainStart, setPendingTrainStart] = useStateBSC(false); // one-shot: auto-launch the live session, then cleared so it doesn't re-fire on remount
   const [storeView, setStoreView] = useStateBSC('store');
   const [marketRole, setMarketRole] = useStateBSC(null); // 'trainer' | 'nutritionist' | null
   const scoreProfile = SHAPE_SCORE_PROFILES.client;
@@ -72,7 +72,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // "Start session" from the calendar event sheet → close calendar, jump to the
   // Train tab, and auto-launch the live session there.
   React.useEffect(() => {
-    const onStart = () => { setShowCalendar(false); setTab('train'); setTrainAutoStart(n => n + 1); };
+    const onStart = () => { setShowCalendar(false); setTab('train'); setPendingTrainStart(true); };
     window.addEventListener('shape:startWorkout', onStart);
     return () => window.removeEventListener('shape:startWorkout', onStart);
   }, []);
@@ -98,7 +98,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   }
   const screens = {
     home:    <BSClientHome     onProfile={goSettings} sheet={sheet} goCalendar={() => setShowCalendar(true)} goRadio={goRadio} goTrain={goTrain} goMarket={goMarket} goScore={goScore} goChat={goChat} goIntegrations={goIntegrations} tweaks={tweaks} setTweak={setTweak} />,
-    train:   <BSClientTrain    onProfile={goSettings} sheet={sheet} goCalendar={() => setShowCalendar(true)} goRadio={goRadio} goMarket={goMarket} autoStart={trainAutoStart} />,
+    train:   <BSClientTrain    onProfile={goSettings} sheet={sheet} goCalendar={() => setShowCalendar(true)} goRadio={goRadio} goMarket={goMarket} autoStart={pendingTrainStart} onAutoStartConsumed={() => setPendingTrainStart(false)} />,
     eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} goRadio={goRadio} goMarket={goMarket} />,
     chat:    <BSClientFeed     onProfile={goSettings} role={tweaks.role || 'client'} openRequest={chatRequest} />,
     radio:   <BSRadioScreen    onBack={() => setTab('home')} />,
@@ -2738,14 +2738,16 @@ function BSSwapSheet({ title, subtitle, options, onPick, onClose }) {
 
 // TRAIN — workout-focused page
 // ═══════════════════════════════════════════════════════════
-function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, goMarket = () => {}, autoStart = 0 }) {
+function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, goMarket = () => {}, autoStart = false, onAutoStartConsumed = () => {} }) {
   const t = useBS();
   const bsTrainProgram = useBSProgram();
   const [day, setDay] = useStateBSC(bsWeekdayIdx()); // default to today (0=Mon..6=Sun)
   const [session, setSession] = useStateBSC(false);
   const [previewing, setPreviewing] = useStateBSC(false);
-  // Auto-launch the live session when arriving from the calendar's "Start session".
-  React.useEffect(() => { if (autoStart > 0) { setDay(bsWeekdayIdx()); setSession(true); } }, [autoStart]);
+  // Auto-launch the live session ONLY when arriving from the calendar's "Start
+  // session" (a one-shot pending flag), then clear it so returning to Train from
+  // the calendar overlay — which remounts this screen — never re-launches.
+  React.useEffect(() => { if (autoStart) { setDay(bsWeekdayIdx()); setSession(true); onAutoStartConsumed(); } }, [autoStart]);
   const [swapIdx, setSwapIdx] = useStateBSC(null);          // move to swap: number | 'pick' | null
   const [moveOverrides, setMoveOverrides] = useStateBSC({}); // `${day}:${i}` → { m, s }
   React.useEffect(() => {
