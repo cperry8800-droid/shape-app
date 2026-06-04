@@ -673,7 +673,9 @@ function BSAvatar({ init = 'A', size = 32, fill, ink, onClick, round = true, glo
       borderRadius: round ? '50%' : t.RADIUS_SM,
       boxShadow: glow ? `0 0 22px ${bg}5e, 0 0 0 4px ${bg}26` : 'none',
     }}>{cursive
-      ? <span style={{ display: 'inline-block', lineHeight: 1, transform: 'translate(-0.05em, -0.08em)' }}>{init}</span>
+      // Snell Roundhand reserves deep descender space, so its capitals sit high
+      // in the line box — nudge the monogram down (not up) to optically centre it.
+      ? <span style={{ display: 'inline-block', lineHeight: 1, transform: 'translate(0, 0.08em)' }}>{init}</span>
       : serif ? <span style={{ display: 'inline-block', transform: 'skewX(-11deg)' }}>{init}</span> : init}</button>
   );
 }
