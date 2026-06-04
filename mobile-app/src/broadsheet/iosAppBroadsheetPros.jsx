@@ -728,7 +728,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     store:    storeView === 'score'
       ? <BSShapeScorePage profile={scoreProfile} onBack={() => setStoreView('store')} onOpenStore={() => setStoreView('store')} />
       : <BSShapeStorePage profile={scoreProfile} onBack={() => setTab('today')} onOpenScore={() => setStoreView('score')} />,
-    me:       <BSProMe role="trainer" name="Jordan Chen" onLogout={onLogout} onSettings={goSettings} />,
+    me:       <BSProMe role="trainer" name="Jordan Chen" onLogout={onLogout} onSettings={goSettings} onRadio={goRadio} />,
   };
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
@@ -2670,7 +2670,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     store:    storeView === 'score'
       ? <BSShapeScorePage profile={scoreProfile} onBack={() => setStoreView('store')} onOpenStore={() => setStoreView('store')} />
       : <BSShapeStorePage profile={scoreProfile} onBack={() => setTab('today')} onOpenScore={() => setStoreView('score')} />,
-    me:       <BSProMe role="nutritionist" name="Dr. Maya Patel" onLogout={onLogout} onSettings={goSettings} />,
+    me:       <BSProMe role="nutritionist" name="Dr. Maya Patel" onLogout={onLogout} onSettings={goSettings} onRadio={goRadio} />,
   };
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
@@ -3472,7 +3472,7 @@ function BSProSoundtracks({ role = 'trainer', onBack }) {
   );
 }
 
-function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
+function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => {} }) {
   const t = useBS();
   const isCoach = role === 'trainer';
   const accent = isCoach ? t.RUST : '#a07a2e';   // trainer rust · nutritionist gold
@@ -3662,6 +3662,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {} }) {
           { l: 'Availability', sub: 'Mon-Fri · 9 am - 6 pm', r: 'Edit', onClick: () => setShowBookingCalendar(true) },
           { l: 'Rates', sub: isCoach ? '$95/session · $120/mo' : '$140/plan · $80/consult', r: 'Edit', onClick: () => setShowPublicProfile(true) },
           { l: 'Soundtracks', sub: 'Saved playlists · assign to plans', r: '→', onClick: () => setShowSoundtracks(true) },
+          { l: 'Shape Radio', sub: 'Live stations · coach mixes', r: '→', onClick: () => onRadio() },
           { l: 'Shape Store', sub: `${(scoreProfile.available || 0).toLocaleString()} pts available`, r: '→', onClick: () => setShowStore(true) },
         ];
         const settings = [

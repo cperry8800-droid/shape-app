@@ -161,7 +161,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     store:   storeView === 'score'
       ? <BSShapeScorePage profile={scoreProfile} onBack={() => setStoreView('store')} onOpenStore={() => setStoreView('store')} />
       : <BSShapeStorePage profile={scoreProfile} onBack={() => setTab('home')} onOpenScore={() => setStoreView('score')} />,
-    me:      <BSClientMe       onProfile={goSettings} onLogout={onLogout} onIntegrations={goIntegrations} goMarket={goMarket} sheet={sheet} tweaks={tweaks} setTweak={setTweak} />,
+    me:      <BSClientMe       onProfile={goSettings} onLogout={onLogout} onIntegrations={goIntegrations} goMarket={goMarket} goRadio={goRadio} sheet={sheet} tweaks={tweaks} setTweak={setTweak} />,
   };
   return (
     <div style={{ position: 'absolute', inset: 0 }} data-identity-version={identityVersion}>
@@ -8890,7 +8890,7 @@ function BSClientGoals({ onBack }) {
   );
 }
 
-function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket = () => {}, tweaks = {}, setTweak = () => {} }) {
+function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket = () => {}, goRadio = () => {}, tweaks = {}, setTweak = () => {} }) {
   const t = useBS();
   const [showHabits, setShowHabits] = useStateBSC(false);
   const [showScore, setShowScore] = useStateBSC(false);
@@ -9364,6 +9364,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
           { l: 'Progress & PRs', s: 'Weight, recovery, strength trends', onClick: () => setShowProgress(true) },
           { l: 'Notifications', s: 'Requests, confirmations & updates', onClick: () => setShowNotifications(true) },
           { l: 'Connected apps', s: 'Apple Health · Strava · WHOOP', onClick: onIntegrations },
+          { l: 'Shape Radio', s: 'Live stations · coach mixes', onClick: () => goRadio() },
         ].map((r, i, arr) => (
           <button key={i} onClick={r.onClick} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, display: 'grid', gridTemplateColumns: '26px 1fr auto', alignItems: 'center', gap: 12, padding: `${t.rowY + 5}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, color: t.INK }}>
             <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</div>
