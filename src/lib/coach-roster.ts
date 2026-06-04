@@ -91,16 +91,25 @@ export async function coachClientsResponse(
   }
 
   const now = Date.now();
+  const STALE_MS = 14 * DAY_MS;
   const clients = [...byClient.values()]
     .sort((a, b) => (b.lastAt ?? 0) - (a.lastAt ?? 0))
-    .map((e) => ({
-      id: e.id,
-      name: e.name,
-      sessions: e.sessions,
-      mrrCents: e.mrrCents,
-      lastAt: e.lastAt ? new Date(e.lastAt).toISOString() : null,
-      isNew: e.joinedAt ? now - new Date(e.joinedAt).getTime() < 14 * DAY_MS : e.sessions <= 1,
-    }));
+    .map((e) => {
+      const isNew = e.joinedAt ? now - new Date(e.joinedAt).getTime() < STALE_MS : e.sessions <= 1;
+      // Needs-eyes = not new and low-touch: no session in 14d, or fewer than
+      // 3 sessions when we have no timestamp to go on. Everyone else is on track.
+      const stale = e.lastAt == null ? e.sessions < 3 : (now - e.lastAt) > STALE_MS;
+      const status: 'new' | 'eyes' | 'ontrack' = isNew ? 'new' : stale ? 'eyes' : 'ontrack';
+      return {
+        id: e.id,
+        name: e.name,
+        sessions: e.sessions,
+        mrrCents: e.mrrCents,
+        lastAt: e.lastAt ? new Date(e.lastAt).toISOString() : null,
+        isNew,
+        status,
+      };
+    });
 
   const mrrCents = clients.reduce((sum, c) => sum + c.mrrCents, 0);
 

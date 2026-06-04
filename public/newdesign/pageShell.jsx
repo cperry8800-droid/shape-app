@@ -215,17 +215,17 @@ function Header({ active }) {
     <header className="shape-header" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 60, background: "rgba(11,14,12,0.55)", backdropFilter: "blur(20px) saturate(1.05)", WebkitBackdropFilter: "blur(20px) saturate(1.05)", borderBottom: "1px solid rgba(245,239,225,0.06)" }}>
       <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 30%, ${RUST} 70%, transparent 100%)`, opacity: 0.5 }} />
       <ShapeMobileStyles />
-      <div className="shape-header-inner" style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "10px 72px 10px 72px", gap: 32 }}>
+      <div className="shape-header-inner" style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "10px 44px", gap: 20 }}>
         <a href="index.html" style={{ flex: "none", display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
-          <img src="/shape-logo-new-white.png?v=3" alt="Shape" style={{ height: 76, width: "auto", display: "block", objectFit: "contain" }} />
+          <img src="/shape-logo-new-white.png?v=3" alt="Shape" style={{ height: 60, width: "auto", display: "block", objectFit: "contain" }} />
         </a>
-        <nav className="shape-nav-tabs" style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center", minWidth: 0 }}>
+        <nav className="shape-nav-tabs" style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center", minWidth: 0 }}>
           {navGroupsFor(authUser).map(g => g.kind === "drop"
             ? <NavDropdown key={g.label} label={g.label} active={active} activeMatch={g.match} items={g.items} />
             : <React.Fragment key={g.label}>{link(g.label, g.href)}</React.Fragment>
           )}
         </nav>
-        <div className="shape-nav-auth" style={{ display: "flex", alignItems: "center", gap: 18, flexShrink: 0 }}>
+        <div className="shape-nav-auth" style={{ display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
           {authUser ? (
             <>
               <span style={{ fontSize: 12.5, color: INK, fontFamily: sans, fontWeight: 500, whiteSpace: "nowrap", maxWidth: 130, overflow: "hidden", textOverflow: "ellipsis", letterSpacing: "-0.005em" }}>Hi, {authUser.firstName || authUser.email}</span>
@@ -255,7 +255,7 @@ function Header({ active }) {
               <a href={dashboardHref(authUser.role)} style={{ fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(245,239,225,0.66)", fontFamily: mono, whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none" }}>Dashboard</a>
               <a href="#" onClick={handleLogout} style={{ background: "transparent", color: "#f5efe1", border: "1px solid #f5efe1", padding: "11px 22px", borderRadius: 999, fontSize: 12, fontWeight: 300, letterSpacing: "0.04em", textTransform: "lowercase", fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1, transition: "background .2s ease, color .2s ease" }}>Sign out</a>
               <a href="/newdesign/Radio.html" aria-label="Shape Radio" style={{ display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
-                <img src="/shape-radio-wordmark-tight.svg?v=1" alt="Shape Radio" style={{ width: 170, height: "auto", maxWidth: "none", display: "block" }} />
+                <img src="/shape-radio-wordmark-tight.svg?v=1" alt="Shape Radio" style={{ width: 140, height: "auto", maxWidth: "none", display: "block" }} />
               </a>
             </>
           ) : (
@@ -263,7 +263,7 @@ function Header({ active }) {
               <a href="/newdesign/Login.html" style={{ fontSize: 12, fontWeight: 300, letterSpacing: "0.04em", textTransform: "lowercase", color: "rgba(245,239,225,0.55)", fontFamily: sans, whiteSpace: "nowrap", lineHeight: 1 }}>Log in</a>
               <a href="/newdesign/Landing.html" style={{ background: "transparent", color: "#f5efe1", border: "1px solid #f5efe1", padding: "11px 22px", borderRadius: 999, fontSize: 12, fontWeight: 300, letterSpacing: "0.04em", textTransform: "lowercase", fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1, transition: "background .2s ease, color .2s ease" }}>Get started</a>
               <a href="/newdesign/Radio.html" aria-label="Shape Radio" style={{ display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
-                <img src="/shape-radio-wordmark-tight.svg?v=1" alt="Shape Radio" style={{ width: 170, height: "auto", maxWidth: "none", display: "block" }} />
+                <img src="/shape-radio-wordmark-tight.svg?v=1" alt="Shape Radio" style={{ width: 140, height: "auto", maxWidth: "none", display: "block" }} />
               </a>
             </>
           )}
@@ -338,6 +338,15 @@ function ShapeMobileStyles() {
         object-fit: contain !important;
         display: block !important;
         flex: 0 0 auto;
+      }
+      /* Header-only: the authed coach/portal nav + auth cluster is too wide to
+         sit on one row below ~1200px — collapse to the burger there (without
+         triggering the marketing typography/section scaling at 900). */
+      @media (max-width: 1200px) {
+        .shape-header-inner { padding: 12px 28px !important; gap: 14px !important; }
+        .shape-nav-tabs { display: none !important; }
+        .shape-nav-auth { display: none !important; }
+        .shape-nav-burger { display: inline-flex !important; }
       }
       @media (max-width: 900px) {
         /* Header */
