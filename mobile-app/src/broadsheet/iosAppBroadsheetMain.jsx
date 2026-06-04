@@ -947,6 +947,16 @@ function BSAppShell({ tweaks, setTweak }) {
     setRole(tweaks.role || cachedRole || 'client');
   }, [tweaks.role]);
 
+  // Follow the signed-in account's role whenever a session resolves (login OR
+  // restore). The account's role wins so a trainer/nutritionist lands in their
+  // OWN app instead of the client default — fixing "log in as trainer → client
+  // profile". The Tweaks-panel override still works (it sets tweaks.role, which
+  // the effect above applies and this one — keyed on the profile — won't undo).
+  useEffectBSM(() => {
+    const profileRole = authState?.profile?.role;
+    if (profileRole) setRole(profileRole);
+  }, [authState?.profile?.role]);
+
   // Apply the saved units preference (Imperial / Metric) at startup so weight
   // & distance readouts format correctly before Settings is ever opened.
   useEffectBSM(() => {
@@ -1042,7 +1052,12 @@ function BSAppShell({ tweaks, setTweak }) {
   }, [authUserId]);
 
   const handleLogin = (nextAuthState) => {
-    setAuthState(nextAuthState || window.ShapeAuth?.getCachedState?.() || {});
+    const st = nextAuthState || window.ShapeAuth?.getCachedState?.() || {};
+    setAuthState(st);
+    // Land in the account's own app, and sync the role tweak so a stale dev
+    // override (e.g. a previous "client" pick) can't pull a coach back to client.
+    const r = st?.profile?.role;
+    if (r) { setRole(r); setTweak('role', r); }
     setBrowseMode(false);
     setBannerDismissed(false);
     setNoticeDismissed(false);
