@@ -4117,10 +4117,10 @@ function BSCoachGoalPlanPage({ role = 'trainer', onBack }) {
     </div>
   );
   const statCard = (s, i) => (
-    <div key={i} style={{ borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
-      <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: s.c }}>{s.l}</div>
-      <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: '-0.02em' }}>{s.v}</div>
-      <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted }}>{s.s}</div>
+    <div key={i} style={{ borderRadius: 13, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 11 }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: s.c }}>{s.l}</div>
+      <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: '-0.02em' }}>{s.v}</div>
+      <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted }}>{s.s}</div>
     </div>
   );
   return (
@@ -4137,26 +4137,26 @@ function BSCoachGoalPlanPage({ role = 'trainer', onBack }) {
         <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 15, fontStyle: 'italic', color: t.INK70, lineHeight: 1.4 }}>{D.sub}</div>
       </div>
 
-      <div style={{ margin: `18px ${t.padX}px 0`, borderRadius: 18, border: `1px solid ${accent}44`, background: `linear-gradient(160deg, ${accent}22, ${accent}08 55%, ${t.PAPER2} 92%), ${t.PAPER2}`, padding: 18 }}>
+      <div style={{ margin: `14px ${t.padX}px 0`, borderRadius: 16, border: `1px solid ${accent}44`, background: `linear-gradient(160deg, ${accent}22, ${accent}08 55%, ${t.PAPER2} 92%), ${t.PAPER2}`, padding: 14 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>{D.featLabel}</div>
-            <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 44, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: '-0.03em' }}>{D.featVal}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>{D.featLabel}</div>
+            <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: '-0.03em' }}>{D.featVal}</div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: accent, lineHeight: 1 }}>{D.featPct}%</div>
-            <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: muted }}>THERE</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: accent, lineHeight: 1 }}>{D.featPct}%</div>
+            <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', color: muted }}>THERE</div>
           </div>
         </div>
-        <div style={{ marginTop: 16, position: 'relative', height: 6 }}>
+        <div style={{ marginTop: 13, position: 'relative', height: 5 }}>
           <div style={{ position: 'absolute', inset: 0, borderRadius: 999, background: t.HAIR }} />
           <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${D.featPct}%`, borderRadius: 999, background: accent }} />
-          <div style={{ position: 'absolute', left: `${D.featPct}%`, top: '50%', transform: 'translate(-50%,-50%)', width: 14, height: 14, borderRadius: '50%', background: accent, boxShadow: `0 0 0 3px ${t.PAPER2}` }} />
+          <div style={{ position: 'absolute', left: `${D.featPct}%`, top: '50%', transform: 'translate(-50%,-50%)', width: 12, height: 12, borderRadius: '50%', background: accent, boxShadow: `0 0 0 3px ${t.PAPER2}` }} />
         </div>
-        <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'baseline' }}>
-          <div style={{ textAlign: 'left' }}><div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK }}>{D.start}</div><div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', color: muted }}>{D.startL}</div></div>
-          <div style={{ textAlign: 'center' }}><div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: accent }}>{D.now}</div><div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', color: accent }}>NOW</div></div>
-          <div style={{ textAlign: 'right' }}><div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK }}>{D.target}</div><div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', color: muted }}>{D.targetL}</div></div>
+        <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'baseline' }}>
+          <div style={{ textAlign: 'left' }}><div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 700, color: t.INK }}>{D.start}</div><div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', color: muted }}>{D.startL}</div></div>
+          <div style={{ textAlign: 'center' }}><div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 700, color: accent }}>{D.now}</div><div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', color: accent }}>NOW</div></div>
+          <div style={{ textAlign: 'right' }}><div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 700, color: t.INK }}>{D.target}</div><div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', color: muted }}>{D.targetL}</div></div>
         </div>
       </div>
 
@@ -4165,24 +4165,24 @@ function BSCoachGoalPlanPage({ role = 'trainer', onBack }) {
       </div>
 
       <SecHead eyebrow="Trend" title="Revenue" action="Payouts →" onAction={() => {}} />
-      <div style={{ margin: `10px ${t.padX}px 0`, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>
+      <div style={{ margin: `10px ${t.padX}px 0`, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 13 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK }}>{D.trendVal}</div>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent }}>{D.trendMeta}</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, color: t.INK }}>{D.trendVal}</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent }}>{D.trendMeta}</div>
         </div>
-        <svg viewBox="0 0 300 70" preserveAspectRatio="none" style={{ width: '100%', height: 70, marginTop: 12, display: 'block' }}>
-          <polygon points="0,60 50,54 100,56 150,42 200,34 250,24 300,14 300,70 0,70" fill={`${accent}14`} />
-          <polyline points="0,60 50,54 100,56 150,42 200,34 250,24 300,14" fill="none" stroke={accent} strokeWidth="2" vectorEffect="non-scaling-stroke" />
-          <circle cx="300" cy="14" r="3.5" fill={accent} />
+        <svg viewBox="0 0 300 52" preserveAspectRatio="none" style={{ width: '100%', height: 52, marginTop: 10, display: 'block' }}>
+          <polygon points="0,44 50,40 100,42 150,30 200,24 250,16 300,8 300,52 0,52" fill={`${accent}14`} />
+          <polyline points="0,44 50,40 100,42 150,30 200,24 250,16 300,8" fill="none" stroke={accent} strokeWidth="2" vectorEffect="non-scaling-stroke" />
+          <circle cx="300" cy="8" r="3.5" fill={accent} />
         </svg>
       </div>
 
-      <div style={{ margin: `10px ${t.padX}px 0`, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>
+      <div style={{ margin: `10px ${t.padX}px 0`, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 13 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: accent }}>NEW CLIENTS · LAST 7 MONTHS</div>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', color: muted }}>{D.newTotal} TOTAL</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', color: accent }}>NEW CLIENTS · LAST 7 MONTHS</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', color: muted }}>{D.newTotal} TOTAL</div>
         </div>
-        <div style={{ marginTop: 14, display: 'flex', alignItems: 'flex-end', gap: 8, height: 54 }}>
+        <div style={{ marginTop: 12, display: 'flex', alignItems: 'flex-end', gap: 8, height: 42 }}>
           {[42, 38, 66, 46, 72, 50, 100].map((h, i, a) => <div key={i} style={{ flex: 1, height: `${h}%`, borderRadius: 4, background: i === a.length - 1 ? accent : `${accent}40` }} />)}
         </div>
       </div>
