@@ -5007,9 +5007,20 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
       : [flat, ...prev]);
   };
 
-  // Open the in-app naming sheet (replaces window.prompt, which is disabled
-  // in the native WebView).
-  const createGroceryList = () => setNewListName('');
+  // Open the full "Build a list." page (name + add items by aisle).
+  const createGroceryList = () => setView('build');
+  // Persist a list created from the builder, then open it.
+  const createListFromBuilder = ({ name, items, aisles }) => {
+    const id = 'custom-' + Math.random().toString(36).slice(2, 9);
+    const note = `"${name}" — your custom grocery list.`;
+    setSelectedGroceryList({ id, name, kind: 'custom', editable: true, eyebrow: 'Custom · Created today', author: 'You', note, usedCount: 0, aisles });
+    setRecipeLists(prev => [
+      { id, name, kind: 'custom', editable: true, eyebrow: 'Custom · Created today', author: 'You', note, usedCount: 0, preview: items.slice(0, 3).map(i => i.n).join(' · ') || 'Empty list', count: items.length, items },
+      ...prev,
+    ]);
+    setView('grocery');
+    window.__bsToast?.(`Created "${name}"`, 'ok');
+  };
   const confirmCreateGroceryList = () => {
     const clean = (newListName || '').trim().slice(0, 60);
     if (!clean) return;
@@ -5064,6 +5075,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
 
   if (view === 'grocery') return <>{newListSheet}<BSGrocery list={activeGroceryList} onBack={() => setView('eat')} onLibrary={() => setView('library')} recipeLists={recipeLists} onChangeView={setView} editable={!!activeGroceryList.editable} onUpdate={persistGroceryList} onCreate={createGroceryList} /></>;
   if (view === 'library') return <>{newListSheet}<BSGroceryLibrary onBack={() => setView('grocery')} onLoad={loadGroceryList} recipeLists={recipeLists} onCreate={createGroceryList} onEdit={editGroceryList} onDuplicate={duplicateGroceryList} onDelete={deleteGroceryList} deletedIds={deletedGroceryIds} /></>;
+  if (view === 'build') return <BSGroceryBuilder onCancel={() => setView('grocery')} onCreate={createListFromBuilder} />;
   if (view === 'recipes') {
     if (skRecipe) {
       const gid = 'sk-' + bsSkSlug(skRecipe.title);
@@ -10623,6 +10635,80 @@ const BS_GROCERY_DEFAULT = {
     ]},
   ],
 };
+
+// "Build a list." — name a custom grocery list, add items by aisle, then create.
+function BSGroceryBuilder({ onCancel, onCreate }) {
+  const t = useBS();
+  _bsScrollTopOnMount();
+  const rust = t.RUST;
+  const AISLES = ['Produce', 'Protein', 'Pantry', 'Dairy & cold', 'Frozen', 'Bakery', 'Household'];
+  const [name, setName] = useStateBSC('');
+  const [items, setItems] = useStateBSC([]); // { n, q, aisle }
+  const [iName, setIName] = useStateBSC('');
+  const [iQty, setIQty] = useStateBSC('');
+  const [iAisle, setIAisle] = useStateBSC('Produce');
+  const addItem = () => { const n = iName.trim(); if (!n) return; setItems(a => [...a, { n, q: iQty.trim() || '1', aisle: iAisle }]); setIName(''); setIQty(''); };
+  const removeItem = (idx) => setItems(a => a.filter((_, j) => j !== idx));
+  const create = () => {
+    const nm = name.trim() || 'New list';
+    const grouped = AISLES
+      .map(al => ({ aisle: al, items: items.map((it, k) => ({ it, k })).filter(x => x.it.aisle === al).map(x => ({ id: `b-${x.k}`, n: x.it.n, q: x.it.q, meals: nm })) }))
+      .filter(a => a.items.length);
+    const aisles = grouped.length ? grouped : [{ aisle: 'Items', items: [] }];
+    onCreate({ name: nm, items: items.map((it, k) => ({ id: `b-${k}`, n: it.n, q: it.q, meals: nm })), aisles });
+  };
+  const line = { width: '100%', border: 0, borderBottom: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '8px 2px', fontFamily: t.DISPLAY, fontSize: 16, outline: 'none' };
+  return (
+    <BSPage>
+      <div style={{ padding: `50px ${t.padX}px 28px` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <button onClick={onCancel} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← CANCEL</button>
+          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', color: rust }}>{items.length} ITEMS</span>
+        </div>
+        <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: rust }}>NEW LIST</div>
+        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>Build a<br /><span style={{ fontStyle: 'italic', color: rust }}>list.</span></div>
+
+        <div style={{ marginTop: 22, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: rust, marginBottom: 4 }}>LIST NAME</div>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Sunday staples" style={line} />
+
+        {/* Add an item */}
+        <div style={{ marginTop: 22, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: rust }}>ADD AN ITEM</div>
+          <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 72px', gap: 12, alignItems: 'end' }}>
+            <input value={iName} onChange={(e) => setIName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addItem(); }} placeholder="Item" style={line} />
+            <input value={iQty} onChange={(e) => setIQty(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addItem(); }} placeholder="Qty" style={{ ...line, fontFamily: t.MONO, fontSize: 13, textAlign: 'right' }} />
+          </div>
+          <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: t.INK50, marginBottom: 9 }}>AISLE</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {AISLES.map(al => { const on = iAisle === al; return <button key={al} onClick={() => setIAisle(al)} style={{ borderRadius: 999, padding: '8px 13px', cursor: 'pointer', border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{al}</button>; })}
+          </div>
+          <button onClick={addItem} disabled={!iName.trim()} style={{ width: '100%', marginTop: 16, borderRadius: 12, border: `1px solid ${rust}`, background: iName.trim() ? `${rust}1c` : 'transparent', color: rust, padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: iName.trim() ? 'pointer' : 'default', opacity: iName.trim() ? 1 : 0.55 }}>+ Add to list</button>
+        </div>
+
+        {/* Items */}
+        {items.length === 0 ? (
+          <div style={{ marginTop: 22, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 14, fontStyle: 'italic', color: t.INK50 }}>No items yet. Add your first above.</div>
+        ) : (
+          <div style={{ marginTop: 18 }}>
+            {items.map((it, idx) => (
+              <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 10, alignItems: 'center', padding: '12px 0', borderTop: idx ? `1px solid ${t.HAIR}` : 0 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK }}>{it.n}</div>
+                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{it.aisle}</div>
+                </div>
+                <span style={{ fontFamily: t.MONO, fontSize: 11, color: rust, fontWeight: 700 }}>{it.q}</span>
+                <button onClick={() => removeItem(idx)} aria-label="Remove" style={{ border: 0, background: 'transparent', color: t.INK50, fontSize: 16, lineHeight: 1, cursor: 'pointer', padding: 0 }}>×</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button onClick={create} disabled={items.length === 0} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: rust, color: '#fff', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: items.length ? 'pointer' : 'default', opacity: items.length ? 1 : 0.5 }}>Create list →</button>
+      </div>
+      <BSFooter right={`${items.length} items`} />
+    </BSPage>
+  );
+}
 
 function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onChangeView = () => {}, editable = false, onUpdate = () => {}, onCreate = () => {} }) {
   const t = useBS();
