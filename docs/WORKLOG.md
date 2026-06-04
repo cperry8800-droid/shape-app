@@ -46,6 +46,16 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Recipe box (new Recipes tab) + Saved/liked recipes
+- New **`BSRecipeBox`** is the Recipes sub-tab: serif "Recipe box." hero, underline
+  search, **All / Saved / Breakfast / Lunch / Dinner / Snack / Plant-based** filter
+  pills, and recipe cards (hero-gradient thumb, category·coach eyebrow, title, one-line
+  macros). Each card has **Send to grocery list →** (one teal action → builds that
+  recipe's OWN list and opens it) + **♥ Save** toggle (kind `recipe`, so liked recipes
+  show under the **Saved** filter and in the main Library). No "send all" bulk action.
+- **Shape Kitchen kept** — the full catalog is reachable via the "Browse Shape Kitchen →"
+  card (`showKitchen` state); recipe detail (`BSShapeKitchenRecipe`) shared by both.
+
 ### 2026-06-04 — Feed bubble look applied to DM / channel threads
 - `BSChatThread` (Friends DMs, Team coach DMs, Channels) now matches the feed bubbles:
   an avatar next to each incoming message (tier color for people, teal for channels), a
