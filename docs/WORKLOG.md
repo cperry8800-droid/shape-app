@@ -46,6 +46,12 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Feed bubble look applied to DM / channel threads
+- `BSChatThread` (Friends DMs, Team coach DMs, Channels) now matches the feed bubbles:
+  an avatar next to each incoming message (tier color for people, teal for channels), a
+  tinted/bordered bubble with a chat-tail corner, name eyebrow, and the same reaction
+  affordances. Your own messages stay right-aligned in teal.
+
 ### 2026-06-04 — Saved-carts redesign + removed coach note / How-it-works
 - **Saved carts** (`BSGroceryLibrary`): filter tabs are rounded pills; each list is a
   rounded `PAPER2` card (eyebrow, title + chevron, preview, rounded Load/Edit/Delete

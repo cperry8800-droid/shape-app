@@ -6883,6 +6883,10 @@ function BSChatThread({ thread, eyebrow, onBack }) {
     : (thread.last ? [{ who: thread.who, t: thread.last, time: thread.time || 'now', me: false }] : []);
   const allMessages = [...seed, ...extras];
   const rx = useBSReactions();
+  // Per-thread accent (matches the feed bubbles): channels read teal, people read
+  // their tier color so the chat stays color-coordinated with the feed.
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const threadColor = thread.group ? teal : bsTierColor(bsPostTier({ who: thread.who }));
 
   const send = () => {
     if (!text.trim()) return;
@@ -6951,26 +6955,25 @@ function BSChatThread({ thread, eyebrow, onBack }) {
             if (quick === '❤️') rx.toggle(rKey, '❤️');
             else rx.setPickerKey(pickerOpen ? null : rKey);
           });
+          const initial = (m.who || thread.who || '?').toString().trim().charAt(0).toUpperCase();
           return (
-            <div key={i} style={{
-              alignSelf: me ? 'flex-end' : 'flex-start',
-              maxWidth: '82%',
-              position: 'relative',
-            }}>
+            <div key={i} style={{ display: 'flex', flexDirection: me ? 'row-reverse' : 'row', alignItems: 'flex-end', gap: 8, alignSelf: me ? 'flex-end' : 'flex-start', maxWidth: '88%' }}>
               {!me && (
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: m.coach ? t.AMBER : t.INK50, fontWeight: 700, marginBottom: 4 }}>
-                  {m.who}{m.coach ? ' · Coach' : ''}
-                </div>
+                <div style={{ width: 28, height: 28, flexShrink: 0, borderRadius: 999, background: threadColor, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 12 }}>{initial}</div>
               )}
-              <div style={{ position: 'relative' }}>
+              <div style={{ minWidth: 0, position: 'relative' }}>
+                {!me && (
+                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: m.coach ? t.AMBER : t.INK50, fontWeight: 700, marginBottom: 4 }}>
+                    {m.who}{m.coach ? ' · Coach' : ''}
+                  </div>
+                )}
                 <div {...lp} style={{
-                  borderRadius: me ? '18px 18px 5px 18px' : '18px 18px 18px 5px',
-                  fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.4, letterSpacing: '-0.005em',
-                  color: me ? '#031f1c' : t.INK,
-                  background: me ? t.ACCENT : t.PAPER2,
-                  border: me ? 'none' : `1px solid ${t.SURFACE_BORDER}`,
-                  boxShadow: me ? 'none' : t.ELEVATION_SOFT,
-                  padding: '11px 13px',
+                  borderRadius: 16, [me ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 5,
+                  fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.4, letterSpacing: '-0.005em',
+                  color: me ? '#04201d' : t.INK,
+                  background: me ? teal : (t.isLight ? `${threadColor}14` : `${threadColor}22`),
+                  border: me ? 'none' : `1px solid ${threadColor}40`,
+                  padding: '11px 14px',
                   cursor: 'pointer', userSelect: 'none',
                 }}>
                   {m.t}
@@ -6983,8 +6986,8 @@ function BSChatThread({ thread, eyebrow, onBack }) {
                 </div>
                 {pickerOpen && <BSReactionPicker t={t} anchorRight={me} current={myR} onPick={(em) => rx.toggle(rKey, em)} />}
                 {myR && <BSReactionPill t={t} emoji={myR} anchorRight={me} onClick={() => rx.toggle(rKey, myR)} />}
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginTop: myR ? 10 : 4, textAlign: me ? 'right' : 'left' }}>{m.time}</div>
               </div>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginTop: myR ? 10 : 4, textAlign: me ? 'right' : 'left' }}>{m.time}</div>
             </div>
           );
         })}
