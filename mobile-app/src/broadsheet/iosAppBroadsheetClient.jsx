@@ -3892,34 +3892,40 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
           <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', color: '#fff', background: 'rgba(0,0,0,0.4)', padding: '4px 9px', borderRadius: 999 }}>{r.time.toUpperCase()} · SERVES {r.servings} · {r.kcal} KCAL · {(r.diet || '').toUpperCase()}</span>
         </div>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', padding: `16px ${t.padX}px 14px`, borderBottom: `1px solid ${t.RULE}`, borderTop: `2px solid ${t.INK}`, marginTop: 16 }}>
-        {[['PROTEIN', r.macros.p], ['CARBS', r.macros.c], ['FAT', r.macros.f]].map(([l, v], i) => (
-          <div key={l} style={{ borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0, paddingLeft: i > 0 ? 10 : 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 22, color: t.INK, marginTop: 4, letterSpacing: '-0.03em' }}>{v}g</div>
-          </div>
-        ))}
+      <div style={{ padding: `16px ${t.padX}px 0` }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '14px 8px' }}>
+          {[['PROTEIN', r.macros.p], ['CARBS', r.macros.c], ['FAT', r.macros.f]].map(([l, v], i) => (
+            <div key={l} style={{ borderLeft: i > 0 ? `1px solid ${t.HAIR}` : 0, paddingLeft: i > 0 ? 12 : 4 }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
+              <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 22, color: t.INK, marginTop: 4, letterSpacing: '-0.03em' }}>{v}g</div>
+            </div>
+          ))}
+        </div>
       </div>
       {r.blurb && (
         <div style={{ padding: `14px ${t.padX}px 0`, fontFamily: t.DISPLAY, fontSize: 14, fontStyle: 'italic', color: t.INK70, lineHeight: 1.5 }}>"{r.blurb}" — {r.by}, {r.byRole}</div>
       )}
       <BSSection title="Ingredients" meta={`${r.ingredients.length} items`} />
       <div style={{ padding: `0 ${t.padX}px` }}>
-        {r.ingredients.map((ing, i) => (
-          <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '9px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
-            <span style={{ width: 6, height: 6, borderRadius: 999, background: t.ACCENT, marginTop: 7, flex: 'none' }} />
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK }}>{t.isMetric ? ing : bsHouseholdStr(ing)}</span>
-          </div>
-        ))}
+        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
+          {r.ingredients.map((ing, i, arr) => (
+            <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '11px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+              <span style={{ width: 6, height: 6, borderRadius: 999, background: t.ACCENT, marginTop: 7, flex: 'none' }} />
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK }}>{t.isMetric ? ing : bsHouseholdStr(ing)}</span>
+            </div>
+          ))}
+        </div>
       </div>
       <BSSection title="Method" meta={`${r.steps.length} steps`} />
       <div style={{ padding: `0 ${t.padX}px` }}>
-        {r.steps.map((s, i) => (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: '28px 1fr', gap: 12, padding: '12px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.ACCENT, fontWeight: 700 }}>{String(i + 1).padStart(2, '0')}</span>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK, lineHeight: 1.55 }}>{s}</span>
-          </div>
-        ))}
+        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
+          {r.steps.map((s, i, arr) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '28px 1fr', gap: 12, padding: '13px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.ACCENT, fontWeight: 700 }}>{String(i + 1).padStart(2, '0')}</span>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK, lineHeight: 1.55 }}>{s}</span>
+            </div>
+          ))}
+        </div>
       </div>
       {r.tip && (
         <div style={{ padding: `16px ${t.padX}px 0` }}>
@@ -8861,13 +8867,14 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
 
       <BSSection title="Reward tiers" meta="5 tiers" />
       <div style={{ padding: `0 ${t.padX}px` }}>
+        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
         {tiers.map((tier, i) => {
           const tc = bsTierColor(tier.name);
           const current = String(profile.tier || '').toLowerCase() === tier.name.toLowerCase();
           return (
             <div key={tier.name} style={{
               display: 'grid', gridTemplateColumns: '88px 1fr', gap: 12,
-              padding: '12px 0', borderBottom: i === tiers.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+              padding: '13px 0', borderBottom: i === tiers.length - 1 ? 0 : `1px solid ${t.HAIR}`,
             }}>
               <div>
                 <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>PTS</div>
@@ -8884,12 +8891,15 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
             </div>
           );
         })}
+        </div>
       </div>
 
-      <div style={{ padding: `16px ${t.padX}px 18px`, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
-        <BSEyebrow color={t.ACCENT}>How it works</BSEyebrow>
-        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 17, lineHeight: 1.28, color: t.INK, letterSpacing: '-0.015em' }}>
-          Every logged workout, tracked meal, kept session, and habit you hit adds up. Climb tiers and spend points on training credits, nutrition services, or Shape merch. No expiry, no gotchas.
+      <div style={{ padding: `14px ${t.padX}px 0` }}>
+        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '14px 16px' }}>
+          <BSEyebrow color={t.ACCENT}>How it works</BSEyebrow>
+          <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 15.5, lineHeight: 1.32, color: t.INK, letterSpacing: '-0.015em' }}>
+            Every logged workout, tracked meal, kept session, and habit you hit adds up. Climb tiers and spend points on training credits, nutrition services, or Shape merch. No expiry, no gotchas.
+          </div>
         </div>
       </div>
 
@@ -8901,10 +8911,11 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         <span style={{ justifySelf: 'end', fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{available.toLocaleString()} available</span>
       </div>
       <div style={{ padding: `0 ${t.padX}px` }}>
+        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
         {rewards.map(([title, sub, cost], i) => (
           <div key={title} onClick={title.includes('Store') ? onOpenStore : undefined} style={{
             display: 'grid', gridTemplateColumns: '1fr 74px', gap: 12,
-            padding: '12px 0', borderBottom: i === rewards.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+            padding: '13px 0', borderBottom: i === rewards.length - 1 ? 0 : `1px solid ${t.HAIR}`,
             cursor: title.includes('Store') ? 'pointer' : 'default',
           }}>
             <div>
@@ -8914,14 +8925,16 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
             <div style={{ alignSelf: 'center', textAlign: 'right', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', color: t.ACCENT }}>{cost}</div>
           </div>
         ))}
+        </div>
       </div>
 
       <BSSection title="Point values" kicker={`${profile.roleLabel || 'Member'} activity`} meta={`${activities.length} ways`} />
       <div style={{ padding: `0 ${t.padX}px` }}>
+        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
         {activities.map((a, i) => (
           <div key={a.name} style={{
             display: 'grid', gridTemplateColumns: '1fr 52px', gap: 12,
-            padding: '12px 0', borderBottom: i === activities.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+            padding: '13px 0', borderBottom: i === activities.length - 1 ? 0 : `1px solid ${t.HAIR}`,
           }}>
             <div>
               <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{a.name}</div>
@@ -8934,20 +8947,23 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
             <div style={{ alignSelf: 'center', textAlign: 'right', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', color: t.ACCENT }}>{a.pts}</div>
           </div>
         ))}
+        </div>
       </div>
 
       <BSSection title="Recent points" kicker="Ledger" />
-      <div style={{ padding: `0 ${t.padX}px` }}>
+      <div style={{ padding: `0 ${t.padX}px 8px` }}>
+        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
         {ledger.map(([day, pts, label], i) => (
           <div key={`${day}-${label}`} style={{
             display: 'grid', gridTemplateColumns: '62px 1fr 52px', alignItems: 'center', gap: 10,
-            padding: '12px 0', borderBottom: i === ledger.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+            padding: '13px 0', borderBottom: i === ledger.length - 1 ? 0 : `1px solid ${t.HAIR}`,
           }}>
             <BSEyebrow>{day}</BSEyebrow>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em' }}>{label}</div>
             <div style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 800, textAlign: 'right', color: t.GREEN }}>{pts}</div>
           </div>
         ))}
+        </div>
       </div>
 
       <BSFooter right="Rewards" />
@@ -9026,8 +9042,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
       </div>
 
       <div style={{
-        padding: `10px ${t.padX}px 12px`,
-        borderBottom: `1px solid ${t.RULE}`,
+        padding: `10px ${t.padX}px 4px`,
         display: 'grid',
         gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
         gap: 6,
@@ -9058,6 +9073,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
 
       <BSSection title="Catalog" kicker={cat} meta={`${visible.length} items`} />
       <div style={{ padding: `0 ${t.padX}px` }}>
+        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
         {visible.map((p, i) => {
           const canAfford = !p.locked && p.cost <= balance;
           return (
@@ -9084,13 +9100,15 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
             </div>
           );
         })}
+        </div>
       </div>
 
       <BSSection title="Unlocked" kicker="Codes" />
-      <div style={{ padding: `0 ${t.padX}px` }}>
+      <div style={{ padding: `0 ${t.padX}px 8px` }}>
+        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
         {unlocked.map(([code, name, expires, cost], i) => (
           <div key={code} style={{
-            padding: '12px 0', borderBottom: i === unlocked.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+            padding: '13px 0', borderBottom: i === unlocked.length - 1 ? 0 : `1px solid ${t.HAIR}`,
             display: 'grid', gridTemplateColumns: '1fr 72px', gap: 10,
           }}>
             <div>
@@ -9102,6 +9120,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
             </div>
           </div>
         ))}
+        </div>
       </div>
 
       <BSFooter right="Store" />
@@ -9831,18 +9850,18 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
         return (
           <>
             {/* Food-group tabs get the full width (scroll horizontally) */}
-            <div style={{ padding: `${t.sectGap}px ${t.padX}px 12px` }}>
-              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', minWidth: 0, scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+            <div style={{ padding: `${t.sectGap}px 0 12px` }}>
+              <div style={{ display: 'flex', gap: 5, overflowX: 'auto', minWidth: 0, scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', padding: `0 ${t.padX}px` }}>
                 {list.aisles.map((a, idx) => {
                   const on = idx === ai;
                   const aDone = a.items.filter((_, ii) => checked.has(`${idx}-${ii}`)).length;
                   const aAll = a.items.length > 0 && aDone === a.items.length;
                   return (
                     <button key={a.aisle} onClick={() => setActiveAisle(idx)} style={{
-                      flex: '0 0 auto', padding: '8px 13px', borderRadius: 999, cursor: 'pointer',
+                      flex: '0 0 auto', padding: '7px 11px', borderRadius: 999, cursor: 'pointer',
                       background: on ? t.INK : 'transparent', color: on ? t.PAPER : (aAll ? t.INK50 : t.INK),
                       border: `1px solid ${on ? t.INK : t.RULE}`,
-                      fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
+                      fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
                       whiteSpace: 'nowrap', textDecoration: aAll && !on ? 'line-through' : 'none',
                     }}>{a.aisle}</button>
                   );
