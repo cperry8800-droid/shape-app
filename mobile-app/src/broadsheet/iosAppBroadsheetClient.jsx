@@ -421,7 +421,14 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
     const el = cardsBtnRef.current;
     if (el && el.getBoundingClientRect) {
       const r = el.getBoundingClientRect();
-      setMenuPos({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
+      // Position relative to the phone surface so the menu stays inside the
+      // frame in desktop preview (a fixed/viewport menu overhangs the chrome).
+      const surf = document.getElementById('bs-phone-surface');
+      const sr = surf ? surf.getBoundingClientRect() : { top: 0, right: window.innerWidth, bottom: window.innerHeight };
+      const top = r.bottom - sr.top + 6;
+      const right = Math.max(8, sr.right - r.right);
+      const maxH = Math.max(140, sr.bottom - r.bottom - 84); // clear the footer nav
+      setMenuPos({ top, right, maxH });
     }
     setMenuOpen(true);
   };
@@ -514,12 +521,12 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
             padding: '8px 12px', borderRadius: 999, border: `1px solid ${t.INK}`, background: menuOpen ? t.INK : 'transparent',
             color: menuOpen ? t.PAPER : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap',
           }}>Cards ▾</button>
-          {menuOpen && menuPos && (
+          {menuOpen && menuPos && createPortal(
             <>
-              <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 9998 }} />
+              <div onClick={() => setMenuOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 9998 }} />
               <div style={{
-                position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999, width: 210,
-                maxHeight: '56vh', overflowY: 'auto',
+                position: 'absolute', top: menuPos.top, right: menuPos.right, zIndex: 9999, width: 210,
+                maxHeight: menuPos.maxH, overflowY: 'auto',
                 background: t.PAPER, border: `1px solid ${t.INK}`, borderRadius: 12,
                 boxShadow: '0 16px 40px rgba(0,0,0,0.3)',
               }}>
@@ -547,7 +554,8 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
                   );
                 })}
               </div>
-            </>
+            </>,
+            document.getElementById('bs-phone-surface') || document.body
           )}
         </div>
       </div>
@@ -1866,7 +1874,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
               onClick={item.onClick}
               style={{
                 minWidth: 0,
-                padding: '11px 11px 10px',
+                padding: '11px 9px 10px',
                 borderRadius: 15,
                 border: `1.5px solid ${item.active ? t.INK : `${item.accent || t.INK}66`}`,
                 background: item.active ? 'transparent' : (t.isLight ? `${item.accent || t.INK}14` : `${item.accent || t.INK}24`),
@@ -1893,13 +1901,12 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                 display: 'block',
                 marginTop: 5,
                 fontFamily: t.DISPLAY,
-                fontSize: 15,
+                fontSize: 13.5,
                 fontWeight: 800,
-                letterSpacing: '-0.015em',
+                letterSpacing: '-0.03em',
                 color: t.INK,
                 whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
+                overflow: 'visible',
               }}>
                 {item.meta}
               </span>
