@@ -6130,8 +6130,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     // inferring from the author's role for older posts without a channel.
     const ch = String(p.channel || '').toUpperCase();
     const kind = (ch && ROLE[ch]) ? ch : KIND_OF(p.role);
+    // `kind` = which section/channel the post lives in (drives filtering);
+    // `authorKind` = the author's REAL role (drives the role tag + alignment).
+    const authorKind = KIND_OF(p.role);
     return {
-      id: p.id, who: p.name || 'Member', kind, init: (p.avatar || p.name || '?').toString().trim().charAt(0).toUpperCase(),
+      id: p.id, who: p.name || 'Member', kind, authorKind, init: (p.avatar || p.name || '?').toString().trim().charAt(0).toUpperCase(),
       hue: HUE[kind], time: p.time || 'now', pinned: !!p.pinned, official: kind === 'SHAPE',
       body: p.note || p.status || p.body || p.workout || '',
       hearts: typeof p.likes === 'number' ? p.likes : (p.likeCount || 0),
@@ -6164,7 +6167,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     // role channel) so it lands on that feed — not always the Client feed.
     const kind = (filter && ROLE[filter]) ? filter : myRoleChip;
     const where = ROLE[kind] ? ROLE[kind].label : 'the group';
-    setPosts(prev => [{ id: 'tmp-' + Date.now(), who: 'You', kind, init: 'Y', hue: HUE[kind] || ROLE[kind].color, time: 'now', body, hearts: 0, replies: 0 }, ...prev]);
+    setPosts(prev => [{ id: 'tmp-' + Date.now(), who: 'You', kind, authorKind: myRoleChip, init: 'Y', hue: HUE[kind] || ROLE[kind].color, time: 'now', body, hearts: 0, replies: 0 }, ...prev]);
     try { await window.ShapeCommunity?.createPost?.({ title: body, note: body, channel: kind, privacy: 'community' }); window.__bsToast?.(`Posted to ${where}`, 'ok'); }
     catch (e) { window.__bsToast?.(e?.message || 'Could not post.', 'err'); }
   };
@@ -6201,11 +6204,16 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // + bubble tint follow the role color. Used by the role channels (Client /
   // Trainer / Nutritionist / Shape) and the live COMMUNITY feed.
   const renderPost = (p, i) => {
-    const rc = (ROLE[p.kind] && ROLE[p.kind].color) || muted;
+    // The role tag + alignment follow the author's REAL role (authorKind), not
+    // the channel the post lives in — so a trainer posting in the general feed
+    // still reads "Trainer".
+    const akind = p.authorKind || p.kind;
+    const rc = (ROLE[akind] && ROLE[akind].color) || (ROLE[p.kind] && ROLE[p.kind].color) || muted;
+    const roleMeta = ROLE[akind] || ROLE[p.kind] || { label: 'Client', color: rc };
     // In the mixed COMMUNITY feed, coaches sit left and members/clients (+ you)
     // sit right for a conversation feel; in a single-role section only your own
     // posts go right (everyone else is an incoming/left feed message).
-    const right = p.who === 'You' || (filter === 'COMMUNITY' && (p.kind === 'CLIENT' || p.kind === 'SHAPE'));
+    const right = p.who === 'You' || (filter === 'COMMUNITY' && (akind === 'CLIENT' || akind === 'SHAPE'));
     const replyCount = (p.replies || 0) + (actComments[p.id] || []).length;
     // Avatar + bubble tint follow the author's TIER (not the role).
     const tier = bsPostTier(p);
@@ -6217,11 +6225,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       <div key={p.id || i} style={{ display: 'flex', flexDirection: 'column', alignItems: right ? 'flex-end' : 'flex-start' }}>
         {p.pinned && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', color: TEALB, marginBottom: 6 }}><PinIcon filled size={13} /> Pinned</div>}
         <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'flex-end', gap: 9, maxWidth: '90%' }}>
-          <button onClick={() => linkable && setOpenProfile({ ...p, tier })} aria-label={linkable ? `View ${p.who}'s profile` : undefined} style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, background: tc, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13, border: 0, padding: 0, cursor: linkable ? 'pointer' : 'default' }}>{p.init}</button>
+          <button onClick={() => linkable && setOpenProfile({ ...p, kind: akind, tier })} aria-label={linkable ? `View ${p.who}'s profile` : undefined} style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, background: tc, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13, border: 0, padding: 0, cursor: linkable ? 'pointer' : 'default' }}>{p.init}</button>
           <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'baseline', gap: 8, marginBottom: 5 }}>
-              <button onClick={() => linkable && setOpenProfile({ ...p, tier })} style={{ background: 'transparent', border: 0, padding: 0, cursor: linkable ? 'pointer' : 'default', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk }}>{p.who}</button>
-              <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: rc, border: `1px solid ${rc}66`, borderRadius: 4, padding: '1px 5px' }}>{ROLE[p.kind].label}</span>
+              <button onClick={() => linkable && setOpenProfile({ ...p, kind: akind, tier })} style={{ background: 'transparent', border: 0, padding: 0, cursor: linkable ? 'pointer' : 'default', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk }}>{p.who}</button>
+              <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: rc, border: `1px solid ${rc}66`, borderRadius: 4, padding: '1px 5px' }}>{roleMeta.label}</span>
               <span style={{ fontFamily: t.MONO, fontSize: 9, color: muted }}>{p.time}</span>
             </div>
             <div style={{ borderRadius: 16, [right ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 5, padding: '11px 14px', background: bubbleBg, color: p.official ? '#1a1713' : cardInk, border: p.official ? 'none' : `1px solid ${tc}40`, fontFamily: p.official ? `'Newsreader', Georgia, serif` : t.DISPLAY, fontStyle: p.official ? 'italic' : 'normal', fontSize: p.official ? 15 : 14, lineHeight: 1.4 }}>{p.body}</div>

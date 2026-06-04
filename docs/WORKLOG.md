@@ -46,6 +46,14 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Chat role tag follows the author's real role
+- `mapPost` now carries `authorKind` (the author's real role from `community_posts.
+  author_role`) separately from `kind` (the channel/section, used for filtering).
+- `renderPost` uses `authorKind` for the **role tag, tag color, and L/R alignment**, so a
+  trainer/nutritionist posting in the general feed reads "Trainer"/"Nutritionist" — not
+  the section label. Own posts tag with the signed-in role. Profile opens with the real
+  role too.
+
 ### 2026-06-04 — Tier-colored chat + tappable avatars → public profile
 - **Feed bubbles**: avatar fill **and** bubble tint now follow the author's **tier**
   (`bsPostTier` → `bsTierColor`; explicit `tier` wins, else stable per-name). Role tag
