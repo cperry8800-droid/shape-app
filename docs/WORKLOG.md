@@ -46,6 +46,16 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Unify recipe ⇄ meal detail "anatomy"
+- The Shape Kitchen recipe detail (`BSShapeKitchenRecipe`) and the meal-plan meal
+  detail (`BSMealPreview`) had drifted. Brought the recipe page up to the meal page's
+  shared anatomy so both read the same: **4-up macro stats incl. KCAL** (was 3-up
+  P/C/F with kcal only in the hero pill), a **macro-split bar** (% of kcal, computed
+  from `r.macros`), and a **"The dish"** eyebrow over the coach blurb (matching the
+  meal page's description treatment).
+- **Context tails kept distinct** (by design): a *meal* keeps its schedule eyebrow +
+  "Ate as planned" log CTA; a *recipe* keeps serves + Pro tip + Reviews + Add-to-grocery.
+
 ### 2026-06-04 — Recipe box (new Recipes tab) + Saved/liked recipes
 - New **`BSRecipeBox`** is the Recipes sub-tab: serif "Recipe box." hero, underline
   search, **All / Saved / Breakfast / Lunch / Dinner / Snack / Plant-based** filter
