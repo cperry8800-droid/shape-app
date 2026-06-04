@@ -105,7 +105,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     store:   storeView === 'score'
       ? <BSShapeScorePage profile={scoreProfile} onBack={() => setStoreView('store')} onOpenStore={() => setStoreView('store')} />
       : <BSShapeStorePage profile={scoreProfile} onBack={() => setTab('home')} onOpenScore={() => setStoreView('score')} />,
-    me:      <BSClientMe       onProfile={goSettings} onLogout={onLogout} onIntegrations={goIntegrations} goMarket={goMarket} sheet={sheet} />,
+    me:      <BSClientMe       onProfile={goSettings} onLogout={onLogout} onIntegrations={goIntegrations} goMarket={goMarket} sheet={sheet} tweaks={tweaks} setTweak={setTweak} />,
   };
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
@@ -7947,8 +7947,9 @@ function BSLeaderboard({ onBack }) {
   );
 }
 
-function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket = () => {} }) {
+function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket = () => {}, tweaks = {}, setTweak = () => {} }) {
   const t = useBS();
+  const [showHabits, setShowHabits] = useStateBSC(false);
   const [showScore, setShowScore] = useStateBSC(false);
   const [showStore, setShowStore] = useStateBSC(false);
   const [showContact, setShowContact] = useStateBSC(false);
@@ -8116,6 +8117,9 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
   }
   if (showLibrary) {
     return <BSClientLibrary onBack={() => setShowLibrary(false)} goMarket={() => { setShowLibrary(false); goMarket(); }} />;
+  }
+  if (showHabits) {
+    return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => setShowHabits(false)} onOpenScore={() => { setShowHabits(false); setShowScore(true); }} />;
   }
   if (showSessions) {
     return <BSSessionsScreen onBack={() => setShowSessions(false)} />;
@@ -8364,6 +8368,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
       <div style={{ padding: `0 ${t.padX}px` }}>
         {[
           { l: 'Library', s: 'Saved workouts, programs & meals', onClick: () => setShowLibrary(true) },
+          { l: 'Habits', s: 'To-dos, to-don’ts & streaks', onClick: () => setShowHabits(true) },
           { l: 'Marketplace', s: 'Find coaches, plans, programs', onClick: () => goMarket() },
           { l: 'Shape Store', s: `${scoreProfile.available.toLocaleString()} pts · tap to redeem`, onClick: () => setShowStore(true) },
           { l: 'Progress & PRs', s: 'Weight, recovery, strength trends', onClick: () => setShowProgress(true) },
