@@ -46,6 +46,16 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-04 — Realtime DM thread refresh + smaller habit cards
+- **Realtime member/coach DM lists**: `BSClientFeed` now subscribes to
+  `ShapeMessages.subscribeMessages` and (debounced) reloads both member + coach thread
+  lists on incoming messages, so new threads + latest-message previews appear live.
+  Unread badges were already live app-wide (the `dm_unread` / `mark_conversation_read`
+  RPCs + the generic `messages` realtime increment are participant-keyed, so they
+  already covered member DMs).
+- **Habit cards** (`BSHabitRow`) shrunk: padding 14→10/12, checkbox 30→25, title 17→15,
+  meta/points/× tightened.
+
 ### 2026-06-03 — Member-to-member DM backend (Friends + New message)
 - **Migration `2026-06-03-member-direct-conversations.sql`** (idempotent): adds a
   `dm_key` dedupe column to `conversations` + two SECURITY DEFINER RPCs —

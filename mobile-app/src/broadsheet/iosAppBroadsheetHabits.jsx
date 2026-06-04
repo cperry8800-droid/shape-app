@@ -183,25 +183,25 @@ function BSHabitRow({ habit, accent, onToggle, onRemove }) {
   const c = accent;
   return (
     <div style={{
-      display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', alignItems: 'center', gap: 12,
-      padding: '14px', borderRadius: 16,
+      display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', alignItems: 'center', gap: 10,
+      padding: '10px 12px', borderRadius: 13,
       border: `1px solid ${done ? `${c}66` : t.RULE}`,
       background: done ? (t.isLight ? `${c}12` : `${c}1c`) : t.PAPER2,
     }}>
       <button onClick={() => onToggle(habit.id)} aria-label={done ? 'Mark not done' : 'Mark done'} style={{
-        width: 30, height: 30, borderRadius: 9, cursor: 'pointer', flexShrink: 0,
+        width: 25, height: 25, borderRadius: 8, cursor: 'pointer', flexShrink: 0,
         border: `1.5px solid ${done ? c : t.RULE}`, background: done ? c : 'transparent',
         color: '#04201d', display: 'grid', placeItems: 'center',
-        fontFamily: t.MONO, fontSize: 14, fontWeight: 900, padding: 0,
+        fontFamily: t.MONO, fontSize: 12, fontWeight: 900, padding: 0,
       }}>{done ? '✓' : ''}</button>
       <button onClick={() => onToggle(habit.id)} style={{ textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minWidth: 0 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{habit.name}</div>
-        <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: done ? c : t.INK50 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{habit.name}</div>
+        <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: done ? c : t.INK50 }}>
           {done ? (isAvoid ? '✓ Stayed clean' : '✓ Done') : `${isAvoid ? 'Avoid' : 'Do'} · +${pts} pts`}
         </div>
       </button>
-      <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em', color: done ? c : t.INK50, fontVariantNumeric: 'tabular-nums' }}>+{pts}</span>
-      <button onClick={() => onRemove(habit.id)} aria-label="Remove habit" style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontSize: 16, lineHeight: 1, padding: '0 2px' }}>×</button>
+      <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em', color: done ? c : t.INK50, fontVariantNumeric: 'tabular-nums' }}>+{pts}</span>
+      <button onClick={() => onRemove(habit.id)} aria-label="Remove habit" style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontSize: 15, lineHeight: 1, padding: '0 2px' }}>×</button>
     </div>
   );
 }
