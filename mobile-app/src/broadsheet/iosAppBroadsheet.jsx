@@ -538,7 +538,7 @@ function BSWordmark({ size = 18, color, full = false, vertical = false, align = 
 }
 
 // Masthead — newspaper-style header with vol/no, optional title block
-function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKicker, trailing, showDotTexture = true, showDoubleRule = true, thinRule = false, noRule = false, titleSize = 36 }) {
+function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKicker, trailing, showDotTexture = true, showDoubleRule = true, thinRule = false, noRule = false, titleSize = 36, compact = false }) {
   const t = useBS();
   const inkRgb = t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
   // Hero background — only when there's a title (i.e. home pages).
@@ -549,7 +549,7 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
       transparent 1px, transparent 7px)`;
   return (
     <div style={{
-      padding: `54px ${t.padX}px ${title ? 18 : 14}px`,
+      padding: `${compact ? 32 : 54}px ${t.padX}px ${title ? (compact ? 11 : 18) : 14}px`,
       borderBottom: noRule ? 0 : (thinRule ? `1px solid ${t.INK}` : (title ? `3px solid ${t.INK}` : `2px solid ${t.INK}`)),
       position: 'relative', overflow: 'hidden',
       backgroundColor: title ? `rgba(${inkRgb},0.012)` : 'transparent',
@@ -580,7 +580,7 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
           }} />
           {/* Top hairline — single thin rule (suppressed when noRule, e.g. the feed) */}
           {!noRule && <div aria-hidden style={{
-            position: 'absolute', left: 0, right: 0, top: 44, height: 1,
+            position: 'absolute', left: 0, right: 0, top: compact ? 23 : 44, height: 1,
             background: `rgba(${inkRgb},0.5)`,
           }} />}
           {/* Bottom double-rule strip */}
@@ -592,7 +592,7 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
         </>
       )}
 
-      <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: title ? 10 : 6 }}>
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: title ? (compact ? 4 : 10) : 6 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <BSLogo size={18} color={t.INK} />
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70 }}>
@@ -611,7 +611,7 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
       )}
 
       <div style={{
-        marginTop: title ? 14 : 8, paddingTop: 10, borderTop: `1px solid ${t.RULE}`,
+        marginTop: title ? (compact ? 7 : 14) : 8, paddingTop: compact ? 8 : 10, borderTop: `1px solid ${t.RULE}`,
         display: 'flex', justifyContent: 'space-between', position: 'relative', zIndex: 1,
         fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK70,
       }}>

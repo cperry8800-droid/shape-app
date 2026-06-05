@@ -935,7 +935,8 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
   return (
     <BSPage>
       <BSMasthead
-        title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '22px auto -2px', height: 60, width: 'auto' }} />}
+        compact
+        title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: 'brightness(0) invert(1)' }} />}
         leftKicker={`${_BS_DOW[todayIdx]} · ${_BS_MON[dates[todayIdx].getMonth()]} ${dates[todayIdx].getDate()} · ${dates[todayIdx].getFullYear()}`}
         rightKicker="14 active clients"
         trailing={<BSAvatar init={bsMyInitials()} size={32} fill={bsMyTierColor()} ink={'#fff'} onClick={onProfile} />}
@@ -3081,7 +3082,8 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
   return (
     <BSPage>
       <BSMasthead
-        title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '22px auto -2px', height: 60, width: 'auto' }} />}
+        compact
+        title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: 'brightness(0) invert(1)' }} />}
         leftKicker={`${_BS_DOW[todayIdx]} · ${_BS_MON[dates[todayIdx].getMonth()]} ${dates[todayIdx].getDate()} · ${dates[todayIdx].getFullYear()}`}
         rightKicker="22 plans · 5 sessions"
         trailing={<BSAvatar init={bsMyInitials()} size={32} fill={bsMyTierColor()} ink={'#fff'} onClick={onProfile} />}
