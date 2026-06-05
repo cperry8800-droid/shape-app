@@ -947,7 +947,7 @@ function BSPaywall({ t, signedIn, onJoin, onSignIn, onPreview, onLogout }) {
   return (
     <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', background: t.PAPER, color: t.INK }}>
       <div style={{ minHeight: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', padding: '22px 26px 34px' }}>
-        <img src={`${import.meta.env.BASE_URL}shape-logo.png`} alt="Shape" style={{ width: 104, height: 'auto', alignSelf: 'flex-start', marginLeft: -4, filter: 'brightness(1.25) contrast(1.1) drop-shadow(0 0 10px rgba(46,224,196,0.32))' }} />
+        <img src={`${import.meta.env.BASE_URL}shape-logo.png`} alt="Shape" style={{ width: 132, height: 'auto', alignSelf: 'flex-start', marginLeft: -4, marginTop: 30, filter: 'brightness(1.25) contrast(1.1) drop-shadow(0 0 10px rgba(46,224,196,0.32))' }} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: 8 }}>
         <div style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal }}>Shape membership</div>
         <h1 style={{ fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, letterSpacing: '-0.04em', lineHeight: 0.98, margin: '12px 0 0' }}>Shape is for <span style={{ fontStyle: 'italic', color: teal }}>members.</span></h1>
@@ -961,7 +961,7 @@ function BSPaywall({ t, signedIn, onJoin, onSignIn, onPreview, onLogout }) {
         </div>
         <button onClick={onJoin} style={{ ...cta, marginTop: 24 }}>{signedIn ? 'Activate membership · $5/mo →' : 'Create account & join · $5/mo →'}</button>
         <button onClick={onPreview} style={{ ...ghost, marginTop: 11 }}>Preview the app first →</button>
-        <button onClick={signedIn ? onLogout : onSignIn} style={{ marginTop: 12, width: '100%', padding: '6px', border: 0, background: 'transparent', color: t.INK50, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{signedIn ? 'Sign out' : 'I already have an account · Sign in'}</button>
+        <button onClick={signedIn ? onLogout : onSignIn} style={{ marginTop: 28, width: '100%', padding: '8px', border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{signedIn ? 'Sign out' : 'I already have an account · Sign in'}</button>
         <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center', lineHeight: 1.5 }}>Approved coaches have full access at no charge.</div>
         </div>
       </div>
