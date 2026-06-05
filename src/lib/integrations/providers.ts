@@ -37,9 +37,11 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
     description: 'Pick workout playlists directly from your Spotify library.',
     authorizeUrl: 'https://accounts.spotify.com/authorize',
     tokenUrl: 'https://accounts.spotify.com/api/token',
-    // read scopes: browse the member's playlists; modify scopes: let a client
-    // save (follow) a coach's playlist into their own Spotify library.
-    scope: 'playlist-read-private playlist-read-collaborative user-read-email playlist-modify-public playlist-modify-private',
+    // read scopes: browse the coach's own playlists; modify scopes: let a client
+    // save (follow) a coach's playlist into their own Spotify library. We request
+    // ONLY the scopes we actually call — no user-read-email (never used; an
+    // unused scope is the most common cause of Extended Quota Mode rejections).
+    scope: 'playlist-read-private playlist-read-collaborative playlist-modify-public playlist-modify-private',
     clientIdEnv: 'SPOTIFY_CLIENT_ID',
     clientSecretEnv: 'SPOTIFY_CLIENT_SECRET',
     usesPkce: true,
