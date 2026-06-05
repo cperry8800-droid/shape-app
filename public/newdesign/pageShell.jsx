@@ -26,6 +26,7 @@ function Ph({ label, ratio = "1/1", tone = "dark", style = {} }) {
 function Logo({ variant = "black", size = 28 }) {
   const src = variant === "white" ? "/shape-logo-new-white.png?v=4"
     : variant === "black" ? "/shape-logo-new-black.png?v=4"
+    : variant === "teal" ? "/shape-logo-new-teal-white.png?v=1"
     : "/shape-logo-new-white.png?v=4";
   // New logo has the play-icon stacked above the SHAPE wordmark (aspect ~1.87:1), not inline like the old one.
   // Scale so the overall mark reads at a comparable visual weight to the previous inline logo.
@@ -220,7 +221,7 @@ function Header({ active }) {
       <ShapeMobileStyles />
       <div className="shape-header-inner" style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "10px 44px", gap: 20 }}>
         <a href="index.html" style={{ flex: "none", display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
-          <img src="/shape-logo-new-white.png?v=4" alt="Shape" style={{ height: 60, width: "auto", display: "block", objectFit: "contain" }} />
+          <img src="/shape-logo-new-teal-white.png?v=1" alt="Shape" style={{ height: 60, width: "auto", display: "block", objectFit: "contain" }} />
         </a>
         <nav className="shape-nav-tabs" style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center", minWidth: 0 }}>
           {navGroupsFor(authUser).map(g => g.kind === "drop"
