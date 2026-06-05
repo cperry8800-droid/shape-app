@@ -31,7 +31,7 @@ const PLUM   = '#8c6fa8';
 // Logo
 // ─────────────────────────────────────────────────────────────
 function ShapeMark({ size = 32, variant = 'white' }) {
-  const src = variant === 'dark' ? 'assets/shape-logo-new-black.png?v=3' : 'assets/shape-logo-new-white.png?v=3';
+  const src = variant === 'dark' ? 'assets/shape-logo-new-black.png?v=4' : 'assets/shape-logo-new-white.png?v=3';
   return <img src={src} alt="Shape" style={{ width: size * 1.87, height: size, display: 'block' }} />;
 }
 
