@@ -46,7 +46,24 @@ changelog whenever something ships.
 
 ## Changelog
 
-### 2026-06-05 — Website chat profile preview: richer + privacy-aware
+### 2026-06-05 — Mobile member profile = coach design + every avatar opens it
+- Rebuilt **`BSPublicProfile`** (mobile) to share the **coach detail page anatomy**:
+  back + serif name (last word tier-italic), a tier-gradient **hero card** (avatar
+  + tier chip + role·locale eyebrow + goal headline + stat pills), a **3-up stats
+  row** (Shape Score / Tier / Role), a **Message** CTA (+ Coaching for coaches),
+  and an **About** section (Their why / Details: goal·pronouns·link). Live
+  tier/bio/details + the **🔒 private** state come from `get_public_profile`
+  (`is_public`); demo/community people stay derived.
+- **Wired the avatar taps that were dead:**
+  - Community **demo activity cards** (PR/run/workout) — avatar + name now open
+    the profile (this is what non-members tap while browsing the feed).
+  - **DM threads** (`BSChatThread`) — the header (1:1) + each incoming message
+    avatar/name now open the sender's profile (`onOpenProfile` threaded from
+    `BSClientFeed`; channels don't open a "profile" for the channel itself).
+  - The real community feed (`renderPost`) was already wired.
+- *Note:* DM/demo people have no user id, so their profile is derived (tier from
+  name-hash, generic bio) until a real account backs the message — same model as
+  the website.
 - Expanded the website chat `chatWidget.jsx` profile preview (the card that opens
   when you tap an avatar):
   - **Avatar fixed:** dropped the conic-gradient ring (which read as a "weird"
