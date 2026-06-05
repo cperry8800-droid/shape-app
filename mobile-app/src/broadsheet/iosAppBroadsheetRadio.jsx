@@ -434,19 +434,17 @@ function BSRadioPrompt() {
         </div>
       )}
 
-      {/* Shape Radio wordmark — top-left. The logo art has a near-black
-          backing, so on the dark screen we screen-blend it away (box vanishes,
-          light text + teal stay); light theme keeps it as-is. */}
+      {/* Shape Radio wordmark — top-left (transparent PNG, no backing box). */}
       <img
         src={`${import.meta.env.BASE_URL}shape-radio-logo.png`}
         alt="Shape Radio"
-        style={{ position: 'absolute', zIndex: 3, top: 'max(64px, calc(env(safe-area-inset-top, 0px) + 54px))', left: t.padX, height: 30, width: 'auto', display: 'block', pointerEvents: 'none', mixBlendMode: isLight ? 'normal' : 'screen' }}
+        style={{ position: 'absolute', zIndex: 3, top: 'max(64px, calc(env(safe-area-inset-top, 0px) + 54px))', left: t.padX, height: 30, width: 'auto', display: 'block', pointerEvents: 'none' }}
       />
 
       {/* Scrollable upper region — hero + choices */}
       <div style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }} className="bs-scroll">
       {/* Hero */}
-      <div style={{ position: 'relative', padding: `max(112px, calc(env(safe-area-inset-top, 0px) + 96px)) ${t.padX}px 8px` }}>
+      <div style={{ position: 'relative', padding: `max(168px, calc(env(safe-area-inset-top, 0px) + 150px)) ${t.padX}px 8px` }}>
         <div style={{ position: 'relative', zIndex: 2 }}>
           <div style={{ maxWidth: 230 }}><BSEQ bars={22} color={t.ACCENT} height={56} gap={4} /></div>
         </div>
