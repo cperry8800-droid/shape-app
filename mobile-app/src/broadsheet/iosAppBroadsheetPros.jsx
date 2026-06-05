@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 function BSProHomeWidgets({ role = 'trainer', onOpen = () => {} }) {
   const t = useBS();
   const isNutri = role === 'nutritionist';
@@ -669,6 +670,101 @@ function BSProWeekStrip({ goCalendar, dots, label = 'This week', selDay: selDayP
 // ═══════════════════════════════════════════════════════════
 // TRAINER
 // ═══════════════════════════════════════════════════════════
+// ── First-run coach app tour ────────────────────────────────────────────────
+// Coach-side counterpart of the client BSOnboardingTour: a skippable guided
+// walkthrough of the coaching tools. Auto-shows once for newly-created coach
+// accounts (persisted to localStorage 'shape.coachTourSeen' + cloud user_goals
+// 'coach_onboarding'); replayable anytime via the `shape:startTour` event.
+function bsProTourSteps(plansKey) {
+  return [
+    { key: 'welcome', tab: 'today', emoji: '👋', eyebrow: 'WELCOME', title: 'Welcome to Shape.', body: 'A quick tour of your coaching tools. Take it or skip — and replay anytime from Me → App tour.' },
+    { key: 'today', tab: 'today', emoji: '📊', eyebrow: 'TODAY TAB', title: 'Your dashboard.', body: 'Today’s sessions, client activity, and quick widgets — your daily home base.' },
+    { key: 'clients', tab: 'clients', emoji: '👥', eyebrow: 'CLIENTS TAB', title: 'Your roster.', body: 'Every client as a card. Tap one to open their full profile, adjust their program/plan, schedule a session, or message them.' },
+    { key: 'plans', tab: plansKey, emoji: '📋', eyebrow: 'PLANS TAB', title: 'Build & sell.', body: 'Create training programs and meal plans, save Spotify soundtracks, and publish plans your clients can buy.' },
+    { key: 'chat', tab: 'chat', emoji: '💬', eyebrow: 'CHAT TAB', title: 'Stay in touch.', body: 'Direct messages with your clients, plus the community feed and channels.' },
+    { key: 'me', tab: 'me', emoji: '👤', eyebrow: 'ME TAB', title: 'You.', body: 'Your public coach profile, rates, payouts, Shape Score, and settings. Tip: tap your avatar anywhere to come back here.' },
+    { key: 'done', tab: 'today', emoji: '🎉', eyebrow: 'YOU’RE SET', title: 'That’s the tour.', body: 'Replay it whenever from Me → App tour. Now — go coach.' },
+  ];
+}
+function bsMarkCoachTourSeen() {
+  try { localStorage.setItem('shape.coachTourSeen', '1'); } catch (e) {}
+  try { window.shapeDb?.saveUserGoals?.('coach_onboarding', { tourSeen: true, at: new Date().toISOString() }); } catch (e) {}
+}
+// Auto-show decision shared by both coach shells: new account (<24h) + not seen.
+function bsCoachTourAutoShow(setShow) {
+  let alive = true;
+  let done = false;
+  try { done = localStorage.getItem('shape.coachTourSeen') === '1'; } catch (e) {}
+  if (done) return () => {};
+  const NEW_MS = 24 * 60 * 60 * 1000;
+  const decide = () => {
+    if (!alive || done) return;
+    const u = window.ShapeAuth?.getCachedState?.().user;
+    if (!u) return;
+    const created = u.created_at ? Date.parse(u.created_at) : NaN;
+    if (!(Number.isFinite(created) && Date.now() - created < NEW_MS)) return;
+    done = true;
+    if (window.shapeDb?.getUserGoals) {
+      window.shapeDb.getUserGoals('coach_onboarding')
+        .then(d => { if (!alive) return; if (d && d.tourSeen) { try { localStorage.setItem('shape.coachTourSeen', '1'); } catch (e) {} } else setShow(true); })
+        .catch(() => { if (alive) setShow(true); });
+    } else { setShow(true); }
+  };
+  decide();
+  const tid = setTimeout(decide, 1200);
+  return () => { alive = false; clearTimeout(tid); };
+}
+
+function BSProOnboardingTour({ onClose, onNavigate, role = 'trainer', plansKey = 'plans' }) {
+  const t = useBS();
+  const accent = bsProAccent(t, role);
+  const steps = React.useMemo(() => bsProTourSteps(plansKey), [plansKey]);
+  const [i, setI] = useStateBSP(0);
+  const step = steps[i];
+  const last = i === steps.length - 1;
+  const isWelcome = step.key === 'welcome';
+
+  useEffectBSP(() => { if (step.tab) onNavigate?.(step.tab); }, [i]);
+
+  const finish = () => { bsMarkCoachTourSeen(); onClose?.(); };
+  const next = () => { if (last) finish(); else setI(v => v + 1); };
+  const back = () => setI(v => Math.max(0, v - 1));
+
+  const ctaStyle = { width: '100%', borderRadius: 13, border: 0, background: accent, color: '#06231f', padding: '13px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' };
+  const ghostStyle = { width: '100%', borderRadius: 13, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '13px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' };
+
+  const overlay = (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 220, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', background: 'rgba(0,0,0,0.58)' }}>
+      <div style={{ margin: '0 14px 92px', borderRadius: 20, border: `1px solid ${t.RULE}`, background: t.PAPER, boxShadow: '0 18px 50px rgba(0,0,0,0.5)', padding: '20px 18px 18px', position: 'relative' }}>
+        <button onClick={finish} aria-label="Skip tour" style={{ position: 'absolute', top: 12, right: 14, border: 0, background: 'transparent', color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 13, fontWeight: 800 }}>✕</button>
+        <div style={{ fontSize: 30, lineHeight: 1 }}>{step.emoji}</div>
+        <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{step.eyebrow}</div>
+        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{step.title}</div>
+        <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK70, lineHeight: 1.5 }}>{step.body}</div>
+        <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
+          {steps.map((s, k) => (
+            <span key={s.key} style={{ width: k === i ? 18 : 6, height: 6, borderRadius: 999, background: k === i ? accent : t.HAIR }} />
+          ))}
+          <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', color: t.INK50 }}>{i + 1} / {steps.length}</span>
+        </div>
+        {isWelcome ? (
+          <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 9 }}>
+            <button onClick={next} style={ctaStyle}>Take a quick tour →</button>
+            <button onClick={finish} style={ghostStyle}>Skip for now</button>
+          </div>
+        ) : (
+          <div style={{ marginTop: 18, display: 'flex', gap: 9 }}>
+            <button onClick={back} style={{ ...ghostStyle, width: 92, flex: '0 0 auto' }}>Back</button>
+            <button onClick={next} style={{ ...ctaStyle, flex: 1 }}>{last ? 'Start coaching →' : 'Next →'}</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+  const target = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
+  return target ? createPortal(overlay, target) : overlay;
+}
+
 function BSTrainerApp({ onLogout, tweaks, setTweak }) {
   return <BSSheetProvider><BSTrainerAppInner onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} /></BSSheetProvider>;
 }
@@ -677,6 +773,13 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   const sheet = useBSSheet();
   React.useEffect(() => { _bsHydrateProScore(); }, []);
   const [tab, setTab] = useStateBSP('today');
+  const [showTour, setShowTour] = useStateBSP(false);
+  useEffectBSP(() => bsCoachTourAutoShow(setShowTour), []);
+  useEffectBSP(() => {
+    const start = () => { setShowSettings(false); setShowCalendar(false); setShowTour(true); };
+    window.addEventListener('shape:startTour', start);
+    return () => window.removeEventListener('shape:startTour', start);
+  }, []);
   const [showSettings, setShowSettings] = useStateBSP(false);
   const [showCalendar, setShowCalendar] = useStateBSP(false);
   const [showReviews, setShowReviews] = useStateBSP(false);
@@ -751,6 +854,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
         { key: 'me',       label: 'Me' },
       ]} />
       <BSRadioPrompt />
+      {showTour && <BSProOnboardingTour role="trainer" plansKey="programs" onNavigate={setTab} onClose={() => setShowTour(false)} />}
     </div>
   );
 }
@@ -2827,6 +2931,13 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   const sheet = useBSSheet();
   React.useEffect(() => { _bsHydrateProScore(); }, []);
   const [tab, setTab] = useStateBSP('today');
+  const [showTour, setShowTour] = useStateBSP(false);
+  useEffectBSP(() => bsCoachTourAutoShow(setShowTour), []);
+  useEffectBSP(() => {
+    const start = () => { setShowSettings(false); setShowCalendar(false); setShowTour(true); };
+    window.addEventListener('shape:startTour', start);
+    return () => window.removeEventListener('shape:startTour', start);
+  }, []);
   const [showSettings, setShowSettings] = useStateBSP(false);
   const [showCalendar, setShowCalendar] = useStateBSP(false);
   const [showReviews, setShowReviews] = useStateBSP(false);
@@ -2893,6 +3004,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
         { key: 'me',       label: 'Me' },
       ]} />
       <BSRadioPrompt />
+      {showTour && <BSProOnboardingTour role="nutritionist" plansKey="plans" onNavigate={setTab} onClose={() => setShowTour(false)} />}
     </div>
   );
 }
@@ -4063,6 +4175,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
         const settings = [
           { l: 'Notifications', sub: 'Sessions · messages · plans', r: '→', onClick: () => setShowNotifications(true) },
           { l: 'Certifications', sub: isCoach ? 'NASM · FMS · CSCS' : 'RDN · CSSD', r: '→', onClick: onSettings },
+          { l: 'App tour', sub: 'Replay the quick walkthrough', r: '→', onClick: () => { try { window.dispatchEvent(new Event('shape:startTour')); } catch (e) {} } },
           { l: 'Help & support', sub: 'Docs · email · community', r: '→', onClick: () => setShowContact(true) },
         ];
         const head = (eyebrow, title, mt) => (

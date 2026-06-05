@@ -46,6 +46,20 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-05 — App tour: coach variant + new-accounts-only trigger
+- **Coach tour** (`BSProOnboardingTour`, pros module): role-accented (teal trainer /
+  gold nutritionist) walkthrough — Welcome → Today / Clients / Plans / Chat / Me →
+  You're set. Wired into **both** coach shells (`BSTrainerAppInner`,
+  `BSNutritionistAppInner`); the Plans step uses each shell's real tab key
+  (`programs` trainer / `plans` nutritionist). Persists to `shape.coachTourSeen`
+  + `user_goals('coach_onboarding')`. New **Me → App tour** row (in `BSProMe`
+  settings) replays it via the shared `shape:startTour` event.
+- **New-accounts-only trigger** (client + coach): the tour now auto-shows **only
+  for accounts created in the last 24h** (`ShapeAuth…user.created_at`) that haven't
+  seen it — existing users no longer get it on next load (still replayable from
+  Me → App tour). Auth-resolve timing handled with an immediate check + a 1.2s
+  retry; a guard prevents double-firing.
+
 ### 2026-06-05 — First-run app tour (client) — skippable + replayable
 - New **`BSOnboardingTour`** (client module): a ~60-second, **skippable** guided
   walkthrough that auto-appears once when you first land in the app and can be
