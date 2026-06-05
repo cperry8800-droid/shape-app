@@ -46,6 +46,25 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-05 — Website chat profile preview: richer + privacy-aware
+- Expanded the website chat `chatWidget.jsx` profile preview (the card that opens
+  when you tap an avatar):
+  - **Avatar fixed:** dropped the conic-gradient ring (which read as a "weird"
+    dark wedge top-left) for a clean solid tier disc + soft ring.
+  - **Full initials:** avatars + the preview now use the fullest name available
+    (the 1:1 thread name, not the message's first-name-only) → 2-letter initials.
+  - **More info:** a 3-up stat row (Tier / Shape Score pts / Role) plus, for real
+    members, **pronouns / goal / link** rows from `get_public_profile`.
+  - **Privacy:** when a member set their profile to non-Public, the preview shows
+    a **🔒 "keeps their profile private — only their name and tier are shown"**
+    notice instead of the bio/details. Backed by a new `is_public` flag.
+  - **View full profile →** link for coaches (→ Marketplace). (No member full-
+    profile page on the website yet — the preview holds all their public info,
+    matching mobile.)
+- **Migration `2026-06-05-public-profile-visibility.sql`** (**run on Supabase**):
+  drops + recreates `get_public_profile` adding an `is_public boolean` column
+  (Public visibility). Body otherwise identical to the 2026-06-04 version.
+
 ### 2026-06-05 — Paywall: SHAPE logo + moved before the editorial splash
 - **Logo:** added the SHAPE wordmark (`/m/shape-logo.png`, the high-res PNG) to the
   **top-left** of `BSPaywall`; the membership copy now centers in the space below
