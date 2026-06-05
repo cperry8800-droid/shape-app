@@ -189,14 +189,13 @@
       animation: trianglePulse 2s ease-in-out infinite;
     }
     .intro-text-wrap {
-      height: 48px;
-      overflow: hidden;
-      margin-top: -10px;
+      margin-top: 8px;
     }
     .intro-shape-text {
-      height: 144px;
-      width: auto;
-      margin-top: -82px;
+      width: min(82vw, 420px);
+      height: auto;
+      display: block;
+      margin: 0 auto;
     }
 
     .intro-tagline {
@@ -339,12 +338,12 @@
     /* ===== Mobile ===== */
     @media (max-width: 768px) {
       .intro-text-wrap {
-        height: 40px;
-        margin-top: -6px;
+        margin-top: 5px;
       }
       .intro-shape-text {
-        height: 120px;
-        margin-top: -68px;
+        width: 80vw;
+        height: auto;
+        margin-top: 0;
       }
       .intro-triangles svg {
         height: 26px;
@@ -411,7 +410,7 @@
         </svg>
       </div>
       <div class="intro-text-wrap">
-        <img src="logo.png?v=2" alt="Shape" class="intro-shape-text">
+        <img src="/shape-wordmark-white.png?v=1" alt="Shape" class="intro-shape-text">
       </div>
     </div>
     <p class="intro-tagline" id="introTagline">Join the Community</p>
