@@ -52,8 +52,8 @@
       margin-bottom: 16px;
     }
     .radio-logo img {
-      height: clamp(56px, 7.5vw, 96px);
-      width: auto; display: block;
+      width: clamp(300px, 46vw, 600px);
+      height: auto; display: block;
     }
     .radio-tagline {
       font-size: clamp(0.9rem, 1.2vw, 1.05rem); color: rgba(255,255,255,0.5);
@@ -298,7 +298,7 @@
     }
 
     @media (max-width: 480px) {
-      .radio-logo img { height: 48px; }
+      .radio-logo img { width: 84vw; height: auto; }
     }
   </style>
   <link rel="manifest" href="manifest.json">
@@ -318,7 +318,7 @@
   <!-- Login / preview-ended gate (hidden while previewing) -->
   <div class="radio-gate" id="radioGate" style="display:none;">
     <div class="radio-gate-box">
-      <div class="radio-logo" style="margin-bottom:24px;"><img src="/shape-radio-logo.png?v=2" alt="Shape Radio" /></div>
+      <div class="radio-logo" style="margin-bottom:24px;"><img src="/shape-radio-logo.png?v=3" alt="Shape Radio" /></div>
       <h2 id="radioGateTitle">Welcome back</h2>
       <p class="subtitle" id="radioGateSubtitle">Shape Radio is included with every Shape account.</p>
       <button class="btn-radio-login" onclick="radioGoLogin()">Log In to Your Shape Account</button>
@@ -331,7 +331,7 @@
   <!-- Radio Content — shown by default; logged-out listeners get a timed preview -->
   <div class="radio-content active" id="radioContent">
   <section class="radio-hero">
-    <div class="radio-logo"><img src="/shape-radio-logo.png?v=2" alt="Shape Radio" /></div>
+    <div class="radio-logo"><img src="/shape-radio-logo.png?v=3" alt="Shape Radio" /></div>
     <p class="radio-tagline">Live music to fuel your workout.</p>
   </section>
 
