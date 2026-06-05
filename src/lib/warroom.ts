@@ -393,6 +393,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Connect activated for coach payouts', status: 'manual' },
         { label: 'Shape Store gated to members (mobile + website): upgrade prompt unless active subscription (coaches allowed); Me-row 🔒 hint; checked via /api/stripe/subscription', status: 'done' },
         { label: 'App-wide member gate (mobile BSAppShell + website /dashboard layout): paywall unless active $5/mo sub OR approved coach; mobile offers "Preview the app" + persistent Join banner; fail-closed but caches last-known membership so members are not locked out', status: 'done' },
+        { label: 'Server-side member enforcement: Next proxy gates paid API prefixes (/api/client,/nutrition,/ai,/insights,/calendar) → 402 unless active sub / coach / admin; Bearer + cookie; fails open on error (src/lib/supabase/middleware.ts + membership-core.ts)', status: 'done' },
         { label: 'Full payments stack live', status: auto(stripeReady) },
       ],
     },

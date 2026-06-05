@@ -46,6 +46,25 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-05 — Server-side member enforcement (proxy gate)
+- Hardened the UI paywall with **real server-side enforcement** in the Next 16
+  **proxy** (`src/lib/supabase/middleware.ts`, run by `src/proxy.ts`). The paid
+  client API prefixes — **`/api/client`, `/api/nutrition`, `/api/ai`,
+  `/api/insights`, `/api/calendar`** — now return **402 `membership_required`**
+  (or 401) unless the requester is an approved coach, an admin, or a client with
+  an **active platform subscription**. Honors both auth styles: **Bearer** (native)
+  and **cookie** (web). **Fails open** on any unexpected error so a gate fault can
+  never take down the paid routes.
+- New edge-safe **`src/lib/membership-core.ts`** (`computeMembership`, `adminEmails`,
+  `ACTIVE_SUB`) — no `next/headers`, so it's importable from the Edge proxy. Admin
+  list mirrors `admin-access.ts` (which can't be imported into Edge).
+- **Not gated** (deliberate, so flows keep working): billing/auth/webhook, public
+  marketing + marketplace + leaderboard, coach routes (coaches are members; coach
+  data is RLS-scoped), and integration connect/OAuth. The non-member client app
+  already falls back to demo data on a non-200, so Preview mode degrades cleanly.
+- *Note:* `computeMembership` runs ~2 lightweight queries per gated request; a
+  SECURITY DEFINER `is_member()` RPC could collapse that to one if latency matters.
+
 ### 2026-06-05 — App-wide member gate (paywall) — mobile + website
 - **Shape is now members-only.** Full access requires an **active $5/mo
   subscription** OR an **approved coach** account (authoritative `profile.role`,

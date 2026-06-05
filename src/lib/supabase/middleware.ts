@@ -3,9 +3,17 @@
 // writes updated cookies back, and gates the private portal pages.
 
 import { createServerClient } from '@supabase/ssr';
+import { createClient as createBearerClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse, type NextRequest } from 'next/server';
+import { computeMembership } from '@/lib/membership-core';
 
 type PortalRole = 'client' | 'trainer' | 'nutritionist';
+
+// Paid API prefixes gated to Shape members (active sub OR approved coach OR
+// admin) — the server-side counterpart to the UI paywall. Self-scoped client
+// surfaces only; billing/auth/webhook/public/coach/integration-connect routes
+// are intentionally NOT gated so join + onboarding + OAuth keep working.
+const GATED_API_PREFIXES = ['/api/client', '/api/nutrition', '/api/ai', '/api/insights', '/api/calendar'];
 
 // Which role a private portal page belongs to, or null if the page is public.
 //
@@ -61,6 +69,35 @@ export async function updateSession(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // ---- Paid API member gate ------------------------------------------------
+  // Server-side enforcement for the paid client API prefixes. Honors a Bearer
+  // token (native app) as well as the cookie session (web). Fails OPEN on any
+  // unexpected error so a gate fault can never take down the paid routes.
+  const apiPath = request.nextUrl.pathname;
+  if (GATED_API_PREFIXES.some((p) => apiPath === p || apiPath.startsWith(p + '/'))) {
+    try {
+      const authHeader = request.headers.get('authorization') || '';
+      const bearer = authHeader.match(/^Bearer\s+(.+)$/i);
+      let gateUser = user;
+      let gateClient: SupabaseClient = supabase as unknown as SupabaseClient;
+      if (bearer) {
+        const bClient = createBearerClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+          { global: { headers: { Authorization: `Bearer ${bearer[1]}` } }, auth: { persistSession: false, autoRefreshToken: false } }
+        );
+        const { data } = await bClient.auth.getUser(bearer[1]);
+        gateUser = data.user ?? null;
+        gateClient = bClient;
+      }
+      if (!gateUser) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+      const { isMember } = await computeMembership(gateClient, gateUser.id, gateUser.email ?? null);
+      if (!isMember) return NextResponse.json({ error: 'Shape membership required.', code: 'membership_required' }, { status: 402 });
+    } catch {
+      /* fail open */
+    }
+  }
 
   // ---- Portal route gating -------------------------------------------------
   // Signed-out visitors can preview every page freely (dashboards fall back
