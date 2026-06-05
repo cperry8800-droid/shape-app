@@ -984,6 +984,16 @@ function BSPreviewBanner({ t, onJoin }) {
   );
 }
 
+// The preview banner shouldn't sit on top of the full-screen Radio prompt (the
+// "Want music while you move?" overlay) — hold it until that's answered and the
+// user is actually in the app. Reads the radio context, so it must render inside
+// BSRadioProvider (it does — it's rendered alongside <App>).
+function BSPreviewBannerGated({ t, onJoin }) {
+  const r = useBSRadio();
+  if (r?.showPrompt) return null;
+  return <BSPreviewBanner t={t} onJoin={onJoin} />;
+}
+
 function BSAppShell({ tweaks, setTweak }) {
   const authConfigured = Boolean(window.ShapeAuth?.configured);
   // Always open on the splash so the intro is seen on every launch; onDone
@@ -1268,7 +1278,7 @@ function BSAppShell({ tweaks, setTweak }) {
           ) : !memberAllowed ? (
             <React.Fragment>
               <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />
-              <BSPreviewBanner t={t} onJoin={() => setPreviewMode(false)} />
+              <BSPreviewBannerGated t={t} onJoin={() => setPreviewMode(false)} />
             </React.Fragment>
           ) : (
             <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />
