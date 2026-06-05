@@ -6098,47 +6098,112 @@ const BS_SAMPLE_CHANNELS = [
 // Public profile opened from a chat avatar — works for any member or coach.
 // Tier-colored ring + avatar; shows role, tier, and a Message CTA. (Read-only;
 // respects privacy — only reachable when the post isn't marked private.)
+// Public profile — same anatomy as the coach detail page (gradient hero card +
+// tier chip + 3-up stats + about cards), populated with member info. Live tier/
+// bio/details come from get_public_profile when we have a user id; otherwise a
+// derived tier + generic blurb (demo/community people).
 function BSPublicProfile({ person, onBack, onMessage = () => {} }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  // Live profile card (real tier from Shape Score + public bio) when we have a
-  // user id; falls back to the derived tier / generic blurb otherwise.
   const [live, setLive] = useStateBSC(null);
   React.useEffect(() => {
     if (person.userId && window.ShapeProfiles?.getPublicProfile) {
       window.ShapeProfiles.getPublicProfile(person.userId).then(d => { if (d) setLive(d); }).catch(() => {});
     }
   }, [person.userId]);
-  const tier = (live && Number.isFinite(live.points) ? bsTierForPoints(live.points) : null) || person.tier || bsPostTier(person);
+  const isPrivate = !!(live && live.is_public === false);
+  const points = live && Number.isFinite(live.points) ? live.points : null;
+  const tier = points != null ? bsTierForPoints(points) : (person.tier || bsPostTier(person));
   const tc = bsTierColor(tier);
   const ROLE_LABEL = { TRAINER: 'Trainer', NUTRI: 'Nutritionist', CLIENT: 'Client', SHAPE: 'Client', COMMUNITY: 'Client' };
   const roleLabel = ROLE_LABEL[person.kind] || 'Client';
   const isCoach = person.kind === 'TRAINER' || person.kind === 'NUTRI';
+  const init = person.init || bsInitials(person.who);
+  const nameParts = String(person.who || '').split(' ');
+  const first = nameParts[0] || 'Member';
+  const last = nameParts.slice(1).join(' ');
+  const goal = !isPrivate && live && live.goal;
+  const pronouns = !isPrivate && live && live.pronouns;
+  const linkv = !isPrivate && live && live.link;
+  const bio = isPrivate ? null : ((live && live.bio) || person.bio || `${person.who} is part of the Shape community${isCoach ? ' as a coach' : ''}. ${isCoach ? 'Browse their coaching profile to see packages and book a session.' : 'Say hi or cheer them on.'}`);
+  const Card = (cp) => <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 15 }}>{cp.children}</div>;
+  const DetailRow = (rp) => (
+    <div style={{ display: 'grid', gridTemplateColumns: '84px 1fr', gap: 10, paddingTop: rp.top ? 9 : 0, borderTop: rp.top ? `1px solid ${t.HAIR}` : 0 }}>
+      <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.ACCENT, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 800 }}>{rp.label}</span>
+      <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.35, wordBreak: 'break-word' }}>{rp.value}</span>
+    </div>
+  );
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow="Public profile" kicker={`${tier} tier`} title={<>{person.who}<span style={{ color: tc }}>.</span></>} />
-      <div style={{ padding: `8px ${t.padX}px 0` }}>
-        <div style={{ borderRadius: 18, border: `1px solid ${tc}55`, background: `radial-gradient(130% 120% at 78% 14%, ${tc}26, transparent 55%), ${t.PAPER2}`, padding: 18, display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div style={{ width: 76, height: 76, borderRadius: 999, flexShrink: 0, background: `conic-gradient(${tc} 270deg, ${t.HAIR} 0deg)`, display: 'grid', placeItems: 'center' }}>
-            <div style={{ width: 64, height: 64, borderRadius: 999, background: tc, color: '#fff', display: 'grid', placeItems: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 26 }}>{person.init}</div>
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
-              <span style={{ color: tc }}>{tier}</span><span style={{ color: t.INK50 }}>·</span><span style={{ color: t.INK50 }}>{roleLabel}</span>
+      <div style={{ padding: `14px ${t.padX}px 0` }}>
+        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0 }}>← Back</button>
+        <h1 style={{ margin: '10px 0 0', fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.035em', color: t.INK }}>{first}{last ? <><br /><span style={{ fontStyle: 'italic', color: tc }}>{last}</span></> : <span style={{ color: tc }}>.</span>}</h1>
+      </div>
+
+      <div style={{ padding: `14px ${t.padX}px 16px` }}>
+        {/* Hero card — mirrors the coach detail hero */}
+        <div style={{ borderRadius: 20, border: `1px solid ${t.RULE}`, overflow: 'hidden', background: `linear-gradient(160deg, ${tc}24, ${t.PAPER2} 58%)` }}>
+          <div style={{ padding: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
+              <div style={{ width: 56, height: 56, borderRadius: 999, flexShrink: 0, background: tc, color: '#fff', display: 'grid', placeItems: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 21, boxShadow: `0 0 0 3px ${tc}33` }}>{init}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, border: `1px solid ${tc}66`, background: `${tc}1f` }}>
+                  <span style={{ width: 5, height: 5, borderRadius: 999, background: tc }} />
+                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: tc }}>{tier} tier</span>
+                </span>
+                <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{roleLabel}{person.city ? ` · ${person.city}` : ' · Shape community'}</div>
+              </div>
             </div>
-            <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>{person.who}</div>
-            <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>● Member of the Shape community</div>
+            {goal && <div style={{ marginTop: 13, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, lineHeight: 1.25, letterSpacing: '-0.02em', color: t.INK }}>{goal}</div>}
+            <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {[`${tier} tier`, points != null ? `${points.toLocaleString()} pts` : 'Member', roleLabel].map((s, i) => (
+                <span key={i} style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: i === 0 ? tc : t.INK70, padding: '5px 10px', borderRadius: 999, border: `1px solid ${i === 0 ? tc : t.RULE}`, background: i === 0 ? `${tc}14` : 'transparent' }}>{s}</span>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderTop: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+            {[[points != null ? points.toLocaleString() : '—', 'Shape Score'], [tier, 'Tier'], [roleLabel, 'Role']].map(([v, l], i) => (
+              <div key={l} style={{ padding: '12px', borderLeft: i ? `1px solid ${t.RULE}` : 0 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</div>
+                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{l}</div>
+              </div>
+            ))}
           </div>
         </div>
-      </div>
-      <div style={{ padding: `16px ${t.padX}px 0` }}>
-        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK70, lineHeight: 1.5 }}>
-          {(live && live.bio) || person.bio || `${person.who} is part of the Shape community${isCoach ? ' as a coach' : ''}. ${isCoach ? 'Browse their coaching profile to see packages and book a session.' : 'Say hi or cheer them on.'}`}
+
+        <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: isCoach ? '1fr 1fr' : '1fr', gap: 8 }}>
+          <button onClick={() => onMessage(person)} style={{ minHeight: 46, padding: '12px', borderRadius: 999, background: teal, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Message →</button>
+          {isCoach && <button onClick={() => { try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} style={{ minHeight: 46, padding: '12px', borderRadius: 999, background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Coaching</button>}
         </div>
       </div>
-      <div style={{ padding: `16px ${t.padX}px 0`, display: 'flex', gap: 8 }}>
-        <button onClick={() => onMessage(person)} style={{ flex: 1, padding: '13px', borderRadius: 999, border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Message →</button>
-        {isCoach && <button onClick={() => { try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} style={{ flex: '0 0 auto', padding: '13px 18px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Coaching →</button>}
+
+      <BSSection title="About" meta={isPrivate ? 'Private' : 'Profile'} />
+      <div style={{ padding: `0 ${t.padX}px 16px`, display: 'grid', gap: 12 }}>
+        {isPrivate ? (
+          <Card>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <span style={{ fontSize: 16 }} aria-hidden>🔒</span>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK70, lineHeight: 1.5 }}>{first} keeps their profile private — only their name and tier are shown.</div>
+            </div>
+          </Card>
+        ) : (
+          <>
+            <Card>
+              <BSEyebrow color={t.ACCENT}>{isCoach ? 'Philosophy' : 'Their why'}</BSEyebrow>
+              <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 15.5, lineHeight: 1.45, color: t.INK }}>{bio}</div>
+            </Card>
+            {(goal || pronouns || linkv) && (
+              <Card>
+                <BSEyebrow color={t.ACCENT}>Details</BSEyebrow>
+                <div style={{ marginTop: 10, display: 'grid', gap: 9 }}>
+                  {goal && <DetailRow label="Goal" value={goal} />}
+                  {pronouns && <DetailRow label="Pronouns" value={pronouns} top={!!goal} />}
+                  {linkv && <DetailRow label="Link" value={<a href={/^https?:/i.test(linkv) ? linkv : `https://${linkv}`} target="_blank" rel="noopener noreferrer" style={{ color: teal, textDecoration: 'none' }}>{String(linkv).replace(/^https?:\/\//, '')}</a>} top={!!(goal || pronouns)} />}
+                </div>
+              </Card>
+            )}
+          </>
+        )}
       </div>
       <BSFooter right="Profile" />
     </BSPage>
@@ -6612,10 +6677,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     return (
       <div style={{ borderRadius: 16, border: `1px solid ${hair}`, background: card, padding: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-          <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: a.hue, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14, letterSpacing: '0.02em' }}>{bsInitials(a.who) || '?'}</div>
+          <button onClick={() => setOpenProfile({ who: a.who, kind: 'CLIENT', tier: a.tier, init: bsInitials(a.who), city: a.city })} aria-label={`View ${a.who}'s profile`} style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: a.hue, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14, letterSpacing: '0.02em', border: 0, padding: 0, cursor: 'pointer' }}>{bsInitials(a.who) || '?'}</button>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14, color: cardInk }}>{a.who}</span>
+              <button onClick={() => setOpenProfile({ who: a.who, kind: 'CLIENT', tier: a.tier, init: bsInitials(a.who), city: a.city })} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14, color: cardInk }}>{a.who}</button>
               <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', color: TEALB }}>{a.tier}</span>
             </div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, color: muted, marginTop: 3 }}>{a.city} · {a.ago} ago</div>
@@ -6726,6 +6791,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         thread={{ who: isCh && !String(openChat.n || '').startsWith('#') ? `# ${openChat.n}` : openChat.n, role: openChat.s || (isCh ? 'Channel' : 'Direct message'), last: openChat.last, time: '', messages: openChat.messages || [], group: isCh, conversationId: openChat.conversation_id, channelId: openChat.channelId }}
         eyebrow={openChat.channelId ? 'Channel' : openChat.dm ? 'Private thread' : 'Direct message'}
         onBack={() => setOpenChat(null)}
+        onOpenProfile={(person) => setOpenProfile(person)}
       />
     );
   }
@@ -7211,10 +7277,18 @@ function bsLongPress(onTrigger) {
   };
 }
 
-function BSChatThread({ thread, eyebrow, onBack }) {
+function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
   const t = useBS();
   const [text, setText] = useStateBSC('');
   const [extras, setExtras] = useStateBSC([]);
+  // Tap a person's avatar/name → open their public profile (people only — not
+  // the channel itself). Role inferred from the thread label.
+  const threadKind = /nutrition/i.test(thread.role || '') ? 'NUTRI' : /coach|trainer/i.test(thread.role || '') ? 'TRAINER' : 'CLIENT';
+  const openP = (name) => {
+    const raw = String(name || '').trim();
+    if (!raw || raw === 'You' || raw.charAt(0) === '#') return;
+    onOpenProfile({ who: raw, kind: threadKind, tier: bsPostTier({ who: raw }), init: bsInitials(raw) });
+  };
   // Seed from the thread's last-message preview when it has no message history,
   // so a channel you open isn't blank before you post.
   const seed = (thread.messages && thread.messages.length)
@@ -7272,13 +7346,13 @@ function BSChatThread({ thread, eyebrow, onBack }) {
           </button>
           <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 }}>{eyebrow}</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button onClick={() => !thread.group && openP(thread.who)} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: thread.group ? 'default' : 'pointer', color: 'inherit' }}>
           <BSAvatar init={(thread.who.match(/[A-Z#]/) || ['?'])[0]} size={36} fill={thread.group ? t.INK : t.AMBER} />
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: t.BODY, fontSize: 18, fontWeight: 760, color: t.INK, letterSpacing: '-0.02em' }}>{thread.who}</div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{thread.role}</div>
           </div>
-        </div>
+        </button>
       </div>
 
       {/* Messages — bottom padding clears the pinned composer, which now
@@ -7298,13 +7372,13 @@ function BSChatThread({ thread, eyebrow, onBack }) {
           return (
             <div key={i} style={{ display: 'flex', flexDirection: me ? 'row-reverse' : 'row', alignItems: 'flex-end', gap: 8, alignSelf: me ? 'flex-end' : 'flex-start', maxWidth: '88%' }}>
               {!me && (
-                <div style={{ width: 28, height: 28, flexShrink: 0, borderRadius: 999, background: threadColor, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 12 }}>{initial}</div>
+                <button onClick={() => openP(m.who || thread.who)} aria-label="View profile" style={{ width: 28, height: 28, flexShrink: 0, borderRadius: 999, background: threadColor, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 12, border: 0, padding: 0, cursor: 'pointer' }}>{initial}</button>
               )}
               <div style={{ minWidth: 0, position: 'relative' }}>
                 {!me && (
-                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: m.coach ? t.AMBER : t.INK50, fontWeight: 700, marginBottom: 4 }}>
+                  <button onClick={() => openP(m.who || thread.who)} style={{ display: 'block', background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: m.coach ? t.AMBER : t.INK50, fontWeight: 700, marginBottom: 4 }}>
                     {m.who}{m.coach ? ' · Coach' : ''}
-                  </div>
+                  </button>
                 )}
                 <div {...lp} style={{
                   borderRadius: 16, [me ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 5,
