@@ -150,9 +150,9 @@ const clientChatTabs = [
     title: "How can we help?",
     support: true,
     threads: [
-      { who: "Shape Support", role: "Coaches · billing · the app · your account", last: "How can we help?", time: "now", unread: 0,
+      { who: "Nora", role: "Shape's Assistant · coaches · billing · the app · your account", last: "How can we help?", time: "now", unread: 0,
         quick: ["Find a coach", "Billing help", "App support", "Something else"], messages: [
-        { who: "Shape", t: "Welcome to Shape Support. Ask about finding a coach, billing, the app, or your account and we'll help you out.", time: "now", me: false },
+        { who: "Nora", t: "Hi, I'm Nora — Shape's assistant. Ask me about finding a coach, billing, the app, or your account and I'll help you out.", time: "now", me: false },
       ]},
     ],
   },

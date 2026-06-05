@@ -46,6 +46,17 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-05 — Me-tab "Public profile" (view/edit) + Nora branding
+- **Mobile Me → Public profile:** new shortcut row opens **your own**
+  `BSPublicProfile` (`isSelf`) — the coach-style card showing how others see you,
+  with **Edit profile →** (fires `shape:openProfile` → Settings) and a "this is
+  how others see you · private" hint.
+- **Nora branding:**
+  - Mobile support bubble label "Nora · Shape AI" → **"Nora · Shape's Assistant"**.
+  - **Website Help chat is now Nora** (was "Shape Support"): the thread + greeting
+    ("Hi, I'm Nora — Shape's assistant…"), the reply author, and the typing
+    indicator all use **Nora** (`clientChatThreads.jsx` + `chatWidget.jsx`).
+
 ### 2026-06-05 — Mobile member profile = coach design + every avatar opens it
 - Rebuilt **`BSPublicProfile`** (mobile) to share the **coach detail page anatomy**:
   back + serif name (last word tier-italic), a tier-gradient **hero card** (avatar

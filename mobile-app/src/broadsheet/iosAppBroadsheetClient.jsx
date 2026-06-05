@@ -6102,7 +6102,7 @@ const BS_SAMPLE_CHANNELS = [
 // tier chip + 3-up stats + about cards), populated with member info. Live tier/
 // bio/details come from get_public_profile when we have a user id; otherwise a
 // derived tier + generic blurb (demo/community people).
-function BSPublicProfile({ person, onBack, onMessage = () => {} }) {
+function BSPublicProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {} }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [live, setLive] = useStateBSC(null);
@@ -6171,10 +6171,17 @@ function BSPublicProfile({ person, onBack, onMessage = () => {} }) {
           </div>
         </div>
 
-        <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: isCoach ? '1fr 1fr' : '1fr', gap: 8 }}>
-          <button onClick={() => onMessage(person)} style={{ minHeight: 46, padding: '12px', borderRadius: 999, background: teal, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Message →</button>
-          {isCoach && <button onClick={() => { try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} style={{ minHeight: 46, padding: '12px', borderRadius: 999, background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Coaching</button>}
-        </div>
+        {isSelf ? (
+          <div style={{ marginTop: 14 }}>
+            <button onClick={onEdit} style={{ width: '100%', minHeight: 46, padding: '12px', borderRadius: 999, background: teal, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Edit profile →</button>
+            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>This is how others see you{isPrivate ? ' · private' : ''}</div>
+          </div>
+        ) : (
+          <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: isCoach ? '1fr 1fr' : '1fr', gap: 8 }}>
+            <button onClick={() => onMessage(person)} style={{ minHeight: 46, padding: '12px', borderRadius: 999, background: teal, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Message →</button>
+            {isCoach && <button onClick={() => { try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} style={{ minHeight: 46, padding: '12px', borderRadius: 999, background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Coaching</button>}
+          </div>
+        )}
       </div>
 
       <BSSection title="About" meta={isPrivate ? 'Private' : 'Profile'} />
@@ -6969,7 +6976,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>Support · you & the Shape team</div>
                   {supportMsgs.map((m, i) => (
                     <div key={i} style={{ alignSelf: m.me ? 'flex-end' : 'flex-start', maxWidth: '86%' }}>
-                      {!m.me && <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#2e6fa0', fontWeight: 700, marginBottom: 3 }}>{m.who}{m.bot ? ' · Shape AI' : ''}</div>}
+                      {!m.me && <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#2e6fa0', fontWeight: 700, marginBottom: 3 }}>{m.who}{m.bot ? " · Shape's Assistant" : ''}</div>}
                       <div style={{ padding: '9px 12px', borderRadius: 14, background: m.me ? TEAL : card, color: m.me ? '#031f1c' : cardInk, border: m.me ? 0 : `1px solid ${hair}`, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>{m.t}</div>
                     </div>
                   ))}
@@ -9223,6 +9230,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
   const [showLeaderboard, setShowLeaderboard] = useStateBSC(false);
   const [showLibrary, setShowLibrary] = useStateBSC(false);
   const [showGoals, setShowGoals] = useStateBSC(false);
+  const [showPublicProfile, setShowPublicProfile] = useStateBSC(false);
   // Featured goal for the Me-page goal box — the headline (Overall) body-comp goal.
   const [meGoal, setMeGoal] = useStateBSC(BS_GOALS_DEFAULT.overall);
   React.useEffect(() => {
@@ -9390,6 +9398,15 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
   }
   if (showLibrary) {
     return <BSClientLibrary onBack={() => setShowLibrary(false)} goMarket={() => { setShowLibrary(false); goMarket(); }} />;
+  }
+  if (showPublicProfile) {
+    const uid = window.ShapeAuth?.getCachedState?.().user?.id || null;
+    return <BSPublicProfile
+      person={{ who: displayName, init: bsMyInitials(), kind: 'CLIENT', userId: uid }}
+      isSelf
+      onBack={() => setShowPublicProfile(false)}
+      onEdit={() => { setShowPublicProfile(false); try { window.dispatchEvent(new Event('shape:openProfile')); } catch (e) {} }}
+    />;
   }
   if (showGoals) {
     return <BSClientGoals onBack={() => setShowGoals(false)} />;
@@ -9677,6 +9694,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
       </div>
       <div style={{ padding: `0 ${t.padX}px` }}>
         {[
+          { l: 'Public profile', s: 'View & edit how others see you', onClick: () => setShowPublicProfile(true) },
           { l: 'Goals', s: 'Training & nutrition targets', onClick: () => setShowGoals(true) },
           { l: 'Library', s: 'Saved workouts, programs & meals', onClick: () => setShowLibrary(true) },
           { l: 'Habits', s: 'To-dos, to-don’ts & streaks', onClick: () => setShowHabits(true) },
