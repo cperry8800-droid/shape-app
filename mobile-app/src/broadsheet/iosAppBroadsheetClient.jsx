@@ -653,19 +653,19 @@ function bsProgramWeek() {
 // persisted in client_settings (Settings → Preferences), so a coach-set value
 // from the same store flows through here too.
 if (typeof window !== 'undefined' && !window.ShapeProgram) {
-  let _prog = { trainingPhase: 'Build', nutritionPhase: 'Cut' };
+  let _prog = { trainingPhase: 'Build', nutritionPhase: 'Cut', detail: {} };
   window.ShapeProgram = {
     get: () => _prog,
-    set: (p) => { if (p && typeof p === 'object') { _prog = { ..._prog, ...p }; try { window.dispatchEvent(new Event('bs-program')); } catch (e) {} } },
+    set: (p) => { if (p && typeof p === 'object') { _prog = { ..._prog, ...p, detail: { ...(_prog.detail || {}), ...(p.detail || {}) } }; try { window.dispatchEvent(new Event('bs-program')); } catch (e) {} } },
   };
 }
 function useBSProgram() {
-  const [p, setP] = useStateBSC(() => (window.ShapeProgram?.get?.() || { trainingPhase: 'Build', nutritionPhase: 'Cut' }));
+  const [p, setP] = useStateBSC(() => (window.ShapeProgram?.get?.() || { trainingPhase: 'Build', nutritionPhase: 'Cut', detail: {} }));
   React.useEffect(() => {
     let alive = true;
     // Prefer the real per-client store (coach-writable); fall back to the
     // self-only client_settings mirror for older data / offline.
-    const hydrate = (next) => { if (alive && next && (next.trainingPhase || next.nutritionPhase)) { window.ShapeProgram?.set?.(next); setP({ ...(window.ShapeProgram?.get?.() || {}) }); } };
+    const hydrate = (next) => { if (alive && next && (next.trainingPhase || next.nutritionPhase || next.detail)) { window.ShapeProgram?.set?.(next); setP({ ...(window.ShapeProgram?.get?.() || {}) }); } };
     if (window.ShapeProgramApi?.get) {
       window.ShapeProgramApi.get().then(hydrate).catch(() => {});
     }
@@ -680,6 +680,32 @@ function useBSProgram() {
     return () => { alive = false; window.removeEventListener('bs-program', onEvt); };
   }, []);
   return p;
+}
+
+// Coach-set program/plan adjustment, surfaced to the client on Train (training)
+// and Eat (nutrition). Driven by client_programs.detail (coach-writable), so it
+// only appears once a coach has pressed Apply on their Adjust page.
+function BSCoachAdjustBanner({ detail, kind }) {
+  const t = useBS();
+  const accent = t.ACCENT;
+  const d = kind === 'nutrition' ? detail?.nutrition : detail?.training;
+  if (!d || !d.updatedAt) return null;
+  let when = '';
+  try { when = new Date(d.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); } catch (e) {}
+  const cap = (s) => (typeof s === 'string' && s ? s[0].toUpperCase() + s.slice(1) : s);
+  const chips = (kind === 'nutrition'
+    ? [d.calories != null ? `${d.calories} kcal` : null, d.protein != null ? `${d.protein}P` : null, d.carbs != null ? `${d.carbs}C` : null, d.fat != null ? `${d.fat}F` : null, d.meals != null ? `${d.meals} meals` : null]
+    : [d.intensity ? ({ deload: 'Deload', maintain: 'Maintain', progress: 'Progress' }[d.intensity] || cap(d.intensity)) : null, d.sessions != null ? `${d.sessions}×/week` : null, ...(Array.isArray(d.focus) ? d.focus.slice(0, 2).map(cap) : [])]
+  ).filter(Boolean);
+  return (
+    <div style={{ margin: `12px ${t.padX}px 0`, borderRadius: 14, border: `1px solid ${accent}55`, background: `linear-gradient(160deg, ${accent}1c, ${t.PAPER2} 70%)`, padding: '12px 14px' }}>
+      <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', color: accent, textTransform: 'uppercase' }}>From your coach{when ? ` · ${when}` : ''}</span>
+      <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {chips.map((c, i) => <span key={i} style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '4px 9px' }}>{c}</span>)}
+      </div>
+      {d.note ? <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 13.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.45 }}>“{d.note}”</div> : null}
+    </div>
+  );
 }
 
 // Live "online now" count via Supabase Realtime presence (hook below).
@@ -2902,6 +2928,8 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       />
 
       <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} />
+
+      <BSCoachAdjustBanner detail={bsTrainProgram.detail} kind="training" />
 
       {/* Today hero — the session at a glance, with the coach + play. */}
       <div style={{ margin: `14px ${t.padX}px 0`, borderRadius: 16, border: `1px solid ${t.RULE}`, background: `linear-gradient(160deg, rgba(10,197,168,0.10), ${t.PAPER2} 62%)`, padding: 15 }}>
@@ -5247,15 +5275,21 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
 
       <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} />
 
+      <BSCoachAdjustBanner detail={bsEatProgram.detail} kind="nutrition" />
+
       {(() => {
         const num = (x) => parseInt(String(x).replace(/[^0-9]/g, ''), 10) || 0;
-        const calNow = num(cur.totals.cal), calTgt = num(cur.totals.target.cal);
+        // Coach-set targets (from the nutritionist's Adjust plan → Apply) win over
+        // the demo/plan targets when present, so the hero reflects what they set.
+        const coachN = bsEatProgram.detail?.nutrition;
+        const calNow = num(cur.totals.cal);
+        const calTgt = (coachN && coachN.calories != null) ? num(coachN.calories) : num(cur.totals.target.cal);
         const calLeft = Math.max(0, calTgt - calNow);
         const calPct = calTgt ? Math.min(100, Math.round((calNow / calTgt) * 100)) : 0;
         const macros = [
-          { l: 'PROTEIN', v: cur.totals.p, g: cur.totals.target.p, c: t.RUST || '#d2693f' },
-          { l: 'CARBS', v: cur.totals.c, g: cur.totals.target.c, c: t.AMBER || '#e8b14a' },
-          { l: 'FAT', v: cur.totals.f, g: cur.totals.target.f, c: '#8a5cf6' },
+          { l: 'PROTEIN', v: cur.totals.p, g: (coachN && coachN.protein != null) ? coachN.protein : cur.totals.target.p, c: t.RUST || '#d2693f' },
+          { l: 'CARBS', v: cur.totals.c, g: (coachN && coachN.carbs != null) ? coachN.carbs : cur.totals.target.c, c: t.AMBER || '#e8b14a' },
+          { l: 'FAT', v: cur.totals.f, g: (coachN && coachN.fat != null) ? coachN.fat : cur.totals.target.f, c: '#8a5cf6' },
         ];
         return (
           <>

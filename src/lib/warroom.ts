@@ -473,6 +473,8 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Coaches define alternatives in the workout + meal-plan builders', status: 'done' },
         { label: 'Alternatives round-trip builder → client (train/nutrition read endpoints return them)', status: 'done' },
         { label: 'Swaps persist to the shared store + notify the trainer/nutritionist', status: 'done' },
+        { label: "Coach Adjust program/plan → Apply persists to client_programs.detail + reflects on the client's Train/Eat tabs (intensity/sessions/focus · calories/macros)", status: 'done' },
+        { label: 'Migration 2026-06-05-client-program-detail.sql applied on Supabase (client_programs.detail jsonb)', status: 'manual' },
       ],
     },
     {
