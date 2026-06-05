@@ -46,6 +46,16 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-05 — Paywall: SHAPE logo + moved before the editorial splash
+- **Logo:** added the SHAPE wordmark (`/m/shape-logo.png`, the high-res PNG) to the
+  **top-left** of `BSPaywall`; the membership copy now centers in the space below
+  it (logo top-left, content vertically centered) so everything still fits.
+- **Order:** the membership wall now appears **before** the "Shape Daily" editorial
+  splash. New launch flow: **cosmos splash → membership gate → (non-member) paywall
+  → Preview → Shape Daily splash → app**; members auto-advance through the gate
+  (`stage === 'gate'` + a member-resolved effect) straight to the editorial splash
+  and the app, so they never see the paywall.
+
 ### 2026-06-05 — Website chat bubbles: avatars + tap-to-profile (mobile parity)
 - Ported the mobile chat-bubble avatar/profile features into the website
   `chatWidget.jsx` **message bubbles** (the chat box chrome — tabs/sidebar/header/
