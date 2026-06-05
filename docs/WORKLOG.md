@@ -46,6 +46,25 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-05 — Website chat bubbles: avatars + tap-to-profile (mobile parity)
+- Ported the mobile chat-bubble avatar/profile features into the website
+  `chatWidget.jsx` **message bubbles** (the chat box chrome — tabs/sidebar/header/
+  composer — is unchanged):
+  - **Tier-colored avatars** (2-letter initials) next to each incoming message,
+    using the same tier palette (Base steel / Tempo gold / Form teal / Peak violet
+    / Legend rose). Helpers `cwInitials/cwTierColor/cwHashTier/cwTierForPoints`.
+  - **Tap an avatar or sender name → a public-profile view** (overlay inside the
+    pane, with ← Back): tier-ringed avatar (conic ring + filled disc), `tier · role`
+    eyebrow, name, "Member of the Shape community", bio, **Message →**, and
+    **Coaching →** (coaches → Marketplace).
+  - **Derived vs live:** demo/seeded threads have no real user ids, so tier color
+    is a stable name-hash and the bio is generic (mobile's exact fallback). When a
+    message carries a real `userId`, it fetches the live card via
+    `get_public_profile` (`window.shapeDb.client.rpc`) — so live tiers/bios light
+    up once there's an actual signed-in account behind the message.
+- *Note:* on group/demo threads, **Message →** just returns to the current thread
+  (no 1:1 spin-up for fictional members).
+
 ### 2026-06-05 — Website Help tab → real AI support (Nora / OpenAI)
 - The website chat widget's **Help** tab now talks to the same **OpenAI-backed
   assistant** the mobile app uses (`POST /api/support/chat`, model Nora). It was

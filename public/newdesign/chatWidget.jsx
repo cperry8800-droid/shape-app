@@ -3,6 +3,32 @@
 //   <ChatWidget tabs={[{id, label, eyebrow, title, threads}, ...]} />
 //   or legacy:  <ChatWidget threads={[...]} title="..." eyebrow="..." />
 
+// ── Avatar + tier helpers (mirror the mobile app's chat avatars) ─────────────
+// Tier color system: Base=steel, Tempo=gold, Form=teal, Peak=violet, Legend=rose.
+const CW_TIER_COLORS = { raw: "#8a93a0", base: "#8a93a0", tempo: "#d8a23a", form: "#34d6c5", peak: "#8a5cf6", legend: "#e0518a" };
+function cwTierColor(tier) { return CW_TIER_COLORS[String(tier || "").toLowerCase().trim()] || "#d8a23a"; }
+function cwInitials(name) {
+  return String(name || "").replace(/^#\s*/, "").split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join("").toUpperCase() || "?";
+}
+const CW_FEED_TIERS = ["Tempo", "Form", "Peak", "Legend", "Base"];
+// Stable per-name tier for people we have no live points for (demo/seeded
+// threads) — same deterministic hash the mobile app uses as its fallback.
+function cwHashTier(name) {
+  const s = String(name || "");
+  let n = 0;
+  for (let i = 0; i < s.length; i++) n = (n + s.charCodeAt(i) * (i + 1)) % 997;
+  return CW_FEED_TIERS[n % CW_FEED_TIERS.length];
+}
+function cwTierForPoints(pts) {
+  const p = Number(pts) || 0;
+  if (p >= 15000) return "Legend";
+  if (p >= 5000) return "Peak";
+  if (p >= 2000) return "Form";
+  if (p >= 750) return "Tempo";
+  return "Base";
+}
+function cwPersonTier(m, fallbackName) { return m && m.tier ? String(m.tier) : cwHashTier((m && m.who) || fallbackName); }
+
 function ChatWidget(props) {
   // normalize to tabs[]
   const tabs = React.useMemo(() => {
@@ -342,6 +368,28 @@ function ChatWidget(props) {
   // polls so background threads stay quiet.
   const lastSeenRef = React.useRef({}); // { [conversationId]: ISOstring }
   const myUserIdRef = React.useRef(null);
+
+  // Tap a message avatar/name → a public-profile view (mirrors the mobile app).
+  // Derived tier/bio for demo people; live card via get_public_profile when the
+  // message carries a real user id (i.e. an actual signed-in account).
+  const [profileFor, setProfileFor] = React.useState(null);
+  const [profLive, setProfLive] = React.useState(null);
+  const openProfile = (m) => {
+    const who = m && m.who && m.who !== "You" ? m.who : (active && active.who);
+    if (!who) return;
+    const coach = !!(m && m.coach) || /trainer|coach|nutritionist/i.test((active && active.role) || "");
+    setProfileFor({ who, role: (m && m.coach) ? "Coach" : ((active && active.role) || ""), coach, userId: (m && m.userId) || (active && active.userId) || null, tier: (m && m.tier) || null });
+  };
+  const profUid = profileFor && profileFor.userId;
+  React.useEffect(() => {
+    setProfLive(null);
+    if (!profUid) return;
+    try {
+      const cl = window.shapeDb && window.shapeDb.client;
+      if (cl && cl.rpc) cl.rpc("get_public_profile", { p_user_id: profUid }).then(function (r) { if (r && r.data) setProfLive(r.data); }).catch(function () {});
+    } catch (e) {}
+  }, [profUid]);
+
   // Shape is members-only — the chat bubble is where messages actually send, so
   // gate the composer: approved coaches + active subscribers can type; everyone
   // else (signed-out or free) sees a Join prompt. null = still resolving.
@@ -724,7 +772,41 @@ function ChatWidget(props) {
           </div>
 
           {/* Chat pane */}
-          <div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+          <div style={{ display: "flex", flexDirection: "column", minHeight: 0, position: "relative" }}>
+            {profileFor && (() => {
+              const tier = (profLive && Number.isFinite(profLive.points)) ? cwTierForPoints(profLive.points) : (profileFor.tier || cwHashTier(profileFor.who));
+              const tc = cwTierColor(tier);
+              const isCoach = profileFor.coach;
+              const roleLabel = isCoach ? (/nutrition/i.test(profileFor.role || "") ? "Nutritionist" : "Trainer") : "Client";
+              const bio = (profLive && profLive.bio) || `${profileFor.who} is part of the Shape community${isCoach ? " as a coach" : ""}. ${isCoach ? "Browse their coaching profile to see packages and book a session." : "Say hi or cheer them on."}`;
+              return (
+                <div style={{ position: "absolute", inset: 0, zIndex: 12, background: "#1a1612", display: "flex", flexDirection: "column", overflowY: "auto" }}>
+                  <div style={{ padding: "14px 18px", borderBottom: "1px solid rgba(242,237,228,0.08)", display: "flex", alignItems: "center", gap: 12 }}>
+                    <button onClick={() => setProfileFor(null)} style={{ background: "transparent", border: 0, color: TEAL_BRIGHT, cursor: "pointer", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.1em" }}>← BACK</button>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>Public profile</span>
+                  </div>
+                  <div style={{ padding: 18 }}>
+                    <div style={{ borderRadius: 18, border: `1px solid ${tc}55`, background: `radial-gradient(130% 120% at 78% 14%, ${tc}26, transparent 55%), rgba(242,237,228,0.03)`, padding: 18, display: "flex", alignItems: "center", gap: 16 }}>
+                      <div style={{ width: 72, height: 72, borderRadius: 999, flex: "none", background: `conic-gradient(${tc} 270deg, rgba(242,237,228,0.12) 0deg)`, display: "grid", placeItems: "center" }}>
+                        <div style={{ width: 60, height: 60, borderRadius: 999, background: tc, color: "#fff", display: "grid", placeItems: "center", fontFamily: sans, fontWeight: 700, fontSize: 23 }}>{cwInitials(profileFor.who)}</div>
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase" }}>
+                          <span style={{ color: tc }}>{tier}</span><span style={{ color: "rgba(242,237,228,0.4)" }}>·</span><span style={{ color: "rgba(242,237,228,0.55)" }}>{roleLabel}</span>
+                        </div>
+                        <div style={{ marginTop: 5, fontFamily: sans, fontSize: 23, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1, color: INK }}>{profileFor.who}</div>
+                        <div style={{ marginTop: 7, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>● Member of the Shape community</div>
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 16, borderRadius: 14, border: "1px solid rgba(242,237,228,0.1)", background: "rgba(242,237,228,0.03)", padding: 16, fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.75)", lineHeight: 1.5 }}>{bio}</div>
+                    <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
+                      <button onClick={() => setProfileFor(null)} style={{ flex: 1, padding: "12px", borderRadius: 999, border: 0, background: TEAL, color: PAPER, cursor: "pointer", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" }}>Message →</button>
+                      {isCoach && <a href="/Marketplace.html" style={{ flex: "none", padding: "12px 18px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.16)", color: INK, textDecoration: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" }}>Coaching →</a>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
             <div
               onMouseDown={startDrag}
               title="Drag to move"
@@ -751,12 +833,19 @@ function ChatWidget(props) {
                 const cancelLongPress = () => { if (longPressRef.id) clearTimeout(longPressRef.id); };
                 return (
                 <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start", position: "relative" }}>
-                  {!m.me && active?.group && (
-                    <div style={{ fontSize: 10.5, color: m.coach ? TEAL_BRIGHT : "rgba(242,237,228,0.55)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.05em", marginBottom: 3, padding: "0 4px" }}>
-                      {m.who}{m.coach ? " · COACH" : ""}
-                    </div>
-                  )}
-                  <div style={{ position: "relative" }}>
+                  <div style={{ display: "flex", alignItems: "flex-end", gap: 8, flexDirection: m.me ? "row-reverse" : "row", maxWidth: "90%" }}>
+                    {!m.me && (
+                      <button onClick={() => openProfile(m)} title="View profile" style={{ flex: "none", width: 30, height: 30, borderRadius: 999, border: 0, cursor: "pointer", alignSelf: "flex-end", background: cwTierColor(cwPersonTier(m, active && active.who)), color: "#fff", fontFamily: sans, fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {cwInitials((m.who && m.who !== "You") ? m.who : (active && active.who))}
+                      </button>
+                    )}
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start", minWidth: 0 }}>
+                      {!m.me && active?.group && (
+                        <button onClick={() => openProfile(m)} style={{ background: "transparent", border: 0, padding: "0 4px", cursor: "pointer", textAlign: "left", fontSize: 10.5, color: m.coach ? TEAL_BRIGHT : "rgba(242,237,228,0.55)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.05em", marginBottom: 3 }}>
+                          {m.who}{m.coach ? " · COACH" : ""}
+                        </button>
+                      )}
+                      <div style={{ position: "relative" }}>
                     <div
                       onContextMenu={(e) => { e.preventDefault(); setReactionPickerFor(pickerOpen ? null : rKey); }}
                       onDoubleClick={(e) => { e.preventDefault(); toggleReaction(rKey, "❤️"); }}
@@ -817,6 +906,8 @@ function ChatWidget(props) {
                         onClick={() => toggleReaction(rKey, myReaction)}
                         title="Remove reaction">{myReaction}</div>
                     )}
+                      </div>
+                    </div>
                   </div>
                   <div style={{ fontSize: 10, color: "rgba(242,237,228,0.4)", fontFamily: "'JetBrains Mono', monospace", marginTop: myReaction ? 10 : 4, padding: "0 4px" }}>{m.time}</div>
                 </div>
