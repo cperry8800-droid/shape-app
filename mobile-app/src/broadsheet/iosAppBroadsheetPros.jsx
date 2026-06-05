@@ -936,9 +936,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
     <BSPage>
       <BSMasthead
         title={<span className="bs-daily-title" style={{ display: 'block', textAlign: 'center', lineHeight: 1, whiteSpace: 'nowrap' }}>
-          <span className="bs-daily-the" style={{ fontFamily: "'Newsreader', Georgia, serif", fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>The</span>
-          <span className="bs-daily-shape" style={{ display: 'inline-block', marginLeft: 8, marginRight: 10, fontFamily: "'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif", fontWeight: 300, fontStyle: 'normal', fontSize: 37, letterSpacing: '0.18em', textTransform: 'uppercase', transform: 'translateY(1px)' }}>SHAPE</span>
-          <span className="bs-daily-daily" style={{ fontFamily: "'Newsreader', Georgia, serif", fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>Daily.</span>
+          <span className="bs-daily-shape" style={{ display: 'inline-block', fontFamily: "'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif", fontWeight: 300, fontStyle: 'normal', fontSize: 40, letterSpacing: '0.3em', paddingLeft: '0.3em', textTransform: 'uppercase' }}>SHAPE</span>
         </span>}
         leftKicker={`${_BS_DOW[todayIdx]} · ${_BS_MON[dates[todayIdx].getMonth()]} ${dates[todayIdx].getDate()} · ${dates[todayIdx].getFullYear()}`}
         rightKicker="14 active clients"
@@ -3086,9 +3084,7 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
     <BSPage>
       <BSMasthead
         title={<span className="bs-daily-title" style={{ display: 'block', textAlign: 'center', lineHeight: 1, whiteSpace: 'nowrap' }}>
-          <span className="bs-daily-the" style={{ fontFamily: "'Newsreader', Georgia, serif", fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>The</span>
-          <span className="bs-daily-shape" style={{ display: 'inline-block', marginLeft: 8, marginRight: 10, fontFamily: "'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif", fontWeight: 300, fontStyle: 'normal', fontSize: 37, letterSpacing: '0.18em', textTransform: 'uppercase', transform: 'translateY(1px)' }}>SHAPE</span>
-          <span className="bs-daily-daily" style={{ fontFamily: "'Newsreader', Georgia, serif", fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>Daily.</span>
+          <span className="bs-daily-shape" style={{ display: 'inline-block', fontFamily: "'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif", fontWeight: 300, fontStyle: 'normal', fontSize: 40, letterSpacing: '0.3em', paddingLeft: '0.3em', textTransform: 'uppercase' }}>SHAPE</span>
         </span>}
         leftKicker={`${_BS_DOW[todayIdx]} · ${_BS_MON[dates[todayIdx].getMonth()]} ${dates[todayIdx].getDate()} · ${dates[todayIdx].getFullYear()}`}
         rightKicker="22 plans · 5 sessions"

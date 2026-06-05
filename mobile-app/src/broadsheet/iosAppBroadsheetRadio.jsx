@@ -434,11 +434,13 @@ function BSRadioPrompt() {
         </div>
       )}
 
-      {/* Shape Radio wordmark — top-left */}
+      {/* Shape Radio wordmark — top-left. The logo art has a near-black
+          backing, so on the dark screen we screen-blend it away (box vanishes,
+          light text + teal stay); light theme keeps it as-is. */}
       <img
         src={`${import.meta.env.BASE_URL}shape-radio-logo.png`}
         alt="Shape Radio"
-        style={{ position: 'absolute', zIndex: 3, top: 'max(20px, calc(env(safe-area-inset-top, 0px) + 14px))', left: t.padX, height: 20, width: 'auto', display: 'block', pointerEvents: 'none' }}
+        style={{ position: 'absolute', zIndex: 3, top: 'max(64px, calc(env(safe-area-inset-top, 0px) + 54px))', left: t.padX, height: 30, width: 'auto', display: 'block', pointerEvents: 'none', mixBlendMode: isLight ? 'normal' : 'screen' }}
       />
 
       {/* Scrollable upper region — hero + choices */}
