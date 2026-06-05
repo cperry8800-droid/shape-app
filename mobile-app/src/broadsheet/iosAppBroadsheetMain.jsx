@@ -971,13 +971,16 @@ function BSPaywall({ t, signedIn, onJoin, onSignIn, onPreview, onLogout }) {
 // chose to look around — keeps the Join CTA present without blocking the view.
 function BSPreviewBanner({ t, onJoin }) {
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const [dismissed, setDismissed] = useStateBSM(false);
+  if (dismissed) return null;
   return (
-    <div style={{ position: 'absolute', left: 12, right: 12, bottom: 78, zIndex: 150, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px 10px 14px', borderRadius: 14, background: t.INK, color: t.PAPER, boxShadow: '0 10px 30px rgba(0,0,0,0.4)' }}>
+    <div style={{ position: 'absolute', left: 12, right: 12, bottom: 78, zIndex: 150, display: 'flex', alignItems: 'center', gap: 8, padding: '10px 10px 10px 14px', borderRadius: 14, background: t.INK, color: t.PAPER, boxShadow: '0 10px 30px rgba(0,0,0,0.4)' }}>
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>Preview mode</div>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, marginTop: 1 }}>Join Shape to unlock everything</div>
       </div>
       <button onClick={onJoin} style={{ flexShrink: 0, padding: '9px 14px', borderRadius: 999, border: 0, background: t.PAPER, color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>$5/mo →</button>
+      <button onClick={() => setDismissed(true)} aria-label="Dismiss" style={{ flexShrink: 0, width: 26, height: 26, borderRadius: 999, border: 0, background: 'transparent', color: t.PAPER, opacity: 0.7, cursor: 'pointer', fontFamily: t.MONO, fontSize: 13, fontWeight: 800, lineHeight: 1 }}>✕</button>
     </div>
   );
 }
@@ -1136,6 +1139,19 @@ function BSAppShell({ tweaks, setTweak }) {
   const isApprovedCoach = realRole === 'trainer' || realRole === 'nutritionist';
   const memberAllowed = isApprovedCoach || membership.active === true;
   const memberGateLoading = !isApprovedCoach && membership.loading;
+
+  // Expose "can this user actually send messages" (member access incl. coaches)
+  // so the chat composer can lock for non-members previewing the app.
+  useEffectBSM(() => {
+    try { window.ShapeCanChat = memberAllowed; window.dispatchEvent(new Event('shape:canchat')); } catch (e) {}
+  }, [memberAllowed]);
+  // Let a deep "Join to send" CTA (e.g. the locked chat composer) exit preview
+  // back to the paywall.
+  useEffectBSM(() => {
+    const exit = () => setPreviewMode(false);
+    window.addEventListener('shape:exitPreview', exit);
+    return () => window.removeEventListener('shape:exitPreview', exit);
+  }, []);
 
   useEffectBSM(() => {
     let cancelled = false;

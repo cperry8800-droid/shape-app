@@ -46,6 +46,26 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-05 — Chat gated to members (mobile + website) + preview-banner dismiss
+- **Real messaging is members-only.** Added `/api/conversations` + `/api/messages`
+  to the proxy gate (the website chat bubble sends via `/api/conversations`).
+- **Mobile chat** = previewable but you can't type (same idea as the website
+  community preview). `BSMessageComposer` now shows a 🔒 "Join Shape to send
+  messages" bar instead of the input for non-members; tapping it exits preview to
+  the paywall. Driven by `window.ShapeCanChat` (set by `BSAppShell` =
+  `memberAllowed`, so **coaches** — members by role, not subscription — can still
+  type) via a `shape:canchat` event + `useBSCanChat()` hook.
+- **Preview banner** (`BSPreviewBanner`) got an **✕ dismiss** so it doesn't sit on
+  screen the whole time; `shape:exitPreview` event returns the locked composer's
+  Join CTA to the paywall.
+- **Website chat bubble** (`chatWidget.jsx`): composer locked for non-members
+  (signed-out or free) — shows "Become a Shape member to send messages" + a
+  Pricing CTA; approved coaches + active subscribers type normally (resolved from
+  `/api/me` role + `/api/stripe/subscription`).
+- **Website community page** (`community.jsx`) is a **preview** (left open) — added
+  a note under the hero: *the activity is a sample; use the chat bubble (bottom-
+  right) to actually send messages (members only).*
+
 ### 2026-06-05 — Server-side member enforcement (proxy gate)
 - Hardened the UI paywall with **real server-side enforcement** in the Next 16
   **proxy** (`src/lib/supabase/middleware.ts`, run by `src/proxy.ts`). The paid

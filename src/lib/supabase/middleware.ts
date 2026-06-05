@@ -11,9 +11,19 @@ type PortalRole = 'client' | 'trainer' | 'nutritionist';
 
 // Paid API prefixes gated to Shape members (active sub OR approved coach OR
 // admin) — the server-side counterpart to the UI paywall. Self-scoped client
-// surfaces only; billing/auth/webhook/public/coach/integration-connect routes
-// are intentionally NOT gated so join + onboarding + OAuth keep working.
-const GATED_API_PREFIXES = ['/api/client', '/api/nutrition', '/api/ai', '/api/insights', '/api/calendar'];
+// surfaces + real messaging (the website chat bubble sends via /api/conversations).
+// Billing/auth/webhook/public/community-preview/coach/integration-connect routes
+// are intentionally NOT gated so join + onboarding + OAuth + the community
+// preview keep working.
+const GATED_API_PREFIXES = [
+  '/api/client',
+  '/api/nutrition',
+  '/api/ai',
+  '/api/insights',
+  '/api/calendar',
+  '/api/conversations',
+  '/api/messages',
+];
 
 // Which role a private portal page belongs to, or null if the page is public.
 //

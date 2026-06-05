@@ -314,12 +314,28 @@ function ChatWidget(props) {
   // polls so background threads stay quiet.
   const lastSeenRef = React.useRef({}); // { [conversationId]: ISOstring }
   const myUserIdRef = React.useRef(null);
+  // Shape is members-only — the chat bubble is where messages actually send, so
+  // gate the composer: approved coaches + active subscribers can type; everyone
+  // else (signed-out or free) sees a Join prompt. null = still resolving.
+  const [member, setMember] = React.useState(null);
   React.useEffect(() => {
     let cancelled = false;
     fetch("/api/me", { credentials: "same-origin" })
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (!cancelled) myUserIdRef.current = d && d.user ? d.user.id : null; })
-      .catch(() => {});
+      .then(async (d) => {
+        const u = d && d.user;
+        if (!cancelled) myUserIdRef.current = u ? u.id : null;
+        if (!u) { if (!cancelled) setMember(false); return; }
+        const roles = Array.isArray(u.roles) ? u.roles : [];
+        const isCoach = u.role === "trainer" || u.role === "nutritionist" || roles.includes("trainer") || roles.includes("nutritionist");
+        if (isCoach) { if (!cancelled) setMember(true); return; }
+        try {
+          const sres = await fetch("/api/stripe/subscription", { credentials: "same-origin", cache: "no-store" });
+          const sd = sres.ok ? await sres.json() : null;
+          if (!cancelled) setMember(!!(sd && sd.active === true));
+        } catch { if (!cancelled) setMember(false); }
+      })
+      .catch(() => { if (!cancelled) setMember(false); });
     return () => { cancelled = true; };
   }, []);
   React.useEffect(() => {
@@ -817,6 +833,13 @@ function ChatWidget(props) {
               )}
             </div>
 
+            {member === false ? (
+              <div style={{ padding: "14px", borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 16 }} aria-hidden>🔒</span>
+                <div style={{ flex: 1, minWidth: 150, fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.72)", lineHeight: 1.4 }}>Become a Shape member to send messages.</div>
+                <a href="/pricing" style={{ fontFamily: sans, fontSize: 12, fontWeight: 600, background: TEAL, color: PAPER, borderRadius: 999, padding: "8px 14px", textDecoration: "none", whiteSpace: "nowrap" }}>Join · $5/mo</a>
+              </div>
+            ) : (
             <div style={{ padding: "12px 14px", borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", gap: 8, alignItems: "flex-end" }}>
               <textarea
                 value={draft}
@@ -840,6 +863,7 @@ function ChatWidget(props) {
                   cursor: draft.trim() ? "pointer" : "not-allowed",
                 }}>Send</button>
             </div>
+            )}
           </div>
           </div>
           {/* Resize handle (bottom-right corner) — not shown when popped out */}
