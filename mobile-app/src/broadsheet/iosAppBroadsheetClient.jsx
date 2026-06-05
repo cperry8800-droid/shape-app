@@ -217,20 +217,31 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => window.removeEventListener('shape:startWorkout', onStart);
   }, []);
 
-  // First-run app tour: auto-show once per device/account unless already seen
-  // (localStorage fast-path + cloud user_goals so it doesn't re-appear across
-  // devices). Replayable anytime via the `shape:startTour` event (Me → App tour).
+  // First-run app tour: auto-show ONLY for newly-created accounts (created in the
+  // last 24h) that haven't seen it — localStorage fast-path + cloud user_goals so
+  // it doesn't re-appear across devices. Replayable anytime via `shape:startTour`.
   React.useEffect(() => {
     let alive = true;
-    let seen = false;
-    try { seen = localStorage.getItem('shape.tourSeen') === '1'; } catch (e) {}
-    if (seen) return undefined;
-    if (window.shapeDb?.getUserGoals) {
-      window.shapeDb.getUserGoals('client_onboarding')
-        .then(d => { if (!alive) return; if (d && d.tourSeen) { try { localStorage.setItem('shape.tourSeen', '1'); } catch (e) {} } else setShowTour(true); })
-        .catch(() => { if (alive) setShowTour(true); });
-    } else { setShowTour(true); }
-    return () => { alive = false; };
+    let done = false;
+    try { done = localStorage.getItem('shape.tourSeen') === '1'; } catch (e) {}
+    if (done) return undefined;
+    const NEW_MS = 24 * 60 * 60 * 1000; // "new account" window
+    const decide = () => {
+      if (!alive || done) return;
+      const u = window.ShapeAuth?.getCachedState?.().user;
+      if (!u) return; // signed out / not resolved yet — the tour is for new accounts
+      const created = u.created_at ? Date.parse(u.created_at) : NaN;
+      if (!(Number.isFinite(created) && Date.now() - created < NEW_MS)) return; // existing account
+      done = true; // guard the retry below from double-firing
+      if (window.shapeDb?.getUserGoals) {
+        window.shapeDb.getUserGoals('client_onboarding')
+          .then(d => { if (!alive) return; if (d && d.tourSeen) { try { localStorage.setItem('shape.tourSeen', '1'); } catch (e) {} } else setShowTour(true); })
+          .catch(() => { if (alive) setShowTour(true); });
+      } else { setShowTour(true); }
+    };
+    decide();
+    const tid = setTimeout(decide, 1200); // auth may resolve just after first paint
+    return () => { alive = false; clearTimeout(tid); };
   }, []);
   React.useEffect(() => {
     const start = () => { setShowSettings(false); setShowCalendar(false); setShowTour(true); };

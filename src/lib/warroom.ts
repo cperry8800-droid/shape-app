@@ -508,6 +508,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       section: 'Client surfaces & library',
       items: [
         { label: 'First-run app tour (skippable, replayable from Me → App tour): 7-step guided walkthrough that switches the underlying tab; persists to localStorage + user_goals(client_onboarding)', status: 'done' },
+        { label: 'App tour coach variant (trainer + nutritionist) + new-accounts-only trigger (auto-shows only for accounts <24h old; existing users replay from Me → App tour)', status: 'done' },
         { label: 'Home ticker editor in Settings (client picks which metrics show)', status: 'done' },
         { label: 'Grocery coach-note split from the home Op-ed (two separate coach-editable messages)', status: 'done' },
         { label: 'Nutritionist Live Console pre-fills the existing grocery note per client', status: 'done' },
