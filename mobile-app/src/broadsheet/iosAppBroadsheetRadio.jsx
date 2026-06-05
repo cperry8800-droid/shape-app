@@ -437,7 +437,7 @@ function BSRadioPrompt() {
       {/* Scrollable upper region — hero + choices */}
       <div style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }} className="bs-scroll">
       {/* Hero */}
-      <div style={{ position: 'relative', padding: `max(108px, calc(env(safe-area-inset-top, 0px) + 90px)) ${t.padX}px 8px` }}>
+      <div style={{ position: 'relative', padding: `max(170px, calc(env(safe-area-inset-top, 0px) + 152px)) ${t.padX}px 8px` }}>
         {/* Shape Radio wordmark — sits in-flow as the masthead (transparent PNG, no box) */}
         <img src={`${import.meta.env.BASE_URL}shape-radio-logo.png`} alt="Shape Radio" style={{ height: 32, width: 'auto', display: 'block', marginBottom: 30, position: 'relative', zIndex: 2 }} />
         <div style={{ position: 'relative', zIndex: 2 }}>
