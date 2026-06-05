@@ -46,6 +46,20 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-05 — Shape Store gated to members
+- **`BSShapeStorePage`** now checks membership before rendering the catalogue. A
+  signed-in account with an **active subscription** (`/api/stripe/subscription` →
+  `active:true`) gets in; **coaches** (role trainer/nutritionist) are allowed too
+  (providers). Free / signed-out users see a **"members only"** upgrade prompt
+  (🔒 + "Activate membership · $5/mo" → `bsStartPlatformCheckout`, or "Join Shape"
+  when signed out) instead of the store. Note: "You still earn points — redeem
+  them once you're a member."
+- Membership result is cached on `window.ShapeMembership` so repeat opens don't
+  flash the loading state. Covers every entry point (Me row, Settings, Score
+  page, store tab) since the gate lives inside the page itself.
+- *Scope:* UI gate (the catalogue/redemption is still illustrative — no live
+  redemption API to enforce server-side yet).
+
 ### 2026-06-05 — App tour: coach variant + new-accounts-only trigger
 - **Coach tour** (`BSProOnboardingTour`, pros module): role-accented (teal trainer /
   gold nutritionist) walkthrough — Welcome → Today / Clients / Plans / Chat / Me →
