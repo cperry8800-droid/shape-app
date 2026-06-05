@@ -9,7 +9,7 @@
 <link rel="canonical" href="https://www.theshapecommunity.com/newdesign/index.html" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 <!-- React + Babel so the global chat bubble mounts the full rich ChatWidget
      (same as every other newdesign page) instead of the fallback panel. -->
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
@@ -146,10 +146,10 @@
   nav{position:fixed;top:0;left:0;right:0;z-index:100 !important;backdrop-filter:blur(20px) saturate(1.05);-webkit-backdrop-filter:blur(20px) saturate(1.05);
     background:rgba(11,14,12,0.55);border-bottom:1px solid var(--line-2)}
   nav:before{content:"";position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--teal) 30%,var(--rust) 70%,transparent);opacity:.5}
-  .navr{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:32px;max-width:1480px;padding:10px 72px 10px 72px}
+  .navr{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:20px;max-width:1480px;padding:10px 44px 10px 44px}
   .brand{display:flex;align-items:center;line-height:0}
-  .brand img{height:76px;width:auto;display:block;object-fit:contain}
-  .nlinks{display:flex;gap:24px;align-items:center;justify-content:center;font-family:var(--sans);font-size:12px;font-weight:300;letter-spacing:.04em;text-transform:lowercase;color:rgba(245,239,225,0.55);white-space:nowrap}
+  .brand img{height:60px;width:auto;display:block;object-fit:contain}
+  .nlinks{display:flex;gap:16px;align-items:center;justify-content:center;font-family:var(--sans);font-size:12px;font-weight:300;letter-spacing:.04em;text-transform:lowercase;color:rgba(245,239,225,0.55);white-space:nowrap}
   .nlinks>a{transition:color .16s}.nlinks>a:hover{color:var(--cream)}
   /* Nav dropdowns — CLICK to open (no hover, no timers). Once open the menu
      stays fully visible + clickable until you pick a link or click away, so
@@ -283,7 +283,7 @@
   footer{border-top:1px solid var(--line-2);padding:56px 0 36px;position:relative}
   footer:before{content:"";position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--teal) 30%,var(--rust) 70%,transparent);opacity:.55}
   .foot-cta{display:flex;flex-direction:column;align-items:center;gap:10px;padding-bottom:36px;text-align:center}
-  .foot-cta img{height:96px;width:auto;display:block}
+  .foot-cta img{height:64px;width:auto;display:block}
   .foot-cta .jc{font-family:var(--serif);font-size:20px;font-style:italic;letter-spacing:-.02em;color:var(--cream)}
   .foot-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:28px;padding-top:30px;border-top:1px solid rgba(245,239,225,0.1);justify-items:center;text-align:center}
   .foot-grid h4{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--teal);margin:0 0 14px;font-weight:400}
