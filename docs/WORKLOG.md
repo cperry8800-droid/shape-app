@@ -46,6 +46,24 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-05 — Website member public profile page + profile-link wiring
+- **New `public/newdesign/MemberProfile.html` + `memberProfile.jsx`** — a member's
+  public profile on the website, mirroring the coach page anatomy (tier-gradient
+  hero, tier chip, 3-up stats [Shape Score / Tier / Role], About + Details rows for
+  goal/pronouns/link) with the **private** state (🔒, name+tier only). Reads
+  `get_public_profile(?u=<userId>)`; with **no `u`** it loads the signed-in user's
+  own profile (owner sees **Edit profile →** to `ClientMe.html`; everyone else gets a
+  **Message →** CTA wired to the site chat via `window.__openChat`, falling back to
+  the global chat launcher). Coaches also get a **Coaching →** link.
+- **Wiring:** the website chat profile preview's **View full profile →** now points
+  members with a real account to `MemberProfile.html?u=<userId>` (coaches still link
+  to Marketplace; demo people with no `userId` show nothing). **`ClientMe.html`** Me
+  page gained a **View public profile** header action → opens your own
+  `MemberProfile.html`.
+- **Mobile paywall/radio polish:** the paywall **Sign in / Sign out** and **Step
+  inside** buttons + the Radio **Continue** button are now smaller, faded pills
+  (fit-content, `borderRadius:999`, faded teal/ink fills) instead of full-width bars.
+
 ### 2026-06-05 — Me-tab "Public profile" (view/edit) + Nora branding
 - **Mobile Me → Public profile:** new shortcut row opens **your own**
   `BSPublicProfile` (`isSelf`) — the coach-style card showing how others see you,
