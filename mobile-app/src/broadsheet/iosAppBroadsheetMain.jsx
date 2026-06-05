@@ -544,14 +544,14 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
         </div>
 
         {/* CTA — actual intro page, user must tap to advance */}
-        <button onClick={onDone} style={{ borderRadius: t.RADIUS_SM,
-          marginTop: 4,
-          padding: '14px 16px', position: 'relative', zIndex: 1,
+        <button onClick={onDone} style={{ borderRadius: 999,
+          margin: '4px auto 0', width: 'fit-content',
+          padding: '10px 26px', position: 'relative', zIndex: 1,
           background: t.INK, color: t.PAPER, border: 0,
-          fontFamily: t.MONO, fontSize: 11, fontWeight: 700,
-          letterSpacing: '0.28em', textTransform: 'uppercase',
+          fontFamily: t.MONO, fontSize: 10.5, fontWeight: 700,
+          letterSpacing: '0.24em', textTransform: 'uppercase',
           cursor: 'pointer',
-          display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 14,
+          display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12,
         }}>
           <span>Step inside</span>
           <span style={{ letterSpacing: 0 }}>→</span>
@@ -962,11 +962,15 @@ function BSPaywall({ t, signedIn, onJoin, onSignIn, onPreview, onLogout }) {
         <button onClick={onJoin} style={{ ...cta, marginTop: 24 }}>{signedIn ? 'Activate membership · $5/mo →' : 'Create account & join · $5/mo →'}</button>
         <button onClick={onPreview} style={{ ...ghost, marginTop: 11 }}>Preview the app first →</button>
         {signedIn ? (
-          <button onClick={onLogout} style={{ marginTop: 28, width: '100%', padding: '14px', borderRadius: 999, border: 0, background: teal, color: '#04201d', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Sign out</button>
+          <div style={{ marginTop: 28, display: 'flex', justifyContent: 'center' }}>
+            <button onClick={onLogout} style={{ padding: '9px 24px', borderRadius: 999, border: `1px solid ${teal}55`, background: `${teal}1f`, color: teal, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Sign out</button>
+          </div>
         ) : (
-          <div style={{ marginTop: 28 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, textAlign: 'center' }}>I already have an account</div>
-            <button onClick={onSignIn} style={{ marginTop: 12, width: '100%', padding: '14px', borderRadius: 999, border: 0, background: teal, color: '#04201d', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Sign in →</button>
+          <div style={{ marginTop: 28, textAlign: 'center' }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}>I already have an account</div>
+            <div style={{ marginTop: 12, display: 'flex', justifyContent: 'center' }}>
+              <button onClick={onSignIn} style={{ padding: '9px 24px', borderRadius: 999, border: `1px solid ${teal}55`, background: `${teal}1f`, color: teal, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Sign in →</button>
+            </div>
           </div>
         )}
         </div>
