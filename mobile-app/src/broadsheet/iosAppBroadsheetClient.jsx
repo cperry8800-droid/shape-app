@@ -823,6 +823,33 @@ function useBSOnline() {
   return n;
 }
 
+// Shape membership status (drives the member-gated Shape Store + its Me-row
+// hint). `allowed` = an active subscription OR a coach account (providers).
+// Result cached on window.ShapeMembership so repeat reads don't re-fetch/flash.
+function useBSMembership() {
+  const initial = () => {
+    const auth = window.ShapeAuth?.getCachedState?.() || {};
+    const role = auth.profile?.role;
+    const isCoach = role === 'trainer' || role === 'nutritionist';
+    const signedIn = !!auth.user?.id;
+    if (!signedIn) return { loading: false, allowed: false, signedIn: false };
+    if (isCoach) return { loading: false, allowed: true, signedIn: true };
+    if (window.ShapeMembership && typeof window.ShapeMembership.active === 'boolean') return { loading: false, allowed: window.ShapeMembership.active, signedIn: true };
+    return { loading: true, allowed: false, signedIn: true };
+  };
+  const [m, setM] = useStateBSC(initial);
+  React.useEffect(() => {
+    if (!m.loading) return undefined;
+    let cancelled = false;
+    fetch('/api/stripe/subscription', { credentials: 'same-origin', cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { const active = !!(d && d.active === true); try { window.ShapeMembership = { active }; } catch (e) {} if (!cancelled) setM({ loading: false, allowed: active, signedIn: true }); })
+      .catch(() => { if (!cancelled) setM({ loading: false, allowed: false, signedIn: true }); });
+    return () => { cancelled = true; };
+  }, []);
+  return m;
+}
+
 // ── Client Library — saved coach content (workouts, programs, meals) ─────────
 // Persists to localStorage immediately, mirrored to window.shapeDb (user_goals)
 // for cross-device sync. Screens subscribe via the `bs-library` window event.
@@ -9095,6 +9122,8 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
     }).catch(() => {});
   }, []);
   const scoreProfile = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client); // live points/tier when signed in
+  const membership = useBSMembership(); // gate the Shape Store row for non-members
+  const storeLocked = !membership.loading && !membership.allowed;
   const authProfile = window.ShapeAuth?.getCachedState?.().profile || {};
   const displayName = authProfile.full_name || 'Alex Rivera';
   const [firstName, ...lastParts] = displayName.split(' ');
@@ -9542,7 +9571,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
           { l: 'Library', s: 'Saved workouts, programs & meals', onClick: () => setShowLibrary(true) },
           { l: 'Habits', s: 'To-dos, to-don’ts & streaks', onClick: () => setShowHabits(true) },
           { l: 'Marketplace', s: 'Find coaches, plans, programs', onClick: () => goMarket() },
-          { l: 'Shape Store', s: `${scoreProfile.available.toLocaleString()} pts · tap to redeem`, onClick: () => setShowStore(true) },
+          { l: 'Shape Store', s: storeLocked ? 'Members only · tap to join' : `${scoreProfile.available.toLocaleString()} pts · tap to redeem`, onClick: () => setShowStore(true), locked: storeLocked },
           { l: 'Progress & PRs', s: 'Weight, recovery, strength trends', onClick: () => setShowProgress(true) },
           { l: 'Notifications', s: 'Requests, confirmations & updates', onClick: () => setShowNotifications(true) },
           { l: 'Connected apps', s: 'Apple Health · Strava · WHOOP', onClick: onIntegrations },
@@ -9555,7 +9584,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
               <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 750, color: t.INK, letterSpacing: '-0.015em' }}>{r.l}</div>
               <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{r.s}</div>
             </div>
-            <span style={{ color: t.INK50, fontSize: 15 }}>→</span>
+            <span style={{ color: t.INK50, fontSize: 15 }}>{r.locked ? '🔒' : '→'}</span>
           </button>
         ))}
       </div>
@@ -10140,31 +10169,8 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
   const [affordable, setAffordable] = useStateBSC(false);
   // Membership gate — the Shape Store (redeeming points for gear/rewards) is a
   // Shape member perk. Coaches (providers) and active members get in; free or
-  // signed-out users see an upgrade prompt instead of the catalogue. Cached on
-  // window.ShapeMembership so repeat opens don't flash a loading state.
-  const [memberGate, setMemberGate] = useStateBSC({ loading: true, allowed: false, signedIn: false });
-  React.useEffect(() => {
-    let cancelled = false;
-    const auth = window.ShapeAuth?.getCachedState?.() || {};
-    const role = auth.profile?.role;
-    const isCoach = role === 'trainer' || role === 'nutritionist';
-    const signedIn = !!auth.user?.id;
-    if (!signedIn) { setMemberGate({ loading: false, allowed: false, signedIn: false }); return undefined; }
-    if (isCoach) { setMemberGate({ loading: false, allowed: true, signedIn: true }); return undefined; }
-    if (window.ShapeMembership && typeof window.ShapeMembership.active === 'boolean') {
-      setMemberGate({ loading: false, allowed: window.ShapeMembership.active, signedIn: true });
-      return undefined;
-    }
-    fetch('/api/stripe/subscription', { credentials: 'same-origin', cache: 'no-store' })
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => {
-        const active = !!(d && d.active === true);
-        try { window.ShapeMembership = { active }; } catch (e) {}
-        if (!cancelled) setMemberGate({ loading: false, allowed: active, signedIn: true });
-      })
-      .catch(() => { if (!cancelled) setMemberGate({ loading: false, allowed: false, signedIn: true }); });
-    return () => { cancelled = true; };
-  }, []);
+  // signed-out users see an upgrade prompt instead of the catalogue.
+  const memberGate = useBSMembership();
   const products = [
     { cat: 'Shape Merch', name: 'Shape Training Tee', brand: 'Shape Merch', cost: 450, retail: 48, tag: 'New', stock: 'In stock' },
     { cat: 'Shape Merch', name: 'Shape Crewneck', brand: 'Shape Merch', cost: 720, retail: 72, tag: 'Members', stock: 'In stock' },

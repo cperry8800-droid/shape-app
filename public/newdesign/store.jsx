@@ -1,5 +1,5 @@
 // Shape Store — spend points for rewards
-const { useState: useSStore, useMemo: useMStore } = React;
+const { useState: useSStore, useMemo: useMStore, useEffect: useEStore } = React;
 
 const BALANCE = 940;
 const LIFETIME = 3420;
@@ -319,17 +319,68 @@ function StoreFAQ() {
   );
 }
 
+// The Shape Store is a member perk — same rule as the mobile app. Coaches
+// (providers) and accounts with an active subscription get in; everyone else
+// sees an upgrade prompt instead of the catalogue.
+function StoreMembersOnly({ signedIn }) {
+  return (
+    <section style={{ padding: "70px 24px 110px", position: "relative" }}>
+      <div style={{ maxWidth: 720, margin: "0 auto", textAlign: "center", background: "rgba(26,22,18,0.55)", border: "1px solid rgba(242,237,228,0.16)", borderRadius: 22, padding: "48px 40px" }}>
+        <div style={{ fontSize: 44, lineHeight: 1 }}>🔒</div>
+        <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, margin: "20px 0 14px" }}>Members only</div>
+        <h1 style={{ fontFamily: serif, fontSize: "clamp(34px,5vw,56px)", lineHeight: 0.98, letterSpacing: "-0.03em", fontWeight: 400, margin: 0, color: INK }}>The Shape Store is a <em style={{ fontStyle: "italic", color: TEAL }}>member perk.</em></h1>
+        <p style={{ fontFamily: sans, fontSize: 16, lineHeight: 1.55, color: "rgba(242,237,228,0.7)", margin: "18px auto 0", maxWidth: 480 }}>Become a Shape member to redeem your points for gear, training credits and rewards — plus Shape Radio, the community, and the marketplace. You still earn points; redeem them once you’re a member.</p>
+        <a href="Pricing.html" style={{ display: "inline-block", marginTop: 28, fontFamily: sans, fontSize: 13, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#04201d", background: TEAL, borderRadius: 999, padding: "14px 28px", textDecoration: "none" }}>{signedIn ? "Activate membership · $5/mo →" : "Join Shape · $5/mo →"}</a>
+      </div>
+    </section>
+  );
+}
+
 function StorePage() {
+  const [gate, setGate] = useSStore({ loading: true, allowed: false, signedIn: false });
+  useEStore(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const cl = window.shapeDb && window.shapeDb.client;
+        const userRes = cl && cl.auth ? await cl.auth.getUser() : null;
+        const user = userRes && userRes.data ? userRes.data.user : null;
+        if (!user) { if (!cancelled) setGate({ loading: false, allowed: false, signedIn: false }); return; }
+        // Coaches (providers) are allowed, matching the mobile store.
+        let isCoach = false;
+        try {
+          const r = await cl.from("profiles").select("role").eq("id", user.id).maybeSingle();
+          const role = r && r.data ? r.data.role : null;
+          isCoach = role === "trainer" || role === "nutritionist";
+        } catch (_) {}
+        if (isCoach) { if (!cancelled) setGate({ loading: false, allowed: true, signedIn: true }); return; }
+        const res = await fetch("/api/stripe/subscription", { credentials: "include", cache: "no-store" });
+        const d = res.ok ? await res.json() : null;
+        if (!cancelled) setGate({ loading: false, allowed: !!(d && d.active === true), signedIn: true });
+      } catch (_) {
+        if (!cancelled) setGate({ loading: false, allowed: false, signedIn: true });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
   return (
     <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
       <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/intro/Shape%20store.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
       <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "rgba(26,22,18,0.6)", pointerEvents: "none" }} />
       <div style={{ position: "relative", zIndex: 1 }}>
         <Header active="Store" />
-        <StoreHero />
-        <StoreGrid />
-        <UnlockedCoupons />
-        <StoreFAQ />
+        {gate.loading ? (
+          <section style={{ padding: "120px 24px", textAlign: "center", fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(242,237,228,0.6)" }}>Loading…</section>
+        ) : gate.allowed ? (
+          <React.Fragment>
+            <StoreHero />
+            <StoreGrid />
+            <UnlockedCoupons />
+            <StoreFAQ />
+          </React.Fragment>
+        ) : (
+          <StoreMembersOnly signedIn={gate.signedIn} />
+        )}
         <Footer />
       </div>
     </div>
