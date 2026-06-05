@@ -152,7 +152,38 @@ function NewPlaylistCard() {
   const [url, setUrl] = React.useState("");
   const [name, setName] = React.useState("");
   const [note, setNote] = React.useState("");
-  const doImport = () => { if (ctx.importSoundtrack) ctx.importSoundtrack({ name, url, note }); setOpen(false); setUrl(""); setName(""); setNote(""); };
+  // "Pick from your Spotify" — same rule as the mobile app. Needs per-user OAuth,
+  // which is capped to allowlisted accounts until Extended Quota Mode, so failures
+  // degrade gracefully to the paste-a-link path (which works for everyone).
+  const [mode, setMode] = React.useState("form"); // 'form' | 'spotify'
+  const [spotItems, setSpotItems] = React.useState(null);
+  const [spotBusy, setSpotBusy] = React.useState(false);
+  const [spotErr, setSpotErr] = React.useState("");
+  const [spotConnected, setSpotConnected] = React.useState(null);
+  const reset = () => { setOpen(false); setUrl(""); setName(""); setNote(""); setMode("form"); setSpotItems(null); setSpotErr(""); };
+  const doImport = () => { if (ctx.importSoundtrack) ctx.importSoundtrack({ name, url, note }); reset(); };
+  const loadSpotify = async () => {
+    setSpotBusy(true); setSpotErr("");
+    try {
+      const res = await fetch("/api/integrations/spotify/playlists", { credentials: "include", cache: "no-store" });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (d && d.connected === false) { setSpotConnected(false); }
+        else { setSpotErr("Library import is still rolling out for your account — paste a link below instead."); }
+        setMode("spotify");
+        return;
+      }
+      setSpotConnected(true);
+      setSpotItems(Array.isArray(d.playlists) ? d.playlists : []);
+      setMode("spotify");
+    } catch (_) {
+      setSpotErr("Couldn't reach Spotify — paste a link below instead.");
+      setMode("spotify");
+    } finally { setSpotBusy(false); }
+  };
+  const pick = (pl) => { setUrl(pl.url || ""); setName(pl.name || ""); setMode("form"); };
+  const connectHref = "/api/integrations/spotify/authorize?return=" + encodeURIComponent(typeof window !== "undefined" ? (window.location.pathname + window.location.search) : "/newdesign/TrainerPlaylists.html");
+  const greenDot = { width: 8, height: 8, borderRadius: 999, background: "#1ED760", display: "inline-block" };
   return (
     <React.Fragment>
       <button onClick={() => setOpen(true)}
@@ -164,28 +195,75 @@ function NewPlaylistCard() {
         </div>
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 4 }}>New playlist</div>
-          <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", lineHeight: 1.5 }}>Paste a Spotify or<br/>Apple Music link</div>
+          <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", lineHeight: 1.5 }}>Pick from your Spotify<br/>or paste a link</div>
         </div>
       </button>
 
       {open && (
-        <div onClick={() => setOpen(false)} style={modalOverlay}>
+        <div onClick={reset} style={modalOverlay}>
           <div onClick={e => e.stopPropagation()} style={{ ...modalCard, maxWidth: 520 }}>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 8 }}>NEW PLAYLIST</div>
-            <h3 style={{ fontFamily: serif, fontSize: 28, margin: 0, fontWeight: 400 }}>Paste a link</h3>
-            <p style={{ fontSize: 13.5, color: "rgba(242,237,228,0.7)", lineHeight: 1.55, margin: "10px 0 22px" }}>
-              From Spotify or Apple Music. We'll pull cover, tracks, duration, and BPM range automatically.
-            </p>
-            <label style={lbl}>Playlist URL</label>
-            <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://open.spotify.com/playlist/…" style={input} />
-            <label style={lbl}>Name (optional override)</label>
-            <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Heavy Squat Day" style={input} />
-            <label style={lbl}>Note for client</label>
-            <textarea value={note} onChange={e => setNote(e.target.value)} rows="2" placeholder="What's the vibe? Any cues?" style={{ ...input, resize: "vertical", fontFamily: sans }} />
-            <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
-              <button onClick={doImport} style={{ ...pillPrimary, flex: 1 }}>Import playlist</button>
-              <button onClick={() => setOpen(false)} style={pillGhost}>Cancel</button>
-            </div>
+            {mode === "spotify" ? (
+              <React.Fragment>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>FROM YOUR SPOTIFY</div>
+                  <button onClick={() => setMode("form")} style={{ all: "unset", cursor: "pointer", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", color: "rgba(242,237,228,0.7)" }}>← BACK</button>
+                </div>
+                {spotConnected === false ? (
+                  <React.Fragment>
+                    <h3 style={{ fontFamily: serif, fontSize: 26, margin: "2px 0 0", fontWeight: 400 }}>Connect Spotify</h3>
+                    <p style={{ fontSize: 13.5, color: "rgba(242,237,228,0.7)", lineHeight: 1.55, margin: "10px 0 18px" }}>Connect your Spotify to pick a playlist from your library — rolling out, so it may not be enabled for your account yet. You can always paste a link instead.</p>
+                    <a href={connectHref} style={{ ...pillPrimary, display: "inline-block", textDecoration: "none", textAlign: "center" }}>Connect Spotify →</a>
+                  </React.Fragment>
+                ) : spotErr ? (
+                  <React.Fragment>
+                    <h3 style={{ fontFamily: serif, fontSize: 26, margin: "2px 0 0", fontWeight: 400 }}>Your playlists</h3>
+                    <p style={{ fontSize: 13.5, color: "rgba(242,237,228,0.7)", lineHeight: 1.55, margin: "10px 0 18px", fontStyle: "italic" }}>{spotErr}</p>
+                    <button onClick={() => setMode("form")} style={{ ...pillGhost, width: "100%" }}>Paste a link instead</button>
+                  </React.Fragment>
+                ) : (
+                  <React.Fragment>
+                    <h3 style={{ fontFamily: serif, fontSize: 26, margin: "2px 0 0", fontWeight: 400 }}>Your playlists</h3>
+                    <p style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", margin: "8px 0 14px" }}>{(spotItems || []).length} playlist{(spotItems || []).length === 1 ? "" : "s"} · pick one to import</p>
+                    <div style={{ maxHeight: 320, overflowY: "auto", margin: "0 -4px" }}>
+                      {(spotItems || []).length === 0 ? (
+                        <div style={{ fontSize: 13.5, color: "rgba(242,237,228,0.6)", fontStyle: "italic", padding: "8px 4px" }}>No playlists found in your Spotify library.</div>
+                      ) : (spotItems.map(pl => (
+                        <button key={pl.id} onClick={() => pick(pl)} style={{ all: "unset", cursor: "pointer", width: "100%", boxSizing: "border-box", display: "flex", alignItems: "center", gap: 12, padding: "9px 4px", borderTop: "1px solid rgba(242,237,228,0.08)" }}>
+                          <div style={{ width: 44, height: 44, borderRadius: 6, overflow: "hidden", flexShrink: 0, background: "rgba(242,237,228,0.06)" }}>{pl.image ? <img src={pl.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}</div>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ fontSize: 14.5, fontWeight: 500, color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{pl.name}</div>
+                            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(242,237,228,0.5)", marginTop: 2 }}>{pl.tracks} tracks{pl.owner ? " · " + pl.owner : ""}</div>
+                          </div>
+                          <span style={{ color: TEAL_BRIGHT, fontSize: 18 }}>+</span>
+                        </button>
+                      )))}
+                    </div>
+                  </React.Fragment>
+                )}
+              </React.Fragment>
+            ) : (
+              <React.Fragment>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 8 }}>NEW PLAYLIST</div>
+                <h3 style={{ fontFamily: serif, fontSize: 28, margin: 0, fontWeight: 400 }}>Add a playlist</h3>
+                <button onClick={loadSpotify} disabled={spotBusy}
+                  style={{ all: "unset", cursor: spotBusy ? "default" : "pointer", boxSizing: "border-box", width: "100%", marginTop: 14, padding: "12px 14px", borderRadius: 10, border: "1px solid rgba(10,197,168,0.4)", background: "rgba(10,197,168,0.06)", display: "flex", alignItems: "center", gap: 10, opacity: spotBusy ? 0.6 : 1 }}>
+                  <span style={greenDot} />
+                  <span style={{ fontSize: 13.5, fontWeight: 500, color: INK }}>{spotBusy ? "Loading…" : "Pick from your Spotify"}</span>
+                  <span style={{ marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 999, padding: "2px 7px" }}>BETA</span>
+                </button>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.12em", color: "rgba(242,237,228,0.4)", textAlign: "center", margin: "12px 0" }}>OR PASTE A LINK</div>
+                <label style={lbl}>Playlist URL</label>
+                <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://open.spotify.com/playlist/…" style={input} />
+                <label style={lbl}>Name (optional override)</label>
+                <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Heavy Squat Day" style={input} />
+                <label style={lbl}>Note for client</label>
+                <textarea value={note} onChange={e => setNote(e.target.value)} rows="2" placeholder="What's the vibe? Any cues?" style={{ ...input, resize: "vertical", fontFamily: sans }} />
+                <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
+                  <button onClick={doImport} style={{ ...pillPrimary, flex: 1 }}>Import playlist</button>
+                  <button onClick={reset} style={pillGhost}>Cancel</button>
+                </div>
+              </React.Fragment>
+            )}
           </div>
         </div>
       )}

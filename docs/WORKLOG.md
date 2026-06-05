@@ -46,6 +46,19 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-05 — Spotify "pick from your library" on the website too
+- **`public/newdesign/trainerPlaylistsPage.jsx`** (`NewPlaylistCard`, shared by the
+  trainer **and** nutritionist website Playlists pages): the import modal now offers
+  **"Pick from your Spotify"** alongside paste-a-link — calls
+  `/api/integrations/spotify/playlists` (cookie auth), lists the coach's playlists
+  (cover/name/tracks/owner), and prefills the URL + name on pick. Same **BETA**
+  gating as mobile: a not-connected response shows a **Connect Spotify →** link (to
+  `/api/integrations/spotify/authorize?return=…`), and any other failure degrades
+  gracefully to "Library import is still rolling out … paste a link instead."
+- Backend reused as-is (the playlists route + `currentUser` already accept the
+  website cookie session); the dropped `user-read-email` scope + Extended Quota prep
+  are server-side, so they already applied to the website.
+
 ### 2026-06-05 — Shape Store gated to members (mobile + website)
 - **`BSShapeStorePage`** now checks membership before rendering the catalogue. A
   signed-in account with an **active subscription** (`/api/stripe/subscription` →
