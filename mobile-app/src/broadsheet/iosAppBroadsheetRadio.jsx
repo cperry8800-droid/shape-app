@@ -434,6 +434,13 @@ function BSRadioPrompt() {
         </div>
       )}
 
+      {/* Shape Radio wordmark — top-left */}
+      <img
+        src={`${import.meta.env.BASE_URL}shape-radio-logo.png`}
+        alt="Shape Radio"
+        style={{ position: 'absolute', zIndex: 3, top: 'max(20px, calc(env(safe-area-inset-top, 0px) + 14px))', left: t.padX, height: 20, width: 'auto', display: 'block', pointerEvents: 'none' }}
+      />
+
       {/* Scrollable upper region — hero + choices */}
       <div style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }} className="bs-scroll">
       {/* Hero */}
