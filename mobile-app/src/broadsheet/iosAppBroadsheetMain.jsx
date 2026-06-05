@@ -970,7 +970,7 @@ function BSPaywall({ t, signedIn, onJoin, onSignIn, onPreview, onLogout }) {
           </div>
         ) : (
           <div style={{ marginTop: 28, textAlign: 'center' }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}>I already have an account</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}>I already have an account</div>
             <div style={{ marginTop: 12, display: 'flex', justifyContent: 'center' }}>
               <button onClick={onSignIn} style={{ padding: '9px 24px', borderRadius: 999, border: `1px solid ${teal}55`, background: `${teal}1f`, color: teal, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Sign in →</button>
             </div>
