@@ -46,6 +46,20 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-05 — Website Help tab → real AI support (Nora / OpenAI)
+- The website chat widget's **Help** tab now talks to the same **OpenAI-backed
+  assistant** the mobile app uses (`POST /api/support/chat`, model Nora). It was
+  previously a hard-coded `supportReply()` script. `send()` posts the thread
+  history (`{messages:[{role,content}]}`) and renders `data.reply`; the server
+  falls back to its rule-based responder if the model is down, and the client
+  falls back to the local script on a network error. Other tabs keep their
+  simulated peer replies.
+- **Support is open to everyone:** the member-gate on the composer (PR for chat
+  gating) is now **tab-aware** — it only locks the real-messaging tabs
+  (Circle/Trainers/Friends/Community) for non-members; the **Help/Support tab
+  composer stays available** so prospects can use AI support (matches the
+  endpoint, which is intentionally not membership-gated).
+
 ### 2026-06-05 — One website chat bubble (consolidation)
 - Standardized on the site-wide **`globalChatButton.js`** as the **single** chat
   launcher on every page. Removed **ChatWidget's own floating `.chw-bubble`** —

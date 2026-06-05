@@ -291,22 +291,50 @@ function ChatWidget(props) {
       return;
     }
 
-    setTyping(true);
-    const replyDelay = isSupport ? 600 : 1200 + Math.random() * 900;
-    setTimeout(() => {
-      setTyping(false);
+    const appendReply = (who, reply) => {
+      const stamp2 = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
       setThreadsByTab(prev => prev.map((ts, ti) => {
         if (ti !== tabIdx) return ts;
         return ts.map((t, i) => {
           if (i !== activeIdx) return t;
-          const { who, text: reply } = isSupport
-            ? { who: "Shape", text: supportReply(text) }
-            : pickReply(t, text);
-          const stamp2 = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
           return { ...t, last: `${who}: ${reply}`, time: "now", messages: [...t.messages, { who, t: reply, time: stamp2, me: false }] };
         });
       }));
-    }, replyDelay);
+    };
+
+    // Help tab → real AI support (Nora, OpenAI) via /api/support/chat — same
+    // assistant the mobile app uses. The server gracefully falls back to a
+    // rule-based reply if the model is down; this also falls back to the local
+    // script on a network error. Other tabs keep their simulated peer replies.
+    if (isSupport) {
+      setTyping(true);
+      const history = [...((activeThread && activeThread.messages) || []), { t: text, me: true }]
+        .map(m => ({ role: m.me ? "user" : "assistant", content: String(m.t || "") }))
+        .filter(m => m.content);
+      (async () => {
+        let reply = null;
+        try {
+          const res = await fetch("/api/support/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ messages: history }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data && data.reply) reply = data.reply;
+        } catch (e) { /* fall back below */ }
+        setTyping(false);
+        appendReply("Shape", reply || supportReply(text));
+      })();
+      return;
+    }
+
+    setTyping(true);
+    setTimeout(() => {
+      setTyping(false);
+      const { who, text: reply } = pickReply((threadsByTab[tabIdx] || [])[activeIdx] || {}, text);
+      appendReply(who, reply);
+    }, 1200 + Math.random() * 900);
   };
 
   // Poll new messages for the active DB-backed thread while the widget is
@@ -813,7 +841,7 @@ function ChatWidget(props) {
               )}
             </div>
 
-            {member === false ? (
+            {(member === false && !isSupport) ? (
               <div style={{ padding: "14px", borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                 <span style={{ fontSize: 16 }} aria-hidden>🔒</span>
                 <div style={{ flex: 1, minWidth: 150, fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.72)", lineHeight: 1.4 }}>Become a Shape member to send messages.</div>
