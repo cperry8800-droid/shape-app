@@ -919,6 +919,69 @@ function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
   );
 }
 
+// Start the $5/mo platform checkout (Stripe-hosted). Bearer when available,
+// cookie otherwise; redirects to the returned checkout URL.
+async function bsmStartCheckout() {
+  try {
+    const token = window.ShapeAuth?.getCachedState?.()?.session?.access_token;
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const res = await fetch('/api/stripe/platform-checkout', { method: 'POST', headers, credentials: 'same-origin', body: '{}' });
+    const d = await res.json().catch(() => ({}));
+    if (d && d.url) { window.location.assign(d.url); return; }
+    window.__bsToast?.(d?.error || 'Could not start checkout — try again.', 'err');
+  } catch (e) { window.__bsToast?.('Could not start checkout — try again.', 'err'); }
+}
+
+function BSPaywallLoading({ t }) {
+  return (
+    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: t.PAPER, color: t.INK50, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Checking membership…</div>
+  );
+}
+
+// Full-screen membership wall for non-members. Offers Join (checkout / create
+// account), Sign in, and a "Preview the app" path so prospects can look around.
+function BSPaywall({ t, signedIn, onJoin, onSignIn, onPreview, onLogout }) {
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const cta = { width: '100%', padding: '15px', borderRadius: 999, border: 0, background: t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' };
+  const ghost = { width: '100%', padding: '13px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' };
+  return (
+    <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', background: t.PAPER, color: t.INK }}>
+      <div style={{ minHeight: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '40px 26px' }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal }}>Shape membership</div>
+        <h1 style={{ fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, letterSpacing: '-0.04em', lineHeight: 0.98, margin: '12px 0 0' }}>Shape is for <span style={{ fontStyle: 'italic', color: teal }}>members.</span></h1>
+        <p style={{ fontFamily: t.DISPLAY, fontSize: 16, lineHeight: 1.5, color: t.INK70, margin: '16px 0 0' }}>Unlock training, nutrition, coaching, community, Shape Radio and rewards — everything Shape does — for $5/month.</p>
+        <div style={{ margin: '18px 0 0', display: 'flex', flexDirection: 'column', gap: 9 }}>
+          {['Personalized training & nutrition', 'Message your coaches + the community', 'Shape Radio + the Shape Store', 'Progress, goals & your Shape Score'].map(x => (
+            <div key={x} style={{ display: 'flex', gap: 10, alignItems: 'center', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>
+              <span style={{ color: teal, fontWeight: 800 }}>✓</span>{x}
+            </div>
+          ))}
+        </div>
+        <button onClick={onJoin} style={{ ...cta, marginTop: 24 }}>{signedIn ? 'Activate membership · $5/mo →' : 'Create account & join · $5/mo →'}</button>
+        <button onClick={onPreview} style={{ ...ghost, marginTop: 11 }}>Preview the app first →</button>
+        <button onClick={signedIn ? onLogout : onSignIn} style={{ marginTop: 12, width: '100%', padding: '6px', border: 0, background: 'transparent', color: t.INK50, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{signedIn ? 'Sign out' : 'I already have an account · Sign in'}</button>
+        <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center', lineHeight: 1.5 }}>Approved coaches have full access at no charge.</div>
+      </div>
+    </div>
+  );
+}
+
+// Persistent "you're previewing" banner shown over the app for non-members who
+// chose to look around — keeps the Join CTA present without blocking the view.
+function BSPreviewBanner({ t, onJoin }) {
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  return (
+    <div style={{ position: 'absolute', left: 12, right: 12, bottom: 78, zIndex: 150, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px 10px 14px', borderRadius: 14, background: t.INK, color: t.PAPER, boxShadow: '0 10px 30px rgba(0,0,0,0.4)' }}>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>Preview mode</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, marginTop: 1 }}>Join Shape to unlock everything</div>
+      </div>
+      <button onClick={onJoin} style={{ flexShrink: 0, padding: '9px 14px', borderRadius: 999, border: 0, background: t.PAPER, color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>$5/mo →</button>
+    </div>
+  );
+}
+
 function BSAppShell({ tweaks, setTweak }) {
   const authConfigured = Boolean(window.ShapeAuth?.configured);
   // Always open on the splash so the intro is seen on every launch; onDone
@@ -938,6 +1001,24 @@ function BSAppShell({ tweaks, setTweak }) {
   const [applyRole, setApplyRole] = useStateBSM(null); // pro role applying for → opens the application screen
   const [bundleLoading, setBundleLoading] = useStateBSM(false);
   const [bundleError, setBundleError] = useStateBSM('');
+  // App-wide membership gate. Shape is members-only: full access requires an
+  // active $5/mo subscription OR an approved coach account (role from the
+  // profile). Seeded from window.ShapeMembership so members don't flash the
+  // paywall on reload.
+  const [membership, setMembership] = useStateBSM(() => {
+    // Seed from the last-known status so a confirmed member never flashes the
+    // paywall on reload. window cache first, then a persisted localStorage hint.
+    try {
+      if (window.ShapeMembership && typeof window.ShapeMembership.active === 'boolean') return { loading: false, active: window.ShapeMembership.active };
+      const ls = localStorage.getItem('shape.member');
+      if (ls === '1') return { loading: false, active: true };
+      if (ls === '0') return { loading: false, active: false };
+    } catch (e) {}
+    return { loading: true, active: false };
+  });
+  // Non-members can choose "Preview the app" from the paywall to look around
+  // (see features + overall function) behind a persistent Join banner.
+  const [previewMode, setPreviewMode] = useStateBSM(false);
   const t = useBS();
 
   useEffectBSM(() => {
@@ -989,6 +1070,34 @@ function BSAppShell({ tweaks, setTweak }) {
     return () => { cancelled = true; };
   }, [role]);
 
+  // Resolve membership whenever the signed-in user changes. Coaches bypass at
+  // the gate (by role), so this only matters for clients. Signed-out → inactive.
+  // Re-verifies in the background (no loading flash when we already have a value).
+  useEffectBSM(() => {
+    let cancelled = false;
+    const uid = authState?.user?.id;
+    if (!uid) {
+      try { window.ShapeMembership = { active: false }; localStorage.removeItem('shape.member'); } catch (e) {}
+      setMembership({ loading: false, active: false });
+      return () => {};
+    }
+    fetch('/api/stripe/subscription', { credentials: 'same-origin', cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error('unreachable'))))
+      .then(d => {
+        const active = !!(d && d.active === true);
+        try { window.ShapeMembership = { active }; localStorage.setItem('shape.member', active ? '1' : '0'); } catch (e) {}
+        if (!cancelled) setMembership({ loading: false, active });
+      })
+      .catch(() => {
+        // Couldn't verify — fail-closed, but never lock out a previously-confirmed
+        // member: fall back to the last-known status (window/localStorage cache).
+        let cached = false;
+        try { cached = (window.ShapeMembership && window.ShapeMembership.active === true) || localStorage.getItem('shape.member') === '1'; } catch (e) {}
+        if (!cancelled) setMembership({ loading: false, active: cached });
+      });
+    return () => { cancelled = true; };
+  }, [authState?.user?.id]);
+
   // Account gate for browse / no-account users. Deep screens call
   // window.bsRequireAccount('book a session') before any committing action;
   // if there's no signed-in user it nudges them to create an account.
@@ -1018,6 +1127,15 @@ function BSAppShell({ tweaks, setTweak }) {
   const isCoachRole = role === 'trainer' || role === 'nutritionist';
   const App = appByRole[role] || (isCoachRole ? null : window.BSClientApp);
   const appProps = role === 'shape_radio' ? { initialTab: 'radio' } : {};
+
+  // ── App-wide member gate ──────────────────────────────────────────────────
+  // Approved coaches (authoritative profile role) get in free; everyone else
+  // needs an active subscription. Non-members can still "Preview the app" from
+  // the paywall to look around behind a persistent Join banner.
+  const realRole = authState?.profile?.role;
+  const isApprovedCoach = realRole === 'trainer' || realRole === 'nutritionist';
+  const memberAllowed = isApprovedCoach || membership.active === true;
+  const memberGateLoading = !isApprovedCoach && membership.loading;
 
   useEffectBSM(() => {
     let cancelled = false;
@@ -1069,6 +1187,8 @@ function BSAppShell({ tweaks, setTweak }) {
     await window.ShapeAuth?.signOut?.();
     setAuthState({});
     setBrowseMode(false);
+    setPreviewMode(false);
+    try { window.ShapeMembership = { active: false }; localStorage.removeItem('shape.member'); } catch (e) {}
     setStage('login');
   };
 
@@ -1128,7 +1248,27 @@ function BSAppShell({ tweaks, setTweak }) {
             Loading app...
           </div>
         )}
-        {stage === 'app' && !!App && <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />}
+        {stage === 'app' && !!App && (
+          memberAllowed ? (
+            <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />
+          ) : memberGateLoading ? (
+            <BSPaywallLoading t={t} />
+          ) : previewMode ? (
+            <React.Fragment>
+              <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />
+              <BSPreviewBanner t={t} onJoin={() => setPreviewMode(false)} />
+            </React.Fragment>
+          ) : (
+            <BSPaywall
+              t={t}
+              signedIn={!!authUserId}
+              onJoin={() => { if (authUserId) bsmStartCheckout(); else { setBrowseMode(false); setLoginMode('create'); setStage('login'); } }}
+              onSignIn={() => { setBrowseMode(false); setLoginMode('signin'); setStage('login'); }}
+              onPreview={() => setPreviewMode(true)}
+              onLogout={handleLogout}
+            />
+          )
+        )}
 
       </BSPhone>
     </BSRadioProvider>

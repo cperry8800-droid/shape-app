@@ -46,6 +46,31 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-05 — App-wide member gate (paywall) — mobile + website
+- **Shape is now members-only.** Full access requires an **active $5/mo
+  subscription** OR an **approved coach** account (authoritative `profile.role`,
+  trainer/nutritionist). Admins exempt on the website.
+- **Mobile** (`BSAppShell`, `iosAppBroadsheetMain.jsx`): a single gate wraps the
+  role-dispatched app. Non-members get **`BSPaywall`** (Join → `/api/stripe/
+  platform-checkout` when signed in, else create-account; Sign in; Sign out) with
+  a **"Preview the app"** path → renders the real app behind a persistent
+  **`BSPreviewBanner`** ("Join Shape · $5/mo") so prospects can see features +
+  function. Coaches bypass by role.
+  - **Fail mode:** fail-closed, but **never locks out a confirmed member** —
+    membership is cached (`window.ShapeMembership` + `localStorage 'shape.member'`)
+    and a failed/unreachable `/api/stripe/subscription` check falls back to the
+    last-known status (so a transient/native API failure doesn't paywall a member).
+    Seeded from cache → no paywall flash on reload.
+  - No dev "unlock" bypass (per request) — preview the app via the paywall's
+    Preview path or a real member/coach login.
+- **Website** (`src/app/dashboard/layout.tsx`): the dashboard layout gates every
+  `/dashboard/*` route — coaches/admins free; clients need an active
+  `platform_subscriptions` row (status active/trialing/past_due), else the content
+  is replaced with a **Members-only** paywall (🔒 + Pricing CTA). The public
+  marketing / newdesign pages remain the website's "preview".
+- *Scope:* UI/route gate on both surfaces. Real enforcement of paid features must
+  still be server-side per endpoint; this gates access to the app shell.
+
 ### 2026-06-05 — Spotify "pick from your library" on the website too
 - **`public/newdesign/trainerPlaylistsPage.jsx`** (`NewPlaylistCard`, shared by the
   trainer **and** nutritionist website Playlists pages): the import modal now offers
