@@ -349,7 +349,7 @@ function ChatWidget(props) {
           if (res.ok && data && data.reply) reply = data.reply;
         } catch (e) { /* fall back below */ }
         setTyping(false);
-        appendReply("Shape", reply || supportReply(text));
+        appendReply("Nora", reply || supportReply(text));
       })();
       return;
     }
@@ -958,7 +958,7 @@ function ChatWidget(props) {
               })}
               {typing && (
                 <div style={{ display: "flex", alignItems: "center", gap: 6, color: "rgba(242,237,228,0.5)", fontSize: 12, fontStyle: "italic" }}>
-                  <TypingDots />{isSupport ? "Shape Support is typing…" : "someone is typing…"}
+                  <TypingDots />{isSupport ? "Nora is typing…" : "someone is typing…"}
                 </div>
               )}
               {!typing && isSupport && active?.quick?.length > 0 && (
