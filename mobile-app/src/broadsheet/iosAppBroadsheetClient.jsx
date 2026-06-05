@@ -10138,6 +10138,33 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
   const categories = ['All', 'Shape Merch', 'Training', 'Nutrition', 'Shape Perks'];
   const [cat, setCat] = useStateBSC('All');
   const [affordable, setAffordable] = useStateBSC(false);
+  // Membership gate — the Shape Store (redeeming points for gear/rewards) is a
+  // Shape member perk. Coaches (providers) and active members get in; free or
+  // signed-out users see an upgrade prompt instead of the catalogue. Cached on
+  // window.ShapeMembership so repeat opens don't flash a loading state.
+  const [memberGate, setMemberGate] = useStateBSC({ loading: true, allowed: false, signedIn: false });
+  React.useEffect(() => {
+    let cancelled = false;
+    const auth = window.ShapeAuth?.getCachedState?.() || {};
+    const role = auth.profile?.role;
+    const isCoach = role === 'trainer' || role === 'nutritionist';
+    const signedIn = !!auth.user?.id;
+    if (!signedIn) { setMemberGate({ loading: false, allowed: false, signedIn: false }); return undefined; }
+    if (isCoach) { setMemberGate({ loading: false, allowed: true, signedIn: true }); return undefined; }
+    if (window.ShapeMembership && typeof window.ShapeMembership.active === 'boolean') {
+      setMemberGate({ loading: false, allowed: window.ShapeMembership.active, signedIn: true });
+      return undefined;
+    }
+    fetch('/api/stripe/subscription', { credentials: 'same-origin', cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        const active = !!(d && d.active === true);
+        try { window.ShapeMembership = { active }; } catch (e) {}
+        if (!cancelled) setMemberGate({ loading: false, allowed: active, signedIn: true });
+      })
+      .catch(() => { if (!cancelled) setMemberGate({ loading: false, allowed: false, signedIn: true }); });
+    return () => { cancelled = true; };
+  }, []);
   const products = [
     { cat: 'Shape Merch', name: 'Shape Training Tee', brand: 'Shape Merch', cost: 450, retail: 48, tag: 'New', stock: 'In stock' },
     { cat: 'Shape Merch', name: 'Shape Crewneck', brand: 'Shape Merch', cost: 720, retail: 72, tag: 'Members', stock: 'In stock' },
@@ -10167,6 +10194,34 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
   const storeHeroFaint = t.isLight ? 'rgba(242,237,228,0.55)' : 'rgba(15,14,12,0.58)';
   const storeHeroRule = t.isLight ? 'rgba(242,237,228,0.16)' : 'rgba(15,14,12,0.16)';
   const storeHeroHair = t.isLight ? 'rgba(242,237,228,0.12)' : 'rgba(15,14,12,0.12)';
+
+  // While we resolve membership, hold the catalogue (so non-members never see it).
+  if (memberGate.loading) {
+    return (
+      <BSPage>
+        <BSDetailHeader onBack={onBack} eyebrow="Store" kicker="Shape Store" title={<>Spend<br/>points.</>} />
+        <div style={{ padding: `34px ${t.padX}px`, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
+      </BSPage>
+    );
+  }
+  // Locked — not a Shape member: show the upgrade prompt instead of the store.
+  if (!memberGate.allowed) {
+    return (
+      <BSPage>
+        <BSDetailHeader onBack={onBack} eyebrow="Store" kicker="Shape Store" title={<>Members<br/>only.</>} />
+        <div style={{ padding: `8px ${t.padX}px 0` }}>
+          <div style={{ borderRadius: 18, border: `1px solid ${t.AMBER}55`, background: `linear-gradient(150deg, ${t.AMBER}22, ${t.PAPER2} 80%), ${t.PAPER2}`, padding: 20, textAlign: 'center' }}>
+            <div style={{ fontSize: 34, lineHeight: 1 }}>🔒</div>
+            <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.05 }}>The Shape Store is a <span style={{ fontStyle: 'italic', color: t.AMBER }}>member perk.</span></div>
+            <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK70, lineHeight: 1.5 }}>Become a Shape member to redeem your points for gear, credits and rewards — plus Shape Radio, the community, and the marketplace.</div>
+            <button onClick={bsStartPlatformCheckout} style={{ marginTop: 18, width: '100%', padding: '14px', borderRadius: 999, border: 0, background: t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>{memberGate.signedIn ? 'Activate membership · $5/mo →' : 'Join Shape · $5/mo →'}</button>
+            <button onClick={onBack} style={{ marginTop: 10, width: '100%', padding: '12px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Not now</button>
+          </div>
+          <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>You still earn points — redeem them once you’re a member.</div>
+        </div>
+      </BSPage>
+    );
+  }
 
   return (
     <BSPage>

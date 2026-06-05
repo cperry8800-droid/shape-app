@@ -391,6 +391,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Webhook secret set', status: auto(present(process.env.STRIPE_WEBHOOK_SECRET)) },
         { label: 'Platform price ID set', status: auto(present(process.env.STRIPE_PLATFORM_PRICE_ID)) },
         { label: 'Connect activated for coach payouts', status: 'manual' },
+        { label: 'Shape Store gated to members: BSShapeStorePage shows an upgrade prompt unless the account has an active subscription (coaches allowed); checked via /api/stripe/subscription', status: 'done' },
         { label: 'Full payments stack live', status: auto(stripeReady) },
       ],
     },
