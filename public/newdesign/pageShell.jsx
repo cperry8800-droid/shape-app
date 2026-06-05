@@ -30,7 +30,10 @@ function Logo({ variant = "black", size = 28 }) {
   // New logo has the play-icon stacked above the SHAPE wordmark (aspect ~1.87:1), not inline like the old one.
   // Scale so the overall mark reads at a comparable visual weight to the previous inline logo.
   const h = Math.round(size * 1.8);
-  return <img className="shape-brand-logo" src={src} alt="Shape" style={{ "--shape-logo-h": `${h}px` }} />;
+  // Size inline (not just via the external .shape-brand-logo rule) so standalone
+  // pages that don't load pageShell's stylesheet (login, landing) still constrain
+  // the logo — otherwise the high-res source renders at its full intrinsic size.
+  return <img className="shape-brand-logo" src={src} alt="Shape" style={{ "--shape-logo-h": `${h}px`, height: `${h}px`, width: "auto", maxWidth: "none", maxHeight: "none", objectFit: "contain", display: "block" }} />;
 }
 
 function NavDropdown({ label, items, active, activeMatch }) {
