@@ -46,6 +46,22 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-05 — First-run app tour (client) — skippable + replayable
+- New **`BSOnboardingTour`** (client module): a ~60-second, **skippable** guided
+  walkthrough that auto-appears once when you first land in the app and can be
+  **replayed anytime from Me → App tour** (`shape:startTour` event).
+- 7 steps (Welcome → Home / Train / Eat / Chat / Me → You're set). Each step
+  **switches the underlying tab** (`onNavigate={setTab}`) so the real screen shows
+  behind a card with eyebrow/title/body, progress dots, Back/Next, and a ✕/Skip.
+- **Trigger:** auto-shows unless already seen — localStorage fast-path
+  (`shape.tourSeen`) + cloud `user_goals('client_onboarding')` so it doesn't
+  re-appear across devices. Welcome step offers **Take a quick tour** / **Skip for
+  now**; finishing or skipping marks it seen (`bsMarkTourSeen`).
+- Mounted in `BSClientAppInner` (portals into `#bs-phone-surface`, above the tab
+  bar). New **Me → App tour** shortcut row dispatches `shape:startTour`.
+- *Follow-up:* a coach-app variant (trainer/nutritionist) reusing the same shell.
+
+
 ### 2026-06-05 — Coach "Adjust program/plan" actually adjusts (persists on Apply)
 - The Adjust page (`BSProAdjustProgram`) controls used to be cosmetic — they only
   rewrote the auto-note. Now **Apply & Send / Apply & Notify** persist the full

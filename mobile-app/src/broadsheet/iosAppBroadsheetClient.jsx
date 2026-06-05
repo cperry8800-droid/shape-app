@@ -66,6 +66,75 @@ function BSRadioFx() {
 }
 
 // Inner wrapper so BSClientApp can access useBSSheet
+// ── First-run app tour ──────────────────────────────────────────────────────
+// A skippable ~60-second walkthrough that appears once when you first land in
+// the app (persisted to localStorage + user_goals 'client_onboarding'), and can
+// be replayed anytime from Me → App tour. Each step switches the underlying tab
+// (via onNavigate) so the real screen shows behind the card.
+const BS_TOUR_STEPS = [
+  { key: 'welcome', tab: 'home', emoji: '👋', eyebrow: 'WELCOME', title: 'Welcome to Shape.', body: 'Here’s a quick tour of how to get around. You can skip it and dive straight in — and replay it anytime from the Me tab.' },
+  { key: 'home', tab: 'home', emoji: '🏠', eyebrow: 'HOME TAB', title: 'Your day, at a glance.', body: 'Your week strip, today’s workout and meals, plus quick chips to log, check habits, and see your Shape Score.' },
+  { key: 'train', tab: 'train', emoji: '🏋️', eyebrow: 'TRAIN TAB', title: 'Train.', body: 'Your program for each day. Preview a session, start a guided workout, or swap an exercise for a coach-approved alternative.' },
+  { key: 'eat', tab: 'eat', emoji: '🍎', eyebrow: 'EAT TAB', title: 'Eat.', body: 'Your meals and macros for the day. Log what you ate, swap meals, browse recipes, and build a grocery list.' },
+  { key: 'chat', tab: 'chat', emoji: '💬', eyebrow: 'CHAT TAB', title: 'Coaches & community.', body: 'Message your coaches, join the community feed and channels, and DM friends — all in one place.' },
+  { key: 'me', tab: 'me', emoji: '👤', eyebrow: 'ME TAB', title: 'You.', body: 'Your profile and Shape Score, goals, saved library, and settings. Tip: tap your avatar on any screen to come back here.' },
+  { key: 'done', tab: 'home', emoji: '🎉', eyebrow: 'YOU’RE SET', title: 'That’s the tour.', body: 'Replay it whenever from Me → App tour. Now — let’s get to work.' },
+];
+
+function bsMarkTourSeen() {
+  try { localStorage.setItem('shape.tourSeen', '1'); } catch (e) {}
+  try { window.shapeDb?.saveUserGoals?.('client_onboarding', { tourSeen: true, at: new Date().toISOString() }); } catch (e) {}
+}
+
+function BSOnboardingTour({ onClose, onNavigate }) {
+  const t = useBS();
+  const accent = t.ACCENT;
+  const [i, setI] = useStateBSC(0);
+  const step = BS_TOUR_STEPS[i];
+  const last = i === BS_TOUR_STEPS.length - 1;
+  const isWelcome = step.key === 'welcome';
+
+  React.useEffect(() => { if (step.tab) onNavigate?.(step.tab); }, [i]);
+
+  const finish = () => { bsMarkTourSeen(); onClose?.(); };
+  const next = () => { if (last) finish(); else setI(v => v + 1); };
+  const back = () => setI(v => Math.max(0, v - 1));
+
+  const ctaStyle = { width: '100%', borderRadius: 13, border: 0, background: accent, color: '#06231f', padding: '13px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' };
+  const ghostStyle = { width: '100%', borderRadius: 13, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '13px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' };
+
+  const overlay = (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 220, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', background: 'rgba(0,0,0,0.58)' }}>
+      <div style={{ margin: '0 14px 92px', borderRadius: 20, border: `1px solid ${t.RULE}`, background: t.PAPER, boxShadow: '0 18px 50px rgba(0,0,0,0.5)', padding: '20px 18px 18px', position: 'relative' }}>
+        <button onClick={finish} aria-label="Skip tour" style={{ position: 'absolute', top: 12, right: 14, border: 0, background: 'transparent', color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 13, fontWeight: 800 }}>✕</button>
+        <div style={{ fontSize: 30, lineHeight: 1 }}>{step.emoji}</div>
+        <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{step.eyebrow}</div>
+        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{step.title}</div>
+        <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK70, lineHeight: 1.5 }}>{step.body}</div>
+        <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
+          {BS_TOUR_STEPS.map((s, k) => (
+            <span key={s.key} style={{ width: k === i ? 18 : 6, height: 6, borderRadius: 999, background: k === i ? accent : t.HAIR }} />
+          ))}
+          <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', color: t.INK50 }}>{i + 1} / {BS_TOUR_STEPS.length}</span>
+        </div>
+        {isWelcome ? (
+          <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 9 }}>
+            <button onClick={next} style={ctaStyle}>Take a quick tour →</button>
+            <button onClick={finish} style={ghostStyle}>Skip for now</button>
+          </div>
+        ) : (
+          <div style={{ marginTop: 18, display: 'flex', gap: 9 }}>
+            <button onClick={back} style={{ ...ghostStyle, width: 92, flex: '0 0 auto' }}>Back</button>
+            <button onClick={next} style={{ ...ctaStyle, flex: 1 }}>{last ? 'Start exploring →' : 'Next →'}</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+  const target = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
+  return target ? createPortal(overlay, target) : overlay;
+}
+
 function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const sheet = useBSSheet();
   const [tab, setTab] = useStateBSC(initialTab);
@@ -76,6 +145,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const [storeView, setStoreView] = useStateBSC('store');
   const [marketRole, setMarketRole] = useStateBSC(null); // 'trainer' | 'nutritionist' | null
   const [identityVersion, setIdentityVersion] = useStateBSC(0); // bumped on profile save → re-render avatars now
+  const [showTour, setShowTour] = useStateBSC(false); // first-run app tour overlay
   const scoreProfile = SHAPE_SCORE_PROFILES.client;
   const goSettings = () => { setSettingsStart(''); setShowSettings(true); };
   const goIntegrations = () => { setSettingsStart('integrations'); setShowSettings(true); };
@@ -147,6 +217,27 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => window.removeEventListener('shape:startWorkout', onStart);
   }, []);
 
+  // First-run app tour: auto-show once per device/account unless already seen
+  // (localStorage fast-path + cloud user_goals so it doesn't re-appear across
+  // devices). Replayable anytime via the `shape:startTour` event (Me → App tour).
+  React.useEffect(() => {
+    let alive = true;
+    let seen = false;
+    try { seen = localStorage.getItem('shape.tourSeen') === '1'; } catch (e) {}
+    if (seen) return undefined;
+    if (window.shapeDb?.getUserGoals) {
+      window.shapeDb.getUserGoals('client_onboarding')
+        .then(d => { if (!alive) return; if (d && d.tourSeen) { try { localStorage.setItem('shape.tourSeen', '1'); } catch (e) {} } else setShowTour(true); })
+        .catch(() => { if (alive) setShowTour(true); });
+    } else { setShowTour(true); }
+    return () => { alive = false; };
+  }, []);
+  React.useEffect(() => {
+    const start = () => { setShowSettings(false); setShowCalendar(false); setShowTour(true); };
+    window.addEventListener('shape:startTour', start);
+    return () => window.removeEventListener('shape:startTour', start);
+  }, []);
+
   if (showSettings) {
     return (
       <BSSettings
@@ -203,6 +294,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
         ]}
       />
       <BSRadioPrompt />
+      {showTour && <BSOnboardingTour onClose={() => setShowTour(false)} onNavigate={setTab} />}
     </div>
   );
 }
@@ -9444,6 +9536,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
           { l: 'Notifications', s: 'Requests, confirmations & updates', onClick: () => setShowNotifications(true) },
           { l: 'Connected apps', s: 'Apple Health · Strava · WHOOP', onClick: onIntegrations },
           { l: 'Shape Radio', s: 'Live stations · coach mixes', onClick: () => goRadio() },
+          { l: 'App tour', s: 'Replay the quick walkthrough', onClick: () => { try { window.dispatchEvent(new Event('shape:startTour')); } catch (e) {} } },
         ].map((r, i, arr) => (
           <button key={i} onClick={r.onClick} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, display: 'grid', gridTemplateColumns: '26px 1fr auto', alignItems: 'center', gap: 12, padding: `${t.rowY + 5}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, color: t.INK }}>
             <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</div>
