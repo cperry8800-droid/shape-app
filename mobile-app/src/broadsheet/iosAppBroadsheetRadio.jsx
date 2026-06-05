@@ -434,23 +434,18 @@ function BSRadioPrompt() {
         </div>
       )}
 
-      {/* Shape Radio wordmark — top-left (transparent PNG, no backing box). */}
-      <img
-        src={`${import.meta.env.BASE_URL}shape-radio-logo.png`}
-        alt="Shape Radio"
-        style={{ position: 'absolute', zIndex: 3, top: 'max(64px, calc(env(safe-area-inset-top, 0px) + 54px))', left: t.padX, height: 30, width: 'auto', display: 'block', pointerEvents: 'none' }}
-      />
-
       {/* Scrollable upper region — hero + choices */}
       <div style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }} className="bs-scroll">
       {/* Hero */}
-      <div style={{ position: 'relative', padding: `max(168px, calc(env(safe-area-inset-top, 0px) + 150px)) ${t.padX}px 8px` }}>
+      <div style={{ position: 'relative', padding: `max(108px, calc(env(safe-area-inset-top, 0px) + 90px)) ${t.padX}px 8px` }}>
+        {/* Shape Radio wordmark — sits in-flow as the masthead (transparent PNG, no box) */}
+        <img src={`${import.meta.env.BASE_URL}shape-radio-logo.png`} alt="Shape Radio" style={{ height: 32, width: 'auto', display: 'block', marginBottom: 30, position: 'relative', zIndex: 2 }} />
         <div style={{ position: 'relative', zIndex: 2 }}>
           <div style={{ maxWidth: 230 }}><BSEQ bars={22} color={t.ACCENT} height={56} gap={4} /></div>
         </div>
         <div style={{ marginTop: 18, position: 'relative', zIndex: 2 }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700, marginBottom: 12 }}>
-            <span style={{ width: 6, height: 6, borderRadius: 3, background: t.ACCENT, animation: 'bs-blink 1.2s ease-in-out infinite' }} /> Shape Radio · Live now
+            <span style={{ width: 6, height: 6, borderRadius: 3, background: t.ACCENT, animation: 'bs-blink 1.2s ease-in-out infinite' }} /> Live now · Ad-free
           </div>
           <h1 style={{ margin: 0, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 34, letterSpacing: '-0.035em', lineHeight: 0.96, color: t.INK }}>
             Want music<br/><span style={{ fontStyle: 'italic', fontWeight: 500, color: t.ACCENT }}>while you move?</span>
