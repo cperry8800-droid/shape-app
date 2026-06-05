@@ -21,7 +21,7 @@ function Ph({ label, ratio = "1/1", tone = "dark", style = {} }) {
 
 function Logo({ variant = "black", size = 28 }) {
   const src = variant === "white" ? "assets/shape-logo-new-white.png?v=3"
-    : variant === "black" ? "assets/shape-logo-new-black.png?v=3"
+    : variant === "black" ? "assets/shape-logo-new-black.png?v=4"
     : "assets/shape-logo-new-white.png?v=3";
   // New logo has the play-icon stacked above the SHAPE wordmark (aspect ~1.87:1), not inline like the old one.
   // Scale so the overall mark reads at a comparable visual weight to the previous inline logo.
