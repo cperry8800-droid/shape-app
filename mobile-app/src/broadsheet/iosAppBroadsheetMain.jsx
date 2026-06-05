@@ -650,7 +650,7 @@ function _bsNormalizePhone(raw) {
   return '+' + digits;
 }
 
-function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
+function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMode }) {
   const t = useBS();
   const [mode, setMode] = useStateBSM(initialMode || 'signin'); // 'signin' | 'create'
   const [authMethod, setAuthMethod] = useStateBSM('email'); // 'email' | 'phone'
@@ -795,6 +795,9 @@ function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
   return (
     <div style={{ position: 'absolute', inset: 0, color: CREAM, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <BSNightSky />
+      {onBack && (
+        <button onClick={onBack} style={{ position: 'absolute', zIndex: 3, top: 'max(16px, calc(env(safe-area-inset-top, 0px) + 10px))', left: 18, background: 'transparent', border: 0, color: C70, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '6px 4px' }}>← Back</button>
+      )}
       <div className="bs-hide-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 'max(20px, calc(env(safe-area-inset-top, 0px) + 12px)) 22px calc(20px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 5 }}>
         {/* Logo lockup — top-left */}
         <img src={`${import.meta.env.BASE_URL}shape-logo.png`} alt="Shape" style={{ width: 132, height: 'auto', display: 'block', marginLeft: -13, marginTop: -50, filter: 'brightness(1.3) contrast(1.12) drop-shadow(0 0 12px rgba(46,224,196,0.4))' }} />
@@ -942,8 +945,8 @@ function BSPaywallLoading({ t }) {
 // account), Sign in, and a "Preview the app" path so prospects can look around.
 function BSPaywall({ t, signedIn, onJoin, onSignIn, onPreview, onLogout }) {
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const cta = { width: '100%', padding: '15px', borderRadius: 999, border: 0, background: t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' };
-  const ghost = { width: '100%', padding: '13px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' };
+  const cta = { width: '100%', padding: '11px', borderRadius: 999, border: 0, background: t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' };
+  const ghost = { width: '100%', padding: '10px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' };
   return (
     <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', background: t.PAPER, color: t.INK }}>
       <div style={{ minHeight: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', padding: '22px 26px 34px' }}>
@@ -1278,6 +1281,7 @@ function BSAppShell({ tweaks, setTweak }) {
           role={role}
           setRole={(r) => { setRole(r); setTweak('role', r); }}
           onLogin={handleLogin}
+          onBack={() => setStage('gate')}
           onBrowse={() => { setBrowseMode(true); setBannerDismissed(false); setNoticeDismissed(false); setLoginMode('signin'); setStage('app'); }}
           onApply={(r) => { setApplyRole(r); loadClientBundle().then(() => setStage('apply')); }}
         />}
