@@ -46,7 +46,7 @@ changelog whenever something ships.
 
 ## Changelog
 
-### 2026-06-05 — Shape Store gated to members
+### 2026-06-05 — Shape Store gated to members (mobile + website)
 - **`BSShapeStorePage`** now checks membership before rendering the catalogue. A
   signed-in account with an **active subscription** (`/api/stripe/subscription` →
   `active:true`) gets in; **coaches** (role trainer/nutritionist) are allowed too
@@ -54,9 +54,15 @@ changelog whenever something ships.
   (🔒 + "Activate membership · $5/mo" → `bsStartPlatformCheckout`, or "Join Shape"
   when signed out) instead of the store. Note: "You still earn points — redeem
   them once you're a member."
-- Membership result is cached on `window.ShapeMembership` so repeat opens don't
-  flash the loading state. Covers every entry point (Me row, Settings, Score
-  page, store tab) since the gate lives inside the page itself.
+- Shared **`useBSMembership()`** hook drives the gate and the **Me-page "Shape
+  Store" row**, which now reads **"Members only · tap to join"** with a 🔒 for
+  non-members. Result cached on `window.ShapeMembership` so repeat opens don't
+  flash the loading state. The gate lives inside the page, so every entry point
+  (Me row, Settings, Score page, store tab) is covered.
+- **Website** (`public/newdesign/store.jsx`): `StorePage` applies the same rule —
+  resolves the signed-in user (Supabase), allows coaches (`profiles.role`) +
+  active subscribers, else renders a **`StoreMembersOnly`** section (🔒 + Pricing
+  CTA) in place of the catalogue.
 - *Scope:* UI gate (the catalogue/redemption is still illustrative — no live
   redemption API to enforce server-side yet).
 
