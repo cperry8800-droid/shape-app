@@ -3550,12 +3550,45 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   const [iProvider, setIProvider] = useStateBSP('spotify');
   const [iTag, setITag] = useStateBSP('');
   const [iUrl, setIUrl] = useStateBSP('');
+  // Spotify "pick from your library" importer
+  const [spotConnected, setSpotConnected] = useStateBSP(null); // null = checking
+  const [spotPlaylists, setSpotPlaylists] = useStateBSP(null);
+  const [spotBusy, setSpotBusy] = useStateBSP(false);
+  const [spotErr, setSpotErr] = useStateBSP('');
+  const [picking, setPicking] = useStateBSP(false);
 
   const hydrate = (r) => ({ ...r, c: r.provider === 'apple' ? '#b9a13e' : '#4a6fb0', dur: r.duration || '—', bpm: r.bpm || '—', used: 0 });
   useEffectBSP(() => {
     if (!window.ShapeSoundtracks?.list) return;
     window.ShapeSoundtracks.list().then(rows => { if (Array.isArray(rows)) setServerList(rows.map(hydrate)); }).catch(() => {});
   }, []);
+  // Resolve whether this coach has Spotify connected (drives the importer CTA).
+  useEffectBSP(() => {
+    let alive = true;
+    if (!window.ShapeIntegrations?.getStatus) { setSpotConnected(false); return undefined; }
+    window.ShapeIntegrations.getStatus()
+      .then(s => { if (alive) setSpotConnected(!!(s?.providers || []).find(p => p.id === 'spotify')?.connected); })
+      .catch(() => { if (alive) setSpotConnected(false); });
+    return () => { alive = false; };
+  }, []);
+  const loadSpotifyPlaylists = async () => {
+    if (!window.ShapeIntegrations?.listSpotifyPlaylists) { setSpotConnected(false); return; }
+    setSpotBusy(true); setSpotErr('');
+    try {
+      const r = await window.ShapeIntegrations.listSpotifyPlaylists();
+      setSpotPlaylists(Array.isArray(r?.playlists) ? r.playlists : []);
+      setSpotConnected(true);
+      setPicking(true);
+    } catch (e) {
+      if (e && e.connected === false) setSpotConnected(false);
+      setSpotErr((e && e.message) || 'Could not load your Spotify playlists.');
+    } finally { setSpotBusy(false); }
+  };
+  const pickSpotifyPlaylist = (pl) => {
+    setIName(pl.name || ''); setIUrl(pl.url || ''); setIProvider('spotify');
+    if (!iTag.trim()) setITag('From Spotify');
+    setPicking(false);
+  };
 
   // Custom playlists are server-backed when signed in (synced with the website),
   // else local. Server rows carry an `attached` array; demo rows use localStorage.
@@ -3600,6 +3633,37 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   };
 
   // ── Import sub-view ──
+  // ── Spotify playlist picker (pick from the coach's own library) ──
+  if (importing && picking) {
+    const list = spotPlaylists || [];
+    return (
+      <BSStShell embedded={embedded} t={t} footerL="Your Spotify" footerR="Library" topPad={50}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>FROM YOUR SPOTIFY</div>
+            <button onClick={() => setPicking(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
+          </div>
+          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 36, fontWeight: 600, color: t.INK, lineHeight: 1, letterSpacing: '-0.02em' }}>Your<br /><span style={{ fontStyle: 'italic', color: gold }}>playlists.</span></div>
+          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{list.length} playlist{list.length === 1 ? '' : 's'} · tap one to import</div>
+          <div style={{ marginTop: 16 }}>
+            {list.length === 0 ? (
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontStyle: 'italic', color: t.INK50 }}>No playlists found in your Spotify library.</div>
+            ) : list.map((pl) => (
+              <button key={pl.id} onClick={() => pickSpotifyPlaylist(pl)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '46px 1fr auto', gap: 11, alignItems: 'center', padding: '11px 0', borderTop: `1px solid ${t.HAIR}`, background: 'transparent', border: 0 }}>
+                <div style={{ width: 46, height: 46, borderRadius: 8, overflow: 'hidden', background: t.PAPER2, border: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {pl.image ? <img src={pl.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : bsEqGlyph(gold)}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pl.name}</div>
+                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50 }}>{pl.tracks} tracks{pl.owner ? ` · ${pl.owner}` : ''}</div>
+                </div>
+                <span style={{ fontFamily: t.MONO, fontSize: 16, color: gold, fontWeight: 700 }}>+</span>
+              </button>
+            ))}
+          </div>
+      </BSStShell>
+    );
+  }
+
   if (importing) {
     const field = (label, value, set, placeholder) => (
       <div style={{ marginBottom: 14 }}>
@@ -3615,6 +3679,23 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
           </div>
           <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 36, fontWeight: 600, color: t.INK, lineHeight: 1, letterSpacing: '-0.02em' }}>Import a<br /><span style={{ fontStyle: 'italic', color: gold }}>playlist.</span></div>
           <div style={{ marginTop: 22 }}>
+            {/* Pick straight from the coach's connected Spotify — no link to paste. */}
+            <div style={{ marginBottom: 16, borderRadius: 14, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}14, ${t.PAPER2} 72%)`, padding: '13px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 999, background: '#1ED760' }} />
+                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>FROM YOUR SPOTIFY</span>
+              </div>
+              <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.4 }}>
+                {spotConnected === false ? 'Connect Spotify to pick a playlist from your library — no link needed.' : spotConnected === null ? 'Checking your Spotify connection…' : 'Pick a playlist straight from your library — we’ll fill in the rest.'}
+              </div>
+              {spotConnected === false ? (
+                <button onClick={() => window.ShapeIntegrations?.connectSpotify?.()} style={{ width: '100%', marginTop: 11, borderRadius: 12, border: `1px solid ${gold}`, background: 'transparent', color: gold, padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Connect Spotify →</button>
+              ) : (
+                <button onClick={loadSpotifyPlaylists} disabled={spotBusy || spotConnected === null} style={{ width: '100%', marginTop: 11, borderRadius: 12, border: 0, background: gold, color: '#241c08', padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', opacity: (spotBusy || spotConnected === null) ? 0.6 : 1 }}>{spotBusy ? 'Loading…' : 'Pick from your Spotify →'}</button>
+              )}
+              {spotErr ? <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.04em' }}>{spotErr}</div> : null}
+              <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Or enter the details manually below</div>
+            </div>
             {field('NAME', iName, setIName, 'Heavy Lifts')}
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: gold, marginBottom: 7 }}>SOURCE</div>

@@ -2495,6 +2495,28 @@ async function askSupportBot(messages) {
   return payload;
 }
 
+// List the signed-in user's own Spotify playlists (coach Soundtracks importer).
+// Returns { connected, playlists:[{id,name,tracks,url,image,owner}] }. On a
+// not-connected/expired token the thrown error carries `.connected = false`.
+async function listSpotifyPlaylists() {
+  if (!apiBaseUrl) {
+    throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
+  }
+  if (!state.session?.access_token) {
+    throw new Error('Sign in before importing playlists.');
+  }
+  const response = await fetch(`${apiBaseUrl}/api/integrations/spotify/playlists`, {
+    headers: { Authorization: `Bearer ${state.session.access_token}` },
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const err = new Error(payload.error || 'Could not load your Spotify playlists.');
+    err.connected = payload.connected;
+    throw err;
+  }
+  return payload;
+}
+
 async function getIntegrationStatus() {
   if (!apiBaseUrl) {
     throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
@@ -3292,6 +3314,7 @@ window.ShapeIntegrations = {
   connectStrava,
   connectSpotify,
   saveSpotifyPlaylist,
+  listSpotifyPlaylists,
   connectAppleMusic,
   disconnectAppleMusic,
   sendGroceryToInstacart,

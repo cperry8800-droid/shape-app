@@ -107,6 +107,8 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/integrations/apple-music/disconnect', 'POST'],
   ['/api/integrations/garmin/webhook', 'GET,POST'],
   ['/api/integrations/instacart/shopping-list', 'POST'],
+  ['/api/integrations/spotify/playlists', 'GET'],
+  ['/api/integrations/spotify/save-playlist', 'POST'],
   ['/api/integrations/status', 'GET'],
   ['/api/integrations/strava/sync', 'GET'],
   ['/api/integrations/whoop/sync', 'GET'],
@@ -454,6 +456,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       items: [
         { label: 'Spotify connect/disconnect surfaced (mobile + web)', status: 'done' },
         { label: 'Spotify: client saves a coach playlist to their own profile (follow; mobile + web)', status: 'done' },
+        { label: 'Spotify: coach imports a soundtrack by picking from their connected library (/api/integrations/spotify/playlists) — connect CTA when not linked', status: 'done' },
         { label: 'Playlist cards: tracklist preview popup + ♡ Save to my Spotify + "connect Spotify" prompt on failure', status: 'done' },
         { label: 'Spotify credentials set (SPOTIFY_CLIENT_ID/SECRET)', status: auto(itemPresent('integrations', 'SPOTIFY')) },
         { label: 'Spotify redirect URIs registered (apex + www → /api/integrations/spotify/callback)', status: 'done' },
