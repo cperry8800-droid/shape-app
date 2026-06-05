@@ -46,6 +46,19 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-05 — Paywall polish + website chat-bubble de-dupe
+- **Website chat bubble "double" look fixed:** the site-wide launcher
+  (`globalChatButton.js`) was always visible — on pages that also mount the rich
+  widget (`chatWidget.jsx` `.chw-bubble`), the two teal pills stacked at a 4px
+  offset and read as one bubble behind another. `syncVisibility` now **hides the
+  launcher whenever the native widget is present** (`.chw-bubble` closed or
+  `[data-chat-panel]` open); the existing MutationObserver re-runs it as the
+  widget mounts/opens/closes, so exactly one bubble ever shows.
+- **Paywall feature list** (`BSPaywall`) gained two bullets — *Daily habits,
+  streaks & check-ins* and *Recipes, meal logging & grocery lists*.
+- **Removed the now-redundant "Browse the app" link** from the mobile login screen
+  (the paywall's "Preview the app" is the single preview door now).
+
 ### 2026-06-05 — Paywall is the post-splash landing (members skip it)
 - Mobile launch flow changed: **splash → membership wall** (was splash → login).
   The daily splash now routes to the `app` stage, whose gate shows **`BSPaywall`

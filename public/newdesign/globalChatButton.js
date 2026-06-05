@@ -489,8 +489,13 @@
 
   function syncVisibility(button) {
     if (!button) return;
-    // Keep the chat bubble visible on every page for consistency.
-    button.classList.remove(HIDDEN_CLASS);
+    // Hide this launcher whenever the page natively mounts the rich chat widget
+    // (its closed `.chw-bubble` or its open `[data-chat-panel]`) — otherwise the
+    // two teal pills stack at slightly different offsets and read as one bubble
+    // sitting behind another. The MutationObserver re-runs this as the widget
+    // mounts/opens/closes, so exactly one bubble is ever shown.
+    if (nativeWidgetExists()) button.classList.add(HIDDEN_CLASS);
+    else button.classList.remove(HIDDEN_CLASS);
   }
 
   function isMobileViewport() {

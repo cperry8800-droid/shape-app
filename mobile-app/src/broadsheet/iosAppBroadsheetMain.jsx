@@ -912,7 +912,6 @@ function BSLogin({ onLogin, onBrowse, onApply, role, setRole, initialMode }) {
         <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '24px 18px', marginTop: 46 }}>
           <button onClick={() => { setMode(isCreate ? 'signin' : 'create'); setAuthError(''); }} style={{ ...linkBtn, fontSize: 11, fontWeight: 800 }}>{isCreate ? 'Have an account? Sign in' : 'New here? Join Shape'}</button>
           {isPhone && <button onClick={() => switchMethod('email')} style={{ ...linkBtn, fontSize: 11, fontWeight: 800 }}>Use email instead</button>}
-          <button onClick={onBrowse} style={{ background: 'transparent', border: 0, color: '#2ee0c4', fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 400, letterSpacing: '-0.01em', cursor: 'pointer', padding: '8px 4px' }}>No account? Browse the app →</button>
         </div>
       </div>
     </div>
@@ -952,7 +951,7 @@ function BSPaywall({ t, signedIn, onJoin, onSignIn, onPreview, onLogout }) {
         <h1 style={{ fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, letterSpacing: '-0.04em', lineHeight: 0.98, margin: '12px 0 0' }}>Shape is for <span style={{ fontStyle: 'italic', color: teal }}>members.</span></h1>
         <p style={{ fontFamily: t.DISPLAY, fontSize: 16, lineHeight: 1.5, color: t.INK70, margin: '16px 0 0' }}>Unlock training, nutrition, coaching, community, Shape Radio and rewards — everything Shape does — for $5/month.</p>
         <div style={{ margin: '18px 0 0', display: 'flex', flexDirection: 'column', gap: 9 }}>
-          {['Personalized training & nutrition', 'Message your coaches + the community', 'Shape Radio + the Shape Store', 'Progress, goals & your Shape Score'].map(x => (
+          {['Personalized training & nutrition', 'Daily habits, streaks & check-ins', 'Recipes, meal logging & grocery lists', 'Message your coaches + the community', 'Shape Radio + the Shape Store', 'Progress, goals & your Shape Score'].map(x => (
             <div key={x} style={{ display: 'flex', gap: 10, alignItems: 'center', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>
               <span style={{ color: teal, fontWeight: 800 }}>✓</span>{x}
             </div>
