@@ -555,10 +555,6 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
           <span>Step inside</span>
           <span style={{ letterSpacing: 0 }}>→</span>
         </button>
-
-        <div style={{ position: 'relative', zIndex: 1, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>
-          ★ A daily for the body & mind ★
-        </div>
       </div>
     );
   }
