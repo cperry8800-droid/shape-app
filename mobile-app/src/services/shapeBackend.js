@@ -2859,25 +2859,35 @@ async function getClientProgram(userId) {
   const uid = userId || state.user.id;
   const { data, error } = await supabase
     .from('client_programs')
-    .select('training_phase, nutrition_phase')
+    .select('training_phase, nutrition_phase, detail')
     .eq('user_id', uid)
     .maybeSingle();
   if (error) return null;
-  return data ? { trainingPhase: data.training_phase, nutritionPhase: data.nutrition_phase } : null;
+  return data ? { trainingPhase: data.training_phase, nutritionPhase: data.nutrition_phase, detail: data.detail || {} } : null;
 }
-async function setClientProgram({ userId, trainingPhase, nutritionPhase } = {}) {
+async function setClientProgram({ userId, trainingPhase, nutritionPhase, detail } = {}) {
   if (!supabase || !state.user?.id) return null;
   const uid = userId || state.user.id;
   const payload = { user_id: uid, updated_by: state.user.id, updated_at: new Date().toISOString() };
   if (trainingPhase != null) payload.training_phase = trainingPhase;
   if (nutritionPhase != null) payload.nutrition_phase = nutritionPhase;
+  // Merge the incoming detail sections (training / nutrition) over what's stored
+  // so a trainer's adjustment never clobbers a nutritionist's, and vice-versa.
+  if (detail && typeof detail === 'object') {
+    let existing = {};
+    try {
+      const { data: cur } = await supabase.from('client_programs').select('detail').eq('user_id', uid).maybeSingle();
+      if (cur?.detail && typeof cur.detail === 'object') existing = cur.detail;
+    } catch (e) { /* first write — no existing row */ }
+    payload.detail = { ...existing, ...detail };
+  }
   const { data, error } = await supabase
     .from('client_programs')
     .upsert(payload, { onConflict: 'user_id' })
-    .select('training_phase, nutrition_phase')
+    .select('training_phase, nutrition_phase, detail')
     .maybeSingle();
   if (error) throw error;
-  return data ? { trainingPhase: data.training_phase, nutritionPhase: data.nutrition_phase } : null;
+  return data ? { trainingPhase: data.training_phase, nutritionPhase: data.nutrition_phase, detail: data.detail || {} } : null;
 }
 window.ShapeProgramApi = { get: getClientProgram, set: setClientProgram };
 

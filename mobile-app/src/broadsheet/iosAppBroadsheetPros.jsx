@@ -1429,6 +1429,35 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
   const [status, setStatus] = useStateBSP('');
   const DOW = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 
+  // Seed the controls from the last-applied adjustment so reopening the page
+  // shows what's currently in effect for this client (coach-writable store).
+  // The note is left to auto-regenerate from the seeded values.
+  useEffectBSP(() => {
+    let alive = true;
+    if (!clientUid || !window.ShapeProgramApi?.get) return undefined;
+    window.ShapeProgramApi.get(clientUid).then((rec) => {
+      if (!alive || !rec) return;
+      const d = isNutri ? rec.detail?.nutrition : rec.detail?.training;
+      if (!d) return;
+      if (isNutri) {
+        if (d.calories != null) setCalories(d.calories);
+        if (d.protein != null) setProtein(d.protein);
+        if (d.carbs != null) setCarbs(d.carbs);
+        if (d.fat != null) setFat(d.fat);
+        if (d.meals != null) setMeals(d.meals);
+        if (typeof d.refeed === 'boolean') setRefeed(d.refeed);
+        if (Array.isArray(d.restrictions)) setRestrictions(d.restrictions);
+      } else {
+        if (d.intensity) setIntensity(d.intensity);
+        if (d.sessions != null) setSessions(d.sessions);
+        if (d.weeks != null) setWeeks(d.weeks);
+        if (Array.isArray(d.focus)) setFocus(d.focus);
+        if (Array.isArray(d.days)) setDays(d.days);
+      }
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
   // Trainer derived
   const intensityDesc = { deload: 'Pull volume back ~40% and cap intensity. Recover and resensitize.', maintain: 'Hold volume and loads — keep the engine ticking, no new stress.', progress: 'Add a set to main lifts and nudge top-set loads. Keep RPE ≤ 8.' }[intensity];
   const focusOpts = [{ k: 'strength', l: 'Strength' }, { k: 'hypertrophy', l: 'Hypertrophy' }, { k: 'conditioning', l: 'Conditioning' }, { k: 'mobility', l: 'Mobility' }, { k: 'power', l: 'Power' }];
@@ -1450,6 +1479,17 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
   const apply = async (notify) => {
     setStatus('saving');
     try {
+      // 1) Persist the adjustment to the client's coach-writable program record.
+      //    This is what actually "takes effect" — the client app reads it back
+      //    and reflects it on their Train / Eat tabs. Only on Apply, never on tap.
+      if (clientUid && window.ShapeProgramApi?.set) {
+        const now = new Date().toISOString();
+        const detail = isNutri
+          ? { nutrition: { calories, protein, carbs, fat, meals, refeed, restrictions, note: body, updatedAt: now } }
+          : { training: { intensity, sessions, weeks, focus, days, note: body, updatedAt: now } };
+        try { await window.ShapeProgramApi.set({ userId: clientUid, detail }); } catch (e) {}
+      }
+      // 2) Deliver the note to the client's 1:1 thread.
       if (clientUid && window.ShapeMessages?.getOrCreateMemberConversation) {
         const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: clientUid });
         const cid = conv?.data;
@@ -1561,7 +1601,9 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
               {cta('Apply & Notify →', () => apply(true), 10)}
             </div>
             {status === 'error' && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.08em' }}>Couldn't send — try again.</div>}
-            {!clientUid && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Demo client · sends once linked to a live member</div>}
+            {clientUid
+              ? <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>On apply · updates {first}'s {isNutri ? 'Eat' : 'Train'} tab + sends this note</div>
+              : <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Demo client · applies once linked to a live member</div>}
           </div>
         </div>
       </div>

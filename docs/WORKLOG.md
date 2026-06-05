@@ -46,6 +46,33 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-05 — Coach "Adjust program/plan" actually adjusts (persists on Apply)
+- The Adjust page (`BSProAdjustProgram`) controls used to be cosmetic — they only
+  rewrote the auto-note. Now **Apply & Send / Apply & Notify** persist the full
+  adjustment to the client's coach-writable program record, and the client app reads
+  it back. Selections still take effect **only on Apply** (never on tap).
+- **Migration `2026-06-05-client-program-detail.sql`** (**run on Supabase**): adds a
+  `detail jsonb` column to `client_programs` (inherits the existing coach-writable RLS).
+  Shape: `{ training:{intensity,sessions,weeks,focus[],days[],note,updatedAt},
+  nutrition:{calories,protein,carbs,fat,meals,refeed,restrictions[],note,updatedAt} }`
+  — trainer writes `training`, nutritionist writes `nutrition`; the two coexist.
+- `shapeBackend.js`: `ShapeProgramApi.get/set` now read/write `detail` (set **merges**
+  the incoming section over what's stored so a trainer's edit never clobbers a
+  nutritionist's, and vice-versa).
+- **Coach page** seeds its controls from the last-applied `detail` on reopen (so it
+  shows what's currently in effect), and `apply()` writes `detail` via `ShapeProgramApi.set`
+  before sending the note. Helper text now reads "On apply · updates {client}'s Train/Eat
+  tab + sends this note" (live) / "applies once linked" (demo).
+- **Client** (`useBSProgram` now carries `detail`): new **`BSCoachAdjustBanner`** ("FROM
+  YOUR COACH · {date}" + chips + the note) renders atop **Train** (training) and **Eat**
+  (nutrition). On **Eat**, coach-set **calories + P/C/F** override the hero's target
+  numbers when present. Only appears once a coach has pressed Apply for a linked member.
+- *Still illustrative:* the trainer split/sessions don't yet rewrite the Train deck's
+  per-day workouts (banner + header reflect the intent); Eat target override is the
+  hero card (other meal-plan views keep their plan targets). Follow-up if we want the
+  adjustment to drive the full program/plan generation.
+
+
 ### 2026-06-13 — Coach plans persist + sync (coach_plans) — AI draft saves
 - **Migration `2026-06-13-coach-plans.sql`** (**run on Supabase**): `coach_plans`
   (owner-scoped RLS; kind program|meal_plan; name/meta/price/published/detail jsonb).
