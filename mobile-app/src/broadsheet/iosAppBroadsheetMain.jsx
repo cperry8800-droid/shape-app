@@ -961,8 +961,14 @@ function BSPaywall({ t, signedIn, onJoin, onSignIn, onPreview, onLogout }) {
         </div>
         <button onClick={onJoin} style={{ ...cta, marginTop: 24 }}>{signedIn ? 'Activate membership · $5/mo →' : 'Create account & join · $5/mo →'}</button>
         <button onClick={onPreview} style={{ ...ghost, marginTop: 11 }}>Preview the app first →</button>
-        <button onClick={signedIn ? onLogout : onSignIn} style={{ marginTop: 28, width: '100%', padding: '8px', border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{signedIn ? 'Sign out' : 'I already have an account · Sign in'}</button>
-        <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center', lineHeight: 1.5 }}>Approved coaches have full access at no charge.</div>
+        {signedIn ? (
+          <button onClick={onLogout} style={{ marginTop: 28, width: '100%', padding: '14px', borderRadius: 999, border: 0, background: teal, color: '#04201d', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Sign out</button>
+        ) : (
+          <div style={{ marginTop: 28 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, textAlign: 'center' }}>I already have an account</div>
+            <button onClick={onSignIn} style={{ marginTop: 12, width: '100%', padding: '14px', borderRadius: 999, border: 0, background: teal, color: '#04201d', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Sign in →</button>
+          </div>
+        )}
         </div>
       </div>
     </div>
