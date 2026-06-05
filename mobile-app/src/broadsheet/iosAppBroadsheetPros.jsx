@@ -3533,6 +3533,11 @@ function BSStShell({ embedded, t, children, footerL, footerR, topPad = 46 }) {
   if (embedded) return <div style={{ padding: '4px 0 24px' }}>{children}</div>;
   return <BSPage><div style={{ padding: `${topPad}px ${t.padX}px 28px` }}>{children}</div><BSFooter left={footerL} right={footerR} /></BSPage>;
 }
+// "Pick from your Spotify library" needs per-user OAuth, which is capped at 25
+// manually-allowlisted accounts until the Spotify app is approved for Extended
+// Quota Mode. Until then, set VITE_SPOTIFY_LIBRARY_PICKER=off to hide the picker
+// fleet-wide (paste-a-link still works for everyone). Default: shown.
+const SPOTIFY_PICKER_ENABLED = String(import.meta.env.VITE_SPOTIFY_LIBRARY_PICKER ?? '').toLowerCase() !== 'off';
 function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   const t = useBS();
   const gold = '#d8b25a', teal = t.isLight ? '#0a8f87' : '#34d6c5', purple = '#8a5cf6';
@@ -3580,8 +3585,11 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
       setSpotConnected(true);
       setPicking(true);
     } catch (e) {
-      if (e && e.connected === false) setSpotConnected(false);
-      setSpotErr((e && e.message) || 'Could not load your Spotify playlists.');
+      // Not connected / token gone → flip back to the connect prompt (no scary error).
+      if (e && e.connected === false) { setSpotConnected(false); setSpotErr(''); }
+      // Otherwise it's almost always the Spotify dev-mode allowlist (account not
+      // approved yet) — keep it friendly and point them at the manual link path.
+      else setSpotErr('Library import is still rolling out for your account — paste a playlist link below for now.');
     } finally { setSpotBusy(false); }
   };
   const pickSpotifyPlaylist = (pl) => {
@@ -3679,23 +3687,27 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
           </div>
           <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 36, fontWeight: 600, color: t.INK, lineHeight: 1, letterSpacing: '-0.02em' }}>Import a<br /><span style={{ fontStyle: 'italic', color: gold }}>playlist.</span></div>
           <div style={{ marginTop: 22 }}>
-            {/* Pick straight from the coach's connected Spotify — no link to paste. */}
+            {/* Pick straight from the coach's connected Spotify — no link to paste.
+                Hidden when VITE_SPOTIFY_LIBRARY_PICKER=off (pre Extended Quota). */}
+            {SPOTIFY_PICKER_ENABLED && (
             <div style={{ marginBottom: 16, borderRadius: 14, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}14, ${t.PAPER2} 72%)`, padding: '13px 14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ width: 8, height: 8, borderRadius: 999, background: '#1ED760' }} />
                 <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>FROM YOUR SPOTIFY</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '2px 6px' }}>BETA</span>
               </div>
               <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.4 }}>
-                {spotConnected === false ? 'Connect Spotify to pick a playlist from your library — no link needed.' : spotConnected === null ? 'Checking your Spotify connection…' : 'Pick a playlist straight from your library — we’ll fill in the rest.'}
+                {spotConnected === false ? 'Connect Spotify to pick from your library — rolling out, so it may not be enabled for your account yet.' : spotConnected === null ? 'Checking your Spotify connection…' : 'Pick a playlist straight from your library — we’ll fill in the rest.'}
               </div>
               {spotConnected === false ? (
                 <button onClick={() => window.ShapeIntegrations?.connectSpotify?.()} style={{ width: '100%', marginTop: 11, borderRadius: 12, border: `1px solid ${gold}`, background: 'transparent', color: gold, padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Connect Spotify →</button>
               ) : (
                 <button onClick={loadSpotifyPlaylists} disabled={spotBusy || spotConnected === null} style={{ width: '100%', marginTop: 11, borderRadius: 12, border: 0, background: gold, color: '#241c08', padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', opacity: (spotBusy || spotConnected === null) ? 0.6 : 1 }}>{spotBusy ? 'Loading…' : 'Pick from your Spotify →'}</button>
               )}
-              {spotErr ? <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.04em' }}>{spotErr}</div> : null}
-              <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Or enter the details manually below</div>
+              {spotErr ? <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 12.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.4 }}>{spotErr}</div> : null}
+              <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Or paste a link below — works for everyone</div>
             </div>
+            )}
             {field('NAME', iName, setIName, 'Heavy Lifts')}
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: gold, marginBottom: 7 }}>SOURCE</div>

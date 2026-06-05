@@ -457,6 +457,8 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Spotify connect/disconnect surfaced (mobile + web)', status: 'done' },
         { label: 'Spotify: client saves a coach playlist to their own profile (follow; mobile + web)', status: 'done' },
         { label: 'Spotify: coach imports a soundtrack by picking from their connected library (/api/integrations/spotify/playlists) — connect CTA when not linked', status: 'done' },
+        { label: 'Spotify library picker is BETA-gated (graceful "rolling out" fallback to paste-a-link) until Extended Quota Mode; VITE_SPOTIFY_LIBRARY_PICKER=off hides it fleet-wide', status: 'done' },
+        { label: 'Spotify Extended Quota Mode approved (lifts the 25-user dev-mode allowlist cap so any coach can pick from their library)', status: 'manual' },
         { label: 'Playlist cards: tracklist preview popup + ♡ Save to my Spotify + "connect Spotify" prompt on failure', status: 'done' },
         { label: 'Spotify credentials set (SPOTIFY_CLIENT_ID/SECRET)', status: auto(itemPresent('integrations', 'SPOTIFY')) },
         { label: 'Spotify redirect URIs registered (apex + www → /api/integrations/spotify/callback)', status: 'done' },
