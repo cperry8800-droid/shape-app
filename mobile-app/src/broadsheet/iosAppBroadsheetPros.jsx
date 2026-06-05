@@ -82,6 +82,8 @@ const {
 const bsTierColor   = (...a) => { try { return (window.bsTierColor && window.bsTierColor(...a)) || '#8a8f98'; } catch (e) { return '#8a8f98'; } };
 const bsMyInitials  = () => { try { return (window.bsMyInitials && window.bsMyInitials()) || 'A'; } catch (e) { return 'A'; } };
 const bsMyTierColor = () => { try { return (window.bsMyTierColor && window.bsMyTierColor()) || '#8a8f98'; } catch (e) { return '#8a8f98'; } };
+// Coach tier ladder (scheme J) translator — set on window by the client bundle.
+const bsCoachTier   = (x) => { try { return (window.bsCoachTier && window.bsCoachTier(x)) || x; } catch (e) { return x; } };
 
 // Hydrate the coach's Shape Score tier into window.ShapeScore at app startup so
 // every coach avatar (home header, Me) reflects the right tier color before the
@@ -90,7 +92,7 @@ function _bsHydrateProScore() {
   if (typeof window === 'undefined') return;
   fetch('/api/client/score', { credentials: 'same-origin' })
     .then(r => (r.ok ? r.json() : null))
-    .then(d => { if (d && typeof d.points_total === 'number') { try { window.ShapeScore = { points: d.points_total || 0, tier: d.current_tier ? d.current_tier.name : 'Base' }; } catch (e) {} } })
+    .then(d => { if (d && typeof d.points_total === 'number') { try { window.ShapeScore = { points: d.points_total || 0, tier: bsCoachTier(d.current_tier ? d.current_tier.name : 'Base') }; } catch (e) {} } })
     .catch(() => {});
 }
 

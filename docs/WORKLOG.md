@@ -46,6 +46,21 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-05 — Coach Shape Score tier ladder (scheme J) — separate from clients
+- Coaches now climb a **separate, renamed Shape Score tier ladder** (same 5 rungs /
+  thresholds as clients): **Certified · Pro · Elite · Master · Icon**. No new page —
+  the shared `BSShapeScorePage` is already role-driven; this is a thin tier-name layer.
+- **Colors** diverge from the client ramp so teal (the logo color) **crowns** the coach
+  ladder: Certified `#8a93a0` · Pro `#d8a23a` · Elite `#e0463c` (crimson) · Master
+  `#8fe3e6` (ice/diamond) · Icon `#34d6c5` (teal). Added these keys to `BS_TIER_COLORS`.
+- New `SHAPE_SCORE_TIERS_COACH`, `bsCoachTier()` (client-tier → coach name), and
+  `bsIsCoachRole()` (client module, window-exposed). `_bsUseLiveScore` + the coach
+  startup score-cache (`_bsHydrateProScore`, pros) translate live tier/next-tier to
+  coach names, so the coach **Me card, score page, avatar tint, and public profile**
+  read the coach ladder. The score page swaps in `SHAPE_SCORE_TIERS_COACH` when
+  `profile.roleLabel` is a coach. Trainer/nutritionist demo profiles updated (Elite ·
+  ELT · → Master). Client tiers untouched.
+
 ### 2026-06-05 — Website member public profile page + profile-link wiring
 - **New `public/newdesign/MemberProfile.html` + `memberProfile.jsx`** — a member's
   public profile on the website, mirroring the coach page anatomy (tier-gradient

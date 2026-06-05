@@ -6110,7 +6110,9 @@ function BSPublicProfile({ person, onBack, onMessage = () => {}, isSelf = false,
   }, [person.userId]);
   const isPrivate = !!(live && live.is_public === false);
   const points = live && Number.isFinite(live.points) ? live.points : null;
-  const tier = points != null ? bsTierForPoints(points) : (person.tier || bsPostTier(person));
+  const _coachP = person.kind === 'TRAINER' || person.kind === 'NUTRI';
+  const _baseTier = points != null ? bsTierForPoints(points) : (person.tier || bsPostTier(person));
+  const tier = _coachP ? bsCoachTier(_baseTier) : _baseTier;
   const tc = bsTierColor(tier);
   const ROLE_LABEL = { TRAINER: 'Trainer', NUTRI: 'Nutritionist', CLIENT: 'Client', SHAPE: 'Client', COMMUNITY: 'Client' };
   const roleLabel = ROLE_LABEL[person.kind] || 'Client';
@@ -7426,6 +7428,14 @@ const SHAPE_SCORE_TIERS = [
   { name: 'Peak', range: '5,000+', perk: 'Priority booking + 1 free intro / mo' },
   { name: 'Legend', range: '15,000+', perk: 'Annual Shape merch + service credit' },
 ];
+// Coaches climb the same 5 rungs under their own names (scheme J).
+const SHAPE_SCORE_TIERS_COACH = [
+  { name: 'Certified', range: '0+', perk: 'Starting level' },
+  { name: 'Pro', range: '750+', perk: '2x redemption value' },
+  { name: 'Elite', range: '2,000+', perk: 'Early access drops + streak boosts' },
+  { name: 'Master', range: '5,000+', perk: 'Priority booking + 1 free intro / mo' },
+  { name: 'Icon', range: '15,000+', perk: 'Annual Shape merch + service credit' },
+];
 
 // Per-tier accent colors — a cool→warm→premium progression. Used wherever a
 // tier is shown (score card, etc.) so tiers are color-coordinated app-wide.
@@ -7435,6 +7445,14 @@ const BS_TIER_COLORS = {
   form: '#34d6c5',
   peak: '#8a5cf6',
   legend: '#e0518a',
+  // Coach tiers (scheme J) — same 5-rung ladder, renamed, with teal (the logo
+  // color) crowning the top. Diverges from the client ramp at Elite (crimson)
+  // and the Ice → Teal apex.
+  certified: '#8a93a0',
+  pro: '#d8a23a',
+  elite: '#e0463c',
+  master: '#8fe3e6',
+  icon: '#34d6c5',
 };
 function bsTierColor(tier) {
   return BS_TIER_COLORS[String(tier || '').toLowerCase().trim()] || '#d8a23a';
@@ -7458,6 +7476,17 @@ function bsTierForPoints(pts) {
   if (p >= 2000) return 'Form';
   if (p >= 750) return 'Tempo';
   return 'Base';
+}
+// Coaches see a separate Shape Score ladder (scheme J): Certified · Pro · Elite ·
+// Master · Icon — same thresholds/rungs as clients, just renamed (teal crowns it).
+// Maps a client-tier name to the coach equivalent (unknown/already-coach passes through).
+const BS_COACH_TIER_NAMES = { raw: 'Certified', base: 'Certified', tempo: 'Pro', form: 'Elite', peak: 'Master', legend: 'Icon' };
+function bsIsCoachRole(role) {
+  const r = String(role || '').toLowerCase().trim();
+  return r === 'trainer' || r === 'nutritionist' || r === 'coach';
+}
+function bsCoachTier(clientTier) {
+  return BS_COACH_TIER_NAMES[String(clientTier || '').toLowerCase().trim()] || clientTier;
 }
 
 const SHAPE_SCORE_PROFILES = {
@@ -7488,7 +7517,7 @@ const SHAPE_SCORE_PROFILES = {
   },
   trainer: {
     roleLabel: 'Trainer',
-    total: 3240, goal: 5000, streak: 9, tier: 'Form', tierShort: 'FRM', nextTier: 'Peak',
+    total: 3240, goal: 5000, streak: 9, tier: 'Elite', tierShort: 'ELT', nextTier: 'Master',
     pointsToNext: 1760, available: 1280, lifetime: 6840, redeemedCount: 11, week: '+88',
     weekRatio: 0.82, streakRatio: 0.58, tierRatio: 0.54, spendRatio: 0.72,
     activities: [
@@ -7513,7 +7542,7 @@ const SHAPE_SCORE_PROFILES = {
   },
   nutritionist: {
     roleLabel: 'Nutritionist',
-    total: 2140, goal: 5000, streak: 11, tier: 'Form', tierShort: 'FRM', nextTier: 'Peak',
+    total: 2140, goal: 5000, streak: 11, tier: 'Elite', tierShort: 'ELT', nextTier: 'Master',
     pointsToNext: 2860, available: 870, lifetime: 5310, redeemedCount: 8, week: '+64',
     weekRatio: 0.76, streakRatio: 0.61, tierRatio: 0.42, spendRatio: 0.68,
     activities: [
@@ -10076,6 +10105,9 @@ function _bsFormatScoreDate(iso) {
 // program rules, not user data — while the headline total, tier, weekly gain,
 // and recent ledger go live. Signed out, the static profile passes through.
 function _bsUseLiveScore(profile) {
+  // Coaches show the same live points under the coach tier ladder (scheme J).
+  const _coach = bsIsCoachRole(profile && profile.roleLabel);
+  const _tierName = (n) => (_coach ? bsCoachTier(n) : n);
   const loggedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user);
   const [data, setData] = useStateBSC(null);
   React.useEffect(() => {
@@ -10083,7 +10115,7 @@ function _bsUseLiveScore(profile) {
     let cancelled = false;
     fetch('/api/client/score', { credentials: 'same-origin' })
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (!cancelled && d && typeof d.points_total === 'number') { setData(d); try { window.ShapeScore = { points: d.points_total || 0, tier: d.current_tier ? d.current_tier.name : 'Base' }; } catch (e) {} } })
+      .then(d => { if (!cancelled && d && typeof d.points_total === 'number') { setData(d); try { window.ShapeScore = { points: d.points_total || 0, tier: _tierName(d.current_tier ? d.current_tier.name : 'Base') }; } catch (e) {} } })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [loggedIn]);
@@ -10102,8 +10134,8 @@ function _bsUseLiveScore(profile) {
     live: true,
     total,
     goal: nextTier ? nextTier.threshold : Math.max(total, profile.goal || total),
-    tier: data.current_tier ? data.current_tier.name : profile.tier,
-    nextTier: nextTier ? nextTier.name : 'Top tier',
+    tier: _tierName(data.current_tier ? data.current_tier.name : profile.tier),
+    nextTier: nextTier ? _tierName(nextTier.name) : 'Top tier',
     pointsToNext: data.points_to_next || 0,
     week: `${(data.week_gain || 0) >= 0 ? '+' : ''}${data.week_gain || 0}`,
     month: data.points_month || 0,
@@ -10123,7 +10155,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
   const pointsToNext = profile.pointsToNext;
   const available = profile.available;
   const activities = profile.activities || SHAPE_SCORE_PROFILES.client.activities;
-  const tiers = SHAPE_SCORE_TIERS;
+  const tiers = bsIsCoachRole(profile.roleLabel) ? SHAPE_SCORE_TIERS_COACH : SHAPE_SCORE_TIERS;
   const ledger = profile.ledger || SHAPE_SCORE_PROFILES.client.ledger;
   const rewards = [
     ['$25 session credit', 'Use with any coach', '500 pts'],
@@ -10480,6 +10512,8 @@ Object.assign(window, {
   SHAPE_SCORE_PROFILES,
   _bsUseLiveScore,
   bsTierColor,
+  bsCoachTier,
+  bsIsCoachRole,
   bsMyName,
   bsMyInitials,
   bsMyTierColor,
