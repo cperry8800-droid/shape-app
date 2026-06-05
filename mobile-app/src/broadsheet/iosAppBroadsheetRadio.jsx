@@ -958,7 +958,7 @@ function BSRadioScreen({ onBack }) {
           textAlign: 'center',
           whiteSpace: 'nowrap',
         }}>
-          <BSShapeRadioLogo cream={CREAM} accent={TEAL} />
+          <img src={`${import.meta.env.BASE_URL}shape-radio-logo.png?v=2`} alt="Shape Radio" style={{ width: 'min(86%, 330px)', height: 'auto', display: 'block', margin: '0 auto' }} />
         </div>
       </div>
 
