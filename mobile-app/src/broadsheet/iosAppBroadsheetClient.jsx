@@ -6997,9 +6997,25 @@ function BSClientChat({ onProfile, role = 'client', openRequest }) {
   return <BSClientFeed onProfile={onProfile} role={role} openRequest={openRequest} />;
 }
 
+// Whether the signed-in account can actually send messages (member access incl.
+// coaches). Set by the app shell (window.ShapeCanChat); defaults to allow when
+// unknown so members are never wrongly blocked — only an explicit `false`
+// (a non-member previewing) locks the composer.
+function useBSCanChat() {
+  const [v, setV] = useStateBSC(() => (typeof window !== 'undefined' ? window.ShapeCanChat !== false : true));
+  React.useEffect(() => {
+    const on = () => setV(window.ShapeCanChat !== false);
+    window.addEventListener('shape:canchat', on);
+    on();
+    return () => window.removeEventListener('shape:canchat', on);
+  }, []);
+  return v;
+}
+
 function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...', pinned = false }) {
   const t = useBS();
   const canSend = value.trim().length > 0;
+  const canChat = useBSCanChat();
 
   // When pinned, render through a portal into #bs-composer-slot — a node that
   // lives inside the phone-frame container (next to the tab bar). The slot is
@@ -7083,6 +7099,26 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
     </div>
   );
 
+  // Non-members previewing the app can read the thread but not send — tapping
+  // the locked bar takes them back to the paywall to join (same idea as the
+  // website community preview, where the chat bubble is where you actually send).
+  const lockedField = (
+    <button
+      onClick={() => { try { window.dispatchEvent(new Event('shape:exitPreview')); } catch (e) {} }}
+      style={{
+        width: '100%', boxSizing: 'border-box', minHeight: 40,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+        background: pinned ? t.SURFACE : t.PAPER, border: `1px solid ${t.SURFACE_BORDER}`,
+        borderRadius: 20, padding: '11px 15px', cursor: 'pointer',
+        fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em',
+        textTransform: 'uppercase', color: t.INK50,
+      }}
+    >
+      <span aria-hidden>🔒</span> Join Shape to send messages
+    </button>
+  );
+  const body = canChat ? field : lockedField;
+
   if (pinned) {
     // Docked input bar: spans the full phone-frame width and sits flush on top
     // of the tab bar — reads as part of the screen, not a floating bubble.
@@ -7094,7 +7130,7 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
         padding: `10px ${t.padX}px`,
         boxShadow: `0 -10px 26px ${t.isLight ? 'rgba(15,14,12,0.10)' : 'rgba(0,0,0,0.34)'}`,
       }}>
-        {field}
+        {body}
       </div>
     );
     return slot ? createPortal(bar, slot) : null;
@@ -7106,7 +7142,7 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
       margin: `0 ${t.padX}px 16px`,
       filter: `drop-shadow(0 18px 38px ${t.isLight ? 'rgba(15,14,12,0.16)' : 'rgba(0,0,0,0.42)'})`,
     }}>
-      {field}
+      {body}
     </div>
   );
 }
