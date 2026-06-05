@@ -1019,6 +1019,12 @@ function BSAppShell({ tweaks, setTweak }) {
     } catch (e) {}
     return { loading: true, active: false };
   });
+  // Whether auth has resolved (session restore complete). Until it has, we hold
+  // on the "Checking membership…" state instead of deciding — so a returning
+  // member OR coach never flashes the paywall before their session + role are
+  // restored. (getCurrentSession runs during the splash, so this is resolved by
+  // the time we reach the app stage.)
+  const [authReady, setAuthReady] = useStateBSM(() => !authConfigured);
   // Non-members can choose "Preview the app" from the paywall to look around
   // (see features + overall function) behind a persistent Join banner.
   const [previewMode, setPreviewMode] = useStateBSM(false);
@@ -1077,6 +1083,7 @@ function BSAppShell({ tweaks, setTweak }) {
   // the gate (by role), so this only matters for clients. Signed-out → inactive.
   // Re-verifies in the background (no loading flash when we already have a value).
   useEffectBSM(() => {
+    if (!authReady) return () => {}; // wait for session restore before deciding
     let cancelled = false;
     const uid = authState?.user?.id;
     if (!uid) {
@@ -1099,7 +1106,7 @@ function BSAppShell({ tweaks, setTweak }) {
         if (!cancelled) setMembership({ loading: false, active: cached });
       });
     return () => { cancelled = true; };
-  }, [authState?.user?.id]);
+  }, [authState?.user?.id, authReady]);
 
   // Account gate for browse / no-account users. Deep screens call
   // window.bsRequireAccount('book a session') before any committing action;
@@ -1138,7 +1145,7 @@ function BSAppShell({ tweaks, setTweak }) {
   const realRole = authState?.profile?.role;
   const isApprovedCoach = realRole === 'trainer' || realRole === 'nutritionist';
   const memberAllowed = isApprovedCoach || membership.active === true;
-  const memberGateLoading = !isApprovedCoach && membership.loading;
+  const memberGateLoading = !isApprovedCoach && (!authReady || membership.loading);
 
   // Expose "can this user actually send messages" (member access incl. coaches)
   // so the chat composer can lock for non-members previewing the app.
@@ -1155,14 +1162,15 @@ function BSAppShell({ tweaks, setTweak }) {
 
   useEffectBSM(() => {
     let cancelled = false;
-    if (!authConfigured) return () => {};
+    if (!authConfigured) { setAuthReady(true); return () => {}; }
     window.ShapeAuth.getCurrentSession()
       .then((next) => {
         if (cancelled) return;
         setAuthState(next);
         if (next?.profile?.role && next.profile.role !== role) setRole(next.profile.role);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setAuthReady(true); });
     return () => { cancelled = true; };
   }, [authConfigured]);
 
@@ -1205,7 +1213,8 @@ function BSAppShell({ tweaks, setTweak }) {
     setBrowseMode(false);
     setPreviewMode(false);
     try { window.ShapeMembership = { active: false }; localStorage.removeItem('shape.member'); } catch (e) {}
-    setStage('login');
+    // Land on the membership wall (the gate), not the bare login screen.
+    setStage('app');
   };
 
   // BSRadioProvider hoisted ABOVE the stage switch so radio state
@@ -1216,7 +1225,7 @@ function BSAppShell({ tweaks, setTweak }) {
     <BSRadioProvider>
       <BSPhone>
         {stage === 'splash' && <BSSplash style="cosmos" bg={tweaks.splashBg || 'plain'} bgColor={tweaks.splashBgColor || 'auto'} onDone={() => setStage('daily')} />}
-        {stage === 'daily' && <BSSplash style="classified" bg={tweaks.splashBg || 'plain'} bgColor={tweaks.splashBgColor || 'auto'} onDone={() => setStage('login')} />}
+        {stage === 'daily' && <BSSplash style="classified" bg={tweaks.splashBg || 'plain'} bgColor={tweaks.splashBgColor || 'auto'} onDone={() => setStage('app')} />}
         {stage === 'login'  && <BSLogin
           key={loginMode}
           initialMode={loginMode}
@@ -1229,52 +1238,13 @@ function BSAppShell({ tweaks, setTweak }) {
         {stage === 'apply' && (window.BSProviderApplicationScreen
           ? <window.BSProviderApplicationScreen initialRole={applyRole || 'trainer'} onBack={() => setStage('login')} />
           : <div style={{ margin: 18, padding: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Loading application…</div>)}
-        {stage === 'app' && !!bundleError && (
-          <div style={{
-            margin: 18,
-            padding: 14,
-            border: `1px solid ${t.RULE}`,
-            background: t.PAPER2,
-            color: t.INK,
-            fontFamily: t.MONO,
-            fontSize: 10,
-            letterSpacing: '0.12em',
-            textTransform: 'uppercase',
-          }}>
-            <div style={{ lineHeight: 1.5 }}>A new version is available. Reload to continue.</div>
-            <button
-              onClick={() => { try { window.sessionStorage.removeItem('bs-chunk-reloaded'); } catch (e) {} window.location.reload(); }}
-              style={{ marginTop: 12, padding: '10px 16px', borderRadius: 999, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' }}
-            >Reload →</button>
-            <div style={{ marginTop: 10, fontSize: 8.5, color: t.INK50, letterSpacing: '0.06em', textTransform: 'none', wordBreak: 'break-all' }}>{bundleError}</div>
-          </div>
-        )}
-        {stage === 'app' && !bundleError && !App && (
-          <div style={{
-            margin: 18,
-            padding: 14,
-            border: `1px solid ${t.RULE}`,
-            background: t.PAPER2,
-            color: t.INK,
-            fontFamily: t.MONO,
-            fontSize: 10,
-            letterSpacing: '0.16em',
-            textTransform: 'uppercase',
-          }}>
-            Loading app...
-          </div>
-        )}
-        {stage === 'app' && !!App && (
-          memberAllowed ? (
-            <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />
-          ) : memberGateLoading ? (
+        {stage === 'app' && (
+          // Gate order matters: show the paywall to non-members FIRST (it doesn't
+          // need the role bundle), so the membership page lands right after the
+          // splash. Members + previewers fall through to the real app.
+          memberGateLoading ? (
             <BSPaywallLoading t={t} />
-          ) : previewMode ? (
-            <React.Fragment>
-              <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />
-              <BSPreviewBanner t={t} onJoin={() => setPreviewMode(false)} />
-            </React.Fragment>
-          ) : (
+          ) : (!memberAllowed && !previewMode) ? (
             <BSPaywall
               t={t}
               signedIn={!!authUserId}
@@ -1283,6 +1253,26 @@ function BSAppShell({ tweaks, setTweak }) {
               onPreview={() => setPreviewMode(true)}
               onLogout={handleLogout}
             />
+          ) : bundleError ? (
+            <div style={{ margin: 18, padding: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+              <div style={{ lineHeight: 1.5 }}>A new version is available. Reload to continue.</div>
+              <button
+                onClick={() => { try { window.sessionStorage.removeItem('bs-chunk-reloaded'); } catch (e) {} window.location.reload(); }}
+                style={{ marginTop: 12, padding: '10px 16px', borderRadius: 999, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' }}
+              >Reload →</button>
+              <div style={{ marginTop: 10, fontSize: 8.5, color: t.INK50, letterSpacing: '0.06em', textTransform: 'none', wordBreak: 'break-all' }}>{bundleError}</div>
+            </div>
+          ) : !App ? (
+            <div style={{ margin: 18, padding: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
+              Loading app...
+            </div>
+          ) : !memberAllowed ? (
+            <React.Fragment>
+              <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />
+              <BSPreviewBanner t={t} onJoin={() => setPreviewMode(false)} />
+            </React.Fragment>
+          ) : (
+            <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />
           )
         )}
 

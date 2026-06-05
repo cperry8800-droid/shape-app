@@ -46,6 +46,20 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-05 — Paywall is the post-splash landing (members skip it)
+- Mobile launch flow changed: **splash → membership wall** (was splash → login).
+  The daily splash now routes to the `app` stage, whose gate shows **`BSPaywall`
+  first** for non-members (it no longer waits on the role bundle), with
+  Create-account / **Preview the app** / Sign-in. **Login is reached from the
+  paywall**, not before it.
+- **Members + approved coaches skip the wall** — they fall straight through to the
+  app. New **`authReady`** flag holds the "Checking membership…" state until
+  `getCurrentSession` resolves (it runs during the splash, so there's no added
+  wait), and the membership effect waits on it — so a returning member/coach never
+  flashes the paywall before their session + role restore.
+- Sign-out now lands on the membership wall (the gate) instead of the bare login
+  screen.
+
 ### 2026-06-05 — Chat gated to members (mobile + website) + preview-banner dismiss
 - **Real messaging is members-only.** Added `/api/conversations` + `/api/messages`
   to the proxy gate (the website chat bubble sends via `/api/conversations`).
