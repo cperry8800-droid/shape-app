@@ -27,7 +27,6 @@ function cwTierForPoints(pts) {
   if (p >= 750) return "Tempo";
   return "Base";
 }
-function cwPersonTier(m, fallbackName) { return m && m.tier ? String(m.tier) : cwHashTier((m && m.who) || fallbackName); }
 
 function ChatWidget(props) {
   // normalize to tabs[]
@@ -375,7 +374,12 @@ function ChatWidget(props) {
   const [profileFor, setProfileFor] = React.useState(null);
   const [profLive, setProfLive] = React.useState(null);
   const openProfile = (m) => {
-    const who = m && m.who && m.who !== "You" ? m.who : (active && active.who);
+    // Prefer the fullest name we have so initials are 2 letters: in a 1:1 the
+    // thread name is the counterpart's full name (the message sender is usually
+    // just their first name); in a group, use the sender's name.
+    const full = (active && active.who) || "";
+    const sender = m && m.who && m.who !== "You" ? m.who : full;
+    const who = (active && !active.group && full) ? full : sender;
     if (!who) return;
     const coach = !!(m && m.coach) || /trainer|coach|nutritionist/i.test((active && active.role) || "");
     setProfileFor({ who, role: (m && m.coach) ? "Coach" : ((active && active.role) || ""), coach, userId: (m && m.userId) || (active && active.userId) || null, tier: (m && m.tier) || null });
@@ -774,11 +778,29 @@ function ChatWidget(props) {
           {/* Chat pane */}
           <div style={{ display: "flex", flexDirection: "column", minHeight: 0, position: "relative" }}>
             {profileFor && (() => {
-              const tier = (profLive && Number.isFinite(profLive.points)) ? cwTierForPoints(profLive.points) : (profileFor.tier || cwHashTier(profileFor.who));
+              const isPrivate = !!(profLive && profLive.is_public === false);
+              const points = (profLive && Number.isFinite(profLive.points)) ? profLive.points : null;
+              const tier = points != null ? cwTierForPoints(points) : (profileFor.tier || cwHashTier(profileFor.who));
               const tc = cwTierColor(tier);
               const isCoach = profileFor.coach;
               const roleLabel = isCoach ? (/nutrition/i.test(profileFor.role || "") ? "Nutritionist" : "Trainer") : "Client";
-              const bio = (profLive && profLive.bio) || `${profileFor.who} is part of the Shape community${isCoach ? " as a coach" : ""}. ${isCoach ? "Browse their coaching profile to see packages and book a session." : "Say hi or cheer them on."}`;
+              const first = String(profileFor.who).split(" ")[0] || "This member";
+              const pronouns = !isPrivate && profLive && profLive.pronouns;
+              const goal = !isPrivate && profLive && profLive.goal;
+              const link = !isPrivate && profLive && profLive.link;
+              const bio = isPrivate ? null : ((profLive && profLive.bio) || `${profileFor.who} is part of the Shape community${isCoach ? " as a coach" : ""}. ${isCoach ? "Browse their coaching profile to see packages and book a session." : "Say hi or cheer them on."}`);
+              const Stat = (st) => (
+                <div style={{ flex: 1, minWidth: 0, borderRadius: 12, border: "1px solid rgba(242,237,228,0.1)", background: "rgba(242,237,228,0.03)", padding: "10px 12px" }}>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>{st.label}</div>
+                  <div style={{ marginTop: 3, fontFamily: sans, fontSize: 15, fontWeight: 600, color: st.color || INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{st.value}</div>
+                </div>
+              );
+              const Row = (rw) => (
+                <div style={{ display: "flex", gap: 10, padding: "9px 0", borderTop: "1px solid rgba(242,237,228,0.07)" }}>
+                  <div style={{ flex: "none", width: 84, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)", paddingTop: 1 }}>{rw.label}</div>
+                  <div style={{ flex: 1, minWidth: 0, fontFamily: sans, fontSize: 13.5, color: "rgba(242,237,228,0.85)", lineHeight: 1.4, wordBreak: "break-word" }}>{rw.value}</div>
+                </div>
+              );
               return (
                 <div style={{ position: "absolute", inset: 0, zIndex: 12, background: "#1a1612", display: "flex", flexDirection: "column", overflowY: "auto" }}>
                   <div style={{ padding: "14px 18px", borderBottom: "1px solid rgba(242,237,228,0.08)", display: "flex", alignItems: "center", gap: 12 }}>
@@ -787,9 +809,7 @@ function ChatWidget(props) {
                   </div>
                   <div style={{ padding: 18 }}>
                     <div style={{ borderRadius: 18, border: `1px solid ${tc}55`, background: `radial-gradient(130% 120% at 78% 14%, ${tc}26, transparent 55%), rgba(242,237,228,0.03)`, padding: 18, display: "flex", alignItems: "center", gap: 16 }}>
-                      <div style={{ width: 72, height: 72, borderRadius: 999, flex: "none", background: `conic-gradient(${tc} 270deg, rgba(242,237,228,0.12) 0deg)`, display: "grid", placeItems: "center" }}>
-                        <div style={{ width: 60, height: 60, borderRadius: 999, background: tc, color: "#fff", display: "grid", placeItems: "center", fontFamily: sans, fontWeight: 700, fontSize: 23 }}>{cwInitials(profileFor.who)}</div>
-                      </div>
+                      <div style={{ width: 64, height: 64, borderRadius: 999, flex: "none", background: tc, color: "#fff", display: "grid", placeItems: "center", fontFamily: sans, fontWeight: 700, fontSize: 22, boxShadow: `0 0 0 3px ${tc}33` }}>{cwInitials(profileFor.who)}</div>
                       <div style={{ minWidth: 0 }}>
                         <div style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase" }}>
                           <span style={{ color: tc }}>{tier}</span><span style={{ color: "rgba(242,237,228,0.4)" }}>·</span><span style={{ color: "rgba(242,237,228,0.55)" }}>{roleLabel}</span>
@@ -798,10 +818,31 @@ function ChatWidget(props) {
                         <div style={{ marginTop: 7, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>● Member of the Shape community</div>
                       </div>
                     </div>
-                    <div style={{ marginTop: 16, borderRadius: 14, border: "1px solid rgba(242,237,228,0.1)", background: "rgba(242,237,228,0.03)", padding: 16, fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.75)", lineHeight: 1.5 }}>{bio}</div>
+                    <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
+                      <Stat label="Tier" value={tier} color={tc} />
+                      <Stat label="Shape Score" value={points != null ? points.toLocaleString() + " pts" : "—"} />
+                      <Stat label="Role" value={roleLabel} />
+                    </div>
+                    {isPrivate ? (
+                      <div style={{ marginTop: 14, borderRadius: 14, border: "1px solid rgba(242,237,228,0.12)", background: "rgba(242,237,228,0.03)", padding: 16, display: "flex", gap: 10, alignItems: "flex-start" }}>
+                        <span style={{ fontSize: 16 }} aria-hidden>🔒</span>
+                        <div style={{ fontFamily: sans, fontSize: 13.5, color: "rgba(242,237,228,0.7)", lineHeight: 1.5 }}>{first} keeps their profile private — only their name and tier are shown.</div>
+                      </div>
+                    ) : (
+                      <React.Fragment>
+                        <div style={{ marginTop: 14, borderRadius: 14, border: "1px solid rgba(242,237,228,0.1)", background: "rgba(242,237,228,0.03)", padding: 16, fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.75)", lineHeight: 1.5 }}>{bio}</div>
+                        {(pronouns || goal || link) && (
+                          <div style={{ marginTop: 14, borderRadius: 14, border: "1px solid rgba(242,237,228,0.1)", background: "rgba(242,237,228,0.03)", padding: "4px 16px 12px" }}>
+                            {pronouns && <Row label="Pronouns" value={pronouns} />}
+                            {goal && <Row label="Goal" value={goal} />}
+                            {link && <Row label="Link" value={<a href={/^https?:/i.test(link) ? link : "https://" + link} target="_blank" rel="noopener noreferrer" style={{ color: TEAL_BRIGHT, textDecoration: "none" }}>{String(link).replace(/^https?:\/\//, "")}</a>} />}
+                          </div>
+                        )}
+                      </React.Fragment>
+                    )}
                     <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
                       <button onClick={() => setProfileFor(null)} style={{ flex: 1, padding: "12px", borderRadius: 999, border: 0, background: TEAL, color: PAPER, cursor: "pointer", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" }}>Message →</button>
-                      {isCoach && <a href="/Marketplace.html" style={{ flex: "none", padding: "12px 18px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.16)", color: INK, textDecoration: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" }}>Coaching →</a>}
+                      {isCoach && <a href="/Marketplace.html" style={{ flex: "none", padding: "12px 18px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.16)", color: INK, textDecoration: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" }}>View full profile →</a>}
                     </div>
                   </div>
                 </div>
@@ -831,12 +872,14 @@ function ChatWidget(props) {
                   longPressRef.id = setTimeout(() => setReactionPickerFor(rKey), 380);
                 };
                 const cancelLongPress = () => { if (longPressRef.id) clearTimeout(longPressRef.id); };
+                // Full name where possible (thread name in a 1:1) so initials are 2 letters.
+                const avatarName = (active && active.group) ? (m.who || (active && active.who)) : ((active && active.who) || m.who);
                 return (
                 <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start", position: "relative" }}>
                   <div style={{ display: "flex", alignItems: "flex-end", gap: 8, flexDirection: m.me ? "row-reverse" : "row", maxWidth: "90%" }}>
                     {!m.me && (
-                      <button onClick={() => openProfile(m)} title="View profile" style={{ flex: "none", width: 30, height: 30, borderRadius: 999, border: 0, cursor: "pointer", alignSelf: "flex-end", background: cwTierColor(cwPersonTier(m, active && active.who)), color: "#fff", fontFamily: sans, fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        {cwInitials((m.who && m.who !== "You") ? m.who : (active && active.who))}
+                      <button onClick={() => openProfile(m)} title="View profile" style={{ flex: "none", width: 30, height: 30, borderRadius: 999, border: 0, cursor: "pointer", alignSelf: "flex-end", background: cwTierColor(m && m.tier ? String(m.tier) : cwHashTier(avatarName)), color: "#fff", fontFamily: sans, fontSize: 10.5, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {cwInitials(avatarName)}
                       </button>
                     )}
                     <div style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start", minWidth: 0 }}>
