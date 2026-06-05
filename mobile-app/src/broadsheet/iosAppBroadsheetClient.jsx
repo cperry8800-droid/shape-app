@@ -1926,9 +1926,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     <BSPage>
       <BSMasthead
         title={<span className="bs-daily-title" style={{ display: 'block', textAlign: 'center', lineHeight: 1, whiteSpace: 'nowrap' }}>
-          <span className="bs-daily-the" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>The</span>
-          <span className="bs-daily-shape" style={{ display: 'inline-block', marginLeft: 8, marginRight: 10, fontFamily: `'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif`, fontWeight: 300, fontStyle: 'normal', fontSize: 37, letterSpacing: '0.18em', textTransform: 'uppercase', transform: 'translateY(1px)' }}>SHAPE</span>
-          <span className="bs-daily-daily" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>Daily.</span>
+          <span className="bs-daily-shape" style={{ display: 'inline-block', fontFamily: `'Saira', 'Space Grotesk', 'Helvetica Neue', sans-serif`, fontWeight: 300, fontStyle: 'normal', fontSize: 40, letterSpacing: '0.3em', paddingLeft: '0.3em', textTransform: 'uppercase' }}>SHAPE</span>
         </span>}
         leftKicker={`${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][_now.getDay()]} · ${_BS_MON[_now.getMonth()]} ${_now.getDate()} · ${_now.getFullYear()}`}
         rightKicker={`${bsHomeProgram.nutritionPhase || 'Cut'} · W${isoWeek}`}
