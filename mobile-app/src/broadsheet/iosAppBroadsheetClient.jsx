@@ -12827,7 +12827,7 @@ function BSAboutPage({ onBack }) {
         onBack={onBack}
         eyebrow="Shape"
         kicker="About"
-        title={<>A place to<br/><span style={{ color: teal }}>shape</span> a life.</>}
+        title={<>A place<br/>for helping <span style={{ color: teal }}>shape</span> a lifestyle.</>}
         trailing={<BSAvatar init="S" size={36} fill={t.INK} ink={t.PAPER} />}
       />
       <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
