@@ -484,12 +484,13 @@ function BSRadioPrompt() {
         <button
           disabled={!choice}
           onClick={() => r.answerPrompt(choice === 'on')}
-          style={{ borderRadius: t.RADIUS_SM,
-            width: '100%', padding: '14px', cursor: choice ? 'pointer' : 'default',
-            background: choice ? t.INK : 'transparent',
+          style={{ borderRadius: 999,
+            width: 'fit-content', margin: '0 auto', display: 'block',
+            padding: '10px 28px', cursor: choice ? 'pointer' : 'default',
+            background: choice ? t.INK70 : 'transparent',
             color: choice ? t.PAPER : t.INK30,
-            border: `1px solid ${choice ? t.INK : t.RULE}`,
-            fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.22em',
+            border: `1px solid ${choice ? t.INK70 : t.RULE}`,
+            fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.2em',
             textTransform: 'uppercase', fontWeight: 700,
           }}
         >Continue →</button>
