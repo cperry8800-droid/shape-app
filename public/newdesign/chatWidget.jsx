@@ -430,30 +430,10 @@ function ChatWidget(props) {
           .chw-bubble svg { width: 18px !important; height: 18px !important; }
         }
       `}</style>
-      {!docked && !open && (
-        <button
-          className="chw-bubble"
-          onClick={() => setOpen(true)}
-          style={{
-            position: "fixed",
-            right: 28,
-            bottom: 28,
-            zIndex: 180,
-            background: TEAL, color: PAPER, border: 0,
-            padding: "18px 26px 18px 22px", borderRadius: 999,
-            fontFamily: sans, fontSize: 15, fontWeight: 500, letterSpacing: "0.01em",
-            cursor: "pointer", boxShadow: "0 14px 38px rgba(0,0,0,0.38), 0 3px 10px rgba(10,197,168,0.38)",
-            display: "inline-flex", alignItems: "center", gap: 12,
-          }}>
-          <svg width="20" height="20" viewBox="0 0 16 16" fill="none">
-            <path d="M2 6.5a4 4 0 0 1 4-4h4a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3H6.5L3.5 14V8.5a3.5 3.5 0 0 1-1.5-2Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/>
-          </svg>
-          Chat
-          {totalUnread > 0 && (
-            <span style={{ background: PAPER, color: TEAL, fontSize: 11.5, fontWeight: 600, padding: "2px 8px", borderRadius: 999, fontFamily: "'JetBrains Mono', monospace" }}>{totalUnread}</span>
-          )}
-        </button>
-      )}
+      {/* The floating launcher bubble is the site-wide globalChatButton.js (a
+          single source on every page). ChatWidget renders only the open panel —
+          opened via window.__openChat — so there's never a second stacked bubble
+          and the launcher doesn't vanish when you open chat. */}
 
       {isOpen && (
         <div

@@ -489,13 +489,11 @@
 
   function syncVisibility(button) {
     if (!button) return;
-    // Hide this launcher whenever the page natively mounts the rich chat widget
-    // (its closed `.chw-bubble` or its open `[data-chat-panel]`) — otherwise the
-    // two teal pills stack at slightly different offsets and read as one bubble
-    // sitting behind another. The MutationObserver re-runs this as the widget
-    // mounts/opens/closes, so exactly one bubble is ever shown.
-    if (nativeWidgetExists()) button.classList.add(HIDDEN_CLASS);
-    else button.classList.remove(HIDDEN_CLASS);
+    // This is now the single chat launcher on every page (ChatWidget no longer
+    // renders its own floating bubble — it only shows the panel it opens). So the
+    // button stays visible; opening chat shows the panel above it, and it doesn't
+    // vanish on click the way the old hide-on-native-widget logic caused.
+    button.classList.remove(HIDDEN_CLASS);
   }
 
   function isMobileViewport() {

@@ -46,6 +46,19 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-05 — One website chat bubble (consolidation)
+- Standardized on the site-wide **`globalChatButton.js`** as the **single** chat
+  launcher on every page. Removed **ChatWidget's own floating `.chw-bubble`** —
+  ChatWidget now renders only the open panel (opened via `window.__openChat`).
+- Fixes the regression where the bubble vanished on click (the prior
+  hide-when-native-widget logic hid the global button the moment ChatWidget
+  mounted) and removes the original double-bubble at the source. `syncVisibility`
+  reverts to always-visible.
+- Safe: every non-popout page that loads `chatWidget.jsx` also loads
+  `globalChatButton.js` (verified); `chatPopout.html` is docked (never had a
+  bubble). Marketing pages' `supportBubble.jsx` still pre-mounts ChatWidget so
+  `__openChat` is ready — it just no longer paints a competing bubble.
+
 ### 2026-06-05 — Paywall polish + website chat-bubble de-dupe
 - **Website chat bubble "double" look fixed:** the site-wide launcher
   (`globalChatButton.js`) was always visible — on pages that also mount the rich
