@@ -6831,7 +6831,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           </div>
           <div className="bs-scroll" style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 2 }}>
             {TRAINING_NOW.map((p, i) => {
-              const tc = bsTierColor(p.tier);
+              // Coaches wear their own ladder color (Icon=teal, …); members the client ramp.
+              const tc = p.role ? bsTierColor(String(bsCoachTier(p.tier)).toLowerCase()) : bsTierColor(p.tier);
               const pip = p.role === 'trainer' ? '#c0533b' : p.role === 'nutritionist' ? '#a07a2e' : null;
               return (
                 <button key={i} onClick={() => setOpenProfile({ who: p.name, kind: p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT', tier: p.tier, public: true })} style={{ flex: '0 0 auto', width: 54, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'center' }}>
@@ -7371,7 +7372,12 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
   // Per-thread accent (matches the feed bubbles): channels read teal, people read
   // their tier color so the chat stays color-coordinated with the feed.
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const threadColor = thread.group ? teal : bsTierColor(bsPostTier({ who: thread.who }));
+  // Coaches read their own tier ladder (Certified/Pro/Elite/Master/Icon) on the
+  // coach color ramp; members read the client ladder. `coachTint` maps a client-
+  // tier key → the coach ramp color for the same rung.
+  const threadIsCoach = threadKind === 'TRAINER' || threadKind === 'NUTRI';
+  const coachTint = (clientTier) => bsTierColor(String(bsCoachTier(clientTier)).toLowerCase());
+  const threadColor = thread.group ? teal : (threadIsCoach ? coachTint(bsPostTier({ who: thread.who })) : bsTierColor(bsPostTier({ who: thread.who })));
 
   const send = () => {
     if (!text.trim()) return;
@@ -7442,20 +7448,24 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
             if (quick === '❤️') rx.toggle(rKey, '❤️');
             else rx.setPickerKey(pickerOpen ? null : rKey);
           });
-          // Byline (channels only): sender name + tier chip + role chip — tier
-          // color is the social texture; the bubble itself stays neutral.
+          // Byline (channels only): sender name + tier chip + role chip. Coaches
+          // read their OWN ladder (Certified/Pro/Elite/Master/Icon + coach colors);
+          // members read the client ladder. Tier color is the social texture.
           const senderName = m.who || thread.who;
-          const senderTier = bsPostTier({ who: senderName });
-          const senderTC = bsTierColor(senderTier);
-          const roleC = m.coach ? (threadKind === 'NUTRI' ? '#a07a2e' : '#c0533b') : null;
-          const roleLabel = m.coach ? (threadKind === 'NUTRI' ? 'Nutritionist' : 'Trainer') : null;
+          const senderClientTier = bsPostTier({ who: senderName });
+          const isCoachSender = !!m.coach || bsIsCoachRole(m.role) || (threadIsCoach && senderName === thread.who);
+          const senderTierLabel = isCoachSender ? bsCoachTier(senderClientTier) : senderClientTier;
+          const senderTC = isCoachSender ? coachTint(senderClientTier) : bsTierColor(senderClientTier);
+          const senderRole = String(m.role || (threadKind === 'NUTRI' ? 'nutritionist' : 'trainer')).toLowerCase();
+          const roleC = isCoachSender ? (senderRole === 'nutritionist' ? '#a07a2e' : '#c0533b') : null;
+          const roleLabel = isCoachSender ? (senderRole === 'nutritionist' ? 'Nutritionist' : 'Trainer') : null;
           const incomingBg = t.isLight ? t.PAPER2 : '#1a1713';
           return (
             <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', alignSelf: me ? 'flex-end' : 'flex-start', maxWidth: '86%' }}>
               {!me && thread.group && (
                 <button onClick={() => openP(senderName)} style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', marginBottom: 5 }}>
                   <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 13, color: t.INK, letterSpacing: '-0.01em' }}>{senderName}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: senderTC, border: `1px solid ${senderTC}80`, padding: '2px 5px', borderRadius: 3, lineHeight: 1 }}>{String(senderTier).toUpperCase()}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: senderTC, border: `1px solid ${senderTC}80`, padding: '2px 5px', borderRadius: 3, lineHeight: 1 }}>{String(senderTierLabel).toUpperCase()}</span>
                   {roleLabel && <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#fff', background: roleC, padding: '2px 5px', borderRadius: 3, lineHeight: 1 }}>{roleLabel}</span>}
                 </button>
               )}
