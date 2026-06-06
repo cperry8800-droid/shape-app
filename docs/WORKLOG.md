@@ -72,6 +72,14 @@ changelog whenever something ships.
 - **Step 5 — rows:** Friends/Team list rows use larger 46px avatars + 2-letter initials.
 - Decisions taken: **blend** (don't drop role-channel posting) + **4 tabs**; signature
   data-dependent bits (presence rail, proof cards) are **demo-now / wire-later**.
+- **Refinement pass:** all chat avatars are now **rounded squares** (tier-colored;
+  coaches carry a role pip on the presence rail). The **header is tab-aware** — a
+  "CHAT" eyebrow over a serif title that follows the tab (Community / Channels /
+  Friends / Your team) with a square tier avatar top-right. **Thread bubbles** match
+  the prototype: incoming bubbles are neutral (tier shown via a name + tier-chip +
+  role-chip byline on channels, no per-message avatar), my bubbles are the cream/ink
+  inverted bubble, chat-tail corners, and a "Program tweak · applied" clip card when a
+  message carries one.
 
 ### 2026-06-05 — Coach Shape Score tier ladder (scheme J) — separate from clients
 - Coaches now climb a **separate, renamed Shape Score tier ladder** (same 5 rungs /

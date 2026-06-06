@@ -6635,7 +6635,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       <div key={p.id || i} style={{ display: 'flex', flexDirection: 'column', alignItems: right ? 'flex-end' : 'flex-start' }}>
         {p.pinned && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', color: TEALB, marginBottom: 6 }}><PinIcon filled size={13} /> Pinned</div>}
         <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'flex-end', gap: 9, maxWidth: '90%' }}>
-          <button onClick={() => linkable && setOpenProfile({ ...p, kind: akind, tier })} aria-label={linkable ? `View ${p.who}'s profile` : undefined} style={{ width: 36, height: 36, flexShrink: 0, borderRadius: 999, background: tc, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13, letterSpacing: '0.02em', border: 0, padding: 0, cursor: linkable ? 'pointer' : 'default' }}>{avInit}</button>
+          <button onClick={() => linkable && setOpenProfile({ ...p, kind: akind, tier })} aria-label={linkable ? `View ${p.who}'s profile` : undefined} style={{ width: 36, height: 36, flexShrink: 0, borderRadius: 10, background: tc, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13, letterSpacing: '0.02em', border: 0, padding: 0, cursor: linkable ? 'pointer' : 'default' }}>{avInit}</button>
           <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'baseline', gap: 8, marginBottom: 5 }}>
               <button onClick={() => linkable && setOpenProfile({ ...p, kind: akind, tier })} style={{ background: 'transparent', border: 0, padding: 0, cursor: linkable ? 'pointer' : 'default', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk }}>{p.who}</button>
@@ -6701,7 +6701,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         <div style={{ padding: '13px 15px 15px' }}>
           {/* author + activity type */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginBottom: 12 }}>
-            <button onClick={openCardProfile} aria-label={`View ${a.who}'s profile`} style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 999, background: tc, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 15, border: 0, padding: 0, cursor: 'pointer' }}>{bsInitials(a.who) || '?'}</button>
+            <button onClick={openCardProfile} aria-label={`View ${a.who}'s profile`} style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 12, background: tc, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 15, border: 0, padding: 0, cursor: 'pointer' }}>{bsInitials(a.who) || '?'}</button>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 <button onClick={openCardProfile} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14.5, color: cardInk, whiteSpace: 'nowrap' }}>{a.who}</button>
@@ -6801,24 +6801,26 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     { name: 'Drew Oyelaran', doing: 'Tempo run',      tier: 'legend' },
     { name: 'Casey Morgan', doing: 'Back squat 5×5',  tier: 'form' },
     { name: 'Devon Wells',  doing: 'Zone 2',          tier: 'tempo' },
-    { name: 'Maya Okafor',  doing: 'Coaching floor',  tier: 'legend' },
+    { name: 'Maya Okafor',  doing: 'Coaching floor',  tier: 'legend', role: 'trainer' },
     { name: 'Sofia Park',   doing: 'Mobility',        tier: 'base' },
   ];
   const liftingNow = online > 0 ? online : 2104;
 
   return (
     <BSPage>
-      <BSMasthead
-        title={<span style={{ display: 'block', textAlign: 'left', lineHeight: 0.92, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 38, letterSpacing: '-0.04em' }}>
-          The <span style={{ fontStyle: 'italic', color: TEALB }}>feed.</span>
-        </span>}
-        leftKicker="Section · Community"
-        rightKicker={online > 0 ? `● ${online} online` : 'Live'}
-        showDotTexture={false}
-        showDoubleRule={false}
-        noRule
-        trailing={<BSAvatar init={bsMyInitials()} size={32} fill={bsMyTierColor()} onClick={onProfile} />}
-      />
+      {/* Tab-aware masthead — "CHAT" eyebrow + serif title that follows the
+          active tab (Community / Channels / Friends / Your team). */}
+      <div style={{ padding: `50px ${t.padX}px 2px` }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEALB, fontWeight: 700 }}>Chat</div>
+            <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '5px 0 0', lineHeight: 1 }}>
+              {tab === 'feed' ? 'Community' : tab === 'channels' ? 'Channels' : tab === 'messages' ? 'Friends' : 'Your team'}
+            </h1>
+          </div>
+          <BSAvatar init={bsMyInitials()} size={34} fill={bsMyTierColor()} round={false} onClick={onProfile} />
+        </div>
+      </div>
 
       {/* Live "training now" presence rail — Feed tab only */}
       {tab === 'feed' && (
@@ -6830,11 +6832,13 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           <div className="bs-scroll" style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 2 }}>
             {TRAINING_NOW.map((p, i) => {
               const tc = bsTierColor(p.tier);
+              const pip = p.role === 'trainer' ? '#c0533b' : p.role === 'nutritionist' ? '#a07a2e' : null;
               return (
-                <button key={i} onClick={() => setOpenProfile({ who: p.name, kind: 'CLIENT', tier: p.tier, public: true })} style={{ flex: '0 0 auto', width: 54, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'center' }}>
+                <button key={i} onClick={() => setOpenProfile({ who: p.name, kind: p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT', tier: p.tier, public: true })} style={{ flex: '0 0 auto', width: 54, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'center' }}>
                   <span style={{ position: 'relative', display: 'inline-flex' }}>
-                    <span style={{ width: 46, height: 46, borderRadius: 999, background: tc, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 16, letterSpacing: '0.02em' }}>{bsInitials(p.name)}</span>
-                    <span style={{ position: 'absolute', right: 1, top: 1, width: 11, height: 11, borderRadius: 999, background: TEAL, border: `2px solid ${t.PAPER}` }} />
+                    <span style={{ width: 46, height: 46, borderRadius: 14, background: tc, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 16, letterSpacing: '0.02em' }}>{bsInitials(p.name)}</span>
+                    <span style={{ position: 'absolute', right: -2, top: -2, width: 11, height: 11, borderRadius: 999, background: TEAL, border: `2px solid ${t.PAPER}` }} />
+                    {pip && <span style={{ position: 'absolute', right: -3, bottom: -3, width: 13, height: 13, borderRadius: 4, background: pip, border: `2px solid ${t.PAPER}` }} />}
                   </span>
                   <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, marginTop: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: cardInk }}>{p.name.split(' ')[0]}</span>
                   <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 7, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.doing}</span>
@@ -6873,8 +6877,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             return (
               <button key={i} onClick={() => { window.ShapeUnread?.markConversationRead?.(f.conversation_id); setOpenChat(f); }} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 11, alignItems: 'center', padding: '10px 2px', borderBottom: isLast ? 0 : `1px solid ${t.isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.045)'}`, background: 'transparent', border: 0, color: cardInk, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
                 <span style={{ position: 'relative', flexShrink: 0, display: 'inline-flex' }}>
-                  <span style={{ width: 46, height: 46, borderRadius: 999, background: f.c, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 16, letterSpacing: '0.01em' }}>{bsInitials(f.n) || f.i}</span>
-                  {online && <span style={{ position: 'absolute', right: 1, bottom: 1, width: 12, height: 12, borderRadius: 999, background: '#3ddc97', border: `2px solid ${t.PAPER}` }} />}
+                  <span style={{ width: 46, height: 46, borderRadius: 14, background: bsTierColor(bsPostTier({ who: f.n })), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 16, letterSpacing: '0.01em' }}>{bsInitials(f.n) || f.i}</span>
+                  {online && <span style={{ position: 'absolute', right: -2, bottom: -2, width: 12, height: 12, borderRadius: 999, background: '#3ddc97', border: `2px solid ${t.PAPER}` }} />}
                 </span>
                 <span style={{ minWidth: 0, display: 'block' }}>
                   <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.n}</span>
@@ -7417,7 +7421,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
         <button onClick={() => !thread.group && openP(thread.who)} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: thread.group ? 'default' : 'pointer', color: 'inherit' }}>
           {thread.group
             ? <span style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 12, background: t.isLight ? 'rgba(10,143,135,0.10)' : 'rgba(52,214,197,0.12)', border: `1px solid ${teal}66`, color: teal, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 17, fontWeight: 700 }}>#</span>
-            : <BSAvatar init={bsInitials(thread.who) || (thread.who.match(/[A-Z]/) || ['?'])[0]} size={38} fill={threadColor} />}
+            : <BSAvatar init={bsInitials(thread.who) || (thread.who.match(/[A-Z]/) || ['?'])[0]} size={38} fill={threadColor} round={false} />}
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: t.BODY, fontSize: 18, fontWeight: 760, color: t.INK, letterSpacing: '-0.02em' }}>{thread.who}</div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{thread.role}</div>
@@ -7438,28 +7442,44 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
             if (quick === '❤️') rx.toggle(rKey, '❤️');
             else rx.setPickerKey(pickerOpen ? null : rKey);
           });
-          const initial = (m.who || thread.who || '?').toString().replace(/^#\s*/, '').split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase() || '?';
+          // Byline (channels only): sender name + tier chip + role chip — tier
+          // color is the social texture; the bubble itself stays neutral.
+          const senderName = m.who || thread.who;
+          const senderTier = bsPostTier({ who: senderName });
+          const senderTC = bsTierColor(senderTier);
+          const roleC = m.coach ? (threadKind === 'NUTRI' ? '#a07a2e' : '#c0533b') : null;
+          const roleLabel = m.coach ? (threadKind === 'NUTRI' ? 'Nutritionist' : 'Trainer') : null;
+          const incomingBg = t.isLight ? t.PAPER2 : '#1a1713';
           return (
-            <div key={i} style={{ display: 'flex', flexDirection: me ? 'row-reverse' : 'row', alignItems: 'flex-end', gap: 8, alignSelf: me ? 'flex-end' : 'flex-start', maxWidth: '88%' }}>
-              {!me && (
-                <button onClick={() => openP(m.who || thread.who)} aria-label="View profile" style={{ width: 28, height: 28, flexShrink: 0, borderRadius: 999, background: threadColor, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 12, border: 0, padding: 0, cursor: 'pointer' }}>{initial}</button>
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', alignSelf: me ? 'flex-end' : 'flex-start', maxWidth: '86%' }}>
+              {!me && thread.group && (
+                <button onClick={() => openP(senderName)} style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', marginBottom: 5 }}>
+                  <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 13, color: t.INK, letterSpacing: '-0.01em' }}>{senderName}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: senderTC, border: `1px solid ${senderTC}80`, padding: '2px 5px', borderRadius: 3, lineHeight: 1 }}>{String(senderTier).toUpperCase()}</span>
+                  {roleLabel && <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#fff', background: roleC, padding: '2px 5px', borderRadius: 3, lineHeight: 1 }}>{roleLabel}</span>}
+                </button>
               )}
               <div style={{ minWidth: 0, position: 'relative' }}>
-                {!me && (
-                  <button onClick={() => openP(m.who || thread.who)} style={{ display: 'block', background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: m.coach ? t.AMBER : t.INK50, fontWeight: 700, marginBottom: 4 }}>
-                    {m.who}{m.coach ? ' · Coach' : ''}
-                  </button>
-                )}
                 <div {...lp} style={{
                   borderRadius: 16, [me ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 5,
                   fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.4, letterSpacing: '-0.005em',
-                  color: me ? '#04201d' : t.INK,
-                  background: me ? teal : (t.isLight ? `${threadColor}14` : `${threadColor}22`),
-                  border: me ? 'none' : `1px solid ${threadColor}40`,
+                  color: me ? t.PAPER : t.INK,
+                  background: me ? t.INK : incomingBg,
+                  border: me ? 'none' : `1px solid ${t.SURFACE_BORDER}`,
                   padding: '11px 14px',
                   cursor: 'pointer', userSelect: 'none',
                 }}>
                   {m.t}
+                  {m.clip && (
+                    <div style={{ marginTop: 9, padding: '9px 11px', background: me ? 'rgba(0,0,0,0.06)' : t.PAPER, border: `1px solid ${teal}66`, borderRadius: 9 }}>
+                      <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, marginBottom: 5, fontWeight: 800 }}>Program tweak · applied</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: t.DISPLAY, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: me ? t.PAPER : t.INK }}>{m.clip.lift}</span>
+                        {m.clip.was && <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50, textDecoration: 'line-through' }}>{m.clip.was}</span>}
+                        {m.clip.next && <span style={{ fontFamily: t.MONO, fontSize: 11, color: teal }}>→ {m.clip.next}</span>}
+                      </div>
+                    </div>
+                  )}
                   {m.photo && (
                     <img src={m.photo} alt="Meal photo" onClick={(e) => { e.stopPropagation(); window.open(m.photo, '_blank'); }} style={{ display: 'block', width: '100%', minWidth: 180, maxHeight: 240, objectFit: 'cover', borderRadius: 10, marginTop: 8 }} />
                   )}
