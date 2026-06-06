@@ -6425,6 +6425,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const sumUnread = (prefix) => Object.keys(unread || {}).reduce((a, k) => a + (k.indexOf(prefix) === 0 ? (unread[k] || 0) : 0), 0);
   const dmUnread = sumUnread('dm:');
   const chUnread = sumUnread('ch:');
+  // Split DM unread by destination tab: member DMs → Friends, coach DMs → Team.
+  const friendUnread = (friendRows || []).reduce((a, f) => a + ((unread && unread['dm:' + (f.conversation_id || '')]) || 0), 0);
+  const coachUnread = (threadRows || []).reduce((a, f) => a + ((unread && unread['dm:' + (f.conversation_id || '')]) || 0), 0);
   const online = useBSOnline(); // live "N online" presence count for the masthead
   const unreadBadge = (key) => {
     const n = (unread && unread[key]) || 0;
@@ -6772,7 +6775,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   };
 
   const Pill = ({ on, onClick, children, badge = 0 }) => (
-    <button onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 12px', borderRadius: 9, border: 0, background: on ? TEAL : 'transparent', color: on ? '#031f1c' : cardInk, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+    <button onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '8px 4px', borderRadius: 9, border: 0, background: on ? TEAL : 'transparent', color: on ? '#031f1c' : cardInk, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
       {children}
       {badge > 0 && <span style={{ minWidth: 13, height: 13, borderRadius: 999, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 }}>{badge > 9 ? '9+' : badge}</span>}
     </button>
@@ -6855,10 +6858,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         </div>
       )}
 
-      {/* Feed / Messages / Teams */}
+      {/* Feed / Channels / Friends / Team */}
       <div style={{ padding: `10px ${t.padX}px 0` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, border: `1px solid ${hair}`, borderRadius: 12, padding: 3 }}>
-          {[['feed', 'Feed', 0], ['messages', 'Friends', dmUnread], ['teams', 'Team', chUnread]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 3, border: `1px solid ${hair}`, borderRadius: 12, padding: 3 }}>
+          {[['feed', 'Feed', 0], ['channels', 'Channels', chUnread], ['messages', 'Friends', friendUnread], ['teams', 'Team', coachUnread]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
         </div>
       </div>
 
@@ -6932,9 +6935,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             .filter(c => !_chQ || (c.name || '').toLowerCase().includes(_chQ))
             .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
           const _coachUnread = (coaches || []).reduce((a, c) => a + (unread['dm:' + (c.conversation_id || '')] || 0), 0);
+          // Channels moved to its own top-level tab — Team keeps Coaches + Support.
           const selectors = [
             { key: 'coaches', label: 'Coaches', color: '#c0533b', badge: _coachUnread },
-            { key: 'channels', label: 'Channels', color: TEALB, badge: chUnread },
             { key: 'support', label: 'Support', color: '#2e6fa0', badge: 0 },
           ];
           const active = selectors.find(s => s.key === teamsSel) || selectors[0];
@@ -6957,6 +6960,49 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               </div>
             );
           };
+          // Channels — its own top-level tab (Signal v2). Same wired channel
+          // list/create/search as before, lifted out of the Team selector.
+          if (tab === 'channels') {
+            return (
+              <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px 2px' }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>Your channels</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{chUnread > 0 ? `${chUnread} unread · ` : ''}{chDisplay.length} channel{chDisplay.length === 1 ? '' : 's'}</span>
+                </div>
+                {newChannel === null ? (
+                  <button onClick={() => setNewChannel('')} style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1px dashed ${TEALB}`, background: 'transparent', color: TEALB, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Create new channel</button>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 8, alignItems: 'center' }}>
+                      <button onClick={() => { setNewChannel(null); setNewChannelPrivate(false); }} aria-label="Cancel" title="Cancel" style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: 'transparent', color: muted, border: `1px solid ${hair}`, fontSize: 18, lineHeight: 1, cursor: 'pointer', padding: 0 }}>×</button>
+                      <input autoFocus value={newChannel} onChange={(e) => setNewChannel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') createChannelNow(); if (e.key === 'Escape') { setNewChannel(null); setNewChannelPrivate(false); } }} placeholder="Channel name — e.g. Sunday Run Club" style={{ minWidth: 0, height: 38, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 14px', fontFamily: t.BODY, fontSize: 14, color: t.INK, outline: 'none' }} />
+                      <button onClick={createChannelNow} style={{ height: 38, padding: '0 16px', borderRadius: 999, background: TEAL, color: '#031f1c', border: 0, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, cursor: 'pointer' }}>Create</button>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                      {[['public', 'Public · anyone can join'], ['private', 'Private · invite only']].map(([k, l]) => {
+                        const on = (k === 'private') === newChannelPrivate;
+                        return <button key={k} onClick={() => setNewChannelPrivate(k === 'private')} style={{ padding: '8px 8px', borderRadius: 999, border: `1px solid ${on ? TEALB : hair}`, background: on ? `${TEALB}1f` : 'transparent', color: on ? cardInk : muted, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{l}</button>;
+                      })}
+                    </div>
+                  </div>
+                )}
+                {chList.length > 0 && (
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <span style={{ position: 'absolute', left: 13, fontSize: 13, color: muted, pointerEvents: 'none' }}>⌕</span>
+                    <input value={channelQuery} onChange={(e) => setChannelQuery(e.target.value)} placeholder="Search channels…" style={{ width: '100%', height: 36, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 34px', fontFamily: t.BODY, fontSize: 13.5, color: t.INK, outline: 'none' }} />
+                    {channelQuery && <button onClick={() => setChannelQuery('')} aria-label="Clear search" style={{ position: 'absolute', right: 10, width: 22, height: 22, borderRadius: 999, border: 0, background: 'transparent', color: muted, cursor: 'pointer', fontSize: 14, padding: 0 }}>×</button>}
+                  </div>
+                )}
+                {chDisplay.map(chRow)}
+                {_chQ && chDisplay.length === 0 && (
+                  <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, padding: '4px 2px' }}>No channels match “{channelQuery.trim()}”.</div>
+                )}
+                {channels && chList.length === 0 && newChannel === null && (
+                  <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, padding: '4px 2px' }}>No channels yet — start one.</div>
+                )}
+              </div>
+            );
+          }
           return (
             <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: 10 }}>
@@ -6970,41 +7016,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   );
                 })}
               </div>
-              {active.key === 'channels' ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
-                  {newChannel === null ? (
-                    <button onClick={() => setNewChannel('')} style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1px dashed ${TEALB}`, background: 'transparent', color: TEALB, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Create new channel</button>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 8, alignItems: 'center' }}>
-                        <button onClick={() => { setNewChannel(null); setNewChannelPrivate(false); }} aria-label="Cancel" title="Cancel" style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: 'transparent', color: muted, border: `1px solid ${hair}`, fontSize: 18, lineHeight: 1, cursor: 'pointer', padding: 0 }}>×</button>
-                        <input autoFocus value={newChannel} onChange={(e) => setNewChannel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') createChannelNow(); if (e.key === 'Escape') { setNewChannel(null); setNewChannelPrivate(false); } }} placeholder="Channel name — e.g. Sunday Run Club" style={{ minWidth: 0, height: 38, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 14px', fontFamily: t.BODY, fontSize: 14, color: t.INK, outline: 'none' }} />
-                        <button onClick={createChannelNow} style={{ height: 38, padding: '0 16px', borderRadius: 999, background: TEAL, color: '#031f1c', border: 0, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, cursor: 'pointer' }}>Create</button>
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                        {[['public', 'Public · anyone can join'], ['private', 'Private · invite only']].map(([k, l]) => {
-                          const on = (k === 'private') === newChannelPrivate;
-                          return <button key={k} onClick={() => setNewChannelPrivate(k === 'private')} style={{ padding: '8px 8px', borderRadius: 999, border: `1px solid ${on ? TEALB : hair}`, background: on ? `${TEALB}1f` : 'transparent', color: on ? cardInk : muted, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{l}</button>;
-                        })}
-                      </div>
-                    </div>
-                  )}
-                  {chList.length > 0 && (
-                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                      <span style={{ position: 'absolute', left: 13, fontSize: 13, color: muted, pointerEvents: 'none' }}>⌕</span>
-                      <input value={channelQuery} onChange={(e) => setChannelQuery(e.target.value)} placeholder="Search channels…" style={{ width: '100%', height: 36, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 34px', fontFamily: t.BODY, fontSize: 13.5, color: t.INK, outline: 'none' }} />
-                      {channelQuery && <button onClick={() => setChannelQuery('')} aria-label="Clear search" style={{ position: 'absolute', right: 10, width: 22, height: 22, borderRadius: 999, border: 0, background: 'transparent', color: muted, cursor: 'pointer', fontSize: 14, padding: 0 }}>×</button>}
-                    </div>
-                  )}
-                  {chDisplay.map(chRow)}
-                  {_chQ && chDisplay.length === 0 && (
-                    <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, padding: '4px 2px' }}>No channels match “{channelQuery.trim()}”.</div>
-                  )}
-                  {channels && chList.length === 0 && newChannel === null && (
-                    <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, padding: '4px 2px' }}>No channels yet — start one.</div>
-                  )}
-                </div>
-              ) : active.key === 'coaches' ? (
+              {active.key === 'coaches' ? (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   {ThreadHead(coaches)}
                   {coaches.map(Row)}
