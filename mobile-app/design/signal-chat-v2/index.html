@@ -26,18 +26,45 @@
 </template>
 <div id="root"></div>
 
-<!-- Load order matters: kit (tokens + data) → shapeChat (shared Thread/Composer/Nav/Peek/Locked) → signalChat (the Signal screen) → tweaks -->
+<!-- Load order matters: shapeKit (tokens + primitives + data) → shapeChat
+     (shared Thread/Composer/Nav/Peek/Locked) → signalChat (the Signal screen). -->
 <script type="text/babel" data-presets="react" src="shapeKit.jsx"></script>
 <script type="text/babel" data-presets="react" src="shapeChat.jsx"></script>
 <script type="text/babel" data-presets="react" src="signalChat.jsx"></script>
-<script type="text/babel" data-presets="react" src="tweaks-panel.jsx"></script>
 <script type="text/babel" data-presets="react">
   const { useState } = React;
 
-  const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  // Minimal in-page Tweaks panel (the original tweaks-panel.jsx was not part of
+  // the upload — this self-contained shim keeps the prototype runnable).
+  function useTweaks(defaults) {
+    const [tk, set] = useState(defaults);
+    return [tk, (k, v) => set(s => ({ ...s, [k]: v }))];
+  }
+  function TweaksPanel({ title, children }) {
+    return (
+      <div style={{ position: 'fixed', top: 18, right: 18, width: 190, background: '#181612', color: '#f5f0e6', border: '1px solid rgba(245,240,230,0.14)', borderRadius: 12, padding: 14, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, zIndex: 999 }}>
+        <div style={{ fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', fontSize: 9, opacity: 0.6, marginBottom: 10 }}>{title}</div>
+        {children}
+      </div>
+    );
+  }
+  function TweakSection({ label }) {
+    return <div style={{ fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', opacity: 0.45, margin: '12px 0 7px' }}>{label}</div>;
+  }
+  function TweakRadio({ value, options, onChange }) {
+    return (
+      <div style={{ display: 'flex', gap: 5 }}>
+        {options.map(o => (
+          <button key={o} onClick={() => onChange(o)} style={{ flex: 1, cursor: 'pointer', borderRadius: 7, padding: '6px 0', textTransform: 'capitalize', fontSize: 10, fontWeight: 600, border: '1px solid ' + (o === value ? '#34d6c5' : 'rgba(245,240,230,0.18)'), background: o === value ? 'rgba(52,214,197,0.18)' : 'transparent', color: o === value ? '#34d6c5' : '#f5f0e6' }}>{o}</button>
+        ))}
+      </div>
+    );
+  }
+
+  const TWEAK_DEFAULTS = {
     "viewer": "member",
     "theme": "dark"
-  }/*EDITMODE-END*/;
+  };
 
   function App() {
     const [tk, setTweak] = useTweaks(TWEAK_DEFAULTS);

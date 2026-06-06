@@ -1,9 +1,13 @@
 # Shape · Chat — "Signal" design
 
-The in-app **Chat** section of Shape, "Signal" direction: presence-forward,
-rounded cards tinted by each member's Shape-Score tier. One page, with
-Feed / Friends / Team tabs + a sub-filter (Community / Clients / Shape),
-thread view, auto-growing composer, profile peek, Nora (AI), locked preview.
+The in-app **Chat** section of Shape, "Signal" direction (v2): presence-forward,
+rounded cards tinted by each member's Shape-Score tier. **Four top-level tabs —
+Feed · Channels · Friends · Team** (no sub-filter row). The **Feed** is now a
+**Strava-style activity stream** — every workout shown as an activity card
+(type chip, location, title, GPS route map for runs, 3-stat row, Verified +
+cheer/reply); coach notes clip in as their own cards. **Channels** is its own
+tab (Your channels / Discover). Plus thread view, auto-growing composer,
+profile peek, Nora (AI), and the locked guest preview.
 
 ## Run it
 Open `index.html` in any modern browser. No build step — it uses React +
@@ -20,9 +24,11 @@ Grotesk). Toggle member ↔ locked and dark ↔ light from the Tweaks panel.
    `AppNav` (Home/Train/Eat/Chat/Me), `Thread` + composer, `Bubble`,
    `Peek` (profile sheet), `Locked` (guest preview). *(Also contains the
    "Broadsheet" option `ChatPage`; delete it if you don't need it.)*
-3. `signalChat.jsx` — the **Signal** screen itself (`ChatSignal`): header
-   with the live presence rail + segmented tabs, and `SigCard` / `SigRow`.
-4. `tweaks-panel.jsx` — the in-page Tweaks panel (optional in production).
+3. `signalChat.jsx` — the **Signal** screen itself (`ChatSignal`): header with
+   the live presence rail + 4-tab segmented control, `SigActivity` (Strava-style
+   activity card) + `SigCoachNote`, `SigChannel` (Channels tab), and `SigRow`.
+4. The in-page Tweaks panel (member↔guest, dark↔light) is inlined directly in
+   `index.html` (the original `tweaks-panel.jsx` was not part of the upload).
 
 ## Design system
 - **Type** — Newsreader (serif display), JetBrains Mono (labels/numbers),
