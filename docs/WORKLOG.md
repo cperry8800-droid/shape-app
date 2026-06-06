@@ -46,6 +46,33 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-06 — Signal chat redesign (mobile, Chat tab) — shipped in 5 steps
+- Ported the **"Signal" v2 chat design** (presence-forward, tier-colored, Strava-style)
+  into the live `BSClientFeed` (Chat tab only). The standalone prototypes live in
+  **`mobile-app/design/signal-chat/`** (v1) and **`mobile-app/design/signal-chat-v2/`**
+  (v2 — the source of truth; de-rotated filenames, runnable host). *Note:* the v1
+  upload had clobbered `mobile-app/index.html` (the Vite entry) — restored + the
+  prototype moved out of the build path.
+- **Step 1 — presence rail:** Feed tab now leads with a live "N lifting now · near you"
+  rail of tier-colored avatars (`TRAINING_NOW`, demo data via `bsTierColor`; wire to a
+  real presence feed later).
+- **Step 2a — 4 tabs:** tab bar is now **Feed · Channels · Friends · Team**. Channels
+  promoted to its own top-level tab (lifted out of Team → Channels, all create/search/
+  join/pin wiring intact); Team keeps Coaches + Support. Per-tab unread split (channel /
+  member-DM / coach-DM).
+- **Step 2b — Strava feed blend:** `ActivityCard` restyled to `SigActivity` (tier
+  hairline, type chip, location, run splits, 3-up stat row, Verified + cheer/reply pills)
+  and **interleaved with the live community posts** in the COMMUNITY feed for everyone
+  (blend — posts + role channels stay fully wired; activity data illustrative for now).
+- **Step 3 + formatting — Channels cards:** full `SigChannel` look (teal `#` tile, serif
+  name + LIVE/private/host badges, members·online meta, blurb line, Open/Join pill).
+- **Step 4 — thread:** header avatar matches (tier avatar for people, teal `#` tile for
+  channels); bubbles + iMessage composer were already aligned; avatar tap → full
+  `BSPublicProfile` (kept over the prototype's peek sheet).
+- **Step 5 — rows:** Friends/Team list rows use larger 46px avatars + 2-letter initials.
+- Decisions taken: **blend** (don't drop role-channel posting) + **4 tabs**; signature
+  data-dependent bits (presence rail, proof cards) are **demo-now / wire-later**.
+
 ### 2026-06-05 — Coach Shape Score tier ladder (scheme J) — separate from clients
 - Coaches now climb a **separate, renamed Shape Score tier ladder** (same 5 rungs /
   thresholds as clients): **Certified · Pro · Elite · Master · Icon**. No new page —
