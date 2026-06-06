@@ -219,28 +219,70 @@
             <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--accent-dark);font-weight:500;">Shape Score</div>
           </div>
 
-          <!-- Status Tiers -->
-          <div class="tier-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:20px;">
-            <div style="background:var(--bg-card);border:1px solid var(--border);padding:14px 12px;text-align:center;">
-              <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:#CD7F32;font-weight:500;margin-bottom:4px;">Bronze</div>
-              <div style="font-size:0.78rem;color:var(--text-muted);font-weight:300;">0 pts</div>
+          <!-- Status Tiers — Client / Coaches ladders (tabbed) -->
+          <div style="text-align:center;margin-bottom:10px;">
+            <span class="tag">Tiers</span>
+            <h2 style="font-size:clamp(1.2rem,2vw,1.5rem);font-weight:300;letter-spacing:-0.03em;margin-top:8px;margin-bottom:14px;">Two ladders, one Shape Score</h2>
+          </div>
+          <div style="display:flex;gap:6px;margin-bottom:14px;max-width:320px;margin-left:auto;margin-right:auto;">
+            <button type="button" class="ss-tier-tab" data-aud="client" onclick="ssTier('client')" style="flex:1;cursor:pointer;padding:10px 0;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:#fff;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;">Members</button>
+            <button type="button" class="ss-tier-tab" data-aud="coach" onclick="ssTier('coach')" style="flex:1;cursor:pointer;padding:10px 0;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;">Coaches</button>
+          </div>
+          <!-- Members ladder -->
+          <div class="ss-tier-grid" data-aud="client" style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:20px;">
+            <div style="background:var(--bg-card);border:1px solid var(--border);padding:14px 6px;text-align:center;">
+              <div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.05em;color:#8a93a0;font-weight:600;margin-bottom:4px;">Raw</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);font-weight:300;">0 pts</div>
             </div>
-            <div style="background:var(--bg-card);border:1px solid var(--border);padding:14px 12px;text-align:center;">
-              <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:#C0C0C0;font-weight:500;margin-bottom:4px;">Silver</div>
-              <div style="font-size:0.78rem;color:var(--text-muted);font-weight:300;">2,500 pts</div>
+            <div style="background:var(--bg-card);border:1px solid var(--border);padding:14px 6px;text-align:center;">
+              <div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.05em;color:#d8a23a;font-weight:600;margin-bottom:4px;">Tempo</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);font-weight:300;">750 pts</div>
             </div>
-            <div style="background:var(--bg-card);border:1px solid var(--border);padding:14px 12px;text-align:center;">
-              <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:#FFD700;font-weight:500;margin-bottom:4px;">Gold</div>
-              <div style="font-size:0.78rem;color:var(--text-muted);font-weight:300;">5,000 pts</div>
+            <div style="background:var(--bg-card);border:1px solid var(--border);padding:14px 6px;text-align:center;">
+              <div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.05em;color:#34d6c5;font-weight:600;margin-bottom:4px;">Form</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);font-weight:300;">2,000 pts</div>
             </div>
-            <div style="background:var(--bg-card);border:1px solid var(--border);padding:14px 12px;text-align:center;">
-              <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:#E5E4E2;font-weight:500;margin-bottom:4px;">Platinum</div>
-              <div style="font-size:0.78rem;color:var(--text-muted);font-weight:300;">10,000 pts</div>
+            <div style="background:var(--bg-card);border:1px solid var(--border);padding:14px 6px;text-align:center;">
+              <div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.05em;color:#8a5cf6;font-weight:600;margin-bottom:4px;">Peak</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);font-weight:300;">5,000 pts</div>
+            </div>
+            <div style="background:var(--bg-card);border:1px solid var(--border);padding:14px 6px;text-align:center;">
+              <div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.05em;color:#e0518a;font-weight:600;margin-bottom:4px;">Legend</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);font-weight:300;">15,000 pts</div>
             </div>
           </div>
-          <div style="background:rgba(205,127,50,0.08);border:1px solid rgba(205,127,50,0.2);padding:12px 16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
+          <!-- Coaches ladder -->
+          <div class="ss-tier-grid" data-aud="coach" style="display:none;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:20px;">
+            <div style="background:var(--bg-card);border:1px solid var(--border);padding:14px 6px;text-align:center;">
+              <div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.05em;color:#8a93a0;font-weight:600;margin-bottom:4px;">Certified</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);font-weight:300;">0 pts</div>
+            </div>
+            <div style="background:var(--bg-card);border:1px solid var(--border);padding:14px 6px;text-align:center;">
+              <div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.05em;color:#d8a23a;font-weight:600;margin-bottom:4px;">Pro</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);font-weight:300;">750 pts</div>
+            </div>
+            <div style="background:var(--bg-card);border:1px solid var(--border);padding:14px 6px;text-align:center;">
+              <div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.05em;color:#e0463c;font-weight:600;margin-bottom:4px;">Elite</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);font-weight:300;">2,000 pts</div>
+            </div>
+            <div style="background:var(--bg-card);border:1px solid var(--border);padding:14px 6px;text-align:center;">
+              <div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.05em;color:#8fe3e6;font-weight:600;margin-bottom:4px;">Master</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);font-weight:300;">5,000 pts</div>
+            </div>
+            <div style="background:var(--bg-card);border:1px solid var(--border);padding:14px 6px;text-align:center;">
+              <div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.05em;color:#34d6c5;font-weight:600;margin-bottom:4px;">Icon</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);font-weight:300;">15,000 pts</div>
+            </div>
+          </div>
+          <script>
+            function ssTier(aud){
+              document.querySelectorAll('.ss-tier-grid').forEach(function(g){ g.style.display = (g.getAttribute('data-aud')===aud) ? 'grid' : 'none'; });
+              document.querySelectorAll('.ss-tier-tab').forEach(function(b){ var on=(b.getAttribute('data-aud')===aud); b.style.background = on?'var(--accent)':'transparent'; b.style.color = on?'#fff':'var(--text-muted)'; b.style.borderColor = on?'var(--accent)':'var(--border)'; });
+            }
+          </script>
+          <div style="background:rgba(52,214,197,0.08);border:1px solid rgba(52,214,197,0.2);padding:12px 16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
             <span style="font-size:0.82rem;font-weight:400;">Your status</span>
-            <span style="font-size:0.82rem;font-weight:500;color:#CD7F32;text-transform:uppercase;letter-spacing:0.06em;">Bronze — 50 pts to Silver</span>
+            <span style="font-size:0.82rem;font-weight:500;color:#34d6c5;text-transform:uppercase;letter-spacing:0.06em;">Form — 2,550 pts to Peak</span>
           </div>
           <div style="background:rgba(45,212,191,0.08);border:1px solid rgba(45,212,191,0.2);padding:12px 16px;margin-bottom:20px;display:flex;align-items:center;gap:10px;">
             <span style="font-size:0.82rem;font-weight:500;color:var(--accent-dark);">You're in the top 15% this week</span>
