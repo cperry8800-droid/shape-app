@@ -1,0 +1,29 @@
+# Terrain — Member Profile (build)
+
+The TERRAIN living-identity direction, scoped to the **member / client** profile, as a mobile app.
+Full-bleed on phones, framed phone on desktop, with a **Public / Own / Private** variant toggle.
+
+## Run
+
+Open `index.html` in a browser, or serve the folder:
+
+```
+npx serve .
+```
+
+(A static server avoids any local-file CORS quirks with the JSX modules.)
+
+## Files
+
+- `index.html` — shell: fonts, React + Babel, mounts the app
+- `terrainClientApp.jsx` — app wrapper (viewport switch, variant control, mount)
+- `livingTerrain.jsx` — the Terrain profile screen
+- `livingClientHeroes.jsx` — client hero (ascent-profile header)
+- `livingShared.jsx` — design system: tiers, member data, phone chrome, helpers
+- `ios-frame.jsx` — iOS device bezel (desktop view only)
+
+## Edit
+
+- Member data lives in `LV_PEOPLE.client` in `livingShared.jsx`.
+- The profile layout is `TerrainProfile` in `livingTerrain.jsx`.
+- JSX is transpiled in-browser by Babel (no build step). For production, precompile the `.jsx` files and drop the Babel `<script>`.
