@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Shape · Chat — Signal</title>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:#0b0a08;-webkit-font-smoothing:antialiased}
+  #root{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:28px}
+  button{font-family:inherit}
+  ::-webkit-scrollbar{display:none}
+</style>
+</head><body>
+<template id="__bundler_thumbnail">
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <rect width="200" height="200" fill="#0f0e0c"/>
+  <g transform="translate(100 94)">
+    <polygon points="22,-22 22,6 -8,-8" fill="#f5f0e6"/>
+    <polygon points="-22,8 -22,36 12,13" fill="#34d6c5"/>
+    <text x="0" y="60" text-anchor="middle" font-family="Georgia, serif" font-size="22" fill="#f5f0e6">signal</text>
+  </g>
+</svg>
+</template>
+<div id="root"></div>
+
+<!-- Load order matters: kit (tokens + data) → shapeChat (shared Thread/Composer/Nav/Peek/Locked) → signalChat (the Signal screen) → tweaks -->
+<script type="text/babel" data-presets="react" src="shapeKit.jsx"></script>
+<script type="text/babel" data-presets="react" src="shapeChat.jsx"></script>
+<script type="text/babel" data-presets="react" src="signalChat.jsx"></script>
+<script type="text/babel" data-presets="react" src="tweaks-panel.jsx"></script>
+<script type="text/babel" data-presets="react">
+  const { useState } = React;
+
+  const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+    "viewer": "member",
+    "theme": "dark"
+  }/*EDITMODE-END*/;
+
+  function App() {
+    const [tk, setTweak] = useTweaks(TWEAK_DEFAULTS);
+    const t = makeTheme(tk.theme !== 'light');
+    return (
+      <React.Fragment>
+        <Phone t={t}>
+          <ChatSignal t={t} viewer={tk.viewer} />
+        </Phone>
+        <TweaksPanel title="Tweaks">
+          <TweakSection label="Viewer" />
+          <TweakRadio label="State" value={tk.viewer} options={["member", "guest"]} onChange={(v) => setTweak('viewer', v)} />
+          <TweakSection label="Theme" />
+          <TweakRadio label="Mode" value={tk.theme} options={["dark", "light"]} onChange={(v) => setTweak('theme', v)} />
+        </TweaksPanel>
+      </React.Fragment>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body></html>
