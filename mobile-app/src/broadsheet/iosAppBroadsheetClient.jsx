@@ -7415,7 +7415,9 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
           <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 }}>{eyebrow}</span>
         </div>
         <button onClick={() => !thread.group && openP(thread.who)} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: thread.group ? 'default' : 'pointer', color: 'inherit' }}>
-          <BSAvatar init={(thread.who.match(/[A-Z#]/) || ['?'])[0]} size={36} fill={thread.group ? t.INK : t.AMBER} />
+          {thread.group
+            ? <span style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 12, background: t.isLight ? 'rgba(10,143,135,0.10)' : 'rgba(52,214,197,0.12)', border: `1px solid ${teal}66`, color: teal, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 17, fontWeight: 700 }}>#</span>
+            : <BSAvatar init={bsInitials(thread.who) || (thread.who.match(/[A-Z]/) || ['?'])[0]} size={38} fill={threadColor} />}
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: t.BODY, fontSize: 18, fontWeight: 760, color: t.INK, letterSpacing: '-0.02em' }}>{thread.who}</div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{thread.role}</div>
