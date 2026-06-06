@@ -6677,99 +6677,86 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     { kind: 'pr', who: 'Tomás R.', hue: '#c0533b', city: 'Miami, FL', tier: 'PEAK', ago: '31m', body: 'Conventional, no belt. Felt like nothing.', lift: 'Deadlift', load: '405 lb', delta: '+15 lb', sets: [['WARM', '5 × 5 @ 245'], ['BUILD', '3 × 3 @ 335'], ['TOP', '1 × 1 @ 405 ✓']], kudos: 90, replies: 9 },
   ];
   const ActivityCard = ({ a }) => {
+    const tc = bsTierColor(a.tier);
+    const key = `${a.who}|${a.ago}`;
+    const liked = !!actLikes[key];
+    const comments = actComments[key] || [];
+    const cmtOpen = actCmtOpen === key;
+    const typeLabel = a.kind === 'pr' ? 'Strength' : a.kind === 'run' ? 'Run' : 'Workout';
+    const title = a.kind === 'pr' ? `${a.lift} — new PR` : a.kind === 'run' ? `${a.distance} long run` : a.title;
+    const cheer = a.kind === 'pr' ? 'Spot' : a.kind === 'run' ? 'Match' : 'Respect';
+    const stats = a.kind === 'pr' ? [['PR', a.delta], ['Load', a.load], ['Lift', a.lift]]
+      : a.kind === 'run' ? [['Distance', a.distance], ['Pace', a.pace], ['Time', a.duration]]
+      : [['Time', a.duration], ['Moves', `${a.exercises}`], ['RPE', `${a.rpe}`]];
     let chart = null;
-    if (a.kind === 'run') {
-      const max = Math.max(...a.splits), min = Math.min(...a.splits), W = 300, H = 60;
-      const pts = a.splits.map((p, i) => [(i / (a.splits.length - 1)) * W, H - ((max - p) / (max - min || 1)) * (H - 10) - 5]);
+    if (a.kind === 'run' && a.splits) {
+      const max = Math.max(...a.splits), min = Math.min(...a.splits), W = 300, H = 58;
+      const pts = a.splits.map((p, i) => [(i / (a.splits.length - 1)) * W, H - ((max - p) / (max - min || 1)) * (H - 12) - 6]);
       chart = { path: pts.map(([x, y], i) => (i === 0 ? `M ${x} ${y}` : `L ${x} ${y}`)).join(' '), pts, W, H };
     }
+    const openCardProfile = () => setOpenProfile({ who: a.who, kind: 'CLIENT', tier: a.tier, init: bsInitials(a.who), city: a.city, public: true });
     return (
-      <div style={{ borderRadius: 16, border: `1px solid ${hair}`, background: card, padding: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-          <button onClick={() => setOpenProfile({ who: a.who, kind: 'CLIENT', tier: a.tier, init: bsInitials(a.who), city: a.city })} aria-label={`View ${a.who}'s profile`} style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: a.hue, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14, letterSpacing: '0.02em', border: 0, padding: 0, cursor: 'pointer' }}>{bsInitials(a.who) || '?'}</button>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button onClick={() => setOpenProfile({ who: a.who, kind: 'CLIENT', tier: a.tier, init: bsInitials(a.who), city: a.city })} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14, color: cardInk }}>{a.who}</button>
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', color: TEALB }}>{a.tier}</span>
-            </div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, color: muted, marginTop: 3 }}>{a.city} · {a.ago} ago</div>
-          </div>
-        </div>
-        {a.body && <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: cardInk, lineHeight: 1.45, marginBottom: 12 }}>{a.body}</div>}
-        {a.kind === 'pr' && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 14, padding: 14, background: 'rgba(46,224,196,0.06)', border: '1px solid rgba(46,224,196,0.2)', borderRadius: 10 }}>
-            <div>
-              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: TEALB, fontWeight: 800 }}>NEW PR</div>
-              <div style={{ fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontSize: 26, color: cardInk, marginTop: 4, lineHeight: 1 }}>{a.delta}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, color: muted, marginTop: 6 }}>{a.lift} · {a.load}</div>
-            </div>
-            <div style={{ paddingLeft: 14, borderLeft: '1px solid rgba(46,224,196,0.18)' }}>
-              {a.sets.map(([l, line], i) => (
-                <div key={i} style={{ display: 'grid', gridTemplateColumns: '48px 1fr', gap: 8, padding: '3px 0', fontFamily: t.MONO, fontSize: 10.5 }}>
-                  <span style={{ color: muted }}>{l}</span><span style={{ color: cardInk }}>{line}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        {a.kind === 'run' && (
-          <div style={{ padding: 14, background: 'rgba(106,140,255,0.10)', border: '1px solid rgba(106,140,255,0.22)', borderRadius: 10 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: '#9ab2ff', fontWeight: 800, marginBottom: 8 }}>RUN</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, marginBottom: 10 }}>
-              {[['DIST', a.distance], ['PACE', a.pace], ['TIME', a.duration], ['ELEV', a.elev], ['HR', a.hr]].map(([l, v]) => (
-                <div key={l}><div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', color: muted }}>{l}</div><div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 12.5, color: cardInk, marginTop: 2 }}>{v}</div></div>
-              ))}
-            </div>
-            <svg viewBox={`0 0 ${chart.W} ${chart.H}`} width="100%" height="46" preserveAspectRatio="none">
-              <path d={chart.path} stroke="#9ab2ff" strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-              {chart.pts.map(([x, y], i) => <circle key={i} cx={x} cy={y} r="3" fill="#9ab2ff" />)}
-            </svg>
-          </div>
-        )}
-        {a.kind === 'workout' && (
-          <div style={{ padding: 14, background: 'rgba(247,241,230,0.04)', border: `1px solid ${hair}`, borderRadius: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10, gap: 8 }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', color: TEALB, fontWeight: 800, marginBottom: 3 }}>WORKOUT LOGGED</div>
-                <div style={{ fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 15, color: cardInk }}>{a.title}</div>
+      <div style={{ borderRadius: 18, border: `1px solid ${hair}`, background: card, overflow: 'hidden' }}>
+        <div style={{ height: 3, background: tc }} />
+        <div style={{ padding: '13px 15px 15px' }}>
+          {/* author + activity type */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginBottom: 12 }}>
+            <button onClick={openCardProfile} aria-label={`View ${a.who}'s profile`} style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 999, background: tc, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 15, border: 0, padding: 0, cursor: 'pointer' }}>{bsInitials(a.who) || '?'}</button>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <button onClick={openCardProfile} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14.5, color: cardInk, whiteSpace: 'nowrap' }}>{a.who}</button>
+                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: tc, border: `1px solid ${tc}80`, padding: '2px 5px', borderRadius: 3, lineHeight: 1 }}>{String(a.tier)}</span>
               </div>
-              <div style={{ display: 'flex', gap: 8, fontFamily: t.MONO, fontSize: 9, color: muted, flexShrink: 0 }}><span>{a.duration.toUpperCase()}</span><span>{a.exercises} EX</span><span>RPE {a.rpe}</span></div>
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: muted, marginTop: 4, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.ago} ago · {a.city}</div>
             </div>
-            {a.moves.map(([n, line], i) => (
-              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, padding: '6px 0', borderTop: i === 0 ? 'none' : `1px solid ${hair}`, fontSize: 12.5 }}>
-                <span style={{ color: cardInk }}>{n}</span><span style={{ fontFamily: t.MONO, fontSize: 10, color: muted }}>{line}</span>
+            <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff', background: tc, padding: '3px 7px', borderRadius: 5 }}>{typeLabel}</span>
+          </div>
+          {/* title + note */}
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 800, color: cardInk, letterSpacing: '-0.015em', lineHeight: 1.12 }}>{title}</div>
+          {a.body && <p style={{ fontFamily: t.BODY, fontSize: 13.5, lineHeight: 1.4, color: muted, margin: '7px 0 0' }}>{a.body}</p>}
+          {/* run splits */}
+          {chart && (
+            <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 12, background: `${tc}14`, border: `1px solid ${tc}33` }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, marginBottom: 6 }}>Splits · per mile</div>
+              <svg viewBox={`0 0 ${chart.W} ${chart.H}`} width="100%" height="46" preserveAspectRatio="none">
+                <path d={chart.path} stroke={tc} strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                {chart.pts.map(([x, y], i) => <circle key={i} cx={x} cy={y} r="3" fill={tc} />)}
+              </svg>
+            </div>
+          )}
+          {/* stat row */}
+          <div style={{ display: 'flex', marginTop: 13, paddingTop: 12, borderTop: `1px solid ${hair}` }}>
+            {stats.map(([k, v], i) => (
+              <div key={i} style={{ flex: 1, minWidth: 0, borderLeft: i ? `1px solid ${hair}` : 0, paddingLeft: i ? 12 : 0 }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>{k}</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: cardInk, marginTop: 3, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</div>
               </div>
             ))}
           </div>
-        )}
-        {(() => {
-          const key = `${a.who}|${a.ago}`;
-          const liked = !!actLikes[key];
-          const comments = actComments[key] || [];
-          const cmtOpen = actCmtOpen === key;
-          return (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 22, marginTop: 12, fontFamily: t.MONO, fontSize: 15, letterSpacing: '0.02em', color: muted }}>
-                <button onClick={() => toggleActLike(key)} style={{ background: 'transparent', border: 0, color: liked ? '#ff5a5f' : muted, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: liked ? 800 : 400, cursor: 'pointer', padding: 0 }}>{liked ? '♥' : '♡'} {(a.kudos || 0) + (liked ? 1 : 0)}</button>
-                <button onClick={() => openActComments(key, cmtOpen)} style={{ background: 'transparent', border: 0, color: cmtOpen ? TEALB : muted, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: cmtOpen ? 800 : 400, cursor: 'pointer', padding: 0 }}>↳ {(a.replies || 0) + comments.length}</button>
-              </div>
-              {cmtOpen && (
-                <div style={{ marginTop: 12, borderTop: `1px solid ${hair}`, paddingTop: 12 }}>
-                  {comments.map((c, i) => (
-                    <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                      <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: c.who === 'You' ? TEALB : muted, flexShrink: 0, marginTop: 2 }}>{c.who}</span>
-                      <span style={{ fontFamily: t.BODY, fontSize: 13, color: cardInk, lineHeight: 1.35 }}>{c.body}</span>
-                    </div>
-                  ))}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 58px', gap: 8, alignItems: 'center', marginTop: comments.length ? 4 : 0 }}>
-                    <input value={actCmtDraft} onChange={(e) => setActCmtDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendActComment(key); }} placeholder="Message…" style={{ minWidth: 0, height: 38, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 14px', fontFamily: t.BODY, fontSize: 14, color: t.INK, outline: 'none', letterSpacing: '-0.005em' }} />
-                    <button onClick={() => sendActComment(key)} disabled={!actCmtDraft.trim()} style={{ height: 38, border: 0, borderRadius: 999, background: actCmtDraft.trim() ? t.ACCENT : t.SURFACE, color: actCmtDraft.trim() ? '#031f1c' : t.INK50, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, cursor: actCmtDraft.trim() ? 'pointer' : 'default', opacity: actCmtDraft.trim() ? 1 : 0.86 }}>Send</button>
-                  </div>
+          {/* verified + engagement */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 13 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginRight: 'auto', fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: TEALB, fontWeight: 800 }}>
+              <span style={{ display: 'inline-flex', width: 12, height: 12, borderRadius: 6, border: `1px solid ${TEALB}`, alignItems: 'center', justifyContent: 'center', fontSize: 7 }}>✓</span>Verified
+            </span>
+            <button onClick={() => toggleActLike(key)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', borderRadius: 999, padding: '7px 13px', background: liked ? tc : 'transparent', color: liked ? '#fff' : muted, border: `1px solid ${liked ? tc : hair}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>↑ {cheer} · {(a.kudos || 0) + (liked ? 1 : 0)}</button>
+            <button onClick={() => openActComments(key, cmtOpen)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', borderRadius: 999, padding: '7px 12px', background: cmtOpen ? `${TEALB}1f` : 'transparent', color: cmtOpen ? TEALB : muted, border: `1px solid ${cmtOpen ? TEALB : hair}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>↳ {(a.replies || 0) + comments.length}</button>
+          </div>
+          {/* comments */}
+          {cmtOpen && (
+            <div style={{ marginTop: 12, borderTop: `1px solid ${hair}`, paddingTop: 12 }}>
+              {comments.map((c, i) => (
+                <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: c.who === 'You' ? TEALB : muted, flexShrink: 0, marginTop: 2 }}>{c.who}</span>
+                  <span style={{ fontFamily: t.BODY, fontSize: 13, color: cardInk, lineHeight: 1.35 }}>{c.body}</span>
                 </div>
-              )}
-            </>
-          );
-        })()}
+              ))}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 58px', gap: 8, alignItems: 'center', marginTop: comments.length ? 4 : 0 }}>
+                <input value={actCmtDraft} onChange={(e) => setActCmtDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendActComment(key); }} placeholder="Message…" style={{ minWidth: 0, height: 38, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 14px', fontFamily: t.BODY, fontSize: 14, color: t.INK, outline: 'none', letterSpacing: '-0.005em' }} />
+                <button onClick={() => sendActComment(key)} disabled={!actCmtDraft.trim()} style={{ height: 38, border: 0, borderRadius: 999, background: actCmtDraft.trim() ? t.ACCENT : t.SURFACE, color: actCmtDraft.trim() ? '#031f1c' : t.INK50, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, cursor: actCmtDraft.trim() ? 'pointer' : 'default', opacity: actCmtDraft.trim() ? 1 : 0.86 }}>Send</button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     );
   };
@@ -7051,8 +7038,23 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           </div>
 
           {filter === 'COMMUNITY' ? (
-            <div style={{ padding: `14px ${t.padX}px 84px`, display: 'flex', flexDirection: 'column', gap: postsLive ? 13 : 14 }}>
-              {postsLive ? posts.map(renderPost) : (loggedIn ? null : COMMUNITY_ACTIVITIES.map((a, i) => <ActivityCard key={i} a={a} />))}
+            <div style={{ padding: `14px ${t.padX}px 84px`, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {(() => {
+                // Signal blend: the COMMUNITY feed is a Strava-style activity
+                // stream (demo workouts) interleaved with real community posts.
+                // Activity cards are illustrative for now (wire to real workout
+                // logs later); posts stay live + fully wired.
+                const postList = postsLive ? posts : (loggedIn ? [] : posts);
+                const out = [];
+                let ai = 0;
+                postList.forEach((p, i) => {
+                  out.push(renderPost(p, i));
+                  // Drop an activity card in after every couple of posts.
+                  if (i % 2 === 1 && ai < COMMUNITY_ACTIVITIES.length) { out.push(<ActivityCard key={`act-${ai}`} a={COMMUNITY_ACTIVITIES[ai]} />); ai++; }
+                });
+                while (ai < COMMUNITY_ACTIVITIES.length) { out.push(<ActivityCard key={`act-${ai}`} a={COMMUNITY_ACTIVITIES[ai]} />); ai++; }
+                return out;
+              })()}
             </div>
           ) : (
           <div style={{ padding: `10px ${t.padX}px 84px`, display: 'flex', flexDirection: 'column', gap: 13 }}>
