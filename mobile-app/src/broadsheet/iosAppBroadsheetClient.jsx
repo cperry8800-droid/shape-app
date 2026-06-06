@@ -6933,8 +6933,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             const color = _chPalette[(ch.name || '').length % _chPalette.length];
             const isSample = String(ch.id || '').startsWith('sample');
             return (
-              <div key={ch.id} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 42px 9px 10px', borderRadius: 12, border: `1px solid ${hair}`, background: card }}>
-                <div style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14 }}>#</div>
+              <div key={ch.id} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 11, padding: '11px 42px 11px 12px', borderRadius: 16, border: `1px solid ${hair}`, background: card }}>
+                <div style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 12, background: t.isLight ? 'rgba(10,143,135,0.10)' : 'rgba(52,214,197,0.12)', border: `1px solid ${TEALB}66`, color: TEALB, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 18, fontWeight: 700 }}>#</div>
                 <button onClick={() => ch.joined ? openChannelNow(ch) : joinChannelNow(ch)} style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, textAlign: 'left', cursor: 'pointer', color: cardInk }}>
                   <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 14 }}># {ch.name}{ch.private &&<span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', color: muted, marginLeft: 8 }}>🔒 PRIVATE</span>}{ch.isHost && <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', color: TEALB, marginLeft: 8 }}>HOST</span>}</div>
                   <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, marginTop: 2 }}>{ch.memberCount} member{ch.memberCount === 1 ? '' : 's'}{ch.last ? ` · ${ch.last.slice(0, 26)}` : ''}</div>
