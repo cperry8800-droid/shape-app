@@ -6802,6 +6802,20 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     );
   }
 
+  // "Training now" presence rail (Signal redesign). Illustrative for now — the
+  // app has a live online *count* but not per-person current-activity, so this
+  // is demo data wired through the real tier-color helpers; swap `TRAINING_NOW`
+  // for a live presence feed when the backend exposes who's-doing-what.
+  const TRAINING_NOW = [
+    { name: 'Priya Shah',   doing: 'Pull · set 14',   tier: 'peak' },
+    { name: 'Drew Oyelaran', doing: 'Tempo run',      tier: 'legend' },
+    { name: 'Casey Morgan', doing: 'Back squat 5×5',  tier: 'form' },
+    { name: 'Devon Wells',  doing: 'Zone 2',          tier: 'tempo' },
+    { name: 'Maya Okafor',  doing: 'Coaching floor',  tier: 'legend' },
+    { name: 'Sofia Park',   doing: 'Mobility',        tier: 'base' },
+  ];
+  const liftingNow = online > 0 ? online : 2104;
+
   return (
     <BSPage>
       <BSMasthead
@@ -6815,6 +6829,31 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         noRule
         trailing={<BSAvatar init={bsMyInitials()} size={32} fill={bsMyTierColor()} onClick={onProfile} />}
       />
+
+      {/* Live "training now" presence rail — Feed tab only */}
+      {tab === 'feed' && (
+        <div style={{ padding: `2px ${t.padX}px 4px` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9 }}>
+            <span style={{ width: 6, height: 6, borderRadius: 3, background: TEAL, boxShadow: `0 0 0 3px ${TEAL}33` }} />
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{liftingNow.toLocaleString()} lifting now · near you</span>
+          </div>
+          <div className="bs-scroll" style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 2 }}>
+            {TRAINING_NOW.map((p, i) => {
+              const tc = bsTierColor(p.tier);
+              return (
+                <button key={i} onClick={() => setOpenProfile({ who: p.name, kind: 'CLIENT', tier: p.tier, public: true })} style={{ flex: '0 0 auto', width: 54, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'center' }}>
+                  <span style={{ position: 'relative', display: 'inline-flex' }}>
+                    <span style={{ width: 46, height: 46, borderRadius: 999, background: tc, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 16, letterSpacing: '0.02em' }}>{bsInitials(p.name)}</span>
+                    <span style={{ position: 'absolute', right: 1, top: 1, width: 11, height: 11, borderRadius: 999, background: TEAL, border: `2px solid ${t.PAPER}` }} />
+                  </span>
+                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, marginTop: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: cardInk }}>{p.name.split(' ')[0]}</span>
+                  <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 7, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.doing}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Feed / Messages / Teams */}
       <div style={{ padding: `10px ${t.padX}px 0` }}>
