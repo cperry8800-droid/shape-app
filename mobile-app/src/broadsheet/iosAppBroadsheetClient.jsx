@@ -6072,6 +6072,12 @@ const BS_SAMPLE_COACH_DMS = {
   ],
 };
 const BS_SAMPLE_CHANNELS = [
+  { id: 'sample-block3', name: 'strength-block-3', description: 'Week 9 · peaking. Top-set check-ins.', memberCount: 412, online: 38, joined: true, isHost: false, private: false, pinned: false, live: true, last: 'Top set check-in: 245×3 @ RPE 8', messages: [
+    { who: 'Priya Shah', tier: 'peak', t: 'Top set check-in: 245×3 @ RPE 8. Leaving Block 3 happy.', time: '9:04a', me: false },
+    { who: 'Maya Okafor', tier: 'legend', coach: true, role: 'trainer', t: "That's the strongest the group has looked all block. Whoever's on day 4 — keep the back-offs honest.", time: '9:12a', me: false },
+    { who: 'Casey Morgan', tier: 'form', t: 'On it. 5×5 @ 185 then mobility.', time: '9:20a', me: false },
+    { who: 'You', t: "Spotting Priya's PR — same scheme tomorrow, wish me luck.", time: '9:24a', me: true },
+  ] },
   { id: 'sample-shapehq', name: 'Shape HQ', description: '', memberCount: 2841, joined: true, isHost: false, private: false, pinned: false, last: 'Shape HQ updates', messages: [
     { who: 'Shape', t: '👋 Welcome to Shape HQ — product news, drops, and events live here.', time: 'Mon', me: false },
     { who: 'Shape', t: 'New this week: save a coach playlist straight to your own Spotify.', time: 'Tue', me: false },
@@ -6671,10 +6677,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // "Today on Shape" community page): real workouts logged by members, with
   // the actual stats — PRs, runs with splits, logged sessions.
   const COMMUNITY_ACTIVITIES = [
-    { kind: 'pr', who: 'Marcus J.', hue: '#147b68', city: 'Brooklyn, NY', tier: 'TEMPO', ago: '2m', body: 'Eight months in. First time the bar moved this clean.', lift: 'Bench Press', load: '225 lb', delta: '+10 lb', sets: [['1', '5 × 5 @ 185'], ['2', '3 × 3 @ 205'], ['TOP', '1 × 5 @ 225 ✓']], kudos: 142, replies: 18 },
-    { kind: 'run', who: 'Diego A.', hue: '#2e6fa0', city: 'Austin, TX', tier: 'FORM', ago: '6m', body: 'Easy long. Brooklyn Half is Sunday — taper feels good.', distance: '8.4 mi', pace: '7:42/mi', duration: '1h 04m', elev: '+412 ft', hr: '152 avg', splits: [7.8, 7.6, 7.7, 7.4, 7.5, 7.8, 7.6, 7.9], kudos: 64, replies: 5 },
-    { kind: 'workout', who: 'Elena R.', hue: '#8a5cf6', city: 'London, UK', tier: 'PEAK', ago: '11m', body: 'Squats felt locked in today. RPE 8 across the board, no missed reps.', title: 'Lower strength · Block 3', duration: '52 min', exercises: 6, rpe: 8.5, moves: [['Back squat', '5 × 5 @ 185 lb'], ['RDL', '4 × 8 @ 155 lb'], ['Lunge', '3 × 12 ea'], ['Leg curl', '3 × 12']], kudos: 38, replies: 4 },
-    { kind: 'pr', who: 'Tomás R.', hue: '#c0533b', city: 'Miami, FL', tier: 'PEAK', ago: '31m', body: 'Conventional, no belt. Felt like nothing.', lift: 'Deadlift', load: '405 lb', delta: '+15 lb', sets: [['WARM', '5 × 5 @ 245'], ['BUILD', '3 × 3 @ 335'], ['TOP', '1 × 1 @ 405 ✓']], kudos: 90, replies: 9 },
+    { kind: 'pr', who: 'Priya Shah', city: 'Gold St. Barbell · NYC', tier: 'PEAK', ago: '6m', body: 'Block 3 paying off. Felt like there was a 4th in the tank.', lift: 'Deadlift', topset: '1×3', load: '245 lb', e1rm: '268 lb', kudos: 41, replies: 6 },
+    { kind: 'run', who: 'Drew Oyelaran', city: 'East River Loop · NYC', tier: 'LEGEND', ago: '34m', body: 'Last long run before taper. Negative split the back 6.', distance: '18.2 mi', pace: '8:42/mi', duration: '2:38', elev: '540 ft', route: true, kudos: 28, replies: 4 },
+    { kind: 'workout', who: 'Casey Morgan', city: 'Shape · Brooklyn', tier: 'FORM', ago: '1h', body: 'Squats felt locked in. RPE 8 across the board, no missed reps.', title: 'Lower strength · Block 3', duration: '52 min', exercises: 6, rpe: 8.5, kudos: 38, replies: 4 },
+    { kind: 'pr', who: 'Devon Wells', city: 'Iron House · Chicago', tier: 'TEMPO', ago: '2h', body: 'Eight months in. First time the bar moved this clean.', lift: 'Bench Press', topset: '1×5', load: '225 lb', e1rm: '253 lb', kudos: 142, replies: 18 },
+    { kind: 'run', who: 'Sofia Park', city: 'Prospect Park · NYC', tier: 'BASE', ago: '3h', body: 'Easy Zone 2. Kept it conversational the whole way.', distance: '5.1 mi', pace: '9:30/mi', duration: '48:27', elev: '180 ft', route: true, kudos: 17, replies: 3 },
+    { kind: 'workout', who: 'Maya Okafor', city: 'Shape · coaching floor', tier: 'LEGEND', ago: '4h', body: 'Demo day with the strength group. Everyone left with a PR attempt logged.', title: 'Coaching floor · group lift', duration: '60 min', exercises: 5, rpe: 7, kudos: 64, replies: 9 },
   ];
   const ActivityCard = ({ a }) => {
     const tc = bsTierColor(a.tier);
@@ -6685,15 +6693,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     const typeLabel = a.kind === 'pr' ? 'Strength' : a.kind === 'run' ? 'Run' : 'Workout';
     const title = a.kind === 'pr' ? `${a.lift} — new PR` : a.kind === 'run' ? `${a.distance} long run` : a.title;
     const cheer = a.kind === 'pr' ? 'Spot' : a.kind === 'run' ? 'Match' : 'Respect';
-    const stats = a.kind === 'pr' ? [['PR', a.delta], ['Load', a.load], ['Lift', a.lift]]
+    const stats = a.kind === 'pr' ? [['Top set', a.topset], ['Load', a.load], ['Est. 1RM', a.e1rm]]
       : a.kind === 'run' ? [['Distance', a.distance], ['Pace', a.pace], ['Time', a.duration]]
       : [['Time', a.duration], ['Moves', `${a.exercises}`], ['RPE', `${a.rpe}`]];
-    let chart = null;
-    if (a.kind === 'run' && a.splits) {
-      const max = Math.max(...a.splits), min = Math.min(...a.splits), W = 300, H = 58;
-      const pts = a.splits.map((p, i) => [(i / (a.splits.length - 1)) * W, H - ((max - p) / (max - min || 1)) * (H - 12) - 6]);
-      chart = { path: pts.map(([x, y], i) => (i === 0 ? `M ${x} ${y}` : `L ${x} ${y}`)).join(' '), pts, W, H };
-    }
+    const showRoute = a.kind === 'run';
     const openCardProfile = () => setOpenProfile({ who: a.who, kind: 'CLIENT', tier: a.tier, init: bsInitials(a.who), city: a.city, public: true });
     return (
       <div style={{ borderRadius: 18, border: `1px solid ${hair}`, background: card, overflow: 'hidden' }}>
@@ -6714,14 +6717,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           {/* title + note */}
           <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 800, color: cardInk, letterSpacing: '-0.015em', lineHeight: 1.12 }}>{title}</div>
           {a.body && <p style={{ fontFamily: t.BODY, fontSize: 13.5, lineHeight: 1.4, color: muted, margin: '7px 0 0' }}>{a.body}</p>}
-          {/* run splits */}
-          {chart && (
-            <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 12, background: `${tc}14`, border: `1px solid ${tc}33` }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, marginBottom: 6 }}>Splits · per mile</div>
-              <svg viewBox={`0 0 ${chart.W} ${chart.H}`} width="100%" height="46" preserveAspectRatio="none">
-                <path d={chart.path} stroke={tc} strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                {chart.pts.map(([x, y], i) => <circle key={i} cx={x} cy={y} r="3" fill={tc} />)}
-              </svg>
+          {/* GPS route map (runs) — halftone dot grid in the member's tier color */}
+          {showRoute && (
+            <div style={{ position: 'relative', marginTop: 12, height: 104, borderRadius: 12, overflow: 'hidden', border: `1px solid ${tc}33`, background: `radial-gradient(circle at 30% 30%, ${tc}cc 0 1.3px, transparent 1.7px) 0 0/9px 9px, linear-gradient(135deg, ${tc}3a, ${tc}12)` }}>
+              <span style={{ position: 'absolute', left: 10, bottom: 8, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#fff', background: 'rgba(0,0,0,0.45)', padding: '3px 6px', borderRadius: 3 }}>GPS route</span>
             </div>
           )}
           {/* stat row */}
@@ -7053,22 +7052,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
 
           {filter === 'COMMUNITY' ? (
             <div style={{ padding: `14px ${t.padX}px 84px`, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {(() => {
-                // Signal blend: the COMMUNITY feed is a Strava-style activity
-                // stream (demo workouts) interleaved with real community posts.
-                // Activity cards are illustrative for now (wire to real workout
-                // logs later); posts stay live + fully wired.
-                const postList = postsLive ? posts : (loggedIn ? [] : posts);
-                const out = [];
-                let ai = 0;
-                postList.forEach((p, i) => {
-                  out.push(renderPost(p, i));
-                  // Drop an activity card in after every couple of posts.
-                  if (i % 2 === 1 && ai < COMMUNITY_ACTIVITIES.length) { out.push(<ActivityCard key={`act-${ai}`} a={COMMUNITY_ACTIVITIES[ai]} />); ai++; }
-                });
-                while (ai < COMMUNITY_ACTIVITIES.length) { out.push(<ActivityCard key={`act-${ai}`} a={COMMUNITY_ACTIVITIES[ai]} />); ai++; }
-                return out;
-              })()}
+              {/* Community feed is a Strava-style activity stream — just workouts.
+                  Illustrative for now; wire to real workout/run/PR logs later. */}
+              {COMMUNITY_ACTIVITIES.map((a, i) => <ActivityCard key={`act-${i}`} a={a} />)}
             </div>
           ) : (
           <div style={{ padding: `10px ${t.padX}px 84px`, display: 'flex', flexDirection: 'column', gap: 13 }}>
@@ -7452,7 +7438,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
           // read their OWN ladder (Certified/Pro/Elite/Master/Icon + coach colors);
           // members read the client ladder. Tier color is the social texture.
           const senderName = m.who || thread.who;
-          const senderClientTier = bsPostTier({ who: senderName });
+          const senderClientTier = m.tier ? m.tier : bsPostTier({ who: senderName });
           const isCoachSender = !!m.coach || bsIsCoachRole(m.role) || (threadIsCoach && senderName === thread.who);
           const senderTierLabel = isCoachSender ? bsCoachTier(senderClientTier) : senderClientTier;
           const senderTC = isCoachSender ? coachTint(senderClientTier) : bsTierColor(senderClientTier);
