@@ -153,8 +153,8 @@ function ScoreTiers() {
           <div style={{ position: "relative", padding: "40px 0" }}>
             <div style={{ position: "absolute", left: 0, right: 0, top: "50%", height: 2, background: "rgba(242,237,228,0.12)", transform: "translateY(-50%)" }} />
             <div style={{ position: "absolute", left: 0, top: "50%", height: 2, background: `linear-gradient(90deg, ${TEAL}, ${TEAL_BRIGHT})`, transform: "translateY(-50%)", width: `${(SCORE_TOTAL / 15000) * 100}%` }} />
-            <div style={{ display: "grid", gridTemplateColumns: `repeat(${TIERS.length}, 1fr)`, position: "relative" }}>
-              {TIERS.map((t, i) => {
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(${tiers.length}, 1fr)`, position: "relative" }}>
+              {tiers.map((t, i) => {
                 const reached = SCORE_TOTAL >= t.min;
                 const current = t.current;
                 return (
