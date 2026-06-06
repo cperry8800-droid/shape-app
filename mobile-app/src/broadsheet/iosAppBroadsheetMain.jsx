@@ -677,6 +677,13 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
       if (result?.needsEmailConfirmation) { setVerifyEmail(result.email || trimmedEmail); return; }
       const nextRole = result?.profile?.role;
       if (nextRole && nextRole !== role) setRole(nextRole);
+      // New accounts must take the $5/mo membership — go straight to Stripe
+      // checkout. On a successful redirect we never return here; if checkout
+      // can't start, fall through into the app (the gate shows the paywall so
+      // they can still Activate). Coaches are members by role — skip checkout.
+      if (isCreate && role !== 'trainer' && role !== 'nutritionist') {
+        await bsmStartCheckout();
+      }
       onLogin(result);
     } catch (error) {
       setAuthError(error?.message || 'Unable to sign in.');
@@ -1164,11 +1171,11 @@ function BSAppShell({ tweaks, setTweak }) {
   // the paywall to look around behind a persistent Join banner.
   const realRole = authState?.profile?.role;
   const isApprovedCoach = realRole === 'trainer' || realRole === 'nutritionist';
-  // Any signed-in account gets full app access — the paywall/preview gates only
-  // signed-OUT visitors. (Paid features stay enforced server-side per endpoint.)
-  const signedInUser = !!(authState?.user?.id);
-  const memberAllowed = isApprovedCoach || membership.active === true || signedInUser;
-  const memberGateLoading = !isApprovedCoach && !signedInUser && (!authReady || membership.loading);
+  // Members-only: an account needs an active $5/mo subscription (or be an
+  // approved coach). New signups are routed through checkout (see submitAuth),
+  // so a paid account = full access; an unpaid one stays on the paywall.
+  const memberAllowed = isApprovedCoach || membership.active === true;
+  const memberGateLoading = !isApprovedCoach && (!authReady || membership.loading);
 
   // The membership wall ('gate') sits between the cosmos splash and the "Shape
   // Daily" editorial splash: non-members see the paywall here; members auto-
