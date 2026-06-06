@@ -506,10 +506,10 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.32em', color: t.INK50, textTransform: 'uppercase' }}>★ Featured</div>
           <div style={{ marginTop: 8, paddingTop: 12, paddingBottom: 12, borderTop: `1px solid ${t.INK}`, borderBottom: `1px solid ${t.INK}` }}>
             <div className="bs-splash-title" style={{ lineHeight: 1, width: '100%', margin: '0 auto', textAlign: 'center', paddingBottom: 12, borderBottom: `3px solid ${t.INK}` }}>
-              <span style={{ display: 'block', whiteSpace: 'nowrap', width: '100%', lineHeight: 1 }}>
-                <span className="bs-splash-the" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>The</span>
-                <img className="bs-splash-shape" src={`${import.meta.env.BASE_URL}shape-wordmark-tight.png`} alt="Shape" style={{ display: 'inline-block', width: '42%', height: 'auto', marginLeft: 4, marginRight: 6, verticalAlign: 'middle' }} />
-                <span className="bs-splash-daily" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 31, letterSpacing: '-0.055em' }}>Daily.</span>
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%', lineHeight: 1 }}>
+                <span className="bs-splash-the" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 30, letterSpacing: '-0.055em', flexShrink: 0 }}>The</span>
+                <img className="bs-splash-shape" src={`${import.meta.env.BASE_URL}shape-wordmark-tight.png`} alt="Shape" style={{ height: 21, width: 'auto', flexShrink: 0, display: 'block' }} />
+                <span className="bs-splash-daily" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 30, letterSpacing: '-0.055em', flexShrink: 0 }}>Daily.</span>
               </span>
             </div>
             <div style={{ fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, marginTop: 18 }}>Today's edition · <span style={{ fontWeight: 700, color: t.INK }}>{dateLine}</span></div>
