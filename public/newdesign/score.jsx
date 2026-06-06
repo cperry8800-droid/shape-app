@@ -42,6 +42,16 @@ const TIERS = [
   { name: "Legend", min: 15000, color: "#0ac5a8",                desc: "Annual Shape merch + service credit" },
 ];
 
+// Coaches climb the same 5 rungs under their own names (scheme J) with the
+// coach color ramp — teal (the logo color) crowns the ladder at Icon.
+const TIERS_COACH = [
+  { name: "Certified", min: 0,     color: "rgba(242,237,228,0.45)", desc: "Verified Shape coach" },
+  { name: "Pro",       min: 750,   color: "#d8a23a", current: true, desc: "2× redemption value" },
+  { name: "Elite",     min: 2000,  color: "#e0463c",                desc: "Featured placement + early drops" },
+  { name: "Master",    min: 5000,  color: "#8fe3e6",                desc: "Priority marketplace + perks" },
+  { name: "Icon",      min: 15000, color: "#0ac5a8",                desc: "Top 1% — annual credit + merch" },
+];
+
 const SC_RPR = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 function ScReveal({ children, delay = 0, style = {} }) {
@@ -114,14 +124,32 @@ function ScoreHero() {
 }
 
 function ScoreTiers() {
+  const [aud, setAud] = useSScore("client");
+  const tiers = aud === "coach" ? TIERS_COACH : TIERS;
   return (
     <section style={{ padding: "70px 72px" }}>
       <ScReveal>
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
           <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL, marginBottom: 18 }}>Tiers</div>
-          <h2 style={{ fontFamily: serif, fontSize: "clamp(36px, 5vw, 60px)", letterSpacing: "-0.035em", fontWeight: 300, margin: "0 0 44px", lineHeight: 1 }}>
-            You're <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>{TIER}</em>. {POINTS_TO_NEXT.toLocaleString()} to {NEXT_TIER}.
+          <h2 style={{ fontFamily: serif, fontSize: "clamp(36px, 5vw, 60px)", letterSpacing: "-0.035em", fontWeight: 300, margin: "0 0 28px", lineHeight: 1 }}>
+            {aud === "coach"
+              ? <>Coaches climb <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>their own</em> ladder.</>
+              : <>You're <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>{TIER}</em>. {POINTS_TO_NEXT.toLocaleString()} to {NEXT_TIER}.</>}
           </h2>
+          {/* Audience toggle — Members vs Coaches ladder */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 40 }}>
+            {[["client", "Members"], ["coach", "Coaches"]].map(([k, l]) => {
+              const on = aud === k;
+              return (
+                <button key={k} onClick={() => setAud(k)} style={{
+                  cursor: "pointer", fontFamily: mono, fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", fontWeight: 600,
+                  padding: "10px 22px", borderRadius: 999,
+                  border: `1px solid ${on ? TEAL : "rgba(242,237,228,0.22)"}`,
+                  background: on ? TEAL : "transparent", color: on ? "#04201d" : "rgba(242,237,228,0.7)",
+                }}>{l}</button>
+              );
+            })}
+          </div>
           <div style={{ position: "relative", padding: "40px 0" }}>
             <div style={{ position: "absolute", left: 0, right: 0, top: "50%", height: 2, background: "rgba(242,237,228,0.12)", transform: "translateY(-50%)" }} />
             <div style={{ position: "absolute", left: 0, top: "50%", height: 2, background: `linear-gradient(90deg, ${TEAL}, ${TEAL_BRIGHT})`, transform: "translateY(-50%)", width: `${(SCORE_TOTAL / 15000) * 100}%` }} />
