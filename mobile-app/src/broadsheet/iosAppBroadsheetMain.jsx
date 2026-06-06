@@ -508,7 +508,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
             <div className="bs-splash-title" style={{ lineHeight: 1, width: '100%', margin: '0 auto', textAlign: 'center', paddingBottom: 12, borderBottom: `3px solid ${t.INK}` }}>
               <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%', lineHeight: 1 }}>
                 <span className="bs-splash-the" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 30, letterSpacing: '-0.055em', flexShrink: 0 }}>The</span>
-                <img className="bs-splash-shape" src={`${import.meta.env.BASE_URL}shape-wordmark-tight.png`} alt="Shape" style={{ height: 21, width: 'auto', flexShrink: 0, display: 'block' }} />
+                <img className="bs-splash-shape" src={`${import.meta.env.BASE_URL}shape-wordmark-tight.png`} alt="Shape" style={{ height: 21, width: 'auto', flexShrink: 0, display: 'block', transform: 'translateY(-3px)' }} />
                 <span className="bs-splash-daily" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 30, letterSpacing: '-0.055em', flexShrink: 0 }}>Daily.</span>
               </span>
             </div>
