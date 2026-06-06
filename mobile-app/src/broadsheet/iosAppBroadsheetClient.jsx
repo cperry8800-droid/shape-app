@@ -6930,20 +6930,29 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           const active = selectors.find(s => s.key === teamsSel) || selectors[0];
           const _chPalette = ['#147b68', '#c0533b', '#a07a2e', '#2e6fa0', '#8a5cf6'];
           const chRow = (ch) => {
-            const color = _chPalette[(ch.name || '').length % _chPalette.length];
             const isSample = String(ch.id || '').startsWith('sample');
+            const blurb = ch.description || ch.last || '';
             return (
-              <div key={ch.id} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 11, padding: '11px 42px 11px 12px', borderRadius: 16, border: `1px solid ${hair}`, background: card }}>
-                <div style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 12, background: t.isLight ? 'rgba(10,143,135,0.10)' : 'rgba(52,214,197,0.12)', border: `1px solid ${TEALB}66`, color: TEALB, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 18, fontWeight: 700 }}>#</div>
-                <button onClick={() => ch.joined ? openChannelNow(ch) : joinChannelNow(ch)} style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, textAlign: 'left', cursor: 'pointer', color: cardInk }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 14 }}># {ch.name}{ch.private &&<span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', color: muted, marginLeft: 8 }}>🔒 PRIVATE</span>}{ch.isHost && <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', color: TEALB, marginLeft: 8 }}>HOST</span>}</div>
-                  <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, marginTop: 2 }}>{ch.memberCount} member{ch.memberCount === 1 ? '' : 's'}{ch.last ? ` · ${ch.last.slice(0, 26)}` : ''}</div>
-                </button>
-                {unreadBadge('ch:' + ch.id)}
-                <button onClick={() => pinChannelNow(ch)} aria-label={ch.pinned ? 'Unpin' : 'Pin'} title={ch.pinned ? 'Unpin' : 'Pin to top'} style={{ position: 'absolute', top: 7, right: 7, zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, border: 0, background: 'transparent', cursor: 'pointer', padding: 0, opacity: ch.pinned ? 1 : 0.4 }}><PinIcon filled={ch.pinned} size={18} /></button>
-                {ch.isHost && !isSample && <button onClick={() => { setAddMemberFor(ch); setMemberQuery(''); setMemberResults([]); }} style={{ flexShrink: 0, padding: '7px 11px', borderRadius: 999, background: 'transparent', color: cardInk, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Add</button>}
-                {!ch.joined && <button onClick={() => joinChannelNow(ch)} style={{ flexShrink: 0, padding: '7px 13px', borderRadius: 999, background: TEAL, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Join</button>}
-                {ch.joined && <span style={{ color: muted, fontSize: 16, flexShrink: 0 }}>›</span>}
+              <div key={ch.id} style={{ position: 'relative', borderRadius: 16, border: `1px solid ${hair}`, background: card, padding: '13px 14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+                  <div style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 12, background: t.isLight ? 'rgba(10,143,135,0.10)' : 'rgba(52,214,197,0.12)', border: `1px solid ${TEALB}66`, color: TEALB, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 18, fontWeight: 700 }}>#</div>
+                  <button onClick={() => ch.joined ? openChannelNow(ch) : joinChannelNow(ch)} style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, textAlign: 'left', cursor: 'pointer', color: cardInk, padding: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+                      <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15.5, letterSpacing: '-0.01em' }}>#{ch.name}</span>
+                      {ch.live && <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.12em', color: '#e0518a', border: '1px solid #e0518a', padding: '1px 4px', borderRadius: 3 }}>LIVE</span>}
+                      {ch.private && <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', color: muted }}>🔒 PRIVATE</span>}
+                      {ch.isHost && <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', color: TEALB }}>HOST</span>}
+                    </div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: muted, marginTop: 4 }}>{ch.memberCount} member{ch.memberCount === 1 ? '' : 's'}{ch.online ? ` · ${ch.online} online` : ''}</div>
+                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    {unreadBadge('ch:' + ch.id)}
+                    <button onClick={() => pinChannelNow(ch)} aria-label={ch.pinned ? 'Unpin' : 'Pin'} title={ch.pinned ? 'Unpin' : 'Pin to top'} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, border: 0, background: 'transparent', cursor: 'pointer', padding: 0, opacity: ch.pinned ? 1 : 0.4 }}><PinIcon filled={ch.pinned} size={18} /></button>
+                    {ch.isHost && !isSample && <button onClick={() => { setAddMemberFor(ch); setMemberQuery(''); setMemberResults([]); }} style={{ padding: '6px 10px', borderRadius: 999, background: 'transparent', color: cardInk, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Add</button>}
+                    <button onClick={() => ch.joined ? openChannelNow(ch) : joinChannelNow(ch)} style={{ padding: '7px 13px', borderRadius: 999, background: ch.joined ? t.INK : TEAL, color: ch.joined ? t.PAPER : '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{ch.joined ? 'Open' : 'Join'}</button>
+                  </div>
+                </div>
+                {blurb && <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, color: muted, lineHeight: 1.35, marginTop: 10, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{blurb}</div>}
               </div>
             );
           };
