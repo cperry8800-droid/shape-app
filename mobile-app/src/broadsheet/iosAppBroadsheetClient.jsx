@@ -6873,11 +6873,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             return (
               <button key={i} onClick={() => { window.ShapeUnread?.markConversationRead?.(f.conversation_id); setOpenChat(f); }} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 11, alignItems: 'center', padding: '10px 2px', borderBottom: isLast ? 0 : `1px solid ${t.isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.045)'}`, background: 'transparent', border: 0, color: cardInk, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
                 <span style={{ position: 'relative', flexShrink: 0, display: 'inline-flex' }}>
-                  <span style={{ width: 40, height: 40, borderRadius: 999, background: f.c, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 15 }}>{f.i}</span>
-                  {online && <span style={{ position: 'absolute', right: 0, bottom: 1, width: 11, height: 11, borderRadius: 999, background: '#3ddc97', border: `2px solid ${t.PAPER}` }} />}
+                  <span style={{ width: 46, height: 46, borderRadius: 999, background: f.c, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 16, letterSpacing: '0.01em' }}>{bsInitials(f.n) || f.i}</span>
+                  {online && <span style={{ position: 'absolute', right: 1, bottom: 1, width: 12, height: 12, borderRadius: 999, background: '#3ddc97', border: `2px solid ${t.PAPER}` }} />}
                 </span>
                 <span style={{ minWidth: 0, display: 'block' }}>
-                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 14.5, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.n}</span>
+                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.n}</span>
                   {f.s && <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, fontWeight: 700, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.s}</span>}
                   {last && <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 12.5, color: count > 0 ? cardInk : muted, marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{last}</span>}
                 </span>
