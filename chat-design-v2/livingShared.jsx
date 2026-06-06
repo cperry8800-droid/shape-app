@@ -1,208 +1,349 @@
-// ═══════════════════════════════════════════════════════════════
-// CLIENT HERO DESIGNS — a distinct signature object per direction so a
-// member reads completely differently from a coach at first glance.
-//   SIGNAL    → live vitals / ECG cardiograph monitor
-//   TERRAIN   → side-view ascent profile ("you are here")
-//   FRONT     → taped-polaroid training journal
-//   PASS      → race bib
-// Each takes { d, owner, locked, reduced, light }. Depends on livingShared.
-// ═══════════════════════════════════════════════════════════════
+// @ds-adherence-ignore -- omelette starter scaffold (raw elements/hex/px by design)
 
-// shared: name + identity line (compact)
-function ClientId({ d, ink, align = "left", reduced }) {
+/* BEGIN USAGE */
+// iOS.jsx — Simplified iOS 26 (Liquid Glass) device frame
+// Based on the iOS 26 UI Kit + Figma status bar spec. No assets, no deps.
+// Exports (to window): IOSDevice, IOSStatusBar, IOSNavBar, IOSGlassPill, IOSList, IOSListRow, IOSKeyboard
+//
+// Usage — wrap your screen content in <IOSDevice> to get the bezel, status bar
+// and home indicator (props: title, dark, keyboard):
+//
+//   <IOSDevice title="Settings">
+//     ...your screen content...
+//   </IOSDevice>
+//   <IOSDevice dark title="Search" keyboard>…</IOSDevice>
+/* END USAGE */
+
+// ─────────────────────────────────────────────────────────────
+// Status bar
+// ─────────────────────────────────────────────────────────────
+function IOSStatusBar({ dark = false, time = '9:41' }) {
+  const c = dark ? '#fff' : '#000';
   return (
-    <div style={{ textAlign: align }}>
-      <h1 style={{ fontFamily: lvSerif, fontSize: 32, fontWeight: 400, letterSpacing: "-0.03em", margin: 0, lineHeight: 0.95, color: ink }}>{d.name}</h1>
-      <div style={{ fontFamily: lvMono, fontSize: 11, color: hexA(ink, 0.55), marginTop: 7 }}>{d.handle} · {d.pronouns} · {d.city}</div>
+    <div style={{
+      display: 'flex', gap: 154, alignItems: 'center', justifyContent: 'center',
+      padding: '21px 24px 19px', boxSizing: 'border-box',
+      position: 'relative', zIndex: 20, width: '100%',
+    }}>
+      <div style={{ flex: 1, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingTop: 1.5 }}>
+        <span style={{
+          fontFamily: '-apple-system, "SF Pro", system-ui', fontWeight: 590,
+          fontSize: 17, lineHeight: '22px', color: c,
+        }}>{time}</span>
+      </div>
+      <div style={{ flex: 1, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, paddingTop: 1, paddingRight: 1 }}>
+        <svg width="19" height="12" viewBox="0 0 19 12">
+          <rect x="0" y="7.5" width="3.2" height="4.5" rx="0.7" fill={c}/>
+          <rect x="4.8" y="5" width="3.2" height="7" rx="0.7" fill={c}/>
+          <rect x="9.6" y="2.5" width="3.2" height="9.5" rx="0.7" fill={c}/>
+          <rect x="14.4" y="0" width="3.2" height="12" rx="0.7" fill={c}/>
+        </svg>
+        <svg width="17" height="12" viewBox="0 0 17 12">
+          <path d="M8.5 3.2C10.8 3.2 12.9 4.1 14.4 5.6L15.5 4.5C13.7 2.7 11.2 1.5 8.5 1.5C5.8 1.5 3.3 2.7 1.5 4.5L2.6 5.6C4.1 4.1 6.2 3.2 8.5 3.2Z" fill={c}/>
+          <path d="M8.5 6.8C9.9 6.8 11.1 7.3 12 8.2L13.1 7.1C11.8 5.9 10.2 5.1 8.5 5.1C6.8 5.1 5.2 5.9 3.9 7.1L5 8.2C5.9 7.3 7.1 6.8 8.5 6.8Z" fill={c}/>
+          <circle cx="8.5" cy="10.5" r="1.5" fill={c}/>
+        </svg>
+        <svg width="27" height="13" viewBox="0 0 27 13">
+          <rect x="0.5" y="0.5" width="23" height="12" rx="3.5" stroke={c} strokeOpacity="0.35" fill="none"/>
+          <rect x="2" y="2" width="20" height="9" rx="2" fill={c}/>
+          <path d="M25 4.5V8.5C25.8 8.2 26.5 7.2 26.5 6.5C26.5 5.8 25.8 4.8 25 4.5Z" fill={c} fillOpacity="0.4"/>
+        </svg>
+      </div>
     </div>
   );
 }
 
-// ── SIGNAL · client → VITALS MONITOR ─────────────────────────
-function ecgPath(W, H, beats = 4) {
-  const mid = H * 0.54, seg = W / beats;
-  // PQRST beat as fractions of seg width, amplitude fractions of H
-  const k = [[0,0],[.34,0],[.40,-.10],[.46,0],[.52,0],[.55,.12],[.60,-.78],[.65,.34],[.70,0],[.80,0],[.86,-.18],[.92,0],[1,0]];
-  let dPath = `M 0 ${mid}`;
-  for (let b = 0; b < beats; b++) {
-    const x0 = b * seg;
-    k.forEach(([fx, fy]) => { dPath += ` L ${(x0 + fx * seg).toFixed(1)} ${(mid + fy * H * 0.62).toFixed(1)}`; });
-  }
-  return dPath;
-}
-function ClientSignalHero({ d, owner, locked, reduced }) {
-  const c = tierOf(d).color;
-  const W = 320, H = 84;
-  const path = ecgPath(W, H);
+// ─────────────────────────────────────────────────────────────
+// Liquid glass pill — blur + tint + shine
+// ─────────────────────────────────────────────────────────────
+function IOSGlassPill({ children, dark = false, style = {} }) {
   return (
-    <div style={{ borderRadius: 20, overflow: "hidden", border: `1px solid ${hexA(LV_INK, 0.12)}`, background: `linear-gradient(180deg, ${hexA(c, 0.12)}, ${hexA(LV_INK, 0.02)} 50%)` }}>
-      {/* monitor header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 13, padding: "16px 16px 12px" }}>
-        <div style={{ width: 60, height: 60, borderRadius: 13, overflow: "hidden", flex: "none", border: `1px solid ${hexA(LV_INK, 0.15)}`, position: "relative", background: "#0f1513" }}>
-          {locked || !d.portrait ? <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}><LvCrest d={d} size={36} /></div>
-            : <img src={lvPortraitURL(d.portrait, 140)} alt={d.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
-          {owner && !locked && <div style={{ position: "absolute", right: 3, bottom: 3 }}><LvAddBadge c={c} size={34} replace /></div>}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <ClientId d={d} ink={LV_INK} reduced={reduced} />
-        </div>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: lvMono, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: LV_TEAL, flex: "none", alignSelf: "flex-start" }}>
-          <span className={reduced ? "" : "lv-pulse"} style={{ width: 6, height: 6, borderRadius: 999, background: LV_TEAL }} /> Live
-        </span>
+    <div style={{
+      height: 44, minWidth: 44, borderRadius: 9999,
+      position: 'relative', overflow: 'hidden',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      boxShadow: dark
+        ? '0 2px 6px rgba(0,0,0,0.35), 0 6px 16px rgba(0,0,0,0.2)'
+        : '0 1px 3px rgba(0,0,0,0.07), 0 3px 10px rgba(0,0,0,0.06)',
+      ...style,
+    }}>
+      {/* blur + tint */}
+      <div style={{
+        position: 'absolute', inset: 0, borderRadius: 9999,
+        backdropFilter: 'blur(12px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(12px) saturate(180%)',
+        background: dark ? 'rgba(120,120,128,0.28)' : 'rgba(255,255,255,0.5)',
+      }} />
+      {/* shine */}
+      <div style={{
+        position: 'absolute', inset: 0, borderRadius: 9999,
+        boxShadow: dark
+          ? 'inset 1.5px 1.5px 1px rgba(255,255,255,0.15), inset -1px -1px 1px rgba(255,255,255,0.08)'
+          : 'inset 1.5px 1.5px 1px rgba(255,255,255,0.7), inset -1px -1px 1px rgba(255,255,255,0.4)',
+        border: dark ? '0.5px solid rgba(255,255,255,0.15)' : '0.5px solid rgba(0,0,0,0.06)',
+      }} />
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', padding: '0 4px' }}>
+        {children}
       </div>
-      {/* ECG strip */}
-      <div style={{ position: "relative", margin: "0 16px", borderRadius: 12, background: "#0c1110", border: `1px solid ${hexA(LV_INK, 0.08)}`, overflow: "hidden" }}>
-        <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ display: "block" }} aria-hidden="true">
-          {[...Array(7)].map((_, i) => <line key={"v" + i} x1={i * W / 7} y1="0" x2={i * W / 7} y2={H} stroke={hexA(LV_TEAL, 0.07)} strokeWidth="1" />)}
-          {[...Array(3)].map((_, i) => <line key={"h" + i} x1="0" y1={(i + 1) * H / 4} x2={W} y2={(i + 1) * H / 4} stroke={hexA(LV_TEAL, 0.07)} strokeWidth="1" />)}
-          <path d={path} fill="none" stroke={hexA(LV_TEAL, 0.45)} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
-          <path d={path} fill="none" stroke={LV_TEALB} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" className={reduced ? "" : "ecg-draw"} style={{ filter: `drop-shadow(0 0 4px ${hexA(LV_TEAL, 0.7)})` }} />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Navigation bar — glass pills + large title
+// ─────────────────────────────────────────────────────────────
+function IOSNavBar({ title = 'Title', dark = false, trailingIcon = true }) {
+  const muted = dark ? 'rgba(255,255,255,0.6)' : '#404040';
+  const text = dark ? '#fff' : '#000';
+  const pillIcon = (content) => (
+    <IOSGlassPill dark={dark}>
+      <div style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {content}
+      </div>
+    </IOSGlassPill>
+  );
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', gap: 10,
+      paddingTop: 62, paddingBottom: 10, position: 'relative', zIndex: 5,
+    }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '0 16px',
+      }}>
+        {/* back chevron */}
+        {pillIcon(
+          <svg width="12" height="20" viewBox="0 0 12 20" fill="none" style={{ marginLeft: -1 }}>
+            <path d="M10 2L2 10l8 8" stroke={muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        )}
+        {/* trailing ellipsis */}
+        {trailingIcon && pillIcon(
+          <svg width="22" height="6" viewBox="0 0 22 6">
+            <circle cx="3" cy="3" r="2.5" fill={muted}/>
+            <circle cx="11" cy="3" r="2.5" fill={muted}/>
+            <circle cx="19" cy="3" r="2.5" fill={muted}/>
+          </svg>
+        )}
+      </div>
+      {/* large title */}
+      <div style={{
+        padding: '0 16px',
+        fontFamily: '-apple-system, system-ui',
+        fontSize: 34, fontWeight: 700, lineHeight: '41px',
+        color: text, letterSpacing: 0.4,
+      }}>{title}</div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Grouped list (inset card, r:26) + row (52px)
+// ─────────────────────────────────────────────────────────────
+function IOSListRow({ title, detail, icon, chevron = true, isLast = false, dark = false }) {
+  const text = dark ? '#fff' : '#000';
+  const sec = dark ? 'rgba(235,235,245,0.6)' : 'rgba(60,60,67,0.6)';
+  const ter = dark ? 'rgba(235,235,245,0.3)' : 'rgba(60,60,67,0.3)';
+  const sep = dark ? 'rgba(84,84,88,0.65)' : 'rgba(60,60,67,0.12)';
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', minHeight: 52,
+      padding: '0 16px', position: 'relative',
+      fontFamily: '-apple-system, system-ui', fontSize: 17,
+      letterSpacing: -0.43,
+    }}>
+      {icon && (
+        <div style={{
+          width: 30, height: 30, borderRadius: 7, background: icon,
+          marginRight: 12, flexShrink: 0,
+        }} />
+      )}
+      <div style={{ flex: 1, color: text }}>{title}</div>
+      {detail && <span style={{ color: sec, marginRight: 6 }}>{detail}</span>}
+      {chevron && (
+        <svg width="8" height="14" viewBox="0 0 8 14" style={{ flexShrink: 0 }}>
+          <path d="M1 1l6 6-6 6" stroke={ter} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
-        <span style={{ position: "absolute", top: 6, left: 9, fontFamily: lvMono, fontSize: 8, letterSpacing: "0.14em", color: hexA(LV_TEAL, 0.7) }}>EFFORT · 7-DAY</span>
+      )}
+      {!isLast && (
+        <div style={{
+          position: 'absolute', bottom: 0, right: 0,
+          left: icon ? 58 : 16, height: 0.5, background: sep,
+        }} />
+      )}
+    </div>
+  );
+}
+
+function IOSList({ header, children, dark = false }) {
+  const hc = dark ? 'rgba(235,235,245,0.6)' : 'rgba(60,60,67,0.6)';
+  const bg = dark ? '#1C1C1E' : '#fff';
+  return (
+    <div>
+      {header && (
+        <div style={{
+          fontFamily: '-apple-system, system-ui', fontSize: 13,
+          color: hc, textTransform: 'uppercase',
+          padding: '8px 36px 6px', letterSpacing: -0.08,
+        }}>{header}</div>
+      )}
+      <div style={{
+        background: bg, borderRadius: 26,
+        margin: '0 16px', overflow: 'hidden',
+      }}>{children}</div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Device frame
+// ─────────────────────────────────────────────────────────────
+function IOSDevice({
+  children, width = 402, height = 874, dark = false,
+  title, keyboard = false,
+}) {
+  return (
+    <div style={{
+      width, height, borderRadius: 48, overflow: 'hidden',
+      position: 'relative', background: dark ? '#000' : '#F2F2F7',
+      boxShadow: '0 40px 80px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.12)',
+      fontFamily: '-apple-system, system-ui, sans-serif',
+      WebkitFontSmoothing: 'antialiased',
+    }}>
+      {/* dynamic island */}
+      <div style={{
+        position: 'absolute', top: 11, left: '50%', transform: 'translateX(-50%)',
+        width: 126, height: 37, borderRadius: 24, background: '#000', zIndex: 50,
+      }} />
+      {/* status bar (absolute) */}
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 }}>
+        <IOSStatusBar dark={dark} />
       </div>
-      {/* readouts */}
-      <div style={{ display: "flex", padding: "12px 16px 16px", gap: 0 }}>
-        {[["Output", d.score.toLocaleString(), `▲${d.scoreWk}`], ["Streak", d.streak, "days"], ["Tier", tierOf(d).name, tierOf(d).rank]].map(([l, v, s], i) => (
-          <div key={i} style={{ flex: 1, paddingLeft: i ? 14 : 0, borderLeft: i ? `1px solid ${hexA(LV_INK, 0.1)}` : "none" }}>
-            <div style={{ fontFamily: lvMono, fontSize: 8, letterSpacing: "0.12em", textTransform: "uppercase", color: hexA(LV_INK, 0.45) }}>{l}</div>
-            <div style={{ fontFamily: lvSerif, fontSize: 23, letterSpacing: "-0.02em", lineHeight: 1, marginTop: 5 }}>{v}</div>
-            <div style={{ fontFamily: lvMono, fontSize: 9, color: i === 0 ? LV_TEAL : hexA(LV_INK, 0.45), marginTop: 4 }}>{s}</div>
-          </div>
+      {/* nav + content */}
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        {title !== undefined && <IOSNavBar title={title} dark={dark} />}
+        <div style={{ flex: 1, overflow: 'auto' }}>{children}</div>
+        {keyboard && <IOSKeyboard dark={dark} />}
+      </div>
+      {/* home indicator — always on top */}
+      <div style={{
+        position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 60,
+        height: 34, display: 'flex', justifyContent: 'center', alignItems: 'flex-end',
+        paddingBottom: 8, pointerEvents: 'none',
+      }}>
+        <div style={{
+          width: 139, height: 5, borderRadius: 100,
+          background: dark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.25)',
+        }} />
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Keyboard — iOS 26 liquid glass
+// ─────────────────────────────────────────────────────────────
+function IOSKeyboard({ dark = false }) {
+  const glyph = dark ? 'rgba(255,255,255,0.7)' : '#595959';
+  const sugg = dark ? 'rgba(255,255,255,0.6)' : '#333';
+  const keyBg = dark ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.85)';
+
+  // special-key icons
+  const icons = {
+    shift: <svg width="19" height="17" viewBox="0 0 19 17"><path d="M9.5 1L1 9.5h4.5V16h8V9.5H18L9.5 1z" fill={glyph}/></svg>,
+    del: <svg width="23" height="17" viewBox="0 0 23 17"><path d="M7 1h13a2 2 0 012 2v11a2 2 0 01-2 2H7l-6-7.5L7 1z" fill="none" stroke={glyph} strokeWidth="1.6" strokeLinejoin="round"/><path d="M10 5l7 7M17 5l-7 7" stroke={glyph} strokeWidth="1.6" strokeLinecap="round"/></svg>,
+    ret: <svg width="20" height="14" viewBox="0 0 20 14"><path d="M18 1v6H4m0 0l4-4M4 7l4 4" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+  };
+
+  const key = (content, { w, flex, ret, fs = 25, k } = {}) => (
+    <div key={k} style={{
+      height: 42, borderRadius: 8.5,
+      flex: flex ? 1 : undefined, width: w, minWidth: 0,
+      background: ret ? '#08f' : keyBg,
+      boxShadow: '0 1px 0 rgba(0,0,0,0.075)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontFamily: '-apple-system, "SF Compact", system-ui',
+      fontSize: fs, fontWeight: 458, color: ret ? '#fff' : glyph,
+    }}>{content}</div>
+  );
+
+  const row = (keys, pad = 0) => (
+    <div style={{ display: 'flex', gap: 6.5, justifyContent: 'center', padding: `0 ${pad}px` }}>
+      {keys.map(l => key(l, { flex: true, k: l }))}
+    </div>
+  );
+
+  return (
+    <div style={{
+      position: 'relative', zIndex: 15, borderRadius: 27, overflow: 'hidden',
+      padding: '11px 0 2px',
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      boxShadow: dark
+        ? '0 -2px 20px rgba(0,0,0,0.09)'
+        : '0 -1px 6px rgba(0,0,0,0.018), 0 -3px 20px rgba(0,0,0,0.012)',
+    }}>
+      {/* liquid glass bg — same recipe as nav pills */}
+      <div style={{
+        position: 'absolute', inset: 0, borderRadius: 27,
+        backdropFilter: 'blur(12px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(12px) saturate(180%)',
+        background: dark ? 'rgba(120,120,128,0.14)' : 'rgba(255,255,255,0.25)',
+      }} />
+      <div style={{
+        position: 'absolute', inset: 0, borderRadius: 27,
+        boxShadow: dark
+          ? 'inset 1.5px 1.5px 1px rgba(255,255,255,0.15)'
+          : 'inset 1.5px 1.5px 1px rgba(255,255,255,0.7), inset -1px -1px 1px rgba(255,255,255,0.4)',
+        border: dark ? '0.5px solid rgba(255,255,255,0.15)' : '0.5px solid rgba(0,0,0,0.06)',
+        pointerEvents: 'none',
+      }} />
+
+      {/* autocorrect bar */}
+      <div style={{
+        display: 'flex', gap: 20, alignItems: 'center',
+        padding: '8px 22px 13px', width: '100%', boxSizing: 'border-box',
+        position: 'relative',
+      }}>
+        {['"The"', 'the', 'to'].map((w, i) => (
+          <React.Fragment key={i}>
+            {i > 0 && <div style={{ width: 1, height: 25, background: '#ccc', opacity: 0.3 }} />}
+            <div style={{
+              flex: 1, textAlign: 'center',
+              fontFamily: '-apple-system, system-ui', fontSize: 17,
+              color: sugg, letterSpacing: -0.43, lineHeight: '22px',
+            }}>{w}</div>
+          </React.Fragment>
         ))}
       </div>
-      {/* target */}
-      <div style={{ padding: "0 16px 16px" }}><LvGoalProgress d={d} /></div>
-      {!locked && <div style={{ padding: "0 16px 16px" }}><LvClientBand d={d} /></div>}
-    </div>
-  );
-}
 
-// ── TERRAIN · client → ASCENT PROFILE ────────────────────────
-function ClientTerrainHero({ d, owner, locked, reduced }) {
-  const c = tierOf(d).color;
-  const W = 330, H = 220, pct = d.goalPct;
-  // ascent ridge: base-left low → summit-right high
-  const base = [10, H - 26], peak = [W - 26, 34];
-  const ctrl = `Q ${W * 0.4} ${H - 40}, ${W * 0.62} ${H * 0.5} T ${peak[0]} ${peak[1]}`;
-  const ridge = `M ${base[0]} ${base[1]} ${ctrl}`;
-  // position of "you are here" along ridge (approx by pct on a sampled path)
-  const here = { x: base[0] + (peak[0] - base[0]) * pct, y: base[1] + (peak[1] - base[1]) * (pct * 1.05) };
-  return (
-    <div style={{ borderRadius: 20, overflow: "hidden", border: `1px solid ${hexA(LV_INK, 0.12)}`, background: `linear-gradient(180deg, ${hexA(c, 0.14)}, ${hexA(LV_INK, 0.02)})`, position: "relative" }}>
-      <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true" style={{ display: "block" }}>
-        <defs><linearGradient id="ascFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={hexA(c, 0.32)} /><stop offset="100%" stopColor={hexA(c, 0)} /></linearGradient></defs>
-        {/* elevation gridlines */}
-        {[...Array(4)].map((_, i) => <line key={i} x1="0" y1={(i + 1) * H / 5} x2={W} y2={(i + 1) * H / 5} stroke={hexA(LV_INK, 0.06)} strokeWidth="1" />)}
-        <path d={`${ridge} L ${peak[0]} ${H} L ${base[0]} ${H} Z`} fill="url(#ascFill)" />
-        <path d={ridge} fill="none" stroke={hexA(LV_INK, 0.4)} strokeWidth="1.5" />
-        {/* completed route (teal) up to here */}
-        <path d={ridge} fill="none" stroke={LV_TEAL} strokeWidth="2.5" strokeDasharray={`${pct * 360} 999`} strokeLinecap="round" />
-        {/* summit flag */}
-        <g>
-          <line x1={peak[0]} y1={peak[1]} x2={peak[0]} y2={peak[1] - 22} stroke={hexA(LV_INK, 0.6)} strokeWidth="1.5" />
-          <path d={`M ${peak[0]} ${peak[1] - 22} l 16 5 l -16 5 z`} fill={c} />
-          <circle cx={peak[0]} cy={peak[1]} r="3.5" fill={c} />
-        </g>
-        {/* base marker */}
-        <circle cx={base[0]} cy={base[1]} r="3.5" fill={hexA(LV_INK, 0.5)} />
-      </svg>
-      {/* you-are-here portrait badge */}
-      <div style={{ position: "absolute", left: `calc(${(here.x / W) * 100}% - 27px)`, top: `calc(${(here.y / H) * 100}% - 58px)` }}>
-        <div style={{ width: 54, height: 54, borderRadius: 999, padding: 2.5, background: LV_TEAL, boxShadow: `0 6px 18px ${hexA("#000", 0.5)}` }}>
-          {locked || !d.portrait ? <div style={{ width: "100%", height: "100%", borderRadius: 999, background: "#0f1513", display: "flex", alignItems: "center", justifyContent: "center" }}><LvCrest d={d} size={30} /></div>
-            : <img src={lvPortraitURL(d.portrait, 130)} alt={d.name} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 999, border: "2.5px solid #14100c" }} />}
-        </div>
-        <div style={{ position: "absolute", top: 60, left: "50%", transform: "translateX(-50%)", whiteSpace: "nowrap", fontFamily: lvMono, fontSize: 8, letterSpacing: "0.1em", textTransform: "uppercase", color: LV_TEAL, background: hexA("#0c1110", 0.85), padding: "2px 6px", borderRadius: 4 }}>You · {Math.round(pct * 100)}%</div>
-      </div>
-      {/* labels */}
-      <div style={{ position: "absolute", left: 14, bottom: 12, fontFamily: lvMono, fontSize: 8.5, letterSpacing: "0.1em", textTransform: "uppercase", color: hexA(LV_INK, 0.5) }}>{d.arc[0][0]} · start</div>
-      <div style={{ position: "absolute", right: 14, top: 14, fontFamily: lvMono, fontSize: 8.5, letterSpacing: "0.1em", textTransform: "uppercase", color: c, textAlign: "right" }}>Summit<br/>{d.goalShort}</div>
-      {/* identity strip */}
-      <div style={{ padding: "16px", borderTop: `1px solid ${hexA(LV_INK, 0.08)}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <ClientId d={d} ink={LV_INK} reduced={reduced} />
-        <LvClientStatus reduced={reduced} />
-      </div>
-      {!locked && <div style={{ padding: "0 16px 16px" }}><LvClientBand d={d} /></div>}
-    </div>
-  );
-}
-
-// ── FRONT PAGE · client → TRAINING JOURNAL (polaroid) ────────
-function ClientFrontHero({ d, owner, locked, reduced }) {
-  const c = tierOf(d).color, ink = "#1a1612";
-  return (
-    <div style={{ position: "relative", padding: "8px 4px 4px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", borderBottom: `1px solid ${hexA(ink, 0.25)}`, paddingBottom: 8 }}>
-        <span style={{ fontFamily: lvSerif, fontSize: 22, fontStyle: "italic", letterSpacing: "-0.01em", color: ink }}>{d.first}’s training journal</span>
-        <span style={{ fontFamily: lvMono, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: hexA(ink, 0.5) }}>Wk {d.scoreWk}</span>
-      </div>
-      <div style={{ display: "flex", gap: 16, marginTop: 18, alignItems: "flex-start" }}>
-        {/* taped polaroid */}
-        <div style={{ position: "relative", transform: "rotate(-4deg)", flex: "none" }}>
-          <div style={{ background: "#fff", padding: "8px 8px 30px", boxShadow: "0 10px 24px rgba(0,0,0,0.22)", borderRadius: 2 }}>
-            <div style={{ width: 116, height: 116, overflow: "hidden", background: "#e7e2d8" }}>
-              {locked || !d.portrait ? <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}><LvCrest d={d} size={48} /></div>
-                : <img src={lvPortraitURL(d.portrait, 240)} alt={d.name} style={{ width: "100%", height: "100%", objectFit: "cover", filter: "saturate(0.92) contrast(1.03)" }} />}
-            </div>
-            <div style={{ fontFamily: lvSerif, fontSize: 13, fontStyle: "italic", color: "#3a352c", textAlign: "center", marginTop: 7 }}>wk 6 · feeling strong</div>
+      {/* key layout */}
+      <div style={{
+        display: 'flex', flexDirection: 'column', gap: 13,
+        padding: '0 6.5px', width: '100%', boxSizing: 'border-box',
+        position: 'relative',
+      }}>
+        {row(['q','w','e','r','t','y','u','i','o','p'])}
+        {row(['a','s','d','f','g','h','j','k','l'], 20)}
+        <div style={{ display: 'flex', gap: 14.25, alignItems: 'center' }}>
+          {key(icons.shift, { w: 45, k: 'shift' })}
+          <div style={{ display: 'flex', gap: 6.5, flex: 1 }}>
+            {['z','x','c','v','b','n','m'].map(l => key(l, { flex: true, k: l }))}
           </div>
-          {/* tape */}
-          <div style={{ position: "absolute", top: -8, left: "50%", transform: "translateX(-50%) rotate(3deg)", width: 54, height: 18, background: hexA(c, 0.4), border: `1px solid ${hexA(c, 0.5)}` }} />
-          {owner && !locked && <div style={{ position: "absolute", right: -6, bottom: 20 }}><LvAddBadge c={c} size={34} replace /></div>}
+          {key(icons.del, { w: 45, k: 'del' })}
         </div>
-        {/* journal entry */}
-        <div style={{ flex: 1, minWidth: 0, paddingTop: 4 }}>
-          <span style={{ fontFamily: lvMono, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: c }}>Today’s entry —</span>
-          <h1 style={{ fontFamily: lvSerif, fontSize: 30, fontWeight: 400, letterSpacing: "-0.02em", lineHeight: 1, margin: "8px 0 0", color: ink }}>{d.name}</h1>
-          <p style={{ fontFamily: lvSerif, fontSize: 16, fontStyle: "italic", lineHeight: 1.35, color: hexA(ink, 0.8), margin: "10px 0 0" }}>“Chasing {d.goalShort.toLowerCase()}. {d.streak} days straight.”</p>
-          <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}><LvClientStatus light reduced={reduced} /></div>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {key('ABC', { w: 92.25, fs: 18, k: 'abc' })}
+          {key('', { flex: true, k: 'space' })}
+          {key(icons.ret, { w: 92.25, ret: true, k: 'ret' })}
         </div>
       </div>
-      <div style={{ marginTop: 18, border: `1px solid ${hexA(ink, 0.2)}`, borderTop: `2px solid ${c}`, padding: "14px 16px" }}><LvGoalProgress d={d} light /></div>
-      {!locked && <div style={{ marginTop: 12 }}><LvClientBand d={d} light /></div>}
+
+      {/* bottom spacer (emoji+mic area, icons omitted) */}
+      <div style={{ height: 56, width: '100%', position: 'relative' }} />
     </div>
   );
 }
 
-// ── PASS · client → RACE BIB ─────────────────────────────────
-function ClientPassHero({ d, owner, locked, reduced }) {
-  const c = tierOf(d).color, ink = "#1a1612";
-  const pin = (side) => (
-    <div style={{ position: "absolute", top: 12, [side]: 14, width: 16, height: 16, borderRadius: 999, border: `2px solid ${hexA(ink, 0.4)}`, background: "transparent" }}>
-      <div style={{ position: "absolute", top: 5, left: -6, width: 12, height: 2, background: hexA(ink, 0.4), transform: "rotate(20deg)" }} />
-    </div>
-  );
-  return (
-    <div style={{ position: "relative", background: "#f3efe6", color: ink, borderRadius: 6, padding: "24px 22px 16px", boxShadow: `0 24px 60px ${hexA("#000", 0.5)}`, border: `1px solid ${hexA(ink, 0.15)}` }}>
-      {pin("left")}{pin("right")}
-      <div style={{ textAlign: "center" }}>
-        <div style={{ fontFamily: lvMono, fontSize: 10, letterSpacing: "0.4em", textTransform: "uppercase", color: hexA(ink, 0.55) }}>Shape Athlete</div>
-        <div style={{ fontFamily: lvSerif, fontSize: 76, fontWeight: 500, letterSpacing: "-0.03em", lineHeight: 0.9, marginTop: 6, color: ink }}>{d.member}</div>
-        <div style={{ height: 4, background: c, margin: "12px auto 0", width: "70%" }} />
-        <h1 style={{ fontFamily: lvSerif, fontSize: 30, fontWeight: 400, letterSpacing: "-0.02em", margin: "14px 0 0", color: ink }}>{d.name}</h1>
-        <div style={{ fontFamily: lvMono, fontSize: 10, color: hexA(ink, 0.55), marginTop: 7 }}>{d.handle} · {d.pronouns}</div>
-        <div style={{ display: "flex", justifycontent: "center", gap: 8, marginTop: 12, alignItems: "center", justifyContent: "center" }}>
-          <span style={{ fontFamily: lvMono, fontSize: 9.5, letterSpacing: "0.12em", textTransform: "uppercase", color: c, border: `1px solid ${hexA(c, 0.5)}`, borderRadius: 999, padding: "4px 10px" }}>● {tierOf(d).name} · {tierOf(d).rank}</span>
-          <LvClientStatus light reduced={reduced} />
-        </div>
-      </div>
-      {/* portrait chip + goal */}
-      <div style={{ display: "flex", gap: 14, alignItems: "center", marginTop: 18, paddingTop: 16, borderTop: `1px dashed ${hexA(ink, 0.3)}` }}>
-        <div style={{ width: 56, height: 56, borderRadius: 999, overflow: "hidden", flex: "none", border: `2px solid ${c}`, position: "relative", background: "#e7e2d8" }}>
-          {locked || !d.portrait ? <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}><LvCrest d={d} size={30} /></div>
-            : <img src={lvPortraitURL(d.portrait, 130)} alt={d.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
-          {owner && !locked && <div style={{ position: "absolute", right: -2, bottom: -2 }}><LvAddBadge c={c} size={30} replace /></div>}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: lvMono, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: hexA(ink, 0.5) }}>Racing toward</div>
-          <div style={{ fontFamily: lvSerif, fontSize: 17, fontStyle: "italic", color: ink, marginTop: 3 }}>{d.goal}</div>
-        </div>
-      </div>
-      {!locked && <div style={{ marginTop: 14 }}><LvGoalProgress d={d} light /></div>}
-      {/* torn perforation */}
-      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 16, fontFamily: lvMono, fontSize: 8, letterSpacing: "0.14em", color: hexA(ink, 0.4) }}>
-        <span>SHP-{d.tier.toUpperCase()}-{d.member}</span><span>{d.sinceLabel.toUpperCase()} {d.since}</span>
-      </div>
-    </div>
-  );
-}
+Object.assign(window, {
+  IOSDevice, IOSStatusBar, IOSNavBar, IOSGlassPill, IOSList, IOSListRow, IOSKeyboard,
+});

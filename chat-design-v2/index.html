@@ -1,7 +1,6 @@
-# Terrain — Member Profile (build)
+# Signal — Coach Profile (build)
 
-The TERRAIN living-identity direction, scoped to the **member / client** profile, as a mobile app.
-Full-bleed on phones, framed phone on desktop, with a **Public / Own / Private** variant toggle.
+The SIGNAL living-identity direction, scoped to the **coach** personas: **trainer** and **nutritionist**, as a mobile app. Full-bleed on phones, framed phone on desktop, with **Persona** (Trainer / Nutritionist) and **Variant** (Public / Own / Private) toggles.
 
 ## Run
 
@@ -15,15 +14,16 @@ npx serve .
 
 ## Files
 
-- `index.html` — shell: fonts, React + Babel, mounts the app
-- `terrainClientApp.jsx` — app wrapper (viewport switch, variant control, mount)
-- `livingTerrain.jsx` — the Terrain profile screen
-- `livingClientHeroes.jsx` — client hero (ascent-profile header)
-- `livingShared.jsx` — design system: tiers, member data, phone chrome, helpers
+- `index.html` — shell: fonts, React + Babel, Signal motion CSS, mounts the app
+- `signalCoachApp.jsx` — app wrapper (viewport switch, persona + variant controls, mount)
+- `livingSignal.jsx` — the Signal profile screen (rings / cardiac trace / core + feed)
+- `livingShared.jsx` — design system: tiers, coach data, marketplace blocks, phone chrome, helpers
 - `ios-frame.jsx` — iOS device bezel (desktop view only)
 
 ## Edit
 
-- Member data lives in `LV_PEOPLE.client` in `livingShared.jsx`.
-- The profile layout is `TerrainProfile` in `livingTerrain.jsx`.
+- Coach data lives in `LV_PEOPLE.trainer` and `LV_PEOPLE.nutritionist` in `livingShared.jsx`
+  (certs, services/prices, reviews, disciplines, feed, tier).
+- The profile layout is `SignalProfile` in `livingSignal.jsx`; the instrument is `SignalSigil`.
+- Marketplace sections (certs, services, reviews) are `LvCoachBlocks` / `LvServices` in `livingShared.jsx`.
 - JSX is transpiled in-browser by Babel (no build step). For production, precompile the `.jsx` files and drop the Babel `<script>`.
