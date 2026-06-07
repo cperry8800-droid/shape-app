@@ -10,6 +10,26 @@ function cwTierColor(tier) { return CW_TIER_COLORS[String(tier || "").toLowerCas
 function cwInitials(name) {
   return String(name || "").replace(/^#\s*/, "").split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join("").toUpperCase() || "?";
 }
+function cwHexA(hex, a) { const h = String(hex || "#888888").replace("#", ""); const s = h.length === 3 ? h.split("").map(x => x + x).join("") : h; const n = parseInt(s, 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; }
+function cwShade(hex, f) { const h = String(hex || "#888888").replace("#", ""); const s = h.length === 3 ? h.split("").map(x => x + x).join("") : h; const n = parseInt(s, 16); return `rgb(${Math.round(((n >> 16) & 255) * f)},${Math.round(((n >> 8) & 255) * f)},${Math.round((n & 255) * f)})`; }
+// Facet avatar (matches the mobile app) — a tier-coloured rounded-diamond gem,
+// initials inside, optional pulsing "online" ring.
+function CwFacetAvatar({ size = 40, c = "#34d6c5", initial = "S", live = false, onClick }) {
+  const inset = Math.max(2, Math.round(size * 0.055));
+  return (
+    <div onClick={onClick} title={onClick ? "View profile" : undefined} style={{ width: size, height: size, position: "relative", display: "grid", placeItems: "center", flex: "0 0 auto", cursor: onClick ? "pointer" : "default" }}>
+      {live && <div style={{ position: "absolute", inset: -Math.round(size * 0.1), transform: "rotate(45deg)", borderRadius: "30%", border: "2px solid #34d6c5", boxShadow: `0 0 12px ${cwHexA("#34d6c5", 0.5)}`, animation: "cwAvPulse 2.4s ease-in-out infinite" }} />}
+      <div style={{ position: "absolute", inset: 0, transform: "rotate(45deg)", borderRadius: "27%", background: `linear-gradient(135deg, ${c}, ${cwShade(c, 0.5)})`, boxShadow: `0 4px 14px ${cwHexA(c, 0.4)}, inset 1px 1px 2px rgba(255,255,255,0.35)` }}>
+        <div style={{ position: "absolute", inset: 0, borderRadius: "27%", background: "linear-gradient(135deg, rgba(255,255,255,0.28), transparent 42%)" }} />
+        <div style={{ position: "absolute", inset, borderRadius: "23%", overflow: "hidden", background: "#0f0c0a", display: "grid", placeItems: "center" }}>
+          <span style={{ transform: "rotate(-45deg)", fontFamily: "'Fraunces', serif", fontWeight: 500, fontSize: size * 0.42, color: "#f2ede4", lineHeight: 1 }}>{initial}</span>
+        </div>
+      </div>
+      {live && <span style={{ position: "absolute", bottom: 0, right: 0, transform: "translate(20%,20%)", width: Math.max(7, Math.round(size * 0.16)), height: Math.max(7, Math.round(size * 0.16)), borderRadius: 999, background: "#34d6c5", border: "2px solid #100d0a" }} />}
+    </div>
+  );
+}
+if (typeof document !== "undefined" && !document.getElementById("cw-av-pulse")) { const st = document.createElement("style"); st.id = "cw-av-pulse"; st.textContent = "@keyframes cwAvPulse { 0%,100% { transform: rotate(45deg) scale(1); opacity: 0.9; } 50% { transform: rotate(45deg) scale(1.09); opacity: 0.4; } }"; document.head.appendChild(st); }
 const CW_FEED_TIERS = ["Tempo", "Form", "Peak", "Legend", "Base"];
 // Stable per-name tier for people we have no live points for (demo/seeded
 // threads) — same deterministic hash the mobile app uses as its fallback.
@@ -63,6 +83,13 @@ function ChatWidget(props) {
   const [activeByTab, setActiveByTab] = React.useState(() => tabs.map(() => 0));
   const [draftByTab, setDraftByTab] = React.useState(() => tabs.map(() => ""));
   const [typing, setTyping] = React.useState(false);
+  // Re-render avatars as people come online / go offline (live presence ring).
+  const [, setPresenceV] = React.useState(0);
+  React.useEffect(() => {
+    const bump = () => setPresenceV(x => x + 1);
+    try { window.addEventListener("shape:presence", bump); } catch (e) {}
+    return () => { try { window.removeEventListener("shape:presence", bump); } catch (e) {} };
+  }, []);
 
   // ── Persistence ───────────────────────────────────────────────────────
   // Sent messages / created channels survive navigation + reload, scoped to
@@ -809,7 +836,7 @@ function ChatWidget(props) {
                   </div>
                   <div style={{ padding: 18 }}>
                     <div style={{ borderRadius: 18, border: `1px solid ${tc}55`, background: `radial-gradient(130% 120% at 78% 14%, ${tc}26, transparent 55%), rgba(242,237,228,0.03)`, padding: 18, display: "flex", alignItems: "center", gap: 16 }}>
-                      <div style={{ width: 64, height: 64, borderRadius: 999, flex: "none", background: tc, color: "#fff", display: "grid", placeItems: "center", fontFamily: sans, fontWeight: 700, fontSize: 22, boxShadow: `0 0 0 3px ${tc}33` }}>{cwInitials(profileFor.who)}</div>
+                      <CwFacetAvatar size={64} c={tc} initial={cwInitials(profileFor.who)} live={!!((profileFor && profileFor.online) || (window.ShapeWebPresence && profileFor && window.ShapeWebPresence.isOnline(profileFor.userId)))} />
                       <div style={{ minWidth: 0 }}>
                         <div style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase" }}>
                           <span style={{ color: tc }}>{tier}</span><span style={{ color: "rgba(242,237,228,0.4)" }}>·</span><span style={{ color: "rgba(242,237,228,0.55)" }}>{roleLabel}</span>
@@ -880,9 +907,9 @@ function ChatWidget(props) {
                 <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start", position: "relative" }}>
                   <div style={{ display: "flex", alignItems: "flex-end", gap: 8, flexDirection: m.me ? "row-reverse" : "row", maxWidth: "90%" }}>
                     {!m.me && (
-                      <button onClick={() => openProfile(m)} title="View profile" style={{ flex: "none", width: 30, height: 30, borderRadius: 999, border: 0, cursor: "pointer", alignSelf: "flex-end", background: cwTierColor(m && m.tier ? String(m.tier) : cwHashTier(avatarName)), color: "#fff", fontFamily: sans, fontSize: 10.5, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        {cwInitials(avatarName)}
-                      </button>
+                      <div style={{ alignSelf: "flex-end" }}>
+                        <CwFacetAvatar size={32} c={cwTierColor(m && m.tier ? String(m.tier) : cwHashTier(avatarName))} initial={cwInitials(avatarName)} live={!!(window.ShapeWebPresence && m && m.userId && window.ShapeWebPresence.isOnline(m.userId))} onClick={() => openProfile(m)} />
+                      </div>
                     )}
                     <div style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start", minWidth: 0 }}>
                       {!m.me && active?.group && (

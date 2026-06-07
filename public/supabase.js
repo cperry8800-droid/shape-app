@@ -821,6 +821,34 @@
 
   window.shapeDb = shapeDb;
 
+  // ===== Live presence — join the same 'online-users' channel the mobile app
+  // uses, so members see who's genuinely online (pulsing avatar ring). The set
+  // only contains people currently broadcasting, so it respects each person's
+  // "show when I'm online" choice. setVisible(false) stops broadcasting.
+  var _wp = { channel: null, ids: {}, visible: true };
+  async function startWebPresence() {
+    try {
+      if (_wp.channel || !client) return;
+      var session = await shapeDb.getSession();
+      var uid = session && session.user && session.user.id;
+      if (!uid) return;
+      var ch = client.channel('online-users', { config: { presence: { key: uid } } });
+      ch.on('presence', { event: 'sync' }, function () {
+        try { _wp.ids = ch.presenceState() || {}; } catch (e) { _wp.ids = {}; }
+        try { window.dispatchEvent(new Event('shape:presence')); } catch (e) {}
+      }).subscribe(function (status) {
+        if (status === 'SUBSCRIBED' && _wp.visible) { try { ch.track({ online_at: new Date().toISOString() }); } catch (e) {} }
+      });
+      _wp.channel = ch;
+    } catch (e) {}
+  }
+  window.ShapeWebPresence = {
+    start: startWebPresence,
+    isOnline: function (uid) { return !!(uid && _wp.ids && Object.prototype.hasOwnProperty.call(_wp.ids, String(uid))); },
+    setVisible: function (v) { _wp.visible = !!v; var ch = _wp.channel; if (!ch) { if (v) startWebPresence(); return; } try { if (v) ch.track({ online_at: new Date().toISOString() }); else ch.untrack(); } catch (e) {} },
+  };
+  try { startWebPresence(); } catch (e) {}
+
   // Global sign-out helper (used by navbar buttons site-wide).
   window.shapeSignOut = async function () {
     if (window.shapeDb) await window.shapeDb.signOut();

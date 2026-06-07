@@ -56,6 +56,24 @@ function bsAmLive() {
     return signedIn && window.ShapeOnlineVisible !== false;
   } catch (e) { return false; }
 }
+// Is a specific member online right now? Reads the live Supabase presence set
+// (ShapePresence), which only contains people currently broadcasting (so it
+// already respects each person's "show when I'm online" toggle).
+function bsIsUserOnline(uid) {
+  try { return !!(uid && window.ShapePresence && window.ShapePresence.isOnline && window.ShapePresence.isOnline(uid)); } catch (e) { return false; }
+}
+// Re-render hook: bumps whenever the online presence set changes.
+function useBSPresence() {
+  const [v, setV] = useStateBSC(0);
+  React.useEffect(() => {
+    const bump = () => setV(x => x + 1);
+    let off = null;
+    try { off = window.ShapePresence && window.ShapePresence.onChange && window.ShapePresence.onChange(bump); } catch (e) {}
+    try { window.addEventListener('shape:presence', bump); } catch (e) {}
+    return () => { try { off && off(); } catch (e) {} try { window.removeEventListener('shape:presence', bump); } catch (e) {} };
+  }, []);
+  return v;
+}
 
 // Top-right profile avatar for sub-pages — taps through to Settings/profile via
 // a window event (handled in BSClientAppInner), so a page needn't thread an
@@ -6317,6 +6335,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const BG = '#100d0a', INK = '#f2ede4', TEAL = '#34d6c5';
   const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
   const [live, setLive] = useStateBSC(null);
+  useBSPresence();
   React.useEffect(() => { if (person.userId && window.ShapeProfiles?.getPublicProfile) { window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (d) setLive(d); }).catch(() => {}); } }, [person.userId]);
   const isPrivate = !!(live && (live.can_view === false || (live.can_view == null && live.is_public === false)));
   const points = live && Number.isFinite(live.points) ? live.points : null;
@@ -6379,7 +6398,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
         </div>
         {/* avatar climbing the curve */}
         <div style={{ position: 'absolute', left: '76%', top: 132, transform: 'translate(-50%,-50%)', zIndex: 3 }}>
-          <BSFacetAvatar size={74} c={c} initial={bsInitials(name) || '?'} photo={photo || (live && live.avatar)} rank={bsTierRank(tierKey)} editable={isSelf} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
+          <BSFacetAvatar size={74} c={c} initial={bsInitials(name) || '?'} photo={photo || (live && live.avatar)} rank={bsTierRank(tierKey)} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
           <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 16, whiteSpace: 'nowrap', fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK, background: bsTHexA(BG, 0.72), border: `1px solid ${bsTHexA(TEAL, 0.5)}`, borderRadius: 999, padding: '3px 8px' }}>You · {progressPct}%</div>
         </div>
         {/* name + status */}
@@ -6528,6 +6547,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   const BG = '#100d0a', INK = '#f2ede4', TEAL = '#34d6c5';
   const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
   const [live, setLive] = useStateBSC(null);
+  useBSPresence();
   React.useEffect(() => { if (person.userId && window.ShapeProfiles?.getPublicProfile) { window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (d) setLive(d); }).catch(() => {}); } }, [person.userId]);
   const isPrivate = !!(live && (live.can_view === false || (live.can_view == null && live.is_public === false)));
   const isNutri = person.kind === 'NUTRI';
@@ -6578,7 +6598,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
         <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', marginTop: 18 }}>
           <BSSignalSigil week={week} disciplines={disciplines} c={c} teal={TEAL} ink={INK} size={240} />
           <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)' }}>
-            <BSFacetAvatar size={86} c={c} initial={initials} photo={photo || (live && live.avatar)} rank={bsTierRank(baseTier)} editable={isSelf} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
+            <BSFacetAvatar size={86} c={c} initial={initials} photo={photo || (live && live.avatar)} rank={bsTierRank(baseTier)} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
           </div>
         </div>
 
@@ -6724,6 +6744,7 @@ function BSPublicProfile({ person, onBack, onMessage = () => {}, isSelf = false,
 
 function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const t = useBS();
+  useBSPresence(); // re-render avatars as people come online / go offline
   const TEAL = '#0ac5a8', TEALB = '#2ee0c4';
   const [tab, setTab] = useStateBSC('feed');
   const [filter, setFilter] = useStateBSC('COMMUNITY');
@@ -7141,7 +7162,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       <div key={p.id || i} style={{ display: 'flex', flexDirection: 'column', alignItems: right ? 'flex-end' : 'flex-start' }}>
         {p.pinned && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', color: TEALB, marginBottom: 6 }}><PinIcon filled size={13} /> Pinned</div>}
         <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'flex-end', gap: 9, maxWidth: '90%' }}>
-          <BSFacetAvatar size={38} c={tc} initial={avInit} photo={isMe ? ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined) : undefined} showRank={false} onClick={linkable ? () => setOpenProfile({ ...p, kind: akind, tier }) : undefined} />
+          <BSFacetAvatar size={38} c={tc} initial={avInit} photo={isMe ? ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined) : undefined} live={isMe ? bsAmLive() : bsIsUserOnline(p.userId)} showRank={false} onClick={linkable ? () => setOpenProfile({ ...p, kind: akind, tier }) : undefined} />
           <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'baseline', gap: 8, marginBottom: 5 }}>
               <button onClick={() => linkable && setOpenProfile({ ...p, kind: akind, tier })} style={{ background: 'transparent', border: 0, padding: 0, cursor: linkable ? 'pointer' : 'default', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk }}>{p.who}</button>
@@ -12188,7 +12209,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
       if (key === 'units') window.ShapeUnits?.set(next[key]); // propagate app-wide
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
-      if (key === 'onlineVisible') { try { window.ShapeOnlineVisible = (next[key] !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {} }
+      if (key === 'onlineVisible') { try { window.ShapeOnlineVisible = (next[key] !== 'Off'); window.ShapePresence?.setVisible?.(next[key] !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {} }
       if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
       return next;
     });
@@ -12200,7 +12221,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
       if (key === 'units') window.ShapeUnits?.set(value);
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
-      if (key === 'onlineVisible') { try { window.ShapeOnlineVisible = (next[key] !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {} }
+      if (key === 'onlineVisible') { try { window.ShapeOnlineVisible = (next[key] !== 'Off'); window.ShapePresence?.setVisible?.(next[key] !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {} }
       if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
       return next;
     });
