@@ -3079,7 +3079,7 @@ async function getPublicProfile(userId) {
   if (error) return null;
   const r = Array.isArray(data) ? data[0] : data;
   if (!r) return null;
-  return { userId: r.user_id, name: r.full_name, role: r.role, points: Number(r.points) || 0, bio: r.bio || '', pronouns: r.pronouns || '', goal: r.goal || '', link: r.link || '' };
+  return { userId: r.user_id, name: r.full_name, role: r.role, points: Number(r.points) || 0, bio: r.bio || '', pronouns: r.pronouns || '', goal: r.goal || '', link: r.link || '', avatar: r.avatar || null };
 }
 async function getUserPoints(ids) {
   const list = (ids || []).filter(Boolean);
@@ -3090,7 +3090,28 @@ async function getUserPoints(ids) {
   (data || []).forEach(r => { out[r.user_id] = Number(r.points) || 0; });
   return out;
 }
-window.ShapeProfiles = { getPublicProfile, getUserPoints };
+// Batch member avatars (profile photos) for chat/feed avatars. Reads
+// get_public_profile per unique id (visibility-gated) and caches the result so
+// repeat lookups across the feed/threads are free. Returns { userId: dataUrl }.
+const _avatarCache = {};
+async function getUserAvatars(ids) {
+  const list = [...new Set((ids || []).filter(Boolean))];
+  if (!supabase || !list.length) return {};
+  const need = list.filter((id) => !(id in _avatarCache));
+  if (need.length) {
+    await Promise.all(need.map(async (id) => {
+      try {
+        const { data } = await supabase.rpc('get_public_profile', { p_user_id: id });
+        const r = Array.isArray(data) ? data[0] : data;
+        _avatarCache[id] = (r && r.avatar) || null;
+      } catch { _avatarCache[id] = null; }
+    }));
+  }
+  const out = {};
+  list.forEach((id) => { if (_avatarCache[id]) out[id] = _avatarCache[id]; });
+  return out;
+}
+window.ShapeProfiles = { getPublicProfile, getUserPoints, getUserAvatars };
 
 // ── Member-created community channels ("run club" style) ─────────────────────
 function channelDisplayName() {

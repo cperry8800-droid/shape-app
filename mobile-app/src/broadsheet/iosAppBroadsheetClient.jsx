@@ -7138,12 +7138,19 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               setTierByUser(tiers);
             }).catch(() => {});
           }
+          // Members' profile photos → carry into the feed avatars (visibility-gated).
+          if (ids.length && window.ShapeProfiles?.getUserAvatars) {
+            window.ShapeProfiles.getUserAvatars(ids).then(avs => {
+              if (active && avs) setAvatarByUser(avs);
+            }).catch(() => {});
+          }
         }
       } catch { /* keep sample */ }
     })();
     return () => { active = false; };
   }, []);
   const [tierByUser, setTierByUser] = useStateBSC({}); // userId → real tier (from Shape Score)
+  const [avatarByUser, setAvatarByUser] = useStateBSC({}); // userId → profile photo (data URL)
   // Each chip is its own channel: SHAPE = individual members, TRAINER/NUTRI/
   // CLIENT = that role's peers only. (COMMUNITY swaps to the activity feed in
   // the render below, so `shown` isn't used for it.)
@@ -7222,7 +7229,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       <div key={p.id || i} style={{ display: 'flex', flexDirection: 'column', alignItems: right ? 'flex-end' : 'flex-start' }}>
         {p.pinned && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', color: TEALB, marginBottom: 6 }}><PinIcon filled size={13} /> Pinned</div>}
         <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: 11, maxWidth: '90%' }}>
-          <BSFacetAvatar size={38} c={tc} initial={avInit} photo={isMe ? ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined) : undefined} live={isMe ? bsAmLive() : bsIsUserOnline(p.userId)} showRank={false} onClick={linkable ? () => setOpenProfile({ ...p, kind: akind, tier }) : undefined} />
+          <BSFacetAvatar size={38} c={tc} initial={avInit} photo={isMe ? ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined) : (avatarByUser[p.userId] || undefined)} live={isMe ? bsAmLive() : bsIsUserOnline(p.userId)} showRank={false} onClick={linkable ? () => setOpenProfile({ ...p, kind: akind, tier }) : undefined} />
           <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'baseline', gap: 8, marginBottom: 5 }}>
               <button onClick={() => linkable && setOpenProfile({ ...p, kind: akind, tier })} style={{ background: 'transparent', border: 0, padding: 0, cursor: linkable ? 'pointer' : 'default', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk }}>{p.who}</button>

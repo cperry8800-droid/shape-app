@@ -14,7 +14,7 @@ function cwHexA(hex, a) { const h = String(hex || "#888888").replace("#", ""); c
 function cwShade(hex, f) { const h = String(hex || "#888888").replace("#", ""); const s = h.length === 3 ? h.split("").map(x => x + x).join("") : h; const n = parseInt(s, 16); return `rgb(${Math.round(((n >> 16) & 255) * f)},${Math.round(((n >> 8) & 255) * f)},${Math.round((n & 255) * f)})`; }
 // Facet avatar (matches the mobile app) — a tier-coloured rounded-diamond gem,
 // initials inside, optional pulsing "online" ring.
-function CwFacetAvatar({ size = 40, c = "#34d6c5", initial = "S", live = false, onClick }) {
+function CwFacetAvatar({ size = 40, c = "#34d6c5", initial = "S", live = false, onClick, photo }) {
   const inset = Math.max(2, Math.round(size * 0.055));
   return (
     <div onClick={onClick} title={onClick ? "View profile" : undefined} style={{ width: size, height: size, position: "relative", display: "grid", placeItems: "center", flex: "0 0 auto", cursor: onClick ? "pointer" : "default" }}>
@@ -22,7 +22,9 @@ function CwFacetAvatar({ size = 40, c = "#34d6c5", initial = "S", live = false, 
       <div style={{ position: "absolute", inset: 0, transform: "rotate(45deg)", borderRadius: "27%", background: `linear-gradient(135deg, ${c}, ${cwShade(c, 0.5)})`, boxShadow: `0 4px 14px ${cwHexA(c, 0.4)}, inset 1px 1px 2px rgba(255,255,255,0.35)` }}>
         <div style={{ position: "absolute", inset: 0, borderRadius: "27%", background: "linear-gradient(135deg, rgba(255,255,255,0.28), transparent 42%)" }} />
         <div style={{ position: "absolute", inset, borderRadius: "23%", overflow: "hidden", background: "#0f0c0a", display: "grid", placeItems: "center" }}>
-          <span style={{ transform: "rotate(-45deg)", fontFamily: "'Fraunces', serif", fontWeight: 500, fontSize: size * 0.42, color: "#f2ede4", lineHeight: 1 }}>{initial}</span>
+          {photo
+            ? <img src={photo} alt="" style={{ position: "absolute", width: "152%", height: "152%", left: "50%", top: "50%", transform: "translate(-50%,-50%) rotate(-45deg)", objectFit: "cover" }} />
+            : <span style={{ transform: "rotate(-45deg)", fontFamily: "'Fraunces', serif", fontWeight: 500, fontSize: size * 0.42, color: "#f2ede4", lineHeight: 1 }}>{initial}</span>}
         </div>
       </div>
       {live && <span style={{ position: "absolute", bottom: 0, right: 0, transform: "translate(20%,20%)", width: Math.max(7, Math.round(size * 0.16)), height: Math.max(7, Math.round(size * 0.16)), borderRadius: 999, background: "#34d6c5", border: "2px solid #100d0a" }} />}
@@ -424,6 +426,32 @@ function ChatWidget(props) {
     } catch (e) {}
   }, [profUid]);
 
+  // Members' profile photos → carry into the chat bubble avatars. Fetch (cached)
+  // the public-profile avatar for every author in the active thread + myself.
+  const [avatarsByUid, setAvatarsByUid] = React.useState({});
+  const [myPhoto, setMyPhoto] = React.useState(null);
+  const avatarCacheRef = React.useRef({});
+  React.useEffect(() => {
+    const cl = window.shapeDb && window.shapeDb.client;
+    if (!cl || !cl.rpc) return;
+    const msgs = (active && active.messages) || [];
+    const ids = [...new Set([myUserIdRef.current, ...msgs.map((m) => m && m.userId)].filter(Boolean))];
+    const need = ids.filter((id) => !(id in avatarCacheRef.current));
+    if (!need.length) return;
+    let cancelled = false;
+    Promise.all(need.map((id) =>
+      cl.rpc("get_public_profile", { p_user_id: id }).then((r) => {
+        const d = r && r.data; const row = Array.isArray(d) ? d[0] : d;
+        avatarCacheRef.current[id] = (row && row.avatar) || null;
+      }).catch(() => { avatarCacheRef.current[id] = null; })
+    )).then(() => {
+      if (cancelled) return;
+      setAvatarsByUid({ ...avatarCacheRef.current });
+      if (myUserIdRef.current) setMyPhoto(avatarCacheRef.current[myUserIdRef.current] || null);
+    });
+    return () => { cancelled = true; };
+  }, [active]);
+
   // Shape is members-only — the chat bubble is where messages actually send, so
   // gate the composer: approved coaches + active subscribers can type; everyone
   // else (signed-out or free) sees a Join prompt. null = still resolving.
@@ -480,7 +508,7 @@ function ChatWidget(props) {
             const mapped = newRows.map(m => {
               const ts2 = new Date(m.created_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
               const mine = m.sender_id === me;
-              return { who: mine ? "You" : t.who, t: m.body, time: ts2, me: mine };
+              return { who: mine ? "You" : t.who, t: m.body, time: ts2, me: mine, userId: m.sender_id || null };
             });
             const merged = since ? [...t.messages, ...mapped] : mapped;
             const last = mapped[mapped.length - 1];
@@ -917,12 +945,12 @@ function ChatWidget(props) {
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 11, flexDirection: m.me ? "row-reverse" : "row", maxWidth: "90%" }}>
                     {!m.me && (
                       <div style={{ alignSelf: "flex-start" }}>
-                        <CwFacetAvatar size={32} c={cwTierColor(m && m.tier ? String(m.tier) : cwHashTier(avatarName))} initial={cwInitials(avatarName)} live={!!(window.ShapeWebPresence && m && m.userId && window.ShapeWebPresence.isOnline(m.userId))} onClick={() => openProfile(m)} />
+                        <CwFacetAvatar size={32} c={cwTierColor(m && m.tier ? String(m.tier) : cwHashTier(avatarName))} initial={cwInitials(avatarName)} photo={(m && m.userId && avatarsByUid[m.userId]) || undefined} live={!!(window.ShapeWebPresence && m && m.userId && window.ShapeWebPresence.isOnline(m.userId))} onClick={() => openProfile(m)} />
                       </div>
                     )}
                     {m.me && (
                       <div style={{ alignSelf: "flex-start" }}>
-                        <CwFacetAvatar size={32} c={cwTierColor(m && m.tier ? String(m.tier) : cwHashTier(myName))} initial={cwInitials(myName)} live={!!(window.ShapeWebPresence && typeof window.ShapeWebPresence.visible === "function" && window.ShapeWebPresence.visible())} />
+                        <CwFacetAvatar size={32} c={cwTierColor(m && m.tier ? String(m.tier) : cwHashTier(myName))} initial={cwInitials(myName)} photo={myPhoto || undefined} live={!!(window.ShapeWebPresence && typeof window.ShapeWebPresence.visible === "function" && window.ShapeWebPresence.visible())} />
                       </div>
                     )}
                     <div style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start", minWidth: 0 }}>
