@@ -6240,7 +6240,14 @@ function bsPickProfilePhoto(cb) {
           let url = reader.result;
           try { const S = 256, cv = document.createElement('canvas'); cv.width = S; cv.height = S; const ctx = cv.getContext('2d'); const scale = Math.max(S / img.width, S / img.height), w = img.width * scale, h = img.height * scale; ctx.drawImage(img, (S - w) / 2, (S - h) / 2, w, h); url = cv.toDataURL('image/jpeg', 0.82); } catch (e) {}
           try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), photo: url }; } catch (e) {}
-          try { const save = (d) => { try { window.shapeDb?.saveUserGoals?.('client_identity', { ...(d || {}), photo: url }); } catch (e) {} }; const p = window.shapeDb?.getUserGoals?.('client_identity'); if (p && p.then) p.then(save).catch(() => save(null)); else save(null); } catch (e) {}
+          const save = async (d) => {
+            try {
+              const res = await window.shapeDb?.saveUserGoals?.('client_identity', { ...(d || {}), photo: url });
+              if (res && res.error) { window.__bsToast?.(/log/i.test(res.error.message || '') ? 'Sign in to save your photo' : "Couldn't save photo — try again", 'err'); }
+              else { window.__bsToast?.('Photo updated', 'ok'); }
+            } catch (e) { window.__bsToast?.("Couldn't save photo — try again", 'err'); }
+          };
+          try { const p = window.shapeDb?.getUserGoals?.('client_identity'); if (p && p.then) p.then(save).catch(() => save(null)); else save(null); } catch (e) {}
           try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
           if (cb) cb(url);
         };
@@ -6280,7 +6287,13 @@ function useBSProfilePhoto(person, isSelf) {
         setPhoto(url);
         try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), photo: url }; } catch (e2) {}
         try {
-          const save = (d) => { try { window.shapeDb?.saveUserGoals?.('client_identity', { ...(d || {}), photo: url }); } catch (e3) {} };
+          const save = async (d) => {
+            try {
+              const res = await window.shapeDb?.saveUserGoals?.('client_identity', { ...(d || {}), photo: url });
+              if (res && res.error) { window.__bsToast?.(/log/i.test(res.error.message || '') ? 'Sign in to save your photo' : "Couldn't save photo — try again", 'err'); }
+              else { window.__bsToast?.('Photo updated', 'ok'); }
+            } catch (e3) { window.__bsToast?.("Couldn't save photo — try again", 'err'); }
+          };
           const p = window.shapeDb?.getUserGoals?.('client_identity');
           if (p && p.then) p.then(save).catch(() => save(null)); else save(null);
         } catch (e2) {}
