@@ -78,6 +78,7 @@ function MemberProfilePage() {
   const row = st.row;
   const name = row.full_name || "Shape member";
   const isPrivate = row.is_public === false;
+  const avatar = row.avatar || null; // profile photo (visibility-gated by the RPC)
   const points = Number.isFinite(row.points) ? row.points : null;
   const tier = points != null ? mpTierForPoints(points) : "Base";
   const tc = mpTierColor(tier);
@@ -102,7 +103,7 @@ function MemberProfilePage() {
       {/* Hero */}
       <div style={{ borderRadius: 22, border: "1px solid rgba(242,237,228,0.1)", overflow: "hidden", background: `linear-gradient(150deg, ${tc}22, rgba(242,237,228,0.02) 60%)` }}>
         <div style={{ padding: 22, display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
-          <div style={{ width: 84, height: 84, borderRadius: 999, flex: "none", background: tc, color: "#fff", display: "grid", placeItems: "center", fontFamily: serif, fontWeight: 600, fontSize: 32, boxShadow: `0 0 0 4px ${tc}33` }}>{mpInitials(name)}</div>
+          <div style={{ width: 84, height: 84, borderRadius: 999, flex: "none", background: tc, color: "#fff", display: "grid", placeItems: "center", fontFamily: serif, fontWeight: 600, fontSize: 32, boxShadow: `0 0 0 4px ${tc}33`, overflow: "hidden" }}>{avatar ? <img src={avatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : mpInitials(name)}</div>
           <div style={{ minWidth: 0, flex: 1 }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 12px", borderRadius: 999, border: `1px solid ${tc}66`, background: `${tc}1f` }}>
               <span style={{ width: 6, height: 6, borderRadius: 999, background: tc }} />
