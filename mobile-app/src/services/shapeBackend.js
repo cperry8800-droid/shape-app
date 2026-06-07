@@ -3032,7 +3032,24 @@ async function notifyGroceryList(clientId, listName) {
   if (!supabase || !clientId) return;
   try { await supabase.rpc('notify_grocery_list', { p_client: clientId, p_list: listName || '' }); } catch (e) {}
 }
-window.ShapeGroceryLists = { list: listGroceryLists, create: createGroceryList, update: updateGroceryList, remove: removeGroceryList, notify: notifyGroceryList };
+// Deliver a grocery list to a client's Eat page (NOT chat): push it as a
+// nutrition item (coach_pushed_items kind 'meal', payload.grocery flag) via the
+// nutritionist console, so it shows up in their grocery for review + the tailored
+// "loaded into grocery lists" notification fires (route 'eat').
+async function pushGroceryToClient({ clientId, name, items } = {}) {
+  if (!clientId) return false;
+  const ingredients = (items || []).map(it => (it && it.name ? it.name : String(it || ''))).filter(Boolean);
+  const payload = { name: name || 'Grocery list', ingredients, grocery: true };
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/nutritionist/console`, {
+      method: 'POST', credentials: 'same-origin',
+      headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ action: 'addItem', clientId, payload }),
+    });
+    return res.ok;
+  } catch (e) { return false; }
+}
+window.ShapeGroceryLists = { list: listGroceryLists, create: createGroceryList, update: updateGroceryList, remove: removeGroceryList, notify: notifyGroceryList, push: pushGroceryToClient };
 
 // Coach plans — published programs / meal plans (coach_plans, owner-scoped),
 // shared with the website. The AI draft builder + Duplicate persist here.

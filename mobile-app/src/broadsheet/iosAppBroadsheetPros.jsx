@@ -571,15 +571,14 @@ function BSProGroceryLists({ t, accent, isNutri, onBack }) {
   const send = async (g) => {
     if (!g.client_id) { window.__bsToast?.('Delivers once this client is linked', 'info'); return; }
     try {
-      let cid = null;
-      const conv = await window.ShapeMessages?.getOrCreateMemberConversation?.({ otherUserId: g.client_id });
-      cid = (conv && conv.data) || null;
-      const body = `Grocery list · ${g.name}\n` + (g.items || []).map(it => `• ${it.name}`).join('\n');
-      if (cid && window.ShapeMessages?.sendMessage) await window.ShapeMessages.sendMessage({ conversationId: cid, body, metadata: { kind: 'grocery', name: g.name, items: g.items } });
-      // Tailored notification: "{coach} loaded your meal plan into grocery lists".
-      try { await window.ShapeGroceryLists?.notify?.(g.client_id, g.name); } catch (e) {}
+      // Deliver to the client's EAT page (grocery) — not chat. Nutritionists push
+      // it into the client's grocery (review + sub-out there); the push fires the
+      // tailored "loaded into grocery lists" notification. Trainers just notify.
+      let pushed = false;
+      if (isNutri && window.ShapeGroceryLists?.push) pushed = await window.ShapeGroceryLists.push({ clientId: g.client_id, name: g.name, items: g.items });
+      if (!pushed) { try { await window.ShapeGroceryLists?.notify?.(g.client_id, g.name); } catch (e) {} }
       if (window.ShapeGroceryLists?.update && !String(g.id).startsWith('d')) await window.ShapeGroceryLists.update({ id: g.id, status: 'sent' });
-      window.__bsToast?.(`Sent to ${String(g.client_name || 'client').split(' ')[0]}`, 'ok');
+      window.__bsToast?.(`Sent to ${String(g.client_name || 'client').split(' ')[0]} · on their Eat page`, 'ok');
       reload();
     } catch (e) { window.__bsToast?.('Could not send', 'err'); }
   };
