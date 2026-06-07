@@ -444,63 +444,10 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
     const dateLine = `${wkday} · ${month} ${day} · ${year}`;
     const dateShort = `${wkday} · ${month} ${day}`;
 
-    // Hydrate "Inside Shape" with recent community posts when available
-    // (the feed endpoint allows anon reads). Falls back to the static
-    // editorial blurbs when the feed is empty or unreachable.
-    const [insideItems, setInsideItems] = React.useState(STATIC_INSIDE);
-    React.useEffect(() => {
-      let alive = true;
-      fetch('/api/community/feed', { credentials: 'same-origin', cache: 'no-store' })
-        .then(r => (r.ok ? r.json() : null))
-        .then(d => {
-          if (!alive || !d || !Array.isArray(d.posts) || !d.posts.length) return;
-          const ago = (iso) => {
-            const ms = Date.now() - new Date(iso).getTime();
-            if (ms < 60_000) return 'just now';
-            if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m ago`;
-            if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h ago`;
-            return `${Math.floor(ms / 86_400_000)}d ago`;
-          };
-          const tagFor = (a) => {
-            const t = String(a || '').toLowerCase();
-            if (t === 'pr' || t === 'strength' || t === 'workout') return 'STR';
-            if (t === 'run' || t === 'race') return 'RUN';
-            if (t === 'meal' || t === 'nutrition') return 'EAT';
-            return 'SHP';
-          };
-          // Only surface REAL, recent posts — skip test/placeholder rows
-          // (generic 'activity'/'update' titles, missing titles, or stale
-          // timestamps). Otherwise keep the curated editorial blurbs.
-          const firstName = (n) => String(n || 'Member').trim().split(/\s+/)[0];
-          // Throwaway chatter that shouldn't be promoted to a Daily headline.
-          const GREETINGS = new Set(['hi', 'hii', 'hiii', 'hey', 'heyy', 'yo', 'sup', 'test', 'testing', 'lol', 'ok', 'okay', 'hello', 'hru', 'asdf', 'wassup', 'whatsup']);
-          const ACTIVITY = ['pr', 'run', 'race', 'workout', 'strength', 'meal', 'nutrition', 'ride', 'cycle', 'swim'];
-          const good = d.posts.filter(p => {
-            const raw = String(p.title || p.note || '').trim();
-            const tt = raw.toLowerCase();
-            if (!tt || tt === 'activity' || tt === 'update') return false;
-            const ms = Date.now() - new Date(p.created_at).getTime();
-            if (!(ms >= 0 && ms < 30 * 86_400_000)) return false;
-            // Real, structured activity posts (a PR, a run, a logged meal…) are
-            // always headline-worthy. Free-text community chatter has to look
-            // like an actual update — multi-word, substantial, not a greeting —
-            // so a stray "hii" never becomes a featured story.
-            if (ACTIVITY.includes(String(p.activity_type || '').toLowerCase())) return raw.length >= 3;
-            if (GREETINGS.has(tt)) return false;
-            return raw.length >= 14 && /\s/.test(raw);
-          }).slice(0, 5);
-          if (!good.length) return;
-          const hydrated = good.map((p, i) => ({
-            tag: `${tagFor(p.activity_type)}-${String(i + 1).padStart(2, '0')}`,
-            title: String(p.title || p.note).trim(),
-            meta: `${firstName(p.author_name)} · ${ago(p.created_at)}`,
-            col: 1,
-          }));
-          setInsideItems(hydrated);
-        })
-        .catch(() => {});
-      return () => { alive = false; };
-    }, []);
+    // "Inside Shape" is the curated list of Shape's OWN product updates &
+    // announcements (STATIC_INSIDE) — NOT the member community feed. Member
+    // posts ("hii") must never surface here, so this is intentionally static.
+    const insideItems = STATIC_INSIDE;
 
     const items = [...insideItems, ...STATIC_WORLD];
     const _bgRGB = bgColor && bgColor !== 'auto' ? _hexToRGBmain(bgColor) : null;
