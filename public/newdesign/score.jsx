@@ -126,8 +126,15 @@ function ScoreHero() {
 function ScoreTiers() {
   const [aud, setAud] = useSScore("client");
   const tiers = aud === "coach" ? TIERS_COACH : TIERS;
+  // The teal progress bar should end at the lit (current) tier's node — not a
+  // flat score/15000 fraction. Find the current tier (fallback: highest reached)
+  // and size the bar to that node's column center.
+  const curIdx = tiers.findIndex((t) => t.current);
+  const reachedIdx = tiers.reduce((m, t, i) => (SCORE_TOTAL >= t.min ? i : m), 0);
+  const markIdx = curIdx >= 0 ? curIdx : reachedIdx;
+  const barPct = ((markIdx + 0.5) / tiers.length) * 100;
   return (
-    <section style={{ padding: "70px 72px" }}>
+    <section style={{ padding: "96px 72px" }}>
       <ScReveal>
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
           <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL, marginBottom: 18 }}>Tiers</div>
@@ -150,21 +157,22 @@ function ScoreTiers() {
               );
             })}
           </div>
-          <div style={{ position: "relative", padding: "40px 0" }}>
-            <div style={{ position: "absolute", left: 0, right: 0, top: "50%", height: 2, background: "rgba(242,237,228,0.12)", transform: "translateY(-50%)" }} />
-            <div style={{ position: "absolute", left: 0, top: "50%", height: 2, background: `linear-gradient(90deg, ${TEAL}, ${TEAL_BRIGHT})`, transform: "translateY(-50%)", width: `${(SCORE_TOTAL / 15000) * 100}%` }} />
+          <div style={{ position: "relative", padding: "24px 0 8px" }}>
+            {/* connector lines anchored to the node row's vertical center (top: 58) */}
+            <div style={{ position: "absolute", left: 0, right: 0, top: 58, height: 4, background: "rgba(242,237,228,0.12)", transform: "translateY(-50%)" }} />
+            <div style={{ position: "absolute", left: 0, top: 58, height: 4, background: `linear-gradient(90deg, ${TEAL}, ${TEAL_BRIGHT})`, transform: "translateY(-50%)", width: `${barPct}%` }} />
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${tiers.length}, 1fr)`, position: "relative" }}>
               {tiers.map((t, i) => {
                 const reached = SCORE_TOTAL >= t.min;
                 const current = t.current;
                 return (
-                  <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-                    <div style={{ fontFamily: mono, fontSize: 11, color: "rgba(242,237,228,0.55)" }}>{t.min.toLocaleString()}</div>
-                    <div style={{ height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <div style={{ width: current ? 28 : 18, height: current ? 28 : 18, borderRadius: 999, background: reached ? (current ? TEAL : t.color) : INK_DEEP, border: `2px solid ${reached ? t.color : "rgba(242,237,228,0.2)"}`, boxShadow: current ? `0 0 0 6px rgba(10,197,168,0.18)` : "none" }} />
+                  <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                    <div style={{ height: 20, lineHeight: "20px", marginBottom: 12, fontFamily: mono, fontSize: 13, color: "rgba(242,237,228,0.55)" }}>{t.min.toLocaleString()}</div>
+                    <div style={{ height: 52, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <div style={{ width: current ? 42 : 26, height: current ? 42 : 26, borderRadius: 999, background: reached ? (current ? TEAL : t.color) : INK_DEEP, border: `2.5px solid ${reached ? t.color : "rgba(242,237,228,0.2)"}`, boxShadow: current ? `0 0 0 9px rgba(10,197,168,0.18)` : "none" }} />
                     </div>
-                    <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.01em", color: reached ? INK : "rgba(242,237,228,0.45)" }}>{t.name}</div>
-                    <div style={{ fontFamily: sans, fontSize: 11, color: "rgba(242,237,228,0.5)", textAlign: "center", maxWidth: 160 }}>{t.desc}</div>
+                    <div style={{ marginTop: 16, fontFamily: serif, fontSize: 30, letterSpacing: "-0.015em", color: reached ? INK : "rgba(242,237,228,0.45)" }}>{t.name}</div>
+                    <div style={{ marginTop: 7, fontFamily: sans, fontSize: 13, lineHeight: 1.4, color: "rgba(242,237,228,0.5)", textAlign: "center", maxWidth: 190 }}>{t.desc}</div>
                   </div>
                 );
               })}
