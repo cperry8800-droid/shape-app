@@ -940,7 +940,7 @@ function ChatWidget(props) {
                       onTouchStart={startLongPress}
                       onTouchEnd={cancelLongPress}
                       style={{
-                        maxWidth: "78%", padding: "9px 13px", borderRadius: 12,
+                        maxWidth: "100%", width: "fit-content", overflowWrap: "anywhere", padding: "9px 13px", borderRadius: 12,
                         background: m.me ? TEAL : "rgba(242,237,228,0.06)",
                         color: m.me ? PAPER : INK,
                         borderTopRightRadius: m.me ? 3 : 12,
