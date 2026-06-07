@@ -7314,21 +7314,21 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
 
       {/* Live "training now" presence rail — Feed tab only */}
       {tab === 'feed' && (
-        <div style={{ padding: `2px ${t.padX}px 4px` }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9 }}>
+        <div style={{ padding: `8px ${t.padX}px 6px` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
             <span style={{ width: 6, height: 6, borderRadius: 3, background: TEAL, boxShadow: `0 0 0 3px ${TEAL}33` }} />
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{liftingNow.toLocaleString()} lifting now · near you</span>
           </div>
-          <div className="bs-scroll" style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 2 }}>
+          <div className="bs-scroll" style={{ display: 'flex', gap: 12, overflowX: 'auto', overflowY: 'visible', padding: '13px 2px 4px' }}>
             {TRAINING_NOW.map((p, i) => {
               // Coaches wear their own ladder color (Icon=teal, …); members the client ramp.
               const tc = p.role ? bsTierColor(String(bsCoachTier(p.tier)).toLowerCase()) : bsTierColor(p.tier);
               return (
-                <button key={i} onClick={() => setOpenProfile({ who: p.name, kind: p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT', tier: p.tier, public: true })} style={{ flex: '0 0 auto', width: 60, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'center' }}>
+                <button key={i} onClick={() => setOpenProfile({ who: p.name, kind: p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT', tier: p.tier, public: true })} style={{ flex: '0 0 auto', width: 58, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'center' }}>
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    <BSFacetAvatar size={50} c={tc} initial={bsInitials(p.name)} photo={bsUnsplash(p.photo)} rank={bsTierRank(p.tier)} live={!!p.live} BG={t.PAPER} INK={'#fff'} />
+                    <BSFacetAvatar size={44} c={tc} initial={bsInitials(p.name)} photo={bsUnsplash(p.photo)} rank={bsTierRank(p.tier)} live={!!p.live} BG={t.PAPER} INK={'#fff'} />
                   </div>
-                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11.5, marginTop: 9, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: cardInk }}>{p.name.split(' ')[0]}</span>
+                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, marginTop: 10, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: cardInk }}>{p.name.split(' ')[0]}</span>
                 </button>
               );
             })}
@@ -12373,7 +12373,14 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const startEdit = () => { setDraft(identity); setEditing(true); };
   const saveEdit  = () => {
     setIdentity(draft); setEditing(false);
-    try { window.shapeDb?.saveUserGoals?.('client_identity', draft); } catch (e) {}
+    // Merge over the stored identity so the avatar photo (and any other fields
+    // saved separately, e.g. by the photo picker) are preserved, not clobbered.
+    try {
+      const photo = (typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || null;
+      const save = (existing) => { try { window.shapeDb?.saveUserGoals?.('client_identity', { ...(existing || {}), ...draft, ...(photo ? { photo } : {}) }); } catch (e) {} };
+      const p = window.shapeDb?.getUserGoals?.('client_identity');
+      if (p && p.then) p.then(save).catch(() => save(null)); else save(null);
+    } catch (e) {}
     // Mirror the display name to the auth-cached profile so other surfaces pick it up.
     try { window.ShapeAuth?.updateProfileName?.(draft.name); } catch (e) {}
     // Cache the custom initials globally so every avatar (header + feed) updates,
