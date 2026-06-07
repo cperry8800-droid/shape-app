@@ -6116,23 +6116,25 @@ const bsTHexA = (hex, a) => {
 function bsTRng(seed) { let s = (seed || 1) % 2147483647; if (s <= 0) s += 2147483646; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
 
 // Profile privacy selector (shown on your OWN profile) — Public / Friends /
-// Private. Persists to client_identity.visibility (merged) so it travels with
-// the profile; public = anyone, friends = your circle, private = name+tier only.
+// Private. Persists to user_goals('client_settings').profileVisibility, the same
+// field Settings → Profile visibility uses and that get_public_profile enforces:
+// public = anyone, friends = your circle (shared member DM), private = name+tier.
 function BSProfilePrivacy({ teal = '#34d6c5', ink = '#f2ede4' }) {
   const MONO = "'JetBrains Mono', monospace";
   const OPTS = [['public', 'Public'], ['friends', 'Friends'], ['private', 'Private']];
+  const LABEL = { public: 'Public', friends: 'Just friends', private: 'Private' };
+  const norm = (raw) => { const s = String(raw || '').toLowerCase(); if (s.indexOf('pub') === 0) return 'public'; if (s.indexOf('friend') >= 0 || s.indexOf('circle') >= 0) return 'friends'; return s ? 'private' : 'public'; };
   const [vis, setVis] = useStateBSC('public');
   React.useEffect(() => {
-    try { window.shapeDb?.getUserGoals?.('client_identity').then((d) => { if (d && d.visibility) setVis(d.visibility); }).catch(() => {}); } catch (e) {}
+    try { window.shapeDb?.getUserGoals?.('client_settings').then((d) => { if (d && d.profileVisibility) setVis(norm(d.profileVisibility)); }).catch(() => {}); } catch (e) {}
   }, []);
   const pick = (v) => {
     setVis(v);
     try {
-      const save = (d) => { try { window.shapeDb?.saveUserGoals?.('client_identity', { ...(d || {}), visibility: v }); } catch (e) {} };
-      const p = window.shapeDb?.getUserGoals?.('client_identity');
+      const save = (d) => { try { window.shapeDb?.saveUserGoals?.('client_settings', { ...(d || {}), profileVisibility: LABEL[v] }); } catch (e) {} };
+      const p = window.shapeDb?.getUserGoals?.('client_settings');
       if (p && p.then) p.then(save).catch(() => save(null)); else save(null);
     } catch (e) {}
-    try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), visibility: v }; } catch (e) {}
     try { window.dispatchEvent(new CustomEvent('shape:visibility', { detail: v })); } catch (e) {}
   };
   return (
@@ -6202,7 +6204,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
   const [live, setLive] = useStateBSC(null);
   React.useEffect(() => { if (person.userId && window.ShapeProfiles?.getPublicProfile) { window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (d) setLive(d); }).catch(() => {}); } }, [person.userId]);
-  const isPrivate = !!(live && live.is_public === false);
+  const isPrivate = !!(live && (live.can_view === false || (live.can_view == null && live.is_public === false)));
   const points = live && Number.isFinite(live.points) ? live.points : null;
   const tierKey = points != null ? bsTierForPoints(points) : (person.tier || bsPostTier(person));
   const c = bsTierColor(tierKey);
@@ -6379,7 +6381,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
   const [live, setLive] = useStateBSC(null);
   React.useEffect(() => { if (person.userId && window.ShapeProfiles?.getPublicProfile) { window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (d) setLive(d); }).catch(() => {}); } }, [person.userId]);
-  const isPrivate = !!(live && live.is_public === false);
+  const isPrivate = !!(live && (live.can_view === false || (live.can_view == null && live.is_public === false)));
   const isNutri = person.kind === 'NUTRI';
   const points = live && Number.isFinite(live.points) ? live.points : null;
   const baseTier = points != null ? bsTierForPoints(points) : (person.tier || bsPostTier(person));

@@ -46,6 +46,28 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-07 — Public profiles: Terrain (client) + Signal (coach) + privacy
+- Member/coach public profiles are now immersive "living identity" pages
+  (`iosAppBroadsheetClient.jsx`): **clients → Terrain** (topographic contour hero,
+  ridgeline climb, living signals, discipline strata, field-notes) and **coaches →
+  Signal** (sigil instrument of discipline rings + cardiac week-trace + portrait
+  core, certs/offerings/reviews). Tier is the atmosphere color (client/coach ladder).
+  `BSPublicProfile` routes coach→`BSSignalCoachProfile`, member→`BSTerrainProfile`;
+  the old card body was removed.
+- **Me → Public profile** opens your own profile on every role (client already did;
+  coach Me now opens the Signal self-view via the window-exposed `BSPublicProfile`,
+  Edit → `shape:openProSettings`).
+- **Privacy selector** (Public / Friends / Private) on your own profile, persisted
+  to `client_settings.profileVisibility` (same field Settings uses).
+- **Migration `2026-06-07-public-profile-friends-visibility.sql`** (**run on
+  Supabase**): `get_public_profile` now returns `visibility` + `can_view` and
+  enforces all three states — friends = a viewer who shares a member 1:1
+  conversation (`conversations.dm_key`) with the owner; details (bio/pronouns/goal/
+  link) return only when `can_view`. `is_public` kept for back-compat.
+- *Still illustrative:* the rich profile sub-data (the climb, disciplines, lifts,
+  certs, offerings, reviews, field-notes) is demo/role-aware — wire to real
+  workout/PR/marketplace data later.
+
 ### 2026-06-06 — Signal chat redesign (mobile, Chat tab) — shipped in 5 steps
 - Ported the **"Signal" v2 chat design** (presence-forward, tier-colored, Strava-style)
   into the live `BSClientFeed` (Chat tab only). The standalone prototypes live in
