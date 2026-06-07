@@ -6152,7 +6152,7 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 
   const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", FTEAL = '#34d6c5';
   const inset = Math.max(2, Math.round(size * 0.055));
   return (
-    <div onClick={onClick} style={{ width: size, height: size, position: 'relative', display: 'grid', placeItems: 'center', cursor: onClick ? 'pointer' : 'default' }}>
+    <div onClick={onClick} style={{ width: size, height: size, flexShrink: 0, position: 'relative', display: 'grid', placeItems: 'center', cursor: onClick ? 'pointer' : 'default' }}>
       {live && <div className="bs-av-pulse" style={{ position: 'absolute', inset: -Math.round(size * 0.1), transform: 'rotate(45deg)', borderRadius: '30%', border: `2px solid ${FTEAL}`, boxShadow: `0 0 12px ${bsTHexA(FTEAL, 0.55)}`, pointerEvents: 'none', animation: 'bsAvPulse 2.4s ease-in-out infinite' }} />}
       {/* gem frame */}
       <div style={{ position: 'absolute', inset: 0, transform: 'rotate(45deg)', borderRadius: '27%', background: `linear-gradient(135deg, ${c}, ${bsShade(c, 0.5)})`, boxShadow: `0 5px 16px ${bsTHexA(c, 0.4)}, inset 1px 1px 2px rgba(255,255,255,0.35)` }}>
@@ -7358,9 +7358,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         </div>
       </div>
 
-      {/* Live "training now" presence rail — Feed tab only */}
-      {tab === 'feed' && (
-        <div style={{ padding: `8px ${t.padX}px 6px` }}>
+      {/* Live "training now" presence rail — kept visible on every chat tab. */}
+      <div style={{ padding: `8px ${t.padX}px 6px` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
             <span style={{ width: 6, height: 6, borderRadius: 3, background: TEAL, boxShadow: `0 0 0 3px ${TEAL}33` }} />
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{liftingNow.toLocaleString()} lifting now · near you</span>
@@ -7379,8 +7378,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               );
             })}
           </div>
-        </div>
-      )}
+      </div>
 
       {/* Feed / Channels / Friends / Team */}
       <div style={{ padding: `10px ${t.padX}px 0` }}>
