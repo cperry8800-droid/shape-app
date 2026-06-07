@@ -6445,12 +6445,45 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const maxWk = Math.max(...week);
   const card = { background: bsTHexA(INK, 0.04), border: `1px solid ${bsTHexA(INK, 0.08)}`, borderRadius: 14 };
   const { photo, fileRef, onPick } = useBSProfilePhoto(person, isSelf);
-  const pct = Math.max(0.05, Math.min(0.96, (progressPct || 0) / 100));
-  const since = person.since || 'Feb 2024';
+  // When viewing your OWN profile, wire the climb (Start → Now → Target + %) to
+  // your real body-comp goal + weigh-ins. Others keep the derived demo arc.
+  const [realGoal, setRealGoal] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!isSelf) return;
+    let alive = true;
+    (async () => {
+      let doc = null, weigh = null;
+      try { doc = window.shapeDb?.getUserGoals ? await window.shapeDb.getUserGoals('client_goals') : null; } catch (e) {}
+      try { weigh = window.ShapeWeighIns?.list ? await window.ShapeWeighIns.list() : null; } catch (e) {}
+      if (!alive) return;
+      const o = (doc && doc.overall && typeof doc.overall === 'object') ? { ...doc.overall } : null;
+      let merged = o;
+      if (Array.isArray(weigh) && weigh.length) merged = { ...(o || {}), weighIns: weigh, now: Number(weigh[weigh.length - 1].kg) };
+      if (merged && (merged.start != null || merged.target != null || merged.now != null)) setRealGoal(merged);
+    })();
+    return () => { alive = false; };
+  }, [isSelf]);
+  const realArc = (realGoal && realGoal.start != null && realGoal.target != null) ? (() => {
+    const unit = realGoal.unit || 'kg';
+    const s = Number(realGoal.start), n = Number(realGoal.now != null ? realGoal.now : s), tg = Number(realGoal.target);
+    const fmt = (v) => `${Math.round(v * 10) / 10} ${unit}`;
+    const span = Math.abs(tg - s);
+    return {
+      arc: [[realGoal.startMonth || 'Start', fmt(s), 'start'], ['Now', fmt(n), 'now'], ['Target', fmt(tg), 'target']],
+      pct: span < 0.01 ? 0.5 : Math.max(0.04, Math.min(0.98, Math.abs(n - s) / span)),
+      summit: realGoal.title || fmt(tg),
+    };
+  })() : null;
+  const memberSinceLabel = (isSelf && (() => { try { const cs = window.ShapeAuth?.getCachedState?.(); const ca = cs && cs.user && cs.user.created_at; if (ca) { const dt = new Date(ca); if (!isNaN(dt)) return dt.toLocaleDateString([], { month: 'short', year: 'numeric' }); } } catch (e) {} return null; })()) || person.since || 'Feb 2024';
+  const since = memberSinceLabel;
   const stravaUrl = person.strava
     ? (/^https?:/i.test(person.strava) ? person.strava : 'https://www.strava.com/athletes/' + String(person.strava).replace(/^@/, ''))
     : 'https://www.strava.com';
-  const arc = person.arc || [['Feb ’25', 'Started', 'start'], ['Now', `${progressPct}% there`, 'now'], ['Target', summit, 'target']];
+  const demoArc = person.arc || [['Feb ’25', 'Started', 'start'], ['Now', `${progressPct}% there`, 'now'], ['Target', summit, 'target']];
+  const arc = realArc ? realArc.arc : demoArc;
+  const pct = realArc ? realArc.pct : Math.max(0.05, Math.min(0.96, (progressPct || 0) / 100));
+  const pctLabel = Math.round(pct * 100);
+  const summitEff = realArc ? realArc.summit : summit;
   const avPhoto = photo || (live && live.avatar);
   return (
     <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
@@ -6482,11 +6515,11 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             {/* you-are-here FACET badge */}
             <div style={{ position: 'absolute', left: `calc(${(here.x / W) * 100}% - 28px)`, top: `calc(${(here.y / H) * 100}% - 64px)` }}>
               <BSFacetAvatar size={56} c={c} initial={bsInitials(name) || '?'} photo={avPhoto} rank={bsTierRank(tierKey)} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
-              <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 5, whiteSpace: 'nowrap', fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: TEAL, background: bsTHexA('#0c1110', 0.85), padding: '2px 6px', borderRadius: 4 }}>You · {progressPct}%</div>
+              <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 5, whiteSpace: 'nowrap', fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: TEAL, background: bsTHexA('#0c1110', 0.85), padding: '2px 6px', borderRadius: 4 }}>You · {pctLabel}%</div>
             </div>
             {/* base + summit labels */}
             <div style={{ position: 'absolute', left: 14, bottom: 12, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{arc[0][0]} · start</div>
-            <div style={{ position: 'absolute', right: 14, top: 14, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#e0644b', textAlign: 'right' }}>Summit<br />{summit}</div>
+            <div style={{ position: 'absolute', right: 14, top: 14, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#e0644b', textAlign: 'right', maxWidth: 130 }}>Summit<br />{summitEff}</div>
             {/* identity strip */}
             <div style={{ padding: 16, borderTop: `1px solid ${bsTHexA(INK, 0.08)}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ minWidth: 0 }}>
