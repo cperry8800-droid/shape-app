@@ -6445,45 +6445,73 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const maxWk = Math.max(...week);
   const card = { background: bsTHexA(INK, 0.04), border: `1px solid ${bsTHexA(INK, 0.08)}`, borderRadius: 14 };
   const { photo, fileRef, onPick } = useBSProfilePhoto(person, isSelf);
-  // When viewing your OWN profile, wire the climb (Start → Now → Target + %) to
-  // your real body-comp goal + weigh-ins. Others keep the derived demo arc.
+  // On your OWN profile the climb is wired to real data, and you can choose what
+  // it tracks: body weight (goal + weigh-ins), Shape Score (→ next tier), or day
+  // streak. Others always see the body-weight climb (derived/demo).
+  const CLIMB_SOURCES = [{ key: 'weight', label: 'Body weight' }, { key: 'score', label: 'Shape Score' }, { key: 'streak', label: 'Day streak' }];
   const [realGoal, setRealGoal] = useStateBSC(null);
+  const [climbSource, setClimbSource] = useStateBSC('weight');
+  const prog = useBSProgram();
+  const [coachReal, setCoachReal] = useStateBSC(null);
   React.useEffect(() => {
     if (!isSelf) return;
     let alive = true;
     (async () => {
-      let doc = null, weigh = null;
+      let doc = null, weigh = null, climb = null;
       try { doc = window.shapeDb?.getUserGoals ? await window.shapeDb.getUserGoals('client_goals') : null; } catch (e) {}
       try { weigh = window.ShapeWeighIns?.list ? await window.ShapeWeighIns.list() : null; } catch (e) {}
+      try { climb = window.shapeDb?.getUserGoals ? await window.shapeDb.getUserGoals('client_climb') : null; } catch (e) {}
       if (!alive) return;
       const o = (doc && doc.overall && typeof doc.overall === 'object') ? { ...doc.overall } : null;
       let merged = o;
       if (Array.isArray(weigh) && weigh.length) merged = { ...(o || {}), weighIns: weigh, now: Number(weigh[weigh.length - 1].kg) };
       if (merged && (merged.start != null || merged.target != null || merged.now != null)) setRealGoal(merged);
+      if (climb && climb.source) setClimbSource(climb.source);
     })();
     return () => { alive = false; };
   }, [isSelf]);
+  React.useEffect(() => {
+    if (!isSelf || !window.ShapeMessages?.listDirectCoachThreads) return;
+    let alive = true;
+    window.ShapeMessages.listDirectCoachThreads().then(list => { if (alive && Array.isArray(list) && list.length) { const co = list[0]; const nm = co.who || co.name || co.full_name; if (nm) setCoachReal({ name: nm, init: bsInitials(nm) || 'C' }); } }).catch(() => {});
+    return () => { alive = false; };
+  }, [isSelf]);
+  const pickClimb = (k) => { setClimbSource(k); try { window.shapeDb?.saveUserGoals?.('client_climb', { source: k }); } catch (e) {} };
   const realArc = (realGoal && realGoal.start != null && realGoal.target != null) ? (() => {
     const unit = realGoal.unit || 'kg';
     const s = Number(realGoal.start), n = Number(realGoal.now != null ? realGoal.now : s), tg = Number(realGoal.target);
     const fmt = (v) => `${Math.round(v * 10) / 10} ${unit}`;
     const span = Math.abs(tg - s);
-    return {
-      arc: [[realGoal.startMonth || 'Start', fmt(s), 'start'], ['Now', fmt(n), 'now'], ['Target', fmt(tg), 'target']],
-      pct: span < 0.01 ? 0.5 : Math.max(0.04, Math.min(0.98, Math.abs(n - s) / span)),
-      summit: realGoal.title || fmt(tg),
-    };
+    return { arc: [[realGoal.startMonth || 'Start', fmt(s), 'start'], ['Now', fmt(n), 'now'], ['Target', fmt(tg), 'target']], pct: span < 0.01 ? 0.5 : Math.max(0.04, Math.min(0.98, Math.abs(n - s) / span)), summit: realGoal.title || fmt(tg) };
   })() : null;
+  const climbCfg = (() => {
+    if (isSelf && climbSource === 'score') {
+      const pts = (typeof window !== 'undefined' && window.ShapeScore && Number(window.ShapeScore.points)) || (points || 0);
+      const TH = [0, 750, 2000, 5000, 15000], NM = ['Base', 'Tempo', 'Form', 'Peak', 'Legend'];
+      let i = 0; for (let j = 0; j < TH.length; j++) if (pts >= TH[j]) i = j;
+      const last = i >= TH.length - 1, floor = TH[i], next = last ? TH[i] : TH[i + 1], nextName = last ? NM[i] : NM[i + 1];
+      return { arc: [[NM[i], `${floor.toLocaleString()} pts`, 'start'], ['Now', `${pts.toLocaleString()} pts`, 'now'], [nextName, `${next.toLocaleString()} pts`, 'target']], pct: last ? 1 : Math.max(0.04, Math.min(0.98, (pts - floor) / Math.max(1, next - floor))), summit: last ? 'Legend tier' : `${nextName} tier` };
+    }
+    if (isSelf && climbSource === 'streak') {
+      const s = Number(streak) || 0, target = Math.max(7, Math.ceil((s + 1) / 7) * 7);
+      return { arc: [['Start', 'Day 0', 'start'], ['Now', `${s} days`, 'now'], ['Goal', `${target} days`, 'target']], pct: Math.max(0.04, Math.min(0.98, target ? s / target : 0)), summit: `${target}-day streak` };
+    }
+    return realArc || { arc: (person.arc || [['Feb ’25', 'Started', 'start'], ['Now', `${progressPct}% there`, 'now'], ['Target', summit, 'target']]), pct: Math.max(0.05, Math.min(0.96, (progressPct || 0) / 100)), summit };
+  })();
+  const arc = climbCfg.arc;
+  const pct = climbCfg.pct;
+  const pctLabel = Math.round(pct * 100);
+  const summitEff = climbCfg.summit;
+  // Coached-by band — real program phase + linked coach on your own profile.
+  const blockEff = (isSelf && prog && prog.trainingPhase) ? 'Current phase' : block;
+  const programEff = (isSelf && prog && (prog.trainingPhase || prog.nutritionPhase)) ? [prog.trainingPhase, prog.nutritionPhase].filter(Boolean).join(' · ') : program;
+  const coachNameEff = coachReal ? coachReal.name : coachName;
+  const coachInitEff = coachReal ? coachReal.init : coachInit;
   const memberSinceLabel = (isSelf && (() => { try { const cs = window.ShapeAuth?.getCachedState?.(); const ca = cs && cs.user && cs.user.created_at; if (ca) { const dt = new Date(ca); if (!isNaN(dt)) return dt.toLocaleDateString([], { month: 'short', year: 'numeric' }); } } catch (e) {} return null; })()) || person.since || 'Feb 2024';
   const since = memberSinceLabel;
   const stravaUrl = person.strava
     ? (/^https?:/i.test(person.strava) ? person.strava : 'https://www.strava.com/athletes/' + String(person.strava).replace(/^@/, ''))
     : 'https://www.strava.com';
-  const demoArc = person.arc || [['Feb ’25', 'Started', 'start'], ['Now', `${progressPct}% there`, 'now'], ['Target', summit, 'target']];
-  const arc = realArc ? realArc.arc : demoArc;
-  const pct = realArc ? realArc.pct : Math.max(0.05, Math.min(0.96, (progressPct || 0) / 100));
-  const pctLabel = Math.round(pct * 100);
-  const summitEff = realArc ? realArc.summit : summit;
   const avPhoto = photo || (live && live.avatar);
   return (
     <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
@@ -6532,13 +6560,13 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             <div style={{ padding: '0 16px 16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 13, background: bsTHexA(TEAL, 0.07), border: `1px solid ${bsTHexA(TEAL, 0.22)}` }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: TEAL }}>{block}</div>
-                  <div style={{ fontFamily: SANS, fontSize: 13.5, color: bsTHexA(INK, 0.85), marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{program}</div>
+                  <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: TEAL }}>{blockEff}</div>
+                  <div style={{ fontFamily: SANS, fontSize: 13.5, color: bsTHexA(INK, 0.85), marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{programEff}</div>
                 </div>
                 <div style={{ width: 1, alignSelf: 'stretch', background: bsTHexA(INK, 0.12) }} />
                 <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 999, flex: 'none', background: bsTHexA(TEAL, 0.18), border: `1px solid ${bsTHexA(TEAL, 0.5)}`, color: TEAL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: MONO, fontSize: 11, fontWeight: 700 }}>{coachInit}</div>
-                  <div><div style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45) }}>Coached by</div><div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.85), marginTop: 2 }}>{coachName}</div></div>
+                  <div style={{ width: 30, height: 30, borderRadius: 999, flex: 'none', background: bsTHexA(TEAL, 0.18), border: `1px solid ${bsTHexA(TEAL, 0.5)}`, color: TEAL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: MONO, fontSize: 11, fontWeight: 700 }}>{coachInitEff}</div>
+                  <div><div style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45) }}>Coached by</div><div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.85), marginTop: 2 }}>{coachNameEff}</div></div>
                 </div>
               </div>
             </div>
@@ -6561,6 +6589,13 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                 <Kick>The climb</Kick>
                 <span style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.5), whiteSpace: 'nowrap' }}>Member since {since} · <a href={stravaUrl} target="_blank" rel="noopener noreferrer" style={{ color: c, textDecoration: 'none' }}>Strava ↗</a></span>
               </div>
+              {isSelf && (
+                <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+                  {CLIMB_SOURCES.map((s) => { const on = climbSource === s.key; return (
+                    <button key={s.key} onClick={() => pickClimb(s.key)} style={{ padding: '5px 11px', borderRadius: 999, border: `1px solid ${on ? TEAL : bsTHexA(INK, 0.18)}`, background: on ? bsTHexA(TEAL, 0.14) : 'transparent', color: on ? TEAL : bsTHexA(INK, 0.6), fontFamily: MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{s.label}</button>
+                  ); })}
+                </div>
+              )}
               {(() => {
                 const W = 320, H = 132; const ys = [H - 18, H * 0.52, 22]; const xs = [24, W / 2, W - 24];
                 const rg = `M ${xs[0]} ${ys[0]} Q ${(xs[0] + xs[1]) / 2} ${ys[0] - 26}, ${xs[1]} ${ys[1]} T ${xs[2]} ${ys[2]}`;
