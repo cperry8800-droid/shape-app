@@ -1171,11 +1171,16 @@ function BSAppShell({ tweaks, setTweak }) {
   // the paywall to look around behind a persistent Join banner.
   const realRole = authState?.profile?.role;
   const isApprovedCoach = realRole === 'trainer' || realRole === 'nutritionist';
-  // Members-only: an account needs an active $5/mo subscription (or be an
-  // approved coach). New signups are routed through checkout (see submitAuth),
-  // so a paid account = full access; an unpaid one stays on the paywall.
-  const memberAllowed = isApprovedCoach || membership.active === true;
-  const memberGateLoading = !isApprovedCoach && (!authReady || membership.loading);
+  // Members-only, enforced at SIGNUP: account creation routes through $5/mo
+  // checkout (see submitAuth), so every signed-in account is a paying member.
+  // Therefore a signed-in user always gets in — the paywall is only for
+  // signed-OUT visitors. (We keep the coach + active-subscription checks so the
+  // gate still resolves before auth restores, and paid features remain enforced
+  // server-side per endpoint.) This fixes the paywall re-appearing after login
+  // when the subscription re-check is slow/unavailable for a real member.
+  const signedIn = !!(authState?.user?.id);
+  const memberAllowed = isApprovedCoach || signedIn || membership.active === true;
+  const memberGateLoading = !isApprovedCoach && !signedIn && (!authReady || membership.loading);
 
   // The membership wall ('gate') sits between the cosmos splash and the "Shape
   // Daily" editorial splash: non-members see the paywall here; members auto-
