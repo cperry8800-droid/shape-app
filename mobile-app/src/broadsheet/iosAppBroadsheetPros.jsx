@@ -515,6 +515,141 @@ function BSProLiveWatch({ client = 'Alex Rivera', workout = 'Upper Pull — Peak
   );
 }
 
+// Coach Grocery Lists — real, owner-scoped lists (coach_grocery_lists). A coach
+// builds lists for THEMSELVES or for a client, then sends a client list to that
+// client (real delivery via a chat message). Demo seeds when signed out.
+const _BS_GRO_AISLES = [
+  [/(chicken|beef|turkey|pork|salmon|tuna|fish|tofu|tempeh|egg|shrimp|steak|protein|lentil|bean|chickpea)/, 'Protein'],
+  [/(milk|yogurt|cheese|butter|cream|feta|kefir|dairy)/, 'Dairy'],
+  [/(spinach|kale|broccoli|pepper|onion|garlic|tomato|zucchini|carrot|cucumber|lettuce|avocado|berry|banana|apple|pineapple|lemon|lime|produce|greens|salad)/, 'Produce'],
+  [/(rice|pasta|bread|bagel|oat|quinoa|tortilla|noodle|grain|cereal|flour)/, 'Grains'],
+  [/(oil|salt|pepper|spice|sauce|stock|broth|honey|sugar|vinegar|pantry|canned|nut|seed|peanut|almond)/, 'Pantry'],
+];
+function bsGroAisle(name) {
+  const n = String(name || '').toLowerCase();
+  for (const [re, a] of _BS_GRO_AISLES) if (re.test(n)) return a;
+  return 'Other';
+}
+function BSProGroceryLists({ t, accent, isNutri, onBack }) {
+  const DEMO = [
+    { id: 'd0', name: 'My weekly prep', client_id: null, client_name: null, status: 'ready', items: [{ name: 'Chicken breast' }, { name: 'Jasmine rice' }, { name: 'Broccoli' }, { name: 'Greek yogurt' }, { name: 'Olive oil' }, { name: 'Eggs' }].map(x => ({ name: x.name, aisle: bsGroAisle(x.name) })) },
+    { id: 'd1', name: 'Big-plate day list', client_id: null, client_name: 'Riley Kim', status: 'ready', items: ['Chicken breast', 'Jasmine rice', 'Pineapple', 'Chili base', 'Greek yogurt'].map(n => ({ name: n, aisle: bsGroAisle(n) })) },
+    { id: 'd2', name: 'Low-FODMAP cut', client_id: null, client_name: 'Sara Mendez', status: 'review', items: ['Zucchini', 'Firm tofu', 'Rice noodles', 'Lactose-free milk'].map(n => ({ name: n, aisle: bsGroAisle(n) })) },
+    { id: 'd3', name: 'Vegetarian prep', client_id: null, client_name: 'Ava Brooks', status: 'approval', items: ['Spinach', 'Tempeh', 'Lentils', 'Feta'].map(n => ({ name: n, aisle: bsGroAisle(n) })) },
+  ];
+  const [lists, setLists] = useStateBSP(null);
+  const [tab, setTab] = useStateBSP('clients');
+  const [creating, setCreating] = useStateBSP(false);
+  const [draft, setDraft] = useStateBSP({ name: '', items: '', forClient: true, clientName: '' });
+  const [busy, setBusy] = useStateBSP(false);
+  const reload = React.useCallback(() => {
+    if (!window.ShapeGroceryLists?.list) { setLists(DEMO); return; }
+    window.ShapeGroceryLists.list().then(r => setLists(Array.isArray(r) && r.length ? r : DEMO)).catch(() => setLists(DEMO));
+  }, []);
+  React.useEffect(() => { reload(); }, [reload]);
+  const all = lists || DEMO;
+  const mine = all.filter(g => !g.client_name && !g.client_id);
+  const clients = all.filter(g => g.client_name || g.client_id);
+  const shown = tab === 'mine' ? mine : clients;
+  const STAT = { ready: ['Ready to send', '#5fae7e'], review: ['In review', t.AMBER || '#d8a23a'], approval: ['Awaiting approval', t.INK70], sent: ['Sent', accent] };
+  const aislesOf = (items) => { const m = {}; (items || []).forEach(it => { const a = it.aisle || bsGroAisle(it.name); m[a] = (m[a] || 0) + 1; }); return Object.keys(m).map(a => [a, m[a]]); };
+  const create = async () => {
+    const name = draft.name.trim();
+    if (!name) { window.__bsToast?.('Add a list name', 'err'); return; }
+    const items = draft.items.split('\n').map(s => s.trim()).filter(Boolean).map(n => ({ name: n, aisle: bsGroAisle(n) }));
+    const clientName = draft.forClient ? draft.clientName.trim() : '';
+    setBusy(true);
+    try {
+      if (window.ShapeGroceryLists?.create) { await window.ShapeGroceryLists.create({ name, items, status: 'ready', clientName }); window.__bsToast?.('List created', 'ok'); }
+      else { setLists(l => [{ id: 'l' + Date.now(), name, items, status: 'ready', client_name: clientName || null, client_id: null }, ...(l || DEMO)]); }
+      setCreating(false); setDraft({ name: '', items: '', forClient: true, clientName: '' });
+      setTab(clientName ? 'clients' : 'mine');
+      reload();
+    } catch (e) { window.__bsToast?.(e.message || 'Could not save', 'err'); }
+    finally { setBusy(false); }
+  };
+  const send = async (g) => {
+    if (!g.client_id) { window.__bsToast?.('Delivers once this client is linked', 'info'); return; }
+    try {
+      let cid = null;
+      const conv = await window.ShapeMessages?.getOrCreateMemberConversation?.({ otherUserId: g.client_id });
+      cid = (conv && conv.data) || null;
+      const body = `Grocery list · ${g.name}\n` + (g.items || []).map(it => `• ${it.name}`).join('\n');
+      if (cid && window.ShapeMessages?.sendMessage) await window.ShapeMessages.sendMessage({ conversationId: cid, body, metadata: { kind: 'grocery', name: g.name, items: g.items } });
+      if (window.ShapeGroceryLists?.update && !String(g.id).startsWith('d')) await window.ShapeGroceryLists.update({ id: g.id, status: 'sent' });
+      window.__bsToast?.(`Sent to ${String(g.client_name || 'client').split(' ')[0]}`, 'ok');
+      reload();
+    } catch (e) { window.__bsToast?.('Could not send', 'err'); }
+  };
+  const del = async (g) => {
+    if (window.ShapeGroceryLists?.remove && !String(g.id).startsWith('d')) await window.ShapeGroceryLists.remove(g.id);
+    setLists(l => (l || DEMO).filter(x => x.id !== g.id));
+  };
+  const backBtn = <button onClick={onBack} style={{ border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, borderRadius: 10, padding: '8px 10px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Back</button>;
+  const pill = (k, label, count) => { const on = tab === k; return <button onClick={() => setTab(k)} style={{ flex: 1, padding: '9px 0', borderRadius: 999, border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1f` : 'transparent', color: on ? t.INK : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{label} · {count}</button>; };
+  const inputStyle = { width: '100%', boxSizing: 'border-box', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '11px 13px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' };
+  return (
+    <BSPage>
+      <BSMasthead title="Grocery Lists" leftKicker={isNutri ? 'Nutrition delivery' : 'Meal support'} rightKicker={`${all.length} lists`} trailing={backBtn} />
+      <div style={{ padding: `8px ${t.padX}px 0`, display: 'flex', gap: 8 }}>
+        {pill('clients', 'Clients', clients.length)}
+        {pill('mine', 'Mine', mine.length)}
+      </div>
+      <div style={{ padding: `12px ${t.padX}px 0` }}>
+        {!creating ? (
+          <button onClick={() => setCreating(true)} style={{ width: '100%', padding: '11px', borderRadius: 12, border: `1px dashed ${accent}`, background: 'transparent', color: accent, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>+ New grocery list</button>
+        ) : (
+          <div style={{ border: `1px solid ${t.RULE}`, borderRadius: 16, background: t.SURFACE || t.PAPER2, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <input autoFocus value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} placeholder="List name — e.g. Big-plate day" style={inputStyle} />
+            <textarea value={draft.items} onChange={e => setDraft(d => ({ ...d, items: e.target.value }))} rows={4} placeholder={'One item per line\nChicken breast\nJasmine rice\nBroccoli'} style={{ ...inputStyle, resize: 'vertical', fontSize: 13.5 }} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              {[['Mine', false], ['For a client', true]].map(([l, v]) => { const on = draft.forClient === v; return <button key={l} onClick={() => setDraft(d => ({ ...d, forClient: v }))} style={{ flex: 1, padding: '9px 0', borderRadius: 999, border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1f` : 'transparent', color: on ? t.INK : t.INK70, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{l}</button>; })}
+            </div>
+            {draft.forClient && <input value={draft.clientName} onChange={e => setDraft(d => ({ ...d, clientName: e.target.value }))} placeholder="Client name" style={inputStyle} />}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => { setCreating(false); setDraft({ name: '', items: '', forClient: true, clientName: '' }); }} style={{ flex: 'none', padding: '11px 16px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Cancel</button>
+              <button disabled={busy} onClick={create} style={{ flex: 1, padding: '11px', borderRadius: 999, border: 0, background: accent, color: '#fff', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1 }}>{busy ? 'Saving…' : 'Create list'}</button>
+            </div>
+          </div>
+        )}
+      </div>
+      <div style={{ padding: `14px ${t.padX}px 22px`, display: 'grid', gap: 12 }}>
+        {shown.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, padding: '8px 2px' }}>{tab === 'mine' ? 'No personal lists yet — start one.' : 'No client lists yet.'}</div>}
+        {shown.map((g, i) => {
+          const [sl, sc] = STAT[g.status] || STAT.ready;
+          const first = String(g.client_name || '').split(' ')[0];
+          const ais = aislesOf(g.items);
+          const preview = (g.items || []).slice(0, 4).map(it => it.name);
+          return (
+            <div key={g.id || i} style={{ border: `1px solid ${t.RULE}`, borderRadius: 18, background: t.SURFACE || t.PAPER2, overflow: 'hidden', boxShadow: t.ELEVATION_SOFT || '0 8px 18px rgba(10,13,12,0.035)' }}>
+              <div style={{ height: 3, background: accent }} />
+              <div style={{ padding: '13px 15px 15px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent, fontWeight: 900 }}>{g.client_name || 'Personal'}</div>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: sc, border: `1px solid ${sc}66`, borderRadius: 999, padding: '3px 8px' }}>{sl}</span>
+                </div>
+                <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 800, letterSpacing: '-0.02em', color: t.INK }}>{g.name}</div>
+                <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50, textTransform: 'uppercase' }}>{(g.items || []).length} items · {ais.length} aisles</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 11 }}>
+                  {ais.map(([a, n]) => <span key={a} style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK70, background: t.PAPER, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '4px 9px' }}>{a} · {n}</span>)}
+                </div>
+                <div style={{ marginTop: 11, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.4 }}>{preview.join(' · ')}{(g.items || []).length > preview.length ? ` +${(g.items || []).length - preview.length} more` : ''}</div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 13 }}>
+                  {g.client_name
+                    ? <button type="button" onClick={() => send(g)} style={{ flex: 1, padding: '11px', borderRadius: 999, border: 0, background: accent, color: '#fff', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Send to {first || 'client'} →</button>
+                    : <span style={{ flex: 1, padding: '11px', borderRadius: 999, border: `1px solid ${t.RULE}`, color: t.INK50, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'center' }}>Your list</span>}
+                  <button type="button" onClick={() => del(g)} aria-label="Delete" style={{ flex: 'none', padding: '11px 14px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>✕</button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <BSFooter left={isNutri ? 'Nutrition Queue' : 'Coach Queue'} right="Grocery delivery" />
+    </BSPage>
+  );
+}
+
 function BSProWidgetQueuePage({ role = 'trainer', type = 'pr', onBack }) {
   const t = useBS();
   const isNutri = role === 'nutritionist';
@@ -547,47 +682,9 @@ function BSProWidgetQueuePage({ role = 'trainer', type = 'pr', onBack }) {
   const backBtn = (
     <button onClick={onBack} style={{ border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, borderRadius: 10, padding: '8px 10px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Back</button>
   );
-  // Grocery Lists gets a dedicated, list-shaped design (per-client lists with an
-  // aisle breakdown, item preview, status + send/edit) — role-accented.
-  if (type === 'grocery') {
-    const STAT = { ready: ['Ready to send', '#5fae7e'], review: ['In review', t.AMBER || '#d8a23a'], approval: ['Awaiting approval', t.INK70] };
-    return (
-      <BSPage>
-        <BSMasthead title={cfg.title} leftKicker={cfg.kicker} rightKicker={cfg.meta} trailing={backBtn} />
-        <BSSection title="Client grocery lists" meta="From meal plans" />
-        <div style={{ padding: `0 ${t.padX}px 22px`, display: 'grid', gap: 12 }}>
-          {cfg.lists.map((g, i) => {
-            const [sl, sc] = STAT[g.status] || STAT.ready;
-            const first = g.client.split(' ')[0];
-            return (
-              <div key={i} style={{ border: `1px solid ${t.RULE}`, borderRadius: 18, background: t.SURFACE || t.PAPER2, overflow: 'hidden', boxShadow: t.ELEVATION_SOFT || '0 8px 18px rgba(10,13,12,0.035)' }}>
-                <div style={{ height: 3, background: accent }} />
-                <div style={{ padding: '13px 15px 15px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent, fontWeight: 900 }}>{g.client}</div>
-                    <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: sc, border: `1px solid ${sc}66`, borderRadius: 999, padding: '3px 8px' }}>{sl}</span>
-                  </div>
-                  <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 800, letterSpacing: '-0.02em', color: t.INK }}>{g.name}</div>
-                  <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50, textTransform: 'uppercase' }}>{g.items} items · {g.aisles.length} aisles</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 11 }}>
-                    {g.aisles.map(([a, n]) => (
-                      <span key={a} style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK70, background: t.PAPER, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '4px 9px' }}>{a} · {n}</span>
-                    ))}
-                  </div>
-                  <div style={{ marginTop: 11, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.4 }}>{g.preview.join(' · ')}{g.items > g.preview.length ? ` +${g.items - g.preview.length} more` : ''}</div>
-                  <div style={{ display: 'flex', gap: 8, marginTop: 13 }}>
-                    <button type="button" style={{ flex: 1, padding: '11px', borderRadius: 999, border: 0, background: accent, color: '#fff', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Send to {first} →</button>
-                    <button type="button" style={{ flex: 'none', padding: '11px 16px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Edit</button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <BSFooter left={isNutri ? 'Nutrition Queue' : 'Coach Queue'} right="Grocery delivery" />
-      </BSPage>
-    );
-  }
+  // Grocery Lists → dedicated, real (owner-scoped) lists the coach builds for
+  // themselves or a client, then sends to that client. Role-accented.
+  if (type === 'grocery') return <BSProGroceryLists t={t} accent={accent} isNutri={isNutri} onBack={onBack} />;
   return (
     <BSPage>
       <BSMasthead

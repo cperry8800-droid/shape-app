@@ -2987,6 +2987,47 @@ async function removeSoundtrack(id) {
 }
 window.ShapeSoundtracks = { list: listSoundtracks, create: createSoundtrack, update: updateSoundtrack, remove: removeSoundtrack };
 
+// Coach grocery lists — a coach's own + per-client lists (coach_grocery_lists,
+// owner-scoped). Same shape as soundtracks; returns null when signed out so the
+// UI falls back to demo seeds.
+async function listGroceryLists() {
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/coach/grocery-lists`, { credentials: 'same-origin', headers: sessionsAuthHeaders() });
+    if (!res.ok) return null;
+    const d = await res.json().catch(() => ({}));
+    return Array.isArray(d.lists) ? d.lists : [];
+  } catch (e) { return null; }
+}
+async function createGroceryList(body = {}) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/coach/grocery-lists`, {
+    method: 'POST', credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(body),
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d.error || 'Could not save grocery list.');
+  return d.list;
+}
+async function updateGroceryList(body = {}) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/coach/grocery-lists`, {
+    method: 'PATCH', credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(body),
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d.error || 'Could not update grocery list.');
+  return d.list;
+}
+async function removeGroceryList(id) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/coach/grocery-lists`, {
+    method: 'DELETE', credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ id }),
+  });
+  return res.ok;
+}
+window.ShapeGroceryLists = { list: listGroceryLists, create: createGroceryList, update: updateGroceryList, remove: removeGroceryList };
+
 // Coach plans — published programs / meal plans (coach_plans, owner-scoped),
 // shared with the website. The AI draft builder + Duplicate persist here.
 async function listCoachPlans(kind) {
