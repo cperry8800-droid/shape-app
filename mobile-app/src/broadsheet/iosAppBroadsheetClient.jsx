@@ -6372,6 +6372,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
 // Name/tier/city/bio/points/privacy are live; the rest is illustrative for now.
 function BSSignalSigil({ week, disciplines, c, teal, ink, size = 240 }) {
   const cx = size / 2, R = size / 2;
+  const reduced = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   const n = week.length;
   const pts = week.map((v, i) => {
     const a = (-90 + (i / n) * 360) * Math.PI / 180;
@@ -6397,6 +6398,12 @@ function BSSignalSigil({ week, disciplines, c, teal, ink, size = 240 }) {
       <path d={tracePath} fill="none" stroke={teal} strokeWidth={1.6} opacity={0.85} filter="url(#sgglow)" />
       <path d={tracePath} fill="none" stroke={teal} strokeWidth={1} opacity={0.9} />
       <circle cx={cx} cy={cx} r={R * 0.2} fill="url(#sgcore)" />
+      {/* orbiting live blip — circles the portrait core continuously */}
+      <g>
+        <circle cx={cx} cy={cx - R * 0.83} r={7.5} fill={teal} opacity={0.3} />
+        <circle cx={cx} cy={cx - R * 0.83} r={3.4} fill={teal} />
+        {!reduced && <animateTransform attributeName="transform" attributeType="XML" type="rotate" from={`0 ${cx} ${cx}`} to={`360 ${cx} ${cx}`} dur="7s" repeatCount="indefinite" />}
+      </g>
     </svg>
   );
 }
