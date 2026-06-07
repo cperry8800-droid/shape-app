@@ -6149,6 +6149,35 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 
   );
 }
 
+// Programmatic photo picker (for buttons like Settings → Change photo): opens a
+// file dialog, resizes to a small square JPEG, persists to client_identity.photo
+// + window.ShapeIdentity, broadcasts shape:identity, and calls back with the URL.
+function bsPickProfilePhoto(cb) {
+  try {
+    const input = document.createElement('input');
+    input.type = 'file'; input.accept = 'image/*';
+    input.onchange = () => {
+      const f = input.files && input.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          let url = reader.result;
+          try { const S = 256, cv = document.createElement('canvas'); cv.width = S; cv.height = S; const ctx = cv.getContext('2d'); const scale = Math.max(S / img.width, S / img.height), w = img.width * scale, h = img.height * scale; ctx.drawImage(img, (S - w) / 2, (S - h) / 2, w, h); url = cv.toDataURL('image/jpeg', 0.82); } catch (e) {}
+          try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), photo: url }; } catch (e) {}
+          try { const save = (d) => { try { window.shapeDb?.saveUserGoals?.('client_identity', { ...(d || {}), photo: url }); } catch (e) {} }; const p = window.shapeDb?.getUserGoals?.('client_identity'); if (p && p.then) p.then(save).catch(() => save(null)); else save(null); } catch (e) {}
+          try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
+          if (cb) cb(url);
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(f);
+    };
+    input.click();
+  } catch (e) {}
+}
+
 // Profile avatar photo — load your saved photo, pick a new one (resized to a
 // small square JPEG so it stays light), persist to client_identity.photo +
 // window.ShapeIdentity, and broadcast shape:identity so every avatar updates.
@@ -12083,6 +12112,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showScore, setShowScore] = useStateBSC(false);
   const [showStore, setShowStore] = useStateBSC(false);
   const [showProgress, setShowProgress] = useStateBSC(false);
+  const [showPublicProfile, setShowPublicProfile] = useStateBSC(false);
   const scoreProfile = SHAPE_SCORE_PROFILES.client;
 
   // Live subscription for the "Your plan" card. null until loaded; { active:false }
@@ -12574,6 +12604,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   if (showProgress) {
     return <BSClientProgress onBack={() => setShowProgress(false)} />;
   }
+  if (showPublicProfile) {
+    const role = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().profile && window.ShapeAuth.getCachedState().profile.role) || 'client';
+    const uid = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id) || null;
+    const kind = role === 'trainer' ? 'TRAINER' : role === 'nutritionist' ? 'NUTRI' : 'CLIENT';
+    return <BSPublicProfile person={{ who: identity.name, init: (identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name), kind, userId: uid }} isSelf onBack={() => setShowPublicProfile(false)} onEdit={() => { setShowPublicProfile(false); setEditing(true); }} />;
+  }
 
   const sections = [
     {
@@ -12714,7 +12750,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         {!editing ? (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <BSAvatar init={(identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name) || 'A'} size={72} fill={bsMyTierColor()} round glow cursive />
+              <BSFacetAvatar size={72} c={bsMyTierColor()} initial={(identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name) || 'A'} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || null} rank={bsTierRank(settingsScore.tier)} BG={t.PAPER} />
               <div style={{ minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700 }}>
                   <span style={{ color: settingsTierC, fontWeight: 800 }}>{settingsScore.tier} tier</span>
@@ -12733,6 +12769,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 <button key={l} onClick={on} style={{ padding: '9px 10px', borderRadius: 11, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{l}</button>
               ))}
             </div>
+            <button onClick={() => setShowPublicProfile(true)} style={{ width: '100%', marginTop: 8, padding: '11px', borderRadius: 12, border: `1px solid ${t.ACCENT}`, background: `${t.ACCENT}14`, color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>View public profile →</button>
           </div>
         ) : (
           (() => {
@@ -12746,9 +12783,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             <div>
               {/* Avatar + photo + accent swatches */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
-                <BSAvatar init={(draft.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(draft.name) || 'A'} size={60} fill={acc} round glow cursive />
+                <BSFacetAvatar size={60} c={acc} initial={(draft.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(draft.name) || 'A'} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || null} editable onEdit={() => bsPickProfilePhoto(() => setTweak && setTweak('identityVersion', Date.now()))} BG={t.PAPER} />
                 <div style={{ minWidth: 0 }}>
-                  <button style={{ borderRadius: 999,
+                  <button onClick={() => bsPickProfilePhoto(() => setTweak && setTweak('identityVersion', Date.now()))} style={{ borderRadius: 999,
                     padding: '9px 14px', border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, cursor: 'pointer',
                     fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700,
                   }}>Change photo</button>
