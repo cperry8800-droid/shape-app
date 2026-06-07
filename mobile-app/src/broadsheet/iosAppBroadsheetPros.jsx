@@ -535,15 +535,59 @@ function BSProWidgetQueuePage({ role = 'trainer', type = 'pr', onBack }) {
       title: 'Grocery Lists',
       kicker: 'Nutrition delivery',
       meta: '14 generated',
-      rows: [
-        ['Riley Kim', 'Big plate day list', 'Chicken, rice, pineapple, chili base - ready to send'],
-        ['Sara Mendez', 'Low-FODMAP cut', 'Grouped by produce, protein, pantry, and supplements'],
-        ['Morgan Liu', 'Carb-load template', 'Race-week list generated from the meal plan'],
-        ['Ava Brooks', 'Vegetarian prep', 'Batch-cook list waiting for final macro approval'],
+      lists: [
+        { client: 'Riley Kim', name: 'Big-plate day list', status: 'ready', items: 24, aisles: [['Produce', 7], ['Protein', 5], ['Pantry', 8], ['Dairy', 4]], preview: ['Chicken breast', 'Jasmine rice', 'Pineapple', 'Chili base'] },
+        { client: 'Sara Mendez', name: 'Low-FODMAP cut', status: 'ready', items: 19, aisles: [['Produce', 6], ['Protein', 4], ['Pantry', 6], ['Other', 3]], preview: ['Zucchini', 'Firm tofu', 'Rice noodles', 'Lactose-free milk'] },
+        { client: 'Morgan Liu', name: 'Carb-load template', status: 'review', items: 22, aisles: [['Grains', 9], ['Produce', 4], ['Protein', 5], ['Pantry', 4]], preview: ['Sweet potato', 'Pasta', 'Bagels', 'Banana'] },
+        { client: 'Ava Brooks', name: 'Vegetarian prep', status: 'approval', items: 27, aisles: [['Produce', 10], ['Protein', 6], ['Pantry', 7], ['Dairy', 4]], preview: ['Spinach', 'Tempeh', 'Lentils', 'Feta'] },
       ],
     },
   };
   const cfg = configs[type] || configs.pr;
+  const backBtn = (
+    <button onClick={onBack} style={{ border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, borderRadius: 10, padding: '8px 10px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Back</button>
+  );
+  // Grocery Lists gets a dedicated, list-shaped design (per-client lists with an
+  // aisle breakdown, item preview, status + send/edit) — role-accented.
+  if (type === 'grocery') {
+    const STAT = { ready: ['Ready to send', '#5fae7e'], review: ['In review', t.AMBER || '#d8a23a'], approval: ['Awaiting approval', t.INK70] };
+    return (
+      <BSPage>
+        <BSMasthead title={cfg.title} leftKicker={cfg.kicker} rightKicker={cfg.meta} trailing={backBtn} />
+        <BSSection title="Client grocery lists" meta="From meal plans" />
+        <div style={{ padding: `0 ${t.padX}px 22px`, display: 'grid', gap: 12 }}>
+          {cfg.lists.map((g, i) => {
+            const [sl, sc] = STAT[g.status] || STAT.ready;
+            const first = g.client.split(' ')[0];
+            return (
+              <div key={i} style={{ border: `1px solid ${t.RULE}`, borderRadius: 18, background: t.SURFACE || t.PAPER2, overflow: 'hidden', boxShadow: t.ELEVATION_SOFT || '0 8px 18px rgba(10,13,12,0.035)' }}>
+                <div style={{ height: 3, background: accent }} />
+                <div style={{ padding: '13px 15px 15px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent, fontWeight: 900 }}>{g.client}</div>
+                    <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: sc, border: `1px solid ${sc}66`, borderRadius: 999, padding: '3px 8px' }}>{sl}</span>
+                  </div>
+                  <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 800, letterSpacing: '-0.02em', color: t.INK }}>{g.name}</div>
+                  <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50, textTransform: 'uppercase' }}>{g.items} items · {g.aisles.length} aisles</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 11 }}>
+                    {g.aisles.map(([a, n]) => (
+                      <span key={a} style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK70, background: t.PAPER, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '4px 9px' }}>{a} · {n}</span>
+                    ))}
+                  </div>
+                  <div style={{ marginTop: 11, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.4 }}>{g.preview.join(' · ')}{g.items > g.preview.length ? ` +${g.items - g.preview.length} more` : ''}</div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 13 }}>
+                    <button type="button" style={{ flex: 1, padding: '11px', borderRadius: 999, border: 0, background: accent, color: '#fff', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Send to {first} →</button>
+                    <button type="button" style={{ flex: 'none', padding: '11px 16px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Edit</button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <BSFooter left={isNutri ? 'Nutrition Queue' : 'Coach Queue'} right="Grocery delivery" />
+      </BSPage>
+    );
+  }
   return (
     <BSPage>
       <BSMasthead
