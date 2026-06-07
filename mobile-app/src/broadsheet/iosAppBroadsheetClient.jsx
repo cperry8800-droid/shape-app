@@ -6099,6 +6099,211 @@ const BS_SAMPLE_CHANNELS = [
 ];
 
 // Public profile opened from a chat avatar — works for any member or coach.
+// ── Client "Terrain" public profile (Living Identity direction) ──────────────
+// Members get an immersive, dark, topographic identity page: a generative
+// contour hero with the name overlaid, a ridgeline "climb" (start → now → goal),
+// living signals (streak / weekly bars / trajectory), discipline strata,
+// signature numbers, and a field-notes trail. Tier is the atmosphere color (the
+// app's real tier). Name/tier/city/bio/points are live; the richer terrain
+// sub-data is illustrative for now (wire to real logs later). Coaches keep the
+// card profile below (their own design lands separately).
+const bsTHexA = (hex, a) => {
+  const h = String(hex || '#888888').replace('#', '');
+  const s = h.length === 3 ? h.split('').map((x) => x + x).join('') : h;
+  const n = parseInt(s, 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+};
+function bsTRng(seed) { let s = (seed || 1) % 2147483647; if (s <= 0) s += 2147483646; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
+
+// Generative contour field — nested closed curves seeded by the member.
+function BSTerrainContours({ seed, c, teal, w = 360, h = 290 }) {
+  const rng = bsTRng(seed);
+  const layers = 9;
+  const cxs = 0.5 + (rng() - 0.5) * 0.3;
+  const paths = [];
+  for (let L = 0; L < layers; L++) {
+    const tt = L / (layers - 1);
+    const baseR = 0.16 + tt * 0.82;
+    const pts = [];
+    const N = 26;
+    for (let i = 0; i <= N; i++) {
+      const a = (i / N) * Math.PI * 2;
+      const wobble = 1 + Math.sin(a * 3 + (seed % 7) + L * 0.6) * 0.09 + Math.cos(a * 5 + L) * 0.05;
+      const rr = baseR * wobble;
+      pts.push([w * cxs + Math.cos(a) * rr * w * 0.52, h * 0.52 + Math.sin(a) * rr * h * 0.46]);
+    }
+    paths.push({ d: pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ') + ' Z', t: tt });
+  }
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} preserveAspectRatio="xMidYMid slice" aria-hidden style={{ display: 'block' }}>
+      <defs><radialGradient id={`tdc${seed}`} cx={`${cxs * 100}%`} cy="52%" r="60%"><stop offset="0%" stopColor={bsTHexA(c, 0.5)} /><stop offset="40%" stopColor={bsTHexA(c, 0.16)} /><stop offset="100%" stopColor={bsTHexA(c, 0)} /></radialGradient></defs>
+      <rect width={w} height={h} fill={`url(#tdc${seed})`} />
+      {paths.map((p, i) => <path key={i} d={p.d} fill="none" stroke={i === layers - 3 ? teal : bsTHexA(c, 0.32 + p.t * 0.4)} strokeWidth={i === layers - 3 ? 1.8 : 1} opacity={0.4 + p.t * 0.55} />)}
+      <circle cx={w * cxs} cy={h * 0.52} r={4} fill={teal} />
+      <circle cx={w * cxs} cy={h * 0.52} r={9} fill="none" stroke={teal} strokeWidth={1} opacity={0.6} />
+    </svg>
+  );
+}
+
+// Ridgeline ascent: start → now → target as a climbed path.
+function BSTerrainRidge({ c, teal, ink, arc }) {
+  const W = 320, H = 132;
+  const ys = [H - 18, H * 0.52, 22];
+  const xs = [24, W / 2, W - 24];
+  const ridge = `M ${xs[0]} ${ys[0]} Q ${(xs[0] + xs[1]) / 2} ${ys[0] - 26}, ${xs[1]} ${ys[1]} T ${xs[2]} ${ys[2]}`;
+  const fill = `${ridge} L ${xs[2]} ${H} L ${xs[0]} ${H} Z`;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} aria-hidden style={{ display: 'block', overflow: 'visible' }}>
+      <defs><linearGradient id="tdr" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={bsTHexA(c, 0.3)} /><stop offset="100%" stopColor={bsTHexA(c, 0)} /></linearGradient></defs>
+      <path d={fill} fill="url(#tdr)" />
+      <path d={ridge} fill="none" stroke={bsTHexA(ink, 0.25)} strokeWidth={1.5} strokeDasharray="3 4" />
+      {arc.map((a, i) => {
+        const live = a[2] === 'now', target = a[2] === 'target';
+        return (<g key={i}><circle cx={xs[i]} cy={ys[i]} r={live ? 6 : 4.5} fill={live ? teal : target ? 'none' : c} stroke={target ? c : 'none'} strokeWidth={target ? 2 : 0} />{live && <circle cx={xs[i]} cy={ys[i]} r={11} fill="none" stroke={teal} strokeWidth={1} opacity={0.5} />}</g>);
+      })}
+    </svg>
+  );
+}
+
+function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {} }) {
+  const BG = '#100d0a', INK = '#f2ede4', TEAL = '#34d6c5';
+  const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
+  const [live, setLive] = useStateBSC(null);
+  React.useEffect(() => { if (person.userId && window.ShapeProfiles?.getPublicProfile) { window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (d) setLive(d); }).catch(() => {}); } }, [person.userId]);
+  const isPrivate = !!(live && live.is_public === false);
+  const points = live && Number.isFinite(live.points) ? live.points : null;
+  const tierKey = points != null ? bsTierForPoints(points) : (person.tier || bsPostTier(person));
+  const c = bsTierColor(tierKey);
+  const name = person.who || 'Member';
+  const first = name.split(' ')[0];
+  const city = person.city || 'Shape community';
+  const handle = (live && live.handle) || ('@' + first.toLowerCase().replace(/[^a-z0-9]/g, ''));
+  const pronouns = (!isPrivate && live && live.pronouns) || '';
+  const score = points != null ? points : 1284;
+  const goal = (!isPrivate && ((live && live.goal) || person.goal)) || null;
+  const bio = (!isPrivate && ((live && live.bio) || person.bio)) || null;
+  const tierName = String(tierKey).charAt(0).toUpperCase() + String(tierKey).slice(1);
+  const seed = (() => { let n = 0; const s = String(name); for (let i = 0; i < s.length; i++) n = (n + s.charCodeAt(i) * (i + 1)) % 99991; return n + 7; })();
+  // Illustrative living-identity data (wire to real logs later).
+  const streak = 14;
+  const disciplines = [['Strength', 0.82], ['Endurance', 0.64], ['Consistency', 0.91], ['Recovery', 0.73]];
+  const lifts = [['Squat', '245'], ['Deadlift', '285'], ['Bench', '135']];
+  const arc = [['SINCE', 'Day one', 'start'], ['NOW', `${tierName} · ${score.toLocaleString()}`, 'now'], ['GOAL', goal ? 'In sight' : 'Next tier', 'target']];
+  const traj = [176, 175, 174, 173, 172, 171, 171];
+  const week = [40, 72, 55, 88, 33, 90, 18];
+  const feed = [
+    { k: 'PR', t: 'New PR — Back squat', b: 'Six weeks ago this was a hard triple at 225.', metric: ['▲', '+22 lb'], time: '2d', hot: true },
+    { k: 'Workout', t: 'Lower push · this week', b: 'Bar speed stayed crisp through the last rep — first time at this weight.', metric: ['Squat', '245×5'], time: '2h' },
+    { k: 'Note', t: 'Leaving 2 in the tank', b: 'Stopped maxing every week. Everything started moving. Boring works.', time: '1d' },
+    { k: 'Run', t: 'Sunrise shakeout', b: '5.2 km easy. Legs felt springy after yesterday’s pulls.', metric: ['5K', '24:51'], time: '3d' },
+  ];
+  const Kick = ({ children, col }) => <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: col || bsTHexA(INK, 0.5), fontWeight: 600 }}>{children}</span>;
+  const maxTraj = Math.max(...traj), minTraj = Math.min(...traj);
+  const sparkPath = traj.map((v, i) => [(i / (traj.length - 1)) * 150, 34 - ((v - minTraj) / (maxTraj - minTraj || 1)) * 28 - 3]).map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  const maxWk = Math.max(...week);
+  const card = { background: bsTHexA(INK, 0.04), border: `1px solid ${bsTHexA(INK, 0.08)}`, borderRadius: 14 };
+  return (
+    <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
+      {/* topographic hero with name overlaid */}
+      <div style={{ position: 'relative', flex: '0 0 auto' }}>
+        <div style={{ position: 'absolute', inset: 0 }}><BSTerrainContours seed={seed} c={c} teal={TEAL} /></div>
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 130, background: `linear-gradient(180deg, transparent, ${BG})` }} />
+        <div style={{ position: 'relative', padding: '46px 22px 0', minHeight: 290, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <button onClick={onBack} style={{ background: bsTHexA(BG, 0.5), border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '7px 13px', cursor: 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
+            <Kick>Elev. {score.toLocaleString()}</Kick>
+          </div>
+          <div style={{ marginTop: 120 }}>
+            <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: c, border: `1px solid ${bsTHexA(c, 0.4)}`, borderRadius: 999, padding: '5px 10px' }}>▲ {tierName}</span>
+            <h1 style={{ fontFamily: SERIF, fontSize: 44, fontWeight: 400, letterSpacing: '-0.035em', margin: '12px 0 0', lineHeight: 0.92 }}>{name}</h1>
+            <div style={{ fontFamily: MONO, fontSize: 11, color: bsTHexA(INK, 0.55), marginTop: 9 }}>{handle}{pronouns ? ` · ${pronouns}` : ''} · {city}</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ flex: 1, padding: '24px 22px 28px' }}>
+        {isPrivate ? (
+          <div style={{ ...card, padding: '18px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            <span aria-hidden style={{ fontSize: 16 }}>🔒</span>
+            <div style={{ fontFamily: SANS, fontSize: 14, color: bsTHexA(INK, 0.7), lineHeight: 1.5 }}>{first} keeps their terrain private — only their name and tier are shown.</div>
+          </div>
+        ) : (
+          <>
+            {(goal || bio) && <div style={{ background: bsTHexA(c, 0.08), border: `1px solid ${bsTHexA(c, 0.22)}`, borderRadius: 16, padding: '16px 18px', marginBottom: 26 }}><Kick col={c}>⛰ Why</Kick><div style={{ fontFamily: SERIF, fontSize: 21, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.15, marginTop: 8 }}>{goal || bio}</div></div>}
+
+            <div style={{ marginBottom: 28 }}>
+              <Kick>The climb</Kick>
+              <div style={{ marginTop: 12 }}><BSTerrainRidge c={c} teal={TEAL} ink={INK} arc={arc} /></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10 }}>
+                {arc.map((a, i) => (<div key={i} style={{ flex: 1, textAlign: i === 0 ? 'left' : i === 2 ? 'right' : 'center' }}><div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', color: a[2] === 'now' ? TEAL : bsTHexA(INK, 0.5) }}>{a[0]}</div><div style={{ fontFamily: SANS, fontSize: 12, color: bsTHexA(INK, 0.85), marginTop: 4 }}>{a[1]}</div></div>))}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 28 }}>
+              <Kick>Living signals</Kick>
+              <div style={{ display: 'flex', gap: 9, marginTop: 12 }}>
+                <div style={{ flex: 'none', width: 96, background: bsTHexA(c, 0.08), border: `1px solid ${bsTHexA(c, 0.2)}`, borderRadius: 14, padding: '13px 14px' }}>
+                  <div style={{ fontFamily: SERIF, fontSize: 28, letterSpacing: '-0.02em', lineHeight: 1 }}>{streak}</div>
+                  <div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 6 }}>Day streak</div>
+                </div>
+                <div style={{ flex: 1, ...card, padding: '13px 14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 9 }}><span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Weekly momentum</span><span style={{ fontFamily: MONO, fontSize: 10, color: TEAL }}>today ↑</span></div>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, height: 30 }}>{week.map((v, i) => <div key={i} style={{ flex: 1, height: `${Math.max(8, (v / maxWk) * 100)}%`, background: i === week.length - 2 ? TEAL : bsTHexA(c, 0.5), borderRadius: 2 }} />)}</div>
+                </div>
+              </div>
+              <div style={{ marginTop: 9, ...card, padding: '13px 16px', display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{ flex: 'none' }}><div style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em', color: TEAL }}>−5 lb</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 5 }}>Trajectory</div></div>
+                <svg viewBox="0 0 150 34" width="150" height="34" style={{ flex: 1 }}><path d={sparkPath} fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                <div style={{ fontFamily: SANS, fontSize: 11, color: bsTHexA(INK, 0.5), flex: 'none' }}>16-wk recomp</div>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 28 }}>
+              <Kick>Disciplines · strata</Kick>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
+                {disciplines.map(([label, val], i) => { const col = i === disciplines.length - 1 ? TEAL : c; return (
+                  <div key={label}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}><span style={{ fontFamily: SANS, fontSize: 13, color: bsTHexA(INK, 0.85) }}>{label}</span><span style={{ fontFamily: MONO, fontSize: 11, color: bsTHexA(INK, 0.5) }}>{Math.round(val * 100)}</span></div><div style={{ height: 7, borderRadius: 4, background: bsTHexA(INK, 0.08), overflow: 'hidden' }}><div style={{ height: '100%', width: `${val * 100}%`, background: `linear-gradient(90deg, ${bsTHexA(col, 0.5)}, ${col})`, borderRadius: 4 }} /></div></div>
+                ); })}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 9, marginBottom: 28 }}>
+              {lifts.map(([label, val]) => <div key={label} style={{ flex: 1, ...card, borderRadius: 13, padding: '14px 8px', textAlign: 'center' }}><div style={{ fontFamily: SERIF, fontSize: 24, letterSpacing: '-0.02em' }}>{val}</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 5 }}>{label}</div></div>)}
+            </div>
+
+            <div>
+              <Kick>Field notes · log</Kick>
+              <div style={{ position: 'relative', paddingLeft: 26, marginTop: 16 }}>
+                <div style={{ position: 'absolute', left: 6, top: 6, bottom: 10, width: 0, borderLeft: `1.5px dashed ${bsTHexA(c, 0.4)}` }} />
+                {feed.map((it, i) => (
+                  <div key={i} style={{ position: 'relative', marginBottom: 12 }}>
+                    <div style={{ position: 'absolute', left: -26, top: 15, width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 9, height: 9, transform: 'rotate(45deg)', background: BG, border: `2px solid ${it.hot ? TEAL : c}` }} /></div>
+                    <div style={{ ...card, padding: '13px 15px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: it.hot ? TEAL : c }}>▲ {it.k}</span><span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.4) }}>{it.time}</span></div>
+                      <div style={{ fontFamily: SERIF, fontSize: 18, letterSpacing: '-0.01em', lineHeight: 1.15, marginTop: 9 }}>{it.t}</div>
+                      <p style={{ fontFamily: SANS, fontSize: 13, lineHeight: 1.5, color: bsTHexA(INK, 0.72), margin: '6px 0 0' }}>{it.b}</p>
+                      {it.metric && <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 11 }}><div style={{ flex: 1, height: 1, background: bsTHexA(INK, 0.12) }} /><span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55) }}>{it.metric[0]}</span><span style={{ fontFamily: SERIF, fontSize: 18, letterSpacing: '-0.02em', color: it.hot ? TEAL : INK }}>{it.metric[1]}</span></div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* dock — always-available Message / Edit */}
+      <div style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', padding: '14px 18px calc(16px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 32%)` }}>
+        {isSelf ? (
+          <button onClick={onEdit} style={{ width: '100%', minHeight: 48, borderRadius: 999, background: TEAL, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Edit profile →</button>
+        ) : (
+          <button onClick={() => onMessage(person)} style={{ width: '100%', minHeight: 48, borderRadius: 999, background: TEAL, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Message {first} →</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Tier-colored ring + avatar; shows role, tier, and a Message CTA. (Read-only;
 // respects privacy — only reachable when the post isn't marked private.)
 // Public profile — same anatomy as the coach detail page (gradient hero card +
@@ -6106,6 +6311,11 @@ const BS_SAMPLE_CHANNELS = [
 // bio/details come from get_public_profile when we have a user id; otherwise a
 // derived tier + generic blurb (demo/community people).
 function BSPublicProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {} }) {
+  // Members (clients) get the immersive "Terrain" living-identity profile;
+  // coaches keep the card layout below (their own design lands separately).
+  if (person.kind !== 'TRAINER' && person.kind !== 'NUTRI') {
+    return <BSTerrainProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} onEdit={onEdit} />;
+  }
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [live, setLive] = useStateBSC(null);
