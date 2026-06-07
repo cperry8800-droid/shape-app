@@ -6427,7 +6427,6 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const streak = 14;
   const disciplines = [['Strength', 0.82], ['Endurance', 0.64], ['Consistency', 0.91], ['Recovery', 0.73]];
   const lifts = [['Squat', '245'], ['Deadlift', '285'], ['Bench', '135']];
-  const arc = [['SINCE', 'Day one', 'start'], ['NOW', `${tierName} · ${score.toLocaleString()}`, 'now'], ['GOAL', goal ? 'In sight' : 'Next tier', 'target']];
   const traj = [176, 175, 174, 173, 172, 171, 171];
   const week = [40, 72, 55, 88, 33, 90, 18];
   const feed = [
@@ -6446,56 +6445,73 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const maxWk = Math.max(...week);
   const card = { background: bsTHexA(INK, 0.04), border: `1px solid ${bsTHexA(INK, 0.08)}`, borderRadius: 14 };
   const { photo, fileRef, onPick } = useBSProfilePhoto(person, isSelf);
+  const pct = Math.max(0.05, Math.min(0.96, (progressPct || 0) / 100));
+  const since = person.since || 'Feb 2024';
+  const stravaUrl = person.strava
+    ? (/^https?:/i.test(person.strava) ? person.strava : 'https://www.strava.com/athletes/' + String(person.strava).replace(/^@/, ''))
+    : 'https://www.strava.com';
+  const arc = person.arc || [['Feb ’25', 'Started', 'start'], ['Now', `${progressPct}% there`, 'now'], ['Target', summit, 'target']];
+  const avPhoto = photo || (live && live.avatar);
   return (
     <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
       {isSelf && <input ref={fileRef} type="file" accept="image/*" onChange={onPick} style={{ display: 'none' }} />}
-      {/* Ridgeline ascent hero — the climb toward a summit goal, name overlaid */}
-      <div style={{ position: 'relative', flex: '0 0 auto', height: 452, overflow: 'hidden', background: `radial-gradient(125% 80% at 82% 2%, ${bsTHexA(c, 0.5)}, transparent 56%), linear-gradient(168deg, ${bsTHexA(c, 0.4)} 0%, ${bsTHexA(c, 0.12)} 40%, ${BG} 80%)` }}>
-        {/* faint contour grid + bottom vignette for an editorial fade */}
-        <svg viewBox="0 0 100 100" preserveAspectRatio="none" width="100%" height="100%" aria-hidden style={{ position: 'absolute', inset: 0 }}>
-          {[24, 42, 60, 78].map((y) => <line key={y} x1="0" y1={y} x2="100" y2={y} stroke={bsTHexA(INK, 0.045)} strokeWidth="0.4" />)}
-        </svg>
-        <div aria-hidden style={{ position: 'absolute', inset: 0, background: `linear-gradient(to bottom, transparent 55%, ${bsTHexA(BG, 0.55)} 88%, ${BG} 100%)`, pointerEvents: 'none' }} />
-        {/* ascent curve + fill */}
-        <svg viewBox="0 0 100 100" preserveAspectRatio="none" width="100%" height="100%" aria-hidden style={{ position: 'absolute', inset: 0 }}>
-          <defs><linearGradient id={`tdasc${seed}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={bsTHexA(TEAL, 0.3)} /><stop offset="100%" stopColor={bsTHexA(TEAL, 0)} /></linearGradient></defs>
-          <path d="M 8 84 C 30 82, 52 64, 74 33 L 74 100 L 8 100 Z" fill={`url(#tdasc${seed})`} />
-          <path d="M 8 84 C 30 82, 52 64, 74 33" fill="none" stroke={TEAL} strokeWidth="2.6" vectorEffect="non-scaling-stroke" strokeLinecap="round" />
-        </svg>
-        {/* climb start dot (lower-left) */}
-        <div style={{ position: 'absolute', left: '8%', top: '84%', transform: 'translate(-50%,-50%)', zIndex: 2, width: 9, height: 9, borderRadius: 999, background: bsTHexA(TEAL, 0.85), boxShadow: `0 0 0 4px ${bsTHexA(TEAL, 0.16)}` }} />
-        {/* back */}
-        <button onClick={onBack} style={{ position: 'absolute', top: 46, left: 18, zIndex: 4, background: bsTHexA(BG, 0.4), border: `1px solid ${bsTHexA(INK, 0.2)}`, color: INK, borderRadius: 999, padding: '7px 13px', cursor: 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
-        {/* summit marker — coral flag top-right (the goal at the top of the climb) */}
-        <div style={{ position: 'absolute', top: 50, right: 18, zIndex: 3, textAlign: 'right' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5, fontFamily: MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#e0644b', fontWeight: 700 }}>Summit <span aria-hidden style={{ fontSize: 11, lineHeight: 1 }}>⚑</span></div>
-          <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(INK, 0.85), marginTop: 4, maxWidth: 160 }}>{summit}</div>
-        </div>
-        {/* avatar at the summit end of the curve */}
-        <div style={{ position: 'absolute', left: '74%', top: 150, transform: 'translate(-50%,-50%)', zIndex: 3 }}>
-          <BSFacetAvatar size={72} c={c} initial={bsInitials(name) || '?'} photo={photo || (live && live.avatar)} rank={bsTierRank(tierKey)} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
-          <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 14, whiteSpace: 'nowrap', fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: INK, background: bsTHexA(BG, 0.78), border: `1px solid ${bsTHexA(TEAL, 0.55)}`, borderRadius: 999, padding: '4px 9px' }}>You · {progressPct}%</div>
-        </div>
-        {/* name + status */}
-        <div style={{ position: 'absolute', left: 22, right: 18, bottom: 112, zIndex: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}>
-          <div style={{ minWidth: 0 }}>
-            <h1 style={{ fontFamily: SERIF, fontSize: 33, fontWeight: 400, letterSpacing: '-0.03em', margin: 0, lineHeight: 1.0 }}>{name}</h1>
-            <div style={{ fontFamily: MONO, fontSize: 10.5, color: bsTHexA(INK, 0.6), marginTop: 8, lineHeight: 1.5 }}>{handle}{pronouns ? ` · ${pronouns}` : ''}<br />{city}</div>
+      {/* back */}
+      <div style={{ padding: '48px 18px 0' }}>
+        <button onClick={onBack} style={{ background: bsTHexA(INK, 0.06), border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '7px 13px', cursor: 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
+      </div>
+      {/* TERRAIN hero — ascent-profile card: you-are-here on the climb (facet avatar) */}
+      <div style={{ padding: '14px 18px 0' }}>
+        {(() => {
+          const W = 330, H = 220;
+          const base = [10, H - 26], peak = [W - 26, 34];
+          const ridge = `M ${base[0]} ${base[1]} Q ${W * 0.4} ${H - 40}, ${W * 0.62} ${H * 0.5} T ${peak[0]} ${peak[1]}`;
+          const here = { x: base[0] + (peak[0] - base[0]) * pct, y: base[1] + (peak[1] - base[1]) * (pct * 1.05) };
+          return (
+          <div style={{ borderRadius: 20, overflow: 'hidden', border: `1px solid ${bsTHexA(INK, 0.12)}`, background: `linear-gradient(180deg, ${bsTHexA(c, 0.16)}, ${bsTHexA(INK, 0.02)})`, position: 'relative' }}>
+            <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden style={{ display: 'block' }}>
+              <defs><linearGradient id={`asc${seed}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={bsTHexA(c, 0.32)} /><stop offset="100%" stopColor={bsTHexA(c, 0)} /></linearGradient></defs>
+              {[0, 1, 2, 3].map((i) => <line key={i} x1="0" y1={(i + 1) * H / 5} x2={W} y2={(i + 1) * H / 5} stroke={bsTHexA(INK, 0.06)} strokeWidth="1" />)}
+              <path d={`${ridge} L ${peak[0]} ${H} L ${base[0]} ${H} Z`} fill={`url(#asc${seed})`} />
+              <path d={ridge} fill="none" stroke={bsTHexA(INK, 0.4)} strokeWidth="1.5" />
+              <path d={ridge} fill="none" stroke={TEAL} strokeWidth="2.5" strokeDasharray={`${pct * 360} 999`} strokeLinecap="round" />
+              <line x1={peak[0]} y1={peak[1]} x2={peak[0]} y2={peak[1] - 22} stroke={bsTHexA(INK, 0.6)} strokeWidth="1.5" />
+              <path d={`M ${peak[0]} ${peak[1] - 22} l 16 5 l -16 5 z`} fill={'#e0644b'} />
+              <circle cx={peak[0]} cy={peak[1]} r="3.5" fill={'#e0644b'} />
+              <circle cx={base[0]} cy={base[1]} r="3.5" fill={bsTHexA(INK, 0.5)} />
+            </svg>
+            {/* you-are-here FACET badge */}
+            <div style={{ position: 'absolute', left: `calc(${(here.x / W) * 100}% - 28px)`, top: `calc(${(here.y / H) * 100}% - 64px)` }}>
+              <BSFacetAvatar size={56} c={c} initial={bsInitials(name) || '?'} photo={avPhoto} rank={bsTierRank(tierKey)} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
+              <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 5, whiteSpace: 'nowrap', fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: TEAL, background: bsTHexA('#0c1110', 0.85), padding: '2px 6px', borderRadius: 4 }}>You · {progressPct}%</div>
+            </div>
+            {/* base + summit labels */}
+            <div style={{ position: 'absolute', left: 14, bottom: 12, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{arc[0][0]} · start</div>
+            <div style={{ position: 'absolute', right: 14, top: 14, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#e0644b', textAlign: 'right' }}>Summit<br />{summit}</div>
+            {/* identity strip */}
+            <div style={{ padding: 16, borderTop: `1px solid ${bsTHexA(INK, 0.08)}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ minWidth: 0 }}>
+                <h1 style={{ fontFamily: SERIF, fontSize: 30, fontWeight: 400, letterSpacing: '-0.03em', margin: 0, lineHeight: 0.95 }}>{name}</h1>
+                <div style={{ fontFamily: MONO, fontSize: 10.5, color: bsTHexA(INK, 0.55), marginTop: 7 }}>{handle}{pronouns ? ` · ${pronouns}` : ''}{city ? ` · ${city}` : ''}</div>
+              </div>
+              <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: TEAL, background: bsTHexA(TEAL, 0.12), border: `1px solid ${bsTHexA(TEAL, 0.4)}`, borderRadius: 999, padding: '5px 11px', whiteSpace: 'nowrap' }}><span style={{ width: 7, height: 7, borderRadius: 999, background: TEAL, flex: 'none' }} />{statusLabel}</span>
+            </div>
+            {/* coached-by band */}
+            <div style={{ padding: '0 16px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 13, background: bsTHexA(TEAL, 0.07), border: `1px solid ${bsTHexA(TEAL, 0.22)}` }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: TEAL }}>{block}</div>
+                  <div style={{ fontFamily: SANS, fontSize: 13.5, color: bsTHexA(INK, 0.85), marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{program}</div>
+                </div>
+                <div style={{ width: 1, alignSelf: 'stretch', background: bsTHexA(INK, 0.12) }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                  <div style={{ width: 30, height: 30, borderRadius: 999, flex: 'none', background: bsTHexA(TEAL, 0.18), border: `1px solid ${bsTHexA(TEAL, 0.5)}`, color: TEAL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: MONO, fontSize: 11, fontWeight: 700 }}>{coachInit}</div>
+                  <div><div style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45) }}>Coached by</div><div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.85), marginTop: 2 }}>{coachName}</div></div>
+                </div>
+              </div>
+            </div>
           </div>
-          <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 7, maxWidth: 120, fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: TEAL, fontWeight: 700, border: `1px solid ${bsTHexA(TEAL, 0.55)}`, borderRadius: 22, padding: '11px 16px', lineHeight: 1.25 }}><span style={{ width: 6, height: 6, borderRadius: 999, background: TEAL, flex: 'none' }} />{statusLabel}</span>
-        </div>
-        {/* program / coach footer — compact */}
-        <div style={{ position: 'absolute', left: 14, right: 14, bottom: 14, zIndex: 3, display: 'flex', alignItems: 'center', gap: 10, background: bsTHexA(INK, 0.06), border: `1px solid ${bsTHexA(INK, 0.1)}`, borderRadius: 13, padding: '10px 13px' }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: TEAL }}>{block}</div>
-            <div style={{ fontFamily: SERIF, fontSize: 14, letterSpacing: '-0.01em', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{program}</div>
-            <div style={{ fontFamily: MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), marginTop: 1 }}>{startLabel}</div>
-          </div>
-          <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 9, paddingLeft: 12, borderLeft: `1px solid ${bsTHexA(INK, 0.12)}` }}>
-            <div style={{ width: 30, height: 30, borderRadius: 999, flex: 'none', background: bsTHexA(TEAL, 0.18), border: `1px solid ${bsTHexA(TEAL, 0.5)}`, color: TEAL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: MONO, fontSize: 11, fontWeight: 700 }}>{coachInit}</div>
-            <div><div style={{ fontFamily: MONO, fontSize: 7, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45) }}>Coached by</div><div style={{ fontFamily: SANS, fontSize: 12.5, fontWeight: 500, marginTop: 1 }}>{coachName}</div></div>
-          </div>
-        </div>
+          );
+        })()}
       </div>
 
       <div style={{ flex: 1, padding: '24px 22px 28px' }}>
@@ -6506,6 +6522,39 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
           </div>
         ) : (
           <>
+            {/* THE CLIMB — start → now → summit ridgeline (the goal at the top) */}
+            <div style={{ marginBottom: 28 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14, gap: 10 }}>
+                <Kick>The climb</Kick>
+                <span style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.5), whiteSpace: 'nowrap' }}>Member since {since} · <a href={stravaUrl} target="_blank" rel="noopener noreferrer" style={{ color: c, textDecoration: 'none' }}>Strava ↗</a></span>
+              </div>
+              {(() => {
+                const W = 320, H = 132; const ys = [H - 18, H * 0.52, 22]; const xs = [24, W / 2, W - 24];
+                const rg = `M ${xs[0]} ${ys[0]} Q ${(xs[0] + xs[1]) / 2} ${ys[0] - 26}, ${xs[1]} ${ys[1]} T ${xs[2]} ${ys[2]}`;
+                return (
+                <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} aria-hidden style={{ display: 'block', overflow: 'visible' }}>
+                  <defs><linearGradient id={`tdr${seed}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={bsTHexA(c, 0.3)} /><stop offset="100%" stopColor={bsTHexA(c, 0)} /></linearGradient></defs>
+                  <path d={`${rg} L ${xs[2]} ${H} L ${xs[0]} ${H} Z`} fill={`url(#tdr${seed})`} />
+                  <path d={rg} fill="none" stroke={bsTHexA(INK, 0.25)} strokeWidth="1.5" strokeDasharray="3 4" />
+                  {arc.map((a, i) => { const liveDot = a[2] === 'now', target = a[2] === 'target'; return (
+                    <g key={i}>
+                      <circle cx={xs[i]} cy={ys[i]} r={liveDot ? 6 : 4.5} fill={liveDot ? TEAL : target ? 'none' : c} stroke={target ? c : 'none'} strokeWidth={target ? 2 : 0} />
+                      {liveDot && <circle cx={xs[i]} cy={ys[i]} r={11} fill="none" stroke={TEAL} strokeWidth="1" opacity="0.5" />}
+                    </g>
+                  ); })}
+                </svg>
+                );
+              })()}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10 }}>
+                {arc.map((a, i) => (
+                  <div key={i} style={{ flex: 1, textAlign: i === 0 ? 'left' : i === 2 ? 'right' : 'center' }}>
+                    <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', color: a[2] === 'now' ? TEAL : bsTHexA(INK, 0.5) }}>{a[0]}</div>
+                    <div style={{ fontFamily: SANS, fontSize: 12, color: bsTHexA(INK, 0.85), marginTop: 4 }}>{a[1]}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {(goal || bio) && <div style={{ background: bsTHexA(c, 0.08), border: `1px solid ${bsTHexA(c, 0.22)}`, borderRadius: 16, padding: '16px 18px', marginBottom: 26 }}><Kick col={c}>⛰ Why</Kick><div style={{ fontFamily: SERIF, fontSize: 21, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.15, marginTop: 8 }}>{goal || bio}</div></div>}
 
             <div style={{ marginBottom: 28 }}>
