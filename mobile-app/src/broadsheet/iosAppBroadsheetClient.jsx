@@ -6115,6 +6115,38 @@ const bsTHexA = (hex, a) => {
 };
 function bsTRng(seed) { let s = (seed || 1) % 2147483647; if (s <= 0) s += 2147483646; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
 
+// Profile privacy selector (shown on your OWN profile) — Public / Friends /
+// Private. Persists to client_identity.visibility (merged) so it travels with
+// the profile; public = anyone, friends = your circle, private = name+tier only.
+function BSProfilePrivacy({ teal = '#34d6c5', ink = '#f2ede4' }) {
+  const MONO = "'JetBrains Mono', monospace";
+  const OPTS = [['public', 'Public'], ['friends', 'Friends'], ['private', 'Private']];
+  const [vis, setVis] = useStateBSC('public');
+  React.useEffect(() => {
+    try { window.shapeDb?.getUserGoals?.('client_identity').then((d) => { if (d && d.visibility) setVis(d.visibility); }).catch(() => {}); } catch (e) {}
+  }, []);
+  const pick = (v) => {
+    setVis(v);
+    try {
+      const save = (d) => { try { window.shapeDb?.saveUserGoals?.('client_identity', { ...(d || {}), visibility: v }); } catch (e) {} };
+      const p = window.shapeDb?.getUserGoals?.('client_identity');
+      if (p && p.then) p.then(save).catch(() => save(null)); else save(null);
+    } catch (e) {}
+    try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), visibility: v }; } catch (e) {}
+    try { window.dispatchEvent(new CustomEvent('shape:visibility', { detail: v })); } catch (e) {}
+  };
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(ink, 0.5), marginBottom: 7, textAlign: 'center' }}>Who can see your profile</div>
+      <div style={{ display: 'flex', gap: 4, background: bsTHexA(ink, 0.05), border: `1px solid ${bsTHexA(ink, 0.1)}`, borderRadius: 12, padding: 3 }}>
+        {OPTS.map(([v, l]) => { const on = vis === v; return (
+          <button key={v} onClick={() => pick(v)} style={{ flex: 1, cursor: 'pointer', border: 0, borderRadius: 9, padding: '8px 0', background: on ? teal : 'transparent', color: on ? '#04201d' : bsTHexA(ink, 0.7), fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{l}</button>
+        ); })}
+      </div>
+    </div>
+  );
+}
+
 // Generative contour field — nested closed curves seeded by the member.
 function BSTerrainContours({ seed, c, teal, w = 360, h = 290 }) {
   const rng = bsTRng(seed);
@@ -6292,8 +6324,9 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
         )}
       </div>
 
-      {/* dock — always-available Message / Edit */}
+      {/* dock — always-available Message / Edit (+ privacy on your own) */}
       <div style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', padding: '14px 18px calc(16px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 32%)` }}>
+        {isSelf && <BSProfilePrivacy teal={TEAL} ink={INK} />}
         {isSelf ? (
           <button onClick={onEdit} style={{ width: '100%', minHeight: 48, borderRadius: 999, background: TEAL, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Edit profile →</button>
         ) : (
@@ -6506,16 +6539,19 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
         )}
       </div>
 
-      {/* dock */}
-      <div style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', padding: '14px 18px calc(16px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 32%)`, display: 'flex', gap: 10 }}>
-        {isSelf ? (
-          <button onClick={onEdit} style={{ flex: 1, minHeight: 48, borderRadius: 999, background: TEAL, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Edit profile →</button>
-        ) : (
-          <>
-            <button onClick={() => onMessage(person)} style={{ flex: 1, minHeight: 48, borderRadius: 999, background: TEAL, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Message →</button>
-            <button onClick={() => { try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} style={{ flex: 1, minHeight: 48, borderRadius: 999, background: 'transparent', color: INK, border: `1px solid ${bsTHexA(INK, 0.4)}`, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Coaching →</button>
-          </>
-        )}
+      {/* dock (+ privacy on your own) */}
+      <div style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', padding: '14px 18px calc(16px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 32%)` }}>
+        {isSelf && <BSProfilePrivacy teal={TEAL} ink={INK} />}
+        <div style={{ display: 'flex', gap: 10 }}>
+          {isSelf ? (
+            <button onClick={onEdit} style={{ flex: 1, minHeight: 48, borderRadius: 999, background: TEAL, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Edit profile →</button>
+          ) : (
+            <>
+              <button onClick={() => onMessage(person)} style={{ flex: 1, minHeight: 48, borderRadius: 999, background: TEAL, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Message →</button>
+              <button onClick={() => { try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} style={{ flex: 1, minHeight: 48, borderRadius: 999, background: 'transparent', color: INK, border: `1px solid ${bsTHexA(INK, 0.4)}`, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Coaching →</button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -6530,121 +6566,6 @@ function BSPublicProfile({ person, onBack, onMessage = () => {}, isSelf = false,
     return <BSSignalCoachProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} onEdit={onEdit} />;
   }
   return <BSTerrainProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} onEdit={onEdit} />;
-  // eslint-disable-next-line no-unreachable
-  const t = useBS();
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const [live, setLive] = useStateBSC(null);
-  React.useEffect(() => {
-    if (person.userId && window.ShapeProfiles?.getPublicProfile) {
-      window.ShapeProfiles.getPublicProfile(person.userId).then(d => { if (d) setLive(d); }).catch(() => {});
-    }
-  }, [person.userId]);
-  const isPrivate = !!(live && live.is_public === false);
-  const points = live && Number.isFinite(live.points) ? live.points : null;
-  const _coachP = person.kind === 'TRAINER' || person.kind === 'NUTRI';
-  const _baseTier = points != null ? bsTierForPoints(points) : (person.tier || bsPostTier(person));
-  const tier = _coachP ? bsCoachTier(_baseTier) : _baseTier;
-  const tc = bsTierColor(tier);
-  const ROLE_LABEL = { TRAINER: 'Trainer', NUTRI: 'Nutritionist', CLIENT: 'Client', SHAPE: 'Client', COMMUNITY: 'Client' };
-  const roleLabel = ROLE_LABEL[person.kind] || 'Client';
-  const isCoach = person.kind === 'TRAINER' || person.kind === 'NUTRI';
-  const init = person.init || bsInitials(person.who);
-  const nameParts = String(person.who || '').split(' ');
-  const first = nameParts[0] || 'Member';
-  const last = nameParts.slice(1).join(' ');
-  const goal = !isPrivate && live && live.goal;
-  const pronouns = !isPrivate && live && live.pronouns;
-  const linkv = !isPrivate && live && live.link;
-  const bio = isPrivate ? null : ((live && live.bio) || person.bio || `${person.who} is part of the Shape community${isCoach ? ' as a coach' : ''}. ${isCoach ? 'Browse their coaching profile to see packages and book a session.' : 'Say hi or cheer them on.'}`);
-  const Card = (cp) => <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 15 }}>{cp.children}</div>;
-  const DetailRow = (rp) => (
-    <div style={{ display: 'grid', gridTemplateColumns: '84px 1fr', gap: 10, paddingTop: rp.top ? 9 : 0, borderTop: rp.top ? `1px solid ${t.HAIR}` : 0 }}>
-      <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.ACCENT, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 800 }}>{rp.label}</span>
-      <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.35, wordBreak: 'break-word' }}>{rp.value}</span>
-    </div>
-  );
-  return (
-    <BSPage>
-      <div style={{ padding: `14px ${t.padX}px 0` }}>
-        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0 }}>← Back</button>
-        <h1 style={{ margin: '10px 0 0', fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.035em', color: t.INK }}>{first}{last ? <><br /><span style={{ fontStyle: 'italic', color: tc }}>{last}</span></> : <span style={{ color: tc }}>.</span>}</h1>
-      </div>
-
-      <div style={{ padding: `14px ${t.padX}px 16px` }}>
-        {/* Hero card — mirrors the coach detail hero */}
-        <div style={{ borderRadius: 20, border: `1px solid ${t.RULE}`, overflow: 'hidden', background: `linear-gradient(160deg, ${tc}24, ${t.PAPER2} 58%)` }}>
-          <div style={{ padding: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
-              <div style={{ width: 56, height: 56, borderRadius: 999, flexShrink: 0, background: tc, color: '#fff', display: 'grid', placeItems: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 21, boxShadow: `0 0 0 3px ${tc}33` }}>{init}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, border: `1px solid ${tc}66`, background: `${tc}1f` }}>
-                  <span style={{ width: 5, height: 5, borderRadius: 999, background: tc }} />
-                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: tc }}>{tier} tier</span>
-                </span>
-                <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{roleLabel}{person.city ? ` · ${person.city}` : ' · Shape community'}</div>
-              </div>
-            </div>
-            {goal && <div style={{ marginTop: 13, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, lineHeight: 1.25, letterSpacing: '-0.02em', color: t.INK }}>{goal}</div>}
-            <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {[`${tier} tier`, points != null ? `${points.toLocaleString()} pts` : 'Member', roleLabel].map((s, i) => (
-                <span key={i} style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: i === 0 ? tc : t.INK70, padding: '5px 10px', borderRadius: 999, border: `1px solid ${i === 0 ? tc : t.RULE}`, background: i === 0 ? `${tc}14` : 'transparent' }}>{s}</span>
-              ))}
-            </div>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderTop: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
-            {[[points != null ? points.toLocaleString() : '—', 'Shape Score'], [tier, 'Tier'], [roleLabel, 'Role']].map(([v, l], i) => (
-              <div key={l} style={{ padding: '12px', borderLeft: i ? `1px solid ${t.RULE}` : 0 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</div>
-                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{l}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {isSelf ? (
-          <div style={{ marginTop: 14 }}>
-            <button onClick={onEdit} style={{ width: '100%', minHeight: 46, padding: '12px', borderRadius: 999, background: teal, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Edit profile →</button>
-            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>This is how others see you{isPrivate ? ' · private' : ''}</div>
-          </div>
-        ) : (
-          <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: isCoach ? '1fr 1fr' : '1fr', gap: 8 }}>
-            <button onClick={() => onMessage(person)} style={{ minHeight: 46, padding: '12px', borderRadius: 999, background: teal, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Message →</button>
-            {isCoach && <button onClick={() => { try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} style={{ minHeight: 46, padding: '12px', borderRadius: 999, background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Coaching</button>}
-          </div>
-        )}
-      </div>
-
-      <BSSection title="About" meta={isPrivate ? 'Private' : 'Profile'} />
-      <div style={{ padding: `0 ${t.padX}px 16px`, display: 'grid', gap: 12 }}>
-        {isPrivate ? (
-          <Card>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-              <span style={{ fontSize: 16 }} aria-hidden>🔒</span>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK70, lineHeight: 1.5 }}>{first} keeps their profile private — only their name and tier are shown.</div>
-            </div>
-          </Card>
-        ) : (
-          <>
-            <Card>
-              <BSEyebrow color={t.ACCENT}>{isCoach ? 'Philosophy' : 'Their why'}</BSEyebrow>
-              <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 15.5, lineHeight: 1.45, color: t.INK }}>{bio}</div>
-            </Card>
-            {(goal || pronouns || linkv) && (
-              <Card>
-                <BSEyebrow color={t.ACCENT}>Details</BSEyebrow>
-                <div style={{ marginTop: 10, display: 'grid', gap: 9 }}>
-                  {goal && <DetailRow label="Goal" value={goal} />}
-                  {pronouns && <DetailRow label="Pronouns" value={pronouns} top={!!goal} />}
-                  {linkv && <DetailRow label="Link" value={<a href={/^https?:/i.test(linkv) ? linkv : `https://${linkv}`} target="_blank" rel="noopener noreferrer" style={{ color: teal, textDecoration: 'none' }}>{String(linkv).replace(/^https?:\/\//, '')}</a>} top={!!(goal || pronouns)} />}
-                </div>
-              </Card>
-            )}
-          </>
-        )}
-      </div>
-      <BSFooter right="Profile" />
-    </BSPage>
-  );
 }
 
 function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
@@ -11014,6 +10935,7 @@ Object.assign(window, {
   BSClientApp,
   BSShapeScorePage,
   BSShapeStorePage,
+  BSPublicProfile,
   SHAPE_SCORE_PROFILES,
   _bsUseLiveScore,
   bsTierColor,

@@ -73,6 +73,7 @@ const {
   BSSheetProvider, useBSSheet, BSCalendarScreen,
   BSRadioPrompt, BSRadioScreen, BSNowPlaying,
   BSClientChat, BSSettings, BSShapeScorePage, BSShapeStorePage, BSContactPage, BSTermsPage, SHAPE_SCORE_PROFILES, _bsUseLiveScore,
+  BSPublicProfile,
 } = window;
 
 // These identity/tier helpers are set on `window` by the CLIENT bundle, which
@@ -4023,7 +4024,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
     return <BSCoachGoalPlanPage role={role} onBack={() => setShowGoals(false)} />;
   }
   if (showPublicProfile) {
-    return <BSProPublicProfilePage role={role} name={displayName} onBack={() => setShowPublicProfile(false)} />;
+    return <BSPublicProfile person={{ who: displayName, kind: role === 'nutritionist' ? 'NUTRI' : 'TRAINER', init: bsMyInitials() }} isSelf onBack={() => setShowPublicProfile(false)} onEdit={() => { setShowPublicProfile(false); try { window.dispatchEvent(new Event('shape:openProSettings')); } catch (e) {} }} />;
   }
   if (showBookingCalendar) {
     return <BSCalendarScreen role={role} onProfile={() => setShowPublicProfile(true)} onBack={() => setShowBookingCalendar(false)} />;
