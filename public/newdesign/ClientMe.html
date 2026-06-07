@@ -167,8 +167,20 @@ function ClientMePage() {
   const [editOpen, setEditOpen] = React.useState(false);
   const [fieldEdit, setFieldEdit] = React.useState(null); // { key, label }
   const [toast, setToast] = React.useState(null);
+  const [onlineVisible, setOnlineVisible] = React.useState(true);
 
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 2500); }
+
+  async function toggleOnlineVisible() {
+    const next = !onlineVisible;
+    setOnlineVisible(next);
+    try {
+      if (window.ShapeWebPresence && window.ShapeWebPresence.setVisible) {
+        await window.ShapeWebPresence.setVisible(next);
+      }
+    } catch (e) {}
+    showToast(signedIn ? "Saved." : "Sample view — sign in to save.");
+  }
 
   async function persist(next) {
     if (window.shapeDb && window.shapeDb.saveClientProfile) {
@@ -208,6 +220,11 @@ function ClientMePage() {
       if (remote && Object.keys(remote).length > 0) {
         setProfile(p => ({ ...p, ...remote }));
       }
+      try {
+        if (window.ShapeWebPresence && typeof window.ShapeWebPresence.visible === "function") {
+          setOnlineVisible(window.ShapeWebPresence.visible() !== false);
+        }
+      } catch (e) {}
       setLoaded(true);
     })();
   }, []);
@@ -309,6 +326,7 @@ function ClientMePage() {
         <Card>
           <SectionTitle>Privacy &amp; notifications</SectionTitle>
           <Row label="Profile visibility" value={p.profileVisibility || "—"} action="CHANGE" onAction={() => openField("profileVisibility", "Profile visibility")} />
+          <Row label="Show when I'm online" value={onlineVisible ? "On" : "Off"} action="TOGGLE" onAction={toggleOnlineVisible} />
           <Row label="Share data with coaches" value={p.shareDataWithCoaches || "—"} action="CHANGE" onAction={() => openField("shareDataWithCoaches", "Share data with coaches")} />
           <Row label="Community posts" value={p.communityPosts ? "On" : "Off"} action="TOGGLE" onAction={() => toggleField("communityPosts")} />
           <Row label="Coach messages" value={p.coachMessages || "—"} action="CHANGE" onAction={() => openField("coachMessages", "Coach messages")} />

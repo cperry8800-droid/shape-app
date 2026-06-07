@@ -832,6 +832,9 @@
       var session = await shapeDb.getSession();
       var uid = session && session.user && session.user.id;
       if (!uid) return;
+      // Respect the shared "show when I'm online" preference (same field mobile uses).
+      try { var st = await shapeDb.getUserGoals('client_settings'); if (st && st.onlineVisible === 'Off') _wp.visible = false; } catch (e) {}
+      try { window.dispatchEvent(new Event('shape:presence')); } catch (e) {}
       var ch = client.channel('online-users', { config: { presence: { key: uid } } });
       ch.on('presence', { event: 'sync' }, function () {
         try { _wp.ids = ch.presenceState() || {}; } catch (e) { _wp.ids = {}; }
@@ -844,8 +847,17 @@
   }
   window.ShapeWebPresence = {
     start: startWebPresence,
+    visible: function () { return _wp.visible; },
     isOnline: function (uid) { return !!(uid && _wp.ids && Object.prototype.hasOwnProperty.call(_wp.ids, String(uid))); },
-    setVisible: function (v) { _wp.visible = !!v; var ch = _wp.channel; if (!ch) { if (v) startWebPresence(); return; } try { if (v) ch.track({ online_at: new Date().toISOString() }); else ch.untrack(); } catch (e) {} },
+    setVisible: function (v) {
+      _wp.visible = !!v;
+      // Persist to the shared client_settings.onlineVisible so mobile + web agree.
+      try { shapeDb.getUserGoals('client_settings').then(function (d) { try { shapeDb.saveUserGoals('client_settings', Object.assign({}, d || {}, { onlineVisible: v ? 'On' : 'Off' })); } catch (e) {} }); } catch (e) {}
+      try { window.dispatchEvent(new Event('shape:presence')); } catch (e) {}
+      var ch = _wp.channel;
+      if (!ch) { if (v) startWebPresence(); return; }
+      try { if (v) ch.track({ online_at: new Date().toISOString() }); else ch.untrack(); } catch (e) {}
+    },
   };
   try { startWebPresence(); } catch (e) {}
 

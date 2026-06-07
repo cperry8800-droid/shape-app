@@ -158,10 +158,10 @@ function ScoreTiers() {
             })}
           </div>
           <div style={{ position: "relative", padding: "24px 0 8px" }}>
-            {/* connector lines anchored to the node row's vertical center (top: 58) */}
-            <div style={{ position: "absolute", left: 0, right: 0, top: 58, height: 4, background: "rgba(242,237,228,0.12)", transform: "translateY(-50%)" }} />
-            <div style={{ position: "absolute", left: 0, top: 58, height: 4, background: `linear-gradient(90deg, ${TEAL}, ${TEAL_BRIGHT})`, transform: "translateY(-50%)", width: `${barPct}%` }} />
-            <div style={{ display: "grid", gridTemplateColumns: `repeat(${tiers.length}, 1fr)`, position: "relative" }}>
+            {/* connector lines anchored to the node row's vertical center (top: 58) — sit BEHIND the nodes */}
+            <div style={{ position: "absolute", left: 0, right: 0, top: 58, height: 4, background: "rgba(242,237,228,0.12)", transform: "translateY(-50%)", zIndex: 0 }} />
+            <div style={{ position: "absolute", left: 0, top: 58, height: 4, background: `linear-gradient(90deg, ${TEAL}, ${TEAL_BRIGHT})`, transform: "translateY(-50%)", width: `${barPct}%`, zIndex: 0 }} />
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(${tiers.length}, 1fr)`, position: "relative", zIndex: 1 }}>
               {tiers.map((t, i) => {
                 const reached = SCORE_TOTAL >= t.min;
                 const current = t.current;
