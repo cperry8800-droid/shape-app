@@ -6148,6 +6148,38 @@ function bsTRng(seed) { let s = (seed || 1) % 2147483647; if (s <= 0) s += 21474
 // (or an edit ✎ badge on your own). Used across the living-identity profiles.
 function bsTierRank(tier) { const m = { raw: 'I', base: 'I', tempo: 'II', form: 'III', peak: 'IV', legend: 'V', certified: 'I', pro: 'II', elite: 'III', master: 'IV', icon: 'V' }; return m[String(tier || '').toLowerCase()] || 'I'; }
 function bsShade(hex, f) { const h = String(hex || '#888888').replace('#', ''); const s = h.length === 3 ? h.split('').map((x) => x + x).join('') : h; const n = parseInt(s, 16); return `rgb(${Math.round(((n >> 16) & 255) * f)},${Math.round(((n >> 8) & 255) * f)},${Math.round((n & 255) * f)})`; }
+// Channel tile icon — topic emoji derived from the channel name, so each channel
+// reads as itself instead of a generic "#". Falls back to the first letter.
+function bsChannelGlyph(name) {
+  const n = String(name || '').toLowerCase();
+  const map = [
+    [/(strength|lift|barbell|squat|deadlift|bench|powerlift|\bpr\b|press|hypertroph)/, '🏋️'],
+    [/(marathon|\brun|\b5k|\b10k|tempo|\bmile|jog|sprint)/, '🏃'],
+    [/(yoga|mobility|stretch|flexib|recovery|rehab)/, '🧘'],
+    [/(nutrition|protein|\bmeal|recipe|\bdiet|macro|\beat|\bfood|kitchen|fuel)/, '🥗'],
+    [/(cycle|cycling|\bbike|spin|\bride)/, '🚴'],
+    [/(swim|pool|aqua)/, '🏊'],
+    [/(hiit|conditioning|metcon|hyrox|crossfit|\bwod)/, '🔥'],
+    [/(walk|\bstep|hike|trail)/, '🥾'],
+    [/(sleep|\brest|\bhrv|wellness|\bmind|\bcalm|breath|meditat)/, '😴'],
+    [/(women|cycle.?sync|prenatal|postpartum|hormon)/, '🌸'],
+    [/(challenge|streak|goal|\bclub|leaderboard|compet)/, '🏆'],
+    [/(shape ?hq|announc|update|official|\bnews|notice)/, '📣'],
+    [/(music|playlist|radio|soundtrack)/, '🎧'],
+    [/(chat|social|lounge|community|general|hangout|talk)/, '💬'],
+  ];
+  for (const [re, e] of map) if (re.test(n)) return e;
+  const first = String(name || '').trim().replace(/^#/, '').charAt(0).toUpperCase();
+  return first || '#';
+}
+// Stable per-channel accent so channels are visually distinct (not all teal).
+const BS_CHANNEL_PALETTE = ['#34d6c5', '#d8a23a', '#8a5cf6', '#e0518a', '#5fae7e', '#c0533b', '#4a9fe0', '#a07a2e'];
+function bsChannelColor(name) {
+  const s = String(name || '');
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return BS_CHANNEL_PALETTE[h % BS_CHANNEL_PALETTE.length];
+}
 function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 'I', editable = false, onEdit, showRank = true, live = false, onClick, BG = '#100d0a', INK = '#f2ede4' }) {
   const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", FTEAL = '#34d6c5';
   const inset = Math.max(2, Math.round(size * 0.055));
@@ -7472,7 +7504,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             return (
               <div key={ch.id} style={{ position: 'relative', borderRadius: 16, border: `1px solid ${hair}`, background: card, padding: '13px 14px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-                  <div style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 12, background: t.isLight ? 'rgba(10,143,135,0.10)' : 'rgba(52,214,197,0.12)', border: `1px solid ${TEALB}66`, color: TEALB, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 18, fontWeight: 700 }}>#</div>
+                  {(() => { const cc = bsChannelColor(ch.name); const gl = bsChannelGlyph(ch.name); const isEmoji = gl.length > 1 || gl.codePointAt(0) > 0x2000; return (
+                  <div style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 12, background: `${cc}1f`, border: `1px solid ${cc}66`, color: cc, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: isEmoji ? 19 : 18, fontWeight: 700 }}>{gl}</div>
+                  ); })()}
                   <button onClick={() => ch.joined ? openChannelNow(ch) : joinChannelNow(ch)} style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, textAlign: 'left', cursor: 'pointer', color: cardInk, padding: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
                       <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15.5, letterSpacing: '-0.01em' }}>#{ch.name}</span>
@@ -7966,7 +8000,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
         </div>
         <button onClick={() => !thread.group && openP(thread.who)} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: thread.group ? 'default' : 'pointer', color: 'inherit' }}>
           {thread.group
-            ? <span style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 12, background: t.isLight ? 'rgba(10,143,135,0.10)' : 'rgba(52,214,197,0.12)', border: `1px solid ${teal}66`, color: teal, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 17, fontWeight: 700 }}>#</span>
+            ? (() => { const cc = bsChannelColor(thread.who); return <span style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 12, background: `${cc}1f`, border: `1px solid ${cc}66`, color: cc, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 18, fontWeight: 700 }}>{bsChannelGlyph(thread.who)}</span>; })()
             : <BSFacetAvatar size={38} c={threadColor} initial={bsInitials(thread.who) || (thread.who.match(/[A-Z]/) || ['?'])[0]} showRank={false} />}
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: t.BODY, fontSize: 18, fontWeight: 760, color: t.INK, letterSpacing: '-0.02em' }}>{thread.who}</div>
