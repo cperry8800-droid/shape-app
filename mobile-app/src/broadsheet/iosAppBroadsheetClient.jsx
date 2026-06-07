@@ -6770,10 +6770,25 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       const hist = next.map(m => ({ role: m.me ? 'user' : 'assistant', content: m.t }));
       const res = await window.ShapeSupport?.ask?.(hist);
       const reply = (res && res.reply) || "Thanks — I've flagged this for the Shape team and they'll follow up here.";
-      setSupportMsgs(m => [...m, { who: 'Nora', t: reply, time: 'now', me: false, bot: true }]);
+      const acts = (res && Array.isArray(res.actions) && res.actions.length) ? res.actions : undefined;
+      setSupportMsgs(m => [...m, { who: 'Nora', t: reply, time: 'now', me: false, bot: true, actions: acts }]);
     } catch (e) {
       setSupportMsgs(m => [...m, { who: 'Nora', t: "I'm having trouble reaching support right now — I've flagged this for the Shape team to follow up.", time: 'now', me: false, bot: true }]);
     } finally { setSupportBusy(false); }
+  };
+  // Nora's structured follow-ups → in-app destinations (the app is a webview, so
+  // route coach/marketplace links to the in-app Marketplace rather than a URL).
+  const runSupportAction = (a) => {
+    if (!a) return;
+    try {
+      if (a.type === 'coach' || a.type === 'marketplace') {
+        window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: { role: a.role || null, coach: a.slug || null } }));
+      } else if (a.type === 'screen' && a.screen === 'integrations') {
+        window.dispatchEvent(new CustomEvent('shape:openIntegrations'));
+      } else if (a.url) {
+        window.open(a.url, '_blank');
+      }
+    } catch (e) {}
   };
   // Live direct-message threads (real coaches/conversations). Falls back to the
   // sample people lists below when there are none (demo / not signed in).
@@ -7555,6 +7570,16 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#2e6fa0', fontWeight: 700, marginBottom: 3 }}>{m.who}{m.bot ? " · Shape's Assistant" : ''}</div>
                           <div style={{ padding: '9px 12px', borderRadius: 14, background: card, color: cardInk, border: `1px solid ${hair}`, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>{m.t}</div>
+                          {Array.isArray(m.actions) && m.actions.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 8 }}>
+                              {m.actions.map((a, ai) => (
+                                <button key={ai} onClick={() => runSupportAction(a)} style={{ border: `1px solid ${TEALB}`, background: `${TEALB}1a`, color: cardInk, borderRadius: 12, padding: '7px 11px', fontFamily: t.BODY, fontSize: 12, fontWeight: 600, cursor: 'pointer', textAlign: 'left', lineHeight: 1.3, display: 'inline-flex', flexDirection: 'column' }}>
+                                  <span>{a.label}</span>
+                                  {a.meta && <span style={{ fontSize: 9.5, opacity: 0.7, fontFamily: t.MONO }}>{a.meta}</span>}
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )

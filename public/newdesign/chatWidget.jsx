@@ -343,13 +343,13 @@ function ChatWidget(props) {
       return;
     }
 
-    const appendReply = (who, reply) => {
+    const appendReply = (who, reply, actions) => {
       const stamp2 = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
       setThreadsByTab(prev => prev.map((ts, ti) => {
         if (ti !== tabIdx) return ts;
         return ts.map((t, i) => {
           if (i !== activeIdx) return t;
-          return { ...t, last: `${who}: ${reply}`, time: "now", messages: [...t.messages, { who, t: reply, time: stamp2, me: false }] };
+          return { ...t, last: `${who}: ${reply}`, time: "now", messages: [...t.messages, { who, t: reply, time: stamp2, me: false, actions: Array.isArray(actions) && actions.length ? actions : undefined }] };
         });
       }));
     };
@@ -365,6 +365,7 @@ function ChatWidget(props) {
         .filter(m => m.content);
       (async () => {
         let reply = null;
+        let actions = null;
         try {
           const res = await fetch("/api/support/chat", {
             method: "POST",
@@ -373,10 +374,10 @@ function ChatWidget(props) {
             body: JSON.stringify({ messages: history }),
           });
           const data = await res.json().catch(() => ({}));
-          if (res.ok && data && data.reply) reply = data.reply;
+          if (res.ok && data && data.reply) { reply = data.reply; actions = data.actions; }
         } catch (e) { /* fall back below */ }
         setTyping(false);
-        appendReply("Nora", reply || supportReply(text));
+        appendReply("Nora", reply || supportReply(text), actions);
       })();
       return;
     }
@@ -995,6 +996,18 @@ function ChatWidget(props) {
                     </div>
                   </div>
                   <div style={{ fontSize: 10, color: "rgba(242,237,228,0.4)", fontFamily: "'JetBrains Mono', monospace", marginTop: myReaction ? 10 : 4, padding: "0 4px" }}>{m.time}</div>
+                  {!m.me && Array.isArray(m.actions) && m.actions.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 8, maxWidth: "92%" }}>
+                      {m.actions.map((a, ai) => (
+                        <a key={ai} href={a.url || "#"}
+                          onClick={(e) => { if (!a.url) e.preventDefault(); }}
+                          style={{ textDecoration: "none", border: `1px solid ${TEAL}`, background: "rgba(10,197,168,0.10)", color: TEAL_BRIGHT, borderRadius: 14, padding: "7px 12px", fontFamily: sans, fontSize: 12, fontWeight: 500, cursor: "pointer", display: "inline-flex", flexDirection: "column", lineHeight: 1.3 }}>
+                          <span>{a.label}</span>
+                          {a.meta && <span style={{ fontSize: 10, opacity: 0.7 }}>{a.meta}</span>}
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 );
               })}
