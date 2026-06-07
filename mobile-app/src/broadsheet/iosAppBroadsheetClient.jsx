@@ -7229,10 +7229,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       <div key={p.id || i} style={{ display: 'flex', flexDirection: 'column', alignItems: right ? 'flex-end' : 'flex-start' }}>
         {p.pinned && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', color: TEALB, marginBottom: 6 }}><PinIcon filled size={13} /> Pinned</div>}
         <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: 11, maxWidth: '90%' }}>
-          <BSFacetAvatar size={38} c={tc} initial={avInit} photo={isMe ? ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined) : (avatarByUser[p.userId] || undefined)} live={isMe ? bsAmLive() : bsIsUserOnline(p.userId)} showRank={false} onClick={linkable ? () => setOpenProfile({ ...p, kind: akind, tier }) : undefined} />
+          <BSFacetAvatar size={38} c={tc} initial={avInit} photo={isMe ? ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined) : (avatarByUser[p.userId] || undefined)} live={isMe ? bsAmLive() : bsIsUserOnline(p.userId)} showRank={false} onClick={linkable ? () => setOpenProfile({ ...p, kind: akind, tier, photo: avatarByUser[p.userId] || p.photo }) : undefined} />
           <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'baseline', gap: 8, marginBottom: 5 }}>
-              <button onClick={() => linkable && setOpenProfile({ ...p, kind: akind, tier })} style={{ background: 'transparent', border: 0, padding: 0, cursor: linkable ? 'pointer' : 'default', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk }}>{p.who}</button>
+              <button onClick={() => linkable && setOpenProfile({ ...p, kind: akind, tier, photo: avatarByUser[p.userId] || p.photo })} style={{ background: 'transparent', border: 0, padding: 0, cursor: linkable ? 'pointer' : 'default', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk }}>{p.who}</button>
               <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: rc, border: `1px solid ${rc}66`, borderRadius: 4, padding: '1px 5px' }}>{roleMeta.label}</span>
               <span style={{ fontFamily: t.MONO, fontSize: 9, color: muted }}>{p.time}</span>
             </div>
@@ -12752,7 +12752,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     const role = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().profile && window.ShapeAuth.getCachedState().profile.role) || 'client';
     const uid = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id) || null;
     const kind = role === 'trainer' ? 'TRAINER' : role === 'nutritionist' ? 'NUTRI' : 'CLIENT';
-    return <BSPublicProfile person={{ who: identity.name, init: (identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name), kind, userId: uid }} isSelf onBack={() => setShowPublicProfile(false)} onEdit={() => { setShowPublicProfile(false); setEditing(true); }} />;
+    return <BSPublicProfile person={{ who: identity.name, init: (identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name), kind, userId: uid, photo: (typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || null }} isSelf onBack={() => setShowPublicProfile(false)} onEdit={() => { setShowPublicProfile(false); setEditing(true); }} />;
   }
 
   const sections = [
