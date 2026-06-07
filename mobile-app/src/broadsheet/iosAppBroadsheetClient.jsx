@@ -7999,7 +7999,12 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
           const roleLabel = isCoachSender ? (senderRole === 'nutritionist' ? 'Nutritionist' : 'Trainer') : null;
           const incomingBg = t.isLight ? t.PAPER2 : '#1a1713';
           return (
-            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', alignSelf: me ? 'flex-end' : 'flex-start', maxWidth: '86%' }}>
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', alignSelf: me ? 'flex-end' : 'flex-start', maxWidth: '90%' }}>
+              <div style={{ display: 'flex', flexDirection: me ? 'row-reverse' : 'row', alignItems: 'flex-end', gap: 8 }}>
+                {!me && (
+                  <BSFacetAvatar size={32} c={senderTC} initial={bsInitials(senderName) || '?'} live={bsIsUserOnline(m.userId)} showRank={false} onClick={() => openP(senderName)} />
+                )}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', minWidth: 0 }}>
               {!me && thread.group && (
                 <button onClick={() => openP(senderName)} style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', marginBottom: 5 }}>
                   <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 13, color: t.INK, letterSpacing: '-0.01em' }}>{senderName}</span>
@@ -8038,6 +8043,8 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
                 {pickerOpen && <BSReactionPicker t={t} anchorRight={me} current={myR} onPick={(em) => rx.toggle(rKey, em)} />}
                 {myR && <BSReactionPill t={t} emoji={myR} anchorRight={me} onClick={() => rx.toggle(rKey, myR)} />}
                 <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginTop: myR ? 10 : 4, textAlign: me ? 'right' : 'left' }}>{m.time}</div>
+              </div>
+                </div>
               </div>
             </div>
           );
