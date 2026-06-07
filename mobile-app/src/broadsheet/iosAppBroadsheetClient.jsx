@@ -6450,11 +6450,12 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
     <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
       {isSelf && <input ref={fileRef} type="file" accept="image/*" onChange={onPick} style={{ display: 'none' }} />}
       {/* Ridgeline ascent hero — the climb toward a summit goal, name overlaid */}
-      <div style={{ position: 'relative', flex: '0 0 auto', height: 452, overflow: 'hidden', background: `linear-gradient(165deg, ${bsTHexA(c, 0.55)} 0%, ${bsTHexA(c, 0.12)} 42%, ${BG} 82%)` }}>
-        {/* faint contour grid */}
+      <div style={{ position: 'relative', flex: '0 0 auto', height: 452, overflow: 'hidden', background: `radial-gradient(125% 80% at 82% 2%, ${bsTHexA(c, 0.5)}, transparent 56%), linear-gradient(168deg, ${bsTHexA(c, 0.4)} 0%, ${bsTHexA(c, 0.12)} 40%, ${BG} 80%)` }}>
+        {/* faint contour grid + bottom vignette for an editorial fade */}
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" width="100%" height="100%" aria-hidden style={{ position: 'absolute', inset: 0 }}>
-          {[20, 36, 52, 68, 84].map((y) => <line key={y} x1="0" y1={y} x2="100" y2={y} stroke={bsTHexA(INK, 0.06)} strokeWidth="0.4" />)}
+          {[24, 42, 60, 78].map((y) => <line key={y} x1="0" y1={y} x2="100" y2={y} stroke={bsTHexA(INK, 0.045)} strokeWidth="0.4" />)}
         </svg>
+        <div aria-hidden style={{ position: 'absolute', inset: 0, background: `linear-gradient(to bottom, transparent 55%, ${bsTHexA(BG, 0.55)} 88%, ${BG} 100%)`, pointerEvents: 'none' }} />
         {/* ascent curve + fill */}
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" width="100%" height="100%" aria-hidden style={{ position: 'absolute', inset: 0 }}>
           <defs><linearGradient id={`tdasc${seed}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={bsTHexA(TEAL, 0.3)} /><stop offset="100%" stopColor={bsTHexA(TEAL, 0)} /></linearGradient></defs>
@@ -6462,7 +6463,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
           <path d="M 8 84 C 30 82, 52 64, 74 33" fill="none" stroke={TEAL} strokeWidth="2.6" vectorEffect="non-scaling-stroke" strokeLinecap="round" />
         </svg>
         {/* climb start dot (lower-left) */}
-        <div style={{ position: 'absolute', left: '8%', top: '84%', transform: 'translate(-50%,-50%)', zIndex: 2, width: 9, height: 9, borderRadius: 999, background: TEAL, boxShadow: `0 0 0 4px ${bsTHexA(TEAL, 0.18)}` }} />
+        <div style={{ position: 'absolute', left: '8%', top: '84%', transform: 'translate(-50%,-50%)', zIndex: 2, width: 9, height: 9, borderRadius: 999, background: bsTHexA(TEAL, 0.85), boxShadow: `0 0 0 4px ${bsTHexA(TEAL, 0.16)}` }} />
         {/* back */}
         <button onClick={onBack} style={{ position: 'absolute', top: 46, left: 18, zIndex: 4, background: bsTHexA(BG, 0.4), border: `1px solid ${bsTHexA(INK, 0.2)}`, color: INK, borderRadius: 999, padding: '7px 13px', cursor: 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
         {/* summit marker — coral flag top-right (the goal at the top of the climb) */}
