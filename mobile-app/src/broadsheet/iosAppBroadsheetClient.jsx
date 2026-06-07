@@ -8003,8 +8003,10 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
           return (
             <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', alignSelf: me ? 'flex-end' : 'flex-start', maxWidth: '90%' }}>
               <div style={{ display: 'flex', flexDirection: me ? 'row-reverse' : 'row', alignItems: 'flex-end', gap: 8 }}>
-                {!me && (
+                {!me ? (
                   <BSFacetAvatar size={32} c={senderTC} initial={bsInitials(senderName) || '?'} live={bsIsUserOnline(m.userId)} showRank={false} onClick={() => openP(senderName)} />
+                ) : (
+                  <BSFacetAvatar size={32} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
                 )}
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', minWidth: 0 }}>
               {!me && thread.group && (
