@@ -7174,11 +7174,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     const bubbleBg = p.official ? '#f3eee4' : (t.isLight ? `${tc}16` : `${tc}22`);
     const linkable = !p.mine && p.who !== 'You' && p.public !== false; // open the author's public profile
     const avInit = isMe ? bsMyInitials() : (bsInitials(p.who) || p.init || '?'); // full (2-letter) initials
-    const AV_OFFSET = 45; // avatar (36) + gap (9), to align meta/reactions under the bubble
+    const AV_OFFSET = 49; // avatar (38) + gap (11), to align meta/reactions under the bubble
     return (
       <div key={p.id || i} style={{ display: 'flex', flexDirection: 'column', alignItems: right ? 'flex-end' : 'flex-start' }}>
         {p.pinned && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', color: TEALB, marginBottom: 6 }}><PinIcon filled size={13} /> Pinned</div>}
-        <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'flex-end', gap: 9, maxWidth: '90%' }}>
+        <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: 11, maxWidth: '90%' }}>
           <BSFacetAvatar size={38} c={tc} initial={avInit} photo={isMe ? ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined) : undefined} live={isMe ? bsAmLive() : bsIsUserOnline(p.userId)} showRank={false} onClick={linkable ? () => setOpenProfile({ ...p, kind: akind, tier }) : undefined} />
           <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'baseline', gap: 8, marginBottom: 5 }}>
@@ -8002,7 +8002,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
           const incomingBg = t.isLight ? t.PAPER2 : '#1a1713';
           return (
             <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', alignSelf: me ? 'flex-end' : 'flex-start', maxWidth: '90%' }}>
-              <div style={{ display: 'flex', flexDirection: me ? 'row-reverse' : 'row', alignItems: 'flex-end', gap: 8 }}>
+              <div style={{ display: 'flex', flexDirection: me ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: 11 }}>
                 {!me ? (
                   <BSFacetAvatar size={32} c={senderTC} initial={bsInitials(senderName) || '?'} live={bsIsUserOnline(m.userId)} showRank={false} onClick={() => openP(senderName)} />
                 ) : (

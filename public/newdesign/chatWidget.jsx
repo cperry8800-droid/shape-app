@@ -914,14 +914,14 @@ function ChatWidget(props) {
                 const avatarName = (active && active.group) ? (m.who || (active && active.who)) : ((active && active.who) || m.who);
                 return (
                 <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start", position: "relative" }}>
-                  <div style={{ display: "flex", alignItems: "flex-end", gap: 8, flexDirection: m.me ? "row-reverse" : "row", maxWidth: "90%" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 11, flexDirection: m.me ? "row-reverse" : "row", maxWidth: "90%" }}>
                     {!m.me && (
-                      <div style={{ alignSelf: "flex-end" }}>
+                      <div style={{ alignSelf: "flex-start" }}>
                         <CwFacetAvatar size={32} c={cwTierColor(m && m.tier ? String(m.tier) : cwHashTier(avatarName))} initial={cwInitials(avatarName)} live={!!(window.ShapeWebPresence && m && m.userId && window.ShapeWebPresence.isOnline(m.userId))} onClick={() => openProfile(m)} />
                       </div>
                     )}
                     {m.me && (
-                      <div style={{ alignSelf: "flex-end" }}>
+                      <div style={{ alignSelf: "flex-start" }}>
                         <CwFacetAvatar size={32} c={cwTierColor(m && m.tier ? String(m.tier) : cwHashTier(myName))} initial={cwInitials(myName)} live={!!(window.ShapeWebPresence && typeof window.ShapeWebPresence.visible === "function" && window.ShapeWebPresence.visible())} />
                       </div>
                     )}
