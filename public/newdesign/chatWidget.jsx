@@ -32,6 +32,16 @@ function CwFacetAvatar({ size = 40, c = "#34d6c5", initial = "S", live = false, 
   );
 }
 if (typeof document !== "undefined" && !document.getElementById("cw-av-pulse")) { const st = document.createElement("style"); st.id = "cw-av-pulse"; st.textContent = "@keyframes cwAvPulse { 0%,100% { transform: rotate(45deg) scale(1); opacity: 0.9; } 50% { transform: rotate(45deg) scale(1.09); opacity: 0.4; } }"; document.head.appendChild(st); }
+// Demo/preview faces — so seeded people (no real account) show real photos in
+// preview mode, demonstrating avatars on chat bubbles + profiles. Real members
+// (with a userId) use their own photo/initials, never these.
+const CW_DEMO_FACES = ["1544005313-94ddf0286df2", "1499996860823-5214fcc65f8f", "1507003211169-0a1dd7228f2d", "1500648767791-00dcc994a43e", "1438761681033-6461ffad8d80", "1487412720507-e7ab37603c6f", "1517841905240-472988babdf9", "1534528741775-53994a69daeb", "1531123897727-8f129e1688ce", "1463453091185-61582044d556", "1492562080023-ab3db95bfbce", "1573497019940-1c28c88b4f3e"];
+function cwDemoFace(name) {
+  const n = String(name || "").trim();
+  if (!n || n === "You" || n.charAt(0) === "#") return null;
+  let h = 0; for (let i = 0; i < n.length; i++) h = (h * 31 + n.charCodeAt(i)) >>> 0;
+  return `https://images.unsplash.com/photo-${CW_DEMO_FACES[h % CW_DEMO_FACES.length]}?w=160&h=160&fit=crop&crop=faces&q=72&auto=format`;
+}
 const CW_FEED_TIERS = ["Tempo", "Form", "Peak", "Legend", "Base"];
 // Stable per-name tier for people we have no live points for (demo/seeded
 // threads) — same deterministic hash the mobile app uses as its fallback.
@@ -873,7 +883,7 @@ function ChatWidget(props) {
                   </div>
                   <div style={{ padding: 18 }}>
                     <div style={{ borderRadius: 18, border: `1px solid ${tc}55`, background: `radial-gradient(130% 120% at 78% 14%, ${tc}26, transparent 55%), rgba(242,237,228,0.03)`, padding: 18, display: "flex", alignItems: "center", gap: 16 }}>
-                      <CwFacetAvatar size={64} c={tc} initial={cwInitials(profileFor.who)} live={!!((profileFor && profileFor.online) || (window.ShapeWebPresence && profileFor && window.ShapeWebPresence.isOnline(profileFor.userId)))} />
+                      <CwFacetAvatar size={64} c={tc} initial={cwInitials(profileFor.who)} photo={(profLive && profLive.avatar) || (profileFor && !profileFor.userId ? cwDemoFace(profileFor.who) : undefined)} live={!!((profileFor && profileFor.online) || (window.ShapeWebPresence && profileFor && window.ShapeWebPresence.isOnline(profileFor.userId)))} />
                       <div style={{ minWidth: 0 }}>
                         <div style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase" }}>
                           <span style={{ color: tc }}>{tier}</span><span style={{ color: "rgba(242,237,228,0.4)" }}>·</span><span style={{ color: "rgba(242,237,228,0.55)" }}>{roleLabel}</span>
@@ -945,7 +955,7 @@ function ChatWidget(props) {
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 11, flexDirection: m.me ? "row-reverse" : "row", maxWidth: "90%" }}>
                     {!m.me && (
                       <div style={{ alignSelf: "flex-start" }}>
-                        <CwFacetAvatar size={32} c={cwTierColor(m && m.tier ? String(m.tier) : cwHashTier(avatarName))} initial={cwInitials(avatarName)} photo={(m && m.userId && avatarsByUid[m.userId]) || undefined} live={!!(window.ShapeWebPresence && m && m.userId && window.ShapeWebPresence.isOnline(m.userId))} onClick={() => openProfile(m)} />
+                        <CwFacetAvatar size={32} c={cwTierColor(m && m.tier ? String(m.tier) : cwHashTier(avatarName))} initial={cwInitials(avatarName)} photo={(m && m.userId ? (avatarsByUid[m.userId] || undefined) : cwDemoFace(avatarName))} live={!!(window.ShapeWebPresence && m && m.userId && window.ShapeWebPresence.isOnline(m.userId))} onClick={() => openProfile(m)} />
                       </div>
                     )}
                     {m.me && (

@@ -6186,6 +6186,19 @@ function BSChannelIcon({ name, size = 20 }) {
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden>{D[key]}</svg>;
 }
+// Demo/preview faces — so the seed community (people with no real account) shows
+// real photos in preview mode, demonstrating that avatars appear on bubbles +
+// profiles. Real members (with a userId) never use these; they show their own
+// photo or initials. Reuses the same Unsplash faces as the presence rail.
+const BS_DEMO_FACES = ['1544005313-94ddf0286df2', '1499996860823-5214fcc65f8f', '1507003211169-0a1dd7228f2d', '1500648767791-00dcc994a43e', '1438761681033-6461ffad8d80', '1487412720507-e7ab37603c6f', '1517841905240-472988babdf9', '1534528741775-53994a69daeb', '1531123897727-8f129e1688ce', '1463453091185-61582044d556', '1492562080023-ab3db95bfbce', '1573497019940-1c28c88b4f3e'];
+const BS_DEMO_FACE_BY_NAME = { 'Priya Shah': '1544005313-94ddf0286df2', 'Drew Oyelaran': '1499996860823-5214fcc65f8f', 'Casey Morgan': '1507003211169-0a1dd7228f2d', 'Devon Wells': '1500648767791-00dcc994a43e', 'Maya Okafor': '1438761681033-6461ffad8d80', 'Sofia Park': '1487412720507-e7ab37603c6f' };
+function bsDemoFace(name) {
+  const n = String(name || '').trim();
+  if (!n || n === 'You' || n.charAt(0) === '#') return null;
+  let id = BS_DEMO_FACE_BY_NAME[n];
+  if (!id) { let h = 0; for (let i = 0; i < n.length; i++) h = (h * 31 + n.charCodeAt(i)) >>> 0; id = BS_DEMO_FACES[h % BS_DEMO_FACES.length]; }
+  return `https://images.unsplash.com/photo-${id}?w=160&h=160&fit=crop&crop=faces&q=72&auto=format`;
+}
 // Stable per-channel accent so channels are visually distinct.
 const BS_CHANNEL_PALETTE = ['#34d6c5', '#d8a23a', '#8a5cf6', '#e0518a', '#5fae7e', '#c0533b', '#4a9fe0', '#a07a2e'];
 function bsChannelColor(name) {
@@ -7248,7 +7261,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       <div key={p.id || i} style={{ display: 'flex', flexDirection: 'column', alignItems: right ? 'flex-end' : 'flex-start' }}>
         {p.pinned && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', color: TEALB, marginBottom: 6 }}><PinIcon filled size={13} /> Pinned</div>}
         <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: 11, maxWidth: '90%' }}>
-          <BSFacetAvatar size={38} c={tc} initial={avInit} photo={isMe ? ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined) : (avatarByUser[p.userId] || undefined)} live={isMe ? bsAmLive() : bsIsUserOnline(p.userId)} showRank={false} onClick={linkable ? () => setOpenProfile({ ...p, kind: akind, tier, photo: avatarByUser[p.userId] || p.photo }) : undefined} />
+          <BSFacetAvatar size={38} c={tc} initial={avInit} photo={isMe ? ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined) : (p.userId ? (avatarByUser[p.userId] || undefined) : (p.photo || bsDemoFace(p.who)))} live={isMe ? bsAmLive() : bsIsUserOnline(p.userId)} showRank={false} onClick={linkable ? () => setOpenProfile({ ...p, kind: akind, tier, photo: (p.userId ? avatarByUser[p.userId] : (p.photo || bsDemoFace(p.who))) }) : undefined} />
           <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'baseline', gap: 8, marginBottom: 5 }}>
               <button onClick={() => linkable && setOpenProfile({ ...p, kind: akind, tier, photo: avatarByUser[p.userId] || p.photo })} style={{ background: 'transparent', border: 0, padding: 0, cursor: linkable ? 'pointer' : 'default', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk }}>{p.who}</button>
@@ -7304,14 +7317,14 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       : a.kind === 'run' ? [['Distance', a.distance], ['Pace', a.pace], ['Time', a.duration]]
       : [['Time', a.duration], ['Moves', `${a.exercises}`], ['RPE', `${a.rpe}`]];
     const showRoute = a.kind === 'run';
-    const openCardProfile = () => setOpenProfile({ who: a.who, kind: 'CLIENT', tier: a.tier, init: bsInitials(a.who), city: a.city, public: true });
+    const openCardProfile = () => setOpenProfile({ who: a.who, kind: 'CLIENT', tier: a.tier, init: bsInitials(a.who), city: a.city, public: true, photo: bsDemoFace(a.who) });
     return (
       <div style={{ borderRadius: 18, border: `1px solid ${hair}`, background: card, overflow: 'hidden' }}>
         <div style={{ height: 3, background: tc }} />
         <div style={{ padding: '13px 15px 15px' }}>
           {/* author + activity type */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginBottom: 12 }}>
-            <BSFacetAvatar size={42} c={tc} initial={bsInitials(a.who) || '?'} showRank={false} onClick={openCardProfile} />
+            <BSFacetAvatar size={42} c={tc} initial={bsInitials(a.who) || '?'} photo={bsDemoFace(a.who)} showRank={false} onClick={openCardProfile} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 <button onClick={openCardProfile} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14.5, color: cardInk, whiteSpace: 'nowrap' }}>{a.who}</button>
@@ -7440,7 +7453,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               // Coaches wear their own ladder color (Icon=teal, …); members the client ramp.
               const tc = p.role ? bsTierColor(String(bsCoachTier(p.tier)).toLowerCase()) : bsTierColor(p.tier);
               return (
-                <button key={i} onClick={() => setOpenProfile({ who: p.name, kind: p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT', tier: p.tier, public: true })} style={{ flex: '0 0 auto', width: 58, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'center' }}>
+                <button key={i} onClick={() => setOpenProfile({ who: p.name, kind: p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT', tier: p.tier, public: true, photo: bsUnsplash(p.photo) || bsDemoFace(p.name) })} style={{ flex: '0 0 auto', width: 58, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'center' }}>
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
                     <BSFacetAvatar size={44} c={tc} initial={bsInitials(p.name)} photo={bsUnsplash(p.photo)} rank={bsTierRank(p.tier)} live={!!p.live} BG={t.PAPER} INK={'#fff'} />
                   </div>
@@ -7479,7 +7492,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             return (
               <button key={i} onClick={() => { window.ShapeUnread?.markConversationRead?.(f.conversation_id); setOpenChat(f); }} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 11, alignItems: 'center', padding: '10px 2px', borderBottom: isLast ? 0 : `1px solid ${t.isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.045)'}`, background: 'transparent', border: 0, color: cardInk, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
                 <span style={{ position: 'relative', flexShrink: 0, display: 'inline-flex' }}>
-                  <BSFacetAvatar size={46} c={bsTierColor(bsPostTier({ who: f.n }))} initial={bsInitials(f.n) || f.i} showRank={false} />
+                  <BSFacetAvatar size={46} c={bsTierColor(bsPostTier({ who: f.n }))} initial={bsInitials(f.n) || f.i} photo={f.conversation_id ? undefined : bsDemoFace(f.n)} showRank={false} />
                   {online && <span style={{ position: 'absolute', right: -2, bottom: -2, width: 12, height: 12, borderRadius: 999, background: '#3ddc97', border: `2px solid ${t.PAPER}` }} />}
                 </span>
                 <span style={{ minWidth: 0, display: 'block' }}>
@@ -7977,7 +7990,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
     const raw = String(name || '').trim();
     if (!raw || raw === 'You' || raw.charAt(0) === '#') return;
     const uid = userId || (!thread.group ? (thread.userId || thread.counterpartId) : null) || null;
-    onOpenProfile({ who: raw, kind: threadKind, tier: bsPostTier({ who: raw }), init: bsInitials(raw), userId: uid, photo: (uid && threadAvatars[uid]) || null });
+    onOpenProfile({ who: raw, kind: threadKind, tier: bsPostTier({ who: raw }), init: bsInitials(raw), userId: uid, photo: (uid && threadAvatars[uid]) || (!uid ? bsDemoFace(raw) : null) });
   };
   // Seed from the thread's last-message preview when it has no message history,
   // so a channel you open isn't blank before you post.
@@ -8053,7 +8066,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
         <button onClick={() => !thread.group && openP(thread.who)} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: thread.group ? 'default' : 'pointer', color: 'inherit' }}>
           {thread.group
             ? (() => { const cc = bsChannelColor(thread.who); return <span style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 12, background: `${cc}1f`, border: `1px solid ${cc}66`, color: cc, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><BSChannelIcon name={thread.who} size={19} /></span>; })()
-            : <BSFacetAvatar size={38} c={threadColor} initial={bsInitials(thread.who) || (thread.who.match(/[A-Z]/) || ['?'])[0]} photo={((thread.userId || thread.counterpartId) && threadAvatars[thread.userId || thread.counterpartId]) || undefined} showRank={false} />}
+            : <BSFacetAvatar size={38} c={threadColor} initial={bsInitials(thread.who) || (thread.who.match(/[A-Z]/) || ['?'])[0]} photo={((thread.userId || thread.counterpartId) && threadAvatars[thread.userId || thread.counterpartId]) || (!thread.conversationId && !thread.channelId ? bsDemoFace(thread.who) : undefined)} showRank={false} />}
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: t.BODY, fontSize: 18, fontWeight: 760, color: t.INK, letterSpacing: '-0.02em' }}>{thread.who}</div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{thread.role}</div>
@@ -8090,7 +8103,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
             <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', alignSelf: me ? 'flex-end' : 'flex-start', maxWidth: '90%' }}>
               <div style={{ display: 'flex', flexDirection: me ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: 11 }}>
                 {!me ? (
-                  <BSFacetAvatar size={32} c={senderTC} initial={bsInitials(senderName) || '?'} photo={(m.userId && threadAvatars[m.userId]) || (!thread.group && (thread.userId || thread.counterpartId) ? threadAvatars[thread.userId || thread.counterpartId] : undefined) || undefined} live={bsIsUserOnline(m.userId)} showRank={false} onClick={() => openP(senderName, m.userId)} />
+                  <BSFacetAvatar size={32} c={senderTC} initial={bsInitials(senderName) || '?'} photo={(m.userId && threadAvatars[m.userId]) || (!thread.group && (thread.userId || thread.counterpartId) ? threadAvatars[thread.userId || thread.counterpartId] : undefined) || (m.photo) || (!thread.conversationId && !thread.channelId ? bsDemoFace(senderName) : undefined)} live={bsIsUserOnline(m.userId)} showRank={false} onClick={() => openP(senderName, m.userId)} />
                 ) : (
                   <BSFacetAvatar size={32} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
                 )}
