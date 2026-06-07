@@ -51,7 +51,7 @@ function bsMyTierColor() {
 // a window event (handled in BSClientAppInner), so a page needn't thread an
 // onProfile prop. Drop it into a page's back-button row, right-aligned.
 function BSMeCorner({ size = 30 }) {
-  return <BSAvatar init={bsMyInitials()} size={size} fill={bsMyTierColor()} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />;
+  return <BSFacetAvatar size={size} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />;
 }
 
 // Renders the music-reactive overlay (edge glow / bloom / hologram DJ)
@@ -1929,7 +1929,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: 'brightness(0) invert(1)' }} />}
         leftKicker={`${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][_now.getDay()]} · ${_BS_MON[_now.getMonth()]} ${_now.getDate()} · ${_now.getFullYear()}`}
         rightKicker={`${bsHomeProgram.nutritionPhase || 'Cut'} · W${isoWeek}`}
-        trailing={<BSAvatar init={bsMyInitials()} size={32} fill={bsMyTierColor()} onClick={onProfile} />}
+        trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} showRank={false} onClick={onProfile} />}
         showDoubleRule={false}
         showDotTexture={false}
       />
@@ -3051,7 +3051,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       <BSPageHeader
         kicker={`${bsTrainProgram.trainingPhase || 'Build'} · Week ${bsProgramWeek()}`}
         title={cur.title}
-        trailing={<BSAvatar init={bsMyInitials()} size={32} fill={bsMyTierColor()} onClick={onProfile} />}
+        trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} showRank={false} onClick={onProfile} />}
       />
 
       <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} />
@@ -3953,7 +3953,7 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
   );
   return (
     <BSPage>
-      <BSPageHeader trailing={<BSAvatar init={bsMyInitials()} size={32} fill={bsMyTierColor()} onClick={onProfile} />} />
+      <BSPageHeader trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} showRank={false} onClick={onProfile} />} />
       <div style={{ padding: `4px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Eat · Shape Kitchen</div>
         <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 34, fontWeight: t.W.display, lineHeight: 0.92, letterSpacing: '-0.035em', color: t.INK }}>Shape<br/><span style={{ fontStyle: 'italic', color: teal }}>Kitchen.</span></h1>
@@ -5395,7 +5395,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
       <BSPageHeader
         kicker={`${bsEatProgram.nutritionPhase || 'Cut'} · Week ${bsProgramWeek()}`}
         title={cur.title}
-        trailing={<BSAvatar init={bsMyInitials()} size={32} fill={bsMyTierColor()} onClick={onProfile} />}
+        trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} showRank={false} onClick={onProfile} />}
       />
 
       <BSNutritionTopTabs active="eat" onChange={setView} />
@@ -6120,11 +6120,11 @@ function bsTRng(seed) { let s = (seed || 1) % 2147483647; if (s <= 0) s += 21474
 // (or an edit ✎ badge on your own). Used across the living-identity profiles.
 function bsTierRank(tier) { const m = { raw: 'I', base: 'I', tempo: 'II', form: 'III', peak: 'IV', legend: 'V', certified: 'I', pro: 'II', elite: 'III', master: 'IV', icon: 'V' }; return m[String(tier || '').toLowerCase()] || 'I'; }
 function bsShade(hex, f) { const h = String(hex || '#888888').replace('#', ''); const s = h.length === 3 ? h.split('').map((x) => x + x).join('') : h; const n = parseInt(s, 16); return `rgb(${Math.round(((n >> 16) & 255) * f)},${Math.round(((n >> 8) & 255) * f)},${Math.round((n & 255) * f)})`; }
-function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 'I', editable = false, onEdit, BG = '#100d0a', INK = '#f2ede4' }) {
+function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 'I', editable = false, onEdit, showRank = true, onClick, BG = '#100d0a', INK = '#f2ede4' }) {
   const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace";
   const inset = Math.max(2, Math.round(size * 0.055));
   return (
-    <div style={{ width: size, height: size, position: 'relative', display: 'grid', placeItems: 'center' }}>
+    <div onClick={onClick} style={{ width: size, height: size, position: 'relative', display: 'grid', placeItems: 'center', cursor: onClick ? 'pointer' : 'default' }}>
       {/* gem frame */}
       <div style={{ position: 'absolute', inset: 0, transform: 'rotate(45deg)', borderRadius: '27%', background: `linear-gradient(135deg, ${c}, ${bsShade(c, 0.5)})`, boxShadow: `0 5px 16px ${bsTHexA(c, 0.4)}, inset 1px 1px 2px rgba(255,255,255,0.35)` }}>
         <div style={{ position: 'absolute', inset: 0, borderRadius: '27%', background: 'linear-gradient(135deg, rgba(255,255,255,0.28), transparent 42%)', pointerEvents: 'none' }} />
@@ -6137,11 +6137,11 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 
       </div>
       {editable ? (
         <button onClick={onEdit} aria-label="Change photo" style={{ position: 'absolute', bottom: -2, right: -2, zIndex: 2, width: Math.max(22, Math.round(size * 0.3)), height: Math.max(22, Math.round(size * 0.3)), borderRadius: 999, background: '#34d6c5', color: '#06110e', border: `2px solid ${BG}`, cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: Math.max(11, Math.round(size * 0.16)), padding: 0 }}>✎</button>
-      ) : (
+      ) : showRank ? (
         <div style={{ position: 'absolute', bottom: -Math.round(size * 0.02), left: '50%', width: Math.max(16, Math.round(size * 0.3)), height: Math.max(16, Math.round(size * 0.3)), transform: 'translate(-50%,40%) rotate(45deg)', borderRadius: '30%', background: BG, display: 'grid', placeItems: 'center', boxShadow: `0 0 0 2px ${BG}` }}>
           <span style={{ transform: 'rotate(-45deg)', fontFamily: MONO, fontSize: Math.max(7, Math.round(size * 0.13)), fontWeight: 600, color: c }}>{rank}</span>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -6336,7 +6336,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
           <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(INK, 0.82), marginTop: 3, maxWidth: 150 }}>{summit}</div>
         </div>
         {/* avatar climbing the curve */}
-        <div style={{ position: 'absolute', left: '76%', top: 134, transform: 'translate(-50%,-50%)', zIndex: 3 }}>
+        <div style={{ position: 'absolute', left: '76%', top: 132, transform: 'translate(-50%,-50%)', zIndex: 3 }}>
           <BSFacetAvatar size={74} c={c} initial={bsInitials(name) || '?'} photo={photo || (live && live.avatar)} rank={bsTierRank(tierKey)} editable={isSelf} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
           <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 16, whiteSpace: 'nowrap', fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK, background: bsTHexA(BG, 0.72), border: `1px solid ${bsTHexA(TEAL, 0.5)}`, borderRadius: 999, padding: '3px 8px' }}>You · {progressPct}%</div>
         </div>
@@ -6348,16 +6348,16 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
           </div>
           <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: TEAL, border: `1px solid ${bsTHexA(TEAL, 0.5)}`, borderRadius: 999, padding: '7px 12px' }}>✦ {statusLabel}</span>
         </div>
-        {/* program / coach footer */}
-        <div style={{ position: 'absolute', left: 14, right: 14, bottom: 16, zIndex: 3, display: 'flex', alignItems: 'center', gap: 10, background: bsTHexA(INK, 0.06), border: `1px solid ${bsTHexA(INK, 0.1)}`, borderRadius: 14, padding: '12px 14px' }}>
+        {/* program / coach footer — compact */}
+        <div style={{ position: 'absolute', left: 14, right: 14, bottom: 14, zIndex: 3, display: 'flex', alignItems: 'center', gap: 10, background: bsTHexA(INK, 0.06), border: `1px solid ${bsTHexA(INK, 0.1)}`, borderRadius: 13, padding: '9px 12px' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: TEAL }}>{block}</div>
-            <div style={{ fontFamily: SERIF, fontSize: 15, letterSpacing: '-0.01em', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{program}</div>
-            <div style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), marginTop: 2 }}>{startLabel}</div>
+            <div style={{ fontFamily: MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: TEAL }}>{block}</div>
+            <div style={{ fontFamily: SERIF, fontSize: 14, letterSpacing: '-0.01em', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{program}</div>
+            <div style={{ fontFamily: MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), marginTop: 1 }}>{startLabel}</div>
           </div>
-          <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 12, borderLeft: `1px solid ${bsTHexA(INK, 0.12)}` }}>
-            <div style={{ textAlign: 'right' }}><div style={{ fontFamily: MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45) }}>Coached by</div><div style={{ fontFamily: SANS, fontSize: 12.5, fontWeight: 500, marginTop: 2 }}>{coachName}</div></div>
-            <div style={{ width: 30, height: 30, borderRadius: 999, flex: 'none', background: bsTHexA(TEAL, 0.18), border: `1px solid ${bsTHexA(TEAL, 0.5)}`, color: TEAL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: MONO, fontSize: 11, fontWeight: 700 }}>{coachInit}</div>
+          <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 7, paddingLeft: 11, borderLeft: `1px solid ${bsTHexA(INK, 0.12)}` }}>
+            <div style={{ textAlign: 'right' }}><div style={{ fontFamily: MONO, fontSize: 7, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45) }}>Coached by</div><div style={{ fontFamily: SANS, fontSize: 12, fontWeight: 500, marginTop: 1 }}>{coachName}</div></div>
+            <div style={{ width: 28, height: 28, borderRadius: 999, flex: 'none', background: bsTHexA(TEAL, 0.18), border: `1px solid ${bsTHexA(TEAL, 0.5)}`, color: TEAL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: MONO, fontSize: 10.5, fontWeight: 700 }}>{coachInit}</div>
           </div>
         </div>
       </div>
@@ -7099,7 +7099,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       <div key={p.id || i} style={{ display: 'flex', flexDirection: 'column', alignItems: right ? 'flex-end' : 'flex-start' }}>
         {p.pinned && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', color: TEALB, marginBottom: 6 }}><PinIcon filled size={13} /> Pinned</div>}
         <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'flex-end', gap: 9, maxWidth: '90%' }}>
-          <button onClick={() => linkable && setOpenProfile({ ...p, kind: akind, tier })} aria-label={linkable ? `View ${p.who}'s profile` : undefined} style={{ width: 36, height: 36, flexShrink: 0, borderRadius: 10, background: tc, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13, letterSpacing: '0.02em', border: 0, padding: 0, cursor: linkable ? 'pointer' : 'default' }}>{avInit}</button>
+          <BSFacetAvatar size={38} c={tc} initial={avInit} photo={isMe ? ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined) : undefined} showRank={false} onClick={linkable ? () => setOpenProfile({ ...p, kind: akind, tier }) : undefined} />
           <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'baseline', gap: 8, marginBottom: 5 }}>
               <button onClick={() => linkable && setOpenProfile({ ...p, kind: akind, tier })} style={{ background: 'transparent', border: 0, padding: 0, cursor: linkable ? 'pointer' : 'default', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk }}>{p.who}</button>
@@ -7162,7 +7162,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         <div style={{ padding: '13px 15px 15px' }}>
           {/* author + activity type */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginBottom: 12 }}>
-            <button onClick={openCardProfile} aria-label={`View ${a.who}'s profile`} style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 12, background: tc, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 15, border: 0, padding: 0, cursor: 'pointer' }}>{bsInitials(a.who) || '?'}</button>
+            <BSFacetAvatar size={42} c={tc} initial={bsInitials(a.who) || '?'} showRank={false} onClick={openCardProfile} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 <button onClick={openCardProfile} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14.5, color: cardInk, whiteSpace: 'nowrap' }}>{a.who}</button>
@@ -7275,7 +7275,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               {tab === 'feed' ? 'Community' : tab === 'channels' ? 'Channels' : tab === 'messages' ? 'Friends' : 'Your team'}
             </h1>
           </div>
-          <BSAvatar init={bsMyInitials()} size={34} fill={bsMyTierColor()} round={false} onClick={onProfile} />
+          <BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} showRank={false} onClick={onProfile} />
         </div>
       </div>
 
@@ -7294,7 +7294,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               return (
                 <button key={i} onClick={() => setOpenProfile({ who: p.name, kind: p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT', tier: p.tier, public: true })} style={{ flex: '0 0 auto', width: 54, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'center' }}>
                   <span style={{ position: 'relative', display: 'inline-flex' }}>
-                    <span style={{ width: 46, height: 46, borderRadius: 14, background: tc, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 16, letterSpacing: '0.02em' }}>{bsInitials(p.name)}</span>
+                    <BSFacetAvatar size={46} c={tc} initial={bsInitials(p.name)} showRank={false} />
                     <span style={{ position: 'absolute', right: -2, top: -2, width: 11, height: 11, borderRadius: 999, background: TEAL, border: `2px solid ${t.PAPER}` }} />
                     {pip && <span style={{ position: 'absolute', right: -3, bottom: -3, width: 13, height: 13, borderRadius: 4, background: pip, border: `2px solid ${t.PAPER}` }} />}
                   </span>
@@ -7335,7 +7335,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             return (
               <button key={i} onClick={() => { window.ShapeUnread?.markConversationRead?.(f.conversation_id); setOpenChat(f); }} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 11, alignItems: 'center', padding: '10px 2px', borderBottom: isLast ? 0 : `1px solid ${t.isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.045)'}`, background: 'transparent', border: 0, color: cardInk, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
                 <span style={{ position: 'relative', flexShrink: 0, display: 'inline-flex' }}>
-                  <span style={{ width: 46, height: 46, borderRadius: 14, background: bsTierColor(bsPostTier({ who: f.n })), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 16, letterSpacing: '0.01em' }}>{bsInitials(f.n) || f.i}</span>
+                  <BSFacetAvatar size={46} c={bsTierColor(bsPostTier({ who: f.n }))} initial={bsInitials(f.n) || f.i} showRank={false} />
                   {online && <span style={{ position: 'absolute', right: -2, bottom: -2, width: 12, height: 12, borderRadius: 999, background: '#3ddc97', border: `2px solid ${t.PAPER}` }} />}
                 </span>
                 <span style={{ minWidth: 0, display: 'block' }}>
@@ -7539,7 +7539,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               const pal = ['#147b68', '#c0533b', '#a07a2e', '#2e6fa0', '#8a5cf6'];
               return (
                 <button key={m.id || nm} onClick={() => startDm(m)} style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', padding: '10px 12px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, marginBottom: 8, cursor: 'pointer', textAlign: 'left' }}>
-                  <span style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 999, background: pal[nm.length % pal.length], color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14 }}>{nm.trim().charAt(0).toUpperCase()}</span>
+                  <BSFacetAvatar size={36} c={pal[nm.length % pal.length]} initial={nm.trim().charAt(0).toUpperCase()} showRank={false} />
                   <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15 }}>{nm}</span>
                   <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: TEALB }}>MESSAGE →</span>
                 </button>
@@ -7871,7 +7871,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
         <button onClick={() => !thread.group && openP(thread.who)} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: thread.group ? 'default' : 'pointer', color: 'inherit' }}>
           {thread.group
             ? <span style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 12, background: t.isLight ? 'rgba(10,143,135,0.10)' : 'rgba(52,214,197,0.12)', border: `1px solid ${teal}66`, color: teal, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 17, fontWeight: 700 }}>#</span>
-            : <BSAvatar init={bsInitials(thread.who) || (thread.who.match(/[A-Z]/) || ['?'])[0]} size={38} fill={threadColor} round={false} />}
+            : <BSFacetAvatar size={38} c={threadColor} initial={bsInitials(thread.who) || (thread.who.match(/[A-Z]/) || ['?'])[0]} showRank={false} />}
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: t.BODY, fontSize: 18, fontWeight: 760, color: t.INK, letterSpacing: '-0.02em' }}>{thread.who}</div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{thread.role}</div>
@@ -10140,7 +10140,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
     <BSPage>
       <BSPageHeader
         title={<>{firstName}<br/><span style={{ color: t.ACCENT }}>{lastName}.</span></>}
-        trailing={<BSAvatar init={bsMyInitials()} size={32} fill={bsMyTierColor()} onClick={onProfile} />}
+        trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} showRank={false} onClick={onProfile} />}
       />
 
       {/* SHAPE SCORE — tappable card: ring + category bars */}
@@ -11048,6 +11048,7 @@ Object.assign(window, {
   BSShapeScorePage,
   BSShapeStorePage,
   BSPublicProfile,
+  BSFacetAvatar,
   SHAPE_SCORE_PROFILES,
   _bsUseLiveScore,
   bsTierColor,
@@ -11781,7 +11782,7 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
 
   return (
     <BSPage>
-      <BSPageHeader trailing={<BSAvatar init={bsMyInitials()} size={32} fill={bsMyTierColor()} onClick={onProfile} />} />
+      <BSPageHeader trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} showRank={false} onClick={onProfile} />} />
       {/* Header */}
       <div style={{ padding: `4px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>

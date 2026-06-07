@@ -73,7 +73,7 @@ const {
   BSSheetProvider, useBSSheet, BSCalendarScreen,
   BSRadioPrompt, BSRadioScreen, BSNowPlaying,
   BSClientChat, BSSettings, BSShapeScorePage, BSShapeStorePage, BSContactPage, BSTermsPage, SHAPE_SCORE_PROFILES, _bsUseLiveScore,
-  BSPublicProfile,
+  BSPublicProfile, BSFacetAvatar,
 } = window;
 
 // These identity/tier helpers are set on `window` by the CLIENT bundle, which
@@ -942,7 +942,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: 'brightness(0) invert(1)' }} />}
         leftKicker={`${_BS_DOW[todayIdx]} · ${_BS_MON[dates[todayIdx].getMonth()]} ${dates[todayIdx].getDate()} · ${dates[todayIdx].getFullYear()}`}
         rightKicker="14 active clients"
-        trailing={<BSAvatar init={bsMyInitials()} size={32} fill={bsMyTierColor()} ink={'#fff'} onClick={onProfile} />}
+        trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} showRank={false} onClick={onProfile} />}
         showDotTexture={false}
       />
 
@@ -3089,7 +3089,7 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: 'brightness(0) invert(1)' }} />}
         leftKicker={`${_BS_DOW[todayIdx]} · ${_BS_MON[dates[todayIdx].getMonth()]} ${dates[todayIdx].getDate()} · ${dates[todayIdx].getFullYear()}`}
         rightKicker="22 plans · 5 sessions"
-        trailing={<BSAvatar init={bsMyInitials()} size={32} fill={bsMyTierColor()} ink={'#fff'} onClick={onProfile} />}
+        trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} showRank={false} onClick={onProfile} />}
         showDotTexture={false}
       />
 
@@ -4047,7 +4047,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
             ); })()}
           </div>
           <div style={{ flexShrink: 0 }}>
-            <BSAvatar init={init} size={40} fill={bsTierColor(scoreProfile.tier)} ink={'#fff'} onClick={onSettings} />
+            <BSFacetAvatar size={42} c={bsTierColor(scoreProfile.tier)} initial={init} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} showRank={false} onClick={onSettings} />
           </div>
         </div>
       </div>
