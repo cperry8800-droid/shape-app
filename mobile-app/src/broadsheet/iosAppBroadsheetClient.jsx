@@ -220,7 +220,13 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   React.useEffect(() => {
     if (window.shapeDb?.getUserGoals) {
       window.shapeDb.getUserGoals('client_identity').then(d => {
-        if (d && typeof d === 'object') { try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), ...d }; } catch (e) {} }
+        if (d && typeof d === 'object') {
+          try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), ...d }; } catch (e) {}
+          // Re-render so avatars pick up the loaded photo/initials (the cache is
+          // set async after the first paint — without this they stay blank).
+          setIdentityVersion(v => v + 1);
+          try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
+        }
       }).catch(() => {});
     }
     fetch('/api/client/score', { credentials: 'same-origin' })
