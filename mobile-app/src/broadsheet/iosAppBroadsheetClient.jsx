@@ -6115,6 +6115,37 @@ const bsTHexA = (hex, a) => {
 };
 function bsTRng(seed) { let s = (seed || 1) % 2147483647; if (s <= 0) s += 2147483646; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
 
+// Facet avatar — the avatar IS a shape: a soft rounded-diamond gem, tier-
+// coloured from the edge, portrait upright inside, a rank wedge at the foot
+// (or an edit ✎ badge on your own). Used across the living-identity profiles.
+function bsTierRank(tier) { const m = { raw: 'I', base: 'I', tempo: 'II', form: 'III', peak: 'IV', legend: 'V', certified: 'I', pro: 'II', elite: 'III', master: 'IV', icon: 'V' }; return m[String(tier || '').toLowerCase()] || 'I'; }
+function bsShade(hex, f) { const h = String(hex || '#888888').replace('#', ''); const s = h.length === 3 ? h.split('').map((x) => x + x).join('') : h; const n = parseInt(s, 16); return `rgb(${Math.round(((n >> 16) & 255) * f)},${Math.round(((n >> 8) & 255) * f)},${Math.round((n & 255) * f)})`; }
+function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 'I', editable = false, onEdit, BG = '#100d0a', INK = '#f2ede4' }) {
+  const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace";
+  const inset = Math.max(2, Math.round(size * 0.055));
+  return (
+    <div style={{ width: size, height: size, position: 'relative', display: 'grid', placeItems: 'center' }}>
+      {/* gem frame */}
+      <div style={{ position: 'absolute', inset: 0, transform: 'rotate(45deg)', borderRadius: '27%', background: `linear-gradient(135deg, ${c}, ${bsShade(c, 0.5)})`, boxShadow: `0 5px 16px ${bsTHexA(c, 0.4)}, inset 1px 1px 2px rgba(255,255,255,0.35)` }}>
+        <div style={{ position: 'absolute', inset: 0, borderRadius: '27%', background: 'linear-gradient(135deg, rgba(255,255,255,0.28), transparent 42%)', pointerEvents: 'none' }} />
+        {/* portrait window (rotated square clip → rounded diamond) */}
+        <div style={{ position: 'absolute', inset, borderRadius: '23%', overflow: 'hidden', background: '#0f0c0a', display: 'grid', placeItems: 'center' }}>
+          {photo
+            ? <img src={photo} alt="" style={{ position: 'absolute', width: '152%', height: '152%', left: '50%', top: '50%', transform: 'translate(-50%,-50%) rotate(-45deg)', objectFit: 'cover' }} />
+            : <span style={{ transform: 'rotate(-45deg)', fontFamily: SERIF, fontWeight: 500, fontSize: size * 0.42, color: INK, lineHeight: 1 }}>{initial}</span>}
+        </div>
+      </div>
+      {editable ? (
+        <button onClick={onEdit} aria-label="Change photo" style={{ position: 'absolute', bottom: -2, right: -2, zIndex: 2, width: Math.max(22, Math.round(size * 0.3)), height: Math.max(22, Math.round(size * 0.3)), borderRadius: 999, background: '#34d6c5', color: '#06110e', border: `2px solid ${BG}`, cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: Math.max(11, Math.round(size * 0.16)), padding: 0 }}>✎</button>
+      ) : (
+        <div style={{ position: 'absolute', bottom: -Math.round(size * 0.02), left: '50%', width: Math.max(16, Math.round(size * 0.3)), height: Math.max(16, Math.round(size * 0.3)), transform: 'translate(-50%,40%) rotate(45deg)', borderRadius: '30%', background: BG, display: 'grid', placeItems: 'center', boxShadow: `0 0 0 2px ${BG}` }}>
+          <span style={{ transform: 'rotate(-45deg)', fontFamily: MONO, fontSize: Math.max(7, Math.round(size * 0.13)), fontWeight: 600, color: c }}>{rank}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Profile avatar photo — load your saved photo, pick a new one (resized to a
 // small square JPEG so it stays light), persist to client_identity.photo +
 // window.ShapeIdentity, and broadcast shape:identity so every avatar updates.
@@ -6305,12 +6336,9 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
           <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(INK, 0.82), marginTop: 3, maxWidth: 150 }}>{summit}</div>
         </div>
         {/* avatar climbing the curve */}
-        <div style={{ position: 'absolute', left: '76%', top: 136, transform: 'translate(-50%,-50%)', zIndex: 3 }}>
-          <div onClick={isSelf ? () => fileRef.current && fileRef.current.click() : undefined} style={{ position: 'relative', width: 64, height: 64, borderRadius: 999, background: photo ? `center/cover no-repeat url(${photo})` : c, color: '#06110e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: SERIF, fontSize: 24, fontWeight: 600, border: `2.5px solid ${TEAL}`, boxShadow: `0 0 0 4px ${bsTHexA(TEAL, 0.18)}`, cursor: isSelf ? 'pointer' : 'default' }}>
-            {!photo && (bsInitials(name) || '?')}
-            {isSelf && <span style={{ position: 'absolute', right: -2, bottom: -2, width: 22, height: 22, borderRadius: 999, background: TEAL, color: '#06110e', border: `2px solid ${BG}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }} aria-hidden>✎</span>}
-          </div>
-          <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 7, whiteSpace: 'nowrap', fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK, background: bsTHexA(BG, 0.72), border: `1px solid ${bsTHexA(TEAL, 0.5)}`, borderRadius: 999, padding: '3px 8px' }}>You · {progressPct}%</div>
+        <div style={{ position: 'absolute', left: '76%', top: 134, transform: 'translate(-50%,-50%)', zIndex: 3 }}>
+          <BSFacetAvatar size={74} c={c} initial={bsInitials(name) || '?'} photo={photo || (live && live.avatar)} rank={bsTierRank(tierKey)} editable={isSelf} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
+          <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 16, whiteSpace: 'nowrap', fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK, background: bsTHexA(BG, 0.72), border: `1px solid ${bsTHexA(TEAL, 0.5)}`, borderRadius: 999, padding: '3px 8px' }}>You · {progressPct}%</div>
         </div>
         {/* name + status */}
         <div style={{ position: 'absolute', left: 22, right: 22, bottom: 106, zIndex: 3, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
@@ -6507,9 +6535,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
         {/* the instrument — discipline rings around a portrait core */}
         <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', marginTop: 18 }}>
           <BSSignalSigil week={week} disciplines={disciplines} c={c} teal={TEAL} ink={INK} size={240} />
-          <div onClick={isSelf ? () => fileRef.current && fileRef.current.click() : undefined} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 84, height: 84, borderRadius: 999, background: photo ? `center/cover no-repeat url(${photo})` : c, color: '#06110e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: SERIF, fontSize: 30, fontWeight: 600, boxShadow: `0 0 0 4px ${BG}`, cursor: isSelf ? 'pointer' : 'default' }}>
-            {!photo && initials}
-            {isSelf && <span style={{ position: 'absolute', right: 0, bottom: 0, width: 24, height: 24, borderRadius: 999, background: TEAL, color: '#06110e', border: `2px solid ${BG}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }} aria-hidden>✎</span>}
+          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)' }}>
+            <BSFacetAvatar size={86} c={c} initial={initials} photo={photo || (live && live.avatar)} rank={bsTierRank(baseTier)} editable={isSelf} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
           </div>
         </div>
 
