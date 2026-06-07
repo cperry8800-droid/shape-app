@@ -47,11 +47,21 @@ function bsMyTierColor() {
   return bsTierColor(bsMyTier());
 }
 
+// Am I live on Shape right now? Signed in + the app open = online, unless I've
+// turned off "show when I'm online" (window.ShapeOnlineVisible, default true).
+// Drives the pulsing outer ring on my own avatar everywhere.
+function bsAmLive() {
+  try {
+    const signedIn = !!(window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id);
+    return signedIn && window.ShapeOnlineVisible !== false;
+  } catch (e) { return false; }
+}
+
 // Top-right profile avatar for sub-pages — taps through to Settings/profile via
 // a window event (handled in BSClientAppInner), so a page needn't thread an
 // onProfile prop. Drop it into a page's back-button row, right-aligned.
 function BSMeCorner({ size = 30 }) {
-  return <BSFacetAvatar size={size} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />;
+  return <BSFacetAvatar size={size} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />;
 }
 
 // Renders the music-reactive overlay (edge glow / bloom / hologram DJ)
@@ -1929,7 +1939,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: 'brightness(0) invert(1)' }} />}
         leftKicker={`${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][_now.getDay()]} · ${_BS_MON[_now.getMonth()]} ${_now.getDate()} · ${_now.getFullYear()}`}
         rightKicker={`${bsHomeProgram.nutritionPhase || 'Cut'} · W${isoWeek}`}
-        trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} showRank={false} onClick={onProfile} />}
+        trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} showRank={false} onClick={onProfile} />}
         showDoubleRule={false}
         showDotTexture={false}
       />
@@ -3051,7 +3061,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       <BSPageHeader
         kicker={`${bsTrainProgram.trainingPhase || 'Build'} · Week ${bsProgramWeek()}`}
         title={cur.title}
-        trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} showRank={false} onClick={onProfile} />}
+        trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} showRank={false} onClick={onProfile} />}
       />
 
       <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} />
@@ -3953,7 +3963,7 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
   );
   return (
     <BSPage>
-      <BSPageHeader trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} showRank={false} onClick={onProfile} />} />
+      <BSPageHeader trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} showRank={false} onClick={onProfile} />} />
       <div style={{ padding: `4px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Eat · Shape Kitchen</div>
         <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 34, fontWeight: t.W.display, lineHeight: 0.92, letterSpacing: '-0.035em', color: t.INK }}>Shape<br/><span style={{ fontStyle: 'italic', color: teal }}>Kitchen.</span></h1>
@@ -5395,7 +5405,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
       <BSPageHeader
         kicker={`${bsEatProgram.nutritionPhase || 'Cut'} · Week ${bsProgramWeek()}`}
         title={cur.title}
-        trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} showRank={false} onClick={onProfile} />}
+        trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} showRank={false} onClick={onProfile} />}
       />
 
       <BSNutritionTopTabs active="eat" onChange={setView} />
@@ -7308,7 +7318,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               {tab === 'feed' ? 'Community' : tab === 'channels' ? 'Channels' : tab === 'messages' ? 'Friends' : 'Your team'}
             </h1>
           </div>
-          <BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} showRank={false} onClick={onProfile} />
+          <BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} showRank={false} onClick={onProfile} />
         </div>
       </div>
 
@@ -7319,7 +7329,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             <span style={{ width: 6, height: 6, borderRadius: 3, background: TEAL, boxShadow: `0 0 0 3px ${TEAL}33` }} />
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{liftingNow.toLocaleString()} lifting now · near you</span>
           </div>
-          <div className="bs-scroll" style={{ display: 'flex', gap: 12, overflowX: 'auto', overflowY: 'visible', padding: '13px 2px 4px' }}>
+          <div className="bs-scroll" style={{ display: 'flex', gap: 16, overflowX: 'auto', overflowY: 'visible', padding: '13px 12px 8px' }}>
             {TRAINING_NOW.map((p, i) => {
               // Coaches wear their own ladder color (Icon=teal, …); members the client ramp.
               const tc = p.role ? bsTierColor(String(bsCoachTier(p.tier)).toLowerCase()) : bsTierColor(p.tier);
@@ -10169,7 +10179,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
     <BSPage>
       <BSPageHeader
         title={<>{firstName}<br/><span style={{ color: t.ACCENT }}>{lastName}.</span></>}
-        trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} showRank={false} onClick={onProfile} />}
+        trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} showRank={false} onClick={onProfile} />}
       />
 
       {/* SHAPE SCORE — tappable card: ring + category bars */}
@@ -11078,6 +11088,7 @@ Object.assign(window, {
   BSShapeStorePage,
   BSPublicProfile,
   BSFacetAvatar,
+  bsAmLive,
   SHAPE_SCORE_PROFILES,
   _bsUseLiveScore,
   bsTierColor,
@@ -11811,7 +11822,7 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
 
   return (
     <BSPage>
-      <BSPageHeader trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} showRank={false} onClick={onProfile} />} />
+      <BSPageHeader trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} showRank={false} onClick={onProfile} />} />
       {/* Header */}
       <div style={{ padding: `4px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
@@ -12140,6 +12151,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     timeZone:          ['America/Los_Angeles', 'America/New_York', 'America/Chicago', 'America/Denver', 'Europe/London', 'UTC'],
     language:          ['English (US)', 'English (UK)', 'Español', 'Français', 'Deutsch'],
     profileVisibility: ['Public', 'Just friends', 'Private'],
+    onlineVisible:     ['On', 'Off'],
     shareWorkoutData:  ['On', 'Off'],
     mealBreakfast:     BS_MEAL_TIME_OPTS,
     mealLunch:         BS_MEAL_TIME_OPTS,
@@ -12158,6 +12170,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       if (alive && s && typeof s === 'object') {
         setPrefs(p => ({ ...p, ...s }));
         if (s.units) window.ShapeUnits?.set(s.units);
+        try { window.ShapeOnlineVisible = (s.onlineVisible !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
         window.ShapeMealTimes?.setFromPrefs({ ...PREF_DEFAULTS, ...s });
         if (s.trainingPhase || s.nutritionPhase) window.ShapeProgram?.set?.({ trainingPhase: s.trainingPhase, nutritionPhase: s.nutritionPhase });
       }
@@ -12175,6 +12188,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
       if (key === 'units') window.ShapeUnits?.set(next[key]); // propagate app-wide
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
+      if (key === 'onlineVisible') { try { window.ShapeOnlineVisible = (next[key] !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {} }
       if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
       return next;
     });
@@ -12186,6 +12200,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
       if (key === 'units') window.ShapeUnits?.set(value);
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
+      if (key === 'onlineVisible') { try { window.ShapeOnlineVisible = (next[key] !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {} }
       if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
       return next;
     });
@@ -12672,6 +12687,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       meta: '',
       rows: [
         { l: 'Profile visibility', key: 'profileVisibility', segmented: PREF_OPTIONS.profileVisibility },
+        { l: 'Show when I’m online', key: 'onlineVisible', segmented: PREF_OPTIONS.onlineVisible },
         { l: 'Share workout data', key: 'shareWorkoutData' },
       ],
     },
@@ -12757,7 +12773,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         {!editing ? (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <BSFacetAvatar size={72} c={bsMyTierColor()} initial={(identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name) || 'A'} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || null} rank={bsTierRank(settingsScore.tier)} BG={t.PAPER} />
+              <BSFacetAvatar size={72} c={bsMyTierColor()} initial={(identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name) || 'A'} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || null} rank={bsTierRank(settingsScore.tier)} live={bsAmLive()} BG={t.PAPER} />
               <div style={{ minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700 }}>
                   <span style={{ color: settingsTierC, fontWeight: 800 }}>{settingsScore.tier} tier</span>
