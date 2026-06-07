@@ -6115,6 +6115,47 @@ const bsTHexA = (hex, a) => {
 };
 function bsTRng(seed) { let s = (seed || 1) % 2147483647; if (s <= 0) s += 2147483646; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
 
+// Profile avatar photo — load your saved photo, pick a new one (resized to a
+// small square JPEG so it stays light), persist to client_identity.photo +
+// window.ShapeIdentity, and broadcast shape:identity so every avatar updates.
+function useBSProfilePhoto(person, isSelf) {
+  const [photo, setPhoto] = useStateBSC(() => { try { return (isSelf && window.ShapeIdentity && window.ShapeIdentity.photo) || person.photo || null; } catch (e) { return person.photo || null; } });
+  const fileRef = React.useRef(null);
+  React.useEffect(() => {
+    if (isSelf) { try { window.shapeDb?.getUserGoals?.('client_identity').then((d) => { if (d && d.photo) setPhoto(d.photo); }).catch(() => {}); } catch (e) {} }
+    else if (person.photo) setPhoto(person.photo);
+  }, [isSelf, person.userId]);
+  const onPick = (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let url = reader.result;
+        try {
+          const S = 256, cv = document.createElement('canvas'); cv.width = S; cv.height = S;
+          const ctx = cv.getContext('2d');
+          const scale = Math.max(S / img.width, S / img.height), w = img.width * scale, h = img.height * scale;
+          ctx.drawImage(img, (S - w) / 2, (S - h) / 2, w, h);
+          url = cv.toDataURL('image/jpeg', 0.82);
+        } catch (e2) {}
+        setPhoto(url);
+        try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), photo: url }; } catch (e2) {}
+        try {
+          const save = (d) => { try { window.shapeDb?.saveUserGoals?.('client_identity', { ...(d || {}), photo: url }); } catch (e3) {} };
+          const p = window.shapeDb?.getUserGoals?.('client_identity');
+          if (p && p.then) p.then(save).catch(() => save(null)); else save(null);
+        } catch (e2) {}
+        try { window.dispatchEvent(new Event('shape:identity')); } catch (e2) {}
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(f);
+  };
+  return { photo, fileRef, onPick };
+}
+
 // Profile privacy selector (shown on your OWN profile) — Public / Friends /
 // Private. Persists to user_goals('client_settings').profileVisibility, the same
 // field Settings → Profile visibility uses and that get_public_profile enforces:
@@ -6240,10 +6281,12 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const sparkPath = traj.map((v, i) => [(i / (traj.length - 1)) * 150, 34 - ((v - minTraj) / (maxTraj - minTraj || 1)) * 28 - 3]).map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
   const maxWk = Math.max(...week);
   const card = { background: bsTHexA(INK, 0.04), border: `1px solid ${bsTHexA(INK, 0.08)}`, borderRadius: 14 };
+  const { photo, fileRef, onPick } = useBSProfilePhoto(person, isSelf);
   return (
     <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
+      {isSelf && <input ref={fileRef} type="file" accept="image/*" onChange={onPick} style={{ display: 'none' }} />}
       {/* Ridgeline ascent hero — the climb toward a summit goal, name overlaid */}
-      <div style={{ position: 'relative', flex: '0 0 auto', height: 430, overflow: 'hidden', background: `linear-gradient(165deg, ${bsTHexA(c, 0.55)} 0%, ${bsTHexA(c, 0.12)} 42%, ${BG} 82%)` }}>
+      <div style={{ position: 'relative', flex: '0 0 auto', height: 452, overflow: 'hidden', background: `linear-gradient(165deg, ${bsTHexA(c, 0.55)} 0%, ${bsTHexA(c, 0.12)} 42%, ${BG} 82%)` }}>
         {/* faint contour grid */}
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" width="100%" height="100%" aria-hidden style={{ position: 'absolute', inset: 0 }}>
           {[20, 36, 52, 68, 84].map((y) => <line key={y} x1="0" y1={y} x2="100" y2={y} stroke={bsTHexA(INK, 0.06)} strokeWidth="0.4" />)}
@@ -6257,25 +6300,28 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
         {/* back */}
         <button onClick={onBack} style={{ position: 'absolute', top: 46, left: 18, zIndex: 4, background: bsTHexA(BG, 0.4), border: `1px solid ${bsTHexA(INK, 0.2)}`, color: INK, borderRadius: 999, padding: '7px 13px', cursor: 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
         {/* summit marker */}
-        <div style={{ position: 'absolute', top: 58, right: 16, zIndex: 3, textAlign: 'right' }}>
+        <div style={{ position: 'absolute', top: 54, right: 16, zIndex: 3, textAlign: 'right' }}>
           <div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: c }}>⚑ Summit</div>
           <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(INK, 0.82), marginTop: 3, maxWidth: 150 }}>{summit}</div>
         </div>
         {/* avatar climbing the curve */}
-        <div style={{ position: 'absolute', left: '76%', top: 132, transform: 'translate(-50%,-50%)', zIndex: 3 }}>
-          <div style={{ width: 64, height: 64, borderRadius: 999, background: c, color: '#06110e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: SERIF, fontSize: 24, fontWeight: 600, border: `2.5px solid ${TEAL}`, boxShadow: `0 0 0 4px ${bsTHexA(TEAL, 0.18)}` }}>{bsInitials(name) || '?'}</div>
+        <div style={{ position: 'absolute', left: '76%', top: 136, transform: 'translate(-50%,-50%)', zIndex: 3 }}>
+          <div onClick={isSelf ? () => fileRef.current && fileRef.current.click() : undefined} style={{ position: 'relative', width: 64, height: 64, borderRadius: 999, background: photo ? `center/cover no-repeat url(${photo})` : c, color: '#06110e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: SERIF, fontSize: 24, fontWeight: 600, border: `2.5px solid ${TEAL}`, boxShadow: `0 0 0 4px ${bsTHexA(TEAL, 0.18)}`, cursor: isSelf ? 'pointer' : 'default' }}>
+            {!photo && (bsInitials(name) || '?')}
+            {isSelf && <span style={{ position: 'absolute', right: -2, bottom: -2, width: 22, height: 22, borderRadius: 999, background: TEAL, color: '#06110e', border: `2px solid ${BG}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }} aria-hidden>✎</span>}
+          </div>
           <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 7, whiteSpace: 'nowrap', fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK, background: bsTHexA(BG, 0.72), border: `1px solid ${bsTHexA(TEAL, 0.5)}`, borderRadius: 999, padding: '3px 8px' }}>You · {progressPct}%</div>
         </div>
         {/* name + status */}
-        <div style={{ position: 'absolute', left: 22, right: 22, bottom: 90, zIndex: 3, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ position: 'absolute', left: 22, right: 22, bottom: 106, zIndex: 3, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ minWidth: 0 }}>
-            <h1 style={{ fontFamily: SERIF, fontSize: 34, fontWeight: 400, letterSpacing: '-0.03em', margin: 0, lineHeight: 0.95 }}>{name}</h1>
-            <div style={{ fontFamily: MONO, fontSize: 10.5, color: bsTHexA(INK, 0.6), marginTop: 8, lineHeight: 1.45 }}>{handle}{pronouns ? ` · ${pronouns}` : ''}<br />{city}</div>
+            <h1 style={{ fontFamily: SERIF, fontSize: 30, fontWeight: 400, letterSpacing: '-0.03em', margin: 0, lineHeight: 1.0 }}>{name}</h1>
+            <div style={{ fontFamily: MONO, fontSize: 10.5, color: bsTHexA(INK, 0.6), marginTop: 6, lineHeight: 1.45 }}>{handle}{pronouns ? ` · ${pronouns}` : ''}<br />{city}</div>
           </div>
           <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: TEAL, border: `1px solid ${bsTHexA(TEAL, 0.5)}`, borderRadius: 999, padding: '7px 12px' }}>✦ {statusLabel}</span>
         </div>
         {/* program / coach footer */}
-        <div style={{ position: 'absolute', left: 14, right: 14, bottom: 14, zIndex: 3, display: 'flex', alignItems: 'center', gap: 10, background: bsTHexA(INK, 0.06), border: `1px solid ${bsTHexA(INK, 0.1)}`, borderRadius: 14, padding: '10px 13px' }}>
+        <div style={{ position: 'absolute', left: 14, right: 14, bottom: 16, zIndex: 3, display: 'flex', alignItems: 'center', gap: 10, background: bsTHexA(INK, 0.06), border: `1px solid ${bsTHexA(INK, 0.1)}`, borderRadius: 14, padding: '12px 14px' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: TEAL }}>{block}</div>
             <div style={{ fontFamily: SERIF, fontSize: 15, letterSpacing: '-0.01em', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{program}</div>
@@ -6448,8 +6494,10 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   const Kick = ({ children, col }) => <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: col || bsTHexA(INK, 0.5), fontWeight: 600 }}>{children}</span>;
   const card = { background: bsTHexA(INK, 0.04), border: `1px solid ${bsTHexA(INK, 0.08)}`, borderRadius: 14 };
   const initials = bsInitials(name) || (person.init || '?');
+  const { photo, fileRef, onPick } = useBSProfilePhoto(person, isSelf);
   return (
     <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
+      {isSelf && <input ref={fileRef} type="file" accept="image/*" onChange={onPick} style={{ display: 'none' }} />}
       <div style={{ flex: 1, padding: '46px 22px 28px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <button onClick={onBack} style={{ background: 'transparent', border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '7px 13px', cursor: 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
@@ -6459,7 +6507,10 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
         {/* the instrument — discipline rings around a portrait core */}
         <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', marginTop: 18 }}>
           <BSSignalSigil week={week} disciplines={disciplines} c={c} teal={TEAL} ink={INK} size={240} />
-          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 84, height: 84, borderRadius: 999, background: c, color: '#06110e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: SERIF, fontSize: 30, fontWeight: 600, boxShadow: `0 0 0 4px ${BG}` }}>{initials}</div>
+          <div onClick={isSelf ? () => fileRef.current && fileRef.current.click() : undefined} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 84, height: 84, borderRadius: 999, background: photo ? `center/cover no-repeat url(${photo})` : c, color: '#06110e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: SERIF, fontSize: 30, fontWeight: 600, boxShadow: `0 0 0 4px ${BG}`, cursor: isSelf ? 'pointer' : 'default' }}>
+            {!photo && initials}
+            {isSelf && <span style={{ position: 'absolute', right: 0, bottom: 0, width: 24, height: 24, borderRadius: 999, background: TEAL, color: '#06110e', border: `2px solid ${BG}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }} aria-hidden>✎</span>}
+          </div>
         </div>
 
         {/* name block */}
