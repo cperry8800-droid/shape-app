@@ -7956,13 +7956,15 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
   const t = useBS();
   const [text, setText] = useStateBSC('');
   const [extras, setExtras] = useStateBSC([]);
+  const [threadAvatars, setThreadAvatars] = useStateBSC({}); // userId → profile photo
   // Tap a person's avatar/name → open their public profile (people only — not
   // the channel itself). Role inferred from the thread label.
   const threadKind = /nutrition/i.test(thread.role || '') ? 'NUTRI' : /coach|trainer/i.test(thread.role || '') ? 'TRAINER' : 'CLIENT';
-  const openP = (name) => {
+  const openP = (name, userId) => {
     const raw = String(name || '').trim();
     if (!raw || raw === 'You' || raw.charAt(0) === '#') return;
-    onOpenProfile({ who: raw, kind: threadKind, tier: bsPostTier({ who: raw }), init: bsInitials(raw) });
+    const uid = userId || (!thread.group ? (thread.userId || thread.counterpartId) : null) || null;
+    onOpenProfile({ who: raw, kind: threadKind, tier: bsPostTier({ who: raw }), init: bsInitials(raw), userId: uid, photo: (uid && threadAvatars[uid]) || null });
   };
   // Seed from the thread's last-message preview when it has no message history,
   // so a channel you open isn't blank before you post.
@@ -7970,6 +7972,15 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
     ? thread.messages
     : (thread.last ? [{ who: thread.who, t: thread.last, time: thread.time || 'now', me: false }] : []);
   const allMessages = [...seed, ...extras];
+  // Members' profile photos for the message avatars (visibility-ungated).
+  React.useEffect(() => {
+    if (!window.ShapeProfiles?.getUserAvatars) return;
+    const ids = [...new Set([thread.userId, thread.counterpartId, ...allMessages.map(m => m && m.userId)].filter(Boolean))];
+    if (!ids.length) return;
+    let on = true;
+    window.ShapeProfiles.getUserAvatars(ids).then(av => { if (on && av) setThreadAvatars(prev => ({ ...prev, ...av })); }).catch(() => {});
+    return () => { on = false; };
+  }, [thread.conversationId, thread.channelId, thread.userId, allMessages.length]);
   const rx = useBSReactions();
   // Per-thread accent (matches the feed bubbles): channels read teal, people read
   // their tier color so the chat stays color-coordinated with the feed.
@@ -7999,13 +8010,13 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
     if (thread.channelId && window.ShapeChannels?.subscribeMessages) {
       unsub = window.ShapeChannels.subscribeMessages((row) => {
         if (!row || row.channel_id !== thread.channelId || row.sender_id === myId) return;
-        setExtras(e => [...e, { who: row.author_name || 'Member', t: row.body, time: 'now', me: false }]);
+        setExtras(e => [...e, { who: row.author_name || 'Member', t: row.body, time: 'now', me: false, userId: row.sender_id || null }]);
         window.ShapeUnread?.markChannelRead?.(thread.channelId);  // it's open → keep it read
       });
     } else if (thread.conversationId && window.ShapeMessages?.subscribeMessages) {
       unsub = window.ShapeMessages.subscribeMessages((row) => {
         if (!row || row.conversation_id !== thread.conversationId || row.sender_id === myId) return;
-        setExtras(e => [...e, { who: thread.who || 'Member', t: row.body, time: 'now', me: false }]);
+        setExtras(e => [...e, { who: thread.who || 'Member', t: row.body, time: 'now', me: false, userId: row.sender_id || null }]);
         window.ShapeUnread?.markConversationRead?.(thread.conversationId);
       });
     }
@@ -8029,7 +8040,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
         <button onClick={() => !thread.group && openP(thread.who)} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: thread.group ? 'default' : 'pointer', color: 'inherit' }}>
           {thread.group
             ? (() => { const cc = bsChannelColor(thread.who); return <span style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 12, background: `${cc}1f`, border: `1px solid ${cc}66`, color: cc, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><BSChannelIcon name={thread.who} size={19} /></span>; })()
-            : <BSFacetAvatar size={38} c={threadColor} initial={bsInitials(thread.who) || (thread.who.match(/[A-Z]/) || ['?'])[0]} showRank={false} />}
+            : <BSFacetAvatar size={38} c={threadColor} initial={bsInitials(thread.who) || (thread.who.match(/[A-Z]/) || ['?'])[0]} photo={((thread.userId || thread.counterpartId) && threadAvatars[thread.userId || thread.counterpartId]) || undefined} showRank={false} />}
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: t.BODY, fontSize: 18, fontWeight: 760, color: t.INK, letterSpacing: '-0.02em' }}>{thread.who}</div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{thread.role}</div>
@@ -8066,7 +8077,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
             <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', alignSelf: me ? 'flex-end' : 'flex-start', maxWidth: '90%' }}>
               <div style={{ display: 'flex', flexDirection: me ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: 11 }}>
                 {!me ? (
-                  <BSFacetAvatar size={32} c={senderTC} initial={bsInitials(senderName) || '?'} live={bsIsUserOnline(m.userId)} showRank={false} onClick={() => openP(senderName)} />
+                  <BSFacetAvatar size={32} c={senderTC} initial={bsInitials(senderName) || '?'} photo={(m.userId && threadAvatars[m.userId]) || (!thread.group && (thread.userId || thread.counterpartId) ? threadAvatars[thread.userId || thread.counterpartId] : undefined) || undefined} live={bsIsUserOnline(m.userId)} showRank={false} onClick={() => openP(senderName, m.userId)} />
                 ) : (
                   <BSFacetAvatar size={32} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
                 )}
