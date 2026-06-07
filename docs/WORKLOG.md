@@ -46,6 +46,19 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-07 — Web online-visibility toggle + score tier-bar overlap fix
+- **Website Me** (`public/newdesign/ClientMe.html`): added a **"Show when I'm
+  online"** toggle under Privacy & notifications, wired to
+  `window.ShapeWebPresence.setVisible()` — persists to the shared
+  `client_settings.onlineVisible` so web + mobile agree, and seeds from the live
+  presence state on load. Completes the opt-out loop on the website (mobile already
+  had it).
+- **Shape Score page** (`public/newdesign/score.jsx`): the teal progress connector
+  bar was painting **across** the tier circles. Layered the bar behind the node row
+  (`zIndex`) so each opaque tier disc covers the line — it now connects node-to-node
+  cleanly. Cache-bust `Score.html` → `score.jsx?v=4`. (Coach ladder uses the same
+  component, so the fix covers both Members/Coaches tabs.)
+
 ### 2026-06-07 — Public profiles: Terrain (client) + Signal (coach) + privacy
 - Member/coach public profiles are now immersive "living identity" pages
   (`iosAppBroadsheetClient.jsx`): **clients → Terrain** (topographic contour hero,
