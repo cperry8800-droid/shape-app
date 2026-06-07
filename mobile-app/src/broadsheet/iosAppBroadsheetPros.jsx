@@ -576,6 +576,8 @@ function BSProGroceryLists({ t, accent, isNutri, onBack }) {
       cid = (conv && conv.data) || null;
       const body = `Grocery list · ${g.name}\n` + (g.items || []).map(it => `• ${it.name}`).join('\n');
       if (cid && window.ShapeMessages?.sendMessage) await window.ShapeMessages.sendMessage({ conversationId: cid, body, metadata: { kind: 'grocery', name: g.name, items: g.items } });
+      // Tailored notification: "{coach} loaded your meal plan into grocery lists".
+      try { await window.ShapeGroceryLists?.notify?.(g.client_id, g.name); } catch (e) {}
       if (window.ShapeGroceryLists?.update && !String(g.id).startsWith('d')) await window.ShapeGroceryLists.update({ id: g.id, status: 'sent' });
       window.__bsToast?.(`Sent to ${String(g.client_name || 'client').split(' ')[0]}`, 'ok');
       reload();

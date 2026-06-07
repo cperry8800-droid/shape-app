@@ -3026,7 +3026,13 @@ async function removeGroceryList(id) {
   });
   return res.ok;
 }
-window.ShapeGroceryLists = { list: listGroceryLists, create: createGroceryList, update: updateGroceryList, remove: removeGroceryList };
+// Fire the tailored "{coach} loaded your meal plan into grocery lists" notification
+// for the client (SECURITY DEFINER RPC, gated to the linked coach). Best-effort.
+async function notifyGroceryList(clientId, listName) {
+  if (!supabase || !clientId) return;
+  try { await supabase.rpc('notify_grocery_list', { p_client: clientId, p_list: listName || '' }); } catch (e) {}
+}
+window.ShapeGroceryLists = { list: listGroceryLists, create: createGroceryList, update: updateGroceryList, remove: removeGroceryList, notify: notifyGroceryList };
 
 // Coach plans — published programs / meal plans (coach_plans, owner-scoped),
 // shared with the website. The AI draft builder + Duplicate persist here.
