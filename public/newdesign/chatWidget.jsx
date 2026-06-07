@@ -24,7 +24,7 @@ function CwFacetAvatar({ size = 40, c = "#34d6c5", initial = "S", live = false, 
         <div style={{ position: "absolute", inset, borderRadius: "23%", overflow: "hidden", background: "#0f0c0a", display: "grid", placeItems: "center" }}>
           {photo
             ? <img src={photo} alt="" style={{ position: "absolute", width: "152%", height: "152%", left: "50%", top: "50%", transform: "translate(-50%,-50%) rotate(-45deg)", objectFit: "cover" }} />
-            : <span style={{ transform: "rotate(-45deg)", fontFamily: "'Fraunces', serif", fontWeight: 500, fontSize: size * 0.42, color: "#f2ede4", lineHeight: 1 }}>{initial}</span>}
+            : <span style={{ transform: "rotate(-45deg)", fontFamily: "'Fraunces', serif", fontWeight: 500, fontSize: size * 0.42, color: "#f2ede4", lineHeight: 1 }}>{(initial && String(initial).trim()) || "?"}</span>}
         </div>
       </div>
       {live && <span style={{ position: "absolute", bottom: 0, right: 0, transform: "translate(20%,20%)", width: Math.max(7, Math.round(size * 0.16)), height: Math.max(7, Math.round(size * 0.16)), borderRadius: 999, background: "#34d6c5", border: "2px solid #100d0a" }} />}

@@ -8,9 +8,9 @@
 // sticky sidebar offsets by that amount to sit just below it.
 function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
   return (
-    <aside style={{ borderRight: "1px solid rgba(242,237,228,0.08)", padding: "20px 20px", display: "flex", flexDirection: "column", gap: 6, position: "sticky", top: 96, alignSelf: "start", background: "linear-gradient(180deg, rgba(242,237,228,0.025), rgba(242,237,228,0.01))" }}>
+    <aside className="shape-dash-aside" style={{ borderRight: "1px solid rgba(242,237,228,0.08)", padding: "20px 20px", display: "flex", flexDirection: "column", gap: 6, position: "sticky", top: 96, alignSelf: "start", background: "linear-gradient(180deg, rgba(242,237,228,0.025), rgba(242,237,228,0.01))" }}>
       {navItems.map((n, i) => (
-        <a key={i} href={n.href || "#"} style={{
+        <a key={i} href={n.href || "#"} className="shape-dash-navlink" style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "11px 14px", borderRadius: 14,
           background: n.active ? "rgba(10,197,168,0.13)" : "transparent",
@@ -26,7 +26,7 @@ function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
         </a>
       ))}
       {payoutCard && (
-        <div style={{ marginTop: 24, padding: 16, background: "rgba(10,197,168,0.08)", border: "1px solid rgba(10,197,168,0.25)", borderRadius: 18, boxShadow: "0 16px 36px rgba(0,0,0,0.28)" }}>
+        <div className="shape-dash-payout" style={{ marginTop: 24, padding: 16, background: "rgba(10,197,168,0.08)", border: "1px solid rgba(10,197,168,0.25)", borderRadius: 18, boxShadow: "0 16px 36px rgba(0,0,0,0.28)" }}>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>{payoutCard.label}</div>
           <div style={{ fontFamily: serif, fontSize: 26, fontWeight: 400, marginTop: 6, letterSpacing: "-0.01em" }}>{payoutCard.amount}</div>
           <div style={{ fontSize: 11, color: "rgba(242,237,228,0.55)", marginTop: 2 }}>{payoutCard.sub}</div>

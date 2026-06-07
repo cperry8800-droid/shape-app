@@ -363,6 +363,14 @@ function ShapeMobileStyles() {
         .shape-nav-auth { display: none !important; }
         .shape-nav-burger { display: inline-flex !important; }
 
+        /* Dashboard layout (240px sidebar + main): collapse to one column and
+           turn the sidebar into a horizontal scrolling nav bar so signed-in
+           members still see + reach their tabs on mobile. */
+        [style*="grid-template-columns: 240px 1fr"] { grid-template-columns: 1fr !important; }
+        .shape-dash-aside { flex-direction: row !important; flex-wrap: nowrap !important; overflow-x: auto !important; gap: 8px !important; padding: 10px 16px !important; border-right: none !important; border-bottom: 1px solid rgba(242,237,228,0.08) !important; top: 96px !important; }
+        .shape-dash-navlink { flex: 0 0 auto !important; white-space: nowrap !important; padding: 9px 13px !important; }
+        .shape-dash-payout { display: none !important; }
+
         /* Footer */
         .shape-footer { padding: 32px 22px 24px !important; }
         .shape-footer-grid { grid-template-columns: 1fr 1fr !important; gap: 28px !important; padding-top: 28px !important; }

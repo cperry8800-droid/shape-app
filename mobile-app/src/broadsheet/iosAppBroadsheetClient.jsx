@@ -6220,7 +6220,7 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 
         <div style={{ position: 'absolute', inset, borderRadius: '23%', overflow: 'hidden', background: '#0f0c0a', display: 'grid', placeItems: 'center' }}>
           {photo
             ? <img src={photo} alt="" style={{ position: 'absolute', width: '152%', height: '152%', left: '50%', top: '50%', transform: 'translate(-50%,-50%) rotate(-45deg)', objectFit: 'cover' }} />
-            : <span style={{ transform: 'rotate(-45deg)', fontFamily: SERIF, fontWeight: 500, fontSize: size * 0.42, color: INK, lineHeight: 1 }}>{initial}</span>}
+            : <span style={{ transform: 'rotate(-45deg)', fontFamily: SERIF, fontWeight: 500, fontSize: size * 0.42, color: INK, lineHeight: 1 }}>{(initial && String(initial).trim()) || '?'}</span>}
         </div>
       </div>
       {editable ? (
