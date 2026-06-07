@@ -7052,6 +7052,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const loggedIn = !!(window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id);
   const myRoleChip = myRole === 'trainer' ? 'TRAINER' : myRole === 'nutritionist' ? 'NUTRI' : 'CLIENT';
   const CHIP_KEYS = ['COMMUNITY', myRoleChip, 'SHAPE'];
+  // Display labels: per request the Community and Shape chips are swapped in chat
+  // (the activity feed reads "Shape", the members feed reads "Community").
+  const chipLabel = (k) => (k === 'COMMUNITY' ? 'SHAPE' : k === 'SHAPE' ? 'COMMUNITY' : k);
   const SAMPLE = [
     // SHAPE = individual members (the general community)
     { id: 's1', who: 'Emma Rivera', kind: 'SHAPE', init: 'E', hue: '#2e6fa0', time: '1h', body: 'New to Shape this week, coming off a long layoff. Any tips for not going too hard the first couple weeks?', hearts: 22, replies: 15 },
@@ -7640,7 +7643,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               const on = filter === k;
               return (
                 <button key={k} onClick={() => setFilter(k)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '8px 7px', minWidth: 90, boxSizing: 'border-box', borderRadius: 999, border: `1px solid ${on ? ROLE[k].color : hair}`, background: on ? `${ROLE[k].color}1f` : 'transparent', color: cardInk, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                  <span style={{ width: 5, height: 5, borderRadius: 3, background: ROLE[k].color }} />{k}
+                  <span style={{ width: 5, height: 5, borderRadius: 3, background: ROLE[k].color }} />{chipLabel(k)}
                 </button>
               );
             })}
